@@ -34,8 +34,7 @@
             coreMaterial: null,
             raymarchUniforms: null,
             coreLight: null,
-            cssRenderer: null,
-            cssObject: null,
+            // CSS3D removed
             animationId: null,
             controls: null,
             raycaster: null,
@@ -59,6 +58,8 @@
             showDebugLog: false,
             showTasks: false,
             showNewsPanel: false,
+            newsWidgets: [],
+            youtubeWidgets: [],
             isMapFocus: false,
             isMapMode: false,
             isFlightDataActive: false,
@@ -148,6 +149,13 @@
                     if (colorStr.includes(key)) return map[key];
                 }
                 return 0x10b981; // fallback emerald
+            },
+
+            getHexColorStr(colorStr) {
+                if (!colorStr) return '#10b981';
+                if (colorStr.startsWith('#')) return colorStr;
+                let hexNum = this.getColorHex(colorStr);
+                return '#' + hexNum.toString(16).padStart(6, '0');
             },
 
             isOutputActive() {

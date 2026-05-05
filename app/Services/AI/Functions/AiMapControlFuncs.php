@@ -56,7 +56,7 @@ trait AiMapControlFuncs
                     'properties' => [
                         'active' => [
                             'type' => 'boolean',
-                            'description' => 'True um Map-Fokus (Kugel klein) zu aktivieren, False um die Kugel wieder in den Vollbild-Fokus zu holen.'
+                            'description' => 'True um Map-Fokus (Kugel klein) zu aktivieren, False um die Kugel (Die mich widerspiegelt) wieder in den Vollbild-Fokus zu holen.'
                         ]
                     ],
                     'required' => ['active']
@@ -179,7 +179,7 @@ trait AiMapControlFuncs
                             ]
                         ]
                     ];
-                    
+
                     if ($newsEvent) {
                         $frontendEvents[] = $newsEvent;
                     }

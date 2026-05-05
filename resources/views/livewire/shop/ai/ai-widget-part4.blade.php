@@ -90,15 +90,6 @@
                     });
                 }
 
-                if (typeof THREE.CSS2DRenderer === 'undefined') {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js";
-                        script.onload = resolve;
-                        script.onerror = reject;
-                        document.head.appendChild(script);
-                    });
-                }
 
                 startAnimation();
             },
@@ -268,16 +259,7 @@
                 });
 
                 window.funkiMap.on('load', () => {
-                    if (this.isMapFocus) {
-                        if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
-                        const rotateCamera = () => {
-                            if (window.funkiMap && this.isMapFocus) {
-                                window.funkiMap.rotateTo(window.funkiMap.getBearing() + 0.02, { duration: 0 });
-                                window.mapRotateAnimationFrame = requestAnimationFrame(rotateCamera);
-                            }
-                        };
-                        rotateCamera();
-                    }
+                    // Rotations-Schleife entfernt
                 });
 
                 window.funkiMap.on('dragstart', () => {
@@ -299,23 +281,13 @@
                         pitch: pitch,
                         essential: true, // Forces animation even if another one is running
                         bearing: Math.random() * 90 - 45,
-                        speed: 1.2,
-                        curve: 1,
-                        easing: (t) => t
+                        duration: 4500, // Fixed smooth cinematic zoom duration instead of speed
+                        easing: (t) => t * (2 - t) // EaseOutQuad for smooth arrival
                     });
 
-                    // Resume rotation once we arrive
+                    // Resume rotation removed to allow user map control without interruption.
                     window.funkiMap.once('moveend', () => {
-                        if (this.isMapFocus) {
-                            if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
-                            const rotateCamera = () => {
-                                if (window.funkiMap && this.isMapFocus) {
-                                    window.funkiMap.rotateTo(window.funkiMap.getBearing() + 0.02, { duration: 0 });
-                                    window.mapRotateAnimationFrame = requestAnimationFrame(rotateCamera);
-                                }
-                            };
-                            rotateCamera();
-                        }
+                        // done
                     });
 
                     if (window.funkiMarker) window.funkiMarker.remove();
@@ -377,21 +349,27 @@
                 }
             },
 
-            generateMockShipData() {
+            generateCrisisData() {
                 if (!this.isFlightDataActive || !window.funkiMap) return;
-                // Generate random maritime traffic along coastlines/oceans (approximate bounding boxes)
-                const features = [];
-                for (let i = 0; i < 200; i++) {
-                    const lat = (Math.random() * 140) - 70;
-                    const lng = (Math.random() * 360) - 180;
-                    features.push({
-                        type: 'Feature',
-                        geometry: { type: 'Point', coordinates: [lng, lat] },
-                        properties: { type: 'ship' }
-                    });
-                }
-                if (window.funkiMap.getSource('live-ships')) {
-                    window.funkiMap.getSource('live-ships').setData({
+                
+                // Approximate coordinates of current major crisis zones
+                const crises = [
+                    { lng: 37.0, lat: 48.0, name: "Ukraine" },
+                    { lng: 34.5, lat: 31.5, name: "Gaza / Israel" },
+                    { lng: 30.0, lat: 15.0, name: "Sudan" },
+                    { lng: 43.0, lat: 15.0, name: "Yemen" },
+                    { lng: 28.0, lat: -4.0, name: "DR Congo" },
+                    { lng: 96.0, lat: 21.0, name: "Myanmar" }
+                ];
+                
+                const features = crises.map(c => ({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
+                    properties: { name: c.name }
+                }));
+                
+                if (window.funkiMap.getSource('live-crises')) {
+                    window.funkiMap.getSource('live-crises').setData({
                         type: 'FeatureCollection',
                         features: features
                     });

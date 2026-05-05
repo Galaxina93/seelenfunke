@@ -20,19 +20,7 @@
                 t3.camera.aspect = window.innerWidth / window.innerHeight;
                 t3.camera.updateProjectionMatrix();
 
-                const cssContainer = document.getElementById('css2d-container');
-                if (cssContainer) cssContainer.innerHTML = ''; 
-                if (THREE.CSS2DRenderer && cssContainer) {
-                    if (!t3.cssRenderer) {
-                        t3.cssRenderer = new THREE.CSS2DRenderer();
-                        t3.cssRenderer.domElement.style.position = 'absolute';
-                        t3.cssRenderer.domElement.style.top = '0px';
-                        t3.cssRenderer.domElement.style.pointerEvents = 'none';
-                    }
-                    t3.cssRenderer.setSize(window.innerWidth, window.innerHeight);
-                    cssContainer.appendChild(t3.cssRenderer.domElement);
-                }
-
+                // Bind OrbitControls directly to WebGLRenderer
                 t3.controls = new THREE.OrbitControls(t3.camera, t3.renderer.domElement);
                 t3.controls.enableDamping = true;
                 t3.controls.dampingFactor = 0.05;
@@ -115,7 +103,7 @@
                             float melt = sin(p.y * 0.15 - time * 4.0) * cos(p.x * 0.15) * 45.0;
                             d += melt * shutdownProgress;
                         }
-
+                        // Shader eyes removed to prevent double eyes
                         return d;
                     }
 
@@ -131,13 +119,13 @@
 
                         float critical = min(hoverTime / 12.0, 1.0);
 
-                        vec3 currentGlowColor = mix(glowColor, glowColor * 1.5, hoverState * 0.95);
-                        currentGlowColor = mix(currentGlowColor, currentGlowColor * 1.8, isThinking);
+                        vec3 currentGlowColor = mix(glowColor, glowColor * 1.05, hoverState * 0.95);
+                        currentGlowColor = mix(currentGlowColor, currentGlowColor * 1.1, isThinking);
 
                         vec3 criticalColor = vec3(1.0, 0.05, 0.0); 
-                        currentGlowColor = mix(currentGlowColor, criticalColor * 2.0, critical);
+                        currentGlowColor = mix(currentGlowColor, criticalColor * 1.2, critical);
 
-                        vec3 hotCoreColor = currentGlowColor * (2.5 + critical * 2.0 + isThinking); 
+                        vec3 hotCoreColor = currentGlowColor * (1.1 + critical * 0.5 + isThinking * 0.2); 
 
                         for(int i = 0; i < 45; i++) {
                             vec3 p = ro + rd * t;
@@ -147,11 +135,11 @@
                             float density = exp(-proximity * 0.08);
 
                             if (d < 0.0) {
-                                accumulatedColor += hotCoreColor * 0.2;
+                                accumulatedColor += hotCoreColor * 0.1;
                                 accumulatedAlpha += 0.2;
                             } else {
                                 accumulatedColor += currentGlowColor * density * 0.1;
-                                accumulatedColor += hotCoreColor * exp(-proximity * 0.4) * 0.05; 
+                                accumulatedColor += hotCoreColor * exp(-proximity * 0.4) * 0.03; 
                                 accumulatedAlpha += density * 0.02;
                             }
 
@@ -212,92 +200,21 @@
                 t3.hitboxMesh = new THREE.Mesh(hitboxGeo, hitboxMat);
                 t3.scene.add(t3.hitboxMesh);
 
-                t3.hudRings = [];
-                const createSmoothRing = (radius, tube, color, speed, rotX, rotY, dashRatio) => {
-                    const group = new THREE.Group();
-                    const geo = new THREE.TorusGeometry(radius, tube, 32, 100, Math.PI * 2 * dashRatio);
-                    
-                    const solidMat = new THREE.MeshBasicMaterial({
-                        color: color, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false
-                    });
-                    
-                    const solidMesh = new THREE.Mesh(geo, solidMat);
-                    
-                    // Cap spheres for smooth ends
-                    const capGeo = new THREE.SphereGeometry(tube, 32, 32);
-                    const startCap = new THREE.Mesh(capGeo, solidMat);
-                    startCap.position.set(radius, 0, 0); 
-                    
-                    const endAngle = Math.PI * 2 * dashRatio;
-                    const endCap = new THREE.Mesh(capGeo, solidMat);
-                    endCap.position.set(Math.cos(endAngle) * radius, Math.sin(endAngle) * radius, 0);
-                    
-                    group.add(solidMesh);
-                    if (dashRatio < 1.0) {
-                        group.add(startCap);
-                        group.add(endCap);
-                    }
-                    
-                    group.rotation.x = rotX;
-                    group.rotation.y = rotY;
-                    group.userData = { speed: speed, solidMat: solidMat, baseOpacitySolid: 0.15 };
-                    
-                    t3.scene.add(group);
-                    t3.hudRings.push(group);
-                };
+                /* ========================================================= */
+                /* ====== KI-KERN (SPHERE) & ABSTRAKTE VISUALISIERUNG ====== */
+                /* ========================================================= */
+                // Der eigentliche 3D-Kern wird durch raymarchUniforms.hoverState gesteuert.
+                // Animationen der Ringe wurden entfernt, um den Fokus auf das Pulsieren zu legen.
+                t3.hudRings = []; // Beibehalten als leeres Array, um Fehler in part6 zu vermeiden.
 
-                // Initial color is white, will be overridden dynamically in part 6
-                const baseColor = 0xffffff;
+                /* ========================================================= */
+                /* ================== KI-KERN ENDE ========================= */
+                /* ========================================================= */
 
-                createSmoothRing(70, 2, baseColor, 0.008, 0.1, 0, 0.2);
-                createSmoothRing(85, 4, baseColor, 0.006, -0.1, 0.2, 0.15);
-                createSmoothRing(100, 1.5, baseColor, 0.01, 0.3, -0.1, 0.25);
-                createSmoothRing(115, 3, baseColor, 0.005, -0.2, 0.3, 0.1);
-
-                // AI Face (Smooth, Fluid, Capsule-based)
-                t3.faceGroup = new THREE.Group();
-                t3.faceMatSolid = new THREE.MeshBasicMaterial({
-                    color: baseColor, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false
-                });
-
-                // Eyes (Smooth Capsules)
-                t3.leftEye = new THREE.Mesh(new THREE.CapsuleGeometry(3, 15, 16, 32), t3.faceMatSolid);
-                t3.leftEye.rotation.z = Math.PI / 2 + 0.15; // horizontal, angled slightly
-                t3.leftEye.position.set(-15, 15, 62);
-                t3.faceGroup.add(t3.leftEye);
-
-                t3.rightEye = new THREE.Mesh(new THREE.CapsuleGeometry(3, 15, 16, 32), t3.faceMatSolid);
-                t3.rightEye.rotation.z = Math.PI / 2 - 0.15; 
-                t3.rightEye.position.set(15, 15, 62);
-                t3.faceGroup.add(t3.rightEye);
-
-                // Mouth (Smooth Capsule Equalizer)
-                t3.mouthBars = [];
-                const numBars = 25;
-                const mouthRadius = 66;
-                for(let i=0; i<numBars; i++) {
-                    const angle = (i / (numBars - 1)) * Math.PI * 0.6 - Math.PI * 0.3; 
-                    const barGeo = new THREE.CapsuleGeometry(1.5, 2, 16, 16);
-                    
-                    const solid = new THREE.Mesh(barGeo, t3.faceMatSolid);
-                    
-                    const posX = Math.sin(angle) * mouthRadius;
-                    const posY = -18;
-                    const posZ = Math.cos(angle) * mouthRadius;
-                    
-                    solid.position.set(posX, posY, posZ);
-                    // Capsule default is Y up. Positioned in arc, it naturally stands vertically.
-                    
-                    t3.faceGroup.add(solid);
-                    t3.mouthBars.push({ solid: solid, angle: angle });
-                }
-                
-                t3.scene.add(t3.faceGroup);
-
-                if (THREE.CSS2DRenderer && THREE.CSS2DObject) {
+                if (THREE.CSS3DRenderer && THREE.CSS3DObject) {
                     const panelElement = document.getElementById('diagnostic-panel');
                     if (panelElement) {
-                        t3.cssObject = new THREE.CSS2DObject(panelElement);
+                        t3.cssObject = new THREE.CSS3DObject(panelElement);
                         t3.cssObject.scale.set(0.85, 0.85, 0.85); 
                         t3.cssObject.position.set(-9999, 0, 0);
                         t3.scene.add(t3.cssObject);

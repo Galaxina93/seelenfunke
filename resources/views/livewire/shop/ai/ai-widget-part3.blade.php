@@ -179,50 +179,75 @@
                             window.funkiMap.addSource('live-flights', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
                             window.funkiMap.addLayer({
                                 id: 'live-flights-layer',
-                                type: 'circle',
+                                type: 'symbol',
                                 source: 'live-flights',
+                                layout: {
+                                    'icon-image': 'airport-15',
+                                    'icon-size': 1.0,
+                                    'icon-rotate': ['get', 'heading'],
+                                    'icon-allow-overlap': true,
+                                    'icon-ignore-placement': true
+                                },
                                 paint: {
-                                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 3, 10, 5, 15, 8],
-                                    'circle-color': '#00f0ff',
-                                    'circle-opacity': 0.8,
-                                    'circle-stroke-width': 1,
-                                    'circle-stroke-color': '#fff'
+                                    'icon-color': '#ffffff',
+                                    'icon-halo-color': '#333333',
+                                    'icon-halo-width': 1
                                 }
                             });
                             
-                            window.funkiMap.addSource('live-ships', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+                            window.funkiMap.addSource('live-crises', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
                             window.funkiMap.addLayer({
-                                id: 'live-ships-layer',
+                                id: 'live-crises-layer',
                                 type: 'circle',
-                                source: 'live-ships',
+                                source: 'live-crises',
                                 paint: {
-                                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 4, 2, 10, 4, 15, 7],
-                                    'circle-color': '#ff00f0',
-                                    'circle-opacity': 0.8,
-                                    'circle-stroke-width': 1,
-                                    'circle-stroke-color': '#fff'
+                                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 20, 10, 80],
+                                    'circle-color': '#ff3300',
+                                    'circle-opacity': 0.4,
+                                    'circle-blur': 0.8
                                 }
                             });
+                            
+                            // Map Events for Live Data
+                            window.funkiMap.on('click', 'live-flights-layer', (e) => {
+                                const coordinates = e.features[0].geometry.coordinates.slice();
+                                const p = e.features[0].properties;
+                                new mapboxgl.Popup()
+                                    .setLngLat(coordinates)
+                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-emerald-500 uppercase">Flug: ${p.callsign || 'Unbekannt'}</strong><br><span class="text-gray-300">Herkunft: ${p.origin_country || 'Unbekannt'}<br>Höhe: ${Math.round(p.geo_altitude)}m<br>V: ${Math.round(p.velocity * 3.6)} km/h</span></div>`)
+                                    .addTo(window.funkiMap);
+                            });
+                            window.funkiMap.on('mouseenter', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
+                            window.funkiMap.on('mouseleave', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = ''; });
+
+                            window.funkiMap.on('click', 'live-crises-layer', (e) => {
+                                const coordinates = e.features[0].geometry.coordinates.slice();
+                                const p = e.features[0].properties;
+                                new mapboxgl.Popup()
+                                    .setLngLat(coordinates)
+                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-red-500 uppercase">Krisenherd: ${p.name || 'Unbekannt'}</strong><br><span class="text-gray-300">${p.description || 'Keine Details verfügbar'}</span></div>`)
+                                    .addTo(window.funkiMap);
+                            });
+                            window.funkiMap.on('mouseenter', 'live-crises-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
+                            window.funkiMap.on('mouseleave', 'live-crises-layer', () => { window.funkiMap.getCanvas().style.cursor = ''; });
                         }
                         
                         this.fetchLiveFlightData();
                         this.flightDataInterval = setInterval(() => this.fetchLiveFlightData(), 15000);
                         
-                        this.generateMockShipData();
-                        this.shipDataInterval = setInterval(() => this.generateMockShipData(), 5000);
+                        this.generateCrisisData();
                         
                         const openAudio = new Audio('/shop/ai/sounds/ai_click.mp3');
                         openAudio.volume = 0.4;
                         openAudio.play().catch(e=>console.log(e));
                     } else {
                         if (this.flightDataInterval) clearInterval(this.flightDataInterval);
-                        if (this.shipDataInterval) clearInterval(this.shipDataInterval);
                         
                         if (window.funkiMap.getSource('live-flights')) {
                             window.funkiMap.getSource('live-flights').setData({ type: 'FeatureCollection', features: [] });
                         }
-                        if (window.funkiMap.getSource('live-ships')) {
-                            window.funkiMap.getSource('live-ships').setData({ type: 'FeatureCollection', features: [] });
+                        if (window.funkiMap.getSource('live-crises')) {
+                            window.funkiMap.getSource('live-crises').setData({ type: 'FeatureCollection', features: [] });
                         }
                     }
                 });
@@ -233,18 +258,7 @@
                         const openAudio = new Audio('/shop/ai/sounds/map_open.mp3');
                         openAudio.volume = 0.6;
                         openAudio.play().catch(e=>console.log(e));
-                        
-                        // Start slow rotation if mapbox is loaded
-                        if (window.funkiMap) {
-                            if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
-                            const rotateCamera = () => {
-                                if (window.funkiMap && this.isMapFocus) {
-                                    window.funkiMap.rotateTo(window.funkiMap.getBearing() + 0.02, { duration: 0 });
-                                    window.mapRotateAnimationFrame = requestAnimationFrame(rotateCamera);
-                                }
-                            };
-                            rotateCamera();
-                        }
+                        // Rotations-Schleife entfernt, da sie den flyTo-Zoom blockierte.
                     } else {
                         this.isMapMode = false;
                         const closeAudio = new Audio('/shop/ai/sounds/map_close.mp3');
@@ -284,40 +298,63 @@
                 });
 
                 window.addEventListener('ai-show-news', (e) => {
-                    const detail = e.detail.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
+                    const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const articles = detail?.articles || [];
-                    const container = document.getElementById('news-panel-content');
-                    if (!container) return;
                     
-                    container.innerHTML = '';
-                    if (articles.length === 0) {
-                        container.innerHTML = '<p class="text-xs text-gray-500 font-mono">Keine aktuellen Daten empfangen.</p>';
+                    if (articles.length === 0) return;
+                    
+                    if (detail?.append) {
+                        this.newsWidgets = [...this.newsWidgets, ...articles];
                     } else {
-                        articles.forEach(a => {
-                            const imgHtml = a.image ? `<div class="relative overflow-hidden rounded-lg mb-3 group-hover:shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all duration-300"><img src="${a.image}" class="w-full h-28 object-cover opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-500" onerror="this.style.display='none'"><div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div></div>` : '';
-                            const html = `
-                                <div class="relative border border-cyan-500/10 bg-gradient-to-br from-black/60 to-cyan-900/10 p-4 rounded-xl hover:bg-cyan-900/20 hover:border-cyan-400/30 transition-all duration-300 group overflow-hidden">
-                                    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA0MCAwIEwgMCAwIDAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgwLCAyNDAsIDI1NSwgMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
-                                    <div class="relative z-10">
-                                        ${imgHtml}
-                                        <h4 class="text-sm text-cyan-50 font-bold mb-2 leading-tight drop-shadow-md"><a href="${a.url || '#'}" target="_blank" class="hover:text-cyan-300 transition-colors">${a.title}</a></h4>
-                                        <p class="text-[11px] text-gray-400/90 font-mono leading-relaxed line-clamp-3">${a.description || ''}</p>
-                                        <div class="mt-3 flex items-center justify-between text-[9px] text-cyan-500/80 uppercase tracking-widest font-bold">
-                                            <span><span class="text-cyan-300/50 mr-1">SRC:</span>${a.source || 'Intercept'}</span>
-                                            <span class="px-2 py-0.5 rounded-full bg-cyan-900/30 border border-cyan-500/20">${a.date || 'Live'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                            container.insertAdjacentHTML('beforeend', html);
-                        });
+                        // Assign to Alpine state for 2D UI rendering
+                        this.newsWidgets = articles;
                     }
-                    this.showNewsPanel = true;
                 });
 
                 window.addEventListener('hide-news-panel', (e) => {
-                    this.showNewsPanel = false;
+                    this.newsWidgets = [];
                 });
+
+                window.addEventListener('hide-news-widget', (e) => {
+                    const idx = e.detail?.index;
+                    if (idx !== undefined && idx !== null) {
+                        const targetIdx = parseInt(idx) - 1; // 1-based to 0-based
+                        if (targetIdx >= 0 && targetIdx < this.newsWidgets.length) {
+                            this.newsWidgets.splice(targetIdx, 1);
+                        }
+                        return;
+                    }
+
+                    const titleToHide = e.detail?.title?.toLowerCase();
+                    if (!titleToHide) return;
+                    
+                    this.newsWidgets = this.newsWidgets.filter(w => {
+                        const searchStr = (w.title + ' ' + (w.description || '')).toLowerCase();
+                        return !searchStr.includes(titleToHide);
+                    });
+                });
+
+                window.addEventListener('ai-show-youtube', (e) => {
+                    const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
+                    const videos = detail?.articles || [];
+                    
+                    if (videos.length === 0) return;
+                    
+                    // Always append for pool effect
+                    this.youtubeWidgets = [...this.youtubeWidgets, ...videos];
+                });
+
+                window.addEventListener('hide-youtube-widget', (e) => {
+                    const idx = e.detail?.index;
+                    if (idx !== undefined && idx !== null) {
+                        const targetIdx = parseInt(idx) - 1;
+                        if (targetIdx >= 0 && targetIdx < this.youtubeWidgets.length) {
+                            this.youtubeWidgets.splice(targetIdx, 1);
+                        }
+                        return;
+                    }
+                });
+
 
                 window.addEventListener('toggle-livedata', (e) => {
                     const detail = e.detail.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);

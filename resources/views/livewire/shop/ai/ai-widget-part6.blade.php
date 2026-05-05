@@ -69,6 +69,10 @@
                         t3.raymarchUniforms.glowColor.value.copy(t3.currentColor);
                         t3.raymarchUniforms.isThinking.value = t3.currentThinking;
 
+                        // Lila Farbe erzwingen, wenn die KI spricht
+                        const targetColor = new THREE.Color((this.isSpeaking || this.isOutputActive()) ? 0x8A2BE2 : this.getColorHex(this.agentColor));
+                        t3.currentColor.lerp(targetColor, 0.05);
+
                         if(t3.coreLight) t3.coreLight.color.copy(t3.currentColor);
                         
                         // Let the HUD rings inherit the core's color, but slightly dimmed
@@ -81,9 +85,6 @@
                         }
                         if (t3.outerGrid) {
                             t3.outerGrid.material.color.copy(t3.currentColor);
-                        }
-                        if (t3.faceMatSolid) {
-                            t3.faceMatSolid.color.copy(t3.currentColor);
                         }
                     }
 
@@ -112,9 +113,18 @@
                 if (t3.coreMesh) {
                     let speechPulse = 0;
                     if (this.isSpeaking || this.isOutputActive()) {
-                        // Dynamisches Pulsieren, das wie ein Audio-Ausschlag aussieht
-                        speechPulse = (Math.random() * 0.15 + Math.sin(time * 25.0) * 0.1) * 1.2;
+                        // Dezentes, weiches Pulsieren beim Sprechen
+                        speechPulse = (Math.sin(time * 15.0) * 0.03 + Math.sin(time * 5.0) * 0.02);
+                        
+                        if (t3.raymarchUniforms) {
+                            // Leichtes Aufwallen des inneren Shaders
+                            t3.raymarchUniforms.hoverState.value += (1.1 - t3.raymarchUniforms.hoverState.value) * 0.1;
+                        }
+                    } else if (t3.raymarchUniforms) {
+                        // Smoothly beruhigen
+                        t3.raymarchUniforms.hoverState.value += (0.0 - t3.raymarchUniforms.hoverState.value) * 0.1;
                     }
+                    
                     const pulse = 0.75 + Math.sin(time * 3.0) * 0.015 + speechPulse;
                     t3.coreMesh.scale.set(pulse, pulse, pulse);
                 }
@@ -123,17 +133,20 @@
                     t3.hudRings.forEach((ring, index) => {
                         let baseSpeed = ring.userData.speed;
                         let speechPulseOpacity = 0;
+                        let speechScale = 1.0;
                         
                         if (this.isSpeaking || this.isOutputActive()) {
-                            // Ringe drehen sich erratischer/schneller, wenn gesprochen wird
-                            baseSpeed += baseSpeed * (Math.random() * 2.0);
-                            speechPulseOpacity = Math.random() * 0.15;
+                            // Ringe drehen sich rasend schnell und reagieren auf Audio
+                            baseSpeed += baseSpeed * (Math.random() * 5.0 + 3.0);
+                            speechPulseOpacity = Math.random() * 0.4 + Math.sin(time * 20.0 + index) * 0.2;
+                            speechScale = 1.0 + (Math.random() * 0.05); // Leichtes Zittern in der Größe
                         }
                         
                         ring.rotation.z += baseSpeed;
+                        ring.scale.set(speechScale, speechScale, speechScale);
                         
                         if (ring.userData && ring.userData.solidMat) {
-                            // Pulse the opacity slightly
+                            // Starkes Aufblinken beim Sprechen
                             ring.userData.solidMat.opacity = ring.userData.baseOpacitySolid + Math.sin(time * 2.0 + index) * 0.02 + speechPulseOpacity;
                             ring.userData.solidMat.opacity = Math.min(ring.userData.solidMat.opacity * initProg * (1.0 - shutProg), 1.0);
                         }
@@ -146,31 +159,7 @@
                     t3.outerGrid.material.opacity = 0.05 * initProg * (1.0 - shutProg);
                 }
 
-                if (t3.faceGroup && t3.faceMatSolid) {
-                    // Face always looks at the camera
-                    t3.faceGroup.lookAt(t3.camera.position);
-                    
-                    // Fade in/out depending on if speaking
-                    let targetOpacitySolid = (this.isSpeaking || this.isOutputActive()) ? 0.8 : 0.0;
-                    
-                    t3.faceMatSolid.opacity += (targetOpacitySolid - t3.faceMatSolid.opacity) * 0.1;
-                    
-                    // Animate mouth equalizer
-                    if (t3.mouthBars && (this.isSpeaking || this.isOutputActive())) {
-                        t3.mouthBars.forEach((barObj, index) => {
-                            // Fluid spectrum analyzer effect: combine random noise with a sine wave sweeping across
-                            const wave = Math.sin(time * 15.0 + barObj.angle * 10.0);
-                            const noise = Math.random() * 1.5;
-                            const targetScale = 1.0 + Math.max(0, wave * 1.5) + noise;
-                            
-                            barObj.solid.scale.y += (targetScale - barObj.solid.scale.y) * 0.3;
-                        });
-                    } else if (t3.mouthBars) {
-                        t3.mouthBars.forEach(barObj => {
-                            barObj.solid.scale.y += (1.0 - barObj.solid.scale.y) * 0.2;
-                        });
-                    }
-                }
+                // FaceGroup animation completely removed
 
                 let panelsVisible = this.showInfoPanel || this.showChartPanel || this.showErrorPanel;
 
@@ -180,35 +169,7 @@
                     t3.camera.updateProjectionMatrix();
                 }
 
-                if (t3.cssObject) {
-                    if (panelsVisible) {
-                        let dist = t3.camera.position.length();
-                        let vFov = (t3.camera.fov * Math.PI) / 180;
-                        let visibleHeight = 2 * Math.tan(vFov / 2) * dist;
-                        let visibleWidth = visibleHeight * t3.camera.aspect;
-
-                        let percentX = t3.camera.aspect > 1.2 ? -0.28 : -0.15;
-                        let percentY = 0.08; 
-
-                        let offsetX = visibleWidth * percentX;
-                        let offsetY = visibleHeight * percentY;
-
-                        if(!t3.tempRight) t3.tempRight = new THREE.Vector3();
-                        if(!t3.tempUp) t3.tempUp = new THREE.Vector3();
-                        if(!t3.tempTarget) t3.tempTarget = new THREE.Vector3();
-
-                        t3.tempRight.set(1, 0, 0).applyQuaternion(t3.camera.quaternion);
-                        t3.tempUp.set(0, 1, 0).applyQuaternion(t3.camera.quaternion);
-
-                        t3.tempTarget.set(0, 0, 0);
-                        t3.tempTarget.add(t3.tempRight.multiplyScalar(offsetX));
-                        t3.tempTarget.add(t3.tempUp.multiplyScalar(offsetY));
-
-                        t3.cssObject.position.lerp(t3.tempTarget, 0.15);
-                    } else {
-                        t3.cssObject.position.set(-9999, 0, 0);
-                    }
-                }
+                // CSS3DObject und CSS3DRenderer wurden für 2D UI entfernt
 
                 if (!t3.lastActivityTime) t3.lastActivityTime = now;
 
@@ -236,9 +197,7 @@
                     t3.renderer.render(t3.scene, t3.camera);
                 }
 
-                if(t3.cssRenderer && t3.scene && t3.camera) {
-                    t3.cssRenderer.render(t3.scene, t3.camera);
-                }
+                // cssRenderer render loop entfernt
             },
 
             onWindowResize() {
@@ -246,9 +205,7 @@
                 t3.camera.aspect = window.innerWidth / window.innerHeight;
                 t3.camera.updateProjectionMatrix();
                 t3.renderer.setSize(window.innerWidth, window.innerHeight);
-                if(t3.cssRenderer) {
-                    t3.cssRenderer.setSize(window.innerWidth, window.innerHeight);
-                }
+                // cssRenderer resize entfernt
             },
 
             destroyThreeJS() {
@@ -276,14 +233,7 @@
                         }
                     });
 
-                    if (t3.cssObject && t3.cssObject.element) {
-                        t3.cssObject.element.style.display = 'none';
-                        if (t3.cssObject.parent && typeof t3.cssObject.parent.remove === 'function') {
-                            try { t3.cssObject.parent.remove(t3.cssObject); } catch(e) {}
-                        } else {
-                            try { t3.scene.remove(t3.cssObject); } catch(e) {}
-                        }
-                    }
+                    // cssObject cleanup entfernt
                     t3.scene.clear();
                     t3.scene = null;
                 }
@@ -293,9 +243,7 @@
                     t3.renderer = null;
                 }
                 
-                if (t3.cssRenderer) {
-                    t3.cssRenderer = null;
-                }
+                // cssRenderer cleanup entfernt
                 
                 t3.camera = null;
 

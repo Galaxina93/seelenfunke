@@ -126,9 +126,10 @@
              style="display: none; height: 100dvh;"
              class="fixed inset-0 z-[99999] bg-[#03050a] overflow-hidden font-mono">
 
-    <!-- Mapbox GL JS -->
+    <!-- Mapbox GL JS & Anime.js -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
 
     <!-- Mapbox Map Container (Background) -->
     <div id="funki-map-container" class="absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 opacity-100 pointer-events-auto" style="filter: contrast(1.1) brightness(0.9) saturate(1.2);"></div>
@@ -147,42 +148,145 @@
     </div>
 
     <!-- CSS2D Container for HTML elements in 3D -->
-    <div id="css2d-container" class="absolute inset-0 w-full h-full pointer-events-none z-10" style="pointer-events: none;"></div>
+    <div id="css2d-container" class="absolute inset-0 w-full h-full z-10" :class="isMapFocus ? 'pointer-events-none' : 'pointer-events-auto'"></div>
 
     <!-- Canvas Container (3D Hologram) -->
     <div id="funki-canvas-container" class="absolute inset-0 w-full h-full z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="isMapFocus ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden' : (isMapMode ? 'pointer-events-none' : 'pointer-events-auto')"></div>
-    <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]" 
+    <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
          :class="isMapMode ? 'opacity-100 scale-100 pointer-events-auto shadow-[inset_0_0_200px_rgba(0,0,0,0.9)]' : 'opacity-0 scale-110 blur-xl pointer-events-none'"
          :style="isMapMode ? 'filter: brightness(0.6) sepia(0.3) hue-rotate(180deg) saturate(2.0);' : 'filter: brightness(0.5);'"></div>
 
-    <!-- Sci-Fi News Panel (Stunning Hologram) -->
-    <div x-show="showNewsPanel" x-transition:enter="transition ease-out duration-1000 delay-300" x-transition:enter-start="opacity-0 translate-y-12 scale-90" x-transition:enter-end="opacity-100 translate-y-0 scale-100" x-transition:leave="transition ease-in duration-500" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 translate-y-12 scale-90" class="absolute left-6 bottom-6 z-50 w-[420px] max-w-[90vw] pointer-events-auto" style="display: none;">
-        <div class="bg-black/40 border border-cyan-400/40 rounded-2xl p-5 backdrop-blur-3xl shadow-[0_0_50px_rgba(0,240,255,0.2),inset_0_0_20px_rgba(0,240,255,0.1)] relative overflow-hidden group">
-            <!-- Glitch decoration lines -->
-            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-cyan-300 to-transparent opacity-80 shadow-[0_0_10px_rgba(0,240,255,1)]"></div>
-            <div class="absolute bottom-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
-            <div class="absolute -left-1 top-6 w-1 h-16 bg-cyan-400 rounded-full shadow-[0_0_15px_rgba(0,240,255,1)] group-hover:h-24 transition-all duration-500"></div>
-            <div class="absolute -right-1 top-12 w-[2px] h-8 bg-cyan-500/50 rounded-full"></div>
-            
-            <div class="flex justify-between items-center mb-5 border-b border-cyan-500/20 pb-3">
-                <div class="flex items-center gap-3">
-                    <div class="relative flex h-3 w-3">
-                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                      <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500 shadow-[0_0_10px_rgba(239,68,68,1)]"></span>
+    <!-- News UI Panel (2D Overlay) -->
+    <div x-show="newsWidgets && newsWidgets.length > 0" x-transition 
+         class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 z-[60] w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
+        <template x-for="(article, index) in newsWidgets" :key="index">
+            <div class="w-full shrink-0 bg-black/80 rounded-xl p-4 backdrop-blur-xl font-mono text-sm pointer-events-auto relative overflow-hidden opacity-0 origin-left"
+                 :style="{ 'border': '1px solid ' + getHexColorStr(agentColor) + '80', 'box-shadow': '0 0 30px ' + getHexColorStr(agentColor) + '33', 'color': getHexColorStr(agentColor) }"
+                 x-init="
+                    if (typeof anime !== 'undefined') {
+                        anime({
+                            targets: $el,
+                            translateX: [-100, 0],
+                            opacity: [0, 1],
+                            scale: [0.9, 1],
+                            delay: index * 150,
+                            easing: 'easeOutElastic(1, .6)',
+                            duration: 1200
+                        });
+                    } else {
+                        $el.style.opacity = 1;
+                    }
+                 "
+                 @mouseenter="
+                    if(typeof anime !== 'undefined') {
+                        anime({
+                            targets: $el,
+                            scale: 1.02,
+                            boxShadow: `0 0 50px ${getHexColorStr(agentColor)}80`,
+                            duration: 400,
+                            easing: 'easeOutExpo'
+                        });
+                    }
+                 "
+                 @mouseleave="
+                    if(typeof anime !== 'undefined') {
+                        anime({
+                            targets: $el,
+                            scale: 1.0,
+                            boxShadow: `0 0 30px ${getHexColorStr(agentColor)}33`,
+                            duration: 600,
+                            easing: 'easeOutExpo'
+                        });
+                    }
+                 ">
+
+                <!-- Background Grid Pattern -->
+                <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA0MCAwIEwgMCAwIDAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgwLCAyNDAsIDI1NSwgMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
+
+                <!-- Number Badge -->
+                <span class="absolute top-2 left-2 z-20 bg-black/60 text-white font-bold px-1.5 py-0.5 rounded text-[10px] backdrop-blur-md border border-white/10" x-text="'#' + (index + 1)"></span>
+
+                <div class="relative z-10" x-data="{ copySuccess: false }">
+                    <a :href="article.url || '#'" target="_blank" class="block group cursor-pointer">
+                        <img x-show="article.image" :src="article.image" class="w-full h-40 object-cover rounded-md mb-3 border shadow-md transition-transform duration-300 group-hover:scale-[1.02]" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }" />
+
+                        <div x-show="article.video" class="w-full h-40 mb-3 rounded-md overflow-hidden border shadow-md" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
+                            <iframe :src="article.video" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
+                        </div>
+
+                        <h3 class="font-bold mb-2 pr-8 uppercase drop-shadow-md leading-tight group-hover:underline" :style="{ 'color': getHexColorStr(agentColor), 'filter': 'brightness(1.2)' }" x-text="article.title"></h3>
+                    </a>
+                    <p class="line-clamp-4 text-[11px] opacity-80 leading-relaxed mb-3 text-white" x-text="article.description"></p>
+                    <div class="flex justify-between items-center border-t pt-3" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
+                        <span class="text-[9px] uppercase font-bold tracking-widest opacity-80" x-text="article.source || 'LIVE FEED'"></span>
+                        <div class="flex gap-2">
+                            <!-- Copy Link Button -->
+                            <button x-show="article.url" @click="navigator.clipboard.writeText(article.url); copySuccess = true; setTimeout(() => copySuccess = false, 2000)" 
+                                    class="p-2 bg-black/50 hover:bg-white/10 rounded border transition-colors cursor-pointer relative" 
+                                    :style="{ 'border-color': getHexColorStr(agentColor) + '80', 'color': getHexColorStr(agentColor) }" title="Link kopieren">
+                                <svg x-show="!copySuccess" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                <svg x-show="copySuccess" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display:none;">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                            <a :href="article.url || '#'" target="_blank" class="px-4 py-2 bg-black/50 hover:bg-white/10 rounded border transition-colors uppercase font-bold cursor-pointer min-w-16 text-center" :style="{ 'border-color': getHexColorStr(agentColor) + '80', 'color': getHexColorStr(agentColor) }">Öffnen</a>
+                        </div>
                     </div>
-                    <h3 class="text-cyan-300 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-shadow-[0_0_10px_rgba(0,240,255,0.5)]">
-                        Global Intercept
-                    </h3>
                 </div>
-                <button @click="showNewsPanel = false" class="text-cyan-500/60 hover:text-cyan-300 transition-colors bg-cyan-900/20 rounded-full p-1 border border-cyan-500/20 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(0,240,255,0.3)]">
+                <button @click="newsWidgets.splice(index, 1)" class="absolute top-2 right-2 z-20 p-2 bg-black/50 rounded-full border backdrop-blur-md transition-colors hover:bg-white/10 cursor-pointer" :style="{ 'border-color': getHexColorStr(agentColor) + '4D', 'color': getHexColorStr(agentColor) }">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
             </div>
-            
-            <div id="news-panel-content" class="flex flex-col gap-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-                <!-- News items will be injected here -->
+        </template>
+    </div>
+
+    <!-- YouTube Video Pool (2D Overlay) -->
+    <div x-show="youtubeWidgets && youtubeWidgets.length > 0" x-transition
+         class="absolute right-4 sm:right-32 top-24 bottom-20 z-[50] w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end" style="display: none;" x-cloak>
+        <template x-for="(vid, index) in youtubeWidgets" :key="vid.id || index">
+            <div class="w-full shrink-0 relative overflow-hidden opacity-0 group pointer-events-auto origin-right"
+                 x-init="
+                    if (typeof anime !== 'undefined') {
+                        anime({
+                            targets: $el,
+                            translateX: [100, 0],
+                            opacity: [0, 1],
+                            scale: [0.8, 1],
+                            delay: index * 100,
+                            easing: 'easeOutElastic(1, .6)',
+                            duration: 1500
+                        });
+                    } else {
+                        $el.style.opacity = 1;
+                    }
+                 "
+                 style="-webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 80%); padding: 1.5rem;">
+                
+                <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/5 transition-transform duration-700 group-hover:scale-105">
+                    <iframe :src="vid.video" class="w-full h-full pointer-events-auto" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                    
+                    <!-- Hover Controls Overlay -->
+                    <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-between p-4 backdrop-blur-sm pointer-events-none">
+                        
+                        <div class="flex justify-between items-start w-full">
+                            <h3 class="font-bold text-white text-sm drop-shadow-md leading-tight line-clamp-2 pr-8" x-text="vid.title"></h3>
+                            <!-- Close Button -->
+                            <button @click="youtubeWidgets.splice(index, 1)" class="pointer-events-auto p-2 bg-black/50 hover:bg-red-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        <div class="flex justify-end items-center gap-2 pointer-events-auto">
+                            <a :href="vid.url || '#'" target="_blank" class="px-4 py-1.5 bg-black/50 hover:bg-white/20 text-white rounded border border-white/30 transition-colors uppercase font-bold text-xs cursor-pointer tracking-wider">
+                                Öffnen
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+        </template>
     </div>
 
     <!-- UI Overlay Navigation -->
@@ -228,10 +332,6 @@
 
     <!-- Widget Task List (Live Log) -->
     @include('livewire.shop.ai.blocks.widget-tasks')
-
-    <!-- Widget Files & Plans (Removed, now managed centrally in workspace) -->
-
-
 
     <!-- Bottom Right Controls (Audio & Close) -->
     <div class="absolute right-6 z-50 flex flex-col items-end gap-3 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
@@ -304,6 +404,6 @@
     <div id="diagnostic-panel"></div>
 
     <!-- Generative UI Master Modal extracted to layout -->
-
+        </div>
     </template>
 </div>
