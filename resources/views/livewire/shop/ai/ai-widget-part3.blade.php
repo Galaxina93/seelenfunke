@@ -399,7 +399,7 @@
 
             startSafeRecognition(delay = 1000) {
                 if (delay === 0) {
-                    if (this.recognition && !t3.isShuttingDown) {
+                    if (this.recognition && !t3.isShuttingDown && (this.listening || this.isLiveMode)) {
                         if (this.isRecognizing) return;
                         try { 
                             this.recognition.start(); 
@@ -408,7 +408,7 @@
                     return;
                 }
                 setTimeout(() => {
-                    if (this.recognition && !t3.isShuttingDown) {
+                    if (this.recognition && !t3.isShuttingDown && (this.listening || this.isLiveMode)) {
                         if (this.isRecognizing) return; // Prevent InvalidStateError entirely
                         try { 
                             this.recognition.start(); 
@@ -417,7 +417,7 @@
                             if (e.name !== 'InvalidStateError') {
                                 console.error('Orb Voice SDK failed to start:', e);
                                 setTimeout(() => { 
-                                    if(!this.isRecognizing) {
+                                    if(!this.isRecognizing && (this.listening || this.isLiveMode)) {
                                         try { this.recognition.start(); } catch(e2) {} 
                                     }
                                 }, 1500);

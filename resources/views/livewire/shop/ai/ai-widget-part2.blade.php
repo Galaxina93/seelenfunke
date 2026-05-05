@@ -132,13 +132,13 @@
 
             handleAgentSwitch(agentId) {
                 setTimeout(() => {
-                    if (!this.isSpeaking) {
+                    if (!this.isSpeaking && !this.thinking) {
                         this.$wire.set('agentId', agentId);
                         return;
                     }
 
                     const checkInterval = setInterval(() => {
-                        if (!this.isSpeaking) {
+                        if (!this.isSpeaking && !this.thinking) {
                             clearInterval(checkInterval);
                             this.$wire.set('agentId', agentId);
                         }
