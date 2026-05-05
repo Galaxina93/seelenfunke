@@ -243,7 +243,7 @@
     </div>
 
     <!-- YouTube Video Pool (2D Overlay) -->
-    <div x-show="youtubeWidgets && youtubeWidgets.length > 0" x-transition
+    <div x-show="youtubeWidgets && youtubeWidgets.length" x-transition
          class="absolute right-4 sm:right-32 top-24 bottom-20 z-[50] w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end" style="display: none;" x-cloak>
         <template x-for="(vid, index) in youtubeWidgets" :key="vid.id || index">
             <div class="w-full shrink-0 relative overflow-hidden opacity-0 group pointer-events-auto origin-right"
