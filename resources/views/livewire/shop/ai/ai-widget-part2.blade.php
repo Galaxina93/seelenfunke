@@ -48,7 +48,7 @@
             heartbeatAudio: null,
         };
 
-        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialAgentName = 'System') => ({
+        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialAgentName = 'System', initialAllowInterruption = true) => ({
             activeAgentName: initialAgentName,
             // State
             agentColor: initialAgentColor,
@@ -58,6 +58,7 @@
             showDebugLog: false,
             showTasks: false,
             showNewsPanel: false,
+            allowVoiceInterruption: initialAllowInterruption,
             newsWidgets: [],
             youtubeWidgets: [],
             isMapFocus: false,
@@ -263,7 +264,11 @@
             },
 
             startPushToTalk() {
-                if (this.thinking || this.isOutputActive()) return;
+                if (this.thinking) return;
+
+                if (this.isOutputActive()) {
+                    this.stopSpeech();
+                }
 
                 if (window.funkiAudioPlayer) window.funkiAudioPlayer.pause();
                 if (this.synthesis) this.synthesis.cancel();
@@ -932,6 +937,9 @@
                         
                         // We only send audio when the mic is not explicitly muted
                         if (this.isMuted) return;
+
+                        // Prevent AI from hearing itself and interrupting (echo cancellation workaround)
+                        if (this.isOutputActive() && !this.allowVoiceInterruption) return;
 
                         const inputData = e.inputBuffer.getChannelData(0);
                         const pcmData = new Int16Array(inputData.length);

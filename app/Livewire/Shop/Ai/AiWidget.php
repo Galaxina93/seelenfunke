@@ -122,6 +122,7 @@ class AiWidget extends Component
             $this->widgetConfig->update([
                 'volume' => $data['volume'] ?? $this->widgetConfig->volume,
                 'ai_agent_id' => isset($data['agentId']) ? (empty($data['agentId']) ? null : $data['agentId']) : $this->widgetConfig->ai_agent_id,
+                'allow_voice_interruption' => isset($data['allowVoiceInterruption']) ? $data['allowVoiceInterruption'] : $this->widgetConfig->allow_voice_interruption,
             ]);
         }
     }

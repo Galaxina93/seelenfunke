@@ -1,4 +1,4 @@
-<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}')"
+<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}', {{ ($widgetConfig && isset($widgetConfig->allow_voice_interruption)) ? ($widgetConfig->allow_voice_interruption ? 'true' : 'false') : 'null' }})"
      wire:ignore
      @open-funkira.window="openFunkiView()"
      @close-funkira.window="closeFunkiView()"
@@ -11,8 +11,9 @@
      @map-fly-to.window="console.log('map-fly-to', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.flyToLocation === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.flyToLocation(p.lng, p.lat, p.zoom, p.pitch, p.markerText); }"
      @toggle-livedata.window="console.log('toggle-livedata', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isFlightDataActive = (d && (d.active === true || d.active === 'true' || d.active === 1));"
      @ai-show-news.window="console.log('ai-show-news via alpine', $event.detail); showNewsPanel = true; /* The panel injection is still handled by window.addEventListener in part3 since it touches innerHTML */"
+     @toggle-voice-interruption.window="allowVoiceInterruption = !allowVoiceInterruption; $wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId, allowVoiceInterruption: allowVoiceInterruption });"
      @keyup.escape.window="closeFunkiView()"
-     @change="$wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId })">
+     @change="$wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId, allowVoiceInterruption: allowVoiceInterruption })">
 
 <style>
     .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }

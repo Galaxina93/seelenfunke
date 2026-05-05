@@ -151,6 +151,15 @@
             },
 
             init() {
+                if (this.allowVoiceInterruption === null) {
+                    this.allowVoiceInterruption = !this.isMobile;
+                }
+
+                // Force it to false on mobile as requested
+                if (this.isMobile) {
+                    this.allowVoiceInterruption = false;
+                }
+
                 if (localStorage.getItem('funki_isOpen') === 'true') {
                     setTimeout(() => {
                         this.openFunkiView(true);
@@ -481,7 +490,7 @@
                         const textToLower = transcript.toLowerCase();
 
                         const stopWords = ['stop', 'stopp', 'halt', 'ruhe', 'aufhören', 'pause', 'schweig', 'psst', 'leise'];
-                        if (this.isOutputActive()) {
+                        if (this.isOutputActive() && this.allowVoiceInterruption) {
                             if (stopWords.some(w => textToLower === w || textToLower.startsWith(w) || textToLower.endsWith(w))) {
                                 console.log('Interrupted by user:', transcript);
                                 this.stopSpeech();

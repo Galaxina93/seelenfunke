@@ -16,12 +16,14 @@ class AiWidgetConfig extends Model
         'volume',
         'continuous_mode',
         'require_wake_word',
+        'allow_voice_interruption',
     ];
 
     protected $casts = [
         'volume' => 'integer',
         'continuous_mode' => 'boolean',
         'require_wake_word' => 'boolean',
+        'allow_voice_interruption' => 'boolean',
     ];
 
     public function user()

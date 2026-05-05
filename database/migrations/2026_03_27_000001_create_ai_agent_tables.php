@@ -288,6 +288,7 @@ return new class extends Migration
                 $table->integer('volume')->default(15);
                 $table->boolean('continuous_mode')->default(false);
                 $table->boolean('require_wake_word')->default(false);
+                $table->boolean('allow_voice_interruption')->default(true);
                 $table->timestamps();
             });
         }
