@@ -157,7 +157,7 @@
          :style="isMapMode ? 'filter: brightness(0.6) sepia(0.3) hue-rotate(180deg) saturate(2.0);' : 'filter: brightness(0.5);'"></div>
 
     <!-- News UI Panel (2D Overlay) -->
-    <div x-show="newsWidgets && newsWidgets.length > 0" x-transition 
+    <div x-show="newsWidgets && newsWidgets.length" x-transition 
          class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 z-[60] w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
         <template x-for="(article, index) in newsWidgets" :key="index">
             <div class="w-full shrink-0 bg-black/80 rounded-xl p-4 backdrop-blur-xl font-mono text-sm pointer-events-auto relative overflow-hidden opacity-0 origin-left"
@@ -221,7 +221,7 @@
                         <span class="text-[9px] uppercase font-bold tracking-widest opacity-80" x-text="article.source || 'LIVE FEED'"></span>
                         <div class="flex gap-2">
                             <!-- Copy Link Button -->
-                            <button x-show="article.url" @click="navigator.clipboard.writeText(article.url); copySuccess = true; setTimeout(() => copySuccess = false, 2000)" 
+                            <button x-show="article.url" @click="navigator.clipboard.writeText(article.url); copySuccess = true; setTimeout(function(){copySuccess = false}, 2000)" 
                                     class="p-2 bg-black/50 hover:bg-white/10 rounded border transition-colors cursor-pointer relative" 
                                     :style="{ 'border-color': getHexColorStr(agentColor) + '80', 'color': getHexColorStr(agentColor) }" title="Link kopieren">
                                 <svg x-show="!copySuccess" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -318,8 +318,8 @@
                             <span x-show="log.role === 'ai'" class="text-cyan-500 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 mt-0.5"><path fill-rule="evenodd" d="M11 2a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V3a1 1 0 00-1-1h-4zm-7 1a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4a1 1 0 00-1-1h-4v4H4V5h4a1 1 0 001-1V3a2 2 0 00-2-2H4z" clip-rule="evenodd" /></svg></span>
                             <span x-show="log.role === 'tool'" class="text-purple-500 shrink-0"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 mt-0.5"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z" clip-rule="evenodd" /></svg></span>
                             <div class="flex flex-col w-full">
-                                <span class="leading-relaxed" x-text="expandedLog ? log.message.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '') : log.message.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '').substring(0, 150) + (log.message.length > 150 ? '...' : '')"></span>
-                                <button x-show="log.message.length > 150" @click="expandedLog = !expandedLog" class="text-[8px] uppercase font-bold text-emerald-400 mt-1 hover:text-white self-start bg-emerald-900/30 px-1.5 py-0.5 rounded transition-colors">
+                                <span class="leading-relaxed" x-text="expandedLog ? stripSpeak(log.message) : stripSpeak(log.message).substring(0, 150) + (stripSpeak(log.message).length != stripSpeak(log.message).substring(0,150).length ? '...' : '')"></span>
+                                <button x-show="log.message.length != log.message.substring(0,150).length" @click="expandedLog = !expandedLog" class="text-[8px] uppercase font-bold text-emerald-400 mt-1 hover:text-white self-start bg-emerald-900/30 px-1.5 py-0.5 rounded transition-colors">
                                     <span x-text="expandedLog ? 'Weniger anzeigen' : 'Mehr lesen'"></span>
                                 </button>
                             </div>

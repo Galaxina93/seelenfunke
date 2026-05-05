@@ -110,6 +110,11 @@
             liveWs: null,
             audioContext: null,
 
+            stripSpeak(msg) {
+                if (!msg) return '';
+                return msg.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '');
+            },
+
             updateAgentConfig(color, name, wakeWord, agentId) {
                 this.agentColor = color || 'emerald-500';
                 if (name) this.activeAgentName = name;
