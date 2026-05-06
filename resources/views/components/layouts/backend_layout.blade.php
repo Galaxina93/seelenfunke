@@ -286,7 +286,6 @@
     @if($guard !== 'customer')
         @persist('ai-widget-container')
             <livewire:shop.ai.ai-widget />
-            <livewire:shop.ai.ai-data-visualization />
         @endpersist
     @endif
 

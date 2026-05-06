@@ -244,7 +244,7 @@ trait AiSupportFuncs
             $severity = (int)($args['severity'] ?? 3);
             if ($severity < 1) $severity = 1;
             if ($severity > 10) $severity = 10;
-            
+
             $tag = $args['tag'] ?? 'OTHER';
 
             // Sichere die Severity & Tag direkt auf der ZULETZT verfassten Kunden-Nachricht
@@ -263,7 +263,7 @@ trait AiSupportFuncs
             $cacheKey = "chat_severity_{$chatId}";
             $currentScore = \Illuminate\Support\Facades\Cache::get($cacheKey, 0);
             $newScore = $currentScore + $severity;
-            
+
             \Illuminate\Support\Facades\Cache::put($cacheKey, $newScore, now()->addHour());
 
             if ($newScore >= 10) {
@@ -341,12 +341,12 @@ trait AiSupportFuncs
             if (!$order) {
                 return ['status' => 'not_found', 'data' => null];
             }
-            
+
             $currentCustomerId = auth()->guard('customer')->id();
             if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich in das korrekte Konto einzuloggen.'];
             }
-            
+
             return ['status' => 'success', 'data' => [
                 'order_number' => $order->order_number,
                 'created_at' => $order->created_at->format('Y-m-d H:i:s'),
@@ -390,7 +390,7 @@ trait AiSupportFuncs
         try {
             $term = trim($args['search_term'] ?? '');
             $query = \App\Models\Product\Product::where('status', 'active');
-            
+
             if (empty($term) || strtolower($term) === 'all' || strtolower($term) === 'aktuelle produkte') {
                 $products = $query->take(15)->get();
             } else {
@@ -399,7 +399,7 @@ trait AiSupportFuncs
                     $q->where('name', 'LIKE', $qTerm)
                       ->orWhere('sku', 'LIKE', $qTerm);
                 })->take(5)->get();
-                
+
                 if ($dbProducts->isEmpty()) {
                     // Fallback: Fuzzy search in PHP um Leerzeichen, Bindestriche etc. zu ignorieren (z.B. "Seelenkristall" findet "Seelen Kristall")
                     $cleanTerm = str_replace([' ', '-'], '', strtolower($term));
@@ -423,7 +423,7 @@ trait AiSupportFuncs
                     \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
                     $url = url('/produkt/' . $p->slug);
                 }
-                
+
                 // Wir übergeben dem AI-Agenten nur die relevantesten Daten, OHNE interne Einkaufsdaten/3D-Settings.
                 $pData[] = [
                     'name' => $p->name,
@@ -507,7 +507,7 @@ trait AiSupportFuncs
                 SupportCustomerChat::where('id', $chatId)->update(['status' => 'resolved']);
                 return [
                     'status' => 'success',
-                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Wunderbar! Ich schließe diesen Chat-Bereich nun ab. Es wäre mir eine riesige Freude, wenn du mir unten über das Sternchen-Menü eine ehrliche Bewertung für unsere Unterhaltung da lässt!"'
+                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Wunderbar! Ich schließe diesen Chat-Bereich nun ab. Es wäre mir eine riesige Freude, wenn du mir eine ehrliche Bewertung für unsere Unterhaltung da lässt!"'
                 ];
             }
             return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Chat konnte nicht identifiziert werden.'];
@@ -640,8 +640,8 @@ trait AiSupportFuncs
             if (!$stats || !$stats->is_active) {
                 return ['status' => 'success', 'data' => null];
             }
-            
-            $nextLevelThreshold = ($stats->level * 1000); 
+
+            $nextLevelThreshold = ($stats->level * 1000);
             $missing = max(0, $nextLevelThreshold - $stats->funken_balance);
 
             return ['status' => 'success', 'data' => [
@@ -811,7 +811,7 @@ trait AiSupportFuncs
             if (!empty($personalizedItems)) {
                 $pList = implode(", ", $personalizedItems);
                 return [
-                    'status' => 'success', 
+                    'status' => 'success',
                     'message' => "HINTERGRUND-INFO FÜR KI: $dateInfo ACHTUNG: Die Bestellung enthält PERSONALISIERTE Artikel ($pList). Nenne dem Kunden freundlich, dass personalisierte Artikel per Gesetz streng vom Widerrufsrecht ausgeschlossen sind. (Ein Umtausch wegen Nicht-Gefallens ist NICHT möglich. Falls defekt: Biete Reklamation an)."
                 ];
             }
@@ -925,7 +925,7 @@ trait AiSupportFuncs
                 }
 
                 $beforeData = ['shipping_address' => $order->shipping_address];
-                
+
                 $log = \App\Models\System\SystemLog::start(
                     'ai_order_modify',
                     "KI hat Adresse von Order {$order->order_number} geändert",

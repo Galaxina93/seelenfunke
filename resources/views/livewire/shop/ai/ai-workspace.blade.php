@@ -29,8 +29,6 @@
 
             @if($activeWorkspaceView === 'knowledge-base')
                 @include('livewire.shop.ai.partials-ai-workspace.view-knowledge-base')
-            @elseif($activeWorkspaceView === 'gen-ui')
-                @include('livewire.shop.ai.partials-ai-workspace.view-gen-ui')
             @elseif($activeWorkspaceView === 'settings')
                 @include('livewire.shop.ai.partials-ai-workspace.view-settings')
             @else

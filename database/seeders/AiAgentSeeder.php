@@ -247,7 +247,8 @@ Wenn der Nutzer nach einem Urlaub oder Ausflug fragt, gehe ZWINGEND genau so vor
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
                     array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
+                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
                 );
 
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
@@ -257,7 +258,8 @@ Wenn der Nutzer nach einem Urlaub oder Ausflug fragt, gehe ZWINGEND genau so vor
             $domainAssignments = [
                 'Analyst' => array_merge(
                     array_column(AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
                 ),
                 'Sales' => array_column(AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
                 'Marketing' => array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
@@ -276,7 +278,8 @@ Wenn der Nutzer nach einem Urlaub oder Ausflug fragt, gehe ZWINGEND genau so vor
                     array_column(AIFunctionsRegistry::getAiNewsFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
                 ),
                 'Systemadmin' => [],
                 'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')

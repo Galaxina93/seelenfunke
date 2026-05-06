@@ -41,30 +41,6 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeCallContact']
             ],
             [
-                'name' => 'system_visualize_data',
-                'description' => 'Zeigt strukturierte JSON-Daten visuell als Master Modal Dashboard für den User an. IMMER ausführen, wenn der User nach einer grafischen Übersicht, Tabelle, Liste oder Grafik fragt. Stichworte: Visualisiere mir, Zeig mir das als Liste, Tabelle einblenden, Übersicht anzeigen.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'category' => [
-                            'type' => 'string',
-                            'description' => 'Grobe Kategorie der Daten in Kleinschreibung (z.B. "voucher", "customer", "task", "code", "finance", "system_health").'
-                        ],
-                        'data' => [
-                            'type' => 'array',
-                            'description' => 'Die nativen rohen JSON-Daten als Array. Das Backend kümmert sich um das Design. WENN du Quellcode/Code (Kategorie "code") visualisierst, packe ein Objekt mit "language" (z.B. php, js), "file_name" (falls bekannt) und "code_string" in das Array, oder lege einfach die reinen Informationen in ein formatierbares Objekt.',
-                            'items' => [
-                                'type' => 'object',
-                                'additionalProperties' => true
-                            ]
-                        ]
-                    ],
-                    'required' => ['category', 'data']
-                ],
-                'callable' => [self::class, 'executeVisualizeData']
-            ],
-
-            [
                 'name' => 'system_close_ui',
                 'description' => 'Schließt alle aktuell in der 3D-Ansicht geöffneten schwebenden Popups, Diagramme und Fenster. Stichworte: Fenster zu, UI schließen, Tabellen ausblenden, Mach das weg, Schließe alles.',
                 'parameters' => [
@@ -699,30 +675,6 @@ trait AiSystemFuncs
             \Illuminate\Support\Facades\Log::error('System Backup Error: ' . $e->getMessage());
             return ['status' => 'error', 'message' => 'Fehler beim Erstellen des Backups: ' . $e->getMessage()];
         }
-    }
-
-    public static function executeVisualizeData(array $args)
-    {
-        $category = strtolower($args['category'] ?? 'general');
-
-        // Safety Fallbacks & Aliases
-        if ($category === 'coupon' || $category === 'gutschein' || $category === 'coupons') {
-            $category = 'voucher';
-        }
-
-        $data = $args['data'] ?? [];
-
-        return [
-            'status' => 'success',
-            'message' => "Habe ein UI Master Modal für die Kategorie '{$category}' geöffnet.",
-            '_frontend_event' => [
-                'name' => 'open-ai-visualization',
-                'detail' => [
-                    'category' => $category,
-                    'data' => $data
-                ]
-            ],
-        ];
     }
 
 

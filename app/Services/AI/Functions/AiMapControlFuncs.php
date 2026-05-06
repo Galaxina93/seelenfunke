@@ -13,6 +13,15 @@ trait AiMapControlFuncs
     {
         return [
             [
+                'name' => 'map_clear_markers',
+                'description' => 'Entfernt alle aktuellen Markierungen, Pins oder Routen von der interaktiven Karte.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass()
+                ],
+                'callable' => [self::class, 'executeMapClearMarkers']
+            ],
+            [
                 'name' => 'map_generate_pdf_summary',
                 'description' => 'Generiert aus den recherchierten oder gefundenen Kartendaten (Orte, Koordinaten, Sehenswürdigkeiten) ein übersichtliches PDF. Du kannst das PDF dem Nutzer entweder zum Download anbieten ODER es direkt als E-Mail Anhang an ihn senden. Nutze diese Funktion zwingend, wenn der Nutzer eine Zusammenfassung von Orten oder Map-Daten als PDF per E-Mail haben möchte.',
                 'parameters' => [
@@ -47,13 +56,13 @@ trait AiMapControlFuncs
             ],
             [
                 'name' => 'map_search_and_fly',
-                'description' => 'Sucht nach Geodaten für einen Ort oder eine Sehenswürdigkeit (z.B. "Gifhorn", "Eiffelturm Paris") und bewegt die Mapbox-Karte im Frontend automatisch dorthin. Nutze dies IMMER, wenn der Nutzer nach einem Ort fragt oder du über Stationen im Urlaubsplan sprichst, um dem Nutzer die Orte live zu zeigen!',
+                'description' => 'Sucht nach Geodaten für einen EINZELNEN Ort, eine Stadt, ein Land oder eine bestimmte Sehenswürdigkeit (z.B. "Gifhorn", "Deutschland", "Eiffelturm Paris") und bewegt die Mapbox-Karte im Frontend automatisch dorthin. Nutze dies für einzelne konkrete Orte. ACHTUNG: Wenn der Nutzer nach Kategorien oder Geschäften (z.B. "Bäckereien in Gifhorn", "Tankstellen") sucht, nutze stattdessen ZWINGEND "map_search_and_mark_places"!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'query' => [
                             'type' => 'string',
-                            'description' => 'Der Suchbegriff (Stadt, Land oder genaue Sehenswürdigkeit).'
+                            'description' => 'Der Suchbegriff (Stadt, Land oder genaue Sehenswürdigkeit). WICHTIG: Da die Adresse per Spracheingabe transkribiert wird (z.B. "Karl-Gürtler-Ring" statt "Carl-Goerdeler-Ring"), prüfe den Ort VOR der Suche auf logische Schreibweise und korrigiere ihn falls nötig!'
                         ],
                         'zoom' => [
                             'type' => 'integer',
@@ -67,6 +76,70 @@ trait AiMapControlFuncs
                     'required' => ['query']
                 ],
                 'callable' => [self::class, 'executeMapSearchAndFly']
+            ],
+            [
+                'name' => 'map_search_and_mark_places',
+                'description' => 'Sucht nach lokalen Orten, Geschäften oder POIs (Points of Interest, z.B. "Bäckereien in Gifhorn", "Krankenhäuser in Berlin") und markiert ALLE gefundenen Treffer auf der Mapbox-Karte im Frontend. Nutze dies IMMER, wenn der Nutzer nach einer Kategorie von Orten in einer bestimmten Stadt sucht.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'query' => [
+                            'type' => 'string',
+                            'description' => 'Der Suchbegriff (z.B. "Bäckerei Gifhorn", "Tankstelle München"). WICHTIG: Da die Adresse per Spracheingabe transkribiert wird (z.B. "Leifert" als "Leifahrt"), prüfe den Ort VOR der Suche auf logische Schreibweise und korrigiere ihn falls nötig!'
+                        ],
+                        'limit' => [
+                            'type' => 'integer',
+                            'description' => 'Anzahl der gewünschten Treffer (Maximal 10).',
+                            'default' => 5
+                        ]
+                    ],
+                    'required' => ['query']
+                ],
+                'callable' => [self::class, 'executeMapSearchAndMarkPlaces']
+            ],
+            [
+                'name' => 'map_generate_places_pdf_and_mail',
+                'description' => 'Generiert ein PDF mit detaillierten Informationen zu recherchierten Orten (z.B. nach einer Map-Suche) und sendet es optional per E-Mail. Nutze dieses Tool ZWINGEND, wenn der Nutzer nach einer detaillierten Liste mit Kontaktdaten, Telefonnummern oder Webseiten fragt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Titel des PDFs (z.B. "Autohäuser in Gifhorn").'
+                        ],
+                        'description' => [
+                            'type' => 'string',
+                            'description' => 'Ein kurzer Einleitungstext für das PDF.'
+                        ],
+                        'places' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'name' => ['type' => 'string'],
+                                    'address' => ['type' => 'string'],
+                                    'phone' => ['type' => 'string', 'description' => 'Telefonnummer (falls recherchiert)'],
+                                    'email' => ['type' => 'string', 'description' => 'E-Mail-Adresse (falls recherchiert)'],
+                                    'website' => ['type' => 'string', 'description' => 'Webseite (falls recherchiert)'],
+                                    'description' => ['type' => 'string', 'description' => 'Zusätzliche Details, Öffnungszeiten oder Bemerkungen']
+                                ],
+                                'required' => ['name', 'address']
+                            ],
+                            'description' => 'Liste der detaillierten Orte. Recherchiere bei Bedarf Telefonnummern und Webseiten mit web_search, bevor du dieses PDF generierst!'
+                        ],
+                        'target_action' => [
+                            'type' => 'string',
+                            'description' => 'Was soll mit dem PDF passieren? "download" oder "email".',
+                            'enum' => ['download', 'email']
+                        ],
+                        'recipient_email' => [
+                            'type' => 'string',
+                            'description' => 'E-Mail-Adresse, falls "email" gewählt. Sonst leer (null).'
+                        ]
+                    ],
+                    'required' => ['title', 'places', 'target_action']
+                ],
+                'callable' => [self::class, 'executeMapGeneratePlacesPdf']
             ],
             [
                 'name' => 'map_toggle_livedata',
@@ -115,7 +188,7 @@ trait AiMapControlFuncs
             ],
             [
                 'name' => 'ui_close_youtube',
-                'description' => 'Schließt eines oder alle aktuell angezeigten YouTube-Videos auf dem Bildschirm. Nutze dies, wenn der Nutzer dich bittet, das Video wegzumachen oder zu schließen.',
+                'description' => 'Schließt eines oder alle aktuell angezeigten YouTube-Videos KOMPLETT. WICHTIG: Wenn der Nutzer nur bittet "mach das Video klein" oder "schließe den Vollbildmodus", nutze stattdessen ZWINGEND ui_close_focus! Nutze dieses Tool nur, wenn das Video wirklich beendet und entfernt werden soll.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -126,6 +199,68 @@ trait AiMapControlFuncs
                     ]
                 ],
                 'callable' => [self::class, 'executeUiCloseYoutube']
+            ],
+            [
+                'name' => 'ui_focus_widget',
+                'description' => 'Vergrößert ein aktuell sichtbares Widget (z.B. YouTube Video oder News) und holt es auf den "Hauptschirm" (Vollbild/Zentrum). Nutze dies, wenn der Nutzer bittet, ein Video groß zu machen oder auf dem Hauptschirm anzuzeigen.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'type' => [
+                            'type' => 'string',
+                            'description' => 'Der Typ des Widgets ("youtube" oder "news")',
+                            'enum' => ['youtube', 'news']
+                        ],
+                        'index' => [
+                            'type' => 'integer',
+                            'description' => 'Die Nummer des Widgets (0, 1, 2...). 0 ist das erste.'
+                        ]
+                    ],
+                    'required' => ['type', 'index']
+                ],
+                'callable' => [self::class, 'executeUiFocusWidget']
+            ],
+            [
+                'name' => 'ui_close_focus',
+                'description' => 'Macht ein vergrößertes Video oder Widget wieder klein. Schließt den "Hauptschirm" und bringt alle Widgets zurück in ihre normale Ansicht.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass()
+                ],
+                'callable' => [self::class, 'executeUiCloseFocus']
+            ],
+            [
+                'name' => 'ui_toggle_youtube_mute',
+                'description' => 'Schaltet den Ton eines YouTube-Videos an oder aus (Mute/Unmute).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'index' => [
+                            'type' => 'integer',
+                            'description' => 'Optional: Die Nummer des Videos (0, 1, 2...), das stummgeschaltet werden soll. Wenn leer, wird das fokussierte Video oder alle stummgeschaltet.'
+                        ],
+                        'mute' => [
+                            'type' => 'boolean',
+                            'description' => 'True um stummzuschalten (Mute), False um Ton wieder zu aktivieren (Unmute).'
+                        ]
+                    ],
+                    'required' => ['mute']
+                ],
+                'callable' => [self::class, 'executeUiToggleYoutubeMute']
+            ],
+            [
+                'name' => 'ui_summarize_youtube',
+                'description' => 'Weist das Frontend an, das aktuell fokussierte YouTube-Video (oder ein bestimmtes) zu analysieren und eine Transkription/Zusammenfassung durch die KI vorzubereiten. Das Frontend sendet dann ein Event zurück.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'index' => [
+                            'type' => 'integer',
+                            'description' => 'Optional: Die Nummer des Videos, das zusammengefasst werden soll.'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeUiSummarizeYoutube']
             ]
         ];
     }
@@ -194,7 +329,8 @@ trait AiMapControlFuncs
     {
         $query = $args['query'] ?? '';
         if (empty($query)) {
-            return ['status' => 'error', 'message' => 'Query is required.'];
+            $received = json_encode($args);
+            return ['status' => 'error', 'message' => "Du hast den zwingenden Parameter 'query' vergessen! (Erhalten: {$received}). Bitte rufe die Funktion 'map_search_and_fly' SOFORT noch einmal auf und übergebe den Suchbegriff als 'query'!"];
         }
 
         $token = env('MAPBOX_TOKEN');
@@ -316,6 +452,134 @@ trait AiMapControlFuncs
         }
     }
 
+    public static function executeMapSearchAndMarkPlaces(array $args)
+    {
+        $query = $args['query'] ?? '';
+        $limit = $args['limit'] ?? 5;
+        if ($limit > 10) $limit = 10;
+        
+        if (empty($query)) {
+            $received = json_encode($args);
+            return ['status' => 'error', 'message' => "Du hast den zwingenden Parameter 'query' vergessen! (Erhalten: {$received}). Bitte rufe die Funktion 'map_search_and_mark_places' SOFORT noch einmal auf und übergebe den Suchbegriff als 'query'!"];
+        }
+
+        try {
+            $url = "https://nominatim.openstreetmap.org/search";
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Seelenfunke/1.0 (AI Agent)'
+            ])->get($url, [
+                'q' => $query,
+                'format' => 'json',
+                'addressdetails' => 1,
+                'limit' => $limit
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (!empty($data) && count($data) > 0) {
+                    
+                    $markers = [];
+                    foreach ($data as $feature) {
+                        $name = $feature['name'] ?: ($feature['address']['shop'] ?? $feature['address']['building'] ?? $feature['address']['commercial'] ?? $feature['display_name']);
+                        
+                        $markers[] = [
+                            'lng' => (float)$feature['lon'],
+                            'lat' => (float)$feature['lat'],
+                            'title' => $name,
+                            'location_name' => $feature['display_name']
+                        ];
+                    }
+
+                    $count = count($markers);
+                    
+                    $frontendEvents = [
+                        [
+                            'name' => 'map-mark-places',
+                            'detail' => [
+                                'query' => $query,
+                                'markers' => $markers
+                            ]
+                        ]
+                    ];
+
+                    return [
+                        'status' => 'success',
+                        'message' => "Habe {$count} präzise Orte für '{$query}' gefunden und auf der Map markiert. Nutze das Tool 'map_generate_places_pdf_and_mail', falls der Nutzer eine PDF-Liste angefordert hat.",
+                        'places' => $markers,
+                        '_frontend_events' => $frontendEvents
+                    ];
+                }
+            }
+
+            return [
+                'status' => 'error',
+                'message' => 'Keine lokalen Ergebnisse für diese Suche gefunden. Probiere es mit einer anderen Formulierung.'
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Nominatim Geocoding Error: " . $e->getMessage());
+            return ['status' => 'error', 'message' => 'API Error: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeMapGeneratePlacesPdf(array $args)
+    {
+        $title = $args['title'] ?? 'Ortsliste';
+        $description = $args['description'] ?? '';
+        $places = $args['places'] ?? [];
+        $action = $args['target_action'] ?? 'download';
+        $recipient = $args['recipient_email'] ?? null;
+        $agentName = session('current_ai_agent_name', 'Globi');
+
+        try {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.places_list', [
+                'title' => $title,
+                'description' => $description,
+                'places' => $places
+            ]);
+
+            $dir = storage_path('app/public/places');
+            if (!file_exists($dir)) {
+                mkdir($dir, 0755, true);
+            }
+
+            $filename = 'ortsliste_' . \Illuminate\Support\Str::slug($title) . '_' . time() . '.pdf';
+            $filePath = $dir . '/' . $filename;
+            $pdf->save($filePath);
+
+            $downloadUrl = url('storage/places/' . $filename);
+
+            if ($action === 'email') {
+                if (empty($recipient)) {
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
+                    "Ihre Ortsliste: $title",
+                    $description,
+                    $agentName,
+                    [$filePath]
+                ));
+
+                return [
+                    'status' => 'success',
+                    'message' => "Die PDF-Liste wurde erfolgreich generiert und per E-Mail an $recipient versendet!",
+                    'file_name' => $filename,
+                ];
+            } else {
+                return [
+                    'status' => 'success',
+                    'message' => 'Die PDF-Liste wurde erfolgreich generiert!',
+                    'pdf_url' => $downloadUrl,
+                    'file_name' => $filename,
+                    'note' => 'Das Dokument wurde generiert und kann vom Nutzer heruntergeladen werden.'
+                ];
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("PDF Generation Error (Places): " . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler beim Erstellen des PDFs: ' . $e->getMessage()];
+        }
+    }
+
     public static function executeMapToggleLivedata(array $args)
     {
         $active = $args['active'] ?? true;
@@ -364,6 +628,82 @@ trait AiMapControlFuncs
             '_frontend_event' => [
                 'name' => 'hide-youtube-widget',
                 'detail' => ['index' => $index]
+            ]
+        ];
+    }
+
+    public static function executeMapClearMarkers(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => 'Die Karte wurde bereinigt. Alle Markierungen wurden entfernt.',
+            '_frontend_event' => [
+                'name' => 'map-clear-markers',
+                'detail' => []
+            ]
+        ];
+    }
+
+    public static function executeUiFocusWidget(array $args)
+    {
+        $type = $args['type'] ?? 'youtube';
+        $index = $args['index'] ?? 0;
+        return [
+            'status' => 'success',
+            'message' => 'Das Widget wurde auf den Hauptschirm maximiert.',
+            '_frontend_event' => [
+                'name' => 'ui-focus-widget',
+                'detail' => [
+                    'type' => $type,
+                    'index' => (int)$index
+                ]
+            ]
+        ];
+    }
+
+    public static function executeUiCloseFocus(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => 'Der Hauptschirm wurde geschlossen, alle Widgets sind wieder im normalen Layout.',
+            '_frontend_event' => [
+                'name' => 'ui-clear-focus',
+                'detail' => []
+            ]
+        ];
+    }
+
+    public static function executeUiToggleYoutubeMute(array $args)
+    {
+        $index = $args['index'] ?? null;
+        $mute = $args['mute'] ?? true;
+        
+        return [
+            'status' => 'success',
+            'message' => 'YouTube Video ' . ($mute ? 'stummgeschaltet' : 'Ton aktiviert') . '.',
+            '_frontend_event' => [
+                'name' => 'ai-toggle-youtube-mute',
+                'detail' => [
+                    'index' => $index,
+                    'mute' => $mute
+                ]
+            ]
+        ];
+    }
+
+    public static function executeUiSummarizeYoutube(array $args)
+    {
+        $index = $args['index'] ?? null;
+        
+        // This prompts the frontend to fetch the transcript or URL and then ask the AI to summarize it.
+        return [
+            'status' => 'success',
+            'message' => 'Video-Zusammenfassung angefordert. Bitte warte auf die Transkription des Frontends.',
+            '_frontend_event' => [
+                'name' => 'ai-summarize-youtube',
+                'detail' => [
+                    'index' => $index
+                ]
             ]
         ];
     }

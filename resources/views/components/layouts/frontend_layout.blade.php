@@ -84,8 +84,6 @@
 {{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
 {{-- FunkiChat removed as per request --}}
 
-@livewire('shop.ai.ai-data-visualization')
-
 @livewireScripts
 </body>
 </html>

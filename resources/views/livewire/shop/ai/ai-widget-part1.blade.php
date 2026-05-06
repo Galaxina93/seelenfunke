@@ -10,7 +10,15 @@
      @toggle-mapfocus.window="console.log('toggle-mapfocus', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isMapFocus = (d && (d.active === true || d.active === 'true' || d.active === 1)); if(isMapFocus) { isMapMode = true; }"
      @map-fly-to.window="console.log('map-fly-to', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.flyToLocation === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.flyToLocation(p.lng, p.lat, p.zoom, p.pitch, p.markerText); }"
      @toggle-livedata.window="console.log('toggle-livedata', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isFlightDataActive = (d && (d.active === true || d.active === 'true' || d.active === 1));"
+     @map-mark-news-events.window="console.log('map-mark-news-events', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.markNewsEvents === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.markNewsEvents(p.markers); }"
+     @map-mark-places.window="console.log('map-mark-places', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.markPlaces === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.markPlaces(p.markers); }"
+     @map-clear-markers.window="console.log('map-clear-markers'); if(typeof window.clearMarkers === 'function') { window.clearMarkers(); }"
+     @ui-focus-widget.window="setMainScreenWidget($event.detail.type, $event.detail.index)"
+     @ui-clear-focus.window="clearMainScreenWidget()"
      @ai-show-news.window="console.log('ai-show-news via alpine', $event.detail); showNewsPanel = true; /* The panel injection is still handled by window.addEventListener in part3 since it touches innerHTML */"
+     @ai-show-persona.window="console.log('ai-show-persona', $event.detail); personaWidgets.unshift($event.detail.payload || $event.detail); showFunkiView = true; setMainScreenWidget('persona', 0);"
+     @ai-toggle-youtube-mute.window="let d = $event.detail; let mute = (d && (d.mute === true || d.mute === 'true' || d.mute === 1)); youtubeWidgets = youtubeWidgets.map(w => { let url = new URL(w.video); url.searchParams.set('mute', mute ? '1' : '0'); w.video = url.toString(); return w; });"
+     @ai-summarize-youtube.window="let d = $event.detail; let idx = (d && typeof d.index !== 'undefined' && d.index !== null) ? d.index : ((mainScreenWidget && mainScreenWidget.type === 'youtube') ? mainScreenWidget.index : 0); let vid = youtubeWidgets[idx]; if(vid) { let targetUrl = vid.url || vid.video; $wire.set('input', 'Fasse bitte dieses Video zusammen und erstelle ein News-Widget mit den wichtigsten Punkten: ' + targetUrl); $wire.sendMessage(); } else { console.warn('Kein Video gefunden für Zusammenfassung'); }"
      @toggle-voice-interruption.window="allowVoiceInterruption = !allowVoiceInterruption; $wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId, allowVoiceInterruption: allowVoiceInterruption });"
      @keyup.escape.window="closeFunkiView()"
      @change="$wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId, allowVoiceInterruption: allowVoiceInterruption })">
@@ -151,6 +159,11 @@
     <!-- CSS2D Container for HTML elements in 3D -->
     <div id="css2d-container" class="absolute inset-0 w-full h-full z-10" :class="isMapFocus ? 'pointer-events-none' : 'pointer-events-auto'"></div>
 
+    <!-- Main Screen Focus Backdrop -->
+    <div x-show="mainScreenWidget" x-transition.opacity 
+         class="fixed inset-0 bg-black/80 z-[9998] pointer-events-auto backdrop-blur-sm" 
+         @click="clearMainScreenWidget()" style="display: none;"></div>
+
     <!-- Canvas Container (3D Hologram) -->
     <div id="funki-canvas-container" class="absolute inset-0 w-full h-full z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="isMapFocus ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden' : (isMapMode ? 'pointer-events-none' : 'pointer-events-auto')"></div>
     <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
@@ -159,9 +172,15 @@
 
     <!-- News UI Panel (2D Overlay) -->
     <div x-show="newsWidgets && newsWidgets.length" x-transition 
-         class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 z-[60] w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
+         class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar" 
+         :class="(mainScreenWidget && mainScreenWidget.type === 'news') ? 'z-[9999]' : 'z-[60]'" style="display: none;" x-cloak>
         <template x-for="(article, index) in newsWidgets" :key="index">
-            <div class="w-full shrink-0 bg-black/80 rounded-xl p-4 backdrop-blur-xl font-mono text-sm pointer-events-auto relative overflow-hidden opacity-0 origin-left"
+            <div :class="{
+                    'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] md:w-[70vw] max-w-[1000px] h-auto max-h-[90vh] z-[9999] shadow-[0_0_80px_rgba(16,185,129,0.3)] flex flex-col': mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index,
+                    'w-full shrink-0 relative': !(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index),
+                    '!opacity-20 !blur-md pointer-events-none': mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index !== index
+                 }"
+                 class="bg-black/80 rounded-xl p-4 backdrop-blur-xl font-mono text-sm pointer-events-auto overflow-hidden origin-left transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
                  :style="{ 'border': '1px solid ' + getHexColorStr(agentColor) + '80', 'box-shadow': '0 0 30px ' + getHexColorStr(agentColor) + '33', 'color': getHexColorStr(agentColor) }"
                  x-init="
                     if (typeof anime !== 'undefined') {
@@ -207,18 +226,23 @@
                 <!-- Number Badge -->
                 <span class="absolute top-2 left-2 z-20 bg-black/60 text-white font-bold px-1.5 py-0.5 rounded text-[10px] backdrop-blur-md border border-white/10" x-text="'#' + (index + 1)"></span>
 
-                <div class="relative z-10" x-data="{ copySuccess: false }">
-                    <a :href="article.url || '#'" target="_blank" class="block group cursor-pointer">
-                        <img x-show="article.image" :src="article.image" class="w-full h-40 object-cover rounded-md mb-3 border shadow-md transition-transform duration-300 group-hover:scale-[1.02]" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }" />
+                <div class="relative z-10 flex flex-col h-full" x-data="{ copySuccess: false }">
+                    <a :href="article.url || '#'" target="_blank" class="block group cursor-pointer shrink-0">
+                        <img x-show="article.image" :src="article.image" 
+                             :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'h-[40vh] max-h-[500px]' : 'h-40'"
+                             class="w-full object-cover rounded-md mb-3 border shadow-md transition-all duration-700 group-hover:scale-[1.02]" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }" />
 
-                        <div x-show="article.video" class="w-full h-40 mb-3 rounded-md overflow-hidden border shadow-md" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
+                        <div x-show="article.video" 
+                             :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'h-[40vh] max-h-[500px]' : 'h-40'"
+                             class="w-full mb-3 rounded-md overflow-hidden border shadow-md transition-all duration-700" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
                             <iframe :src="article.video" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
                         </div>
 
                         <h3 class="font-bold mb-2 pr-8 uppercase drop-shadow-md leading-tight group-hover:underline" :style="{ 'color': getHexColorStr(agentColor), 'filter': 'brightness(1.2)' }" x-text="article.title"></h3>
                     </a>
-                    <p class="line-clamp-4 text-[11px] opacity-80 leading-relaxed mb-3 text-white" x-text="article.description"></p>
-                    <div class="flex justify-between items-center border-t pt-3" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
+                    <p :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'text-sm md:text-lg overflow-y-auto custom-scrollbar flex-1' : 'line-clamp-4 text-[11px]'" 
+                       class="opacity-80 leading-relaxed mb-3 text-white transition-all duration-700" x-text="article.description"></p>
+                    <div class="flex justify-between items-center border-t pt-3 shrink-0" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
                         <span class="text-[9px] uppercase font-bold tracking-widest opacity-80" x-text="article.source || 'LIVE FEED'"></span>
                         <div class="flex gap-2">
                             <!-- Copy Link Button -->
@@ -235,19 +259,29 @@
                             <a :href="article.url || '#'" target="_blank" class="px-4 py-2 bg-black/50 hover:bg-white/10 rounded border transition-colors uppercase font-bold cursor-pointer min-w-16 text-center" :style="{ 'border-color': getHexColorStr(agentColor) + '80', 'color': getHexColorStr(agentColor) }">Öffnen</a>
                         </div>
                     </div>
+                <div class="absolute top-2 right-2 z-20 flex gap-2">
+                    <button @click="mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index ? clearMainScreenWidget() : setMainScreenWidget('news', index)" class="p-2 bg-black/50 rounded-full border backdrop-blur-md transition-colors hover:bg-white/10 cursor-pointer" :style="{ 'border-color': getHexColorStr(agentColor) + '4D', 'color': getHexColorStr(agentColor) }" title="Hauptschirm An/Aus">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    </button>
+                    <button @click="newsWidgets.splice(index, 1)" class="p-2 bg-black/50 rounded-full border backdrop-blur-md transition-colors hover:bg-white/10 cursor-pointer" :style="{ 'border-color': getHexColorStr(agentColor) + '4D', 'color': getHexColorStr(agentColor) }">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                 </div>
-                <button @click="newsWidgets.splice(index, 1)" class="absolute top-2 right-2 z-20 p-2 bg-black/50 rounded-full border backdrop-blur-md transition-colors hover:bg-white/10 cursor-pointer" :style="{ 'border-color': getHexColorStr(agentColor) + '4D', 'color': getHexColorStr(agentColor) }">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
             </div>
         </template>
     </div>
 
     <!-- YouTube Video Pool (2D Overlay) -->
     <div x-show="youtubeWidgets && youtubeWidgets.length" x-transition
-         class="absolute right-4 sm:right-32 top-24 bottom-20 z-[50] w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end" style="display: none;" x-cloak>
+         class="absolute right-4 sm:right-32 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end" 
+         :class="(mainScreenWidget && mainScreenWidget.type === 'youtube') ? 'z-[9999]' : 'z-[50]'" style="display: none;" x-cloak>
         <template x-for="(vid, index) in youtubeWidgets" :key="vid.id || index">
-            <div class="w-full shrink-0 relative overflow-hidden opacity-0 group pointer-events-auto origin-right"
+            <div :class="{
+                    'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] md:w-[80vw] h-[80vh] max-h-[800px] rounded-2xl z-[10000]': mainScreenWidget && mainScreenWidget.type === 'youtube' && mainScreenWidget.index === index,
+                    'w-full shrink-0 relative': !(mainScreenWidget && mainScreenWidget.type === 'youtube' && mainScreenWidget.index === index),
+                    '!opacity-20 !blur-md pointer-events-none': mainScreenWidget && mainScreenWidget.type === 'youtube' && mainScreenWidget.index !== index
+                 }"
+                 class="overflow-hidden group pointer-events-auto origin-right transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]"
                  x-init="
                     if (typeof anime !== 'undefined') {
                         anime({
@@ -263,7 +297,7 @@
                         $el.style.opacity = 1;
                     }
                  "
-                 style="-webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 80%); padding: 1.5rem;">
+                 :style="(mainScreenWidget && mainScreenWidget.type === 'youtube' && mainScreenWidget.index === index) ? 'padding: 0; background: #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1);' : '-webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 80%); padding: 1.5rem;'">
                 
                 <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/5 transition-transform duration-700 group-hover:scale-105">
                     <iframe :src="vid.video" class="w-full h-full pointer-events-auto" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -273,16 +307,186 @@
                         
                         <div class="flex justify-between items-start w-full">
                             <h3 class="font-bold text-white text-sm drop-shadow-md leading-tight line-clamp-2 pr-8" x-text="vid.title"></h3>
-                            <!-- Close Button -->
-                            <button @click="youtubeWidgets.splice(index, 1)" class="pointer-events-auto p-2 bg-black/50 hover:bg-red-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            <!-- Focus & Close Buttons -->
+                            <div class="flex gap-2 shrink-0">
+                                <button @click="mainScreenWidget && mainScreenWidget.type === 'youtube' && mainScreenWidget.index === index ? clearMainScreenWidget() : setMainScreenWidget('youtube', index)" class="pointer-events-auto p-2 bg-black/50 hover:bg-emerald-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Hauptschirm">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                                </button>
+                                <button @click="youtubeWidgets.splice(index, 1)" class="pointer-events-auto p-2 bg-black/50 hover:bg-red-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Schließen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
                         </div>
 
                         <div class="flex justify-end items-center gap-2 pointer-events-auto">
                             <a :href="vid.url || '#'" target="_blank" class="px-4 py-1.5 bg-black/50 hover:bg-white/20 text-white rounded border border-white/30 transition-colors uppercase font-bold text-xs cursor-pointer tracking-wider">
                                 Öffnen
                             </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Persona Pool (2D Overlay) -->
+    <div x-show="personaWidgets && personaWidgets.length" x-transition
+         class="absolute left-1/2 -translate-x-1/2 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[800px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-center" 
+         :class="(mainScreenWidget && mainScreenWidget.type === 'persona') ? 'z-[9999]' : 'z-[50]'" style="display: none;" x-cloak>
+        <template x-for="(persona, index) in personaWidgets" :key="index">
+            <div :class="{
+                    'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] md:w-[80vw] h-[80vh] max-h-[800px] z-[10000]': mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index,
+                    'w-full shrink-0 relative': !(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index),
+                    '!opacity-20 !blur-md pointer-events-none': mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index !== index
+                 }"
+                 class="overflow-hidden group pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] bg-gray-950/90 backdrop-blur-3xl border border-red-900/50 rounded-3xl shadow-[0_0_40px_rgba(220,38,38,0.15)] relative"
+                 x-init="
+                    if (typeof anime !== 'undefined') {
+                        anime({
+                            targets: $el,
+                            translateY: [-100, 0],
+                            opacity: [0, 1],
+                            scale: [0.8, 1],
+                            delay: index * 100,
+                            easing: 'easeOutElastic(1, .6)',
+                            duration: 1500
+                        });
+                    } else {
+                        $el.style.opacity = 1;
+                    }
+                 "
+                 :style="(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index) ? 'box-shadow: 0 0 50px rgba(220,38,38,0.5); border: 1px solid rgba(220,38,38,0.8);' : ''">
+                 
+                 <div class="absolute top-4 right-4 z-50 flex gap-2">
+                    <button @click="mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index ? clearMainScreenWidget() : setMainScreenWidget('persona', index)" class="p-2 bg-black/50 hover:bg-emerald-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Hauptschirm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                    </button>
+                    <button @click="personaWidgets.splice(index, 1)" class="p-2 bg-black/50 hover:bg-red-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Schließen">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+
+                <div class="p-6 h-full overflow-y-auto custom-scrollbar relative">
+                    <div class="absolute inset-0 bg-[linear-gradient(rgba(220,38,38,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(220,38,38,0.05)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none"></div>
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 border border-red-500/10 rounded-full animate-[spin_10s_linear_infinite] pointer-events-none"></div>
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] border border-red-500/5 rounded-full animate-[spin_15s_linear_infinite_reverse] pointer-events-none"></div>
+                    
+                    <div class="relative z-10 flex flex-col gap-6">
+                        
+                        <!-- Top Secret Header -->
+                        <div class="flex items-center justify-between border-b border-red-900/50 pb-4 pr-24">
+                            <div class="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 16 16"><path d="M5.338 1.59a61 61 0 0 0-2.837.856.48.48 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.7 10.7 0 0 0 2.287 2.233c.346.244.652.42.893.533q.18.085.293.118a1 1 0 0 0 .216.058l.004.001.002.001h.002l.002-.001.004-.001a1 1 0 0 0 .216-.058q.114-.033.293-.118c.24-.113.547-.29.893-.533a10.7 10.7 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.8 11.8 0 0 1-2.517 2.453 7 7 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7 7 0 0 1-1.048-.625 11.8 11.8 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 63 63 0 0 1 5.072.56z"/><path d="M9.5 6.5a1.5 1.5 0 0 1-1 1.415l.385 1.99a.5.5 0 0 1-.491.595h-.788a.5.5 0 0 1-.49-.595l.384-1.99a1.5 1.5 0 1 1 2-1.415"/></svg>
+                                <div>
+                                    <div class="text-red-500 text-[10px] uppercase tracking-[0.3em] font-bold font-mono">Top Secret // Eyes Only</div>
+                                    <div class="text-gray-400 text-xs font-mono" x-text="'Profil-Akte: ' + (persona.name ? btoa(persona.name).substring(0,8) : 'XXX') + '-2025'"></div>
+                                </div>
+                            </div>
+                            <div class="px-3 py-1 bg-red-950/50 border border-red-800 text-red-400 text-[10px] font-mono tracking-widest uppercase rounded hidden sm:block">
+                                Classified
+                            </div>
+                        </div>
+
+                        <!-- Profile Overview -->
+                        <div class="flex flex-col md:flex-row gap-6">
+                            <!-- Image / Photo -->
+                            <div class="w-full md:w-1/3 shrink-0 relative">
+                                <div class="aspect-[3/4] w-full rounded-xl bg-gray-900 border-2 border-gray-800 relative overflow-hidden flex items-center justify-center">
+                                    <template x-if="persona.image_url">
+                                        <div>
+                                            <img :src="persona.image_url" :alt="persona.name" class="w-full h-full object-cover filter contrast-125 saturate-50 sepia-[.2]">
+                                            <div class="absolute inset-0 bg-red-500 mix-blend-overlay opacity-20 pointer-events-none"></div>
+                                            <div class="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.3)_2px,rgba(0,0,0,0.3)_4px)] pointer-events-none"></div>
+                                        </div>
+                                    </template>
+                                    <template x-if="!persona.image_url">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-gray-700" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
+                                        </svg>
+                                    </template>
+                                    <div class="absolute top-2 right-2 flex gap-1">
+                                        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                                        <div class="text-[8px] font-mono text-red-500 tracking-widest">LIVE</div>
+                                    </div>
+                                </div>
+                                <!-- Status Bar under image -->
+                                <div class="mt-3 bg-gray-900 p-2 rounded border border-gray-800 flex items-center justify-between font-mono text-[10px]">
+                                    <span class="text-gray-500">STATUS:</span>
+                                    <span :class="(persona.status && persona.status.toLowerCase() == 'verstorben') ? 'text-gray-400' : 'text-emerald-400'" class="font-bold uppercase tracking-wider" x-text="persona.status || 'Unknown'"></span>
+                                </div>
+                            </div>
+
+                            <!-- Bio Data -->
+                            <div class="w-full md:w-2/3 flex flex-col gap-4">
+                                <div>
+                                    <h2 class="text-3xl font-bold text-white tracking-tight uppercase" x-text="persona.name || 'Unbekannt'"></h2>
+                                    <template x-if="persona.aliases">
+                                        <div class="text-red-400 font-mono text-xs tracking-widest uppercase mt-1" x-text="'AKA: ' + persona.aliases"></div>
+                                    </template>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3 mt-2">
+                                    <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-800/50">
+                                        <div class="text-[9px] uppercase tracking-widest font-bold text-gray-500 font-mono">Herkunft</div>
+                                        <div class="text-sm text-gray-300 font-medium" x-text="persona.origin || 'Classified'"></div>
+                                    </div>
+                                    <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-800/50">
+                                        <div class="text-[9px] uppercase tracking-widest font-bold text-gray-500 font-mono">Geburtsdatum</div>
+                                        <div class="text-sm text-gray-300 font-medium" x-text="persona.birth_date || 'REDACTED'"></div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-black/40 p-4 rounded-xl border border-gray-800 mt-2 relative">
+                                    <div class="absolute -top-2 left-4 px-2 bg-gray-950 text-[9px] uppercase tracking-widest font-bold text-red-500 font-mono">Zusammenfassung</div>
+                                    <p class="text-sm text-gray-300 leading-relaxed font-sans" x-text="persona.summary || 'Keine Geheimdienst-Informationen verfügbar.'"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Section: Career & Associates -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 border-t border-gray-800/50 pt-6">
+                            <!-- Timeline -->
+                            <div>
+                                <div class="text-[10px] uppercase tracking-widest font-bold text-gray-500 font-mono mb-4 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M8.515 1.019A7 7 0 0 0 8 1V0a8 8 0 0 1 .589.022zm2.004.45a7 7 0 0 0-.985-.299l.219-.976q.576.129 1.126.342zm1.37.71a7 7 0 0 0-.439-.27l.493-.87a8 8 0 0 1 .979.654l-.615.789a7 7 0 0 0-.418-.302zm1.834 1.79a7 7 0 0 0-.653-.796l.724-.69q.406.429.747.91zm.744 1.352a7 7 0 0 0-.214-.468l.893-.45a8 8 0 0 1 .45 1.088l-.95.313a7 7 0 0 0-.179-.483zm.53 2.507a7 7 0 0 0-.1-1.025l.985-.17q.1.58.116 1.17zm-.131 1.538q.05-.254.081-.51l.993.123a8 8 0 0 1-.23 1.155l-.964-.267q.069-.247.12-.501m-.952 2.379q.276-.436.486-.908l.914.405q-.24.54-.555 1.038zm-.964 1.205q.183-.183.35-.378l.758.653a8 8 0 0 1-.401.432zM8 15a7 7 0 0 0 4.545-1.677l.745.666A8 8 0 0 1 8 16zm-4.545-1.677A7 7 0 0 0 8 15v1a8 8 0 0 1-5.29-2.011zm-1.778-2.343A7 7 0 0 0 3.455 15l-.666.745A8 8 0 0 1 1 10.98zm-1.282-3.8A7 7 0 0 0 1 10.98l-1 0a8 8 0 0 1 .45-4.148zm1.02-3.084A7 7 0 0 0 1 7.18l-1 0a8 8 0 0 1 1.72-4.59l.755.656zm2.253-1.666A7 7 0 0 0 3.655 2.1l-.666-.745A8 8 0 0 1 5.92 0zM8 1a7 7 0 0 0-2.08.318l-.297-.954A8 8 0 0 1 8 0zM8 3.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 .146.354l3 3a.5.5 0 0 0 .708-.708L8.5 7.793V4a.5.5 0 0 0-.5-.5"/></svg>
+                                    Career Timeline
+                                </div>
+                                <template x-if="persona.career_timeline && persona.career_timeline.length > 0">
+                                    <div class="relative border-l border-gray-800 ml-2 space-y-4">
+                                        <template x-for="ct in persona.career_timeline">
+                                            <div class="relative pl-4">
+                                                <div class="absolute -left-[5px] top-1.5 w-2 h-2 rounded-full bg-red-900 border border-red-500 shadow-[0_0_8px_rgba(220,38,38,0.8)]"></div>
+                                                <div class="text-[10px] font-mono text-red-400" x-text="ct.year || ''"></div>
+                                                <div class="text-xs text-gray-300" x-text="ct.event || ''"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!persona.career_timeline || persona.career_timeline.length === 0">
+                                    <div class="text-xs text-gray-600 italic font-mono">No timeline data available.</div>
+                                </template>
+                            </div>
+
+                            <!-- Associates -->
+                            <div>
+                                <div class="text-[10px] uppercase tracking-widest font-bold text-gray-500 font-mono mb-4 flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M6 3.5A1.5 1.5 0 0 1 7.5 2h1A1.5 1.5 0 0 1 10 3.5v1A1.5 1.5 0 0 1 8.5 6v1H14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0V8h-5v.5a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 2 7h5.5V6A1.5 1.5 0 0 1 6 4.5zM8.5 5a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5zM0 11.5A1.5 1.5 0 0 1 1.5 10h1A1.5 1.5 0 0 1 4 11.5v1A1.5 1.5 0 0 1 2.5 14h-1A1.5 1.5 0 0 1 0 12.5zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm6.5 0A1.5 1.5 0 0 1 9.5 10h1a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 10.5 14h-1A1.5 1.5 0 0 1 8 12.5zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm6.5 0a1.5 1.5 0 0 1 1.5-1.5h1a1.5 1.5 0 0 1 1.5 1.5v1a1.5 1.5 0 0 1-1.5 1.5h-1a1.5 1.5 0 0 1-1.5-1.5zm1.5-.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5z"/></svg>
+                                    Known Associates
+                                </div>
+                                <template x-if="persona.known_associates && persona.known_associates.length > 0">
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="assoc in persona.known_associates">
+                                            <div class="px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-300 font-medium flex items-center gap-2 hover:border-red-500 transition-colors cursor-default">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 16 16"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10s-3.516.68-4.168 1.332c-.678.678-.83 1.418-.832 1.664z"/></svg>
+                                                <span x-text="assoc"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!persona.known_associates || persona.known_associates.length === 0">
+                                    <div class="text-xs text-gray-600 italic font-mono">No known associates logged.</div>
+                                </template>
+                            </div>
                         </div>
                     </div>
                 </div>

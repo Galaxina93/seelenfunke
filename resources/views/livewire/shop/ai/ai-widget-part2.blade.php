@@ -61,6 +61,8 @@
             allowVoiceInterruption: initialAllowInterruption,
             newsWidgets: [],
             youtubeWidgets: [],
+            personaWidgets: [],
+            mainScreenWidget: null,
             isMapFocus: false,
             isMapMode: false,
             isFlightDataActive: false,
@@ -187,6 +189,14 @@
 
             isOutputActive() {
                 return this.isSpeaking || this.thinking;
+            },
+
+            setMainScreenWidget(type, index) {
+                this.mainScreenWidget = { type: type, index: parseInt(index) };
+            },
+            
+            clearMainScreenWidget() {
+                this.mainScreenWidget = null;
             },
 
             // --- AI VOICE CHAT LOGIC ---
