@@ -329,9 +329,9 @@
                         el.className = 'marker pointer-events-auto';
                         el.innerHTML = `
                             <div class="bg-red-900/80 border border-red-400 text-red-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(255,0,0,0.5)] cursor-pointer hover:scale-110 transition-transform relative z-50">
-                                <div class="absolute -inset-1 bg-red-500/30 rounded blur animate-pulse"></div>
-                                <span class="relative z-10 font-bold">${marker.title}</span>
-                            </div>
+                                <div class="absolute -inset-1 bg-red-500/30 rounded blur animate-pulse"><\/div>
+                                <span class="relative z-10 font-bold">${marker.title}<\/span>
+                            <\/div>
                         `;
 
                         el.addEventListener('click', (e) => {
@@ -373,14 +373,14 @@
                         el.className = 'marker pointer-events-auto group';
                         el.innerHTML = `
                             <div class="bg-cyan-900/80 border border-cyan-400 text-cyan-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(0,240,255,0.5)] cursor-pointer hover:scale-110 transition-transform relative z-50">
-                                <div class="absolute -inset-1 bg-cyan-500/30 rounded blur animate-pulse"></div>
-                                <span class="relative z-10 font-bold">${marker.title}</span>
+                                <div class="absolute -inset-1 bg-cyan-500/30 rounded blur animate-pulse"><\/div>
+                                <span class="relative z-10 font-bold">${marker.title}<\/span>
                                 
                                 <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-gray-900/95 border border-gray-700 rounded p-2 text-left shadow-2xl z-50 pointer-events-none">
-                                    <div class="text-white font-bold mb-1 border-b border-gray-700 pb-1 whitespace-normal leading-tight">${marker.title}</div>
-                                    <div class="text-gray-300 text-[9px] mb-1 whitespace-normal">${marker.location_name || ''}</div>
-                                </div>
-                            </div>
+                                    <div class="text-white font-bold mb-1 border-b border-gray-700 pb-1 whitespace-normal leading-tight">${marker.title}<\/div>
+                                    <div class="text-gray-300 text-[9px] mb-1 whitespace-normal">${marker.location_name || ''}<\/div>
+                                <\/div>
+                            <\/div>
                         `;
 
                         el.addEventListener('click', (e) => {
