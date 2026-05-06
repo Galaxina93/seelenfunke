@@ -325,22 +325,25 @@
                 });
 
                 window.addEventListener('hide-news-widget', (e) => {
-                    const idx = e.detail?.index;
+                    const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
+                    const idx = detail?.index;
                     if (idx !== undefined && idx !== null) {
                         const targetIdx = parseInt(idx) - 1; // 1-based to 0-based
                         if (targetIdx >= 0 && targetIdx < this.newsWidgets.length) {
                             this.newsWidgets.splice(targetIdx, 1);
+                            if (this.mainScreenWidget && this.mainScreenWidget.type === 'news') this.clearMainScreenWidget();
                         }
                         return;
                     }
 
-                    const titleToHide = e.detail?.title?.toLowerCase();
+                    const titleToHide = detail?.title?.toLowerCase();
                     if (!titleToHide) return;
                     
                     this.newsWidgets = this.newsWidgets.filter(w => {
                         const searchStr = (w.title + ' ' + (w.description || '')).toLowerCase();
                         return !searchStr.includes(titleToHide);
                     });
+                    if (this.mainScreenWidget && this.mainScreenWidget.type === 'news') this.clearMainScreenWidget();
                 });
 
                 window.addEventListener('ai-show-youtube', (e) => {
@@ -354,15 +357,18 @@
                 });
 
                 window.addEventListener('hide-youtube-widget', (e) => {
-                    const idx = e.detail?.index;
+                    const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
+                    const idx = detail?.index;
                     if (idx !== undefined && idx !== null) {
                         const targetIdx = parseInt(idx) - 1;
                         if (targetIdx >= 0 && targetIdx < this.youtubeWidgets.length) {
                             this.youtubeWidgets.splice(targetIdx, 1);
+                            if (this.mainScreenWidget && this.mainScreenWidget.type === 'youtube') this.clearMainScreenWidget();
                         }
                         return;
                     }
                     this.youtubeWidgets = [];
+                    if (this.mainScreenWidget && this.mainScreenWidget.type === 'youtube') this.clearMainScreenWidget();
                 });
 
 

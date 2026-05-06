@@ -13,19 +13,20 @@
      @map-mark-news-events.window="console.log('map-mark-news-events', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.markNewsEvents === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.markNewsEvents(p.markers); }"
      @map-mark-places.window="console.log('map-mark-places', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.markPlaces === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.markPlaces(p.markers); }"
      @map-clear-markers.window="console.log('map-clear-markers'); if(typeof window.clearMarkers === 'function') { window.clearMarkers(); }"
-     @ui-focus-widget.window="setMainScreenWidget($event.detail.type, $event.detail.index)"
+     @ui-focus-widget.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; setMainScreenWidget(d.type, d.index);"
      @ui-clear-focus.window="clearMainScreenWidget()"
      @ai-show-news.window="console.log('ai-show-news via alpine', $event.detail); showNewsPanel = true; /* The panel injection is still handled by window.addEventListener in part3 since it touches innerHTML */"
      @ai-show-persona.window="console.log('ai-show-persona', $event.detail); personaWidgets.unshift($event.detail.payload || $event.detail); showFunkiView = true; setMainScreenWidget('persona', 0);"
      @ai-show-intel.window="console.log('ai-show-intel', $event.detail); intelWidgets.unshift($event.detail.payload || $event.detail); isSecretMode = true; showFunkiView = true;"
-     @ai-show-camera.window="cameraWidget = $event.detail.open ? true : null; showFunkiView = true;"
+     @ai-show-camera.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; cameraWidget = d.open ? true : null; showFunkiView = true;"
      @ai-show-org-chart.window="console.log('ai-show-org-chart', $event.detail); orgChartWidget = $event.detail.payload || $event.detail; showFunkiView = true; isSecretMode = true;"
-     @ai-transform-core.window="isJarvis = ($event.detail.target === 'jarvis'); updateJarvisMode();"
-     @ai-toggle-secret-workspace.window="isSecretMode = $event.detail.open; if(isSecretMode && !showFunkiView) { openFunkiView(false); }"
+     @ai-transform-core.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isJarvis = (d.target === 'jarvis'); jarvisMinimized = false; if(isJarvis) { showJarvisFlash = true; setTimeout(() => showJarvisFlash = false, 100); setTimeout(() => jarvisMinimized = true, 1500); } updateJarvisMode();"
+     @ai-toggle-secret-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isSecretMode = d.open; if(isSecretMode) { new Audio('/shop/ai/sounds/top_secret/open_secret_mode.mp3').play().catch(e=>console.log(e)); if(!showFunkiView) { openFunkiView(false); } } else { new Audio('/shop/ai/sounds/top_secret/close_secret_mode.mp3').play().catch(e=>console.log(e)); }"
      @map-change-style.window="if(window.changeMapStyle) { window.changeMapStyle($event.detail.style); }"
      @ai-unshelf-widget.window="
-        const type = $event.detail.type;
-        const id = $event.detail.identifier;
+        let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
+        const type = d.type;
+        const id = d.identifier;
         if (type === 'persona' || type === 'intel') {
             let idx = id ? shelfWidgets.findIndex(w => w.type === type && w.payload && (w.payload.name || w.payload.title || '').toLowerCase().includes(id.toLowerCase())) : (shelfWidgets.length > 0 ? 0 : -1);
             if (idx > -1) {
@@ -37,14 +38,18 @@
         }
      "
      @ai-close-widgets.window="
-        const t = $event.detail.type; 
-        if(t === 'all' || t === 'persona') personaWidgets = []; 
-        if(t === 'all' || t === 'intel') intelWidgets = []; 
+        let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
+        const t = d.type;
+        if(t === 'all' || t === 'persona') personaWidgets = [];
+        if(t === 'all' || t === 'intel') intelWidgets = [];
         if(t === 'all' || t === 'camera') cameraWidget = null;
+        if(mainScreenWidget && (t === 'all' || mainScreenWidget.type === t)) clearMainScreenWidget();
      "
      @ai-shelf-widget.window="
-        const t = $event.detail.type;
-        const id = $event.detail.identifier;
+        let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
+        const t = d.type;
+        const id = d.identifier;
+        if(mainScreenWidget && mainScreenWidget.type === t) clearMainScreenWidget();
         if (t === 'persona') {
             let idx = id ? personaWidgets.findIndex(w => w.name && w.name.toLowerCase().includes(id.toLowerCase())) : (personaWidgets.length > 0 ? 0 : -1);
             if (idx > -1) {
@@ -203,20 +208,26 @@
     <div id="css2d-container" class="absolute inset-0 w-full h-full z-10" :class="isMapFocus ? 'pointer-events-none' : 'pointer-events-auto'"></div>
 
     <!-- Main Screen Focus Backdrop -->
-    <div x-show="mainScreenWidget" x-transition.opacity 
-         class="fixed inset-0 bg-black/80 z-[9998] pointer-events-auto backdrop-blur-sm" 
+    <div x-show="mainScreenWidget" x-transition.opacity
+         class="fixed inset-0 bg-black/80 z-[9998] pointer-events-auto backdrop-blur-sm"
          @click="clearMainScreenWidget()" style="display: none;"></div>
 
     <!-- Canvas Container (3D Hologram) -->
-    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto')"></div>
+    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
+    
+    <!-- Jarvis Animation Canvas -->
+    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
+    
+    <!-- Jarvis Flash Transition -->
+    <div x-show="showJarvisFlash" x-transition.opacity.duration.500ms class="absolute inset-0 z-[60] bg-cyan-400 mix-blend-screen pointer-events-none" style="display: none;"></div>
     <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
          :class="isMapMode ? 'opacity-100 scale-100 pointer-events-auto shadow-[inset_0_0_200px_rgba(0,0,0,0.9)]' : 'opacity-0 scale-110 blur-xl pointer-events-none'"
          :style="isMapMode ? 'filter: brightness(0.6) sepia(0.3) hue-rotate(180deg) saturate(2.0);' : 'filter: brightness(0.5);'"></div>
 
     <!-- [AREA: NEWS WIDGETS] -->
     <!-- News UI Panel (2D Overlay) -->
-    <div x-show="newsWidgets && newsWidgets.length" x-transition 
-         class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar" 
+    <div x-show="newsWidgets && newsWidgets.length" x-transition
+         class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar"
          :class="(mainScreenWidget && mainScreenWidget.type === 'news') ? 'z-[9999]' : 'z-[60]'" style="display: none;" x-cloak>
         <template x-for="(article, index) in newsWidgets" :key="index">
             <div :class="{
@@ -272,11 +283,11 @@
 
                 <div class="relative z-10 flex flex-col h-full" x-data="{ copySuccess: false }">
                     <a :href="article.url || '#'" target="_blank" class="block group cursor-pointer shrink-0">
-                        <img x-show="article.image" :src="article.image" 
+                        <img x-show="article.image" :src="article.image"
                              :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'h-[40vh] max-h-[500px]' : 'h-40'"
                              class="w-full object-cover rounded-md mb-3 border shadow-md transition-all duration-700 group-hover:scale-[1.02]" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }" />
 
-                        <div x-show="article.video" 
+                        <div x-show="article.video"
                              :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'h-[40vh] max-h-[500px]' : 'h-40'"
                              class="w-full mb-3 rounded-md overflow-hidden border shadow-md transition-all duration-700" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
                             <iframe :src="article.video" class="w-full h-full" frameborder="0" allowfullscreen></iframe>
@@ -284,14 +295,14 @@
 
                         <h3 class="font-bold mb-2 pr-8 uppercase drop-shadow-md leading-tight group-hover:underline" :style="{ 'color': getHexColorStr(agentColor), 'filter': 'brightness(1.2)' }" x-text="article.title"></h3>
                     </a>
-                    <p :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'text-sm md:text-lg overflow-y-auto custom-scrollbar flex-1' : 'line-clamp-4 text-[11px]'" 
+                    <p :class="(mainScreenWidget && mainScreenWidget.type === 'news' && mainScreenWidget.index === index) ? 'text-sm md:text-lg overflow-y-auto custom-scrollbar flex-1' : 'line-clamp-4 text-[11px]'"
                        class="opacity-80 leading-relaxed mb-3 text-white transition-all duration-700" x-text="article.description"></p>
                     <div class="flex justify-between items-center border-t pt-3 shrink-0" :style="{ 'border-color': getHexColorStr(agentColor) + '4D' }">
                         <span class="text-[9px] uppercase font-bold tracking-widest opacity-80" x-text="article.source || 'LIVE FEED'"></span>
                         <div class="flex gap-2">
                             <!-- Copy Link Button -->
-                            <button x-show="article.url" @click="navigator.clipboard.writeText(article.url); copySuccess = true; setTimeout(function(){copySuccess = false}, 2000)" 
-                                    class="p-2 bg-black/50 hover:bg-white/10 rounded border transition-colors cursor-pointer relative" 
+                            <button x-show="article.url" @click="navigator.clipboard.writeText(article.url); copySuccess = true; setTimeout(function(){copySuccess = false}, 2000)"
+                                    class="p-2 bg-black/50 hover:bg-white/10 rounded border transition-colors cursor-pointer relative"
                                     :style="{ 'border-color': getHexColorStr(agentColor) + '80', 'color': getHexColorStr(agentColor) }" title="Link kopieren">
                                 <svg x-show="!copySuccess" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -318,7 +329,7 @@
     <!-- [AREA: YOUTUBE WIDGETS] -->
     <!-- YouTube Video Pool (2D Overlay) -->
     <div x-show="youtubeWidgets && youtubeWidgets.length" x-transition
-         class="absolute right-4 sm:right-32 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end" 
+         class="absolute right-4 sm:right-32 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end"
          :class="(mainScreenWidget && mainScreenWidget.type === 'youtube') ? 'z-[9999]' : 'z-[50]'" style="display: none;" x-cloak>
         <template x-for="(vid, index) in youtubeWidgets" :key="vid.id || index">
             <div :class="{
@@ -343,13 +354,13 @@
                     }
                  "
                  :style="(mainScreenWidget && mainScreenWidget.type === 'youtube' && mainScreenWidget.index === index) ? 'padding: 0; background: #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1);' : '-webkit-mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); mask-image: radial-gradient(ellipse at center, rgba(0,0,0,1) 50%, rgba(0,0,0,0) 95%); background: radial-gradient(circle at center, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 80%); padding: 1.5rem;'">
-                
+
                 <div class="relative w-full aspect-video rounded-xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-white/5 transition-transform duration-700 group-hover:scale-105">
                     <iframe :src="vid.video" class="w-full h-full pointer-events-auto" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                    
+
                     <!-- Hover Controls Overlay -->
                     <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-between p-4 backdrop-blur-sm pointer-events-none">
-                        
+
                         <div class="flex justify-between items-start w-full">
                             <h3 class="font-bold text-white text-sm drop-shadow-md leading-tight line-clamp-2 pr-8" x-text="vid.title"></h3>
                             <!-- Focus & Close Buttons -->
@@ -379,7 +390,7 @@
     <div x-show="isSecretMode" x-transition:enter="transition ease-out duration-1000" x-transition:enter-start="opacity-0 scale-110" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 z-[40] pointer-events-auto bg-gray-950/95 backdrop-blur-2xl overflow-hidden" style="display: none;" x-cloak>
         <!-- Background texture -->
         <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA0MCAwIEwgMCAwIDAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyMjAsIDM4LCAzOCwgMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
-        
+
         <!-- Header -->
         <div class="absolute top-6 left-6 z-50 flex flex-col pointer-events-none">
             <div class="text-red-500 text-sm md:text-xl uppercase tracking-[0.4em] font-black font-mono animate-pulse">Top Secret</div>
@@ -414,7 +425,7 @@
                      style="box-shadow: 5px 5px 15px rgba(0,0,0,0.5);">
                     <!-- Pin -->
                     <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-600 shadow-md border border-red-800"></div>
-                    
+
                     <button @click="intelWidgets.splice(index, 1)" class="absolute top-2 right-2 text-yellow-800 hover:text-red-600 p-1 cursor-pointer">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
@@ -422,12 +433,12 @@
                     <button @click="$dispatch('ai-shelf-widget', { type: 'intel', identifier: intel.title })" class="absolute top-2 right-7 text-yellow-800 hover:text-blue-600 p-1 cursor-pointer opacity-0 group-hover/postit:opacity-100 transition-opacity" title="In Seitenablage">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                     </button>
-                    
+
                     <h4 class="font-black text-yellow-900 text-sm uppercase tracking-wider mb-2 pr-10 border-b border-yellow-400/50 pb-1 line-clamp-2" x-text="intel.title"></h4>
                     <p class="text-yellow-950 text-xs leading-relaxed" x-text="intel.content"></p>
                 </div>
             </template>
-            
+
             <template x-if="!intelWidgets || intelWidgets.length === 0">
                 <div class="flex flex-col items-center justify-center w-full h-full opacity-30 mt-20">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-24 h-24 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -440,7 +451,7 @@
     <!-- [AREA: PERSONA WIDGETS] -->
     <!-- Persona Pool (2D Overlay) -->
     <div x-show="personaWidgets && personaWidgets.length" x-transition
-         class="absolute left-1/2 -translate-x-1/2 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[800px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-center" 
+         class="absolute left-1/2 -translate-x-1/2 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[800px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-center"
          :class="(mainScreenWidget && mainScreenWidget.type === 'persona') ? 'z-[9999]' : 'z-[50]'" style="display: none;" x-cloak>
         <template x-for="(persona, index) in personaWidgets" :key="index">
             <div :class="{
@@ -464,7 +475,7 @@
                     }
                  "
                  :style="(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index) ? 'box-shadow: 0 0 50px rgba(220,38,38,0.5); border: 1px solid rgba(220,38,38,0.8);' : ''">
-                 
+
                  <div class="absolute top-4 right-4 z-50 flex gap-2">
                     <button @click="$dispatch('ai-shelf-widget', { type: 'persona', identifier: persona.name })" class="p-2 bg-black/50 hover:bg-blue-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="In Seitenablage">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
@@ -481,9 +492,9 @@
                     <div class="absolute inset-0 bg-[linear-gradient(rgba(220,38,38,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(220,38,38,0.05)_1px,transparent_1px)] bg-[size:20px_20px] opacity-20 pointer-events-none"></div>
                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 border border-red-500/10 rounded-full animate-[spin_10s_linear_infinite] pointer-events-none"></div>
                     <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] border border-red-500/5 rounded-full animate-[spin_15s_linear_infinite_reverse] pointer-events-none"></div>
-                    
+
                     <div class="relative z-10 flex flex-col gap-6">
-                        
+
                         <!-- Top Secret Header -->
                         <div class="flex items-center justify-between border-b border-red-900/50 pb-4 pr-24">
                             <div class="flex items-center gap-3">
@@ -550,7 +561,7 @@
 
                                 <div class="bg-black/40 p-4 rounded-xl border border-gray-800 mt-2 relative">
                                     <div class="absolute -top-2 left-4 px-2 bg-gray-950 text-[9px] uppercase tracking-widest font-bold text-red-500 font-mono">Zusammenfassung</div>
-                                    <p class="text-sm text-gray-300 leading-relaxed font-sans transition-all duration-500" 
+                                    <p class="text-sm text-gray-300 leading-relaxed font-sans transition-all duration-500"
                                        :class="(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index) ? '' : 'line-clamp-2'"
                                        x-text="persona.summary || 'Keine Geheimdienst-Informationen verfügbar.'"></p>
                                 </div>
@@ -619,13 +630,14 @@
              <div class="absolute inset-0 bg-[linear-gradient(transparent,rgba(59,130,246,0.2)_50%,transparent)] bg-[length:100%_4px] animate-[scan_2s_linear_infinite] z-20 pointer-events-none"></div>
              <!-- The Video element -->
              <video id="funki-local-camera" class="w-full h-full object-cover filter contrast-125 sepia-[.1]" autoplay playsinline muted></video>
-             
+             <div id="funki-camera-error" class="absolute inset-0 flex items-center justify-center text-red-500 font-mono text-xs uppercase text-center p-4 bg-black/80 z-[25]" style="display: none;"></div>
+
              <!-- REC indicator -->
              <div class="absolute top-4 left-4 z-30 flex items-center gap-2 px-2 py-1 bg-black/50 rounded backdrop-blur border border-red-500/30">
                 <div class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
-                <div class="text-[10px] font-mono text-red-500 tracking-widest">LIVE REC</div>
+                <div class="text-[10px] font-mono text-red-500 tracking-widest">LIVE</div>
              </div>
-             
+
              <!-- Close button -->
              <button @click="$dispatch('ai-close-widgets', { type: 'camera' })" class="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-red-500/80 rounded-full border border-white/20 transition-all text-white cursor-pointer" title="Schließen">
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -636,35 +648,54 @@
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                  <span>LOCAL SYSTEM FEED // SECURE</span>
              </div>
-             <span class="text-gray-600">FR: 60.00</span>
+             <span class="text-gray-600">FPS: 60.00</span>
          </div>
     </div>
-    
+
     <!-- Script for camera & map styles -->
     <script>
-        document.addEventListener('ai-show-camera', function(e) {
-            const open = e.detail && e.detail.open;
-            const video = document.getElementById('funki-local-camera');
-            if(open) {
-                if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
-                        if (video) video.srcObject = stream;
-                        window.funkiCameraStream = stream;
-                    }).catch(function(err) {
-                        console.error('Camera error: ', err);
-                    });
+        window.addEventListener('ai-show-camera', function(e) {
+            let detail = e.detail; if(Array.isArray(detail)) detail = detail[0]; if(detail && detail.payload) detail = detail.payload;
+            const open = detail && (detail.open === true || detail.open === 'true' || detail.open === 1);
+            
+            setTimeout(() => {
+                const video = document.getElementById('funki-local-camera');
+                const errDiv = document.getElementById('funki-camera-error');
+                if(open) {
+                    if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+                            if (video) {
+                                video.srcObject = stream;
+                                video.play().catch(function(err) {
+                                    console.error('Video play error:', err);
+                                });
+                            }
+                            if (errDiv) errDiv.style.display = 'none';
+                            window.funkiCameraStream = stream;
+                        }).catch(function(err) {
+                            console.error('Camera error: ', err);
+                            if (errDiv) { errDiv.innerHTML = 'Camera Error:<br>' + err.message; errDiv.style.display = 'flex'; }
+                        });
+                    } else {
+                        if (errDiv) { errDiv.innerHTML = 'Camera Offline or Access Denied.<br>HTTPS context is required.'; errDiv.style.display = 'flex'; }
+                    }
+                } else {
+                    if(window.funkiCameraStream) {
+                        window.funkiCameraStream.getTracks().forEach(track => track.stop());
+                        window.funkiCameraStream = null;
+                    }
+                    if(video) {
+                        video.pause();
+                        video.srcObject = null;
+                    }
+                    if (errDiv) errDiv.style.display = 'none';
                 }
-            } else {
-                if(window.funkiCameraStream) {
-                    window.funkiCameraStream.getTracks().forEach(track => track.stop());
-                    window.funkiCameraStream = null;
-                }
-                if(video) video.srcObject = null;
-            }
+            }, 50);
         });
 
-        document.addEventListener('ai-close-widgets', function(e) {
-            const type = e.detail && e.detail.type;
+        window.addEventListener('ai-close-widgets', function(e) {
+            let detail = e.detail; if(Array.isArray(detail)) detail = detail[0]; if(detail && detail.payload) detail = detail.payload;
+            const type = detail && detail.type;
             if (type === 'all' || type === 'camera') {
                 const video = document.getElementById('funki-local-camera');
                 if(window.funkiCameraStream) {
@@ -674,7 +705,7 @@
                 if(video) video.srcObject = null;
             }
         });
-        
+
         window.changeMapStyle = function(style) {
             if(!window.map) return;
             const styles = {

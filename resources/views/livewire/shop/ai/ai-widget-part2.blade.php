@@ -69,6 +69,8 @@
             isSecretMode: false,
             currentChatSessionId: null,
             isJarvis: false,
+            jarvisMinimized: false,
+            showJarvisFlash: false,
             intelWidgets: [],
             shelfWidgets: [],
             cameraWidget: null,
@@ -140,26 +142,157 @@
                 }
             },
 
+            jarvisTime: 0,
+            jarvisAnimId: null,
+            initJarvisCanvas() {
+                const canvas = document.getElementById('jarvisCanvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+
+                const resize = () => {
+                    const container = document.getElementById('funki-canvas-container');
+                    if (container) {
+                        canvas.width = container.clientWidth || window.innerWidth;
+                        canvas.height = container.clientHeight || window.innerHeight;
+                    } else {
+                        canvas.width = window.innerWidth;
+                        canvas.height = window.innerHeight;
+                    }
+                };
+                window.addEventListener('resize', resize);
+                resize();
+
+                class Ring {
+                    constructor(radius, speed, width, dashArray, color = '#00d4ff', pulseSpeed = 0.02, pulseAmp = 5) {
+                        this.radius = radius;
+                        this.speed = speed;
+                        this.originalSpeed = speed;
+                        this.width = width;
+                        this.originalWidth = width;
+                        this.dashArray = dashArray;
+                        this.color = color;
+                        this.originalColor = color;
+                        this.pulseSpeed = pulseSpeed;
+                        this.pulseAmp = pulseAmp;
+                    }
+
+                    draw(ctx, time) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.strokeStyle = this.color;
+                        ctx.lineWidth = this.width;
+                        ctx.setLineDash(this.dashArray);
+                        
+                        // Rotation
+                        ctx.lineDashOffset = time * this.speed;
+                        
+                        // Pulsieren
+                        const pulse = Math.sin(time * this.pulseSpeed) * this.pulseAmp;
+                        
+                        ctx.arc(canvas.width / 2, canvas.height / 2, this.radius + pulse, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+
+                const rings = [
+                    new Ring(60, 2, 1, [2, 10]),
+                    new Ring(70, -3, 2, [5, 20]),
+                    new Ring(120, 1.2, 4, [100, 50]),
+                    new Ring(125, -0.8, 1, [200, 10]),
+                    new Ring(180, 0.5, 2, [300, 40], 'rgba(0, 212, 255, 0.5)'),
+                    new Ring(220, -1.5, 0.5, [10, 10], 'rgba(0, 212, 255, 0.3)'),
+                    new Ring(250, 0.2, 1, [1, 150], '#ffffff')
+                ];
+
+                const particles = [];
+                for(let i = 0; i < 40; i++) {
+                    particles.push({
+                        angle: Math.random() * Math.PI * 2,
+                        radius: 50 + Math.random() * 200,
+                        speed: 0.005 + Math.random() * 0.01,
+                        size: Math.random() * 2
+                    });
+                }
+
+                const drawParticles = (speaking) => {
+                    ctx.fillStyle = speaking ? '#ffffff' : '#00d4ff';
+                    particles.forEach(p => {
+                        p.angle += p.speed * (speaking ? 3 : 1);
+                        const x = canvas.width / 2 + Math.cos(p.angle) * p.radius;
+                        const y = canvas.height / 2 + Math.sin(p.angle) * p.radius;
+                        ctx.beginPath();
+                        ctx.arc(x, y, p.size * (speaking ? 1.5 : 1), 0, Math.PI * 2);
+                        ctx.fill();
+                    });
+                };
+
+                const animate = () => {
+                    if (!this.isJarvis) {
+                        this.jarvisAnimId = null;
+                        return; // Stop animation loop
+                    }
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+
+                    const speaking = this.isSpeaking || (typeof this.isOutputActive === 'function' ? this.isOutputActive() : false);
+                    const pulse = speaking ? Math.abs(Math.sin(this.jarvisTime * 0.15)) : 0;
+
+                    ctx.shadowBlur = speaking ? 15 + pulse * 15 : 5;
+                    ctx.shadowColor = '#00d4ff';
+
+                    rings.forEach(ring => {
+                        if (speaking) {
+                            ring.width = ring.originalWidth + pulse * 2;
+                            ring.color = '#00ffff'; 
+                            ring.speed = ring.originalSpeed * 1.5;
+                        } else {
+                            ring.width = ring.originalWidth;
+                            ring.color = ring.originalColor;
+                            ring.speed = ring.originalSpeed;
+                        }
+                        ring.draw(ctx, this.jarvisTime);
+                    });
+
+                    drawParticles(speaking);
+
+                    // Draw J.A.R.V.I.S. Text
+                    ctx.shadowBlur = speaking ? 20 + pulse * 20 : 10;
+                    ctx.shadowColor = '#00d4ff';
+                    ctx.font = 'bold 18px "Courier New", Courier, monospace';
+                    if ('letterSpacing' in ctx) {
+                        ctx.letterSpacing = '8px';
+                    }
+                    ctx.fillStyle = speaking ? `rgba(255, 255, 255, ${0.8 + pulse * 0.2})` : 'rgba(0, 212, 255, 0.7)';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    // Shift text slightly to perfectly center the letters when letterSpacing is applied
+                    ctx.fillText('J.A.R.V.I.S.', canvas.width / 2 + 4, canvas.height / 2);
+
+                    ctx.shadowBlur = 0;
+                    if ('letterSpacing' in ctx) {
+                        ctx.letterSpacing = '0px';
+                    }
+
+                    this.jarvisTime++;
+                    this.jarvisAnimId = requestAnimationFrame(animate);
+                };
+
+                if (!this.jarvisAnimId) {
+                    animate();
+                }
+            },
+
             updateJarvisMode() {
-                if (!window.t3 || !t3.scene || !t3.coreMesh) return;
+                if (!t3 || !t3.scene || !t3.coreMesh) return;
 
                 if (this.isJarvis) {
-                    if (!t3.jarvisGeometry) {
-                        t3.jarvisGeometry = new THREE.IcosahedronGeometry(60, 1);
-                        t3.jarvisMaterial = new THREE.MeshBasicMaterial({
-                            color: 0x00f0ff,
-                            wireframe: true,
-                            transparent: true,
-                            opacity: 0.8
-                        });
-                    }
-                    t3.coreMesh.geometry = t3.jarvisGeometry;
-                    t3.coreMesh.material = t3.jarvisMaterial;
+                    t3.coreMesh.visible = false;
+                    this.$nextTick(() => {
+                        this.initJarvisCanvas();
+                    });
                 } else {
-                    if (t3.defaultGeometry && t3.coreMaterial) {
-                        t3.coreMesh.geometry = t3.defaultGeometry;
-                        t3.coreMesh.material = t3.coreMaterial;
-                    }
+                    t3.coreMesh.visible = true;
                 }
                 this.updateCoreColor(true);
             },

@@ -1,6 +1,6 @@
 # Seelenfunke System-Architektur & AI Map
 
-> Automatisch generiert am 2026-05-06 15:36:42
+> Automatisch generiert am 2026-05-06 19:25:38
 
 Diese Datei dient als Index für die Seelenfunke-Codebase, um KI-Agenten die Orientierung zu erleichtern.
 

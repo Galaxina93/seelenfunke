@@ -29,3 +29,17 @@ Die detaillierte Untersuchung der Code-Basis förderte mehrere tief verflochtene
 
 ## Fazit
 Die Map-Steuerung und das UI-Event-Routing sind nun stabil und fehlertolerant über beide Kommunikationswege (Text und Voice) eingebunden. Die direkte JavaScript-Ebene verarbeitet die Signale der KI nun synchron und ohne Verzögerung.
+
+## Fehleranalyse & Behebung: Widget-Steuerung, Jarvis & Kamera
+
+1. **Fehlerhaftes Event-Routing (Window vs. Document)**
+   - **Ursache**: Einige Vanilla-JavaScript-Event-Listener (Kamera, Widget-Schließ-Mechanismen) nutzten `document.addEventListener`. Livewire, Alpine.js und das Web-Socket-Skript feuern Frontend-Events jedoch strikt über `window.dispatchEvent` ab. Da Events, die am `window` getriggert werden, nicht zum `document` hinunter propagiert werden (kein Bubble-Down), wurden die Events nie empfangen.
+   - **Lösung**: Umstellung aller betreffenden Listener auf `window.addEventListener`.
+
+2. **Kollision von Alpine.js Local Scope und globalen Objekten**
+   - **Ursache**: Die Jarvis-3D-Kern-Transformation brach stumm in `updateJarvisMode()` ab. Der Sicherheitscheck prüfte fälschlicherweise auf `!window.t3`. Die 3D-Engine-Referenz `t3` ist jedoch nur eine lokale Variable (`let t3 = {...}`) innerhalb des Alpine.js Kontextes.
+   - **Lösung**: Das `window.`-Präfix wurde entfernt, um korrekt auf die lokale Alpine-Referenz zu prüfen.
+
+3. **Browser-Sicherheit & DOM-Rendering bei Video-Streams**
+   - **Ursache**: Das Zuweisen eines Kamera-Streams (`srcObject`) an ein Video-Widget, das zunächst unsichtbar war und durch Alpine.js (`x-show`) eingeblendet wurde, verhinderte die Videoausgabe. Browser wie Chrome weigern sich oft, solche dynamisch eingeblendeten Streams ohne expliziten `.play()` Aufruf zu starten.
+   - **Lösung**: Einbindung eines kurzen Timeouts (50ms) zum Abwarten des Alpine-Renderings und ein robuster Aufruf von `video.play()`.
