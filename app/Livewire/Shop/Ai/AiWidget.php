@@ -22,6 +22,8 @@ class AiWidget extends Component
     public $isMapMode = false;
     public $isFlightDataActive = false;
     
+    // UI Pool for AI context (Managed exclusively in Alpine.js frontend)
+    
     public function mount($agentId = null)
     {
         $this->loadDefaultChatSession();

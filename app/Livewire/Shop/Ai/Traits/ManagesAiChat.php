@@ -604,6 +604,28 @@ trait ManagesAiChat
                         }
                     }
                 }
+                
+                // INJECT UI STATE FOR THE LATEST USER MESSAGE
+                if ($mem->id === $fullDbHistory->last()->id) {
+                     $activePersonas = [];
+                     if (property_exists($this, 'personaWidgets') && !empty($this->personaWidgets)) {
+                         foreach ($this->personaWidgets as $pw) {
+                             if (is_array($pw) && isset($pw['name'])) $activePersonas[] = $pw['name'];
+                         }
+                     }
+                     $activeIntel = [];
+                     if (property_exists($this, 'intelWidgets') && !empty($this->intelWidgets)) {
+                         foreach ($this->intelWidgets as $iw) {
+                             if (is_array($iw) && isset($iw['title'])) $activeIntel[] = $iw['title'];
+                         }
+                     }
+                     if (!empty($activePersonas) || !empty($activeIntel)) {
+                         $contentToAPI .= "\n\n[SYSTEM-INFO ZUM AKTUELLEN FRONTEND-STATUS: Derzeit sind folgende UI-Elemente (Fenster/Dossiers) für den Nutzer sichtbar geöffnet:\n";
+                         if (!empty($activePersonas)) $contentToAPI .= "- Personas/Dossiers: " . implode(', ', $activePersonas) . "\n";
+                         if (!empty($activeIntel)) $contentToAPI .= "- Intel/Post-its: " . implode(', ', $activeIntel) . "\n";
+                         $contentToAPI .= "Nutze das Werkzeug 'persona_close_widgets', um diese wieder auszublenden, falls der Nutzer dies wünscht.]\n";
+                     }
+                }
             }
 
             if (!empty($messageImages)) {

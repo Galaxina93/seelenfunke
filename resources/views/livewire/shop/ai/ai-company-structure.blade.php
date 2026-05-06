@@ -114,7 +114,7 @@
                     @endif
 
                     @foreach($departments as $dept)
-                        <div class="flex flex-col items-center relative w-[120px] sm:w-32 md:w-36 lg:w-40 shrink-0 group/dept pt-8">
+                        <div class="flex flex-col items-center relative w-[120px] sm:w-32 md:w-36 lg:w-40 shrink-0 group/dept pt-8" wire:key="dept-{{ $dept->id }}">
 
                             {{-- Line up to horizontal bar --}}
                             @if($departments->count() > 1)
@@ -160,6 +160,7 @@
 
                                 @foreach($dept->agents as $index => $agent)
                                     <div class="flex flex-col items-center relative w-full group/agent z-10"
+                                         wire:key="agent-{{ $agent->id }}"
                                          draggable="true"
                                          @dragstart.stop="startDrag($event, 'agent', '{{ $agent->id }}')"
                                          @dragend="endDrag">

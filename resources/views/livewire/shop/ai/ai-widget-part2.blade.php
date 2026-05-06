@@ -66,6 +66,8 @@
             isMapFocus: false,
             isMapMode: false,
             isFlightDataActive: false,
+            isSecretMode: false,
+            currentChatSessionId: null,
             activeMapStyle: 'mapbox://styles/mapbox/dark-v11',
             mapStyles: [
                 { id: 'mapbox://styles/mapbox/dark-v11', name: 'Dark Cyber' },
