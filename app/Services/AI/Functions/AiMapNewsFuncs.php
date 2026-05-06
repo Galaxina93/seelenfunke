@@ -22,8 +22,7 @@ trait AiMapNewsFuncs
                         ],
                         'language' => [
                             'type' => 'string',
-                            'description' => 'Die Sprache der Nachrichten. Standard ist "de".',
-                            'default' => 'de'
+                            'description' => 'Die Sprache der Nachrichten. Standard ist "de".'
                         ]
                     ],
                     'required' => ['query']

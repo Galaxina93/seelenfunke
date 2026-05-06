@@ -70,6 +70,7 @@
             currentChatSessionId: null,
             isJarvis: false,
             intelWidgets: [],
+            shelfWidgets: [],
             cameraWidget: null,
             orgChartWidget: null,
             activeMapStyle: 'mapbox://styles/mapbox/dark-v11',
@@ -129,8 +130,8 @@
                 if (name) this.activeAgentName = name;
                 if (wakeWord) this.agentWakeWord = wakeWord.toLowerCase();
                 if (agentId) this.activeAgentId = agentId;
-                this.updateCoreColor(true); 
-                
+                this.updateCoreColor(true);
+
                 if (this.isLiveMode) {
                     this.toggleLiveMode(); // Gracefully turn off Live Mode (UI & WS)
                     setTimeout(() => {
@@ -141,15 +142,15 @@
 
             updateJarvisMode() {
                 if (!window.t3 || !t3.scene || !t3.coreMesh) return;
-                
+
                 if (this.isJarvis) {
                     if (!t3.jarvisGeometry) {
                         t3.jarvisGeometry = new THREE.IcosahedronGeometry(60, 1);
-                        t3.jarvisMaterial = new THREE.MeshBasicMaterial({ 
-                            color: 0x00f0ff, 
-                            wireframe: true, 
-                            transparent: true, 
-                            opacity: 0.8 
+                        t3.jarvisMaterial = new THREE.MeshBasicMaterial({
+                            color: 0x00f0ff,
+                            wireframe: true,
+                            transparent: true,
+                            opacity: 0.8
                         });
                     }
                     t3.coreMesh.geometry = t3.jarvisGeometry;
@@ -224,7 +225,7 @@
             setMainScreenWidget(type, index) {
                 this.mainScreenWidget = { type: type, index: parseInt(index) };
             },
-            
+
             clearMainScreenWidget() {
                 this.mainScreenWidget = null;
             },
@@ -246,7 +247,7 @@
                     this.systemState = 'good';
                     this.thinking = true; // Show loading state
                     this.updateCoreColor(true);
-                    
+
                     if (typeof this.initLiveMode === 'function') {
                         this.initLiveMode();
                     } else {
@@ -327,7 +328,7 @@
                 this.playUnclickSound();
                 this.listening = false;
                 this.updateCoreColor();
-                this.recognition.stop(); 
+                this.recognition.stop();
             },
 
             async sendToAI(promptText, isSpontaneous = false) {
@@ -358,7 +359,7 @@
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                         },
-                        body: JSON.stringify({ 
+                        body: JSON.stringify({
                             history: this.chatHistory,
                             agent_id: this.activeAgentId || {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!},
                             chat_session_id: this.$wire.currentChatSessionId
@@ -376,9 +377,9 @@
 
                         let errorTextHTML = "Unbekannter Fehler beim Lesen der Antwort.";
                         try {
-                            errorTextHTML = await clonedResponse.text(); 
+                            errorTextHTML = await clonedResponse.text();
                         } catch(e) { /* Ignore */ }
-                        
+
                         console.error("SyntaxError Fallback:", errorTextHTML);
 
                         this.errorText = "⚠️ Subraum Kommunikation abgebrochen:\nDer Server hat eine HTML-Fehlerseite (Status " + response.status + ") statt JSON zurückgegeben.\n\nDies bedeutet meist, dass der API Code abgestürzt ist.\n\nAuszug:\n" + errorTextHTML.substring(0, 300) + "...\n\nBitte sende diesen Fehler an Gemini!";
@@ -398,11 +399,11 @@
                                 this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug: ${ctx.function}` });
                             });
                         }
-                        
+
                         if (data.events_data && data.events_data.length > 0) {
                             data.events_data.forEach(evt => {
                                 if (evt.name === 'open-ai-visualization') {
-                                    this.playClickSound(); 
+                                    this.playClickSound();
                                     Livewire.dispatch('open-ai-visualization', { payload: evt.detail });
                                 } else if (evt.type === 'navigate') {
                                     if (this.showFunkiView) {
@@ -424,7 +425,7 @@
                         if (data.agent_name) {
                             this.activeAgentName = data.agent_name;
                         }
-                        
+
                         if (data.tts_enabled !== undefined) {
                             this.agentTtsEnabled = data.tts_enabled;
                         }
@@ -443,7 +444,7 @@
                             this.playAudioBase64(data.audio);
                         } else if (data.response && data.response.trim() !== '') {
                             if (this.agentTtsEnabled) {
-                                this.speakResponse(data.response); 
+                                this.speakResponse(data.response);
                             }
                         }
                     } else {
@@ -495,7 +496,7 @@
                     this.chartListData = [];
                     this.destroyCurrentChart();
                     this.showChartCanvas = false;
-                    return; 
+                    return;
                 }
 
                 const switchCommand = contextData.find(c => c.function === 'system_switch_agent');
@@ -512,9 +513,9 @@
                 let title = 'System Metriken';
                 let foundData = false;
 
-                this.chartListData = []; 
-                this.tableData = [];     
-                this.tableHeaders = [];  
+                this.chartListData = [];
+                this.tableData = [];
+                this.tableHeaders = [];
 
                 const aiText = aiResponseText.toLowerCase();
                 const lastUserMsg = this.chatHistory.slice().reverse().find(msg => msg.role === 'user');
@@ -576,7 +577,7 @@
 
                     let fd = financeData.data.financial_data_net;
 
-                    if (userRequestedGraphic || true) { 
+                    if (userRequestedGraphic || true) {
                         chartLabels = ['Shop Netto-Umsatz', 'Fixkosten', 'Sonderausgaben'];
                         chartDataset = [
                             fd.shop_income || 0,
@@ -588,7 +589,7 @@
                         let sum = chartDataset.reduce((a,b) => a+b, 0);
                         if (sum === 0) {
                             chartLabels = ['Keine Daten in diesem Monat'];
-                            chartDataset = [1]; 
+                            chartDataset = [1];
                         }
                     }
                 }
@@ -778,7 +779,7 @@
                 this.showChartPanel = true;
 
                 this.$nextTick(() => {
-                    this.playClickSound(); 
+                    this.playClickSound();
                     this.destroyCurrentChart();
 
                     const chartWrapper = document.getElementById('funki-canvas-wrapper');
@@ -839,7 +840,7 @@
                                 }
                             }
                         });
-                    }, 300); 
+                    }, 300);
                 });
 
 
@@ -864,7 +865,7 @@
 
             // --- Multimodal Live API ---
             nextPlayTime: 0,
-            
+
             async initLiveMode() {
                 try {
                     this.thinking = true;
@@ -892,7 +893,7 @@
 
                     this.liveWs.onopen = () => {
                         console.log('Gemini Live WS Connected');
-                        
+
                         // Send Initial Setup
                         const setupMsg = {
                             setup: {
@@ -914,10 +915,10 @@
                             }
                         };
                         this.liveWs.send(JSON.stringify(setupMsg));
-                        
+
                         this.thinking = false;
                         this.updateCoreColor(true);
-                        
+
                         // Start Microphone ONLY after setupComplete is received!
                         // this.startMicrophone();
                     };
@@ -968,13 +969,13 @@
                     } });
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
-                    
+
                     const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
                     this.audioWorklet = processor;
-                    
+
                     processor.onaudioprocess = (e) => {
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) return;
-                        
+
                         // We only send audio when the mic is not explicitly muted
                         if (this.isMuted) return;
 
@@ -995,7 +996,7 @@
                             binary += String.fromCharCode(bytes[i]);
                         }
                         const base64Audio = btoa(binary);
-                        
+
                         const msg = {
                             realtimeInput: {
                                 audio: {
@@ -1009,7 +1010,7 @@
 
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
-                    
+
                     // Parallele Spracherkennung WIEDER AKTIVIERT (Audio-Flags oben auf false gesetzt, um Hardware-Konflikte ('Dudumm'-Geräusch) auf Mobilgeräten zu vermeiden)
                     this.startSpeechRecognition();
 
@@ -1019,10 +1020,10 @@
                     this.stopLiveMode();
                 }
             },
-            
+
             startSpeechRecognition() {
                 if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
-                
+
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 this.recognition = new SpeechRecognition();
                 this.recognition.continuous = true;
@@ -1043,20 +1044,20 @@
                         }
                     }
                 };
-                
+
                 this.recognition.onerror = (e) => {
-                    console.log('Speech recognition error', e);
+                    /*console.log('Speech recognition error', e);*/
                 };
-                
+
                 this.recognition.onend = () => {
                     if (this.isLiveMode && !this.isMuted) {
                         try { this.recognition.start(); } catch(e) {}
                     }
                 };
-                
+
                 try { this.recognition.start(); } catch(e) {}
             },
-            
+
             stopSpeechRecognition() {
                 if (this.recognition) {
                     this.recognition.onend = null;
@@ -1082,7 +1083,7 @@
                             fullText += part.text;
                         }
                     });
-                    
+
                     if (fullText) {
                         this.chatHistory.push({ role: 'model', parts: [{ text: fullText }] });
                         try {
@@ -1093,7 +1094,7 @@
                         this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: fullText.replace(/\[.*?\]/s, '') });
                     }
                 }
-                
+
                 if (data.serverContent && data.serverContent.interrupted) {
                     this.stopCurrentAudioPlayback();
                 }
@@ -1118,10 +1119,10 @@
                                 })
                             });
                             const resultData = await res.json();
-                            
+
                             // Visualize
                             this.renderAnalytics([resultData]);
-                            
+
                             // MAGIC: Synchronize frontend UI if the agent decided to switch itself!
                             if (call.name === 'system_switch_agent' && resultData.result && resultData.result.status === 'success') {
                                 // This triggers the Livewire updatedAgentId hook which in turn dispatches 'agent-changed',
@@ -1133,11 +1134,11 @@
                             // MAGIC: Handle explicit UI events returned by tools (like navigation)
                             let frontendEvents = resultData.result && resultData.result._frontend_events;
                             let frontendEvent = resultData.result && (resultData.result._frontend_event || resultData.result._event);
-                            
+
                             let eventsToProcess = [];
                             if (frontendEvents && Array.isArray(frontendEvents)) eventsToProcess = [...frontendEvents];
                             if (frontendEvent) eventsToProcess.push(frontendEvent);
-                            
+
                             eventsToProcess.forEach(ev => {
                                 if (ev.type === 'navigate' && ev.url) {
                                     if (typeof window.Livewire !== 'undefined') {
@@ -1169,7 +1170,7 @@
                     }
                 }
             },
-            
+
             stopCurrentAudioPlayback() {
                 if (this.audioContext) {
                     this.audioContext.suspend();
@@ -1184,7 +1185,7 @@
                 this.nextPlayTime = 0;
                 this.isSpeaking = false;
                 this.updateCoreColor(true);
-                
+
                 if (this.audioContext) {
                     setTimeout(() => {
                         if (this.audioContext) this.audioContext.resume();
@@ -1194,7 +1195,7 @@
 
             playLiveAudioChunk(base64Data) {
                 if (!this.audioContext) return;
-                
+
                 this.thinking = false;
                 this.isSpeaking = true;
                 this.updateCoreColor(true);
@@ -1205,7 +1206,7 @@
                 for (let i = 0; i < len; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                
+
                 const pcm16 = new Int16Array(bytes.buffer);
                 const float32 = new Float32Array(pcm16.length);
                 for (let i = 0; i < pcm16.length; i++) {
@@ -1217,20 +1218,20 @@
 
                 const source = this.audioContext.createBufferSource();
                 source.buffer = audioBuffer;
-                
+
                 // Directly connect to output for pure, clean Gemini audio
                 source.connect(this.audioContext.destination);
-                
+
                 if (this.nextPlayTime < this.audioContext.currentTime) {
                     this.nextPlayTime = this.audioContext.currentTime;
                 }
-                
+
                 if (!this.activeAudioSources) this.activeAudioSources = [];
                 this.activeAudioSources.push(source);
-                
+
                 source.start(this.nextPlayTime);
                 this.nextPlayTime += audioBuffer.duration;
-                
+
                 source.onended = () => {
                     this.activeAudioSources = this.activeAudioSources.filter(s => s !== source);
                     if (this.audioContext && this.audioContext.currentTime >= this.nextPlayTime - 0.1) {
@@ -1253,7 +1254,7 @@
                     this.audioWorklet.disconnect();
                     this.audioWorklet = null;
                 }
-                
+
                 this.stopSpeechRecognition();
 
                 this.isLiveMode = false;

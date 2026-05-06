@@ -408,10 +408,20 @@ class AIController extends Controller
                     $removeAdditionalProperties($value);
                 }
             }
-            if (is_object($obj) && property_exists($obj, 'additionalProperties')) {
-                unset($obj->additionalProperties);
-            } elseif (is_array($obj) && array_key_exists('additionalProperties', $obj)) {
-                unset($obj['additionalProperties']);
+            if (is_object($obj)) {
+                if (property_exists($obj, 'additionalProperties')) {
+                    unset($obj->additionalProperties);
+                }
+                if (property_exists($obj, 'type') && is_string($obj->type)) {
+                    $obj->type = strtoupper($obj->type);
+                }
+            } elseif (is_array($obj)) {
+                if (array_key_exists('additionalProperties', $obj)) {
+                    unset($obj['additionalProperties']);
+                }
+                if (array_key_exists('type', $obj) && is_string($obj['type'])) {
+                    $obj['type'] = strtoupper($obj['type']);
+                }
             }
         };
 

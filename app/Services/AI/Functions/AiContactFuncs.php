@@ -50,8 +50,7 @@ trait AiContactFuncs
                         ],
                         'relation_type' => [
                             'type' => 'string',
-                            'description' => 'Art der Beziehung (z.B. "Familie", "Kunde", "Freund", "Dienstleister", "Unbekannt").',
-                            'default' => 'Unbekannt'
+                            'description' => 'Art der Beziehung (z.B. "Familie", "Kunde", "Freund", "Dienstleister", "Unbekannt").'
                         ]
                     ],
                     'required' => ['first_name']

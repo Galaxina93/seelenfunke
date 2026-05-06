@@ -22,11 +22,42 @@
      @ai-show-org-chart.window="console.log('ai-show-org-chart', $event.detail); orgChartWidget = $event.detail.payload || $event.detail; showFunkiView = true; isSecretMode = true;"
      @ai-transform-core.window="isJarvis = ($event.detail.target === 'jarvis'); updateJarvisMode();"
      @ai-toggle-secret-workspace.window="isSecretMode = $event.detail.open; if(isSecretMode && !showFunkiView) { openFunkiView(false); }"
+     @map-change-style.window="if(window.changeMapStyle) { window.changeMapStyle($event.detail.style); }"
+     @ai-unshelf-widget.window="
+        const type = $event.detail.type;
+        const id = $event.detail.identifier;
+        if (type === 'persona' || type === 'intel') {
+            let idx = id ? shelfWidgets.findIndex(w => w.type === type && w.payload && (w.payload.name || w.payload.title || '').toLowerCase().includes(id.toLowerCase())) : (shelfWidgets.length > 0 ? 0 : -1);
+            if (idx > -1) {
+                let w = shelfWidgets[idx];
+                if (w.type === 'persona') personaWidgets.unshift(w.payload);
+                if (w.type === 'intel') intelWidgets.unshift(w.payload);
+                shelfWidgets.splice(idx, 1);
+            }
+        }
+     "
      @ai-close-widgets.window="
         const t = $event.detail.type; 
         if(t === 'all' || t === 'persona') personaWidgets = []; 
         if(t === 'all' || t === 'intel') intelWidgets = []; 
         if(t === 'all' || t === 'camera') cameraWidget = null;
+     "
+     @ai-shelf-widget.window="
+        const t = $event.detail.type;
+        const id = $event.detail.identifier;
+        if (t === 'persona') {
+            let idx = id ? personaWidgets.findIndex(w => w.name && w.name.toLowerCase().includes(id.toLowerCase())) : (personaWidgets.length > 0 ? 0 : -1);
+            if (idx > -1) {
+                shelfWidgets.push({ type: 'persona', payload: personaWidgets[idx] });
+                personaWidgets.splice(idx, 1);
+            }
+        } else if (t === 'intel') {
+            let idx = id ? intelWidgets.findIndex(w => w.title && w.title.toLowerCase().includes(id.toLowerCase())) : (intelWidgets.length > 0 ? 0 : -1);
+            if (idx > -1) {
+                shelfWidgets.push({ type: 'intel', payload: intelWidgets[idx] });
+                intelWidgets.splice(idx, 1);
+            }
+        }
      "
      @ai-toggle-youtube-mute.window="let d = $event.detail; let mute = (d && (d.mute === true || d.mute === 'true' || d.mute === 1)); youtubeWidgets = youtubeWidgets.map(w => { let url = new URL(w.video); url.searchParams.set('mute', mute ? '1' : '0'); w.video = url.toString(); return w; });"
      @ai-summarize-youtube.window="let d = $event.detail; let idx = (d && typeof d.index !== 'undefined' && d.index !== null) ? d.index : ((mainScreenWidget && mainScreenWidget.type === 'youtube') ? mainScreenWidget.index : 0); let vid = youtubeWidgets[idx]; if(vid) { let targetUrl = vid.url || vid.video; $wire.set('input', 'Fasse bitte dieses Video zusammen und erstelle ein News-Widget mit den wichtigsten Punkten: ' + targetUrl); $wire.sendMessage(); } else { console.warn('Kein Video gefunden für Zusammenfassung'); }"
@@ -146,6 +177,7 @@
              style="display: none; height: 100dvh;"
              class="fixed inset-0 z-[99999] bg-[#03050a] overflow-hidden font-mono">
 
+    <!-- [AREA: SCRIPTS & IMPORTS] -->
     <!-- Mapbox GL JS & Anime.js -->
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
@@ -176,11 +208,12 @@
          @click="clearMainScreenWidget()" style="display: none;"></div>
 
     <!-- Canvas Container (3D Hologram) -->
-    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="isMapFocus ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden' : (isMapMode ? 'pointer-events-none' : 'pointer-events-auto')"></div>
+    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto')"></div>
     <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
          :class="isMapMode ? 'opacity-100 scale-100 pointer-events-auto shadow-[inset_0_0_200px_rgba(0,0,0,0.9)]' : 'opacity-0 scale-110 blur-xl pointer-events-none'"
          :style="isMapMode ? 'filter: brightness(0.6) sepia(0.3) hue-rotate(180deg) saturate(2.0);' : 'filter: brightness(0.5);'"></div>
 
+    <!-- [AREA: NEWS WIDGETS] -->
     <!-- News UI Panel (2D Overlay) -->
     <div x-show="newsWidgets && newsWidgets.length" x-transition 
          class="absolute left-2 sm:left-6 top-20 sm:top-6 bottom-20 sm:bottom-6 w-[calc(100%-1rem)] sm:w-[350px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar" 
@@ -282,6 +315,7 @@
         </template>
     </div>
 
+    <!-- [AREA: YOUTUBE WIDGETS] -->
     <!-- YouTube Video Pool (2D Overlay) -->
     <div x-show="youtubeWidgets && youtubeWidgets.length" x-transition
          class="absolute right-4 sm:right-32 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[450px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-end" 
@@ -340,6 +374,7 @@
         </template>
     </div>
 
+    <!-- [AREA: TOP SECRET BOARD] -->
     <!-- String Board (Top Secret Workspace) -->
     <div x-show="isSecretMode" x-transition:enter="transition ease-out duration-1000" x-transition:enter-start="opacity-0 scale-110" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 z-[40] pointer-events-auto bg-gray-950/95 backdrop-blur-2xl overflow-hidden" style="display: none;" x-cloak>
         <!-- Background texture -->
@@ -351,10 +386,31 @@
             <div class="text-red-900/80 text-xs uppercase tracking-widest font-mono">OSINT Investigation Board</div>
         </div>
 
+        <!-- Shelf Widget Sidebar (Seitenablage) -->
+        <div x-show="shelfWidgets.length > 0" x-transition class="absolute top-24 left-6 bottom-6 w-48 z-[60] flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2 pointer-events-auto border-r border-red-900/30">
+            <div class="text-red-500/70 text-[10px] uppercase tracking-widest font-mono mb-2 border-b border-red-900/30 pb-1">Seitenablage</div>
+            <template x-for="(shelfItem, index) in shelfWidgets" :key="index">
+                <div class="relative bg-gray-900/80 border border-red-900/50 p-3 rounded-lg shadow-lg cursor-pointer hover:border-red-500 transition-colors group"
+                     @click="
+                        if(shelfItem.type === 'persona') { personaWidgets.unshift(shelfItem.payload); }
+                        else if(shelfItem.type === 'intel') { intelWidgets.unshift(shelfItem.payload); }
+                        shelfWidgets.splice(index, 1);
+                     ">
+                    <div class="text-xs font-bold text-red-400 truncate uppercase tracking-wide" x-text="shelfItem.payload.name || shelfItem.payload.title || 'Akte'"></div>
+                    <div class="text-[9px] text-gray-500 mt-1 uppercase" x-text="shelfItem.type"></div>
+                    <div class="absolute inset-0 bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"></div>
+                    <!-- Restore Icon -->
+                    <div class="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                    </div>
+                </div>
+            </template>
+        </div>
+
         <!-- Intel Post-its -->
-        <div class="absolute inset-0 p-10 pt-24 overflow-auto custom-scrollbar flex flex-wrap gap-6 items-start justify-center content-start">
+        <div class="absolute inset-0 p-10 pt-24 overflow-auto custom-scrollbar flex flex-wrap gap-6 items-start justify-center content-start" :class="shelfWidgets.length > 0 ? 'pl-60' : ''">
             <template x-for="(intel, index) in intelWidgets" :key="index">
-                <div class="relative w-64 bg-yellow-200/90 shadow-xl border border-yellow-400 p-4 transform transition-all duration-300 hover:scale-105 font-sans"
+                <div class="relative w-64 bg-yellow-200/90 shadow-xl border border-yellow-400 p-4 transform transition-all duration-300 hover:scale-105 font-sans group/postit"
                      style="box-shadow: 5px 5px 15px rgba(0,0,0,0.5);">
                     <!-- Pin -->
                     <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-600 shadow-md border border-red-800"></div>
@@ -362,8 +418,12 @@
                     <button @click="intelWidgets.splice(index, 1)" class="absolute top-2 right-2 text-yellow-800 hover:text-red-600 p-1 cursor-pointer">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
+                    <!-- Shelve Button -->
+                    <button @click="$dispatch('ai-shelf-widget', { type: 'intel', identifier: intel.title })" class="absolute top-2 right-7 text-yellow-800 hover:text-blue-600 p-1 cursor-pointer opacity-0 group-hover/postit:opacity-100 transition-opacity" title="In Seitenablage">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                    </button>
                     
-                    <h4 class="font-black text-yellow-900 text-sm uppercase tracking-wider mb-2 pr-4 border-b border-yellow-400/50 pb-1 line-clamp-2" x-text="intel.title"></h4>
+                    <h4 class="font-black text-yellow-900 text-sm uppercase tracking-wider mb-2 pr-10 border-b border-yellow-400/50 pb-1 line-clamp-2" x-text="intel.title"></h4>
                     <p class="text-yellow-950 text-xs leading-relaxed" x-text="intel.content"></p>
                 </div>
             </template>
@@ -377,15 +437,15 @@
         </div>
     </div>
 
+    <!-- [AREA: PERSONA WIDGETS] -->
     <!-- Persona Pool (2D Overlay) -->
     <div x-show="personaWidgets && personaWidgets.length" x-transition
          class="absolute left-1/2 -translate-x-1/2 top-24 bottom-20 w-[calc(100%-2rem)] sm:w-[800px] pointer-events-none flex flex-col gap-4 overflow-y-auto custom-scrollbar items-center" 
          :class="(mainScreenWidget && mainScreenWidget.type === 'persona') ? 'z-[9999]' : 'z-[50]'" style="display: none;" x-cloak>
         <template x-for="(persona, index) in personaWidgets" :key="index">
             <div :class="{
-                    'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] md:w-[80vw] h-[80vh] max-h-[800px] z-[10000]': mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index,
-                    'w-full shrink-0 relative': !(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index),
-                    '!opacity-20 !blur-md pointer-events-none': mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index !== index
+                    'w-full max-w-[800px] shrink-0 relative': true,
+                    '!opacity-20 !blur-md pointer-events-none': mainScreenWidget && (mainScreenWidget.type !== 'persona' || mainScreenWidget.index !== index)
                  }"
                  class="overflow-hidden group pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] bg-gray-950/90 backdrop-blur-3xl border border-red-900/50 rounded-3xl shadow-[0_0_40px_rgba(220,38,38,0.15)] relative"
                  x-init="
@@ -406,7 +466,10 @@
                  :style="(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index) ? 'box-shadow: 0 0 50px rgba(220,38,38,0.5); border: 1px solid rgba(220,38,38,0.8);' : ''">
                  
                  <div class="absolute top-4 right-4 z-50 flex gap-2">
-                    <button @click="mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index ? clearMainScreenWidget() : setMainScreenWidget('persona', index)" class="p-2 bg-black/50 hover:bg-emerald-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Hauptschirm">
+                    <button @click="$dispatch('ai-shelf-widget', { type: 'persona', identifier: persona.name })" class="p-2 bg-black/50 hover:bg-blue-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="In Seitenablage">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                    </button>
+                    <button @click="mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index ? clearMainScreenWidget() : setMainScreenWidget('persona', index)" class="p-2 bg-black/50 hover:bg-emerald-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Akte Expandieren / Minimieren">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
                     </button>
                     <button @click="personaWidgets.splice(index, 1)" class="p-2 bg-black/50 hover:bg-red-500/80 hover:text-white rounded-full border border-white/20 backdrop-blur-md transition-all cursor-pointer text-gray-300" title="Schließen">
@@ -438,8 +501,9 @@
                         <!-- Profile Overview -->
                         <div class="flex flex-col md:flex-row gap-6">
                             <!-- Image / Photo -->
-                            <div class="w-full md:w-1/3 shrink-0 relative">
-                                <div class="aspect-[3/4] w-full rounded-xl bg-gray-900 border-2 border-gray-800 relative overflow-hidden flex items-center justify-center">
+                            <div class="w-full md:w-1/3 shrink-0 relative transition-all duration-500"
+                                 :class="(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index) ? 'h-64' : 'h-32'">
+                                <div class="w-full h-full rounded-xl bg-gray-900 border-2 border-gray-800 relative overflow-hidden flex items-center justify-center">
                                     <template x-if="persona.image_url">
                                         <div>
                                             <img :src="persona.image_url" :alt="persona.name" class="w-full h-full object-cover filter contrast-125 saturate-50 sepia-[.2]">
@@ -486,13 +550,16 @@
 
                                 <div class="bg-black/40 p-4 rounded-xl border border-gray-800 mt-2 relative">
                                     <div class="absolute -top-2 left-4 px-2 bg-gray-950 text-[9px] uppercase tracking-widest font-bold text-red-500 font-mono">Zusammenfassung</div>
-                                    <p class="text-sm text-gray-300 leading-relaxed font-sans" x-text="persona.summary || 'Keine Geheimdienst-Informationen verfügbar.'"></p>
+                                    <p class="text-sm text-gray-300 leading-relaxed font-sans transition-all duration-500" 
+                                       :class="(mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index) ? '' : 'line-clamp-2'"
+                                       x-text="persona.summary || 'Keine Geheimdienst-Informationen verfügbar.'"></p>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Bottom Section: Career & Associates -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 border-t border-gray-800/50 pt-6">
+                        <!-- Bottom Section: Career & Associates (Only visible when expanded) -->
+                        <div x-show="mainScreenWidget && mainScreenWidget.type === 'persona' && mainScreenWidget.index === index" x-collapse>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 border-t border-gray-800/50 pt-6">
                             <!-- Timeline -->
                             <div>
                                 <div class="text-[10px] uppercase tracking-widest font-bold text-gray-500 font-mono mb-4 flex items-center gap-2">
@@ -535,6 +602,7 @@
                                     <div class="text-xs text-gray-600 italic font-mono">No known associates logged.</div>
                                 </template>
                             </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -542,6 +610,86 @@
         </template>
     </div>
 
+    <!-- [AREA: CAMERA WIDGET] -->
+    <div x-show="cameraWidget" x-transition
+         class="absolute top-24 right-6 sm:right-32 w-[calc(100%-2rem)] sm:w-[450px] z-[9000] overflow-hidden pointer-events-auto rounded-3xl border border-blue-500/50 shadow-[0_0_40px_rgba(59,130,246,0.3)] bg-black/90 backdrop-blur-3xl"
+         style="display: none;" x-cloak>
+         <div class="relative w-full aspect-video bg-gray-900 rounded-t-3xl overflow-hidden">
+             <!-- Scanner line -->
+             <div class="absolute inset-0 bg-[linear-gradient(transparent,rgba(59,130,246,0.2)_50%,transparent)] bg-[length:100%_4px] animate-[scan_2s_linear_infinite] z-20 pointer-events-none"></div>
+             <!-- The Video element -->
+             <video id="funki-local-camera" class="w-full h-full object-cover filter contrast-125 sepia-[.1]" autoplay playsinline muted></video>
+             
+             <!-- REC indicator -->
+             <div class="absolute top-4 left-4 z-30 flex items-center gap-2 px-2 py-1 bg-black/50 rounded backdrop-blur border border-red-500/30">
+                <div class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
+                <div class="text-[10px] font-mono text-red-500 tracking-widest">LIVE REC</div>
+             </div>
+             
+             <!-- Close button -->
+             <button @click="$dispatch('ai-close-widgets', { type: 'camera' })" class="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-red-500/80 rounded-full border border-white/20 transition-all text-white cursor-pointer" title="Schließen">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+             </button>
+         </div>
+         <div class="p-4 bg-gray-950/90 font-mono text-xs text-blue-400/80 flex items-center justify-between">
+             <div class="flex items-center gap-2">
+                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                 <span>LOCAL SYSTEM FEED // SECURE</span>
+             </div>
+             <span class="text-gray-600">FR: 60.00</span>
+         </div>
+    </div>
+    
+    <!-- Script for camera & map styles -->
+    <script>
+        document.addEventListener('ai-show-camera', function(e) {
+            const open = e.detail && e.detail.open;
+            const video = document.getElementById('funki-local-camera');
+            if(open) {
+                if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+                        if (video) video.srcObject = stream;
+                        window.funkiCameraStream = stream;
+                    }).catch(function(err) {
+                        console.error('Camera error: ', err);
+                    });
+                }
+            } else {
+                if(window.funkiCameraStream) {
+                    window.funkiCameraStream.getTracks().forEach(track => track.stop());
+                    window.funkiCameraStream = null;
+                }
+                if(video) video.srcObject = null;
+            }
+        });
+
+        document.addEventListener('ai-close-widgets', function(e) {
+            const type = e.detail && e.detail.type;
+            if (type === 'all' || type === 'camera') {
+                const video = document.getElementById('funki-local-camera');
+                if(window.funkiCameraStream) {
+                    window.funkiCameraStream.getTracks().forEach(track => track.stop());
+                    window.funkiCameraStream = null;
+                }
+                if(video) video.srcObject = null;
+            }
+        });
+        
+        window.changeMapStyle = function(style) {
+            if(!window.map) return;
+            const styles = {
+                'dark': 'mapbox://styles/mapbox/dark-v11',
+                'light': 'mapbox://styles/mapbox/light-v11',
+                'satellite': 'mapbox://styles/mapbox/satellite-streets-v12',
+                'streets': 'mapbox://styles/mapbox/streets-v12',
+                'cyber': 'mapbox://styles/mapbox/navigation-night-v1' // Good futuristic default
+            };
+            window.map.setStyle(styles[style] || styles['dark']);
+            // The terrain/sky will reload via mapbox event if implemented correctly in part2/3
+        };
+    </script>
+
+    <!-- [AREA: NAVIGATION & LOG] -->
     <!-- UI Overlay Navigation -->
     <div x-show="showFunkiView" class="absolute top-6 right-6 z-50 flex flex-col items-end gap-2" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
         <!-- Control Bar: Aufgaben, Log, Pause, Stop, Agent -->

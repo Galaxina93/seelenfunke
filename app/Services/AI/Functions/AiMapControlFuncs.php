@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 
 trait AiMapControlFuncs
 {
+    // [AREA: SCHEMA & CAPABILITIES]
     public static function getAiMapControlFuncsSchema(): array
     {
         return [
@@ -89,8 +90,7 @@ trait AiMapControlFuncs
                         ],
                         'limit' => [
                             'type' => 'integer',
-                            'description' => 'Anzahl der gewünschten Treffer (Maximal 10).',
-                            'default' => 5
+                            'description' => 'Anzahl der gewünschten Treffer (Maximal 10).'
                         ]
                     ],
                     'required' => ['query']
@@ -155,6 +155,22 @@ trait AiMapControlFuncs
                     'required' => ['active']
                 ],
                 'callable' => [self::class, 'executeMapToggleLivedata']
+            ],
+            [
+                'name' => 'map_change_style',
+                'description' => 'Ändert den visuellen Stil (Modus) der interaktiven Karte (z.B. Dark, Light, Satellite, Cyberpunk).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'style' => [
+                            'type' => 'string',
+                            'enum' => ['dark', 'light', 'satellite', 'cyber', 'streets'],
+                            'description' => 'Der gewünschte Kartenstil.'
+                        ]
+                    ],
+                    'required' => ['style']
+                ],
+                'callable' => [self::class, 'executeMapChangeStyle']
             ],
             [
                 'name' => 'map_toggle_mapfocus',
@@ -265,6 +281,7 @@ trait AiMapControlFuncs
         ];
     }
 
+    // [AREA: EXPORT & REPORTING]
     public static function executeMapGeneratePdfSummary(array $args)
     {
         $title = $args['title'] ?? 'Zusammenfassung der Orte';
@@ -325,6 +342,7 @@ trait AiMapControlFuncs
         }
     }
 
+    // [AREA: MAP SEARCH & NAVIGATION]
     public static function executeMapSearchAndFly(array $args)
     {
         $query = $args['query'] ?? '';
@@ -580,6 +598,7 @@ trait AiMapControlFuncs
         }
     }
 
+    // [AREA: UI & MAP CONTROLS]
     public static function executeMapToggleLivedata(array $args)
     {
         $active = $args['active'] ?? true;
@@ -589,6 +608,19 @@ trait AiMapControlFuncs
             '_frontend_event' => [
                 'name' => 'toggle-livedata',
                 'detail' => ['active' => $active]
+            ]
+        ];
+    }
+
+    public static function executeMapChangeStyle(array $args)
+    {
+        $style = $args['style'] ?? 'dark';
+        return [
+            'status' => 'success',
+            'message' => "Der Kartenstil wurde erfolgreich auf '$style' geändert.",
+            '_frontend_event' => [
+                'name' => 'map-change-style',
+                'detail' => ['style' => $style]
             ]
         ];
     }

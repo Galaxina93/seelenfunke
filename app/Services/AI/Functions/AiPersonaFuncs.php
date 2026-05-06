@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 
 trait AiPersonaFuncs
 {
+    // [AREA: GET SCHEMA]
     public static function getAiPersonaFuncsSchema(): array
     {
         return [
@@ -174,6 +175,18 @@ trait AiPersonaFuncs
                 ],
                 'callable' => [self::class, 'executePersonaDeleteIntel']
             ],
+           /* [
+                'name' => 'brain_delete_entry',
+                'description' => 'Alias für persona_delete_intel. Löscht einen Eintrag (Intel oder Person) aus der OSINT Datenbank.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => ['type' => 'string', 'description' => 'Der exakte Titel des Eintrags, der gelöscht werden soll.']
+                    ],
+                    'required' => ['title']
+                ],
+                'callable' => [self::class, 'executePersonaDeleteIntel']
+            ],*/
             [
                 'name' => 'persona_fetch_url',
                 'description' => 'Lädt den Textinhalt einer beliebigen öffentlichen URL herunter. Ideal für Ermittlungen auf Nachrichtenseiten oder Wikipedia.',
@@ -193,7 +206,7 @@ trait AiPersonaFuncs
                     'type' => 'object',
                     'properties' => [
                         'type' => [
-                            'type' => 'string', 
+                            'type' => 'string',
                             'enum' => ['persona', 'intel', 'camera', 'all'],
                             'description' => 'Welcher Typ von Widget geschlossen werden soll ("persona", "intel", "camera" oder "all").'
                         ],
@@ -213,12 +226,12 @@ trait AiPersonaFuncs
                     'type' => 'object',
                     'properties' => [
                         'action' => [
-                            'type' => 'string', 
+                            'type' => 'string',
                             'enum' => ['focus', 'unfocus'],
                             'description' => 'Die Aktion: "focus" (groß machen) oder "unfocus" (wieder klein machen).'
                         ],
                         'type' => [
-                            'type' => 'string', 
+                            'type' => 'string',
                             'enum' => ['persona', 'intel'],
                             'description' => 'Typ des Widgets ("persona" oder "intel").'
                         ],
@@ -238,7 +251,7 @@ trait AiPersonaFuncs
                     'type' => 'object',
                     'properties' => [
                         'type' => [
-                            'type' => 'string', 
+                            'type' => 'string',
                             'enum' => ['persona', 'intel'],
                             'description' => 'Typ des Widgets ("persona" oder "intel").'
                         ],
@@ -252,13 +265,33 @@ trait AiPersonaFuncs
                 'callable' => [self::class, 'executePersonaShelfWidget']
             ],
             [
+                'name' => 'persona_unshelf_widget',
+                'description' => 'Holt eine Akte, ein Profil oder ein Intel aus der Seitenablage (Shelf) zurück auf den Haupt-Arbeitsbereich. Nutze dies, wenn der Nutzer sagt "hol das Profil von X wieder hervor" oder "aus der Zwischenablage laden".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'type' => [
+                            'type' => 'string',
+                            'enum' => ['persona', 'intel'],
+                            'description' => 'Typ des Widgets ("persona" oder "intel").'
+                        ],
+                        'identifier' => [
+                            'type' => 'string',
+                            'description' => 'Der Suchbegriff/Name der Persona oder der Titel des Intels, das aus der Seitenablage geholt werden soll.'
+                        ]
+                    ],
+                    'required' => ['type', 'identifier']
+                ],
+                'callable' => [self::class, 'executePersonaUnshelfWidget']
+            ],
+            [
                 'name' => 'persona_transform_core',
                 'description' => 'Verändert die visuelle Darstellung (den "Kern") des KI-Agenten in der Benutzeroberfläche. Nutze dies, wenn du dich lustig machst und z.B. sagst "Ich verwandle mich jetzt in Jarvis", indem du als target "jarvis" übergibst. Um zum normalen Globi zurückzukehren, übergib "default".',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'target' => [
-                            'type' => 'string', 
+                            'type' => 'string',
                             'enum' => ['default', 'jarvis'],
                             'description' => 'Das Zielaussehen des Kerns: "jarvis" für die Jarvis-Hologramm-Ansicht, "default" für den normalen Seelenfunke-Kern.'
                         ]
@@ -321,22 +354,80 @@ trait AiPersonaFuncs
         ];
     }
 
-    public static function executePersonaVisualizeProfile(array $args)
+    // [AREA: IMAGE PROCESSING]
+    private static function processPersonaImage($url, $name)
     {
-        if (!empty($args['image_url'])) {
+        if (empty($url)) return $url;
+
+        // Falls es schon eine lokale oder base64 URL ist, ignorieren
+        if (str_starts_with($url, 'data:') || str_starts_with($url, url('/'))) {
+            return $url;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            ])->timeout(15)->get($url);
+
+            if ($response->successful()) {
+                $imgContent = $response->body();
+                $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($imgContent);
+
+                if (str_starts_with($mime, 'image/')) {
+                    $ext = 'jpg';
+                    if ($mime === 'image/png') $ext = 'png';
+                    if ($mime === 'image/webp') $ext = 'webp';
+                    if ($mime === 'image/gif') $ext = 'gif';
+
+                    $filename = Str::slug($name) . '_' . time() . '.' . $ext;
+
+                    // Speichern im Storage-Ordner (public für Web-Zugriff)
+                    $dir = storage_path('app/public/agenten/ai/persona');
+                    if (!file_exists($dir)) {
+                        mkdir($dir, 0755, true);
+                    }
+
+                    file_put_contents($dir . '/' . $filename, $imgContent);
+
+                    return url('storage/agenten/ai/persona/' . $filename);
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::warning("Could not download persona image for UI: " . $e->getMessage());
+        }
+
+        // FALLBACK: Wenn Wikipedia-Link kaputt war oder 404, hole das Bild über die Wikipedia API
+        if (str_contains($url, 'wikipedia') || str_contains($url, 'wikimedia') || empty($url)) {
             try {
-                $response = \Illuminate\Support\Facades\Http::timeout(10)->get($args['image_url']);
-                if ($response->successful()) {
-                    $imgContent = $response->body();
-                    $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($imgContent);
-                    if (strpos($mime, 'image/') === 0) {
-                        $base64 = base64_encode($imgContent);
-                        $args['image_url'] = 'data:' . $mime . ';base64,' . $base64;
+                // Suche per Wikipedia API nach dem echten Namen und hole das Thumbnail
+                $wikiUrl = "https://de.wikipedia.org/w/api.php?action=query&titles=" . urlencode($name) . "&prop=pageimages&format=json&pithumbsize=400";
+                $wikiRes = \Illuminate\Support\Facades\Http::timeout(10)->get($wikiUrl);
+
+                if ($wikiRes->successful()) {
+                    $wikiData = $wikiRes->json();
+                    if (isset($wikiData['query']['pages'])) {
+                        foreach ($wikiData['query']['pages'] as $page) {
+                            if (isset($page['thumbnail']['source'])) {
+                                $thumbnailUrl = $page['thumbnail']['source'];
+                                // Wir rufen die Funktion rekursiv mit der neuen Thumbnail URL auf, um sie zu speichern!
+                                return self::processPersonaImage($thumbnailUrl, $name . '_wiki');
+                            }
+                        }
                     }
                 }
             } catch (\Exception $e) {
-                \Log::warning("Could not download persona image for UI: " . $e->getMessage());
+                \Log::warning("Wikipedia API Fallback failed: " . $e->getMessage());
             }
+        }
+
+        return $url;
+    }
+
+    // [AREA: FRONTEND WIDGETS]
+    public static function executePersonaVisualizeProfile(array $args)
+    {
+        if (!empty($args['image_url'])) {
+            $args['image_url'] = self::processPersonaImage($args['image_url'], $args['name'] ?? 'Unbekannt');
         }
 
         return [
@@ -351,6 +442,7 @@ trait AiPersonaFuncs
         ];
     }
 
+    // [AREA: PDF GENERATION]
     public static function executePersonaGeneratePdf(array $args)
     {
         $name = $args['name'] ?? 'Unbekannt';
@@ -358,26 +450,11 @@ trait AiPersonaFuncs
         $recipient = $args['recipient_email'] ?? null;
         $agentName = session('current_ai_agent_name', 'System');
 
-        // Robust image download and base64 embedding for DomPDF
+        // Robust image download
         if (!empty($args['image_url'])) {
-            try {
-                $response = \Illuminate\Support\Facades\Http::timeout(10)->get($args['image_url']);
-                if ($response->successful()) {
-                    $imgContent = $response->body();
-                    $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($imgContent);
-                    if (strpos($mime, 'image/') === 0) {
-                        $base64 = base64_encode($imgContent);
-                        $args['image_url'] = 'data:' . $mime . ';base64,' . $base64;
-                    } else {
-                        unset($args['image_url']);
-                    }
-                } else {
-                    unset($args['image_url']);
-                }
-            } catch (\Exception $e) {
-                \Log::warning("Could not download persona image for PDF: " . $e->getMessage());
-                unset($args['image_url']);
-            }
+            $processedUrl = self::processPersonaImage($args['image_url'], $name);
+            // Für DomPDF ist ein lokaler Pfad oft besser als eine URL, aber URL geht auch.
+            $args['image_url'] = $processedUrl;
         }
 
         try {
@@ -473,6 +550,21 @@ trait AiPersonaFuncs
         ];
     }
 
+    public static function executePersonaUnshelfWidget(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => "Das Element wurde aus der Seitenablage (Shelf) wiederhergestellt.",
+            '_frontend_event' => [
+                'name' => 'ai-unshelf-widget',
+                'detail' => [
+                    'type' => $args['type'] ?? 'persona',
+                    'identifier' => $args['identifier'] ?? ''
+                ]
+            ]
+        ];
+    }
+
     public static function executePersonaTransformCore(array $args)
     {
         $target = $args['target'] ?? 'default';
@@ -507,6 +599,7 @@ trait AiPersonaFuncs
         ];
     }
 
+    // [AREA: KNOWLEDGE BASE / OSINT DB]
     public static function executePersonaSaveIntel(array $args)
     {
         $entityName = $args['entity_name'] ?? 'Unbekannte Entität';
@@ -515,6 +608,7 @@ trait AiPersonaFuncs
         $imageUrl = $args['image_url'] ?? '';
 
         if (!empty($imageUrl)) {
+            $imageUrl = self::processPersonaImage($imageUrl, $entityName);
             $intelContent = "![Profilbild]({$imageUrl})\n\n" . $intelContent;
         }
 
@@ -610,7 +704,7 @@ trait AiPersonaFuncs
 
         try {
             $category = AiKnowledgeBaseCategory::where('slug', 'osint-relation')->first();
-            
+
             if (!$category) {
                 return [
                     'status' => 'success',
@@ -669,7 +763,7 @@ trait AiPersonaFuncs
     public static function executePersonaDeleteIntel(array $args)
     {
         $title = $args['title'] ?? '';
-        
+
         try {
             $kb = AiKnowledgeBase::where('title', $title)->first();
             if ($kb) {
@@ -700,7 +794,7 @@ trait AiPersonaFuncs
                 $text = strip_tags($html);
                 // Clean up excessive whitespace
                 $text = preg_replace('/\s+/', ' ', $text);
-                
+
                 // Truncate to avoid blowing up the context window
                 $text = mb_substr(trim($text), 0, 15000);
 

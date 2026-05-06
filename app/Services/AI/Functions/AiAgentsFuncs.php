@@ -98,7 +98,7 @@ trait AiAgentsFuncs
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'days' => ['type' => 'integer', 'description' => 'Anzahl der vergangenen Tage für die Analyse.', 'default' => 7]
+                        'days' => ['type' => 'integer', 'description' => 'Anzahl der vergangenen Tage für die Analyse.']
                     ]
                 ],
                 'callable' => [self::class, 'executeAnalyzeAgentsActivity']

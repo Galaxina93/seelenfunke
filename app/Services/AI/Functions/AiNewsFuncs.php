@@ -25,13 +25,11 @@ trait AiNewsFuncs
                         ],
                         'language' => [
                             'type' => 'string',
-                            'description' => 'Die Sprache der Nachrichten. Standard ist "de". Mögliche Werte: "de", "en", "es", "fr", etc.',
-                            'default' => 'de'
+                            'description' => 'Die Sprache der Nachrichten. Standard ist "de". Mögliche Werte: "de", "en", "es", "fr", etc.'
                         ],
                         'sortBy' => [
                             'type' => 'string',
-                            'description' => 'Sortierung der Ergebnisse. Mögliche Werte: "publishedAt" (neueste), "relevancy" (relevanteste), "popularity" (beliebteste).',
-                            'default' => 'publishedAt'
+                            'description' => 'Sortierung der Ergebnisse. Mögliche Werte: "publishedAt" (neueste), "relevancy" (relevanteste), "popularity" (beliebteste).'
                         ]
                     ],
                     'required' => ['query']
