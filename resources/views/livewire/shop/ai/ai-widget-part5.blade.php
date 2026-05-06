@@ -191,6 +191,7 @@
                     depthWrite: false
                 });
 
+                t3.defaultGeometry = coreGeometry;
                 t3.coreMesh = new THREE.Mesh(coreGeometry, t3.coreMaterial);
                 t3.scene.add(t3.coreMesh);
 

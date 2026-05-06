@@ -68,6 +68,10 @@
             isFlightDataActive: false,
             isSecretMode: false,
             currentChatSessionId: null,
+            isJarvis: false,
+            intelWidgets: [],
+            cameraWidget: null,
+            orgChartWidget: null,
             activeMapStyle: 'mapbox://styles/mapbox/dark-v11',
             mapStyles: [
                 { id: 'mapbox://styles/mapbox/dark-v11', name: 'Dark Cyber' },
@@ -133,6 +137,30 @@
                         this.toggleLiveMode(); // Gracefully turn it back on after cleanup
                     }, 1200); // 1.2s gives the old AudioContext and WebSocket enough time to fully close
                 }
+            },
+
+            updateJarvisMode() {
+                if (!window.t3 || !t3.scene || !t3.coreMesh) return;
+                
+                if (this.isJarvis) {
+                    if (!t3.jarvisGeometry) {
+                        t3.jarvisGeometry = new THREE.IcosahedronGeometry(60, 1);
+                        t3.jarvisMaterial = new THREE.MeshBasicMaterial({ 
+                            color: 0x00f0ff, 
+                            wireframe: true, 
+                            transparent: true, 
+                            opacity: 0.8 
+                        });
+                    }
+                    t3.coreMesh.geometry = t3.jarvisGeometry;
+                    t3.coreMesh.material = t3.jarvisMaterial;
+                } else {
+                    if (t3.defaultGeometry && t3.coreMaterial) {
+                        t3.coreMesh.geometry = t3.defaultGeometry;
+                        t3.coreMesh.material = t3.coreMaterial;
+                    }
+                }
+                this.updateCoreColor(true);
             },
 
             handleAgentSwitch(agentId) {

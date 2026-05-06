@@ -17,6 +17,17 @@
      @ui-clear-focus.window="clearMainScreenWidget()"
      @ai-show-news.window="console.log('ai-show-news via alpine', $event.detail); showNewsPanel = true; /* The panel injection is still handled by window.addEventListener in part3 since it touches innerHTML */"
      @ai-show-persona.window="console.log('ai-show-persona', $event.detail); personaWidgets.unshift($event.detail.payload || $event.detail); showFunkiView = true; setMainScreenWidget('persona', 0);"
+     @ai-show-intel.window="console.log('ai-show-intel', $event.detail); intelWidgets.unshift($event.detail.payload || $event.detail); isSecretMode = true; showFunkiView = true;"
+     @ai-show-camera.window="cameraWidget = $event.detail.open ? true : null; showFunkiView = true;"
+     @ai-show-org-chart.window="console.log('ai-show-org-chart', $event.detail); orgChartWidget = $event.detail.payload || $event.detail; showFunkiView = true; isSecretMode = true;"
+     @ai-transform-core.window="isJarvis = ($event.detail.target === 'jarvis'); updateJarvisMode();"
+     @ai-toggle-secret-workspace.window="isSecretMode = $event.detail.open; if(isSecretMode && !showFunkiView) { openFunkiView(false); }"
+     @ai-close-widgets.window="
+        const t = $event.detail.type; 
+        if(t === 'all' || t === 'persona') personaWidgets = []; 
+        if(t === 'all' || t === 'intel') intelWidgets = []; 
+        if(t === 'all' || t === 'camera') cameraWidget = null;
+     "
      @ai-toggle-youtube-mute.window="let d = $event.detail; let mute = (d && (d.mute === true || d.mute === 'true' || d.mute === 1)); youtubeWidgets = youtubeWidgets.map(w => { let url = new URL(w.video); url.searchParams.set('mute', mute ? '1' : '0'); w.video = url.toString(); return w; });"
      @ai-summarize-youtube.window="let d = $event.detail; let idx = (d && typeof d.index !== 'undefined' && d.index !== null) ? d.index : ((mainScreenWidget && mainScreenWidget.type === 'youtube') ? mainScreenWidget.index : 0); let vid = youtubeWidgets[idx]; if(vid) { let targetUrl = vid.url || vid.video; $wire.set('input', 'Fasse bitte dieses Video zusammen und erstelle ein News-Widget mit den wichtigsten Punkten: ' + targetUrl); $wire.sendMessage(); } else { console.warn('Kein Video gefunden für Zusammenfassung'); }"
      @toggle-voice-interruption.window="allowVoiceInterruption = !allowVoiceInterruption; $wire.saveWidgetConfig({ volume: bgVolume, agentId: activeAgentId, allowVoiceInterruption: allowVoiceInterruption });"
@@ -327,6 +338,43 @@
                 </div>
             </div>
         </template>
+    </div>
+
+    <!-- String Board (Top Secret Workspace) -->
+    <div x-show="isSecretMode" x-transition:enter="transition ease-out duration-1000" x-transition:enter-start="opacity-0 scale-110" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 z-[40] pointer-events-auto bg-gray-950/95 backdrop-blur-2xl overflow-hidden" style="display: none;" x-cloak>
+        <!-- Background texture -->
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA0MCAwIEwgMCAwIDAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyMjAsIDM4LCAzOCwgMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
+        
+        <!-- Header -->
+        <div class="absolute top-6 left-6 z-50 flex flex-col pointer-events-none">
+            <div class="text-red-500 text-sm md:text-xl uppercase tracking-[0.4em] font-black font-mono animate-pulse">Top Secret</div>
+            <div class="text-red-900/80 text-xs uppercase tracking-widest font-mono">OSINT Investigation Board</div>
+        </div>
+
+        <!-- Intel Post-its -->
+        <div class="absolute inset-0 p-10 pt-24 overflow-auto custom-scrollbar flex flex-wrap gap-6 items-start justify-center content-start">
+            <template x-for="(intel, index) in intelWidgets" :key="index">
+                <div class="relative w-64 bg-yellow-200/90 shadow-xl border border-yellow-400 p-4 transform transition-all duration-300 hover:scale-105 font-sans"
+                     style="box-shadow: 5px 5px 15px rgba(0,0,0,0.5);">
+                    <!-- Pin -->
+                    <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-600 shadow-md border border-red-800"></div>
+                    
+                    <button @click="intelWidgets.splice(index, 1)" class="absolute top-2 right-2 text-yellow-800 hover:text-red-600 p-1 cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    
+                    <h4 class="font-black text-yellow-900 text-sm uppercase tracking-wider mb-2 pr-4 border-b border-yellow-400/50 pb-1 line-clamp-2" x-text="intel.title"></h4>
+                    <p class="text-yellow-950 text-xs leading-relaxed" x-text="intel.content"></p>
+                </div>
+            </template>
+            
+            <template x-if="!intelWidgets || intelWidgets.length === 0">
+                <div class="flex flex-col items-center justify-center w-full h-full opacity-30 mt-20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-24 h-24 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                    <div class="text-red-500 font-mono tracking-widest uppercase">Keine Fakten auf dem Board</div>
+                </div>
+            </template>
+        </div>
     </div>
 
     <!-- Persona Pool (2D Overlay) -->
