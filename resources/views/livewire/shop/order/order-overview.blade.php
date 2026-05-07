@@ -230,6 +230,17 @@
                     <option value="unpaid">Offen</option>
                 </select>
 
+                {{-- Sammel-Druck Button --}}
+                <button wire:click="downloadMergedLabels"
+                        wire:loading.attr="disabled"
+                        class="flex items-center gap-2 px-4 py-3 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color)] hover:text-white rounded-[1.5rem] text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-inner shrink-0 group"
+                        title="Alle gefilterten DHL Labels als eine PDF herunterladen">
+                    <svg class="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Sammel-Druck
+                </button>
+
                 {{-- Reset Button --}}
                 @if($search || $statusFilter || $paymentFilter || $sortField !== 'default_workflow')
                     <button wire:click="resetFilters"

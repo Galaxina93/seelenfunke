@@ -537,6 +537,63 @@ class OrderOverview extends Component
         session()->flash('error', 'Label nicht gefunden.');
     }
 
+    public function downloadMergedLabels()
+    {
+        $query = $this->buildBaseQuery();
+        
+        // Hole alle gefilterten Bestellungen inkl. Shipments
+        $orders = $query->with('shipments')->get();
+        
+        $labelJobs = [];
+        foreach ($orders as $order) {
+            // Falls kein Statusfilter aktiv ist, nehmen wir standardmäßig nur offene/kürzlich versendete Bestellungen
+            if (empty($this->statusFilter) && !in_array($order->status, ['processing', 'shipped'])) {
+                continue;
+            }
+
+            foreach ($order->shipments as $shipment) {
+                if ($shipment->shipping_label_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
+                    $labelJobs[] = [
+                        'path' => \Illuminate\Support\Facades\Storage::disk('public')->path($shipment->shipping_label_path),
+                        'order' => $order
+                    ];
+                }
+            }
+        }
+        
+        if (empty($labelJobs)) {
+            session()->flash('error', 'Keine DHL Labels in der aktuellen Auswahl gefunden.');
+            return;
+        }
+
+        try {
+            $pdf = new \setasign\Fpdi\Fpdi();
+            foreach ($labelJobs as $job) {
+                $file = $job['path'];
+                $order = $job['order'];
+
+                $pageCount = $pdf->setSourceFile($file);
+                for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                    $tplIdx = $pdf->importPage($pageNo);
+                    $s = $pdf->getTemplateSize($tplIdx);
+                    // Dynamische Größe und Orientierung (Portrait/Landscape)
+                    $pdf->AddPage($s['width'] > $s['height'] ? 'L' : 'P', [$s['width'], $s['height']]);
+                    $pdf->useTemplate($tplIdx);
+                }
+            }
+            
+            return response()->streamDownload(function () use ($pdf) {
+                echo $pdf->Output('S');
+            }, 'Sammel-Labels-'.date('Y-m-d').'.pdf', [
+                'Content-Type' => 'application/pdf',
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logAdminOrderError('download_merged_labels', $e);
+            session()->flash('error', 'Fehler beim Zusammenfügen der Labels: ' . $e->getMessage());
+        }
+    }
+
     // --- COMPUTED PROPERTIES ---
 
     public function getPreviewItemProperty()
@@ -563,9 +620,32 @@ class OrderOverview extends Component
         }
 
         // B) Listen-Modus (Single Table)
+        $query = $this->buildBaseQuery();
+
+        // 4. Statistiken (Immer aktuell, basierend auf Gesamt-DB)
+        $stats = [
+            'total' => OrderOrder::count(),
+            'open' => OrderOrder::whereIn('status', ['pending', 'processing'])->count(),
+            'open_express' => OrderOrder::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count(),
+            'revenue_today' => OrderOrder::whereDate('created_at', today())->sum('total_price'),
+            'revenue_month' => OrderOrder::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('total_price'),
+            'avg_cart' => OrderOrder::where('status', 'completed')->avg('total_price') ?? 0,
+        ];
+
+        // 5. Query ausführen (Pagination)
+        $orders = $query->paginate(20);
+
+        return view('livewire.shop.order.order-overview', [
+            'orders' => $orders,
+            'stats' => $stats
+        ]);
+    }
+
+    private function buildBaseQuery()
+    {
         $query = OrderOrder::query();
 
-        // 1. Suche (Über alle relevanten Felder)
+        // 1. Suche
         if ($this->search) {
             $searchTerm = '%' . $this->search . '%';
             $query->where(function ($q) use ($searchTerm) {
@@ -585,30 +665,14 @@ class OrderOverview extends Component
             $query->where('payment_status', $this->paymentFilter);
         }
 
-        // 3. Sortierung (Core Logic)
+        // 3. Sortierung
         if ($this->sortField === 'default_workflow') {
             $this->applyWorkflowSort($query);
         } else {
             $this->applyCustomSort($query);
         }
 
-        // 4. Statistiken (Immer aktuell, basierend auf Gesamt-DB)
-        $stats = [
-            'total' => OrderOrder::count(),
-            'open' => OrderOrder::whereIn('status', ['pending', 'processing'])->count(),
-            'open_express' => OrderOrder::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count(),
-            'revenue_today' => OrderOrder::whereDate('created_at', today())->sum('total_price'),
-            'revenue_month' => OrderOrder::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)->sum('total_price'),
-            'avg_cart' => OrderOrder::where('status', 'completed')->avg('total_price') ?? 0,
-        ];
-
-        // 5. Query ausführen (Pagination)
-        $orders = $query->paginate(20);
-
-        return view('livewire.shop.order.order-overview', [
-            'orders' => $orders,
-            'stats' => $stats
-        ]);
+        return $query;
     }
 
     /**

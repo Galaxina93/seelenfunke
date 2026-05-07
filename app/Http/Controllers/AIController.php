@@ -90,10 +90,45 @@ class AIController extends Controller
         // Clean history from frontend specific keys (name, color, icon, etc.) to prevent API schema validation errors
         $cleanHistory = [];
         foreach ($history as $msg) {
+            $content = $msg['content'] ?? '';
             $cleanMsg = [
                 'role' => $msg['role'] ?? 'user',
-                'content' => $msg['content'] ?? ''
             ];
+
+            // Image Extraction Support for Vision Models
+            if (is_string($content) && str_contains($content, '[SYSTEM_IMAGE]: data:image/')) {
+                $parts = explode('[SYSTEM_IMAGE]: ', $content);
+                $textPart = trim($parts[0]);
+                $imgUrl = trim($parts[1]); // This will be the data:image/... string
+                
+                $contentArr = [];
+                if (!empty($textPart)) {
+                    $contentArr[] = ['type' => 'text', 'text' => $textPart];
+                }
+                $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $imgUrl]];
+                $cleanMsg['content'] = $contentArr;
+            } else if (is_string($content) && str_contains($content, '[SYSTEM_IMAGE_PATH]: ')) {
+                $parts = explode('[SYSTEM_IMAGE_PATH]: ', $content);
+                $textPart = trim($parts[0]);
+                $imgPath = trim($parts[1]); 
+
+                $contentArr = [];
+                if (!empty($textPart)) {
+                    $contentArr[] = ['type' => 'text', 'text' => $textPart];
+                }
+
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($imgPath)) {
+                    $mimeType = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($imgPath);
+                    $base64 = base64_encode(\Illuminate\Support\Facades\Storage::disk('public')->get($imgPath));
+                    $dataUrl = "data:{$mimeType};base64,{$base64}";
+                    $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]];
+                }
+                
+                $cleanMsg['content'] = $contentArr;
+            } else {
+                $cleanMsg['content'] = $content;
+            }
+
             if (isset($msg['tool_calls'])) {
                 $cleanMsg['tool_calls'] = $msg['tool_calls'];
             }
@@ -359,6 +394,29 @@ class AIController extends Controller
             'events_data' => $result['events'] ?? [],
             'usage' => $result['usage'] ?? [],
             'audio' => $base64Audio
+        ]);
+    }
+
+    public function saveCameraSnapshot(Request $request)
+    {
+        $request->validate([
+            'image' => 'required|file|mimes:jpeg,png,jpg,webp|max:10240' // max 10MB
+        ]);
+
+        $file = $request->file('image');
+
+        $dir = 'agenten/workspace/Kamera-Snapshots';
+        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($dir)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($dir);
+        }
+
+        $filename = 'snapshot_' . date('Y-m-d_H-i-s') . '.jpg';
+        $path = $file->storeAs($dir, $filename, 'public');
+        
+        return response()->json([
+            'status' => 'success',
+            'file_path' => $path,
+            'url' => \Illuminate\Support\Facades\Storage::url($path)
         ]);
     }
 

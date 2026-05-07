@@ -23,6 +23,9 @@ Route::prefix('ai')->group(function () {
     // Führt eine der registrierten Tools aus
     Route::post('/execute', [AIController::class, 'execute'])->middleware('web');
 
+    // Speichert einen Kamera-Snapshot auf dem Dateisystem
+    Route::post('/camera/snapshot', [AIController::class, 'saveCameraSnapshot'])->middleware('web');
+
     // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
     Route::post('/chat', [AIController::class, 'chat'])->middleware('web');
 

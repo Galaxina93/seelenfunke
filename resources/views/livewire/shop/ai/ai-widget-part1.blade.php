@@ -629,7 +629,8 @@
 
     <!-- [AREA: CAMERA WIDGET] -->
     <div x-show="cameraWidget" x-transition
-         class="absolute top-24 right-6 sm:right-32 w-[calc(100%-2rem)] sm:w-[450px] z-[9000] overflow-hidden pointer-events-auto rounded-3xl border border-blue-500/50 shadow-[0_0_40px_rgba(59,130,246,0.3)] bg-black/90 backdrop-blur-3xl"
+         :class="cameraExpanded ? 'w-[calc(100%-2rem)] sm:w-[800px]' : 'w-[calc(100%-2rem)] sm:w-[450px]'"
+         class="absolute top-24 right-6 sm:right-32 z-[9000] overflow-hidden pointer-events-auto rounded-3xl border border-blue-500/50 shadow-[0_0_40px_rgba(59,130,246,0.3)] bg-black/90 backdrop-blur-3xl transition-all duration-300"
          style="display: none;" x-cloak>
          <div class="relative w-full aspect-video bg-gray-900 rounded-t-3xl overflow-hidden">
              <!-- Scanner line -->
@@ -644,6 +645,12 @@
                 <div class="text-[10px] font-mono text-red-500 tracking-widest">LIVE</div>
              </div>
 
+             <!-- Expand button -->
+             <button @click="cameraExpanded = !cameraExpanded" class="absolute top-4 right-14 z-30 p-2 bg-black/50 hover:bg-emerald-500/80 rounded-full border border-white/20 transition-all text-white cursor-pointer" title="Vergrößern/Verkleinern">
+                 <svg x-show="!cameraExpanded" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                 <svg x-show="cameraExpanded" style="display:none;" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6v6m10-10h-6V4m0 10l6 6M10 10L4 4" /></svg>
+             </button>
+
              <!-- Close button -->
              <button @click="$dispatch('ai-close-widgets', { type: 'camera' })" class="absolute top-4 right-4 z-30 p-2 bg-black/50 hover:bg-red-500/80 rounded-full border border-white/20 transition-all text-white cursor-pointer" title="Schließen">
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -654,7 +661,7 @@
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                  <span>LOCALES SYSTEM // CAM</span>
              </div>
-             <span class="text-gray-600">FPS: 60.00</span>
+             <span class="text-gray-600">FPS: <span x-text="cameraFps">0.00</span></span>
          </div>
     </div>
 

@@ -22,7 +22,7 @@
             </div>
 
             <h2 class="mt-6 text-center text-2xl font-extrabold text-white tracking-tight">
-                {{ shop_setting('owner_name', shop_setting('shop_name', 'Seelenfunke')) }}
+                {{ shop_setting('owner_proprietor', shop_setting('shop_name', 'Seelenfunke')) }}
             </h2>
             <p class="mt-2 text-center text-sm text-gray-400">
                 Willkommen auf meiner digitalen Visitenkarte

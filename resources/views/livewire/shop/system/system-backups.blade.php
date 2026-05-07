@@ -100,7 +100,8 @@
             </h2>
             <div class="text-[10px] uppercase tracking-widest text-gray-400 font-mono">
                 APP: <span class="text-[var(--theme-color)] mr-4">{{ $appName }}</span>
-                PFAD: <span class="text-[var(--theme-color)]">{{ $backupName }}</span>
+                PFAD: <span class="text-[var(--theme-color)] mr-4">{{ $backupName }}</span>
+                CRONJOB: <span class="text-[var(--theme-color)]">{{ $cronjobSchedule }}</span>
             </div>
         </div>
         
@@ -113,6 +114,7 @@
                         <th scope="col" class="px-6 py-4 font-bold">Speicherort</th>
                         <th scope="col" class="px-6 py-4 font-bold">Größe</th>
                         <th scope="col" class="px-6 py-4 font-bold">Datum</th>
+                        <th scope="col" class="px-6 py-4 font-bold text-right">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-800/60">
@@ -137,10 +139,18 @@
                                 <div class="text-white">{{ $backup['date']->format('d.m.Y') }}</div>
                                 <div class="text-gray-500 text-[10px] font-mono">{{ $backup['date']->format('H:i:s') }}</div>
                             </td>
+                            <td class="px-6 py-4 text-right">
+                                <button type="button" wire:click="downloadBackup('{{ addslashes($backup['path']) }}')" class="p-1.5 text-gray-400 hover:text-[var(--theme-color)] transition-colors rounded-lg hover:bg-gray-800 mr-1">
+                                    <x-heroicon-o-arrow-down-tray class="w-5 h-5" />
+                                </button>
+                                <button type="button" wire:confirm="Soll dieses Backup wirklich gelöscht werden?" wire:click="deleteBackup('{{ addslashes($backup['path']) }}')" class="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-800">
+                                    <x-heroicon-o-trash class="w-5 h-5" />
+                                </button>
+                            </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="px-6 py-12 text-center">
+                            <td colspan="6" class="px-6 py-12 text-center">
                                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-800/50 mb-4">
                                     <x-heroicon-o-archive-box-x-mark class="w-8 h-8 text-gray-600" />
                                 </div>

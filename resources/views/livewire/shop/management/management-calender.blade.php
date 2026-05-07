@@ -35,6 +35,9 @@
         ];
     @endphp
 
+    {{-- CALENDAR VIEW --}}
+    <div x-show="!$wire.showEditModal" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 -translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 -translate-x-8" class="absolute inset-0 flex flex-col">
+
     {{-- 1. HEADER BEREICH --}}
     <div class="p-4 md:p-8 border-b border-gray-800 bg-gray-950/50 shrink-0 z-20 shadow-inner">
         <div class="flex flex-col gap-6">
@@ -357,157 +360,152 @@
         @endif
     </div>
 
-    {{-- 4. MODAL BEREICH (DARK EDITOR) --}}
-    @if($showEditModal)
-        <div class="fixed inset-0 z-[9999] flex items-end md:items-center justify-center p-0 md:p-4 md:py-8 bg-black/80 backdrop-blur-md animate-fade-in">
-            <div class="bg-gray-900 w-full md:max-w-3xl max-h-[calc(100dvh-6rem)] md:h-auto md:max-h-full rounded-t-[2.5rem] md:rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,1)] flex flex-col transform animate-modal-up border-t md:border border-gray-800">
+    </div> {{-- END CALENDAR VIEW --}}
 
-                {{-- Header --}}
-                <div class="bg-gray-950/80 px-5 py-5 md:px-8 md:py-6 border-b border-gray-800 flex justify-between items-center shrink-0 shadow-inner">
-                    <div class="flex-1 min-w-0 pr-4">
-                        <h3 class="text-xl md:text-2xl font-serif font-bold text-white tracking-tight truncate">{{ $editingEventId ? 'Termin anpassen' : 'Neuer Plan' }}</h3>
-                        <p class="text-[8px] md:text-[10px] font-black uppercase text-[var(--theme-color)] tracking-wider md:tracking-[0.3em] mt-1 truncate">Status: {{ $editingEventId ? 'In Bearbeitung' : 'Neu erstellen' }}</p>
-                    </div>
-                    <button wire:click="closeModal" class="shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-gray-900 border border-gray-700 rounded-xl md:rounded-2xl text-gray-500 hover:text-white hover:bg-red-500/20 hover:border-red-500 transition-all shadow-inner">
-                        <x-heroicon-m-x-mark class="w-5 h-5 md:w-6 md:h-6" />
+    {{-- EDITOR VIEW --}}
+    <div x-show="$wire.showEditModal" style="display: none;" x-cloak x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-8" class="absolute inset-0 flex flex-col bg-gray-950 z-30 overflow-y-auto custom-scrollbar">
+        <div class="p-4 sm:p-8 max-w-5xl mx-auto w-full flex flex-col min-h-full">
+            {{-- Header --}}
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-800 shrink-0 mt-4 sm:mt-0">
+                <h3 class="text-xl sm:text-2xl font-serif text-white tracking-wide flex items-center gap-3">
+                    <button wire:click="closeModal" class="p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors mr-1 text-sm font-sans flex items-center gap-1 shadow-inner">
+                        <x-heroicon-o-chevron-left class="w-5 h-5"/>
+                    </button>
+                    <x-heroicon-o-calendar class="w-6 h-6 sm:w-8 sm:h-8 text-[var(--theme-color)] drop-shadow-[0_0_10px_currentColor]" />
+                    <span class="truncate">{{ $editingEventId ? 'Termin anpassen' : 'Neuer Termin' }}</span>
+                </h3>
+                <div class="flex gap-2 sm:gap-3 w-full sm:w-auto">
+                    @if($editingEventId)
+                        <button wire:click="deleteEvent" wire:confirm="Soll dieser Termin wirklich gelöscht werden?" class="text-red-500 hover:text-red-400 transition-colors flex items-center justify-center gap-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 px-3 py-2 sm:px-4 sm:py-2 rounded-lg font-bold flex-1 sm:flex-none text-xs sm:text-base shadow-inner">
+                            <x-heroicon-o-trash class="w-4 h-4 sm:w-5 sm:h-5" /> Löschen
+                        </button>
+                    @endif
+                    <button wire:click="closeModal" class="hidden sm:flex text-gray-400 hover:text-white transition-colors items-center gap-2 bg-gray-800/50 hover:bg-gray-800 px-4 py-2 rounded-lg font-bold shadow-inner">
+                        <x-heroicon-o-arrow-left class="w-5 h-5" /> Zurück
                     </button>
                 </div>
+            </div>
 
-                {{-- Formular --}}
-                <div class="flex-1 overflow-y-auto custom-scrollbar p-5 md:p-8 space-y-6 md:space-y-8 pb-32 md:pb-10 bg-gray-950/30">
+            {{-- Formular --}}
+            <div class="flex-1 space-y-6 md:space-y-8 pb-10">
+                {{-- Titel --}}
+                <div class="space-y-2">
+                    <label class="label-xs">Was steht an?</label>
+                    <input type="text" wire:model="editTitle" class="input-dark text-base md:text-lg" placeholder="z.B. Team-Meeting">
+                    @error('editTitle') <span class="text-red-400 text-[9px] font-black uppercase ml-1">{{ $message }}</span> @enderror
+                </div>
 
-                    {{-- Titel --}}
-                    <div class="space-y-2">
-                        <label class="label-xs">Was steht an?</label>
-                        <input type="text" wire:model="editTitle" class="input-dark text-base md:text-lg" placeholder="z.B. Team-Meeting">
-                        @error('editTitle') <span class="text-red-400 text-[9px] font-black uppercase ml-1">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                        {{-- Kategorie --}}
-                        <div>
-                            <label class="label-xs">Kategorie</label>
-                            <div class="relative group">
-                                <select wire:model="editCategory" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                    @foreach($styles as $key => $style)
-                                        <option value="{{ $key }}" class="bg-gray-900">{{ $style['label'] }}</option>
-                                    @endforeach
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
-                            </div>
-                        </div>
-                        {{-- Erinnerung --}}
-                        <div>
-                            <label class="label-xs">Erinnerung</label>
-                            <div class="relative group">
-                                <select wire:model="editReminderMinutes" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                    <option value="" class="bg-gray-900">Aus</option>
-                                    <option value="0" class="bg-gray-900">Pünktlich</option>
-                                    <option value="15" class="bg-gray-900">15 Min. vorher</option>
-                                    <option value="60" class="bg-gray-900">1 Std. vorher</option>
-                                    <option value="1440" class="bg-gray-900">1 Tag vorher</option>
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
-                            </div>
-                        </div>
-                        {{-- Priorität --}}
-                        <div>
-                            <label class="label-xs">Priorität</label>
-                            <div class="relative group">
-                                <select wire:model="editPriority" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                    <option value="low" class="bg-gray-900">Niedrig (Grau)</option>
-                                    <option value="medium" class="bg-gray-900">Mittel (Gelb)</option>
-                                    <option value="high" class="bg-gray-900">Wichtig (Rot)</option>
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
-                            </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+                    {{-- Kategorie --}}
+                    <div>
+                        <label class="label-xs">Kategorie</label>
+                        <div class="relative group">
+                            <select wire:model="editCategory" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
+                                @foreach($styles as $key => $style)
+                                    <option value="{{ $key }}" class="bg-gray-900">{{ $style['label'] }}</option>
+                                @endforeach
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                         </div>
                     </div>
-
-                    {{-- Zeitstrahl --}}
-                    <div class="bg-gray-900 rounded-[1.5rem] md:rounded-[2rem] border border-gray-800 p-5 md:p-6 space-y-5 md:space-y-6 shadow-inner relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-bl-full blur-2xl pointer-events-none"></div>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-800 pb-4 relative z-10 gap-3">
-                            <span class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Zeitraum</span>
-                            <label class="flex items-center gap-3 cursor-pointer group">
-                                <input type="checkbox" wire:model.live="editIsAllDay" class="rounded-lg border-gray-700 bg-gray-950 text-[var(--theme-color)] focus:ring-[var(--theme-color)] h-5 w-5">
-                                <span class="text-[10px] font-black uppercase text-gray-400 group-hover:text-white transition-colors">Ganztägig</span>
-                            </label>
-                        </div>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-8 relative z-10">
-                            <div class="space-y-3">
-                                <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest drop-shadow-[0_0_5px_currentColor]">Beginn</span>
-                                <input type="date" wire:model="editStartDate" class="input-dark-sm [color-scheme:dark] w-full text-xs">
-                                @if(!$editIsAllDay)
-                                    <input type="time" wire:model="editStartTime" class="input-dark-sm mt-2 [color-scheme:dark] w-full text-xs">
-                                @endif
-                            </div>
-                            <div class="space-y-3">
-                                <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest drop-shadow-[0_0_5px_currentColor]">Ende</span>
-                                <input type="date" wire:model="editEndDate" class="input-dark-sm [color-scheme:dark] w-full text-xs">
-                                @if(!$editIsAllDay)
-                                    <input type="time" wire:model="editEndTime" class="input-dark-sm mt-2 [color-scheme:dark] w-full text-xs">
-                                @endif
-                            </div>
+                    {{-- Erinnerung --}}
+                    <div>
+                        <label class="label-xs">Erinnerung</label>
+                        <div class="relative group">
+                            <select wire:model="editReminderMinutes" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
+                                <option value="" class="bg-gray-900">Aus</option>
+                                <option value="0" class="bg-gray-900">Pünktlich</option>
+                                <option value="15" class="bg-gray-900">15 Min. vorher</option>
+                                <option value="60" class="bg-gray-900">1 Std. vorher</option>
+                                <option value="1440" class="bg-gray-900">1 Tag vorher</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                         </div>
                     </div>
+                    {{-- Priorität --}}
+                    <div>
+                        <label class="label-xs">Priorität</label>
+                        <div class="relative group">
+                            <select wire:model="editPriority" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
+                                <option value="low" class="bg-gray-900">Niedrig (Grau)</option>
+                                <option value="medium" class="bg-gray-900">Mittel (Gelb)</option>
+                                <option value="high" class="bg-gray-900">Wichtig (Rot)</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                        </div>
+                    </div>
+                </div>
 
-                    {{-- Wiederholung --}}
-                    <div class="space-y-2">
-                        <label class="label-xs">Wiederholung (Serie)</label>
-                        <div class="flex flex-col sm:flex-row gap-4">
-                            <div class="relative group flex-1">
-                                <select wire:model.live="editRecurrence" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                    <option value="" class="bg-gray-900">Einmaliger Termin</option>
-                                    <option value="daily" class="bg-gray-900">Täglich</option>
-                                    <option value="weekly" class="bg-gray-900">Wöchentlich</option>
-                                    <option value="monthly" class="bg-gray-900">Monatlich</option>
-                                    <option value="yearly" class="bg-gray-900">Jährlich</option>
-                                </select>
-                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
-                            </div>
+                {{-- Zeitstrahl --}}
+                <div class="bg-gray-900 rounded-[1.5rem] md:rounded-[2rem] border border-gray-800 p-5 md:p-6 space-y-5 md:space-y-6 shadow-inner relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-bl-full blur-2xl pointer-events-none"></div>
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-800 pb-4 relative z-10 gap-3">
+                        <span class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Zeitraum</span>
+                        <label class="flex items-center gap-3 cursor-pointer group">
+                            <input type="checkbox" wire:model.live="editIsAllDay" class="rounded-lg border-gray-700 bg-gray-950 text-[var(--theme-color)] focus:ring-[var(--theme-color)] h-5 w-5">
+                            <span class="text-[10px] font-black uppercase text-gray-400 group-hover:text-white transition-colors">Ganztägig</span>
+                        </label>
+                    </div>
 
-                            @if($editRecurrence)
-                                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-gray-950 border border-gray-800 rounded-xl p-3 md:px-4 md:py-2 animate-fade-in shrink-0 shadow-inner w-full sm:w-auto">
-                                    <span class="text-[9px] font-black uppercase text-gray-500">Endet:</span>
-                                    <input type="date" wire:model="editRecurrenceEnd" class="bg-transparent border-0 p-0 text-xs font-bold text-white focus:ring-0 [color-scheme:dark] outline-none w-full sm:w-auto">
-                                </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-8 relative z-10">
+                        <div class="space-y-3">
+                            <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest drop-shadow-[0_0_5px_currentColor]">Beginn</span>
+                            <input type="date" wire:model="editStartDate" class="input-dark-sm [color-scheme:dark] w-full text-xs">
+                            @if(!$editIsAllDay)
+                                <input type="time" wire:model="editStartTime" class="input-dark-sm mt-2 [color-scheme:dark] w-full text-xs">
+                            @endif
+                        </div>
+                        <div class="space-y-3">
+                            <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest drop-shadow-[0_0_5px_currentColor]">Ende</span>
+                            <input type="date" wire:model="editEndDate" class="input-dark-sm [color-scheme:dark] w-full text-xs">
+                            @if(!$editIsAllDay)
+                                <input type="time" wire:model="editEndTime" class="input-dark-sm mt-2 [color-scheme:dark] w-full text-xs">
                             @endif
                         </div>
                     </div>
+                </div>
 
-                    {{-- Beschreibung --}}
-                    <div class="space-y-2">
-                        <label class="label-xs">Notizen & Details</label>
-                        <textarea wire:model="editDescription" rows="3" class="input-dark resize-none text-sm placeholder:italic placeholder-gray-600" placeholder="Hinterlasse hier Details zum Termin..."></textarea>
+                {{-- Wiederholung --}}
+                <div class="space-y-2">
+                    <label class="label-xs">Wiederholung (Serie)</label>
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <div class="relative group flex-1">
+                            <select wire:model.live="editRecurrence" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
+                                <option value="" class="bg-gray-900">Einmaliger Termin</option>
+                                <option value="daily" class="bg-gray-900">Täglich</option>
+                                <option value="weekly" class="bg-gray-900">Wöchentlich</option>
+                                <option value="monthly" class="bg-gray-900">Monatlich</option>
+                                <option value="yearly" class="bg-gray-900">Jährlich</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                        </div>
+
+                        @if($editRecurrence)
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-gray-950 border border-gray-800 rounded-xl p-3 md:px-4 md:py-2 animate-fade-in shrink-0 shadow-inner w-full sm:w-auto">
+                                <span class="text-[9px] font-black uppercase text-gray-500">Endet:</span>
+                                <input type="date" wire:model="editRecurrenceEnd" class="bg-transparent border-0 p-0 text-xs font-bold text-white focus:ring-0 [color-scheme:dark] outline-none w-full sm:w-auto">
+                            </div>
+                        @endif
                     </div>
                 </div>
 
-                {{-- Footer --}}
-                <div class="p-5 md:p-10 bg-gray-950/80 border-t border-gray-800 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 shrink-0 shadow-2xl">
-                    @if($editingEventId)
-                        <button wire:click="deleteEvent" wire:confirm="Soll dieser Termin (oder die Serie) wirklich gelöscht werden?" class="w-full sm:w-auto h-12 md:h-14 px-6 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 transition-all border border-red-900/30 bg-gray-900 shadow-inner flex items-center justify-center gap-3 group">
-                            <x-heroicon-o-trash class="w-5 h-5 transition-transform group-hover:scale-110" />
-                            <span>Löschen</span>
-                        </button>
-                    @else
-                        <div class="hidden sm:block"></div>
-                    @endif
-                    <div class="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 flex-1 sm:justify-end">
-                        <button wire:click="closeModal" class="w-full sm:w-auto h-12 md:h-14 px-8 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-900 border border-gray-800 hover:text-white transition-all shadow-inner justify-center items-center flex">
-                            Abbrechen
-                        </button>
-                        <button wire:click="saveEvent" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_var(--theme-color-40)] transition-all active:scale-95 flex items-center justify-center gap-3">
-                            <span wire:loading.remove wire:target="saveEvent">Speichern</span>
-                            <span wire:loading wire:target="saveEvent" class="animate-pulse italic">Speichert...</span>
-                            <x-heroicon-m-check class="w-5 h-5 stroke-2" />
-                        </button>
-                    </div>
+                {{-- Beschreibung --}}
+                <div class="space-y-2">
+                    <label class="label-xs">Notizen & Details</label>
+                    <textarea wire:model="editDescription" rows="3" class="input-dark resize-none text-sm placeholder:italic placeholder-gray-600" placeholder="Hinterlasse hier Details zum Termin..."></textarea>
                 </div>
             </div>
+
+            {{-- Footer --}}
+            <div class="pt-6 border-t border-gray-800 flex justify-end gap-3 shrink-0 pb-6 md:pb-0">
+                <button wire:click="saveEvent" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_var(--theme-color-40)] transition-all active:scale-95 flex items-center justify-center gap-3">
+                    <span wire:loading.remove wire:target="saveEvent">Speichern</span>
+                    <span wire:loading wire:target="saveEvent" class="animate-pulse italic">Speichert...</span>
+                    <x-heroicon-m-check class="w-5 h-5 stroke-2" />
+                </button>
+            </div>
         </div>
-    @endif
+    </div>
 
     {{-- STYLES --}}
     <style>

@@ -1479,3 +1479,138 @@
                 this.thinking = false;
                 this.updateCoreColor(true);
             },
+
+            // --- CAMERA VISION STREAMING ---
+            cameraFps: '0.00',
+            cameraInterval: null,
+            cameraCanvas: null,
+            cameraContext: null,
+            lastDecodedFrames: 0,
+            cameraExpanded: false,
+
+            startCameraCapture() {
+                if (this.cameraInterval) clearInterval(this.cameraInterval);
+                
+                const video = document.getElementById('funki-local-camera');
+                if (!video) return;
+
+                if (!this.cameraCanvas) {
+                    this.cameraCanvas = document.createElement('canvas');
+                    this.cameraContext = this.cameraCanvas.getContext('2d');
+                }
+
+                this.lastDecodedFrames = 0;
+
+                this.cameraInterval = setInterval(() => {
+                    if (!video || !video.srcObject) {
+                        this.cameraFps = '0.00';
+                        return;
+                    }
+
+                    // Calculate real FPS if supported
+                    if (typeof video.getVideoPlaybackQuality === 'function') {
+                        const quality = video.getVideoPlaybackQuality();
+                        const currentFrames = quality.totalVideoFrames;
+                        const fps = currentFrames - this.lastDecodedFrames;
+                        this.lastDecodedFrames = currentFrames;
+                        this.cameraFps = Math.max(0, fps).toFixed(2);
+                    } else {
+                        // Fallback static FPS if API not supported
+                        this.cameraFps = '30.00';
+                    }
+
+                    // Only send if Live Mode is active and WebSocket is open
+                    if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                        if (video.videoWidth > 0 && video.videoHeight > 0) {
+                            const MAX_WIDTH = 640;
+                            let width = video.videoWidth;
+                            let height = video.videoHeight;
+                            
+                            if (width > MAX_WIDTH) {
+                                height = height * (MAX_WIDTH / width);
+                                width = MAX_WIDTH;
+                            }
+                            
+                            this.cameraCanvas.width = width;
+                            this.cameraCanvas.height = height;
+                            this.cameraContext.drawImage(video, 0, 0, width, height);
+                            
+                            // Get base64 JPEG
+                            const dataUrl = this.cameraCanvas.toDataURL('image/jpeg', 0.6);
+                            const base64Data = dataUrl.split(',')[1];
+                            
+                            const msg = {
+                                realtimeInput: {
+                                    mediaChunks: [{
+                                        mimeType: "image/jpeg",
+                                        data: base64Data
+                                    }]
+                                }
+                            };
+                            this.liveWs.send(JSON.stringify(msg));
+                        }
+                    }
+                }, 1000);
+            },
+
+            init() {
+                this.startCameraCapture();
+                
+                window.addEventListener('ai-analyze-camera', async (e) => {
+                    const video = document.getElementById('funki-local-camera');
+                    if (!video || !video.srcObject) {
+                        this.$wire.set('input', '[SYSTEM_LOG]: Fehler: Die Kamera ist aktuell nicht eingeschaltet. Bitte informiere den Nutzer darüber.');
+                        this.$wire.sendMessage();
+                        return;
+                    }
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        let width = video.videoWidth;
+                        let height = video.videoHeight;
+                        
+                        if (!this.cameraCanvas) {
+                            this.cameraCanvas = document.createElement('canvas');
+                            this.cameraContext = this.cameraCanvas.getContext('2d');
+                        }
+                        this.cameraCanvas.width = width;
+                        this.cameraCanvas.height = height;
+                        this.cameraContext.drawImage(video, 0, 0, width, height);
+                        
+                        this.cameraCanvas.toBlob(async (blob) => {
+                            if (!blob) return;
+                            
+                            let formData = new FormData();
+                            formData.append('image', blob, 'snapshot.jpg');
+                            
+                            try {
+                                const response = await fetch('/api/ai/camera/snapshot', {
+                                    method: 'POST',
+                                    headers: {
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                                    },
+                                    body: formData
+                                });
+                                const resData = await response.json();
+                                if(resData.status === 'success') {
+                                    let systemInfo = '\n\n[SYSTEM_INFO]: Dieses Bild liegt nun im Dateimanager unter dem Pfad: ' + resData.file_path + ' . Nutze diesen Pfad zusammen mit dem Werkzeug "camera_process_snapshot", wenn der Nutzer dich bittet, das Bild per Mail zu senden, im PDF zu speichern oder im Dateimanager strukturiert abzulegen.';
+                                    
+                                    if(window.Livewire) {
+                                        this.$dispatch('refreshFileManager');
+                                    }
+
+                                    // Send text + path to the agent using the NEW protocol
+                                    this.$wire.set('input', 'Hier ist das aktuelle Kamerabild für deine Analyse.' + systemInfo + '\n\n[SYSTEM_IMAGE_PATH]: ' + resData.file_path);
+                                    this.$wire.sendMessage();
+                                } else {
+                                    console.error('Failed to save snapshot locally:', resData);
+                                    this.$wire.set('input', '[SYSTEM_LOG]: Fehler: Das Kamerabild konnte nicht auf den Server geladen werden (' + (resData.message || 'Unbekannt') + ').');
+                                    this.$wire.sendMessage();
+                                }
+                            } catch(err) {
+                                console.error('Failed to upload snapshot:', err);
+                                this.$wire.set('input', '[SYSTEM_LOG]: Fehler: Der Server-Upload des Kamerabildes ist fehlgeschlagen.');
+                                this.$wire.sendMessage();
+                            }
+                        }, 'image/jpeg', 0.9);
+                    }
+                });
+            },

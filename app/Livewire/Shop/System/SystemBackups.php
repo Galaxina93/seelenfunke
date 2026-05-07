@@ -18,12 +18,16 @@ class SystemBackups extends Component
     public $appName;
     public $backupName;
     public $diskName;
+    public $cronjobSchedule;
 
     public function mount()
     {
         $this->appName = config('app.name');
         $this->backupName = config('backup.backup.name');
         $this->diskName = config('backup.backup.destination.disks.0', 'local');
+        
+        $cronjob = \App\Models\System\SystemCronjob::where('command', 'backup:clean')->first();
+        $this->cronjobSchedule = $cronjob ? $cronjob->schedule : 'Nicht konfiguriert';
     }
 
     public function getBackupsProperty()
@@ -89,6 +93,29 @@ class SystemBackups extends Component
         } catch (\Exception $e) {
             session()->flash('error', 'Fehler beim Erstellen des Backups: ' . $e->getMessage());
         }
+    }
+
+    public function deleteBackup($path)
+    {
+        try {
+            if (Storage::disk($this->diskName)->exists($path)) {
+                Storage::disk($this->diskName)->delete($path);
+                session()->flash('success', 'Das Backup wurde erfolgreich gelöscht.');
+            } else {
+                session()->flash('error', 'Das Backup wurde nicht gefunden.');
+            }
+        } catch (\Exception $e) {
+            session()->flash('error', 'Fehler beim Löschen: ' . $e->getMessage());
+        }
+    }
+
+    public function downloadBackup($path)
+    {
+        if (Storage::disk($this->diskName)->exists($path)) {
+            return Storage::disk($this->diskName)->download($path);
+        }
+        
+        session()->flash('error', 'Das Backup wurde nicht gefunden.');
     }
 
     public function render()

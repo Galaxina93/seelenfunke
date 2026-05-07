@@ -277,6 +277,47 @@ trait AiMapControlFuncs
                     ]
                 ],
                 'callable' => [self::class, 'executeUiSummarizeYoutube']
+            ],
+            [
+                'name' => 'ui_analyze_camera',
+                'description' => 'Weist das Frontend an, ein sofortiges Foto/Bild von der aktuell aktiven Kamera (Webcam) aufzunehmen und es zur visuellen Analyse an dich (den Agenten) zu schicken. Nutze dieses Werkzeug ZWINGEND und IMMER, wenn der Nutzer dich fragt: "Was siehst du?", "Was halte ich in der Hand?" oder dich bittet, das Kamerabild zu analysieren.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass()
+                ],
+                'callable' => [self::class, 'executeUiAnalyzeCamera']
+            ],
+            [
+                'name' => 'camera_process_snapshot',
+                'description' => 'Verarbeitet ein Kamera-Bild, das du ZUVOR analysiert hast. Nutze dies ZWINGEND, wenn der Nutzer sagt "Speichere das Bild", "Lege das Bild im Dateimanager ab", "Schicke mir das Bild per Mail" oder "Mach ein PDF aus dem Bild". Du benötigst dazu den `file_path`, der dir bei der Bild-Übergabe in [SYSTEM_INFO] mitgeteilt wurde!',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der Dateipfad des Bildes, den du in der vorherigen [SYSTEM_INFO] erhalten hast (z.B. agenten/workspace/Kamera-Snapshots/snapshot_...).'
+                        ],
+                        'action' => [
+                            'type' => 'string',
+                            'description' => 'Was soll mit dem Bild passieren? "save_to_workspace" (Nur behalten), "generate_pdf" (PDF mit Bild erstellen), "send_email" (Bild/PDF per E-Mail versenden).',
+                            'enum' => ['save_to_workspace', 'generate_pdf', 'send_email']
+                        ],
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Ein Titel für das Bild/PDF/E-Mail (z.B. "Foto vom Produkt").'
+                        ],
+                        'description' => [
+                            'type' => 'string',
+                            'description' => 'Eine kurze Beschreibung oder deine Analyse des Bildes für die PDF oder E-Mail.'
+                        ],
+                        'recipient_email' => [
+                            'type' => 'string',
+                            'description' => 'Die E-Mail-Adresse, falls action="send_email". Sonst leer (null).'
+                        ]
+                    ],
+                    'required' => ['file_path', 'action', 'title']
+                ],
+                'callable' => [self::class, 'executeCameraProcessSnapshot']
             ]
         ];
     }
@@ -738,5 +779,80 @@ trait AiMapControlFuncs
                 ]
             ]
         ];
+    }
+
+    public static function executeUiAnalyzeCamera(array $args)
+    {
+        return [
+            'status' => 'success',
+            'message' => 'Kamera-Aufnahme angefordert. Das System verarbeitet nun den visuellen Feed und liefert dir in Kürze das Bild für die Analyse zurück. BITTE WARTE KURZ auf die Antwort des Frontends, bevor du dem Nutzer abschließend antwortest!',
+            '_frontend_event' => [
+                'name' => 'ai-analyze-camera',
+                'detail' => []
+            ]
+        ];
+    }
+
+    public static function executeCameraProcessSnapshot(array $args)
+    {
+        $filePath = $args['file_path'] ?? '';
+        $action = $args['action'] ?? 'save_to_workspace';
+        $title = $args['title'] ?? 'Kamera-Snapshot';
+        $description = $args['description'] ?? '';
+        $recipient = $args['recipient_email'] ?? null;
+        $agentName = session('current_ai_agent_name', 'System Agent');
+
+        if (empty($filePath) || !\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
+            return ['status' => 'error', 'message' => "Fehler: Die angegebene Datei ('{$filePath}') wurde nicht gefunden. Bitte überprüfe den Dateipfad aus der [SYSTEM_INFO]."];
+        }
+
+        $fullImagePath = storage_path('app/public/' . $filePath);
+
+        try {
+            if ($action === 'generate_pdf' || ($action === 'send_email' && str_contains(strtolower($description), 'pdf'))) {
+                // PDF Generierung
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.places_list', [
+                    'title' => $title,
+                    'description' => $description . '<br><br><img src="data:image/jpeg;base64,' . base64_encode(file_get_contents($fullImagePath)) . '" style="max-width:100%; height:auto;">',
+                    'places' => []
+                ]);
+
+                $pdfFilename = 'snapshot_' . \Illuminate\Support\Str::slug($title) . '_' . time() . '.pdf';
+                $pdfPath = 'agenten/workspace/Kamera-Snapshots/' . $pdfFilename;
+                
+                \Illuminate\Support\Facades\Storage::disk('public')->put($pdfPath, $pdf->output());
+                
+                // Wir nutzen ab jetzt den PDF Pfad
+                $filePath = $pdfPath;
+                $fullImagePath = storage_path('app/public/' . $filePath);
+            }
+
+            if ($action === 'send_email') {
+                if (empty($recipient)) {
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
+                    "Snapshot: $title",
+                    $description,
+                    $agentName,
+                    [$fullImagePath]
+                ));
+
+                return [
+                    'status' => 'success',
+                    'message' => "Das Bild/PDF wurde erfolgreich an $recipient gesendet. Es liegt zusätzlich im Dateimanager unter: $filePath",
+                ];
+            }
+
+            return [
+                'status' => 'success',
+                'message' => "Aktion '$action' ausgeführt. Die Datei befindet sich sicher im Dateimanager unter dem Pfad: $filePath",
+            ];
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Snapshot Process Error: " . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler bei der Verarbeitung: ' . $e->getMessage()];
+        }
     }
 }

@@ -64,6 +64,13 @@ class SystemCronjobSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'name' => 'Backup Bereinigung',
+                'description' => 'Löscht automatisch alte Backups, die älter als 15 Tage sind',
+                'command' => 'backup:clean',
+                'schedule' => '30 3 * * *',
+                'is_active' => true,
+            ],
+            [
                 'name' => 'Kapazitäts-Engine',
                 'description' => 'Dynamischer Kapazitäts-Berechner und Autopilot',
                 'command' => 'shop:capacity-engine',

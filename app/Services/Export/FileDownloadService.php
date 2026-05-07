@@ -155,9 +155,54 @@ class FileDownloadService
             }
         }
 
+        // Zylindrische (Runde) Flächen ausrollen: Breite (Durchmesser) zu Umfang umrechnen
+        $productConfig = is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []);
+        $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
+        
+        if ($overlayType === 'cylinder') {
+            $widthMm = $widthMm * pi();
+        }
+
         // SVG Header initialisieren
         $svg = '<?xml version="1.0" encoding="UTF-8" standalone="no"?>' . "\n";
         $svg .= '<svg width="'.$widthMm.'mm" height="'.$heightMm.'mm" viewBox="0 0 '.$widthMm.' '.$heightMm.'" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">' . "\n";
+
+        // EMBED FONTS
+        $usedFonts = [];
+        if (!empty($texts)) {
+            foreach ($texts as $textItem) {
+                if (empty(trim($textItem['text'] ?? ''))) continue;
+                $fontFamily = $textItem['font'] ?? 'Arial';
+                if (!in_array($fontFamily, ['Arial', 'Times New Roman', 'Verdana', 'Courier New', 'Georgia'])) {
+                    $usedFonts[$fontFamily] = true;
+                }
+            }
+        }
+
+        if (!empty($usedFonts)) {
+            $svg .= "  <style>\n";
+            foreach (array_keys($usedFonts) as $fontFamily) {
+                $slug = Str::slug($fontFamily);
+                $fontFiles = collect(File::files(public_path('fonts')))->filter(function($file) use ($slug) {
+                    return Str::startsWith($file->getFilename(), $slug . '-');
+                });
+
+                if ($fontFiles->isNotEmpty()) {
+                    $bestFont = $fontFiles->first(function($file) {
+                        return str_contains($file->getFilename(), 'regular') || str_contains($file->getFilename(), '400');
+                    }) ?? $fontFiles->first();
+
+                    $base64 = base64_encode(file_get_contents($bestFont->getPathname()));
+                    $svg .= "    @font-face {\n";
+                    $svg .= "      font-family: '{$fontFamily}';\n";
+                    $svg .= "      src: url('data:font/woff2;charset=utf-8;base64,{$base64}') format('woff2');\n";
+                    $svg .= "      font-weight: normal;\n";
+                    $svg .= "      font-style: normal;\n";
+                    $svg .= "    }\n";
+                }
+            }
+            $svg .= "  </style>\n";
+        }
 
         // HILFSLINIE: Äußerer Rahmen (hilft der Laserschutzbeauftragten beim Framing / Einmessen)
         $svg .= '  ' . "\n";
