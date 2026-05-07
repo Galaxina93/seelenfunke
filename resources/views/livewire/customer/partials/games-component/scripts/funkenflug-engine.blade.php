@@ -114,8 +114,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
         const bottomRight = getIntersect(1, -1);
 
         this.bounds = {
-            xMin: bottomLeft.x + 2,
-            xMax: bottomRight.x - 2,
+            xMin: bottomLeft.x + 0.5,
+            xMax: bottomRight.x - 0.5,
             yMin: bottomCenter.y + 4,
             yMax: topCenter.y - 4
         };
@@ -218,9 +218,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
             scale: { x: 6.0, y: 6.0, z: 6.0 }
         };
 
-        // Try GLTFLoader if available (Skip entirely on mobile to enforce low-poly primitives for 60fps)
+        // Try GLTFLoader if available
         const GltfLoaderClass = window.GLTFLoader || (window.THREE && window.THREE.GLTFLoader);
-        if (GltfLoaderClass && !this.isMobile) {
+        if (GltfLoaderClass) {
             const loader = new GltfLoaderClass();
             loader.load(this.assets.rocket, (gltf) => {
                 this.ship.remove(this.shipModel);
@@ -311,13 +311,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
         // Initialize materials for pools
         this.matBullet = new THREE.MeshBasicMaterial({ color: 0x38bdf8 }); // Light blue laser
-        this.geomBullet = new THREE.CylinderGeometry(0.1, 0.1, 1, this.isMobile ? 4 : 8);
-        this.geomBullet.rotateX(Math.PI / 2);
+        this.geomBullet = new THREE.CylinderGeometry(0.15, 0.15, 1.2, this.isMobile ? 4 : 8);
 
         this.matEnemy = this.isMobile ? [
             new THREE.MeshBasicMaterial({ color: 0xef4444 }), // Red Meteor
             new THREE.MeshBasicMaterial({ color: 0x8b5cf6 }), // Purple Crystal
-            new THREE.MeshBasicMaterial({ color: 0xf97316 }) // Orange Wall
+            new THREE.MeshBasicMaterial({ color: 0xf97316 }) // Orange WallWall
         ] : [
             new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.6 }), // Red Meteor
             new THREE.MeshStandardMaterial({ color: 0x8b5cf6, metalness: 0.2 }), // Purple Crystal
@@ -807,7 +806,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 m.userData.fallSpeedMult = baseFallSpeedMult;
                 m.userData.driftSpeed = doesDrift ? (2 + Math.random() * 3) : 0;
                 m.userData.driftRange = doesDrift ? (5 + Math.random() * 10) : 0;
-                m.userData.baseX = (Math.random() - 0.5) * 30;
+                
+                // Spawn inside dynamic bounds
+                let spawnRange = this.bounds.xMax - this.bounds.xMin - 2;
+                m.userData.baseX = this.bounds.xMin + 1 + (Math.random() * spawnRange);
                 m.userData.spawnTime = performance.now();
 
                 // Reset all visibilities first
@@ -870,7 +872,11 @@ window.FunkenflugEngine = class FunkenflugEngine {
         if (this.collectibleSpawnTimer <= 0) {
             if(this.pools.collectibles.length > 0) {
                 let m = this.pools.collectibles.pop();
-                m.position.set((Math.random() - 0.5) * 25, 30, 0);
+                
+                // Spawn inside dynamic bounds
+                let spawnRange = this.bounds.xMax - this.bounds.xMin - 2;
+                let collectX = this.bounds.xMin + 1 + (Math.random() * spawnRange);
+                m.position.set(collectX, 30, 0);
 
                 // 15% chance for blue cooldown reduced
                 const isBlue = Math.random() < 0.15;
