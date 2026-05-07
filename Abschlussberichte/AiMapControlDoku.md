@@ -43,3 +43,13 @@ Die Map-Steuerung und das UI-Event-Routing sind nun stabil und fehlertolerant ü
 3. **Browser-Sicherheit & DOM-Rendering bei Video-Streams**
    - **Ursache**: Das Zuweisen eines Kamera-Streams (`srcObject`) an ein Video-Widget, das zunächst unsichtbar war und durch Alpine.js (`x-show`) eingeblendet wurde, verhinderte die Videoausgabe. Browser wie Chrome weigern sich oft, solche dynamisch eingeblendeten Streams ohne expliziten `.play()` Aufruf zu starten.
    - **Lösung**: Einbindung eines kurzen Timeouts (50ms) zum Abwarten des Alpine-Renderings und ein robuster Aufruf von `video.play()`.
+
+## Fehleranalyse & Behebung: UI-Animationen (KI Kern & Jarvis)
+
+1. **Hardware-Beschleunigung & CSS-Maskierung bei WebGL**
+   - **Ursache**: Der 3D KI-Kern (`funki-canvas-container`) animierte sich ruckelig, wenn die "Map" oder "Top Secret" Ansicht geöffnet wurde. Der Grund war, dass der HTML-Container die Klassen `rounded-3xl` und `overflow-hidden` besaß. Das Anwenden einer Software-Clippingmaske auf einen Three.js WebGL-Canvas während einer CSS-Skalierung (`transform: scale(...)`) zwingt den Browser aus der Hardwarebeschleunigung in das langsame Software-Rendering.
+   - **Lösung**: In `ai-widget-part1.blade.php` wurden `rounded-3xl` und `overflow-hidden` vom 3D-Container entfernt, da der WebGL-Hintergrund transparent ist und keine Ecken abgerundet werden müssen.
+
+2. **Fehlende Synchronisation der Animations-Koordinaten**
+   - **Ursache**: Die "Jarvis"-Verwandlung und das Minimieren bei "Map/Secret" nutzten asymmetrische Koordinaten. Jarvis flog zu `scale-[0.65] -translate-x-[1vw] -translate-y-[5vh]`, während der Map-Modus zu `scale-[0.45] -translate-x-[2vw] -translate-y-[12vh]` flog, was nicht dem gewünschten homogenen Flugverhalten entsprach.
+   - **Lösung**: Die Animations-Klassen wurden in `ai-widget-part1.blade.php` unifiziert. Die X-Achsen-Verschiebung wurde zusätzlich auf `translate-x-[2vw]` optimiert, um das Widget bündiger an den rechten Rand zu rücken. Beide UI-Elemente fliegen nun identisch zu `scale-[0.65] translate-x-[2vw] -translate-y-[5vh]`.
