@@ -152,11 +152,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
         this.renderer.setSize(w, h);
         
-        // --- PERFORMANCE DOWN-RENDERING ---
-        // Profi-Tipp: Auf Handys drosseln wir die interne 3D-Auflösung auf 60% (0.6).
-        // Das Bild wird dadurch minimal "weicher/pixeliger", aber die Performance (FPS) verdoppelt sich,
-        // da die schwache Handy-Grafikkarte weniger als halb so viele Pixel berechnen muss.
-        const pixelRatio = this.isMobile ? 0.6 : Math.min(window.devicePixelRatio, 1.25);
+        // Standard setup: Keep resolution sharp
+        const pixelRatio = this.isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.25);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
@@ -251,9 +248,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 this.ship.add(this.shipModel);
             }, undefined, (e) => { console.warn("Could not load rocket GLTF, using fallback."); });
 
-            // Load Meteor GLB
+            // Load Meteor GLB (Skip on mobile for performance)
             this.meteorModel = null;
-            if (this.assets.meteor) {
+            if (this.assets.meteor && !this.isMobile) {
                 loader.load(this.assets.meteor, (gltf) => {
                     this.meteorModel = gltf.scene;
                     // Standard scaling/rotation for meteor
@@ -281,9 +278,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 }, undefined, (e) => { console.warn("Could not load meteor GLTF."); });
             }
 
-            // Load Sharp Stone GLB
+            // Load Sharp Stone GLB (Skip on mobile for performance)
             this.sharpstoneModel = null;
-            if (this.assets.sharp_stone) {
+            if (this.assets.sharp_stone && !this.isMobile) {
                 loader.load(this.assets.sharp_stone, (gltf) => {
                     this.sharpstoneModel = gltf.scene;
                     this.sharpstoneModel.scale.set(1.5, 1.5, 1.5);
