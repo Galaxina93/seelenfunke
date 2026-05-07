@@ -602,22 +602,53 @@
                         <div class="w-full flex-1 bg-gray-950 flex sm:hidden flex-row items-center justify-between px-2 sm:px-4 pb-4 pt-2 relative z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] pointer-events-auto border-t-2 border-gray-800" x-show="gameState === 'playing'">
                             {{-- CENTER: Skills Grid --}}
                             <div class="flex flex-wrap items-center gap-4 w-full h-full justify-center pt-2 pointer-events-auto">
-                                <button @click="useSkill(1)" class="w-14 h-14 rounded-full border-2 flex items-center justify-center text-red-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
-                                    <span class="text-xl z-10 drop-shadow-md">🔥</span>
-                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[0] / 30) * 100}%`"></div>
-                                </button>
-                                <button @click="useSkill(2)" class="w-14 h-14 rounded-full border-2 flex items-center justify-center text-purple-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[1], 'bg-purple-900 border-purple-500': !skillFlash[1], 'opacity-40 grayscale pointer-events-none': (skillLevels[1] === 0 || skillCooldowns[1] > 0) && !skillFlash[1]}">
-                                    <span class="text-xl z-10 drop-shadow-md">⚡</span>
-                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[1] / 15) * 100}%`"></div>
-                                </button>
-                                <button @click="useSkill(3)" class="w-14 h-14 rounded-full border-2 flex items-center justify-center text-blue-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[2], 'bg-blue-900 border-blue-500': !skillFlash[2], 'opacity-40 grayscale pointer-events-none': (skillLevels[2] === 0 || skillCooldowns[2] > 0) && !skillFlash[2]}">
-                                    <span class="text-xl z-10 drop-shadow-md">🛡️</span>
-                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[2] / 20) * 100}%`"></div>
-                                </button>
-                                <button @click="useSkill(4)" class="w-14 h-14 rounded-full border-2 flex items-center justify-center text-yellow-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[3], 'bg-yellow-900 border-yellow-500': !skillFlash[3], 'opacity-40 grayscale pointer-events-none': (skillLevels[3] === 0 || skillCooldowns[3] > 0) && !skillFlash[3]}">
-                                    <span class="text-xl z-10 drop-shadow-md">⭐</span>
-                                    <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
-                                </button>
+                                <!-- Skill 1 -->
+                                <div class="flex flex-col items-center gap-1">
+                                    <div class="relative">
+                                        <button @click="useSkill(1)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-red-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
+                                            <span class="text-xl z-10 drop-shadow-md">🔥</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[0] / 30) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">1</div>
+                                    </div>
+                                    <span class="text-[9px] uppercase font-bold tracking-widest text-red-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Multishoot</span>
+                                </div>
+
+                                <!-- Skill 2 -->
+                                <div class="flex flex-col items-center gap-1">
+                                    <div class="relative">
+                                        <button @click="useSkill(2)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-purple-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[1], 'bg-purple-900 border-purple-500': !skillFlash[1], 'opacity-40 grayscale pointer-events-none': (skillLevels[1] === 0 || skillCooldowns[1] > 0) && !skillFlash[1]}">
+                                            <span class="text-xl z-10 drop-shadow-md">⚡</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[1] / 15) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">2</div>
+                                    </div>
+                                    <span class="text-[9px] uppercase font-bold tracking-widest text-purple-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Teleport</span>
+                                </div>
+
+                                <!-- Skill 3 -->
+                                <div class="flex flex-col items-center gap-1">
+                                    <div class="relative">
+                                        <button @click="useSkill(3)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-blue-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[2], 'bg-blue-900 border-blue-500': !skillFlash[2], 'opacity-40 grayscale pointer-events-none': (skillLevels[2] === 0 || skillCooldowns[2] > 0) && !skillFlash[2]}">
+                                            <span class="text-xl z-10 drop-shadow-md">🛡️</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[2] / 20) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">3</div>
+                                    </div>
+                                    <span class="text-[9px] uppercase font-bold tracking-widest text-blue-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Schild</span>
+                                </div>
+
+                                <!-- Skill 4 -->
+                                <div class="flex flex-col items-center gap-1">
+                                    <div class="relative">
+                                        <button @click="useSkill(4)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-yellow-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[3], 'bg-yellow-900 border-yellow-500': !skillFlash[3], 'opacity-40 grayscale pointer-events-none': (skillLevels[3] === 0 || skillCooldowns[3] > 0) && !skillFlash[3]}">
+                                            <span class="text-xl z-10 drop-shadow-md">⭐</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">4</div>
+                                    </div>
+                                    <span class="text-[9px] uppercase font-bold tracking-widest text-yellow-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Ultimate</span>
+                                </div>
                             </div>
                         </div>
 
