@@ -1237,6 +1237,10 @@
                             const transcript = event.results[i][0].transcript.trim();
                             if (transcript) {
                                 this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
+                                this.chatHistory.push({ role: 'user', content: transcript });
+                                if (this.$wire) {
+                                    this.$wire.saveUserLiveMessage(transcript);
+                                }
                             }
                         }
                     }

@@ -401,6 +401,22 @@ trait ManagesAiChat
         $this->dispatch('start-auto-routing', targetComponentId: $this->getId());
     }
 
+    public function saveUserLiveMessage($text)
+    {
+        if (empty(trim($text))) return;
+
+        $userCtx = [
+            'name' => auth()->user()->first_name ?? 'User',
+            'color' => 'gray-400',
+            'icon' => 'user',
+            'profile_picture' => (auth()->check() && auth()->user()->profile) ? auth()->user()->profile->photo_path : null,
+            'is_live_mode' => true
+        ];
+
+        $this->saveMessageToDb('user', $text, $userCtx);
+        unset($this->messages); // Trigger re-render
+    }
+
     #[On('start-auto-routing')]
     public function processAutoRouting($targetComponentId = null)
     {
