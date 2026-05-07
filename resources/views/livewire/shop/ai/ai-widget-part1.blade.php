@@ -223,7 +223,7 @@
     <!-- ========================================== -->
     <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.45] -translate-x-[2vw] -translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
     <!-- END JARVIS (2D) -->
-    
+
     <!-- Jarvis Flash Transition -->
     <div x-show="showJarvisFlash" x-transition.opacity.duration.500ms class="absolute inset-0 z-[60] bg-cyan-400 mix-blend-screen pointer-events-none" style="display: none;"></div>
     <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
@@ -652,7 +652,7 @@
          <div class="p-4 bg-gray-950/90 font-mono text-xs text-blue-400/80 flex items-center justify-between">
              <div class="flex items-center gap-2">
                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                 <span>LOCAL SYSTEM FEED // SECURE</span>
+                 <span>LOCALES SYSTEM // CAM</span>
              </div>
              <span class="text-gray-600">FPS: 60.00</span>
          </div>
@@ -663,7 +663,7 @@
         window.addEventListener('ai-show-camera', function(e) {
             let detail = e.detail; if(Array.isArray(detail)) detail = detail[0]; if(detail && detail.payload) detail = detail.payload;
             const open = detail && (detail.open === true || detail.open === 'true' || detail.open === 1);
-            
+
             setTimeout(() => {
                 const video = document.getElementById('funki-local-camera');
                 const errDiv = document.getElementById('funki-camera-error');
@@ -726,6 +726,7 @@
         };
     </script>
 
+
     <!-- [AREA: NAVIGATION & LOG] -->
     <!-- UI Overlay Navigation -->
     <div x-show="showFunkiView" class="absolute top-6 right-6 z-50 flex flex-col items-end gap-2" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
@@ -763,6 +764,35 @@
                         </div>
                     </div>
                 </template>
+            </div>
+        </div>
+
+        <!-- Simple Widget Chat -->
+        <div class="flex flex-col items-end w-full">
+            <div x-show="showWorkspaceModal" x-transition class="w-80 md:w-96 mt-2 p-3 bg-black/80 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.2)] flex flex-col gap-2 pointer-events-auto" style="display: none; max-height: 60vh;">
+                <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/80 border-b border-emerald-900/30 pb-2 mb-1 shrink-0 flex justify-between items-center">
+                    <span>Chat Verlauf</span>
+                    <button @click="showWorkspaceModal = false" class="text-rose-500 hover:text-rose-400 p-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1" x-effect="if (chatHistory.length || thinking) { $nextTick(() => { $el.scrollTop = $el.scrollHeight; }); }">
+                    <template x-for="(msg, i) in chatHistory" :key="i">
+                        <div class="flex flex-col gap-1 w-full" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
+                            <span class="text-[8px] font-black uppercase tracking-widest text-gray-500" x-text="msg.role === 'user' ? 'Du' : (msg.name || activeAgentName)"></span>
+                            <div class="p-2 rounded-lg text-xs leading-relaxed max-w-[85%] break-words"
+                                 :class="msg.role === 'user' ? 'bg-emerald-900/40 border border-emerald-500/30 text-emerald-100' : 'bg-gray-800/60 border border-gray-600/50 text-gray-200'">
+                                 <span x-html="stripSpeak(msg.content).replace(/\n/g, '<br>')"></span>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="thinking" class="flex flex-col gap-1 w-full items-start">
+                        <span class="text-[8px] font-black uppercase tracking-widest text-gray-500" x-text="activeAgentName"></span>
+                        <div class="p-2 rounded-lg text-xs leading-relaxed bg-gray-800/60 border border-gray-600/50 text-emerald-400 animate-pulse">
+                            Nachricht wird generiert...
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -805,8 +835,8 @@
         </button>
     </div>
 
-    <!-- Push to Talk Mobile Anchor -->
-    <div x-show="isMobile && !continuousMode" class="absolute left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none; bottom: max(2.5rem, calc(env(safe-area-inset-bottom) + 1rem));">
+    <!-- Push to Talk Anchor -->
+    <div x-show="!isLiveMode" class="absolute left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none; bottom: max(2.5rem, calc(env(safe-area-inset-bottom) + 1rem));">
         <span class="text-[10px] font-mono tracking-widest text-emerald-400/80 uppercase" x-show="!listening && !thinking">Halten zum Sprechen</span>
         <span class="text-[10px] font-mono tracking-widest text-cyan-400 uppercase animate-pulse" x-show="listening" x-text="activeAgentName + ' hört zu...'"></span>
         <span class="text-[10px] font-mono tracking-widest text-purple-400 uppercase animate-pulse" x-show="thinking" x-text="activeAgentName + ' verarbeitet...'"></span>

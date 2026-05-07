@@ -87,6 +87,23 @@ class AIController extends Controller
 
         $history = $request->input('history', []);
 
+        // Clean history from frontend specific keys (name, color, icon, etc.) to prevent API schema validation errors
+        $cleanHistory = [];
+        foreach ($history as $msg) {
+            $cleanMsg = [
+                'role' => $msg['role'] ?? 'user',
+                'content' => $msg['content'] ?? ''
+            ];
+            if (isset($msg['tool_calls'])) {
+                $cleanMsg['tool_calls'] = $msg['tool_calls'];
+            }
+            if (isset($msg['tool_call_id'])) {
+                $cleanMsg['tool_call_id'] = $msg['tool_call_id'];
+            }
+            $cleanHistory[] = $cleanMsg;
+        }
+        $history = $cleanHistory;
+
         // Backwards compatibility or single-shot prompts
         if (empty($history) && $request->has('prompt')) {
             $history[] = [
@@ -138,7 +155,7 @@ class AIController extends Controller
                 if ($lastSession) {
                     $sessionId = $lastSession->id;
                 } else {
-                    $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => auth()->id(), 'title' => 'Widget Chat']);
+                    $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => auth()->id(), 'title' => 'Push-to-Talk Chat']);
                     $sessionId = $newSession->id;
                 }
             }
@@ -146,13 +163,32 @@ class AIController extends Controller
 
         // Was hat der User gesagt? (Finde die neuste User-Nachricht)
         $userMsg = collect($history)->reverse()->firstWhere('role', 'user');
+        
+        $chatSession = \App\Models\Ai\AiChatSession::find($sessionId);
+        $user = $chatSession ? $chatSession->user : (auth()->user() ?? null);
+        
+        $userCtx = [
+            'name' => $user ? ($user->first_name ?? 'User') : 'User',
+            'color' => 'gray-400',
+            'icon' => 'user',
+            'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
+        ];
+
         if ($userMsg) {
             AiChatMemory::create([
                 'session_id' => $sessionId,
                 'role' => 'user',
                 'content' => $userMsg['content'],
+                'context_data' => $userCtx,
             ]);
         }
+
+        $assistantCtx = [
+            'name' => $aiAgent ? $aiAgent->name : 'Funkira',
+            'color' => $aiAgent ? $aiAgent->color : 'emerald-500',
+            'icon' => 'robot',
+            'profile_picture' => $aiAgent ? $aiAgent->profile_picture : null,
+        ];
 
         // Was hat die KI final geantwortet?
         if (!empty($result['response'])) {
@@ -160,6 +196,7 @@ class AIController extends Controller
                 'session_id' => $sessionId,
                 'role' => 'assistant',
                 'content' => $result['response'],
+                'context_data' => $assistantCtx,
             ]);
         }
 

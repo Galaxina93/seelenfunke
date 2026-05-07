@@ -262,7 +262,7 @@ trait ManagesAiChat
         ]);
     }
 
-    public function appendLiveChatMemory($role, $text)
+    public function appendLiveChatMemory($role, $text, $frontendAgentId = null)
     {
         $contextData = [];
         if ($role === 'user') {
@@ -275,7 +275,7 @@ trait ManagesAiChat
                 'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null
             ];
         } else {
-            $agentId = $this->agentId ?? ($this->activeAgentIds[0] ?? null);
+            $agentId = $frontendAgentId ?? $this->agentId ?? ($this->activeAgentIds[0] ?? null);
             $agent = \App\Models\Ai\AiAgent::find($agentId);
             if (!$agent) {
                 $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->first();

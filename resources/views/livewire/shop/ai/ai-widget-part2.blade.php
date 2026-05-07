@@ -56,6 +56,7 @@
             showFunkiView: false,
             showErrorPanel: false,
             showDebugLog: false,
+            showWorkspaceModal: false,
             showTasks: false,
             showNewsPanel: false,
             allowVoiceInterruption: initialAllowInterruption,
@@ -92,7 +93,7 @@
             totalOrders: totalOrders,
             lastSync: lastSync,
             errorText: '',
-            chatHistory: [],
+            chatHistory: @js($this->messages),
             idleProgress: 0, // 0-100 indicating time until spontaneous action
             isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
             // Voice AI State
@@ -589,9 +590,8 @@
                     }
 
                     if(data.status === 'success') {
-                        if (data.history) {
-                            this.chatHistory = data.history;
-                        }
+                        // Do not overwrite this.chatHistory with data.history to preserve 'name' and 'color' attributes in the UI.
+                        // The UI will only append new messages manually.
 
                         if (data.context_data && data.context_data.length > 0) {
                             data.context_data.forEach(ctx => {
@@ -631,6 +631,7 @@
 
                         if (data.response) {
                             this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: data.response.replace(/\[.*?\]/s, '') });
+                            this.chatHistory.push({ role: 'assistant', content: data.response, name: data.agent_name || this.activeAgentName });
                         }
 
                         if (this.funkiLogs.length > 15) this.funkiLogs = this.funkiLogs.slice(-15);
@@ -1235,10 +1236,6 @@
                         if (event.results[i].isFinal) {
                             const transcript = event.results[i][0].transcript.trim();
                             if (transcript) {
-                                // Save User's spoken text to chat memory
-                                try {
-                                    this.$wire.appendLiveChatMemory('user', transcript);
-                                } catch(e) {}
                                 this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
                             }
                         }
@@ -1297,12 +1294,8 @@
                 if (data.serverContent && data.serverContent.turnComplete) {
                     if (this.currentLiveTranscript.trim() !== '') {
                         let finalTxt = this.currentLiveTranscript.trim();
-                        this.chatHistory.push({ role: 'model', parts: [{ text: finalTxt }] });
-                        try {
-                            this.$wire.appendLiveChatMemory('assistant', finalTxt);
-                        } catch(e) {
-                            console.error('Fehler beim Speichern in Chat-Memory:', e);
-                        }
+                        let agentName = data.agent_name || this.activeAgentName;
+                        this.chatHistory.push({ role: 'assistant', content: finalTxt, name: agentName });
                         this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: finalTxt.replace(/\[.*?\]/s, '') });
                         this.currentLiveTranscript = ""; // Reset for next turn
                     }
