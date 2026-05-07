@@ -72,16 +72,63 @@ window.FunkenflugEngine = class FunkenflugEngine {
         if (!this.container || !this.camera || !this.renderer) return;
         const w = this.container.offsetWidth;
         const h = this.container.offsetHeight;
+        if (w === 0 || h === 0) return; // Prevent NaN/Infinity aspect corruption
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(w, h);
         
-        // CACHE BOUNDING CLIENT RECT FOR POINTER LOGIC (CRITICAL MOBILE PERFORMANCE)
+        // Update bounds asynchronously to ensure layout has settled
         setTimeout(() => {
-            if(this.renderer.domElement) {
-                this.cachedRect = this.renderer.domElement.getBoundingClientRect();
-            }
+            this.updateBounds();
         }, 100);
+    }
+
+    updateBounds() {
+        if (!this.camera || !this.renderer) return;
+        this.camera.updateProjectionMatrix();
+
+        // The game action happens at Z=0 plane
+        const z0plane = new window.THREE.Plane(new window.THREE.Vector3(0, 0, 1), 0);
+        
+        const getIntersect = (nx, ny) => {
+            const vec = new window.THREE.Vector3(nx, ny, 0.5);
+            vec.unproject(this.camera);
+            const dir = vec.sub(this.camera.position).normalize();
+            const ray = new window.THREE.Ray(this.camera.position, dir);
+            const target = new window.THREE.Vector3();
+            const hit = ray.intersectPlane(z0plane, target);
+            if (!hit) {
+                // If ray points away from Z=0 (e.g. extreme aspect ratio wide corners), 
+                // project a point very far away in that direction as a safe boundary
+                return new window.THREE.Vector3(nx * 1000, ny * 1000, 0);
+            }
+            return target;
+        };
+
+        // Y bounds only depend on vertical edges (safest in center to avoid wide FOV distortion)
+        const topCenter = getIntersect(0, 1);
+        const bottomCenter = getIntersect(0, -1);
+        
+        // X bounds: use the narrowest part of the frustum (the bottom)
+        const bottomLeft = getIntersect(-1, -1);
+        const bottomRight = getIntersect(1, -1);
+
+        this.bounds = {
+            xMin: bottomLeft.x + 2,
+            xMax: bottomRight.x - 2,
+            yMin: bottomCenter.y + 4,
+            yMax: topCenter.y - 4
+        };
+
+        // Failsafe: If layout hasn't settled and bounds invert, use safe fallbacks
+        if (isNaN(this.bounds.yMin) || isNaN(this.bounds.yMax) || this.bounds.yMax <= this.bounds.yMin) {
+            this.bounds.yMin = -5;
+            this.bounds.yMax = 25;
+        }
+        if (isNaN(this.bounds.xMin) || isNaN(this.bounds.xMax) || this.bounds.xMax <= this.bounds.xMin) {
+            this.bounds.xMin = -15;
+            this.bounds.xMax = 15;
+        }
     }
 
     initScene() {
@@ -415,36 +462,30 @@ window.FunkenflugEngine = class FunkenflugEngine {
             this._jts = (e) => {
                 e.preventDefault(); 
                 if (activeTouchId !== null) return;
-                let t = e.changedTouches[0];
-                activeTouchId = t.identifier;
+                let t = e.pointerId; // Pointer events use pointerId instead of touches array
+                activeTouchId = t;
                 joyRect = joyZone.getBoundingClientRect();
-                updateJoy(t.clientX, t.clientY);
+                updateJoy(e.clientX, e.clientY);
             };
-            joyZone.addEventListener('touchstart', this._jts, {passive: false});
+            joyZone.addEventListener('pointerdown', this._jts, {passive: false});
 
             this._jtm = (e) => {
                 e.preventDefault();
                 if (activeTouchId === null) return;
-                for(let i=0; i<e.changedTouches.length; i++){
-                    if(e.changedTouches[i].identifier === activeTouchId) {
-                        updateJoy(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
-                        break;
-                    }
+                if(e.pointerId === activeTouchId) {
+                    updateJoy(e.clientX, e.clientY);
                 }
             };
-            joyZone.addEventListener('touchmove', this._jtm, {passive: false});
+            joyZone.addEventListener('pointermove', this._jtm, {passive: false});
 
             this._jte = (e) => {
                 if (activeTouchId === null) return;
-                for(let i=0; i<e.changedTouches.length; i++){
-                    if(e.changedTouches[i].identifier === activeTouchId) {
-                        resetJoy();
-                        break;
-                    }
+                if(e.pointerId === activeTouchId) {
+                    resetJoy();
                 }
             };
-            joyZone.addEventListener('touchend', this._jte);
-            joyZone.addEventListener('touchcancel', this._jte);
+            window.addEventListener('pointerup', this._jte);
+            window.addEventListener('pointercancel', this._jte);
         }
 
         const onPtrDown = (e) => {
@@ -457,39 +498,41 @@ window.FunkenflugEngine = class FunkenflugEngine {
             }
         };
         const onPtrMove = (e) => {
-            // Update pointer immediately if it's a mouse (desktop follow), or if dragging (mobile touch)
-            if (e.pointerType === 'mouse' || this.isPointerDown) {
-                this.updatePointerPos(e);
-            }
+            // Always follow the pointer, regardless of mouse clicking or touch dragging
+            this.updatePointerPos(e);
         };
         const onPtrUp = () => { this.isPointerDown = false; };
 
+        // Attach pointerdown to the container so we don't catch UI clicks, but move/up to the window so we don't lose tracking
         this.container.addEventListener('pointerdown', onPtrDown);
-        this.container.addEventListener('pointermove', onPtrMove);
+        window.addEventListener('pointermove', onPtrMove);
         window.addEventListener('pointerup', onPtrUp);
-        this.container.addEventListener('pointercancel', onPtrUp);
+        window.addEventListener('pointercancel', onPtrUp);
     }
 
     updatePointerPos(e) {
-        // ALWAYS use cachedRect on mobile to prevent catastrophic layout thrashing!
-        const rect = this.cachedRect || this.renderer.domElement.getBoundingClientRect();
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        // Map to -1 to 1 clip space
         const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
         const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
 
-        // Unproject to Z=0 plane
         const vec = new THREE.Vector3(nx, ny, 0.5);
         vec.unproject(this.camera);
         const dir = vec.sub(this.camera.position).normalize();
-        const dist = -this.camera.position.z / dir.z;
-        const pos = this.camera.position.clone().add(dir.multiplyScalar(dist));
-
-        this.pointerPos.x = pos.x;
-        this.pointerPos.y = pos.y + 5; // Offset because finger covers ship
-        this.pointerPos.z = 0;
+        
+        const z0plane = new window.THREE.Plane(new window.THREE.Vector3(0, 0, 1), 0);
+        const ray = new window.THREE.Ray(this.camera.position, dir);
+        const target = new window.THREE.Vector3();
+        
+        if (ray.intersectPlane(z0plane, target)) {
+            this.pointerPos.x = target.x;
+            this.pointerPos.y = target.y + 5; // Offset because finger covers ship
+            this.pointerPos.z = 0;
+        }
     }
 
     cleanup() {
@@ -502,10 +545,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
         if(this._jts) {
             const joyZone = document.getElementById('ff-joystick-zone');
             if(joyZone){
-                 joyZone.removeEventListener('touchstart', this._jts);
-                 joyZone.removeEventListener('touchmove', this._jtm);
-                 joyZone.removeEventListener('touchend', this._jte);
-                 joyZone.removeEventListener('touchcancel', this._jte);
+                 joyZone.removeEventListener('pointerdown', this._jts);
+                 joyZone.removeEventListener('pointermove', this._jtm);
+                 window.removeEventListener('pointerup', this._jte);
+                 window.removeEventListener('pointercancel', this._jte);
             }
         }
         if(this.resizeObserver) this.resizeObserver.disconnect();
@@ -519,6 +562,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
     }
 
     start() {
+        // Force a layout recalculation now that the game is fully visible
+        this.resize();
+
         // Reset state
         this.isRunning = true;
         this.isGameOver = false;
@@ -659,7 +705,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
 
         // Input & Ship Movement
-        const moveSpeed = 80 * dt;
+        const moveSpeed = 120 * dt; // Ultra snappy joystick speed
         if (!this.activeSkills.teleport.waitingForClick) {
             if (this.isMobile && this.joystickVector && (this.joystickVector.x !== 0 || this.joystickVector.y !== 0)) {
                 // Joystick input overrides direct touch tracking
@@ -673,13 +719,20 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 this.shipTargetPos.copy(this.pointerPos);
             }
             
-            // Bounds (Slightly larger Y bounds due to shorter screen height)
-            this.shipTargetPos.x = Math.max(-20, Math.min(20, this.shipTargetPos.x));
-            this.shipTargetPos.y = Math.max(-10, Math.min(30, this.shipTargetPos.y));
+        // Bounds dynamically calculated from the camera frustum at Z=0 plane
+        if (this.bounds) {
+            let clampedX = Math.max(this.bounds.xMin, Math.min(this.bounds.xMax, this.shipTargetPos.x));
+            let clampedY = Math.max(this.bounds.yMin, Math.min(this.bounds.yMax, this.shipTargetPos.y));
+            this.shipTargetPos.x = isNaN(clampedX) ? 0 : clampedX;
+            this.shipTargetPos.y = isNaN(clampedY) ? 0 : clampedY;
+        } else {
+            this.shipTargetPos.x = Math.max(-15, Math.min(15, this.shipTargetPos.x));
+            this.shipTargetPos.y = Math.max(-5, Math.min(20, this.shipTargetPos.y));
+        }
         }
 
         // Smooth translation
-        this.ship.position.lerp(this.shipTargetPos, 15 * dt);
+        this.ship.position.lerp(this.shipTargetPos, 30 * dt); // Doubled lerp speed for instant reaction
 
         // Physik: Neigung und Rollen basierend auf der Bewegung
         const deltaX = this.shipTargetPos.x - this.ship.position.x;
