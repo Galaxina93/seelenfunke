@@ -98,6 +98,16 @@
                         const sdTime = performance.now() - t3.shutdownTime;
                         shutProg = Math.min(sdTime / 3500.0, 1.0);
                         t3.raymarchUniforms.shutdownProgress.value = shutProg;
+                    } else if (t3.isTransformingToJarvis) {
+                        const transTime = performance.now() - t3.transformStartTime;
+                        let transProg = Math.min(transTime / 1200.0, 1.0);
+                        t3.raymarchUniforms.shutdownProgress.value = transProg;
+                        shutProg = transProg;
+                    } else if (t3.isTransformingFromJarvis) {
+                        const transTime = performance.now() - t3.transformStartTime;
+                        let transProg = Math.max(1.0 - (transTime / 1200.0), 0.0);
+                        t3.raymarchUniforms.shutdownProgress.value = transProg;
+                        shutProg = transProg;
                     } else {
                         t3.raymarchUniforms.shutdownProgress.value = 0.0;
                     }

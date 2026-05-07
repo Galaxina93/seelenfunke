@@ -212,11 +212,17 @@
          class="fixed inset-0 bg-black/80 z-[9998] pointer-events-auto backdrop-blur-sm"
          @click="clearMainScreenWidget()" style="display: none;"></div>
 
-    <!-- Canvas Container (3D Hologram) -->
-    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
-    
-    <!-- Jarvis Animation Canvas -->
-    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.25] -translate-x-[2vw] -translate-y-[15vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
+    <!-- ========================================== -->
+    <!-- START KI KERN (3D) - Hier läuft Three.js -->
+    <!-- ========================================== -->
+    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.45] -translate-x-[2vw] -translate-y-[12vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] pointer-events-none rounded-3xl overflow-hidden z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
+    <!-- END KI KERN (3D) -->
+
+    <!-- ========================================== -->
+    <!-- START JARVIS (2D) - Hier läuft die Canvas Animation -->
+    <!-- ========================================== -->
+    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.45] -translate-x-[2vw] -translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] -translate-x-[1vw] -translate-y-[5vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
+    <!-- END JARVIS (2D) -->
     
     <!-- Jarvis Flash Transition -->
     <div x-show="showJarvisFlash" x-transition.opacity.duration.500ms class="absolute inset-0 z-[60] bg-cyan-400 mix-blend-screen pointer-events-none" style="display: none;"></div>

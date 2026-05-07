@@ -287,14 +287,79 @@
                 if (!t3 || !t3.scene || !t3.coreMesh) return;
 
                 if (this.isJarvis) {
-                    t3.coreMesh.visible = false;
-                    this.$nextTick(() => {
-                        this.initJarvisCanvas();
-                    });
+                    // Forward Transformation (3D Shader Dissolve)
+                    const initAudio = document.getElementById('audio-funki-init');
+                    if (initAudio && initAudio.paused) {
+                        initAudio.currentTime = 0;
+                        initAudio.volume = 0.8;
+                        initAudio.play().catch(e=>e);
+                    }
+
+                    // Start the 3D Core Dissolve effect
+                    t3.isTransformingToJarvis = true;
+                    t3.transformStartTime = performance.now();
+
+                    // Wait for dissolve to finish (faster than normal shutdown, e.g. 1200ms)
+                    setTimeout(() => {
+                        t3.coreMesh.visible = false;
+                        t3.isTransformingToJarvis = false; // Reset flag
+                        
+                        this.$nextTick(() => {
+                            this.initJarvisCanvas();
+                            
+                            const canvas = document.getElementById('jarvisCanvas');
+                            if (canvas) {
+                                // "Assembling" effect: start scaled down, transparent and blurred
+                                canvas.style.transform = 'scale(0.5)';
+                                canvas.style.opacity = '0';
+                                canvas.style.filter = 'blur(15px)';
+                                
+                                setTimeout(() => {
+                                    canvas.style.transition = 'all 1s cubic-bezier(0.1, 0.9, 0.2, 1)';
+                                    canvas.style.transform = ''; // Tailwind takes over
+                                    canvas.style.opacity = '1';
+                                    canvas.style.filter = 'blur(0px) drop-shadow(0 0 15px rgba(0, 212, 255, 0.6))';
+                                }, 50);
+                            }
+                        });
+                    }, 1200);
+
                 } else {
-                    t3.coreMesh.visible = true;
+                    // Reverse Transformation (Assemble 3D Core)
+                    const shutdownAudio = document.getElementById('audio-funki-shutdown');
+                    if (shutdownAudio && shutdownAudio.paused) {
+                        shutdownAudio.currentTime = 0;
+                        shutdownAudio.volume = 0.8;
+                        shutdownAudio.play().catch(e=>e);
+                    }
+
+                    const canvas = document.getElementById('jarvisCanvas');
+                    if (canvas) {
+                        // Disassemble Jarvis
+                        canvas.style.opacity = '0';
+                        canvas.style.transform = 'scale(1.5)';
+                        canvas.style.filter = 'blur(15px)';
+                        canvas.style.transition = 'all 0.8s ease-in';
+                    }
+                    
+                    setTimeout(() => {
+                        // Make 3D Core visible but completely dissolved (progress = 1.0)
+                        if (t3 && t3.coreMesh) {
+                            t3.coreMesh.visible = true;
+                            t3.coreMesh.scale.set(1, 1, 1);
+                        }
+                        this.updateCoreColor(true); 
+                        
+                        // Start reverse dissolve (materialize)
+                        t3.isTransformingFromJarvis = true;
+                        t3.transformStartTime = performance.now();
+                        
+                        setTimeout(() => {
+                            t3.isTransformingFromJarvis = false;
+                        }, 1200);
+                        
+                    }, 600); // Wait for canvas to fade out
                 }
-                this.updateCoreColor(true);
             },
 
             handleAgentSwitch(agentId) {
@@ -1207,26 +1272,39 @@
                     this.startMicrophone();
                     return;
                 }
+                if (!this.hasOwnProperty('currentLiveTranscript')) {
+                    this.currentLiveTranscript = "";
+                }
+
                 if (data.serverContent && data.serverContent.modelTurn) {
                     const parts = data.serverContent.modelTurn.parts;
-                    let fullText = "";
+                    let chunkText = "";
                     parts.forEach(part => {
                         if (part.inlineData && part.inlineData.data) {
                             this.playLiveAudioChunk(part.inlineData.data);
                         }
                         if (part.text) {
-                            fullText += part.text;
+                            chunkText += part.text;
                         }
                     });
 
-                    if (fullText) {
-                        this.chatHistory.push({ role: 'model', parts: [{ text: fullText }] });
+                    if (chunkText) {
+                        this.currentLiveTranscript += chunkText;
+                    }
+                }
+
+                // Wait until the AI is completely done speaking to save the block
+                if (data.serverContent && data.serverContent.turnComplete) {
+                    if (this.currentLiveTranscript.trim() !== '') {
+                        let finalTxt = this.currentLiveTranscript.trim();
+                        this.chatHistory.push({ role: 'model', parts: [{ text: finalTxt }] });
                         try {
-                            this.$wire.appendLiveChatMemory('assistant', fullText);
+                            this.$wire.appendLiveChatMemory('assistant', finalTxt);
                         } catch(e) {
                             console.error('Fehler beim Speichern in Chat-Memory:', e);
                         }
-                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: fullText.replace(/\[.*?\]/s, '') });
+                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: finalTxt.replace(/\[.*?\]/s, '') });
+                        this.currentLiveTranscript = ""; // Reset for next turn
                     }
                 }
 

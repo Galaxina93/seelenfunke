@@ -33,6 +33,11 @@
                             let volInt = setInterval(() => {
                                 if(!this.showFunkiView || t3.isShuttingDown) { clearInterval(volInt); return; }
 
+                                if (this.isMobile && this.isLiveMode) {
+                                    // Do nothing while mobile live mode is active
+                                    return;
+                                }
+
                                 if (this.isAudioMuted) {
                                     if (t3.ambientAudio && t3.ambientAudio.volume < 0.05) {
                                         t3.ambientAudio.volume = Math.min(t3.ambientAudio.volume + 0.005, 0.05);
@@ -189,8 +194,12 @@
                     bgAudio.muted = effectiveMute;
                     if (!effectiveMute && !t3.isShuttingDown) {
                         bgAudio.volume = this.bgVolume / 100;
+                        if (bgAudio.paused) bgAudio.play().catch(e=>e);
                     } else if (mobileLiveMute) {
                         bgAudio.volume = 0;
+                        bgAudio.pause();
+                    } else if (this.isAudioMuted) {
+                        bgAudio.pause();
                     }
                 }
 
@@ -198,13 +207,25 @@
                     ambientAudio.muted = effectiveMute;
                     if (this.isAudioMuted && !t3.isShuttingDown && !mobileLiveMute) {
                         ambientAudio.volume = 0.05;
+                        if (ambientAudio.paused) ambientAudio.play().catch(e=>e);
                     } else {
                         ambientAudio.volume = 0;
+                        if (effectiveMute) ambientAudio.pause();
+                    }
+                    if (!effectiveMute && !this.isAudioMuted && !t3.isShuttingDown) {
+                        if (ambientAudio.paused) ambientAudio.play().catch(e=>e);
                     }
                 }
 
-                if (pulseAudio) pulseAudio.muted = effectiveMute;
-                if (heartbeatAudio) heartbeatAudio.muted = effectiveMute;
+                if (pulseAudio) {
+                    pulseAudio.muted = effectiveMute;
+                    if (effectiveMute) pulseAudio.pause();
+                }
+                if (heartbeatAudio) {
+                    heartbeatAudio.muted = effectiveMute;
+                    if (effectiveMute) heartbeatAudio.pause();
+                    else if (heartbeatAudio.paused && !t3.isShuttingDown) heartbeatAudio.play().catch(e=>e);
+                }
             },
 
             initMapbox() {
