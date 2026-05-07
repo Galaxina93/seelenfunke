@@ -427,66 +427,6 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this._kd = e => km(e, true); window.addEventListener('keydown', this._kd);
         this._ku = e => km(e, false); window.addEventListener('keyup', this._ku);
 
-        // --- MOBILE JOYSTICK ---
-        this.joystickVector = { x: 0, y: 0 };
-        const joyZone = document.getElementById('ff-joystick-zone');
-        const joyKnob = document.getElementById('ff-joystick-knob');
-        
-        if (joyZone && joyKnob && this.isMobile) {
-            let activeTouchId = null;
-            let joyRect = null;
-            let maxDist = 30; // 90px zone, 12px knob, rough travel limit
-
-            const updateJoy = (clientX, clientY) => {
-                if (!joyRect) return;
-                let cx = joyRect.left + joyRect.width / 2;
-                let cy = joyRect.top + joyRect.height / 2;
-                let dx = clientX - cx;
-                let dy = clientY - cy;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-                if(dist > maxDist) {
-                    dx = (dx/dist) * maxDist;
-                    dy = (dy/dist) * maxDist;
-                }
-                joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-                this.joystickVector.x = dx / maxDist;
-                this.joystickVector.y = -(dy / maxDist); // Invert Y logically
-            };
-            const resetJoy = () => {
-                activeTouchId = null;
-                joyKnob.style.transform = `translate(0px, 0px)`;
-                this.joystickVector.x = 0;
-                this.joystickVector.y = 0;
-            };
-
-            this._jts = (e) => {
-                e.preventDefault(); 
-                if (activeTouchId !== null) return;
-                let t = e.pointerId; // Pointer events use pointerId instead of touches array
-                activeTouchId = t;
-                joyRect = joyZone.getBoundingClientRect();
-                updateJoy(e.clientX, e.clientY);
-            };
-            joyZone.addEventListener('pointerdown', this._jts, {passive: false});
-
-            this._jtm = (e) => {
-                e.preventDefault();
-                if (activeTouchId === null) return;
-                if(e.pointerId === activeTouchId) {
-                    updateJoy(e.clientX, e.clientY);
-                }
-            };
-            joyZone.addEventListener('pointermove', this._jtm, {passive: false});
-
-            this._jte = (e) => {
-                if (activeTouchId === null) return;
-                if(e.pointerId === activeTouchId) {
-                    resetJoy();
-                }
-            };
-            window.addEventListener('pointerup', this._jte);
-            window.addEventListener('pointercancel', this._jte);
-        }
 
         const onPtrDown = (e) => {
             if (!this.isRunning) return;
@@ -564,6 +504,15 @@ window.FunkenflugEngine = class FunkenflugEngine {
     start() {
         // Force a layout recalculation now that the game is fully visible
         this.resize();
+        
+        // Alpine transitions and flexbox layout might take a moment to settle.
+        // We poll resize for 1.5 seconds to guarantee the math perfectly matches the visual screen.
+        let resizeTicks = 0;
+        const settleInterval = setInterval(() => {
+            this.resize();
+            resizeTicks++;
+            if (resizeTicks > 15) clearInterval(settleInterval);
+        }, 100);
 
         // Reset state
         this.isRunning = true;
@@ -705,19 +654,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
 
         // Input & Ship Movement
-        const moveSpeed = 120 * dt; // Ultra snappy joystick speed
         if (!this.activeSkills.teleport.waitingForClick) {
-            if (this.isMobile && this.joystickVector && (this.joystickVector.x !== 0 || this.joystickVector.y !== 0)) {
-                // Joystick input overrides direct touch tracking
-                this.shipTargetPos.x += this.joystickVector.x * moveSpeed;
-                this.shipTargetPos.y += this.joystickVector.y * moveSpeed;
+            // Move exactly to pointer
+            this.shipTargetPos.copy(this.pointerPos);
 
-                // Keep pointerPos synced so Teleport/Screen bounds remember where the Joystick left off
-                this.pointerPos.copy(this.shipTargetPos);
-            } else {
-                // Touch Drag or Move exactly to pointer
-                this.shipTargetPos.copy(this.pointerPos);
-            }
             
         // Bounds dynamically calculated from the camera frustum at Z=0 plane
         if (this.bounds) {

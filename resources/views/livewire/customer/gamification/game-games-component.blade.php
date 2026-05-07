@@ -600,9 +600,8 @@
                         
                         {{-- GAMEBOY CONTROLLER (MOBILE ONLY) --}}
                         <div class="w-full flex-1 bg-gray-950 flex sm:hidden flex-row items-center justify-between px-2 sm:px-4 pb-4 pt-2 relative z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] pointer-events-auto border-t-2 border-gray-800" x-show="gameState === 'playing'">
-                            
-                            {{-- LEFT SIDE: Skills Grid --}}
-                            <div class="flex flex-wrap items-center gap-2 w-1/2 h-full justify-start pl-2 pt-2">
+                            {{-- CENTER: Skills Grid --}}
+                            <div class="flex flex-wrap items-center gap-4 w-full h-full justify-center pt-2 pointer-events-auto">
                                 <button @click="useSkill(1)" class="w-14 h-14 rounded-full border-2 flex items-center justify-center text-red-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
                                     <span class="text-xl z-10 drop-shadow-md">🔥</span>
                                     <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[0] / 30) * 100}%`"></div>
@@ -619,13 +618,6 @@
                                     <span class="text-xl z-10 drop-shadow-md">⭐</span>
                                     <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
                                 </button>
-                            </div>
-
-                            {{-- RIGHT SIDE: Joystick Zone --}}
-                            <div class="w-1/2 h-full flex items-center justify-end pr-4 sm:pr-6 pointer-events-auto">
-                                <div id="ff-joystick-zone" class="w-[90px] h-[90px] rounded-full bg-gray-900 border-4 border-gray-800 shadow-[inset_0_10px_20px_rgba(0,0,0,1)] relative touch-none flex items-center justify-center overflow-hidden">
-                                    <div id="ff-joystick-knob" class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-600 to-yellow-400 border-[3px] border-yellow-200 shadow-[0_5px_15px_rgba(245,158,11,0.6)] absolute pointer-events-none transform transition-transform duration-75"></div>
-                                </div>
                             </div>
                         </div>
 
