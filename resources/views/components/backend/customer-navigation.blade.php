@@ -19,7 +19,27 @@
             @endphp
 
             @if($hasOptedIn)
-                <x-forms.list-item route="/games" title="Manufaktur Spiele" pageName="games" icon="puzzle-piece"/>
+                <li x-data="{ expanded: {{ request()->is('gamification/profile') || request()->is('games') ? 'true' : 'false' }} }">
+                    <button @click="expanded = !expanded" class="group flex items-center justify-between w-full gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ request()->is('gamification/profile') || request()->is('games') ? 'bg-primary/10 text-primary shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                        <div class="flex items-center gap-x-3">
+                            <x-heroicon-o-puzzle-piece class="w-5 h-5 shrink-0 transition-transform duration-300 {{ request()->is('gamification/profile') || request()->is('games') ? 'text-primary' : 'text-gray-500 group-hover:text-white group-hover:scale-110' }}"/>
+                            <span>Spiele</span>
+                        </div>
+                        <x-heroicon-s-chevron-right class="w-4 h-4 transition-transform duration-300" x-bind:class="expanded ? 'rotate-90' : ''"/>
+                    </button>
+                    <ul x-show="expanded" x-transition.opacity.duration.300ms style="display: none;" class="mt-1 space-y-1 pl-11">
+                        <li>
+                            <a href="/gamification/profile" class="block rounded-lg py-2 pr-2 pl-3 text-sm leading-6 transition-colors {{ request()->is('gamification/profile') ? 'text-primary bg-primary/5 font-semibold shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                                Profil
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/games" class="block rounded-lg py-2 pr-2 pl-3 text-sm leading-6 transition-colors {{ request()->is('games') ? 'text-primary bg-primary/5 font-semibold shadow-[0_0_15px_rgba(197,160,89,0.15)]' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                                Manufaktur Spiele
+                            </a>
+                        </li>
+                    </ul>
+                </li>
                 <x-forms.list-item route="/ranking" title="Ranking" pageName="ranking" icon="trophy"/>
             @endif
             

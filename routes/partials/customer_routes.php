@@ -21,6 +21,7 @@ Route::middleware(['auth:customer'])->group(function () {
     Route::get('/invoices', \App\Livewire\Customer\CustomerInvoicesComponent::class)->name('customer.invoices');
 
     // 4. Spiele Bereich
+    Route::get('/gamification/profile', \App\Livewire\Customer\Gamification\GameProfileComponent::class)->name('customer.gamification.profile');
     Route::get('/games', \App\Livewire\Customer\Gamification\GameGamesComponent::class)->name('customer.games');
 
     // 4. NEU: Globale Rangliste
