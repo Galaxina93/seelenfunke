@@ -1092,14 +1092,15 @@
 
             async startMicrophone() {
                 try {
-                    // Zurück zum Standard ohne echoCancellation, damit die iOS Hardware nicht crasht
+                    // AudioContext at 16000Hz handles the downsampling safely.
                     this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    
+                    // Hardware AEC enabled. We do NOT force sampleRate here to avoid iOS crashes.
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: {
                         channelCount: 1,
-                        sampleRate: 16000,
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
                     } });
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
