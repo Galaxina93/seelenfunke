@@ -152,9 +152,11 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
         this.renderer.setSize(w, h);
         
-        // Restore high resolution on mobile, cap at 1.0 to prevent extreme thermal throttling. 
-        // We cap desktop to 1.25 as well to prevent 4K GPUs from dying on 30x high-poly meteors
-        const pixelRatio = this.isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.25);
+        // --- PERFORMANCE DOWN-RENDERING ---
+        // Profi-Tipp: Auf Handys drosseln wir die interne 3D-Auflösung auf 60% (0.6).
+        // Das Bild wird dadurch minimal "weicher/pixeliger", aber die Performance (FPS) verdoppelt sich,
+        // da die schwache Handy-Grafikkarte weniger als halb so viele Pixel berechnen muss.
+        const pixelRatio = this.isMobile ? 0.6 : Math.min(window.devicePixelRatio, 1.25);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
