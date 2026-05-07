@@ -821,8 +821,8 @@
     </div>
 
     <!-- Audio Elements -->
-    <audio id="audio-funki-background" src="{{ asset('shop/ai/sounds/ai_background.ogg') }}" preload="auto" playsinline webkit-playsinline loop></audio>
-    <audio id="audio-funki-default-ambient" src="{{ asset('shop/ai/sounds/ai_default_universum.ogg') }}" preload="auto" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-background" src="{{ asset('shop/ai/sounds/ai_background.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-default-ambient" src="{{ asset('shop/ai/sounds/ai_default_universum.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
     <audio id="audio-funki-pulse" src="{{ asset('shop/ai/sounds/ai_pulse.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
     <audio id="audio-funki-init" src="{{ asset('shop/ai/sounds/ai_Initialize.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
     <audio id="audio-funki-shutdown" src="{{ asset('shop/ai/sounds/ai_shutdown.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>

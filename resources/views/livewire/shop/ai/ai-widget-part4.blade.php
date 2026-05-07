@@ -178,21 +178,33 @@
             enforceAudioMuteState() {
                 const bgAudio = document.getElementById('audio-funki-background');
                 const ambientAudio = document.getElementById('audio-funki-default-ambient');
+                const pulseAudio = document.getElementById('audio-funki-pulse');
+                const heartbeatAudio = document.getElementById('audio-funki-heartbeat');
+
+                // Force mute on mobile devices during Live Mode to prevent OS hardware mixing clipping
+                const mobileLiveMute = this.isMobile && this.isLiveMode;
+                const effectiveMute = this.isAudioMuted || mobileLiveMute;
 
                 if (bgAudio) {
-                    bgAudio.muted = this.isAudioMuted;
-                    if (!this.isAudioMuted && !t3.isShuttingDown) {
+                    bgAudio.muted = effectiveMute;
+                    if (!effectiveMute && !t3.isShuttingDown) {
                         bgAudio.volume = this.bgVolume / 100;
+                    } else if (mobileLiveMute) {
+                        bgAudio.volume = 0;
                     }
                 }
 
                 if (ambientAudio) {
-                    if (this.isAudioMuted && !t3.isShuttingDown) {
+                    ambientAudio.muted = effectiveMute;
+                    if (this.isAudioMuted && !t3.isShuttingDown && !mobileLiveMute) {
                         ambientAudio.volume = 0.05;
                     } else {
                         ambientAudio.volume = 0;
                     }
                 }
+
+                if (pulseAudio) pulseAudio.muted = effectiveMute;
+                if (heartbeatAudio) heartbeatAudio.muted = effectiveMute;
             },
 
             initMapbox() {

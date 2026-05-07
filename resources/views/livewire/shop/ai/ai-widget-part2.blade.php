@@ -366,6 +366,7 @@
             // --- AI VOICE CHAT LOGIC ---
             toggleLiveMode() {
                 this.isLiveMode = !this.isLiveMode;
+                this.enforceAudioMuteState(); // Re-evaluate audio muting for mobile
                 if (this.isLiveMode) {
                     if (this.listening) {
                         this.listening = false;
