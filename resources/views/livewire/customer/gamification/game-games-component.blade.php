@@ -223,18 +223,9 @@
                             </div>
                             <button type="button" @click="attemptStartGame()" 
                                     class="w-full py-5 sm:py-6 rounded-2xl font-black text-lg sm:text-xl uppercase tracking-[0.2em] transition-all"
-                                    :disabled="assetsLoading"
-                                    :class="assetsLoading ? 'bg-gray-800 text-gray-400 border border-gray-700 pointer-events-none' : (energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-emerald-500 text-gray-900 shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:scale-105')">
-                                
-                                <span x-show="assetsLoading" class="flex flex-col items-center justify-center gap-2">
-                                    <span class="text-xs uppercase tracking-widest text-emerald-500/80 mb-1">Spieldaten laden...</span>
-                                    <div class="w-1/2 h-1.5 bg-gray-900 rounded-full overflow-hidden">
-                                        <div class="h-full bg-emerald-500 transition-all duration-300" :style="`width: ${loadingProgress}%`"></div>
-                                    </div>
-                                </span>
-
-                                <span x-show="!assetsLoading && !energyWarning">Spiel Starten</span>
-                                <span x-show="!assetsLoading && energyWarning" x-cloak class="flex items-center justify-center gap-2">
+                                    :class="energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-emerald-500 text-gray-900 shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:scale-105'">
+                                <span x-show="!energyWarning">Spiel Starten</span>
+                                <span x-show="energyWarning" x-cloak class="flex items-center justify-center gap-2">
                                     <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                     0 Energie!
                                 </span>
@@ -325,7 +316,7 @@
                             <div class="w-full h-full max-w-[800px] relative">
                                 
                                 {{-- TOP RIGHT CONTROLS --}}
-                                <div class="absolute top-4 right-4 z-50 flex flex-col gap-2 pointer-events-auto">
+                                <div class="absolute top-4 right-4 z-50 hidden sm:flex flex-col gap-2 pointer-events-auto">
                             {{-- PAUSE BUTTON --}}
                             <button type="button" @click="togglePause()" x-show="gameState === 'playing'" class="text-gray-400 hover:text-amber-400 bg-gray-950/80 px-3 py-2 sm:px-4 sm:py-3 rounded-xl border border-gray-800 shadow-lg transition-colors flex items-center justify-center gap-2">
                                 <svg x-show="!isPaused" class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -422,7 +413,7 @@
                                 </div>
 
                                 {{-- SKILL BUTTONS (Mobile Overlay - Vertical) --}}
-                                <div class="absolute bottom-10 z-40 sm:hidden flex flex-col items-center gap-4 transition-all duration-300 pointer-events-auto" :class="leftHandedMode ? 'right-2' : 'left-2'" x-show="gameState === 'playing'">
+                                <div class="absolute bottom-24 z-40 sm:hidden flex flex-col items-center gap-4 transition-all duration-300 pointer-events-auto" :class="leftHandedMode ? 'right-2' : 'left-2'" x-show="gameState === 'playing'">
                                     <!-- Skill 1 -->
                                     <div class="relative">
                                         <button @pointerdown.stop @touchstart.stop @click="useSkill(1)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-red-100 font-black overflow-hidden active:scale-95 transition-all duration-150" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
@@ -454,6 +445,19 @@
                                             <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
                                         </button>
                                         <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">4</div>
+                                    </div>
+
+                                    {{-- MOBILE CONTROLS (UNDER SKILLS) --}}
+                                    <div class="flex flex-col items-center gap-3 mt-1 pt-3 border-t border-gray-700 w-full">
+                                        <button type="button" @click="togglePause()" class="w-10 h-10 rounded-full bg-gray-900/80 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-amber-400 shadow-md">
+                                            <svg x-show="!isPaused" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            <svg x-show="isPaused" style="display: none;" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        </button>
+                                        <button type="button" @click="toggleFullscreen()" class="w-10 h-10 rounded-full bg-gray-900/80 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-amber-400 shadow-md">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
 
@@ -520,9 +524,18 @@
                             </div>
                             <button type="button" @click="attemptStartGame()" tabindex="0"
                                     class="w-full py-5 sm:py-6 rounded-2xl font-black text-lg sm:text-xl uppercase tracking-[0.2em] transition-all"
-                                    :class="energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-amber-500 text-gray-900 shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:scale-105'">
-                                <span x-show="!energyWarning">Erneut Fliegen</span>
-                                <span x-show="energyWarning" x-cloak class="flex items-center justify-center gap-2">
+                                    :disabled="assetsLoading"
+                                    :class="assetsLoading ? 'bg-gray-800 text-gray-400 border border-gray-700 pointer-events-none' : (energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-amber-500 text-gray-900 shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:scale-105')">
+                                
+                                <span x-show="assetsLoading" class="flex flex-col items-center justify-center gap-2">
+                                    <span class="text-xs uppercase tracking-widest text-amber-500/80 mb-1">Spieldaten laden...</span>
+                                    <div class="w-1/2 h-1.5 bg-gray-900 rounded-full overflow-hidden">
+                                        <div class="h-full bg-amber-500 transition-all duration-300" :style="`width: ${loadingProgress}%`"></div>
+                                    </div>
+                                </span>
+
+                                <span x-show="!assetsLoading && !energyWarning">Erneut Fliegen</span>
+                                <span x-show="!assetsLoading && energyWarning" x-cloak class="flex items-center justify-center gap-2">
                                     <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                     0 Energie!
                                 </span>
