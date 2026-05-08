@@ -220,7 +220,15 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Try GLTFLoader if available
         const GltfLoaderClass = window.GLTFLoader || (window.THREE && window.THREE.GLTFLoader);
         if (GltfLoaderClass) {
-            const loader = new GltfLoaderClass();
+            this.loadingManager = new THREE.LoadingManager();
+            this.loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+                if (this.callbacks.onLoadProgress) this.callbacks.onLoadProgress((itemsLoaded / itemsTotal) * 100);
+            };
+            this.loadingManager.onLoad = () => {
+                if (this.callbacks.onLoadComplete) this.callbacks.onLoadComplete();
+            };
+
+            const loader = new GltfLoaderClass(this.loadingManager);
             loader.load(this.assets.rocket, (gltf) => {
                 this.ship.remove(this.shipModel);
                 this.shipModel = gltf.scene;
@@ -306,6 +314,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     });
                 }, undefined, (e) => { console.warn("Could not load sharp stone GLTF."); });
             }
+        } else {
+            setTimeout(() => { if (this.callbacks.onLoadComplete) this.callbacks.onLoadComplete(); }, 100);
         }
 
         // Initialize materials for pools
@@ -663,17 +673,26 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
         else if (index === 4) { // Ultimate Drones
             this.activeSkills.ultimate.active = true;
-            this.activeSkills.ultimate.timer = 10.0;
+            this.activeSkills.ultimate.timer = 12.0;
 
-            // Spawn 2 Drones
-            for(let i=0; i<2; i++) {
+            if (this.shipModel) {
+                this.shipModel.traverse((child) => {
+                    if (child.isMesh && child.material) {
+                        if (!child.userData.originalColor) child.userData.originalColor = child.material.color.clone();
+                        child.material.color.setHex(0xfde047); // Golden glow
+                    }
+                });
+            }
+
+            // Spawn 4 Drones
+            for(let i=0; i<4; i++) {
                 let m = this.pools.drones.pop();
                 if(!m) {
                     m = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), new THREE.MeshStandardMaterial({color: 0xfde047, emissive: 0xfde047, metalness:0.8}));
                     this.scene.add(m);
                 }
                 m.visible = true;
-                m.userData = { offsetAngle: Math.PI * i, lastFire: 0 };
+                m.userData = { offsetAngle: (Math.PI / 2) * i, lastFire: 0 };
                 this.drones.push(m);
             }
             return true;
@@ -689,7 +708,11 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Move ship
         this.ship.position.copy(this.pointerPos);
         this.shipTargetPos.copy(this.pointerPos);
-        if (this.audio && this.audio.playTeleport) this.audio.playTeleport();
+        
+        let tpAudio = new Audio('{{ asset("shop/customer/gamification/sounds/teleport_active.mp3") }}');
+        let vol = window.alpineComponentContext ? (window.alpineComponentContext.bgmVolumeUi / 100) : 0.5;
+        tpAudio.volume = Math.min(1.0, vol * 1.5); // Make it slightly louder than BGM
+        tpAudio.play().catch(e => console.warn(e));
 
         // Create warp particle effect
         for(let i=0; i<30; i++) { this.spawnParticle(this.ship.position, 0xc084fc); }
@@ -823,8 +846,25 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Ultimate Drones
         if (this.activeSkills.ultimate.active) {
             this.activeSkills.ultimate.timer -= dt;
+
+            // Golden trail effect
+            let trailPos = this.ship.position.clone();
+            trailPos.x += (Math.random() - 0.5) * 1.5;
+            trailPos.y -= 1.0;
+            this.spawnParticle(trailPos, 0xfde047, 0.8);
+
             if (this.activeSkills.ultimate.timer <= 0) {
                 this.activeSkills.ultimate.active = false;
+                
+                // Revert golden glow
+                if (this.shipModel) {
+                    this.shipModel.traverse((child) => {
+                        if (child.isMesh && child.material && child.userData.originalColor) {
+                            child.material.color.copy(child.userData.originalColor);
+                        }
+                    });
+                }
+
                 while(this.drones.length > 0) {
                     let d = this.drones.pop();
                     d.visible = false;
@@ -841,9 +881,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     d.position.y = this.ship.position.y + Math.sin(d.userData.offsetAngle) * 3;
                     d.position.z = this.ship.position.z;
 
-                    if (now - d.userData.lastFire > 300) {
+                    if (now - d.userData.lastFire > 150) {
                         // Find closest enemy
-                        let closest = null, minDist = 400;
+                        let closest = null, minDist = 10000;
                         this.enemies.forEach(em => {
                             let dist = em.position.distanceToSquared(d.position);
                             if (dist < minDist && em.position.y > d.position.y - 5) { minDist = dist; closest = em; }

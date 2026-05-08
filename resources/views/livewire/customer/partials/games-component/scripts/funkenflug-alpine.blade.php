@@ -14,8 +14,13 @@ window.funkenflugExpress = function() {
         isFullscreen: false,
         leftHandedMode: @entangle('leftHandedMode').live,
         showMissionBriefing: false,
+        assetsLoading: true,
+        loadingProgress: 0,
         
-
+        // Audio tracking
+        activeUltiAudio: null,
+        activeShieldAudio: null,
+        activeUltiIntervals: [],
         
         // Skills: [Multishoot, Teleport, Shield, Ultimate]
         skillLevels: [1, 1, 1, 1], // Unlocked
@@ -229,6 +234,17 @@ window.funkenflugExpress = function() {
                             audio.pause();
                             this.isBgmPlaying = false;
                         }
+                        
+                        if (this.activeUltiAudio) {
+                            this.activeUltiAudio.pause();
+                            this.activeUltiAudio = null;
+                        }
+                        if (this.activeShieldAudio) {
+                            this.activeShieldAudio.pause();
+                            this.activeShieldAudio = null;
+                        }
+                        this.activeUltiIntervals.forEach(clearInterval);
+                        this.activeUltiIntervals = [];
 
                         try {
                             this.$wire.saveGameRecord(this.distance, this.funkenCollected);
@@ -236,6 +252,12 @@ window.funkenflugExpress = function() {
                             console.error("[Alpine] Failed to save game record:", e);
                         }
                     }
+                },
+                onLoadProgress: (progress) => {
+                    this.loadingProgress = Math.floor(progress);
+                },
+                onLoadComplete: () => {
+                    this.assetsLoading = false;
                 }
             };
 
@@ -292,6 +314,54 @@ window.funkenflugExpress = function() {
                     this.skillCooldowns[i] = this.skillMaxCooldowns[i];
                     this.skillFlash[i] = true;
                     setTimeout(() => { this.skillFlash[i] = false; }, 200);
+
+                    let vol = (this.bgmVolumeUi / 100);
+                    
+                    if (index === 3) {
+                        // Shield
+                        this.activeShieldAudio = new Audio('{{ asset("shop/customer/gamification/sounds/shield_active.mp3") }}');
+                        this.activeShieldAudio.volume = Math.min(1.0, vol * 1.5);
+                        this.activeShieldAudio.play().catch(e => console.warn(e));
+                    }
+                    
+                    if (index === 4) {
+                        // Ultimate
+                        let bgm = this.$refs.ffBgmAudio;
+                        let targetVol = vol * 0.3; // Normal bgm volume is 0.3 of UI volume
+                        let ultiVol = Math.min(1.0, vol * 0.6); // Ultimate music slightly louder
+                        
+                        this.activeUltiAudio = new Audio('{{ asset("shop/customer/gamification/music/ultimate_active.mp3") }}');
+                        this.activeUltiAudio.volume = 0;
+                        this.activeUltiAudio.play().catch(e => console.warn(e));
+                        
+                        // Fade in Ulti, Fade out BGM
+                        let fadeInterval = setInterval(() => {
+                            if (bgm && bgm.volume > 0.05) bgm.volume = Math.max(0, bgm.volume - 0.05);
+                            if (this.activeUltiAudio && this.activeUltiAudio.volume < ultiVol) this.activeUltiAudio.volume = Math.min(ultiVol, this.activeUltiAudio.volume + 0.05);
+                        }, 200);
+                        this.activeUltiIntervals.push(fadeInterval);
+                        
+                        // Ultimate lasts 12s. Start crossfade back at 10.5s
+                        let crossfadeTimeout = setTimeout(() => {
+                            clearInterval(fadeInterval);
+                            let fadeOutInterval = setInterval(() => {
+                                if (this.activeUltiAudio && this.activeUltiAudio.volume > 0.05) this.activeUltiAudio.volume = Math.max(0, this.activeUltiAudio.volume - 0.05);
+                                if (bgm && bgm.volume < targetVol) bgm.volume = Math.min(targetVol, bgm.volume + 0.05);
+                            }, 200);
+                            this.activeUltiIntervals.push(fadeOutInterval);
+                            
+                            let endTimeout = setTimeout(() => {
+                                clearInterval(fadeOutInterval);
+                                if (this.activeUltiAudio) {
+                                    this.activeUltiAudio.pause();
+                                    this.activeUltiAudio = null;
+                                }
+                                if (bgm) bgm.volume = targetVol;
+                            }, 1500); // 1.5s fade out
+                            this.activeUltiIntervals.push(endTimeout);
+                        }, 10500);
+                        this.activeUltiIntervals.push(crossfadeTimeout);
+                    }
                 }
             }
         }

@@ -196,33 +196,7 @@
                     <div class="hidden lg:flex bg-blue-500/5 border border-blue-500/20 p-5 sm:p-6 rounded-[2rem] text-blue-300 text-xs sm:text-sm leading-relaxed flex-col gap-4 shadow-inner">
                         <strong class="text-blue-400 uppercase tracking-[0.2em] font-black text-[10px] border-b border-blue-500/20 pb-3 block w-full">Das Handbuch</strong>
                         <ul class="space-y-4">
-                            <li class="flex gap-3 items-start">
-                                <div class="w-5 h-5 mt-0.5 shrink-0 grid grid-cols-2 gap-0.5">
-                                    <div class="bg-red-500 rounded-sm"></div><div class="bg-blue-500 rounded-sm"></div>
-                                    <div class="bg-green-500 rounded-sm"></div><div class="bg-yellow-500 rounded-sm"></div>
-                                </div>
-                                <span><strong>Basis-Steine:</strong> Bilde 3er-Reihen. Kostet 1 Zug.</span>
-                            </li>
-                            <li class="flex gap-3 items-start">
-                                <div class="w-5 h-5 mt-0.5 shrink-0 bg-white rotate-45 shadow-[0_0_10px_rgba(255,255,255,0.8)] border border-gray-300"></div>
-                                <span><strong>Master-Diamant (Weiß):</strong> Zerstöre ihn in einer Reihe für Kreuz-Laser!</span>
-                            </li>
-                            <li class="flex gap-3 items-start">
-                                <div class="w-5 h-5 mt-0.5 shrink-0 bg-black rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)] border border-purple-500"></div>
-                                <span><strong>Nova-Sphäre (Schwarz/Lila):</strong> Zerstört alles im 3x3 Umkreis! Tausche sie beliebig.</span>
-                            </li>
-                            <li class="flex gap-3 items-start">
-                                <div class="w-5 h-5 mt-0.5 shrink-0 border-[4px] border-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.8)]"></div>
-                                <span><strong>Phantom-Stein (Orange Ring):</strong> Tausche ihn 3x straffrei ohne Zugverlust!</span>
-                            </li>
-                            <li class="flex gap-3 items-start">
-                                <div class="w-5 h-5 mt-0.5 shrink-0 bg-blue-700 shadow-[0_0_10px_rgba(29,78,216,0.8)] rounded-sm rotate-12 border border-blue-400"></div>
-                                <span><strong>Farb-Vortex (Tiefblau):</strong> Tausche ihn mit einer Farbe, um alle Steine dieser Farbe zu vernichten.</span>
-                            </li>
-                            <li class="flex gap-3 items-start">
-                                <div class="w-5 h-5 mt-0.5 shrink-0 bg-yellow-300 shadow-[0_0_10px_rgba(253,224,71,0.8)] rounded-sm border border-yellow-100 rotate-45"></div>
-                                <span><strong>Kettenblitz (Leuchtend Gelb):</strong> Zerstört wild 6 zufällige Steine auf dem Feld.</span>
-                            </li>
+                            @include('livewire.customer.partials.games-component.kristall-kollaps-handbuch-items')
                         </ul>
                     </div>
                 </div>
@@ -249,9 +223,18 @@
                             </div>
                             <button type="button" @click="attemptStartGame()" 
                                     class="w-full py-5 sm:py-6 rounded-2xl font-black text-lg sm:text-xl uppercase tracking-[0.2em] transition-all"
-                                    :class="energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-emerald-500 text-gray-900 shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:scale-105'">
-                                <span x-show="!energyWarning">Spiel Starten</span>
-                                <span x-show="energyWarning" x-cloak class="flex items-center justify-center gap-2">
+                                    :disabled="assetsLoading"
+                                    :class="assetsLoading ? 'bg-gray-800 text-gray-400 border border-gray-700 pointer-events-none' : (energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-emerald-500 text-gray-900 shadow-[0_0_40px_rgba(16,185,129,0.5)] hover:scale-105')">
+                                
+                                <span x-show="assetsLoading" class="flex flex-col items-center justify-center gap-2">
+                                    <span class="text-xs uppercase tracking-widest text-emerald-500/80 mb-1">Spieldaten laden...</span>
+                                    <div class="w-1/2 h-1.5 bg-gray-900 rounded-full overflow-hidden">
+                                        <div class="h-full bg-emerald-500 transition-all duration-300" :style="`width: ${loadingProgress}%`"></div>
+                                    </div>
+                                </span>
+
+                                <span x-show="!assetsLoading && !energyWarning">Spiel Starten</span>
+                                <span x-show="!assetsLoading && energyWarning" x-cloak class="flex items-center justify-center gap-2">
                                     <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                     0 Energie!
                                 </span>
@@ -277,33 +260,7 @@
                             </h3>
                         </div>
                         <ul class="space-y-4 sm:space-y-5 text-gray-300 text-xs sm:text-sm leading-relaxed max-h-[35vh] sm:max-h-none overflow-y-auto pr-2">
-                            <li class="flex gap-4 items-start">
-                                <div class="w-6 h-6 shrink-0 grid grid-cols-2 gap-0.5">
-                                    <div class="bg-red-500 rounded-sm"></div><div class="bg-blue-500 rounded-sm"></div>
-                                    <div class="bg-green-500 rounded-sm"></div><div class="bg-yellow-500 rounded-sm"></div>
-                                </div>
-                                <span><strong>Basis-Steine:</strong> Bilde 3er-Reihen. Kostet 1 Zug.</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-5 h-5 mt-0.5 mx-0.5 shrink-0 bg-white rotate-45 shadow-[0_0_10px_rgba(255,255,255,0.8)] border border-gray-300"></div>
-                                <span><strong>Master-Diamant (Weiß):</strong> Zerstöre ihn in einer Reihe für Kreuz-Laser!</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-6 h-6 shrink-0 bg-black rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)] border border-purple-500"></div>
-                                <span><strong>Nova-Sphäre (Schwarz/Lila):</strong> Zerstört alles im 3x3 Umkreis!</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-6 h-6 shrink-0 border-[4px] border-orange-500 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.8)]"></div>
-                                <span><strong>Phantom-Stein (Orange Ring):</strong> Tausche ihn 3x straffrei ohne Zugverlust!</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-6 h-6 shrink-0 bg-blue-700 shadow-[0_0_10px_rgba(29,78,216,0.8)] rounded-sm rotate-12 border border-blue-400"></div>
-                                <span><strong>Farb-Vortex (Tiefblau):</strong> Tausche ihn mit einer Farbe, um alle Steine dieser Farbe zu vernichten.</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-6 h-6 shrink-0 bg-yellow-300 shadow-[0_0_10px_rgba(253,224,71,0.8)] rounded-sm border border-yellow-100 rotate-45"></div>
-                                <span><strong>Kettenblitz (Gelb):</strong> Zerstört wild 6 zufällige Steine.</span>
-                            </li>
+                            @include('livewire.customer.partials.games-component.kristall-kollaps-handbuch-items')
                         </ul>
                     </div>
 
@@ -570,8 +527,10 @@
                                     0 Energie!
                                 </span>
                             </button>
-                            <p class="text-amber-500 mt-5 font-black text-xs sm:text-sm uppercase tracking-[0.3em] opacity-80">- Kostet 1 Energie -</p>
-                        </div>
+                            <div class="flex justify-between items-center w-full mt-3 px-2 max-w-sm">
+                                <p class="text-amber-500 font-black text-[10px] sm:text-xs uppercase tracking-[0.3em] opacity-80">- Kostet 1 Energie -</p>
+                                <button type="button" @click="activeGame = null" class="text-gray-500 hover:text-white font-black text-[10px] sm:text-xs uppercase tracking-widest transition-colors">Abbrechen</button>
+                            </div>                        </div>
                         
                         </div> <!-- End Screen Area Wrapper -->
                         
@@ -608,9 +567,18 @@
                         <div class="relative w-full mt-2 flex flex-col gap-3">
                             <button type="button" @click="attemptStartGame()" tabindex="0"
                                     class="w-full py-5 sm:py-6 rounded-2xl font-black text-lg sm:text-xl uppercase tracking-[0.2em] transition-all"
-                                    :class="energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-amber-500 text-gray-900 shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:scale-105'">
-                                <span x-show="!energyWarning">Flug Starten</span>
-                                <span x-show="energyWarning" x-cloak class="flex items-center justify-center gap-2">
+                                    :disabled="assetsLoading"
+                                    :class="assetsLoading ? 'bg-gray-800 text-gray-400 border border-gray-700 pointer-events-none' : (energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-amber-500 text-gray-900 shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:scale-105')">
+                                
+                                <span x-show="assetsLoading" class="flex flex-col items-center justify-center gap-2">
+                                    <span class="text-xs uppercase tracking-widest text-amber-500/80">Spieldaten laden...</span>
+                                    <div class="w-3/4 max-w-[200px] h-1.5 bg-gray-900 rounded-full overflow-hidden mt-1">
+                                        <div class="h-full bg-amber-500 transition-all duration-300" :style="`width: ${loadingProgress}%`"></div>
+                                    </div>
+                                </span>
+
+                                <span x-show="!assetsLoading && !energyWarning">Flug Starten</span>
+                                <span x-show="!assetsLoading && energyWarning" x-cloak class="flex items-center justify-center gap-2">
                                     <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                     0 Energie!
                                 </span>
