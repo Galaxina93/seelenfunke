@@ -86,7 +86,7 @@
     </div>
 
     {{-- SPIELAUSWAHL (Menü) --}}
-    <div x-show="!activeGame" x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 translate-y-10" x-transition:enter-end="opacity-100 translate-y-0" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8">
+    <div x-show="!activeGame" x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 translate-y-10" x-transition:enter-end="opacity-100 translate-y-0" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8 pb-32 md:pb-0">
 
         <div @if($currentEnergy > 0) @click="activeGame = 'kristall'" @endif class="group relative bg-gray-900 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-800 p-6 sm:p-8 hover:border-emerald-500/50 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(16,185,129,0.15)] flex flex-col {{ $currentEnergy > 0 ? 'cursor-pointer' : '' }} overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -98,16 +98,16 @@
                 Kettenreaktionen, Nova-Sphären und Zeit-Kristalle. Wische oder Tausche strategisch klug auf dem 8x8 Feld, um schneller an Rabatte zu kommen!
             </p>
             @if($currentEnergy > 0)
-                <button type="button" @click="activeGame = 'kristall'" class="w-full py-4 sm:py-5 bg-gray-950 text-emerald-500 border border-emerald-500/30 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest group-hover:bg-emerald-500 group-hover:text-gray-900 transition-all shadow-inner">
+                <button type="button" @click="activeGame = 'kristall'" class="mt-auto w-full py-4 sm:py-5 bg-gray-950 text-emerald-500 border border-emerald-500/30 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest group-hover:bg-emerald-500 group-hover:text-gray-900 transition-all shadow-inner">
                     Öffnen
                 </button>
             @else
-                <div class="w-full flex flex-col items-center">
+                <div class="mt-auto w-full flex flex-col items-center">
                     <button type="button" disabled class="w-full py-4 sm:py-5 bg-gray-950 text-gray-600 border border-gray-800 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest cursor-not-allowed flex justify-center items-center gap-2">
                         <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2-2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                         0 Energie
                     </button>
-                    <p class="text-[9px] sm:text-[10px] text-red-500/80 uppercase font-bold tracking-widest mt-2">
+                    <p class="text-[9px] sm:text-[10px] text-red-500/80 uppercase font-bold tracking-widest mt-2 text-center">
                         Aufladung in ca. {{ is_numeric($timeUntilNextEnergy) ? round($timeUntilNextEnergy) : $timeUntilNextEnergy }} Minuten
                     </p>
                 </div>
@@ -124,16 +124,16 @@
                 Navigiere deine Funki-Rakete durchs All! Weiche Asteroiden aus, sammele Funken und erziele astronomische Distanzrekorde.
             </p>
             @if($currentEnergy > 0)
-                <button type="button" @click="activeGame = 'funkenflug'" class="w-full py-4 sm:py-5 bg-gray-950 text-amber-500 border border-amber-500/30 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest group-hover:bg-amber-500 group-hover:text-gray-900 transition-all shadow-inner">
+                <button type="button" @click="activeGame = 'funkenflug'" class="mt-auto w-full py-4 sm:py-5 bg-gray-950 text-amber-500 border border-amber-500/30 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest group-hover:bg-amber-500 group-hover:text-gray-900 transition-all shadow-inner">
                     Öffnen
                 </button>
             @else
-                <div class="w-full flex flex-col items-center">
+                <div class="mt-auto w-full flex flex-col items-center">
                     <button type="button" disabled class="w-full py-4 sm:py-5 bg-gray-950 text-gray-600 border border-gray-800 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-widest cursor-not-allowed flex justify-center items-center gap-2">
                         <svg class="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                         0 Energie
                     </button>
-                    <p class="text-[9px] sm:text-[10px] text-red-500/80 uppercase font-bold tracking-widest mt-2">
+                    <p class="text-[9px] sm:text-[10px] text-red-500/80 uppercase font-bold tracking-widest mt-2 text-center">
                         Aufladung in ca. {{ is_numeric($timeUntilNextEnergy) ? round($timeUntilNextEnergy) : $timeUntilNextEnergy }} Minuten
                     </p>
                 </div>
@@ -143,7 +143,7 @@
         <div class="group relative bg-gray-900/50 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-800 border-dashed p-6 sm:p-8 flex flex-col items-center justify-center text-center opacity-50 select-none">
             <span class="text-3xl sm:text-4xl mb-4 grayscale">🔒</span>
             <h4 class="text-lg sm:text-xl font-bold text-gray-500 mb-2">In Entwicklung</h4>
-            <p class="text-gray-600 text-xs sm:text-sm">Ein neues Spiel wird in der Manufaktur geschmiedet...</p>
+            <p class="text-gray-600 text-xs sm:text-sm flex-1">Ein neues Spiel wird in der Manufaktur geschmiedet...</p>
         </div>
 
     </div>
@@ -348,122 +348,17 @@
         {{-- AUDIO BGM FUNKENFLUG --}}
         <audio x-ref="ffBgmAudio" src="{{ asset('shop/customer/gamification/music/funkenflug.mp3') }}" loop preload="auto"></audio>
 
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-6 mb-2 sm:mb-4 bg-gray-900/80 p-3 sm:p-6 rounded-2xl sm:rounded-3xl border border-gray-800 shadow-lg">
-            <div class="flex items-center gap-3 sm:gap-4 bg-gray-950 px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl sm:rounded-2xl border border-gray-800 shadow-inner w-full sm:w-auto justify-center">
-                <button type="button" @click="toggleMute()" class="text-gray-400 hover:text-amber-400 transition-colors focus:outline-none shrink-0">
-                    <svg x-show="isBgmPlaying" class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 12h4l4-4v16l-4-4H5a2 2 0 01-2-2v-4a2 2 0 012-2z" /></svg>
-                    <svg x-show="!isBgmPlaying" style="display: none;" class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                </button>
-                <input type="range" id="ff-bgm-vol" name="bgmVolume" aria-label="Lautstärke" min="0" max="100" step="1" x-model="bgmVolumeUi" class="volume-slider w-full sm:w-32">
-                <span class="text-xs text-amber-500/50 font-bold w-8" x-text="bgmVolumeUi + '%'"></span>
-            </div>
-
-            <button type="button" @click="quitGame()" class="w-full sm:w-auto justify-center px-6 py-3 bg-gray-800 text-gray-300 rounded-xl sm:rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-700 hover:text-white transition-all flex items-center gap-3 shadow-lg">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                Spiel verlassen
-            </button>
-        </div>
-
         <div class="relative w-full flex-1 flex flex-col">
 
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 flex-1 pb-10 transition-all duration-500" :class="gameState === 'ready' ? 'opacity-20 blur-md pointer-events-none grayscale-[50%]' : 'opacity-100 blur-0'">
+            <div class="flex flex-col gap-6 lg:gap-8 flex-1 pb-10 transition-all duration-500" :class="gameState === 'ready' ? 'opacity-20 blur-md pointer-events-none grayscale-[50%]' : 'opacity-100 blur-0'">
 
-                <div class="lg:col-span-4 xl:col-span-4 flex flex-col gap-6 w-full">
-                    <div class="bg-gray-900 border border-gray-800 rounded-[2rem] p-6 sm:p-8 shadow-[0_20px_40px_rgba(0,0,0,0.5)] relative overflow-hidden text-center flex flex-col items-center">
-                        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                        <div class="relative z-10 w-full mb-3 sm:mb-4">
-                            <p class="text-gray-500 text-[9px] sm:text-[10px] font-black uppercase tracking-widest mb-1">Distanz (Punkte)</p>
-                            <h4 class="text-4xl sm:text-5xl font-serif font-bold text-amber-500 drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]" x-text="distance"></h4>
-                            
-                            <div class="mt-4 flex flex-col gap-2">
-                                <div class="inline-flex items-center gap-2 bg-gray-950 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl border border-gray-800 shadow-inner justify-center">
-                                    <span class="text-sm sm:text-base">✨</span>
-                                    <span class="text-xs sm:text-sm font-bold text-primary">Gesammelt: <span x-text="funkenCollected"></span> Funken</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="w-full h-px bg-gray-800 relative z-10 my-2"></div>
-
-                        <div class="relative z-10 w-full mt-4 sm:mt-6">
-                            <p class="text-gray-500 text-[10px] sm:text-xs font-black uppercase tracking-widest mb-2">Schild Energie</p>
-                            <div class="w-full bg-gray-800 rounded-full h-4 sm:h-6 overflow-hidden border border-gray-700 relative">
-                                <div class="bg-gradient-to-r from-blue-600 to-cyan-400 h-full transition-all duration-300" :style="`width: ${shieldEnergy}%`"></div>
-                                <div class="absolute inset-0 flex items-center justify-center text-[10px] sm:text-xs font-black text-white drop-shadow-md">
-                                    <span x-text="shieldEnergy + '%'"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- VISUELLES HANDBUCH INGAME --}}
-                    <div class="hidden lg:flex bg-amber-500/5 border border-amber-500/20 p-5 sm:p-6 rounded-[2rem] text-amber-300 text-xs sm:text-sm leading-relaxed flex-col gap-4 shadow-inner">
-                        <div class="flex items-center justify-between border-b border-amber-500/20 pb-3">
-                            <strong class="text-amber-400 uppercase tracking-[0.2em] font-black text-[10px]">Mission Briefing</strong>
-                            
-                            <!-- Handedness Switch -->
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" x-model="leftHandedMode" class="sr-only peer">
-                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                                <span class="ml-2 text-[10px] font-bold text-amber-300 uppercase tracking-widest" x-text="leftHandedMode ? 'Linkshänder' : 'Rechtshänder'"></span>
-                            </label>
-                        </div>
-                        <ul class="space-y-3">
-                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
-                                <span><strong>Steuerung:</strong> Maus/Touch Bewegung. Klick=Schießen.</span>
-                            </li>
-                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
-                                <div class="w-3 h-3 shrink-0 bg-red-500 mt-1 shadow-md"></div>
-                                <span><strong>Normal:</strong> Rote Meteore (1 HP)</span>
-                            </li>
-                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
-                                <div class="w-3 h-3 shrink-0 bg-purple-500 mt-1 shadow-md"></div>
-                                <span><strong>Panzer:</strong> Lila Elite-Scherben (Viel HP)</span>
-                            </li>
-                            <li class="flex gap-2 items-start text-[11px] sm:text-xs">
-                                <div class="w-3 h-3 rounded-full shrink-0 bg-yellow-400 mt-1 shadow-md"></div>
-                                <span class="text-yellow-600"><strong>Gelb:</strong> Extrapunkte</span>
-                                <div class="w-3 h-3 rounded-full shrink-0 bg-blue-400 mt-1 ml-2 shadow-md"></div>
-                                <span class="text-blue-500"><strong>Blau:</strong> -5s Skill-CD</span>
-                            </li>
-                            <li class="flex gap-2 items-center text-[11px] sm:text-xs pt-1 border-t border-amber-500/10">
-                                <span class="text-lg">🔥</span> <strong>[W]</strong> Multishoot (3x Hit)
-                            </li>
-                            <li class="flex gap-2 items-center text-[11px] sm:text-xs">
-                                <span class="text-lg">⚡</span> <strong>[A]</strong> Teleport (Slow-Mo Touch)
-                            </li>
-                            <li class="flex gap-2 items-center text-[11px] sm:text-xs">
-                                <span class="text-lg">🛡️</span> <strong>[S]</strong> Schild (Schutzfeld)
-                            </li>
-                            <li class="flex gap-2 items-center text-[11px] sm:text-xs">
-                                <span class="text-lg">⭐</span> <strong>[D]</strong> Ultimate (Auto-Aim Drohnen)
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">🔥</span>
-                                <div><strong>[W] Multishoot:</strong> Rakete rollt sich und schießt 3x schneller.</div>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">⚡</span>
-                                <div><strong>[A] Teleport:</strong> Slow-Mo, tippe/klicke auf den Screen zum Ausweichen.</div>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">🛡️</span>
-                                <div><strong>[S] Schild:</strong> Schutzfeld für 20s oder bis die Energie zerschossen wird.</div>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">⭐</span>
-                                <div><strong>[D] Ultimate (Auto-Aim):</strong> 10s vernichtende Drohnen.</div>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="lg:col-span-8 xl:col-span-8 w-full flex justify-center items-center relative z-10 w-full h-full">
-                    <div id="ff-main-wrapper" :class="{'h-[100dvh] sm:h-[100dvh] aspect-auto rounded-none border-0': isFullscreen, 'aspect-[3/4] sm:aspect-square rounded-[2rem] sm:rounded-[3rem]': !isFullscreen}" class="overflow-hidden w-full max-w-[800px] relative bg-gray-950 sm:bg-gray-900 border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col pointer-events-auto">
+                {{-- MIDDLE: SPIELFELD --}}
+                <div id="ff-fullscreen-container" class="w-full flex justify-center items-center relative z-10 w-full h-full" :class="{'bg-black': isFullscreen}">
+                    <div id="ff-main-wrapper" :class="{'h-[100dvh] w-full max-w-[1200px] aspect-auto rounded-none border-0 shadow-[0_0_100px_rgba(245,158,11,0.1)]': isFullscreen, 'aspect-[3/4] sm:aspect-square w-full max-w-[800px] rounded-[2rem] sm:rounded-[3rem] border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)]': !isFullscreen}" class="overflow-hidden relative bg-gray-950 sm:bg-gray-900 flex flex-col pointer-events-auto transition-all duration-300">
                         
-                        {{-- SCREEN AREA (65% on mobile, 100% on desktop) --}}
-                        <div class="relative w-full h-[65%] sm:h-full shrink-0 flex flex-col bg-gray-900 border-b-2 sm:border-b-0 border-gray-800">
+                        {{-- SCREEN AREA (100% on mobile and desktop) --}}
+                        <div class="relative w-full h-full shrink-0 flex flex-col bg-gray-900">
 
                             <div id="funkenflug-container" x-ref="ffContainer" wire:ignore class="absolute inset-0 z-10" :class="{'touch-none': gameState === 'playing'}"></div>
                             <div id="ff-floating-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
@@ -489,10 +384,31 @@
                             </button>
                                 </div>
 
-                                {{-- TOP LEFT HIGHSCORES --}}
-                                <div class="absolute top-4 left-4 sm:top-6 sm:left-6 z-40 flex flex-col items-start gap-1 text-[8px] sm:text-[10px] uppercase font-bold tracking-widest text-left pointer-events-auto" x-show="gameState === 'playing'">
-                            <span class="text-amber-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Dein Highscore: {{ $personalHighscoreFF }}</span>
-                            <span class="text-indigo-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Globaler Highscore: {{ $globalHighscoreFF }}</span>
+                                {{-- TOP LEFT: GESAMMELTE FUNKEN --}}
+                                <div class="absolute top-4 left-4 sm:top-6 sm:left-6 z-40 flex flex-col items-start gap-1 pointer-events-auto" x-show="gameState === 'playing'">
+                                    <div class="bg-gray-950/80 px-3 py-1.5 rounded-xl border border-gray-800 shadow-inner flex items-center gap-2 backdrop-blur-sm">
+                                        <span class="text-sm">✨</span>
+                                        <span class="text-xs sm:text-sm font-bold text-amber-500" x-text="funkenCollected">0</span>
+                                    </div>
+                                </div>
+
+                                {{-- TOP CENTER: DISTANZ / REKORD --}}
+                                <div class="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 pointer-events-auto" x-show="gameState === 'playing'">
+                                    <p class="text-[8px] sm:text-[10px] text-gray-400 font-black uppercase tracking-widest bg-gray-900/60 px-3 py-0.5 rounded-full backdrop-blur-sm shadow-md">Distanz / Rekord</p>
+                                    <div class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white drop-shadow-md flex items-baseline gap-1">
+                                        <span x-text="distance" class="text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]"></span>
+                                        <span class="text-gray-500 text-sm sm:text-base">/ {{ $personalHighscoreFF }}</span>
+                                    </div>
+                                </div>
+
+                                {{-- BOTTOM: SCHILD ENERGIE BAR --}}
+                                <div class="absolute bottom-0 left-0 w-full z-40 pointer-events-auto" x-show="gameState === 'playing'">
+                                    <div class="relative w-full h-5 sm:h-6 bg-gray-900/90 border-t border-gray-800 flex items-center overflow-hidden">
+                                        <div class="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-300 shadow-[0_0_15px_rgba(37,99,235,0.8)]" :style="`width: ${shieldEnergy}%`"></div>
+                                        <div class="absolute inset-0 flex items-center justify-center text-[9px] sm:text-[10px] font-black text-white drop-shadow-md tracking-widest uppercase">
+                                            Schild Energie <span class="ml-2" x-text="shieldEnergy + '%'"></span>
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {{-- SKILL BUTTONS (Mobile & Desktop Overlay) --}}
@@ -602,6 +518,15 @@
                                 Vollbild umschalten (V)
                             </button>
 
+                            <!-- SOUND CONTROL IN PAUSE -->
+                            <div class="mt-6 bg-gray-950 border border-gray-800 shadow-inner px-4 py-3 rounded-xl flex items-center gap-4 w-full max-w-[250px]">
+                                <button type="button" @click="toggleMute()" class="text-gray-400 hover:text-amber-400 transition-colors focus:outline-none shrink-0">
+                                    <svg x-show="isBgmPlaying" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 12h4l4-4v16l-4-4H5a2 2 0 01-2-2v-4a2 2 0 012-2z" /></svg>
+                                    <svg x-show="!isBgmPlaying" style="display: none;" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                                </button>
+                                <input type="range" name="bgmVolumePause" aria-label="Lautstärke" min="0" max="100" step="1" x-model="bgmVolumeUi" class="volume-slider w-full">
+                            </div>
+
                             <!-- Handedness Switch -->
                             <label class="relative inline-flex items-center cursor-pointer mt-6">
                                 <input type="checkbox" x-model="leftHandedMode" class="sr-only peer">
@@ -650,78 +575,29 @@
                         
                         </div> <!-- End Screen Area Wrapper -->
                         
-
-
                     </div>
                 </div>
-            </div>
 
-            <div x-show="gameState === 'ready'" x-cloak x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pb-20">
+            </div> <!-- CLOSE BLUR WRAPPER -->
 
-                <div class="bg-gray-900/95 backdrop-blur-2xl border border-gray-700 shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-[2rem] sm:rounded-[3rem] w-full max-w-5xl p-6 sm:p-10 lg:p-12 relative flex flex-col lg:flex-row gap-6 lg:gap-12 items-center lg:items-stretch overflow-y-auto max-h-full">
+            <div x-show="gameState === 'ready'" x-cloak x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+
+                <div class="bg-gray-900/95 backdrop-blur-2xl border border-gray-700 shadow-[0_0_100px_rgba(0,0,0,0.8)] rounded-[2rem] sm:rounded-[3rem] w-full max-w-5xl p-6 sm:p-10 lg:p-12 relative flex flex-col gap-6 lg:gap-12 items-center overflow-y-auto max-h-full scrollbar-hide">
 
                     <div class="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-[80px] pointer-events-none"></div>
 
-                    {{-- VISUELLES HANDBUCH START-MODAL --}}
-                    <div class="flex-1 bg-gray-950/60 rounded-3xl p-6 sm:p-8 border border-gray-800 w-full flex flex-col justify-center shadow-inner relative z-10">
-                        <div class="flex items-center justify-between border-b border-amber-500/20 pb-4 mb-6">
-                            <h3 class="text-amber-400 font-black uppercase tracking-[0.2em] text-xs sm:text-sm flex items-center gap-3">
-                                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                Mission Briefing
-                            </h3>
-                            
-                            <!-- Handedness Switch -->
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" x-model="leftHandedMode" class="sr-only peer">
-                                <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
-                                <span class="ml-2 text-[10px] sm:text-xs font-bold text-amber-300 uppercase tracking-widest" x-text="leftHandedMode ? 'Linkshänder' : 'Rechtshänder'"></span>
-                            </label>
-                        </div>
-                        <ul class="space-y-4 sm:space-y-5 text-gray-300 text-xs sm:text-sm leading-relaxed max-h-[35vh] sm:max-h-none overflow-y-auto pr-2">
-                            <li class="flex gap-4 items-start">
-                                <span><strong>Action:</strong> Weiche feindlichen Objekten aus oder zerschieße sie! Schild ist dein Leben.</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-5 h-5 shrink-0 bg-red-500 border border-gray-600 rounded-sm mt-0.5 shadow-md"></div>
-                                <span><strong>Rote Meteore:</strong> Normale Hindernisse. Weiche ihnen aus oder zerstöre sie.</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-5 h-5 shrink-0 bg-purple-500 border border-gray-600 rounded-sm mt-0.5 shadow-[0_0_10px_rgba(168,85,247,0.4)]"></div>
-                                <span><strong>Lila Elite-Scherben:</strong> Sehr gefährlich. Brauchen deutlich mehr Treffer zum Zerstören und fliegen Zick-Zack!</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-5 h-5 shrink-0 bg-yellow-400 border border-yellow-200 rounded-full mt-0.5 shadow-[0_0_10px_rgba(250,204,21,0.5)]"></div>
-                                <span><strong>Gelbe Funken:</strong> Sammle sie ein für extra Distanz & Ranking-Punkte!</span>
-                            </li>
-                            <li class="flex gap-4 items-start">
-                                <div class="w-5 h-5 shrink-0 bg-blue-400 border border-blue-200 rounded-full mt-0.5 shadow-[0_0_10px_rgba(96,165,250,0.5)]"></div>
-                                <span><strong>Blaue Sphären:</strong> Reduziert die Cooldown-Zeit (Wartezeit) all deiner Skills sofort um 5 Sekunden.</span>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">🔥</span>
-                                <div><strong>[1] Multishoot:</strong> Rakete rollt sich und schießt 3x schneller.</div>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">⚡</span>
-                                <div><strong>[2] Teleport:</strong> Slow-Mo, tippe/klicke auf den Screen zum Ausweichen.</div>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">🛡️</span>
-                                <div><strong>[3] Schild:</strong> Schutzfeld für 20s oder bis die Energie zerschossen wird.</div>
-                            </li>
-                            <li class="flex gap-3 items-center">
-                                <span class="text-xl">⭐</span>
-                                <div><strong>[4] Ultimate (Auto-Aim):</strong> 10s vernichtende Drohnen.</div>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="flex-1 flex flex-col justify-center items-center w-full relative z-10">
+                    <div class="flex-1 flex flex-col justify-center items-center w-full relative z-10 max-w-lg mx-auto" x-show="!showMissionBriefing" x-transition>
 
                         <div class="flex gap-4 sm:gap-6 mb-8 w-full justify-center">
-                            <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-6 text-center flex-1 shadow-inner">
-                                <p class="text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">Schild</p>
-                                <p class="text-3xl sm:text-4xl font-serif font-bold text-white">100%</p>
+                            <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-6 flex flex-col justify-center items-center flex-1 shadow-inner">
+                                <p class="text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest mb-3">Lautstärke</p>
+                                <div class="flex items-center gap-3 w-full max-w-[150px]">
+                                    <button type="button" @click="toggleMute()" class="text-gray-400 hover:text-amber-400 transition-colors focus:outline-none shrink-0">
+                                        <svg x-show="isBgmPlaying" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 12h4l4-4v16l-4-4H5a2 2 0 01-2-2v-4a2 2 0 012-2z" /></svg>
+                                        <svg x-show="!isBgmPlaying" style="display: none;" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" clip-rule="evenodd" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                                    </button>
+                                    <input type="range" name="bgmVolumeStart" aria-label="Lautstärke" min="0" max="100" step="1" x-model="bgmVolumeUi" class="volume-slider w-full">
+                                </div>
                             </div>
                             <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 sm:p-6 text-center flex-1 shadow-inner">
                                 <p class="text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest mb-2">Letzte Funken</p>
@@ -729,7 +605,7 @@
                             </div>
                         </div>
 
-                        <div class="relative w-full mt-2">
+                        <div class="relative w-full mt-2 flex flex-col gap-3">
                             <button type="button" @click="attemptStartGame()" tabindex="0"
                                     class="w-full py-5 sm:py-6 rounded-2xl font-black text-lg sm:text-xl uppercase tracking-[0.2em] transition-all"
                                     :class="energyWarning ? 'bg-red-600 text-white shadow-[0_0_30px_rgba(220,38,38,0.8)] scale-95 pointer-events-none' : 'bg-amber-500 text-gray-900 shadow-[0_0_40px_rgba(245,158,11,0.5)] hover:scale-105'">
@@ -739,16 +615,72 @@
                                     0 Energie!
                                 </span>
                             </button>
-                            <div class="flex justify-between items-center mt-5 px-2">
+                            
+                            <button type="button" @click="showMissionBriefing = true" class="w-full py-3 sm:py-4 rounded-xl font-bold text-xs sm:text-sm uppercase tracking-widest transition-all bg-gray-800 text-amber-400 hover:bg-gray-700 border border-gray-700">
+                                Mission Briefing ansehen
+                            </button>
+
+                            <div class="flex justify-between items-center mt-3 px-2">
                                 <p class="text-amber-500 font-black text-[10px] sm:text-xs uppercase tracking-[0.3em] opacity-80">- Kostet 1 Energie -</p>
                                 <button type="button" @click="activeGame = null" class="text-gray-500 hover:text-white font-black text-[10px] sm:text-xs uppercase tracking-widest transition-colors">Abbrechen</button>
                             </div>
                         </div>
+                    </div>
+
+                    {{-- INLINE MISSION BRIEFING --}}
+                    <div class="w-full relative z-10" x-show="showMissionBriefing" x-cloak x-transition>
+                        <div class="flex flex-col sm:flex-row items-center justify-between border-b border-amber-500/20 pb-4 gap-4 mb-6">
+                            <strong class="text-amber-400 uppercase tracking-[0.2em] font-black text-sm sm:text-base">Mission Briefing</strong>
+                            <button type="button" @click="showMissionBriefing = false" class="text-gray-400 hover:text-white transition-colors bg-gray-800 px-4 py-2 rounded-xl text-xs uppercase font-bold tracking-widest border border-gray-700">
+                                Zurück
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6 text-amber-300 text-xs sm:text-sm">
+                            <ul class="space-y-4">
+                                <li class="flex gap-3 items-start text-xs sm:text-sm">
+                                    <span><strong>Steuerung:</strong> Maus/Touch Bewegung. Klick=Schießen.</span>
+                                </li>
+                                <li class="flex gap-3 items-start text-xs sm:text-sm">
+                                    <div class="w-4 h-4 shrink-0 bg-red-500 mt-0.5 shadow-md border border-gray-600 rounded-sm"></div>
+                                    <span><strong>Normal:</strong> Rote Meteore (1 HP)</span>
+                                </li>
+                                <li class="flex gap-3 items-start text-xs sm:text-sm">
+                                    <div class="w-4 h-4 shrink-0 bg-purple-500 mt-0.5 shadow-md border border-gray-600 rounded-sm"></div>
+                                    <span><strong>Panzer:</strong> Lila Elite-Scherben (Viel HP)</span>
+                                </li>
+                                <li class="flex gap-3 items-start text-xs sm:text-sm">
+                                    <div class="w-4 h-4 rounded-full shrink-0 bg-yellow-400 mt-0.5 shadow-md border border-yellow-200"></div>
+                                    <span class="text-yellow-500"><strong>Gelb:</strong> Sammeln für Extrapunkte & Distanz</span>
+                                </li>
+                                <li class="flex gap-3 items-start text-xs sm:text-sm">
+                                    <div class="w-4 h-4 rounded-full shrink-0 bg-blue-400 mt-0.5 shadow-md border border-blue-200"></div>
+                                    <span class="text-blue-400"><strong>Blau:</strong> Reduziert Skill-Cooldowns um 5s</span>
+                                </li>
+                            </ul>
+                            <ul class="space-y-4 border-t border-amber-500/10 pt-4 md:pt-0 md:border-t-0 md:border-l md:pl-8">
+                                <li class="flex gap-3 items-start">
+                                    <span class="text-xl">🔥</span>
+                                    <div><strong class="text-white">[W] Multishoot:</strong> Rakete schießt in einer Fassrolle 3x schneller für massiven Schaden.</div>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <span class="text-xl">⚡</span>
+                                    <div><strong class="text-white">[A] Teleport:</strong> Zeit verlangsamt sich. Klicke/Tippe auf den Bildschirm, um sofort dorthin auszuweichen.</div>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <span class="text-xl">🛡️</span>
+                                    <div><strong class="text-white">[S] Schild:</strong> Aktiviert ein Schutzfeld für 20s oder bis es durch Treffer zerstört wird.</div>
+                                </li>
+                                <li class="flex gap-3 items-start">
+                                    <span class="text-xl">⭐</span>
+                                    <div><strong class="text-white">[D] Ultimate (Auto-Aim):</strong> Beschwört 10s lang Drohnen, die selbstständig zielen und vernichten.</div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-    </div>
 
 
     @endif

@@ -5,7 +5,7 @@ window.funkenflugExpress = function() {
         // Inherited state from parent or local state
         distance: 0,
         funkenCollected: 0,
-        shieldEnergy: 100,
+        shieldEnergy: 0,
         gameState: 'ready', // 'ready', 'playing', 'gameover'
         energyWarning: false,
         bgmVolumeUi: 20,
@@ -13,6 +13,7 @@ window.funkenflugExpress = function() {
         isPaused: false,
         isFullscreen: false,
         leftHandedMode: @entangle('leftHandedMode').live,
+        showMissionBriefing: false,
         
 
         
@@ -73,10 +74,10 @@ window.funkenflugExpress = function() {
         },
 
         toggleFullscreen() {
-            let elem = document.getElementById('ff-main-wrapper');
+            let elem = document.getElementById('ff-fullscreen-container');
             if (!elem) {
                 // Fallback falls id nicht existiert
-                elem = document.getElementById('funkenflug-container')?.parentElement?.parentElement;
+                elem = document.getElementById('funkenflug-container')?.parentElement?.parentElement?.parentElement;
             }
             if (!elem) return;
 

@@ -426,45 +426,71 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this._ku = e => km(e, false); window.addEventListener('keyup', this._ku);
 
 
-        this.activePointerId = null;
+        this.activeTouchId = null;
 
-        const onPtrDown = (e) => {
+        // POINTER EVENTS (Desktop Mouse & Pen)
+        const onPointerMove = (e) => {
             if (!this.isRunning) return;
-            this.isPointerDown = true;
-            if (e.pointerType === 'touch') {
-                this.activePointerId = e.pointerId;
-            }
-            this.updatePointerPos(e);
-
-            if (this.activeSkills.teleport.waitingForClick) {
-                this.executeTeleport();
+            if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
+                this.updatePointerPos(e);
             }
         };
-        const onPtrMove = (e) => {
-            // Only update if it's the mouse, or if it's the specific touch finger driving the ship
-            if (e.pointerType === 'touch' && e.pointerId !== this.activePointerId) return;
+        const onPointerDown = (e) => {
+            if (!this.isRunning) return;
+            if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
+                this.updatePointerPos(e);
+                if (this.activeSkills.teleport.waitingForClick) {
+                    this.executeTeleport();
+                }
+            }
+        };
+
+        // TOUCH EVENTS (Mobile Multi-Touch)
+        const onTouchStart = (e) => {
+            if (!this.isRunning) return;
+            if (e.target.tagName === 'BUTTON') return; 
             
-            this.updatePointerPos(e);
-        };
-        const onPtrUp = (e) => { 
-            if (e.pointerType === 'touch' && e.pointerId === this.activePointerId) {
-                this.activePointerId = null;
+            if (this.activeTouchId === null && e.changedTouches.length > 0) {
+                this.activeTouchId = e.changedTouches[0].identifier;
+                this.updateTouchPos(e.changedTouches[0]);
+                
+                if (this.activeSkills.teleport.waitingForClick) {
+                    this.executeTeleport();
+                }
             }
-            this.isPointerDown = false; 
+        };
+        const onTouchMove = (e) => {
+            if (!this.isRunning || this.activeTouchId === null) return;
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this.activeTouchId) {
+                    this.updateTouchPos(e.changedTouches[i]);
+                    break;
+                }
+            }
+        };
+        const onTouchEnd = (e) => {
+            for(let i=0; i<e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === this.activeTouchId) {
+                    this.activeTouchId = null;
+                    break;
+                }
+            }
         };
 
-        // Attach pointerdown to the container so we don't catch UI clicks, but move/up to the window so we don't lose tracking
-        this.container.addEventListener('pointerdown', onPtrDown);
-        window.addEventListener('pointermove', onPtrMove);
-        window.addEventListener('pointerup', onPtrUp);
-        window.addEventListener('pointercancel', onPtrUp);
+        this.container.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove);
+        
+        this.container.addEventListener('touchstart', onTouchStart, {passive: false});
+        window.addEventListener('touchmove', onTouchMove, {passive: false});
+        window.addEventListener('touchend', onTouchEnd);
+        window.addEventListener('touchcancel', onTouchEnd);
     }
 
     updatePointerPos(e) {
         const rect = this.renderer.domElement.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
+        if (typeof e.clientX !== 'number' || typeof e.clientY !== 'number') return;
 
-        // PointerEvents already have clientX and clientY
         const clientX = e.clientX;
         const clientY = e.clientY;
 
@@ -475,9 +501,35 @@ window.FunkenflugEngine = class FunkenflugEngine {
         vec.unproject(this.camera);
         const dir = vec.sub(this.camera.position).normalize();
         
-        const z0plane = new window.THREE.Plane(new window.THREE.Vector3(0, 0, 1), 0);
-        const ray = new window.THREE.Ray(this.camera.position, dir);
-        const target = new window.THREE.Vector3();
+        const z0plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+        const ray = new THREE.Ray(this.camera.position, dir);
+        const target = new THREE.Vector3();
+        
+        if (ray.intersectPlane(z0plane, target)) {
+            this.pointerPos.x = target.x;
+            this.pointerPos.y = target.y + 5; // Offset because finger covers ship
+            this.pointerPos.z = 0;
+        }
+    }
+
+    updateTouchPos(touch) {
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        if (!touch || typeof touch.clientX !== 'number' || typeof touch.clientY !== 'number') return;
+
+        const clientX = touch.clientX;
+        const clientY = touch.clientY;
+
+        const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+        const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        const vec = new THREE.Vector3(nx, ny, 0.5);
+        vec.unproject(this.camera);
+        const dir = vec.sub(this.camera.position).normalize();
+        
+        const z0plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+        const ray = new THREE.Ray(this.camera.position, dir);
+        const target = new THREE.Vector3();
         
         if (ray.intersectPlane(z0plane, target)) {
             this.pointerPos.x = target.x;
@@ -530,10 +582,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.isGameOver = false;
         this.isPaused = false;
         this.distance = 0;
-        this.shieldHP = 100;
+        this.shieldHP = 0; // Starts at 0, goes to 100 when skill activated
         this.currentSpeed = this.baseSpeed;
         this.timeScale = 1.0;
         this.ship.position.set(0, -10, 0);
+        this.shipTargetPos.set(0, -10, 0);
+        this.pointerPos.set(0, -10, 0);
         this.ship.rotation.set(0, 0, 0);
         if (this.shipModel) this.shipModel.visible = true;
 
@@ -756,6 +810,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 this.activeSkills.shield.active = false;
                 this.ship.remove(this.activeSkills.shield.mesh);
                 for(let i=0; i<15; i++) this.spawnParticle(this.ship.position, 0x60a5fa);
+                this.shieldHP = 0;
+                this.callbacks.onShieldUpdate(0);
             } else {
                 this.activeSkills.shield.mesh.rotation.y += dt * 2;
                 this.activeSkills.shield.mesh.rotation.x += dt;
@@ -948,7 +1004,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         for(let i=this.bullets.length-1; i>=0; i--) {
             let b = this.bullets[i];
             b.position.addScaledVector(b.userData.dir, 120 * dt);
-            if(b.position.y > 40 || b.position.y < -20 || b.position.x > 20 || b.position.x < -20) {
+            if(b.position.y > 60 || b.position.y < -30 || b.position.x > 80 || b.position.x < -80) {
                 b.visible = false; this.pools.bullets.push(b); this.bullets.splice(i, 1);
             }
         }
