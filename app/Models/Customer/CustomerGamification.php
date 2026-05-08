@@ -15,6 +15,7 @@ class CustomerGamification extends Model
         'last_spark_collection_date' => 'date',
         'ranking_opt_in' => 'boolean',
         'ticket_emails_enabled' => 'boolean',
+        'left_handed_mode' => 'boolean',
     ];
 
     public function customer()

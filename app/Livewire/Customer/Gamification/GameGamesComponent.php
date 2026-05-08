@@ -41,6 +41,7 @@ class GameGamesComponent extends Component
 
     public $unlockedCoupons = [];
     public $milestonesConfig = [];
+    public $leftHandedMode = false;
 
     public function mount()
     {
@@ -141,6 +142,7 @@ class GameGamesComponent extends Component
         $this->level = $profile->level ?? 1;
         $this->balance = $profile->funken_balance;
         $this->energyBalance = $profile->energy_balance ?? 5;
+        $this->leftHandedMode = $profile->left_handed_mode ?? false;
 
         $this->milestonesConfig = GameConfig::getLevelRewards();
 
@@ -261,11 +263,11 @@ class GameGamesComponent extends Component
             return true;
         }
 
-        \Log::warning('consumeEnergy: Profile missing or energy is 0', [
+       /* \Log::warning('consumeEnergy: Profile missing or energy is 0', [
             'user_id' => $user->id,
             'profile_found' => !!$profile,
             'energy_balance' => $profile ? $profile->energy_balance : 'N/A'
-        ]);
+        ]);*/
 
         $this->dispatch('notify', ['type' => 'error', 'message' => 'Nicht genug Seelen-Energie!']);
         return false;
@@ -319,6 +321,18 @@ class GameGamesComponent extends Component
             // Sync Frontend State
             $this->personalHighscoreFF = $profile->funkenflug_highscore;
             $this->globalHighscoreFF = max($this->globalHighscoreFF, $dist);
+        }
+    }
+
+    public function updatedLeftHandedMode($value)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+
+        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        if ($profile) {
+            $profile->left_handed_mode = (bool) $value;
+            $profile->save();
         }
     }
 }

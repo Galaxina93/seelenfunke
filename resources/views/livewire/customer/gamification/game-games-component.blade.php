@@ -399,7 +399,16 @@
 
                     {{-- VISUELLES HANDBUCH INGAME --}}
                     <div class="hidden lg:flex bg-amber-500/5 border border-amber-500/20 p-5 sm:p-6 rounded-[2rem] text-amber-300 text-xs sm:text-sm leading-relaxed flex-col gap-4 shadow-inner">
-                        <strong class="text-amber-400 uppercase tracking-[0.2em] font-black text-[10px] border-b border-amber-500/20 pb-3 block w-full">Mission Briefing</strong>
+                        <div class="flex items-center justify-between border-b border-amber-500/20 pb-3">
+                            <strong class="text-amber-400 uppercase tracking-[0.2em] font-black text-[10px]">Mission Briefing</strong>
+                            
+                            <!-- Handedness Switch -->
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="leftHandedMode" class="sr-only peer">
+                                <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                <span class="ml-2 text-[10px] font-bold text-amber-300 uppercase tracking-widest" x-text="leftHandedMode ? 'Linkshänder' : 'Rechtshänder'"></span>
+                            </label>
+                        </div>
                         <ul class="space-y-3">
                             <li class="flex gap-2 items-start text-[11px] sm:text-xs">
                                 <span><strong>Steuerung:</strong> Maus/Touch Bewegung. Klick=Schießen.</span>
@@ -454,9 +463,9 @@
                     <div id="ff-main-wrapper" :class="{'h-[100dvh] sm:h-[100dvh] aspect-auto rounded-none border-0': isFullscreen, 'aspect-[3/4] sm:aspect-square rounded-[2rem] sm:rounded-[3rem]': !isFullscreen}" class="overflow-hidden w-full max-w-[800px] relative bg-gray-950 sm:bg-gray-900 border-2 border-gray-700 shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-col pointer-events-auto">
                         
                         {{-- SCREEN AREA (65% on mobile, 100% on desktop) --}}
-                        <div class="relative w-full h-[65%] sm:h-full shrink-0 flex flex-col bg-gray-900 border-b-2 sm:border-b-0 border-gray-800 touch-none">
+                        <div class="relative w-full h-[65%] sm:h-full shrink-0 flex flex-col bg-gray-900 border-b-2 sm:border-b-0 border-gray-800">
 
-                            <div id="funkenflug-container" x-ref="ffContainer" wire:ignore class="absolute inset-0 z-10 touch-none"></div>
+                            <div id="funkenflug-container" x-ref="ffContainer" wire:ignore class="absolute inset-0 z-10" :class="{'touch-none': gameState === 'playing'}"></div>
                             <div id="ff-floating-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
 
                         {{-- UI SAFE ZONE FOR FULLSCREEN --}}
@@ -537,7 +546,43 @@
                                     <span class="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-yellow-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Ultimate</span>
                                 </div>
                             </div>
-                        </div>
+                                </div>
+
+                                {{-- SKILL BUTTONS (Mobile Overlay - Vertical) --}}
+                                <div class="absolute bottom-10 z-40 sm:hidden flex flex-col items-center gap-4 transition-all duration-300 pointer-events-auto" :class="leftHandedMode ? 'right-2' : 'left-2'" x-show="gameState === 'playing'">
+                                    <!-- Skill 1 -->
+                                    <div class="relative">
+                                        <button @pointerdown.stop @touchstart.stop @click="useSkill(1)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-red-100 font-black overflow-hidden active:scale-95 transition-all duration-150" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
+                                            <span class="text-xl z-10 drop-shadow-md">🔥</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[0] / 30) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">1</div>
+                                    </div>
+                                    <!-- Skill 2 -->
+                                    <div class="relative">
+                                        <button @pointerdown.stop @touchstart.stop @click="useSkill(2)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-purple-100 font-black overflow-hidden active:scale-95 transition-all duration-150" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[1], 'bg-purple-900 border-purple-500': !skillFlash[1], 'opacity-40 grayscale pointer-events-none': (skillLevels[1] === 0 || skillCooldowns[1] > 0) && !skillFlash[1]}">
+                                            <span class="text-xl z-10 drop-shadow-md">⚡</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[1] / 15) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">2</div>
+                                    </div>
+                                    <!-- Skill 3 -->
+                                    <div class="relative">
+                                        <button @pointerdown.stop @touchstart.stop @click="useSkill(3)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-blue-100 font-black overflow-hidden active:scale-95 transition-all duration-150" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[2], 'bg-blue-900 border-blue-500': !skillFlash[2], 'opacity-40 grayscale pointer-events-none': (skillLevels[2] === 0 || skillCooldowns[2] > 0) && !skillFlash[2]}">
+                                            <span class="text-xl z-10 drop-shadow-md">🛡️</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[2] / 20) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">3</div>
+                                    </div>
+                                    <!-- Skill 4 -->
+                                    <div class="relative">
+                                        <button @pointerdown.stop @touchstart.stop @click="useSkill(4)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-yellow-100 font-black overflow-hidden active:scale-95 transition-all duration-150" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[3], 'bg-yellow-900 border-yellow-500': !skillFlash[3], 'opacity-40 grayscale pointer-events-none': (skillLevels[3] === 0 || skillCooldowns[3] > 0) && !skillFlash[3]}">
+                                            <span class="text-xl z-10 drop-shadow-md">⭐</span>
+                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
+                                        </button>
+                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">4</div>
+                                    </div>
+                                </div>
 
                         {{-- PAUSE OVERLAY --}}
                         <div x-show="isPaused && gameState === 'playing'" x-cloak x-transition.opacity class="absolute inset-0 z-50 bg-gray-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center pointer-events-auto">
@@ -556,6 +601,13 @@
                                 </svg>
                                 Vollbild umschalten (V)
                             </button>
+
+                            <!-- Handedness Switch -->
+                            <label class="relative inline-flex items-center cursor-pointer mt-6">
+                                <input type="checkbox" x-model="leftHandedMode" class="sr-only peer">
+                                <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                <span class="ml-2 text-xs font-bold text-amber-300 uppercase tracking-widest" x-text="leftHandedMode ? 'Linkshänder' : 'Rechtshänder'"></span>
+                            </label>
                         </div>
                         <!-- Close Safe Zone -->
                             </div>
@@ -598,59 +650,7 @@
                         
                         </div> <!-- End Screen Area Wrapper -->
                         
-                        {{-- GAMEBOY CONTROLLER (MOBILE ONLY) --}}
-                        <div class="w-full flex-1 bg-gray-950 flex sm:hidden flex-row items-center justify-between px-2 sm:px-4 pb-4 pt-2 relative z-50 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] pointer-events-auto border-t-2 border-gray-800" x-show="gameState === 'playing'">
-                            {{-- CENTER: Skills Grid --}}
-                            <div class="flex flex-wrap items-center gap-4 w-full h-full justify-center pt-2 pointer-events-auto">
-                                <!-- Skill 1 -->
-                                <div class="flex flex-col items-center gap-1">
-                                    <div class="relative">
-                                        <button @click="useSkill(1)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-red-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[0], 'bg-red-900 border-red-500': !skillFlash[0], 'opacity-40 grayscale pointer-events-none': (skillLevels[0] === 0 || skillCooldowns[0] > 0) && !skillFlash[0]}">
-                                            <span class="text-xl z-10 drop-shadow-md">🔥</span>
-                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[0] / 30) * 100}%`"></div>
-                                        </button>
-                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">1</div>
-                                    </div>
-                                    <span class="text-[9px] uppercase font-bold tracking-widest text-red-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Multishoot</span>
-                                </div>
 
-                                <!-- Skill 2 -->
-                                <div class="flex flex-col items-center gap-1">
-                                    <div class="relative">
-                                        <button @click="useSkill(2)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-purple-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[1], 'bg-purple-900 border-purple-500': !skillFlash[1], 'opacity-40 grayscale pointer-events-none': (skillLevels[1] === 0 || skillCooldowns[1] > 0) && !skillFlash[1]}">
-                                            <span class="text-xl z-10 drop-shadow-md">⚡</span>
-                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[1] / 15) * 100}%`"></div>
-                                        </button>
-                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">2</div>
-                                    </div>
-                                    <span class="text-[9px] uppercase font-bold tracking-widest text-purple-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Teleport</span>
-                                </div>
-
-                                <!-- Skill 3 -->
-                                <div class="flex flex-col items-center gap-1">
-                                    <div class="relative">
-                                        <button @click="useSkill(3)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-blue-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[2], 'bg-blue-900 border-blue-500': !skillFlash[2], 'opacity-40 grayscale pointer-events-none': (skillLevels[2] === 0 || skillCooldowns[2] > 0) && !skillFlash[2]}">
-                                            <span class="text-xl z-10 drop-shadow-md">🛡️</span>
-                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[2] / 20) * 100}%`"></div>
-                                        </button>
-                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">3</div>
-                                    </div>
-                                    <span class="text-[9px] uppercase font-bold tracking-widest text-blue-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Schild</span>
-                                </div>
-
-                                <!-- Skill 4 -->
-                                <div class="flex flex-col items-center gap-1">
-                                    <div class="relative">
-                                        <button @click="useSkill(4)" class="w-12 h-12 rounded-full border-2 flex items-center justify-center text-yellow-100 font-black relative overflow-hidden" :class="{'bg-green-500/90 border-green-400 scale-110 shadow-[0_0_15px_#22c55e] z-50': skillFlash[3], 'bg-yellow-900 border-yellow-500': !skillFlash[3], 'opacity-40 grayscale pointer-events-none': (skillLevels[3] === 0 || skillCooldowns[3] > 0) && !skillFlash[3]}">
-                                            <span class="text-xl z-10 drop-shadow-md">⭐</span>
-                                            <div class="absolute bottom-0 left-0 right-0 bg-black/60 transition-all duration-100" :style="`height: ${(skillCooldowns[3] / 60) * 100}%`"></div>
-                                        </button>
-                                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded text-[9px] flex items-center justify-center font-bold z-20 shadow">4</div>
-                                    </div>
-                                    <span class="text-[9px] uppercase font-bold tracking-widest text-yellow-400 drop-shadow-md bg-gray-900/50 px-2 py-0.5 rounded-full">Ultimate</span>
-                                </div>
-                            </div>
-                        </div>
 
                     </div>
                 </div>
@@ -664,10 +664,19 @@
 
                     {{-- VISUELLES HANDBUCH START-MODAL --}}
                     <div class="flex-1 bg-gray-950/60 rounded-3xl p-6 sm:p-8 border border-gray-800 w-full flex flex-col justify-center shadow-inner relative z-10">
-                         <h3 class="text-amber-400 font-black uppercase tracking-[0.2em] text-xs sm:text-sm flex items-center gap-3 border-b border-amber-500/20 pb-4 mb-6">
-                            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                            Mission Briefing
-                        </h3>
+                        <div class="flex items-center justify-between border-b border-amber-500/20 pb-4 mb-6">
+                            <h3 class="text-amber-400 font-black uppercase tracking-[0.2em] text-xs sm:text-sm flex items-center gap-3">
+                                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                Mission Briefing
+                            </h3>
+                            
+                            <!-- Handedness Switch -->
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" x-model="leftHandedMode" class="sr-only peer">
+                                <div class="w-10 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                                <span class="ml-2 text-[10px] sm:text-xs font-bold text-amber-300 uppercase tracking-widest" x-text="leftHandedMode ? 'Linkshänder' : 'Rechtshänder'"></span>
+                            </label>
+                        </div>
                         <ul class="space-y-4 sm:space-y-5 text-gray-300 text-xs sm:text-sm leading-relaxed max-h-[35vh] sm:max-h-none overflow-y-auto pr-2">
                             <li class="flex gap-4 items-start">
                                 <span><strong>Action:</strong> Weiche feindlichen Objekten aus oder zerschieße sie! Schild ist dein Leben.</span>

@@ -34,6 +34,8 @@ return new class extends Migration
             // NEU: Speichert die generierten Gutscheincodes pro Level
             $table->json('unlocked_coupons')->nullable();
 
+            $table->boolean('left_handed_mode')->default(false);
+
             $table->timestamps();
         });
     }

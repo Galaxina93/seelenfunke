@@ -264,11 +264,11 @@ class GameProfileComponent extends Component
             return true;
         }
 
-        \Log::warning('consumeEnergy: Profile missing or energy is 0', [
+        /*\Log::warning('consumeEnergy: Profile missing or energy is 0', [
             'user_id' => $user->id,
             'profile_found' => !!$profile,
             'energy_balance' => $profile ? $profile->energy_balance : 'N/A'
-        ]);
+        ]);*/
 
         $this->dispatch('notify', ['type' => 'error', 'message' => 'Nicht genug Seelen-Energie!']);
         return false;

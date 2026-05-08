@@ -12,6 +12,7 @@ window.funkenflugExpress = function() {
         isBgmPlaying: false,
         isPaused: false,
         isFullscreen: false,
+        leftHandedMode: @entangle('leftHandedMode').live,
         
 
         

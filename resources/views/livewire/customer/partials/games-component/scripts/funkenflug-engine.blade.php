@@ -345,7 +345,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.geomParticle      = new THREE.TetrahedronGeometry(0.3);
 
         // Populate pools - Weniger Instanzen auf Mobile um RAM zu schonen
-        const bulletCount = this.isMobile ? 20 : 50;
+        const bulletCount = 100;
         const enemyCount = this.isMobile ? 15 : 30;
         const collectCount = this.isMobile ? 10 : 20;
         const particleCount = this.isMobile ? 40 : 100;
@@ -426,9 +426,14 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this._ku = e => km(e, false); window.addEventListener('keyup', this._ku);
 
 
+        this.activePointerId = null;
+
         const onPtrDown = (e) => {
             if (!this.isRunning) return;
             this.isPointerDown = true;
+            if (e.pointerType === 'touch') {
+                this.activePointerId = e.pointerId;
+            }
             this.updatePointerPos(e);
 
             if (this.activeSkills.teleport.waitingForClick) {
@@ -436,10 +441,17 @@ window.FunkenflugEngine = class FunkenflugEngine {
             }
         };
         const onPtrMove = (e) => {
-            // Always follow the pointer, regardless of mouse clicking or touch dragging
+            // Only update if it's the mouse, or if it's the specific touch finger driving the ship
+            if (e.pointerType === 'touch' && e.pointerId !== this.activePointerId) return;
+            
             this.updatePointerPos(e);
         };
-        const onPtrUp = () => { this.isPointerDown = false; };
+        const onPtrUp = (e) => { 
+            if (e.pointerType === 'touch' && e.pointerId === this.activePointerId) {
+                this.activePointerId = null;
+            }
+            this.isPointerDown = false; 
+        };
 
         // Attach pointerdown to the container so we don't catch UI clicks, but move/up to the window so we don't lose tracking
         this.container.addEventListener('pointerdown', onPtrDown);
@@ -452,8 +464,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
         const rect = this.renderer.domElement.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
 
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        // PointerEvents already have clientX and clientY
+        const clientX = e.clientX;
+        const clientY = e.clientY;
 
         const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
         const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
@@ -692,7 +705,14 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Firing Logic (Auto fire always active)
         let fireRate = this.activeSkills.multishoot.active ? (50 / this.timeScale) : (150 / this.timeScale);
         if (now - this.lastFireTime > fireRate) {
-            this.fireBullet(this.ship.position);
+            let bulletsToFire = Math.floor((now - this.lastFireTime) / fireRate);
+            bulletsToFire = Math.min(bulletsToFire, 3); // Prevent massive bursts on extreme lag
+
+            for(let i = 0; i < bulletsToFire; i++) {
+                let offsetPos = this.ship.position.clone();
+                offsetPos.y += i * 2.0; // Space them out visually if firing multiple in one frame
+                this.fireBullet(offsetPos);
+            }
             this.lastFireTime = now;
         }
 
@@ -927,7 +947,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Bullets
         for(let i=this.bullets.length-1; i>=0; i--) {
             let b = this.bullets[i];
-            b.position.addScaledVector(b.userData.dir, 50 * dt);
+            b.position.addScaledVector(b.userData.dir, 120 * dt);
             if(b.position.y > 40 || b.position.y < -20 || b.position.x > 20 || b.position.x < -20) {
                 b.visible = false; this.pools.bullets.push(b); this.bullets.splice(i, 1);
             }
@@ -993,7 +1013,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 let em = this.enemies[j];
                 const dx = b.position.x - em.position.x;
                 const dy = b.position.y - em.position.y;
-                if ((dx * dx + dy * dy) < Math.pow(em.userData.radius + 0.5, 2)) {
+                
+                // Stretch hitbox vertically slightly based on bullet speed to prevent phasing through enemies at low fps
+                let speedStretch = b.userData.dir.y * 120 * (1/60) * 0.5; // rough half-frame travel distance
+                let dyStretched = Math.max(0, Math.abs(dy) - Math.abs(speedStretch));
+
+                if ((dx * dx + dyStretched * dyStretched) < Math.pow(em.userData.radius + 0.8, 2)) {
                     hit = true;
                     // Apply DMG
                     em.userData.hp -= 1;
