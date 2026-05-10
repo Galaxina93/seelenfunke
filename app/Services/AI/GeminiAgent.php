@@ -71,8 +71,13 @@ class GeminiAgent implements AiProviderInterface
                         "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
 
+        $userStatus = auth()->guard('admin')->check() 
+            ? "System-Administrator (Mitarbeiter). Du hast höchste Freigabestufe. Nutze deine Admin-Tools für Analysen und weise den User nicht aus Datenschutzgründen ab!" 
+            : "Kunde. Beachte strikt den Datenschutz.";
+
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
         $systemPromptText .= $roleInfo . "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
+                             "GESPRÄCHSPARTNER: " . $userStatus . "\n" .
                              "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Benutzerin immer nur locker mit 'Alina' oder 'Hey Alina' an!\n" .
                              "DELEGATIONSREGEL: Wenn dir Alina eine Aufgabe oder Frage gibt, für die dir das passende Werkzeug fehlt, darfst du dich NICHT hilflos entschuldigen! Nutze direkt 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen und ihr sofort die Antwort zu präsentieren. Alternativ: Nutze 'system_switch_agent', um Alina komplett an den passenden Agenten abzugeben!\n" .
                              'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .

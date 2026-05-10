@@ -209,7 +209,7 @@
                          }"
                          x-init="initSortable()">
                         @forelse($tasks as $task)
-                            <div class="group/task" data-task-id="{{ $task->id }}" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }" wire:key="task-{{ $task->id }}">
+                            <div class="group/task transition-all" :class="showMenu ? 'relative z-50' : 'relative z-0'" data-task-id="{{ $task->id }}" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }" wire:key="task-{{ $task->id }}">
 
                                 <div @class([
                                     'relative flex items-center justify-between p-3.5 md:p-5 rounded-2xl md:rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
@@ -322,9 +322,14 @@
                                                 >
                                             </div>
 
-                                            <button wire:click="promoteToTask('{{ $sub->id }}')" class="opacity-0 group-hover/sub:opacity-100 p-1.5 text-gray-600 hover:text-[var(--theme-color)] transition-all" title="Zu Aufgabe befördern">
-                                                <x-heroicon-o-chevron-double-up class="w-4 h-4" />
-                                            </button>
+                                            <div class="flex items-center gap-1 opacity-0 group-hover/sub:opacity-100 transition-all">
+                                                <button wire:click="promoteToTask('{{ $sub->id }}')" class="p-1.5 text-gray-600 hover:text-[var(--theme-color)] transition-all rounded-lg hover:bg-gray-800" title="Zu Aufgabe befördern">
+                                                    <x-heroicon-o-chevron-double-up class="w-4 h-4" />
+                                                </button>
+                                                <button wire:click="deleteTask('{{ $sub->id }}')" wire:confirm="Unterschritt löschen?" class="p-1.5 text-gray-600 hover:text-red-500 transition-all rounded-lg hover:bg-red-500/10" title="Unterschritt löschen">
+                                                    <x-heroicon-o-trash class="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
                                     @endforeach
 

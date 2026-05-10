@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-6 lg:p-10 min-h-full flex flex-col relative z-10" x-data="funkiHub('{{$modelPath}}', '{{$imagePath}}')" x-init="initFunki()" @funki-level-up.window="handleLevelUp($event.detail)">
+<div class="p-4 sm:p-6 lg:p-10 min-h-full flex flex-col relative z-10" x-data="funkiHub('{{$modelPath}}', '{{$imagePath}}', {{$level}})" x-init="initFunki()" @funki-level-up.window="handleLevelUp($event.detail)">
     {{-- OPT-IN SCREEN REMOVED, WE REDIRECT IN MOUNT IF NOT OPTED IN --}}
 
                 <div class="w-full flex flex-col items-center text-center mb-8">
@@ -287,15 +287,20 @@
                                     $milestones = \App\Services\Gamification\GameConfig::getAppearanceMilestones();
                                 @endphp
                                 @foreach($milestones as $mLevel => $mName)
-                                    <div class="flex flex-col items-center gap-2 sm:gap-3 relative group shrink-0">
+                                    <div wire:key="milestone-{{$mLevel}}" class="flex flex-col items-center gap-2 sm:gap-3 relative group shrink-0">
                                         <button type="button"
                                                 @if($level >= $mLevel)
-                                                    @click="currentPath = '{{asset('shop/customer/gamification/models/' . $mName . '.glb')}}'; currentImagePath = '{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}'; window._funki3DLoader(currentPath);"
+                                                    @click="currentPath = '{{asset('shop/customer/gamification/models/' . $mName . '.glb')}}'; currentImagePath = '{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}'; activeModelLevel = {{$mLevel}}; if(window.Alpine && window.Alpine.store('funki')) window.Alpine.store('funki').setLevel({{$mLevel}}); window._funki3DLoader(currentPath);"
                                                 @endif
-                                                class="w-14 h-14 sm:w-20 sm:h-20 shrink-0 rounded-full bg-black border-2 flex items-center justify-center transition-all duration-1000 focus:outline-none {{ $level == $mLevel ? 'border-primary shadow-[0_0_25px_rgba(197,160,89,0.6)] scale-110 ring-4 ring-primary/20 z-10' : ($level > $mLevel ? 'border-primary/40 opacity-70 hover:opacity-100 hover:scale-105 hover:border-primary cursor-pointer' : 'border-gray-800 cursor-not-allowed') }}">
+                                                :class="{
+                                                    'border-[#C5A059] shadow-[0_0_25px_rgba(197,160,89,0.8)] scale-110 ring-4 ring-[#C5A059]/50 z-10': (typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{$level}})) == {{$mLevel}},
+                                                    'border-[#C5A059]/40 opacity-70 hover:opacity-100 hover:scale-105 hover:border-[#C5A059] cursor-pointer': (typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{$level}})) != {{$mLevel}} && {{$level >= $mLevel ? 'true' : 'false'}},
+                                                    'border-gray-800 cursor-not-allowed': {{$level < $mLevel ? 'true' : 'false'}}
+                                                }"
+                                                class="w-14 h-14 sm:w-20 sm:h-20 shrink-0 rounded-full bg-black border-2 flex items-center justify-center transition-all duration-1000 focus:outline-none">
                                             <img src="{{asset('shop/customer/gamification/models/images/original/' . $mName . '.png')}}" class="w-full h-full object-cover rounded-full transition-all duration-1000 {{ $level >= $mLevel ? '' : 'blur-[10px] opacity-10 grayscale' }}">
                                         </button>
-                                        <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-widest {{ $level == $mLevel ? 'text-primary' : 'text-gray-600' }}">Level {{$mLevel}}</span>
+                                        <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-widest" :class="(typeof $store !== 'undefined' && $store.funki ? $store.funki.activeLevel : (typeof activeModelLevel !== 'undefined' ? activeModelLevel : {{$level}})) == {{$mLevel}} ? 'text-primary' : 'text-gray-600'">Level {{$mLevel}}</span>
                                     </div>
                                 @endforeach
                             </div>
@@ -386,7 +391,7 @@
                                                 {{ $title['tier'] === 'diamant' ? 'bg-cyan-900/40 text-cyan-400' : '' }}">
                                                 {{$title['tier_name']}}
                                             </span>
-                                            <p class="text-[9px] text-gray-600 font-mono font-bold">{{$title['current_value']}} / {{$title['next_req']}}</p>
+                                            <p class="text-[9px] text-gray-600 font-mono font-bold">{{ is_numeric($title['current_value']) ? round((float)$title['current_value']) : $title['current_value'] }} / {{ is_numeric($title['next_req']) ? round((float)$title['next_req']) : $title['next_req'] }}</p>
                                         </div>
                                         <div class="w-full bg-gray-950 rounded-full h-1.5 shadow-inner overflow-hidden">
                                             <div class="h-1.5 rounded-full transition-all duration-1000

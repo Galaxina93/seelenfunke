@@ -1,6 +1,16 @@
+<script>
 if (typeof window.funkiHub === 'undefined') {
-window.funkiHub = function(initialModelPath, initialImagePath) {
-let scene, camera, renderer, controls, currentModel;
+window.funkiHub = function(initialModelPath, initialImagePath, initialLevel = 1) {
+    if (window.Alpine) {
+        try {
+            window.Alpine.store('funki', {
+                activeLevel: initialLevel,
+                setLevel(level) { this.activeLevel = level; }
+            });
+        } catch(e) {}
+    }
+
+    let scene, camera, renderer, controls, currentModel;
 let sparksScene, sparksCamera, sparksRenderer, sparksParticles;
 let threeInitialized = false;
 
@@ -17,7 +27,15 @@ activeGame: null,
 // Fallback auf leere Strings, falls von Livewire undefined übergeben wird
 currentPath: initialModelPath || '',
 currentImagePath: initialImagePath || '',
+activeModelLevel: initialLevel,
 isMusicPlaying: true,
+
+initFunki() {
+    this.initShop();
+    if (window.Alpine && window.Alpine.store('funki')) {
+        window.Alpine.store('funki').setLevel(this.activeModelLevel);
+    }
+},
 
 initShop() {
 // Sichert ab, dass die Pfade geladen sind, wenn die Seite vom Warp kommt
@@ -188,8 +206,23 @@ this.evolutionFlash = true;
 setTimeout(() => {
 this.currentPath = data.newModelPath;
 this.currentImagePath = data.newImagePath;
+this.activeModelLevel = data.level || data.newLevel || this.activeModelLevel;
+if (window.Alpine && window.Alpine.store('funki')) {
+    window.Alpine.store('funki').setLevel(this.activeModelLevel);
+}
+
+let safetyTimer = setTimeout(() => {
+    if (this.evolutionFlash) {
+        this.evolutionFlash = false;
+        this.rewardMessage = data.reward;
+        this.showConfetti = true;
+        setTimeout(() => { this.showConfetti = false; }, 6000);
+    }
+}, 4000);
+
 if (threeInitialized && window._funki3DLoader) {
 window._funki3DLoader(this.currentPath, () => {
+clearTimeout(safetyTimer);
 this.evolutionFlash = false;
 setTimeout(() => {
 this.rewardMessage = data.reward;
@@ -197,6 +230,12 @@ this.showConfetti = true;
 setTimeout(() => { this.showConfetti = false; }, 6000);
 }, 800);
 });
+} else {
+    clearTimeout(safetyTimer);
+    this.evolutionFlash = false;
+    this.rewardMessage = data.reward;
+    this.showConfetti = true;
+    setTimeout(() => { this.showConfetti = false; }, 6000);
 }
 }, 1000);
 }, 400);
@@ -225,10 +264,9 @@ if (!container || typeof window.THREE === 'undefined') return;
 
 scene = new window.THREE.Scene();
 camera = new window.THREE.PerspectiveCamera(45, container.offsetWidth / container.offsetHeight, 0.1, 1000);
-renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
-
+renderer = new window.THREE.WebGLRenderer({ antialias: window.innerWidth > 768, alpha: true, powerPreference: "high-performance" });
 renderer.setSize(container.offsetWidth, container.offsetHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
 renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
 container.appendChild(renderer.domElement);
 
@@ -251,10 +289,21 @@ if (cb) cb();
 return;
 }
 
+window._funkiLoadId = (window._funkiLoadId || 0) + 1;
+const currentLoadId = window._funkiLoadId;
+
 const loader = new window.GLTFLoader();
-if (currentModel) scene.remove(currentModel);
+
+if (currentModel) {
+    scene.remove(currentModel);
+    currentModel = null;
+}
 
 loader.load(path, (gltf) => {
+if (currentLoadId !== window._funkiLoadId) {
+    if (cb) cb();
+    return;
+}
 currentModel = gltf.scene;
 const box = new window.THREE.Box3().setFromObject(currentModel);
 const center = box.getCenter(new window.THREE.Vector3());
@@ -264,6 +313,10 @@ scene.add(currentModel);
 camera.position.set(0, 0.8, 2.5);
 if (cb) cb();
 }, undefined, (error) => {
+if (currentLoadId !== window._funkiLoadId) {
+    if (cb) cb();
+    return;
+}
 console.error("Fehler beim Laden des 3D Modells:", error);
 if (cb) cb();
 });

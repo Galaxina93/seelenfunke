@@ -1,4 +1,4 @@
-<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}', {{ ($widgetConfig && isset($widgetConfig->allow_voice_interruption)) ? ($widgetConfig->allow_voice_interruption ? 'true' : 'false') : 'null' }})"
+<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}', {{ ($widgetConfig && !is_null($widgetConfig->allow_voice_interruption)) ? ($widgetConfig->allow_voice_interruption ? 'true' : 'false') : 'true' }})"
      wire:ignore
      @open-funkira.window="openFunkiView()"
      @close-funkira.window="closeFunkiView()"
@@ -156,16 +156,25 @@
                 </button>
                 @endif
 
-                <!-- Live Mode Toggle -->
-                <label class="flex items-center gap-2 cursor-pointer group" title="Live-AI (Echtzeit Sprachmodus)">
-                    <div class="relative w-8 h-4 transition-colors rounded-full" :class="isLiveMode ? 'bg-emerald-500' : 'bg-gray-700'">
-                        <input type="checkbox" x-on:click.prevent="toggleLiveMode()" :checked="isLiveMode" class="sr-only">
-                        <div class="absolute w-4 h-4 transition-transform bg-white rounded-full shadow-md" :class="isLiveMode ? 'translate-x-4' : 'translate-x-0'"></div>
-                    </div>
-                    <div class="flex items-center gap-2 text-gray-400 group-hover:text-emerald-400 transition-colors text-xs font-mono font-bold">
-                        <x-heroicon-o-bolt class="w-4 h-4" />
-                    </div>
-                </label>
+                <!-- Control Toggles -->
+                <div class="flex flex-col gap-3 w-full items-start mt-2">
+                    <!-- Live Mode Button -->
+                    <button @click.prevent="toggleLiveMode()" 
+                            class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border transition-all font-bold tracking-widest text-[10px] uppercase"
+                            :class="isLiveMode ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'"
+                            title="Live-AI (Echtzeit Sprachmodus)">
+                        <x-heroicon-o-bolt class="w-4 h-4" /> Live
+                    </button>
+
+                    <!-- Interruption Mode Button -->
+                    <button @click.prevent="$dispatch('toggle-voice-interruption')" 
+                            class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border transition-all font-bold tracking-widest text-[10px] uppercase"
+                            :class="allowVoiceInterruption ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'"
+                            title="KI Unterbrechen erlauben">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-1.72 6.97a.75.75 0 1 0-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06L12 13.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L13.06 12l1.72-1.72a.75.75 0 1 0-1.06-1.06L12 10.94l-1.72-1.72Z" /></svg>
+                        Stören
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -215,13 +224,13 @@
     <!-- ========================================== -->
     <!-- START KI KERN (3D) - Hier läuft Three.js -->
     <!-- ========================================== -->
-    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.65] translate-x-[22vw] translate-y-[12vh] pointer-events-none z-[50]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[22vw] translate-y-[12vh] pointer-events-none z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
+    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
     <!-- END KI KERN (3D) -->
 
     <!-- ========================================== -->
     <!-- START JARVIS (2D) - Hier läuft die Canvas Animation -->
     <!-- ========================================== -->
-    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.65] translate-x-[22vw] translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[22vw] translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
+    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
     <!-- END JARVIS (2D) -->
 
     <!-- Jarvis Flash Transition -->

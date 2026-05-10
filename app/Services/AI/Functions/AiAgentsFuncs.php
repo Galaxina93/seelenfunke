@@ -38,7 +38,7 @@ trait AiAgentsFuncs
             ],
             [
                 'name' => 'communication_ask_agent',
-                'description' => 'Frage einen anderen hochspezialisierten KI-Agenten um Hilfe oder delegiere eine Aufgabe, wenn du eine Fähigkeit selbst nicht besitzt. Du gibst dem Agenten einen genauen Auftrag und erhältst seine Antwort.',
+                'description' => 'Frage einen anderen hochspezialisierten KI-Agenten um Hilfe oder delegiere eine Aufgabe, wenn du eine Fähigkeit selbst nicht besitzt. Gib dem Agenten einen genauen Auftrag und erhalte seine Antwort. WICHTIG: Sag dem Nutzer danach, dass du den Kollegen XY gefragt hast, und integriere seine Antwort nahtlos in deine eigene Lösung.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [

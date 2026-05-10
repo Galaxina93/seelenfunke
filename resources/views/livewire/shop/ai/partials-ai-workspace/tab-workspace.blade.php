@@ -4,7 +4,7 @@
                          class="flex-1 flex flex-col gap-2 overflow-hidden h-full w-full relative">
                          
                     <!-- TOP: Workspace Kanban Canvas -->
-                    <div class="flex-1 min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-[#050505]" :class="showWorkspaceMobile ? 'flex' : 'hidden lg:flex'" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
+                    <div class="flex-1 min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-[#050505] flex" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
                     <div class="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
                 
                 <!-- Heartbeat Monitor (Ultra-Realistic HTML5 Canvas) -->

@@ -63,7 +63,8 @@
                                 <div class="absolute inset-0 bg-gradient-to-b from-slate-400/10 to-transparent pointer-events-none"></div>
                                 <div class="w-16 h-16 mx-auto bg-slate-800 rounded-full flex items-center justify-center text-slate-300 font-serif font-black text-2xl mb-4 border-2 border-slate-500 shadow-inner">2</div>
                                 <h3 class="text-white font-bold text-lg truncate">{{ $p2->customer->first_name }} {{ substr($p2->customer->last_name, 0, 1) }}.</h3>
-                                <p class="text-slate-400 text-xs font-black uppercase tracking-widest mt-2">Level {{ $p2->level }}</p>
+                                <p class="text-slate-300 text-[10px] font-black uppercase tracking-[0.2em] mt-2 drop-shadow-sm truncate px-2">{{ $this->getActiveTitleName($p2) }}</p>
+                                <p class="text-slate-500 text-xs font-black uppercase tracking-widest mt-1">Level {{ $p2->level }}</p>
                                 <div class="flex justify-center my-4">
                                     <img src="{{ $this->getAvatarForLevel($p2->level) }}" alt="Avatar" class="w-24 h-24 object-contain filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
                                 </div>
@@ -82,8 +83,9 @@
                             <div class="absolute inset-0 bg-gradient-to-b from-amber-500/20 to-transparent pointer-events-none"></div>
                             <div class="absolute top-2 left-1/2 -translate-x-1/2 text-4xl drop-shadow-[0_0_15px_rgba(251,191,36,0.8)] z-20">👑</div>
                             <div class="w-20 h-20 mx-auto bg-amber-900/50 rounded-full flex items-center justify-center text-amber-400 font-serif font-black text-4xl mb-4 mt-6 border-4 border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.5)] relative z-10">1</div>
-                            <h3 class="text-white font-black text-xl md:text-2xl truncate drop-shadow-md relative z-10">{{ $p1->customer->first_name }} {{ substr($p1->customer->last_name, 0, 1) }}.</h3>
-                            <p class="text-amber-400 text-sm font-black uppercase tracking-[0.2em] mt-2 drop-shadow-[0_0_8px_currentColor] relative z-10">Level {{ $p1->level }}</p>
+                            <h3 class="text-white font-black text-xl md:text-2xl truncate drop-shadow-md relative z-10 px-2">{{ $p1->customer->first_name }} {{ substr($p1->customer->last_name, 0, 1) }}.</h3>
+                            <p class="text-amber-400 text-[11px] sm:text-xs font-black uppercase tracking-[0.2em] mt-2 drop-shadow-[0_0_8px_currentColor] relative z-10 truncate px-2">{{ $this->getActiveTitleName($p1) }}</p>
+                            <p class="text-amber-500/80 text-xs font-black uppercase tracking-widest mt-1 relative z-10">Level {{ $p1->level }}</p>
                             <div class="flex justify-center my-6 relative z-10">
                                 <img src="{{ $this->getAvatarForLevel($p1->level) }}" alt="Avatar" class="w-32 h-32 object-contain filter drop-shadow-[0_0_20px_rgba(251,191,36,0.6)]">
                             </div>
@@ -101,7 +103,8 @@
                                 <div class="absolute inset-0 bg-gradient-to-b from-orange-700/10 to-transparent pointer-events-none"></div>
                                 <div class="w-16 h-16 mx-auto bg-orange-950 rounded-full flex items-center justify-center text-orange-400 font-serif font-black text-2xl mb-4 border-2 border-orange-700 shadow-inner">3</div>
                                 <h3 class="text-white font-bold text-lg truncate">{{ $p3->customer->first_name }} {{ substr($p3->customer->last_name, 0, 1) }}.</h3>
-                                <p class="text-orange-400 text-xs font-black uppercase tracking-widest mt-2">Level {{ $p3->level }}</p>
+                                <p class="text-orange-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2 drop-shadow-sm truncate px-2">{{ $this->getActiveTitleName($p3) }}</p>
+                                <p class="text-orange-500/80 text-xs font-black uppercase tracking-widest mt-1">Level {{ $p3->level }}</p>
                                 <div class="flex justify-center my-4">
                                     <img src="{{ $this->getAvatarForLevel($p3->level) }}" alt="Avatar" class="w-24 h-24 object-contain filter drop-shadow-[0_0_8px_rgba(255,255,255,0.1)]">
                                 </div>
@@ -135,11 +138,14 @@
                                         <span class="text-gray-500 font-mono font-bold text-sm">#{{ $actualRank }}</span>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="font-bold text-white text-sm sm:text-base flex items-center gap-2">
-                                            {{ $r->customer->first_name }} {{ substr($r->customer->last_name, 0, 1) }}.
-                                            @if($r->customer_id === $myId)
-                                                <span class="bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ml-2">Du</span>
-                                            @endif
+                                        <div class="flex flex-col">
+                                            <div class="font-bold text-white text-sm sm:text-base flex items-center gap-2">
+                                                {{ $r->customer->first_name }} {{ substr($r->customer->last_name, 0, 1) }}.
+                                                @if($r->customer_id === $myId)
+                                                    <span class="bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ml-2">Du</span>
+                                                @endif
+                                            </div>
+                                            <p class="text-gray-500 text-[9px] font-black uppercase tracking-widest mt-1">{{ $this->getActiveTitleName($r) }}</p>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 text-center">

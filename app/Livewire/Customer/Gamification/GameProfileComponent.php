@@ -221,7 +221,7 @@ class GameProfileComponent extends Component
             $profile = $gameService->getProfile($user);
             $this->loadGamificationData($gameService, $profile);
 
-            $this->dispatch('funki-level-up', ['level' => $result['new_level'], 'reward' => $result['reward'], 'newModelPath' => $this->modelPath, 'newImagePath' => $this->imagePath]);
+            $this->dispatch('funki-level-up', level: $result['new_level'], reward: $result['reward'], newModelPath: $this->modelPath, newImagePath: $this->imagePath);
             $this->dispatch('notify', ['type' => 'success', 'message' => 'Level Up!']);
             $this->dispatch('sparks-awarded');
         }

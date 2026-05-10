@@ -206,15 +206,37 @@
                         <div id="threejs-match3-container" x-ref="canvasContainer" wire:ignore class="absolute inset-0 z-10 touch-none"></div>
                         <div id="floating-scores-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
 
+                        {{-- INGAME OVERLAY MENU (FULLSCREEN & QUIT) --}}
+                        <div class="absolute top-4 right-4 z-50 flex items-center gap-2 pointer-events-auto">
+                            <button type="button" @click="toggleFullscreen()" class="w-10 h-10 rounded-xl bg-gray-900/80 backdrop-blur border border-gray-700 text-gray-400 hover:text-white hover:border-emerald-500/50 flex items-center justify-center transition-all shadow-lg" title="Vollbild umschalten">
+                                <svg x-show="!isFullscreen" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                                <svg x-show="isFullscreen" style="display: none;" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h4v4M4 14l5 5M14 4h4v4M14 4l5-5M4 10h4V6M4 10l5-5M20 14h-4v4M20 14l-5 5" /></svg>
+                            </button>
+                            <button x-show="isFullscreen" style="display: none;" type="button" @click="quitGame()" class="w-10 h-10 rounded-xl bg-red-500/20 backdrop-blur border border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-all shadow-lg" title="Spiel verlassen">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+
+                        {{-- INGAME FULLSCREEN HUD --}}
+                        <div x-show="isFullscreen && gameState === 'playing'" style="display: none;" class="absolute top-4 left-4 z-50 flex gap-3 pointer-events-none">
+                            <div class="bg-gray-900/80 backdrop-blur border border-gray-700 rounded-xl px-4 py-2 shadow-lg flex items-center gap-3">
+                                <span class="text-2xl drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]">✨</span>
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-gray-500 font-black uppercase tracking-widest leading-none">Ausbeute</span>
+                                    <span class="text-lg font-bold text-primary leading-none mt-1" x-text="Math.floor(score / 100)"></span>
+                                </div>
+                            </div>
+                            <div class="bg-gray-900/80 backdrop-blur border border-gray-700 rounded-xl px-4 py-2 shadow-lg flex items-center gap-3">
+                                <span class="text-2xl drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]">🎯</span>
+                                <div class="flex flex-col">
+                                    <span class="text-[9px] text-gray-500 font-black uppercase tracking-widest leading-none">Züge übrig</span>
+                                    <span class="text-lg font-bold text-white leading-none mt-1 transition-colors" :class="{'text-red-500 animate-bounce': moves <= 5}" x-text="moves"></span>
+                                </div>
+                            </div>
+                        </div>
+
                         <div x-show="gameState === 'gameover'" x-cloak x-transition.opacity class="absolute inset-0 z-40 bg-gray-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
                             
-                            {{-- FULLSCREEN TOGGLE --}}
-                            <button x-show="isFullscreen" type="button" @click="toggleFullscreen()" class="absolute top-4 right-4 text-gray-400 hover:text-emerald-400 bg-gray-900 border border-gray-700 p-2 sm:px-4 sm:py-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 transition-colors z-50 shadow-lg">
-                                <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                                </svg>
-                                <span class="hidden sm:block">Vollbild (V)</span>
-                            </button>
 
                             <h3 class="text-5xl sm:text-6xl font-serif font-bold text-emerald-400 mb-4 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]">Erfolg!</h3>
                             <div class="inline-flex items-center gap-3 bg-gray-900 px-6 py-3 rounded-2xl border border-gray-800 shadow-inner mb-8">
@@ -231,6 +253,9 @@
                                 </span>
                             </button>
                             <p class="text-emerald-400 mt-5 font-black text-xs sm:text-sm uppercase tracking-[0.3em] opacity-80">- Kostet 1 Energie -</p>
+                            <button type="button" @click="quitGame()" class="mt-4 text-gray-500 hover:text-red-400 font-bold text-xs uppercase tracking-widest transition-colors">
+                                Abbrechen / Schließen
+                            </button>
                         </div>
                     </div>
                 </div>

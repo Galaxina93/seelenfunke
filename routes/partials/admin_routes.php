@@ -15,6 +15,7 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/routine', \App\Livewire\Shop\Management\ManagementRoutine::class)->name('admin.routine');
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
+    Route::get('/admin/shopping', \App\Livewire\Shop\Management\ManagementShoppingList::class)->name('admin.shopping');
     Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
 
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
@@ -45,7 +46,7 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/support/analytics', \App\Livewire\Shop\Support\SupportAnalytics::class)->name('admin.support.analytics');
     Route::get('/admin/support-tickets', \App\Livewire\Shop\Support\SupportTicket::class)->name('admin.support-tickets');
-    Route::get('/admin/support-chats', \App\Livewire\Shop\Support\SupportChatAnalytics::class)->name('admin.support-chats');
+    Route::get('/admin/support-chats', \App\Livewire\Shop\Support\SupportChats::class)->name('admin.support-chats');
     Route::get('/admin/support-contact-form', \App\Livewire\Shop\Support\SupportContactFormComponent::class)->name('admin.support-contact-form');
 
     // -----------------------------------------------------------------------

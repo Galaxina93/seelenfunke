@@ -113,7 +113,7 @@ class AiAnalyticsTest extends TestCase
         ]);
 
         Livewire::actingAs($admin, 'admin')
-            ->test(\App\Livewire\Shop\Support\SupportChatAnalytics::class)
+            ->test(\App\Livewire\Shop\Support\SupportChats::class)
             ->assertStatus(200)
             ->assertViewHas('openCount')
             ->assertViewHas('resolvedCount');

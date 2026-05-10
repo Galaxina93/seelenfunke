@@ -123,11 +123,32 @@ window.funkenflugExpress = function() {
         quitGame() {
             this.gameState = 'ready';
             this.isPaused = false;
-            if (engine) engine.cleanup();
+            
             let audio = this.$refs.ffBgmAudio;
             if (audio) {
                 audio.pause();
                 audio.currentTime = 0;
+                this.isBgmPlaying = false;
+            }
+            
+            if (this.activeUltiAudio) {
+                this.activeUltiAudio.pause();
+                this.activeUltiAudio = null;
+            }
+            if (this.activeShieldAudio) {
+                this.activeShieldAudio.pause();
+                this.activeShieldAudio = null;
+            }
+            this.activeUltiIntervals.forEach(clearInterval);
+            this.activeUltiIntervals = [];
+
+            if (engine) {
+                engine.cleanup();
+                engine = null;
+            }
+            
+            if(this.activeGame === 'funkenflug') {
+                this.activeGame = null;
             }
         },
 
@@ -136,20 +157,6 @@ window.funkenflugExpress = function() {
             if(!audio) return;
             if (this.isBgmPlaying) { audio.pause(); this.isBgmPlaying = false; }
             else { audio.play().catch(e => console.log(e)); this.isBgmPlaying = true; }
-        },
-
-        quitGame() {
-            let audio = this.$refs.ffBgmAudio;
-            if (audio) {
-                audio.pause();
-                audio.currentTime = 0;
-                this.isBgmPlaying = false;
-            }
-            if (engine) engine.cleanup();
-            this.gameState = 'ready';
-            if(this.activeGame === 'funkenflug') {
-                this.activeGame = null;
-            }
         },
 
         async attemptStartGame() {

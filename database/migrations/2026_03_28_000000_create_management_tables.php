@@ -118,6 +118,27 @@ return new class extends Migration {
             $table->timestamps();
         });
 
+        // Shopping Categories
+        Schema::create('management_shopping_categories', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('name');
+            $table->string('icon')->nullable()->default('shopping-cart');
+            $table->integer('sort_order')->default(0);
+            $table->boolean('is_archived')->default(false);
+            $table->timestamps();
+        });
+
+        // Shopping Items
+        Schema::create('management_shopping_items', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('category_id')->nullable()->constrained('management_shopping_categories')->nullOnDelete();
+            $table->string('name');
+            $table->string('status')->default('stocked'); // 'stocked', 'needed'
+            $table->timestamp('last_purchased_at')->nullable();
+            $table->integer('purchase_count')->default(0);
+            $table->timestamps();
+        });
+
         // Mail System
         if (!Schema::hasTable('mail_accounts')) {
             Schema::create('mail_accounts', function (Blueprint $table) {
@@ -208,6 +229,8 @@ return new class extends Migration {
         Schema::dropIfExists('mail_rules');
         Schema::dropIfExists('mail_messages');
         Schema::dropIfExists('mail_accounts');
+        Schema::dropIfExists('management_shopping_items');
+        Schema::dropIfExists('management_shopping_categories');
         Schema::dropIfExists('management_missions');
 
         Schema::dropIfExists('management_calendar_events');

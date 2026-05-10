@@ -31,6 +31,7 @@ class AIFunctionsRegistry
     use Functions\AiMapControlFuncs;
     use Functions\AiMapNewsFuncs;
     use Functions\AiPersonaFuncs;
+    use Functions\AiShoppingListFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -75,7 +76,8 @@ class AIFunctionsRegistry
             self::getAiNewsFuncsSchema(),
             self::getAiMapControlFuncsSchema(),
             self::getAiMapNewsFuncsSchema(),
-            self::getAiPersonaFuncsSchema()
+            self::getAiPersonaFuncsSchema(),
+            self::getAiShoppingListFuncsSchema()
         );
     }
 

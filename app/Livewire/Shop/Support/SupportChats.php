@@ -8,7 +8,7 @@ use Livewire\Component;
 use App\Models\Support\SupportCustomerChat;
 use Livewire\WithPagination;
 
-class SupportChatAnalytics extends Component
+class SupportChats extends Component
 {
     use WithDepartmentTheming;
 
@@ -119,7 +119,7 @@ class SupportChatAnalytics extends Component
             }
         }
 
-        return view('livewire.shop.support.support-chat-analytics', [
+        return view('livewire.shop.support.support-chats', [
             'chats' => $chats,
             'openCount' => $openCount,
             'needsEmployeeCount' => $needsEmployeeCount,

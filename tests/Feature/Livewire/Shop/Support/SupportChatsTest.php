@@ -2,13 +2,13 @@
 
 namespace Tests\Feature\Livewire\Shop\Support;
 
-use App\Livewire\Shop\Support\SupportChatAnalytics;
+use App\Livewire\Shop\Support\SupportChats;
 use App\Models\Support\SupportCustomerChat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-class SupportChatAnalyticsTest extends TestCase
+class SupportChatsTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -23,7 +23,7 @@ class SupportChatAnalyticsTest extends TestCase
         SupportCustomerChat::create(['status' => 'resolved_admin']);
         SupportCustomerChat::create(['status' => 'resolved_auto']);
 
-        Livewire::test(SupportChatAnalytics::class)
+        Livewire::test(SupportChats::class)
             ->assertStatus(200)
             ->assertViewHas('openCount', 2)
             ->assertViewHas('needsEmployeeCount', 1)
@@ -39,7 +39,7 @@ class SupportChatAnalyticsTest extends TestCase
             'status' => 'open'
         ]);
 
-        Livewire::test(SupportChatAnalytics::class)
+        Livewire::test(SupportChats::class)
             ->call('markAsResolved', $chat->id)
             ->assertOk();
 
@@ -52,7 +52,7 @@ class SupportChatAnalyticsTest extends TestCase
         $openChat = SupportCustomerChat::create(['status' => 'open', 'ai_summary' => 'Open chat summary']);
         $autoChat = SupportCustomerChat::create(['status' => 'resolved_auto', 'ai_summary' => 'Auto chat summary']);
 
-        Livewire::test(SupportChatAnalytics::class)
+        Livewire::test(SupportChats::class)
             ->set('statusFilter', 'resolved_auto')
             ->assertSee('Auto chat summary')
             ->assertDontSee('Open chat summary');

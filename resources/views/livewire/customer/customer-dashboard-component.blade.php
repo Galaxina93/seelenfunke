@@ -30,9 +30,19 @@
                         </div>
                         <h3 class="text-white font-bold text-lg mb-1 relative z-10">{{ auth()->user()->first_name }} {{ auth()->user()->last_name }}</h3>
                         <p class="text-gray-400 text-xs leading-relaxed relative z-10 mb-4">{{ auth()->user()->email }}</p>
-                        <div class="mt-auto w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-primary text-xs font-mono font-bold tracking-widest flex items-center justify-between group-hover:border-primary/30 transition-colors relative z-10">
+                        <div x-data="{ copied: false, code: '{{ strtoupper(explode('-', auth()->guard('customer')->id())[0]) }}' }" class="mt-auto w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-xl text-primary text-xs font-mono font-bold tracking-widest flex items-center justify-between group-hover:border-primary/30 transition-colors relative z-10">
                             <span>Kundennummer:</span>
-                            <span>{{ strtoupper(explode('-', auth()->guard('customer')->id())[0]) }}</span>
+                            <div class="flex items-center gap-2">
+                                <span x-text="code"></span>
+                                <button type="button" @click.stop="navigator.clipboard.writeText(code); copied = true; setTimeout(() => copied = false, 2000)" class="text-gray-500 hover:text-primary transition-colors focus:outline-none" title="Nummer kopieren">
+                                    <svg x-show="!copied" class="w-4 h-4 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    <svg x-show="copied" style="display: none;" class="w-4 h-4 text-emerald-500 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
 

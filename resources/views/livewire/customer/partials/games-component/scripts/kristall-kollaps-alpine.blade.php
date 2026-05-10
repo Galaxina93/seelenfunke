@@ -56,6 +56,13 @@ else { audio.play().catch(e => console.log(e)); this.isBgmPlaying = true; }
 },
 
 quitGame() {
+if (this.gameState === 'playing') {
+    if (!confirm('Möchtest du das Spiel wirklich abbrechen? Die eingesetzte Energie geht dabei unwiderruflich verloren!')) {
+        return;
+    }
+}
+if (this.isFullscreen && document.exitFullscreen) { document.exitFullscreen(); this.isFullscreen = false; }
+else if (this.isFullscreen && document.webkitExitFullscreen) { document.webkitExitFullscreen(); this.isFullscreen = false; }
 if (this.$refs.bgmAudio) {
 this.$refs.bgmAudio.pause();
 this.$refs.bgmAudio.currentTime = 0;

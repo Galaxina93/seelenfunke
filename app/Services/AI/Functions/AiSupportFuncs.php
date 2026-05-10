@@ -211,6 +211,60 @@ trait AiSupportFuncs
                     'required' => ['severity', 'tag']
                 ],
                 'callable' => [self::class, 'executePenalizeOfftopic']
+            ],
+            [
+                'name' => 'admin_search_support_chats',
+                'description' => '[ADMIN ONLY] Durchsucht alle Support-Chats nach Thema, Zusammenfassung oder Kundendaten.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['search_term' => ['type' => 'string']],
+                    'required' => ['search_term']
+                ],
+                'callable' => [self::class, 'executeAdminSearchSupportChats']
+            ],
+            [
+                'name' => 'admin_get_recent_support_chats',
+                'description' => '[ADMIN ONLY] Gibt die aktuellsten Support-Chats zurück. Optional nach Status gefiltert.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['limit' => ['type' => 'integer'], 'status_filter' => ['type' => 'string']]
+                ],
+                'callable' => [self::class, 'executeAdminGetRecentSupportChats']
+            ],
+            [
+                'name' => 'admin_analyze_support_chat',
+                'description' => '[ADMIN ONLY] Lädt den gesamten Text-Verlauf eines spezifischen Chats zur tiefen Analyse.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['chat_id' => ['type' => 'integer']],
+                    'required' => ['chat_id']
+                ],
+                'callable' => [self::class, 'executeAdminAnalyzeSupportChat']
+            ],
+            [
+                'name' => 'admin_get_bad_support_chats',
+                'description' => '[ADMIN ONLY] Holt gezielt Support-Chats mit negativer Bewertung oder Eskalations-Status.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['limit' => ['type' => 'integer']]
+                ],
+                'callable' => [self::class, 'executeAdminGetBadSupportChats']
+            ],
+            [
+                'name' => 'admin_get_support_kpis',
+                'description' => '[ADMIN ONLY] Berechnet Live-KPIs wie Eskalationsrate, Durchschnitts-Sterne und offene Tickets.',
+                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
+                'callable' => [self::class, 'executeAdminGetSupportKpis']
+            ],
+            [
+                'name' => 'admin_search_support_tickets',
+                'description' => '[ADMIN ONLY] Durchsucht Support-Tickets.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => ['search_term' => ['type' => 'string']],
+                    'required' => ['search_term']
+                ],
+                'callable' => [self::class, 'executeAdminSearchSupportTickets']
             ]
         ];
     }
@@ -289,6 +343,10 @@ trait AiSupportFuncs
     public static function executeGetMyTickets(array $args)
     {
         try {
+            if (auth()->guard('admin')->check()) {
+                return ['status' => 'error', 'message' => 'Du bist im Admin-Modus. Der Admin hat keine eigenen Tickets. Bitte nutze dein neues Tool admin_search_support_tickets!'];
+            }
+
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Der Kunde ist nicht eingeloggt.'];
 
@@ -343,7 +401,7 @@ trait AiSupportFuncs
             }
 
             $currentCustomerId = auth()->guard('customer')->id();
-            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich in das korrekte Konto einzuloggen.'];
             }
 
@@ -362,6 +420,10 @@ trait AiSupportFuncs
     public static function executeGetCustomerOrders(array $args)
     {
         try {
+            if (auth()->guard('admin')->check()) {
+                return ['status' => 'error', 'message' => 'Du bist im Admin-Modus. Der Admin hat keine eigenen Bestellungen. Bitte frage explizit nach einer Bestellnummer oder suche den Kunden.'];
+            }
+
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
 
@@ -546,7 +608,7 @@ trait AiSupportFuncs
             if (!$order) return ['status' => 'not_found', 'data' => null];
 
             $currentCustomerId = auth()->guard('customer')->id();
-            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich einzuloggen.'];
             }
 
@@ -602,7 +664,7 @@ trait AiSupportFuncs
             if (!$order) return ['status' => 'not_found', 'data' => null];
 
             $currentCustomerId = auth()->guard('customer')->id();
-            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Auskunft verweigert.'];
             }
 
@@ -633,6 +695,9 @@ trait AiSupportFuncs
     public static function executeGetGamificationStats(array $args)
     {
         try {
+            if (auth()->guard('admin')->check()) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Admin-Modus aktiv. Du kannst keine eigenen Gamification-Stats abrufen. Nutze admin_search_support_chats oder ähnliches.'];
+            }
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde ist nicht eingeloggt.'];
 
@@ -659,6 +724,9 @@ trait AiSupportFuncs
     public static function executeGetCustomerFullProfile(array $args)
     {
         try {
+            if (auth()->guard('admin')->check()) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Admin-Modus aktiv. Admins haben kein Kunden-Profil. Nutze admin_search_support_chats oder admin_search_support_tickets.'];
+            }
             $customerId = auth()->guard('customer')->id();
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
@@ -972,7 +1040,7 @@ trait AiSupportFuncs
             }
 
             $currentCustomerId = auth()->guard('customer')->id();
-            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
+            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte um Loginstruct.'];
             }
 
@@ -1022,6 +1090,223 @@ trait AiSupportFuncs
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Warenkorbsumme konnte nicht berechnet werden. ('{$e->getMessage()}')"];
+        }
+    }
+
+    public static function executeAdminSearchSupportChats(array $args)
+    {
+        if (!auth()->guard('admin')->check()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
+        }
+
+        try {
+            $term = trim($args['search_term'] ?? '');
+            if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
+
+            $chats = SupportCustomerChat::where('top_topic', 'LIKE', "%{$term}%")
+                ->orWhere('ai_summary', 'LIKE', "%{$term}%")
+                ->orWhere('mentioned_product', 'LIKE', "%{$term}%")
+                ->orderBy('updated_at', 'desc')
+                ->take(5)
+                ->get();
+
+            if ($chats->isEmpty()) {
+                return ['status' => 'success', 'message' => 'Keine passenden Chats gefunden.'];
+            }
+
+            $result = [];
+            foreach ($chats as $chat) {
+                $result[] = [
+                    'id' => $chat->id,
+                    'status' => $chat->status,
+                    'rating' => $chat->rating,
+                    'top_topic' => $chat->top_topic,
+                    'summary' => $chat->ai_summary,
+                    'date' => $chat->updated_at->format('Y-m-d H:i')
+                ];
+            }
+            return ['status' => 'success', 'data' => $result];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Systemfehler bei Suche: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAdminGetRecentSupportChats(array $args)
+    {
+        if (!auth()->guard('admin')->check()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
+        }
+
+        try {
+            $limit = (int)($args['limit'] ?? 5);
+            $filter = trim($args['status_filter'] ?? '');
+
+            $query = SupportCustomerChat::orderBy('updated_at', 'desc');
+            if (!empty($filter)) {
+                $query->where('status', $filter);
+            }
+
+            $chats = $query->take($limit)->get();
+
+            if ($chats->isEmpty()) {
+                return ['status' => 'success', 'message' => 'Keine Chats vorhanden.'];
+            }
+
+            $result = [];
+            foreach ($chats as $chat) {
+                $result[] = [
+                    'id' => $chat->id,
+                    'status' => $chat->status,
+                    'rating' => $chat->rating,
+                    'top_topic' => $chat->top_topic,
+                    'summary' => $chat->ai_summary,
+                    'date' => $chat->updated_at->format('Y-m-d H:i')
+                ];
+            }
+            return ['status' => 'success', 'data' => $result];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Systemfehler: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAdminAnalyzeSupportChat(array $args)
+    {
+        if (!auth()->guard('admin')->check()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
+        }
+
+        try {
+            $chatId = $args['chat_id'] ?? null;
+            if (!$chatId) return ['status' => 'error', 'message' => 'Chat-ID fehlt.'];
+
+            $chat = SupportCustomerChat::find($chatId);
+            if (!$chat) return ['status' => 'error', 'message' => 'Chat nicht gefunden.'];
+
+            $history = self::fetchChatHistory($chatId);
+            
+            return [
+                'status' => 'success',
+                'data' => [
+                    'id' => $chat->id,
+                    'top_topic' => $chat->top_topic,
+                    'summary' => $chat->ai_summary,
+                    'rating' => $chat->rating,
+                    'history' => $history
+                ]
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Systemfehler: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAdminGetBadSupportChats(array $args)
+    {
+        if (!auth()->guard('admin')->check()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
+        }
+
+        try {
+            $limit = (int)($args['limit'] ?? 5);
+
+            $chats = SupportCustomerChat::where('rating', '<=', 2)
+                ->orWhere('status', 'needs_employee')
+                ->orderBy('updated_at', 'desc')
+                ->take($limit)
+                ->get();
+
+            if ($chats->isEmpty()) {
+                return ['status' => 'success', 'message' => 'Keine problematischen Chats gefunden. Alles sieht gut aus.'];
+            }
+
+            $result = [];
+            foreach ($chats as $chat) {
+                $result[] = [
+                    'id' => $chat->id,
+                    'status' => $chat->status,
+                    'rating' => $chat->rating,
+                    'top_topic' => $chat->top_topic,
+                    'summary' => $chat->ai_summary,
+                    'date' => $chat->updated_at->format('Y-m-d H:i')
+                ];
+            }
+            return ['status' => 'success', 'data' => $result];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Systemfehler: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAdminGetSupportKpis(array $args)
+    {
+        if (!auth()->guard('admin')->check()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
+        }
+
+        try {
+            $openCount = SupportCustomerChat::where('status', 'open')->count();
+            $needsEmployeeCount = SupportCustomerChat::where('status', 'needs_employee')->count();
+            $resolvedAutoCount = SupportCustomerChat::where('status', 'resolved_auto')->count();
+            $totalChatsAll = SupportCustomerChat::count();
+
+            $escalationRate = $totalChatsAll > 0 ? round(($needsEmployeeCount / $totalChatsAll) * 100) : 0;
+            $avgRating = SupportCustomerChat::whereNotNull('rating')->avg('rating') ?? 0;
+            
+            $openTickets = \App\Models\Support\SupportTicket::where('status', 'open')->count();
+
+            return [
+                'status' => 'success',
+                'data' => [
+                    'open_chats' => $openCount,
+                    'needs_employee_chats' => $needsEmployeeCount,
+                    'troll_resolved_chats' => $resolvedAutoCount,
+                    'escalation_rate_percent' => $escalationRate,
+                    'average_rating' => round($avgRating, 1),
+                    'open_tickets' => $openTickets
+                ]
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Systemfehler bei KPI Berechnung: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAdminSearchSupportTickets(array $args)
+    {
+        if (!auth()->guard('admin')->check()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
+        }
+
+        try {
+            $term = trim($args['search_term'] ?? '');
+            if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
+
+            $tickets = \App\Models\Support\SupportTicket::with('customer')
+                ->where('ticket_number', 'LIKE', "%{$term}%")
+                ->orWhere('subject', 'LIKE', "%{$term}%")
+                ->orWhereHas('customer', function($q) use ($term) {
+                    $q->where('email', 'LIKE', "%{$term}%")
+                      ->orWhere('first_name', 'LIKE', "%{$term}%")
+                      ->orWhere('last_name', 'LIKE', "%{$term}%");
+                })
+                ->orderBy('updated_at', 'desc')
+                ->take(5)
+                ->get();
+
+            if ($tickets->isEmpty()) {
+                return ['status' => 'success', 'message' => 'Keine Tickets gefunden.'];
+            }
+
+            $result = [];
+            foreach ($tickets as $ticket) {
+                $result[] = [
+                    'ticket_number' => $ticket->ticket_number,
+                    'status' => $ticket->status,
+                    'subject' => $ticket->subject,
+                    'customer' => $ticket->customer ? $ticket->customer->email : 'Unbekannt',
+                    'date' => $ticket->updated_at->format('Y-m-d H:i')
+                ];
+            }
+            return ['status' => 'success', 'data' => $result];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Systemfehler bei Ticket Suche: ' . $e->getMessage()];
         }
     }
 }

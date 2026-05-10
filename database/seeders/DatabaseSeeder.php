@@ -13,8 +13,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
 
-            // Für den Livegang notwendig
-
             // System
             UserSeeder::class,
             SystemSettingSeeder::class,
@@ -28,6 +26,7 @@ class DatabaseSeeder extends Seeder
             ManagementCalenderSeeder::class,
             ManagementTaskSeeder::class,
             ManagementLinkTreeSeeder::class,
+            ManagementShoppingListSeeder::class,
 
             //Product
             ProductSupplierSeeder::class,

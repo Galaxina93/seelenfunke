@@ -85,4 +85,70 @@ class GameGlobalRankingComponent extends Component
 
         return asset('shop/customer/gamification/models/images/original/' . $filename);
     }
+
+    public function getActiveTitleName(CustomerGamification $profile): string
+    {
+        $activeKey = $profile->active_title;
+        if (!$activeKey) {
+            return $this->getRankName($profile->level);
+        }
+
+        if ($activeKey === 'mega_title') {
+            $diamondsCount = $this->calculateDiamondsCount($profile);
+            $megaTitles = \App\Services\Gamification\GameConfig::getMegaTitles();
+            $currentMegaTitle = $megaTitles[0];
+            foreach ($megaTitles as $mega) {
+                if ($diamondsCount >= $mega['req']) {
+                    $currentMegaTitle = $mega;
+                }
+            }
+            return $currentMegaTitle['name'];
+        }
+
+        $titlesConfig = \App\Services\Gamification\GameConfig::getTitles();
+        if (isset($titlesConfig[$activeKey])) {
+            $config = $titlesConfig[$activeKey];
+            $progress = $profile->titles_progress ?? [];
+            $currentValue = $progress[$activeKey] ?? 0;
+            
+            $currentTier = 'grau';
+            if ($currentValue >= $config['tiers']['diamant']['req']) {
+                $currentTier = 'diamant';
+            } elseif ($currentValue >= $config['tiers']['gold']['req']) {
+                $currentTier = 'gold';
+            } elseif ($currentValue >= $config['tiers']['silber']['req']) {
+                $currentTier = 'silber';
+            }
+
+            if ($currentTier !== 'grau') {
+                return $config['tiers'][$currentTier]['name'];
+            }
+        }
+
+        return $this->getRankName($profile->level);
+    }
+
+    private function calculateDiamondsCount(CustomerGamification $profile): int
+    {
+        $progress = $profile->titles_progress ?? [];
+        $configs = \App\Services\Gamification\GameConfig::getTitles();
+        $diamonds = 0;
+        foreach ($configs as $key => $config) {
+            $val = $progress[$key] ?? 0;
+            if ($val >= $config['tiers']['diamant']['req']) {
+                $diamonds++;
+            }
+        }
+        return $diamonds;
+    }
+
+    private function getRankName(int $level): string
+    {
+        if ($level >= 10) return 'Seelengott';
+        if ($level >= 8) return 'Meister';
+        if ($level >= 6) return 'Kunsthandwerker';
+        if ($level >= 4) return 'Lehrling';
+        if ($level >= 2) return 'Helfer';
+        return 'Funken-Novize';
+    }
 }

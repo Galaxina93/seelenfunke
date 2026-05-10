@@ -104,6 +104,82 @@
                                 {{ $job->last_run_at ? $job->last_run_at->diffForHumans() : 'Noch nie' }}
                             </span>
                         </div>
+
+                        <!-- Next Run Time & Progress -->
+                        @php
+                            $nextRun = $job->next_run_at;
+                            $lastRun = $job->last_run_at ?? $job->previous_run_at;
+                        @endphp
+                        @if($job->is_active && $nextRun && $lastRun)
+                            @php
+                                $isToday = $nextRun->isToday();
+                                $timeString = $isToday ? 'Heute, ' . $nextRun->format('H:i:s') . ' Uhr' : $nextRun->format('d.m.Y, H:i:s') . ' Uhr';
+                            @endphp
+                            <div class="mt-4 w-full" 
+                                 x-data="{
+                                    nextRunTs: {{ $nextRun->timestamp * 1000 }},
+                                    lastRunTs: {{ $lastRun->timestamp * 1000 }},
+                                    progress: 0,
+                                    countdown: '',
+                                    init() {
+                                        this.updateProgress();
+                                        setInterval(() => this.updateProgress(), 1000);
+                                    },
+                                    updateProgress() {
+                                        let now = Date.now();
+                                        let total = this.nextRunTs - this.lastRunTs;
+                                        let current = now - this.lastRunTs;
+                                        
+                                        if (total <= 0) { this.progress = 100; }
+                                        else if (current < 0) { this.progress = 0; }
+                                        else if (current >= total) { this.progress = 100; }
+                                        else { this.progress = (current / total) * 100; }
+                                        
+                                        let diff = Math.max(0, this.nextRunTs - now);
+                                        if (diff === 0) {
+                                            this.countdown = 'Jetzt';
+                                        } else {
+                                            let h = Math.floor(diff / 3600000);
+                                            let m = Math.floor((diff % 3600000) / 60000);
+                                            let s = Math.floor((diff % 60000) / 1000);
+                                            
+                                            let parts = [];
+                                            if (h > 0) parts.push(h + 'h');
+                                            if (m > 0 || h > 0) parts.push(m + 'm');
+                                            parts.push(s + 's');
+                                            
+                                            this.countdown = 'in ' + parts.join(' ');
+                                        }
+                                    }
+                                 }">
+                                <div class="flex justify-between items-end mb-1.5">
+                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
+                                        <x-heroicon-o-clock class="w-3 h-3" />
+                                        Nächste Ausführung
+                                    </span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-[10px] font-mono font-bold text-gray-400" x-text="countdown"></span>
+                                        <span class="text-[10px] font-bold text-[color:var(--theme-color)]">{{ $timeString }}</span>
+                                    </div>
+                                </div>
+                                <div class="w-full bg-gray-950 rounded-full h-1.5 border border-gray-800 overflow-hidden relative" :title="Math.round(progress) + '% bis zum Start'">
+                                    <div class="bg-gradient-to-r from-[color:var(--theme-color)] to-[color:var(--theme-color-50)] h-1.5 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_var(--theme-color-50)]" :style="`width: ${progress}%`"></div>
+                                </div>
+                            </div>
+                        @elseif(!$job->is_active)
+                            <div class="mt-4 w-full">
+                                <div class="flex justify-between items-end mb-1.5">
+                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
+                                        <x-heroicon-o-clock class="w-3 h-3" />
+                                        Nächste Ausführung
+                                    </span>
+                                    <span class="text-[10px] font-bold text-gray-500">Pausiert</span>
+                                </div>
+                                <div class="w-full bg-gray-950 rounded-full h-1.5 border border-gray-800 overflow-hidden relative">
+                                    <div class="bg-gray-700 h-1.5 rounded-full" style="width: 100%"></div>
+                                </div>
+                            </div>
+                        @endif
                         
                         <!-- Run Now Button -->
                         <div class="pt-2">

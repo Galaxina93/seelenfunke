@@ -1,5 +1,5 @@
-        <button @click="showWorkspaceMobile = !showWorkspaceMobile" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
-            <span x-text="showWorkspaceMobile ? 'Arbeitsbereich ausblenden' : 'Arbeitsbereich anzeigen'"></span>
+        <button @click="activeTab = activeTab === 'workspace' ? 'chat' : 'workspace'" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
+            <span x-text="activeTab === 'workspace' ? 'Arbeitsbereich ausblenden' : 'Arbeitsbereich anzeigen'"></span>
         </button>
     </div>
 

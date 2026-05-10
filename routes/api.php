@@ -63,12 +63,15 @@ Route::post('/twilio/call-log', [\App\Http\Controllers\Api\TwilioCallController:
 // --- Flight Data Proxy (CORS Fix) ---
 Route::get('/flights', function (\Illuminate\Http\Request $request) {
     try {
-        $lamin = $request->query('lamin');
-        $lomin = $request->query('lomin');
-        $lamax = $request->query('lamax');
-        $lomax = $request->query('lomax');
+        $url = "https://opensky-network.org/api/states/all";
+        $queryParams = array_filter($request->only(['lamin', 'lomin', 'lamax', 'lomax']), function($value) {
+            return !is_null($value) && $value !== '';
+        });
         
-        $url = "https://opensky-network.org/api/states/all?lamin={$lamin}&lomin={$lomin}&lamax={$lamax}&lomax={$lomax}";
+        if (!empty($queryParams)) {
+            $url .= '?' . http_build_query($queryParams);
+        }
+        
         $response = \Illuminate\Support\Facades\Http::get($url);
         
         return response()->json($response->json());

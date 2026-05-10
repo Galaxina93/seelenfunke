@@ -285,6 +285,60 @@ trait AiHealthFuncs
                     'required' => ['filename']
                 ],
                 'callable' => [self::class, 'executeReadDocument']
+            ],
+            [
+                'name' => 'health_export_treatment_plan',
+                'description' => 'Exportiert einen Behandlungsplan als PDF und speichert ihn in den Dateimanager (unter Gesundheit). Kann das Dokument optional auch direkt per E-Mail versenden.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'plan_id' => [
+                            'type' => 'string',
+                            'description' => 'Die ID des Behandlungsplans.'
+                        ],
+                        'send_email' => [
+                            'type' => 'boolean',
+                            'description' => 'Soll das Dokument per E-Mail gesendet werden?'
+                        ],
+                        'email_address' => [
+                            'type' => 'string',
+                            'description' => 'Die E-Mail Adresse des Empfängers (optional, standardmäßig die des Nutzers).'
+                        ],
+                        'email_message' => [
+                            'type' => 'string',
+                            'description' => 'Der Text für die E-Mail (nur nötig wenn send_email = true).'
+                        ]
+                    ],
+                    'required' => ['plan_id', 'send_email']
+                ],
+                'callable' => [self::class, 'executeExportTreatmentPlan']
+            ],
+            [
+                'name' => 'health_export_protocol',
+                'description' => 'Exportiert ein medizinisches Gesprächsprotokoll als PDF, speichert es im Dateimanager und sendet es auf Wunsch direkt per E-Mail.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'protocol_id' => [
+                            'type' => 'string',
+                            'description' => 'Die ID des Protokolls.'
+                        ],
+                        'send_email' => [
+                            'type' => 'boolean',
+                            'description' => 'Soll das Dokument per E-Mail gesendet werden?'
+                        ],
+                        'email_address' => [
+                            'type' => 'string',
+                            'description' => 'Die E-Mail Adresse des Empfängers (optional).'
+                        ],
+                        'email_message' => [
+                            'type' => 'string',
+                            'description' => 'Der Text für die E-Mail (nur nötig wenn send_email = true).'
+                        ]
+                    ],
+                    'required' => ['protocol_id', 'send_email']
+                ],
+                'callable' => [self::class, 'executeExportProtocol']
             ]
         ];
     }
@@ -622,6 +676,109 @@ trait AiHealthFuncs
 
         } catch (\Exception $e) {
             return ['error' => true, 'message' => 'Fehler beim Einlesen des Dokuments: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeExportTreatmentPlan(array $args)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+
+            $plan = AiHealthTreatmentPlan::with('items', 'user', 'agent')->findOrFail($args['plan_id']);
+            
+            // Create target folder
+            $folderPath = 'agenten/workspace/Gesundheit';
+            if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($folderPath)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($folderPath);
+            }
+
+            // Generate File Name
+            $safeTitle = preg_replace('/[^A-Za-z0-9\-]/', '_', $plan->title);
+            $fileName = 'Behandlungsplan_' . $safeTitle . '_' . now()->format('Ymd_Hi') . '.pdf';
+            $filePath = $folderPath . '/' . $fileName;
+            $absolutePath = \Illuminate\Support\Facades\Storage::disk('public')->path($filePath);
+
+            // Generate PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-treatment-plan', [
+                'plan' => $plan
+            ]);
+            $pdf->save($absolutePath);
+
+            // Send Email if requested
+            if (isset($args['send_email']) && $args['send_email']) {
+                $email = $args['email_address'] ?? $user->email;
+                if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $subject = "Behandlungsplan: " . $plan->title;
+                    $body = $args['email_message'] ?? "Anbei erhalten Sie den aktuellen Behandlungsplan als PDF-Dokument.";
+                    $agentName = $plan->agent->name ?? 'Dr. Funki';
+                    
+                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath]));
+                    return [
+                        'success' => true,
+                        'message' => "Der Behandlungsplan wurde als PDF ({$fileName}) im Dateimanager unter 'Gesundheit' gespeichert und per E-Mail an {$email} gesendet."
+                    ];
+                }
+            }
+
+            return [
+                'success' => true,
+                'message' => "Der Behandlungsplan wurde erfolgreich als PDF ({$fileName}) generiert und im Dateimanager unter 'Gesundheit' gespeichert."
+            ];
+
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => 'Fehler beim Exportieren des Behandlungsplans: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeExportProtocol(array $args)
+    {
+        try {
+            $user = Auth::user();
+            if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+
+            $protocol = AiHealthProtocol::with('user', 'agent')->findOrFail($args['protocol_id']);
+            
+            // Create target folder
+            $folderPath = 'agenten/workspace/Gesundheit';
+            if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($folderPath)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($folderPath);
+            }
+
+            // Generate File Name
+            $fileName = 'Protokoll_' . $protocol->created_at->format('Ymd_Hi') . '.pdf';
+            $filePath = $folderPath . '/' . $fileName;
+            $absolutePath = \Illuminate\Support\Facades\Storage::disk('public')->path($filePath);
+
+            // Generate PDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-protocol', [
+                'protocol' => $protocol
+            ]);
+            $pdf->save($absolutePath);
+
+            // Send Email if requested
+            if (isset($args['send_email']) && $args['send_email']) {
+                $email = $args['email_address'] ?? $user->email;
+                if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $subject = "Medizinisches Protokoll vom " . $protocol->created_at->format('d.m.Y');
+                    $body = $args['email_message'] ?? "Anbei erhalten Sie das angeforderte medizinische Gesprächsprotokoll als PDF-Dokument.";
+                    $agentName = $protocol->agent->name ?? 'Dr. Funki';
+                    
+                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath]));
+                    return [
+                        'success' => true,
+                        'message' => "Das Protokoll wurde als PDF ({$fileName}) im Dateimanager unter 'Gesundheit' gespeichert und per E-Mail an {$email} gesendet."
+                    ];
+                }
+            }
+
+            return [
+                'success' => true,
+                'message' => "Das Protokoll wurde erfolgreich als PDF ({$fileName}) generiert und im Dateimanager unter 'Gesundheit' gespeichert."
+            ];
+
+        } catch (\Exception $e) {
+            return ['error' => true, 'message' => 'Fehler beim Exportieren des Protokolls: ' . $e->getMessage()];
         }
     }
 }

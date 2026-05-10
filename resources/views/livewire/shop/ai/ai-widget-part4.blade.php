@@ -293,6 +293,47 @@
 
                 window.funkiMap.on('load', () => {
                     // Rotations-Schleife entfernt
+                    
+                    window.funkiMap.addSource('live-flights', {
+                        type: 'geojson',
+                        data: { type: 'FeatureCollection', features: [] }
+                    });
+                    
+                    window.funkiMap.addLayer({
+                        id: 'live-flights-layer',
+                        type: 'symbol',
+                        source: 'live-flights',
+                        layout: {
+                            'text-field': '✈',
+                            'text-size': 20,
+                            'text-rotate': ['get', 'heading'],
+                            'text-rotation-alignment': 'map',
+                            'text-allow-overlap': true,
+                            'text-ignore-placement': true
+                        },
+                        paint: {
+                            'text-color': '#00f0ff',
+                            'text-halo-color': '#000000',
+                            'text-halo-width': 1
+                        }
+                    });
+
+                    window.funkiMap.addSource('live-crises', {
+                        type: 'geojson',
+                        data: { type: 'FeatureCollection', features: [] }
+                    });
+
+                    window.funkiMap.addLayer({
+                        id: 'live-crises-layer',
+                        type: 'circle',
+                        source: 'live-crises',
+                        paint: {
+                            'circle-color': '#ff0000',
+                            'circle-radius': 6,
+                            'circle-blur': 0.5,
+                            'circle-opacity': 0.8
+                        }
+                    });
                 });
 
                 window.funkiMap.on('dragstart', () => {
@@ -450,7 +491,7 @@
                 try {
                     // Using OpenSky API for live flights over Europe/World.
                     // For performance, we limit to the first 1000 flights returned, or a bounding box if we had one.
-                    const response = await fetch('https://opensky-network.org/api/states/all');
+                    const response = await fetch('/api/flights');
                     if (!response.ok) return;
                     const data = await response.json();
                     

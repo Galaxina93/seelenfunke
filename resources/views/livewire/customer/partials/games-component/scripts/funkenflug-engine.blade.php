@@ -566,8 +566,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
         if(this.resizeObserver) this.resizeObserver.disconnect();
 
-        while(this.scene.children.length > 0){
-            this.scene.remove(this.scene.children[0]);
+        if (this.scene) {
+            this.scene.clear();
         }
         if (this.renderer && this.renderer.domElement.parentNode) {
             this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);

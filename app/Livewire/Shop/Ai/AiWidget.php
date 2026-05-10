@@ -49,7 +49,8 @@ class AiWidget extends Component
                     'ai_agent_id' => $this->agentId ?? (isset($this->activeAgentIds[0]) ? $this->activeAgentIds[0] : null),
                     'volume' => 15,
                     'continuous_mode' => false,
-                    'require_wake_word' => false
+                    'require_wake_word' => false,
+                    'allow_voice_interruption' => true
                 ]
             );
             if (!$this->agentId && $this->widgetConfig->ai_agent_id) {
