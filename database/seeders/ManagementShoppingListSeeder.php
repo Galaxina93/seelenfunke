@@ -50,7 +50,7 @@ class ManagementShoppingListSeeder extends Seeder
                 'name' => $item,
                 'category_id' => $haushalt->id
             ], [
-                'status' => 'needed'
+                'status' => 'stocked'
             ]);
         }
 
@@ -73,7 +73,7 @@ class ManagementShoppingListSeeder extends Seeder
                 'name' => $item,
                 'category_id' => $lebensmittel->id
             ], [
-                'status' => 'needed'
+                'status' => 'stocked'
             ]);
         }
     }
