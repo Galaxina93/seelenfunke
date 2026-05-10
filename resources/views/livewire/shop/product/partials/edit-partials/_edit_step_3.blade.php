@@ -182,6 +182,15 @@
                                 </div>
                                 <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Materialwert der Versandkartons und Inlays.</p>
                             </div>
+
+                            <div class="w-full min-w-0">
+                                <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1">Marketing-Kosten</label>
+                                <div class="relative w-full">
+                                    <input type="number" step="0.01" wire:model.blur="marketing_cost_percent" class="w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white font-mono font-bold focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all pr-12 shadow-inner outline-none placeholder-gray-600 min-w-0" placeholder="15.00">
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">%</span>
+                                </div>
+                                <p class="text-[10px] font-medium text-gray-500 mt-2 px-1">Geplanter Anteil vom Netto-Umsatz.</p>
+                            </div>
                         </div>
                     </div>
                 </div>

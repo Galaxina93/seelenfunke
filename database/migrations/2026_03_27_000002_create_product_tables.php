@@ -98,6 +98,7 @@ return new class extends Migration
             $table->integer('electricity_wear_factor')->default(1);
             $table->integer('packaging_cost')->nullable();
             $table->integer('shipping_cost')->nullable();
+            $table->decimal('marketing_cost_percent', 5, 2)->default(15.00);
             $table->integer('delivery_time_days')->default(14);
 
             $table->string('seo_title')->nullable();

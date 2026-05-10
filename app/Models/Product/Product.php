@@ -33,6 +33,7 @@ class Product extends Model
         'length' => 'integer',
         'variants_data' => 'array',
         'packaging_weight' => 'integer',
+        'marketing_cost_percent' => 'float',
     ];
 
     protected function priceEuro(): Attribute

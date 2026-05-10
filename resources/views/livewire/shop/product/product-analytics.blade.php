@@ -75,6 +75,10 @@
                                     <span class="text-gray-500 flex items-center cursor-help" title="Die Portokosten, die für das DHL-Label gezahlt werden.">Versand <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
                                     <span class="text-gray-400">{{ number_format($cd['shipping_cost'], 2, ',', '.') }} €</span>
                                 </div>
+                                <div class="flex justify-between items-center text-[10px] font-black">
+                                    <span class="text-gray-500 flex items-center cursor-help" title="Geplante Marketing-Kosten ({{ $cd['marketing_percent'] }}% vom Netto).">Marketing <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                    <span class="text-pink-500">{{ number_format($cd['marketing_cost'], 2, ',', '.') }} €</span>
+                                </div>
                                 <div class="flex justify-between items-center text-[10px] font-black mt-1 pt-1 border-t border-gray-800/60">
                                     <span class="text-gray-500 flex items-center cursor-help" title="Das Leergewicht der Versandverpackung (Karton, Luftpolster). Das finale Bruttogewicht für DHL setzt sich aus dem Netto-Produktgewicht und diesem Tara-Wert zusammen.">Tara <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
                                     <span class="text-blue-400">{{ $cd['packaging_weight'] !== null ? $cd['packaging_weight'] . ' g' : '-' }}</span>

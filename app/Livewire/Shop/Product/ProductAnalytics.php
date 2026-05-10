@@ -154,8 +154,11 @@ class ProductAnalytics extends Component
                 $laserCost = $laserRuntime * $wearFactor;
                 $packaging = $product->packaging_cost ?? 0;
                 $shipping = $product->shipping_cost > 0 ? $product->shipping_cost : (int) shop_setting('shipping_cost', 490);
+                
+                $marketingPercent = $product->marketing_cost_percent ?? 15.00;
+                $marketingCost = $netPrice > 0 ? (int) round($netPrice * ($marketingPercent / 100)) : 0;
 
-                $totalCost = $purchase + $laserCost + $packaging + $shipping;
+                $totalCost = $purchase + $laserCost + $packaging + $shipping + $marketingCost;
                 $netMargin = $netPrice - $totalCost;
                 $marginPercent = $netPrice > 0 ? round(($netMargin / $netPrice) * 100, 1) : 0;
 
@@ -198,6 +201,8 @@ class ProductAnalytics extends Component
                     'laser_cost' => $laserCost / 100,
                     'packaging_cost' => $packaging / 100,
                     'shipping_cost' => $shipping / 100,
+                    'marketing_cost' => $marketingCost / 100,
+                    'marketing_percent' => $marketingPercent,
                     'total_cost' => $totalCost / 100,
                     'net_margin' => $netMargin / 100,
                     'margin_percent' => $marginPercent,

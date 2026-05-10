@@ -65,6 +65,7 @@ class ProductCreate extends Component
     public $laser_runtime_minutes = null;
     public $electricity_wear_factor = 1;
     public $packaging_cost_input = ''; // in Euro
+    public $marketing_cost_percent = 15.00; // NEU: Marketing Anteil in Prozent
 
     // SEO
     public $seo_title = '';
@@ -262,6 +263,7 @@ class ProductCreate extends Component
         // Kalkulation & Produktion laden
         $this->laser_runtime_minutes = $this->product->laser_runtime_minutes;
         $this->electricity_wear_factor = $this->product->electricity_wear_factor ?? 1;
+        $this->marketing_cost_percent = $this->product->marketing_cost_percent ?? 15.00;
         $this->packaging_cost_input = $this->product->packaging_cost > 0
             ? number_format($this->product->packaging_cost / 100, 2, '.', '')
             : '';
@@ -522,6 +524,7 @@ class ProductCreate extends Component
             // Kalkulation & Produktion
             $this->product->laser_runtime_minutes = $this->laser_runtime_minutes === '' ? null : (int) $this->laser_runtime_minutes;
             $this->product->electricity_wear_factor = $this->electricity_wear_factor === '' ? 1 : (int) $this->electricity_wear_factor;
+            $this->product->marketing_cost_percent = $this->marketing_cost_percent === '' ? 15.00 : (float) $this->marketing_cost_percent;
             $this->product->packaging_cost = $this->packaging_cost_input === '' ? 0 : (int) round((float)$this->packaging_cost_input * 100);
         } else {
             // Bereinigung falls Typ geändert wurde
@@ -534,6 +537,7 @@ class ProductCreate extends Component
             // Kalkulation
             $this->product->laser_runtime_minutes = null;
             $this->product->electricity_wear_factor = 1;
+            $this->product->marketing_cost_percent = 15.00;
             $this->product->packaging_cost = null;
         }
 
