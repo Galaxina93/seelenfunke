@@ -34,12 +34,19 @@ class ManagementShoppingList extends Component
             ->get();
 
         $itemsQuery = ManagementShoppingItem::with('category');
+        $oldestItems = collect();
 
         if ($this->activeTab === 'needed') {
             $itemsQuery->where('status', 'needed');
             $items = $itemsQuery->get()->sortBy(function($item) {
                 return ($item->category ? $item->category->sort_order : 999) . '-' . $item->name;
             });
+            
+            $oldestItems = ManagementShoppingItem::where('status', 'stocked')
+                ->whereNotNull('last_purchased_at')
+                ->orderBy('last_purchased_at', 'asc')
+                ->take(10)
+                ->get();
         } else {
             $items = $itemsQuery->orderByRaw('last_purchased_at IS NOT NULL, last_purchased_at ASC')
                 ->get();
@@ -51,7 +58,8 @@ class ManagementShoppingList extends Component
 
         return view('livewire.shop.management.management-shopping-list', [
             'categories' => $categories,
-            'groupedItems' => $groupedItems
+            'groupedItems' => $groupedItems,
+            'oldestItems' => $oldestItems
         ]);
     }
 
@@ -73,8 +81,10 @@ class ManagementShoppingList extends Component
     public function addItem()
     {
         $this->validate(['newItemName' => 'required|string|max:255']);
+        
+        $cleanName = trim($this->newItemName);
 
-        $existing = ManagementShoppingItem::where('name', 'like', $this->newItemName)->first();
+        $existing = ManagementShoppingItem::where('name', 'like', $cleanName)->first();
 
         $catId = empty($this->selectedCategoryId) ? null : $this->selectedCategoryId;
 
@@ -86,7 +96,7 @@ class ManagementShoppingList extends Component
             $existing->save();
         } else {
             ManagementShoppingItem::create([
-                'name' => $this->newItemName,
+                'name' => $cleanName,
                 'category_id' => $catId,
                 'status' => 'needed',
             ]);

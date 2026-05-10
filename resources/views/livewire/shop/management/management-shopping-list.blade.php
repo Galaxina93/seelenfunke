@@ -1,21 +1,21 @@
 <div class="p-4 sm:p-6 pb-24" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <div class="max-w-4xl mx-auto space-y-6">
+    <div class="max-w-7xl mx-auto space-y-6">
         
         {{-- HEADER --}}
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <x-heroicon-o-shopping-cart class="w-8 h-8 text-[var(--theme-color)]" />
                 <h1 class="text-2xl font-bold text-white">Einkaufsliste</h1>
             </div>
             
-            <div class="flex bg-gray-900/50 p-1 rounded-xl border border-gray-800">
-                <button wire:click="$set('activeTab', 'needed')" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all {{ $activeTab === 'needed' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_15px_var(--theme-color)]' : 'text-gray-400 hover:text-white' }}">
+            <div class="flex w-full sm:w-auto bg-gray-900/50 p-1 rounded-xl border border-gray-800 shrink-0 overflow-x-auto custom-scrollbar">
+                <button wire:click="$set('activeTab', 'needed')" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap {{ $activeTab === 'needed' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_15px_var(--theme-color)]' : 'text-gray-400 hover:text-white' }}">
                     Einkaufen
                 </button>
-                <button wire:click="$set('activeTab', 'all')" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all {{ $activeTab === 'all' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_15px_var(--theme-color)]' : 'text-gray-400 hover:text-white' }}">
+                <button wire:click="$set('activeTab', 'all')" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap {{ $activeTab === 'all' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_15px_var(--theme-color)]' : 'text-gray-400 hover:text-white' }}">
                     Inventar
                 </button>
-                <button wire:click="$set('activeTab', 'categories')" class="px-4 py-2 rounded-lg text-sm font-semibold transition-all {{ $activeTab === 'categories' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_15px_var(--theme-color)]' : 'text-gray-400 hover:text-white' }}">
+                <button wire:click="$set('activeTab', 'categories')" class="flex-1 sm:flex-none px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap {{ $activeTab === 'categories' ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_15px_var(--theme-color)]' : 'text-gray-400 hover:text-white' }}">
                     Kategorien
                 </button>
             </div>
@@ -44,16 +44,16 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     @foreach($categories as $category)
-                        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center justify-between group">
+                        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center justify-between group transition-all hover:border-[var(--theme-color-40)]">
                             <div class="flex items-center gap-4">
                                 <div class="w-10 h-10 rounded-xl bg-gray-800 flex items-center justify-center text-[var(--theme-color)]">
                                     @svg('heroicon-o-'.($category->icon ?: 'folder'), 'w-6 h-6')
                                 </div>
                                 <span class="text-white font-semibold">{{ $category->name }}</span>
                             </div>
-                            <button wire:click="deleteCategory('{{ $category->id }}')" class="p-2 text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                            <button wire:click="deleteCategory('{{ $category->id }}')" class="p-2 text-gray-600 hover:text-red-500 transition-colors opacity-100 md:opacity-0 group-hover:opacity-100">
                                 <x-heroicon-o-trash class="w-5 h-5" />
                             </button>
                         </div>
@@ -85,6 +85,31 @@
                 </div>
             </div>
 
+            {{-- ÄLTESTE PRODUKTE (VORSCHLÄGE) --}}
+            @if($activeTab === 'needed' && $oldestItems->count() > 0)
+                <div class="mb-8 animate-fade-in-up" style="animation-delay: 100ms;">
+                    <div class="flex items-center gap-2 mb-3 px-2">
+                        <x-heroicon-o-clock class="w-4 h-4 text-gray-500" />
+                        <h3 class="text-xs font-black uppercase tracking-widest text-gray-500">Lange nicht gekauft</h3>
+                    </div>
+                    <div class="flex overflow-x-auto gap-3 pb-4 px-2 custom-scrollbar snap-x">
+                        @foreach($oldestItems as $item)
+                            <button wire:click="toggleItemStatus('{{ $item->id }}')" 
+                                    class="shrink-0 snap-start bg-gray-900 border border-gray-800 hover:border-[var(--theme-color)] hover:bg-[var(--theme-color-10)] text-white px-4 py-2.5 rounded-xl flex items-center gap-3 transition-all group text-left">
+                                <div class="w-2 h-2 rounded-full bg-[var(--theme-color)] opacity-50 group-hover:opacity-100 group-hover:shadow-[0_0_8px_var(--theme-color)] transition-all"></div>
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-bold truncate max-w-[150px]">{{ $item->name }}</span>
+                                    <span class="text-[9px] text-gray-500 whitespace-nowrap">Zuletzt: {{ $item->last_purchased_at->diffForHumans() }}</span>
+                                </div>
+                                <div class="ml-2 w-6 h-6 rounded-lg bg-gray-800 group-hover:bg-[var(--theme-color)] flex items-center justify-center transition-colors">
+                                    <x-heroicon-o-plus class="w-4 h-4 text-gray-400 group-hover:text-gray-900" />
+                                </div>
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             {{-- LISTE --}}
             <div class="space-y-8 animate-fade-in-up">
                 @forelse($groupedItems as $categoryName => $items)
@@ -97,17 +122,17 @@
                             @svg('heroicon-o-'.$iconName, 'w-4 h-4')
                             <h2 class="text-xs font-black uppercase tracking-widest">{{ $categoryName }}</h2>
                         </div>
-                        <div class="space-y-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                             @foreach($items as $item)
-                                <div class="group flex items-center justify-between bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 transition-all hover:bg-gray-800/50">
+                                <div class="group flex items-center justify-between bg-gray-900 border border-gray-800 hover:border-[var(--theme-color-40)] rounded-2xl p-4 transition-all hover:bg-gray-800/50">
                                     <div class="flex items-center gap-4 flex-1 cursor-pointer" wire:click="toggleItemStatus('{{ $item->id }}')">
                                         <div class="relative w-8 h-8 rounded-full border-2 transition-colors flex items-center justify-center {{ $item->status === 'stocked' ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-600 group-hover:border-[var(--theme-color)]' }}">
                                             @if($item->status === 'stocked')
                                                 <x-heroicon-o-check class="w-5 h-5 text-gray-900" />
                                             @endif
                                         </div>
-                                        <div class="flex flex-col">
-                                            <span class="text-white font-semibold text-lg {{ $item->status === 'stocked' ? 'line-through text-gray-500' : '' }}">{{ $item->name }}</span>
+                                        <div class="flex flex-col min-w-0">
+                                            <span class="text-white font-semibold text-lg truncate {{ $item->status === 'stocked' ? 'line-through text-gray-500' : '' }}">{{ $item->name }}</span>
                                             @if($activeTab === 'all' && $item->last_purchased_at)
                                                 <span class="text-[10px] text-gray-500 font-medium">Zuletzt gekauft: {{ $item->last_purchased_at->diffForHumans() }}</span>
                                             @elseif($activeTab === 'all' && !$item->last_purchased_at)

@@ -23,7 +23,7 @@ class DatabaseSeeder extends Seeder
             // Management
             ManagementDayRoutineSeeder::class,
             ManagementContactSeeder::class,
-            ManagementCalenderSeeder::class,
+            // ManagementCalenderSeeder::class,
             ManagementTaskSeeder::class,
             ManagementLinkTreeSeeder::class,
             ManagementShoppingListSeeder::class,
