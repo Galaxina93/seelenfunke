@@ -274,7 +274,34 @@
                 // 1. Snapshot erstellen
                 try {
                     let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
-                    if (engine && engine.renderer && this.config.modelPath) {
+                    if (this.config.modelPath && engine) {
+                        
+                        // SICHERSTELLEN DASS DAS 3D MODEL GELADEN IST (Wichtig bei Nutzung von Vorlagen!)
+                        if (!this.modelLoaded) {
+                            if (typeof this._forceStart3D === 'function') this._forceStart3D();
+                            await new Promise(resolve => {
+                                let checkInterval = setInterval(() => {
+                                    if (this.modelLoaded) {
+                                        clearInterval(checkInterval);
+                                        resolve();
+                                    }
+                                }, 100);
+                            });
+                        }
+
+                        // TEXTUREN ERZWINGEN ZU RENDERN (Falls der User nie in der 3D Ansicht war)
+                        try {
+                            engine.renderBothCanvases(
+                                Alpine.raw(this.texts),
+                                Alpine.raw(this.logos),
+                                Alpine.raw(this.texts_back),
+                                Alpine.raw(this.logos_back),
+                                Alpine.raw(this.fontMap)
+                            );
+                        } catch (e) { console.error("Force Render failed:", e); }
+                        
+                        await new Promise(r => setTimeout(r, 150)); // Warten bis GPU die Textur hat
+
                         if (this.config.has_back_side) {
                             const origX = engine.camera.position.x;
                             const origZ = engine.camera.position.z;

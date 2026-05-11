@@ -109,6 +109,6 @@ class MarketingBlogSeeder extends Seeder
             ],
         ];
 
-        DB::table('marketing_blog_posts')->insert($posts);
+        DB::table('marketing_blog_posts')->upsert($posts, ['slug']);
     }
 }
