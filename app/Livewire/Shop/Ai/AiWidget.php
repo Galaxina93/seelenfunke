@@ -147,6 +147,14 @@ class AiWidget extends Component
         }
     }
 
+    #[On('generate-system-brain-map')]
+    public function generateSystemBrainMap()
+    {
+        \Illuminate\Support\Facades\Artisan::call('system:brain:generate');
+        $this->dispatch('system-brain-map-generated');
+        $this->dispatch('ai-speech-feedback', text: "Ich habe die neuronale Strukturkarte erfolgreich generiert.");
+    }
+
     public function render()
     {
         return view('livewire.shop.ai.ai-widget', [

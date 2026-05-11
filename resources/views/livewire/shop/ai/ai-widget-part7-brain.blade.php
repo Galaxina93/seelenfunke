@@ -26,9 +26,12 @@
 
         // Lade die JSON Daten
         try {
-            const response = await fetch('/storage/system-brain-map.json');
+            // Append a cache-buster so we don't fetch a stale 404 when it was just generated
+            const response = await fetch('/storage/system-brain-map.json?t=' + Date.now());
             if (!response.ok) {
-                console.warn('System Brain Map JSON nicht gefunden. Führe php artisan system:brain:generate aus.');
+                console.warn('System Brain Map JSON nicht gefunden. Generiere neu...');
+                window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Ich baue das Systemgehirn zum ersten Mal auf. Bitte einen kleinen Moment Geduld." } }));
+                Livewire.dispatch('generate-system-brain-map');
                 return;
             }
             window.brainMapData = await response.json();
@@ -327,5 +330,11 @@
     window.addEventListener('ai-neural-analysis-complete', (e) => {
         // Bericht wurde im Hintergrund erstellt, kein störendes alert() mehr
         console.log("Neural Analysis Complete:", e.detail.file_path);
+    });
+
+    window.addEventListener('system-brain-map-generated', () => {
+        if (window.initBrainMap) {
+            window.initBrainMap();
+        }
     });
 </script>

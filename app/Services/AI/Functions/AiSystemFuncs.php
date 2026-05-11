@@ -75,14 +75,14 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'system_execute_command',
-                'description' => 'Führt sichere Systemwartungs-Befehle aus (z.B. Cache leeren, Backups machen, Tests ausführen, Mails verarbeiten). Nutze dies, wenn der Nutzer dich bittet "Leere den Cache", "Mach ein Backup" oder "Starte den Mail-Worker".',
+                'description' => 'Führt sichere Systemwartungs-Befehle aus (z.B. Cache leeren, Backups machen, Tests ausführen, Mails verarbeiten, Gehirn erstellen). Nutze dies, wenn der Nutzer dich bittet "Leere den Cache", "Erstelle das Projekt Gehirn neu", "Erstelle die System map" oder "Starte den Mail-Worker".',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'command' => [
                             'type' => 'string',
-                            'enum' => ['cache', 'backup', 'test', 'mailworker', 'fetch_mails', 'storage'],
-                            'description' => 'Der sichere Befehl, der ausgeführt werden soll. "cache" leert alle System-Caches. "backup" erstellt ein Datenbank-Backup. "test" führt Unit-Tests aus. "mailworker" triggert die KI-Postfach-Verarbeitung. "fetch_mails" ruft neue Mails vom IMAP ab. "storage" erneuert den Storage-Link.'
+                            'enum' => ['cache', 'backup', 'test', 'mailworker', 'fetch_mails', 'storage', 'systemmap'],
+                            'description' => 'Der sichere Befehl, der ausgeführt werden soll. "cache" leert alle System-Caches. "backup" erstellt ein Datenbank-Backup. "test" führt Unit-Tests aus. "mailworker" triggert die KI-Postfach-Verarbeitung. "fetch_mails" ruft neue Mails vom IMAP ab. "storage" erneuert den Storage-Link. "systemmap" generiert das 3D Projekt Gehirn (Neurale Map) neu.'
                         ]
                     ],
                     'required' => ['command']
@@ -1224,6 +1224,10 @@ trait AiSystemFuncs
                     // Storage link command
                     \Illuminate\Support\Facades\Artisan::call('storage:link');
                     $output = 'Der Public-Storage-Link wurde erfolgreich erneuert.';
+                    break;
+                case 'systemmap':
+                    \Illuminate\Support\Facades\Artisan::call('system:brain:generate');
+                    $output = 'Das 3D Projekt Gehirn (Neurale System Map) wurde erfolgreich neu generiert.';
                     break;
                 default:
                     return ['status' => 'error', 'message' => "Der Befehl '{$command}' ist nicht erlaubt oder existiert nicht auf der Sicherheits-Whitelist."];
