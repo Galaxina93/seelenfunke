@@ -56,7 +56,7 @@ class MarketingBlogSeeder extends Seeder
                     <p>Dies ist erst der Anfang unserer Reise. Wir haben große Pläne und freuen uns, dass ihr von Anfang an dabei seid, um gemeinsam neue Maßstäbe zu setzen.</p>
                 ',
                 // Pfad relativ zu storage/app/public/
-                'featured_image' => 'blog/mein-seelenfunke-logo.png',
+                'featured_image' => 'marketing/blog/mein-seelenfunke-logo.png',
                 'status' => 'published',
                 'published_at' => Carbon::now()->subDays(2),
                 'meta_title' => 'Mein-Seelenfunke Gründung und Neue Maßstäbe für Geschenke',
@@ -96,7 +96,7 @@ class MarketingBlogSeeder extends Seeder
                     <p>Sagt "Hallo" zu Funki!</p>
                 ',
                 // Pfad relativ zu storage/app/public/
-                'featured_image' => 'blog/funki.png',
+                'featured_image' => 'marketing/blog/funki.png',
                 'status' => 'published',
                 'published_at' => Carbon::now(),
                 'meta_title' => 'Funki Funke stellt sich vor :) Unser Maskottchen',
