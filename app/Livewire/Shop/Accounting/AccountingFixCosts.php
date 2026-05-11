@@ -60,6 +60,7 @@ class AccountingFixCosts extends Component
     public $itemDescription = '';
     public $itemFile;
     public $itemIsBusiness = false;
+    public $itemRequiresContract = true;
     public ?string $itemExistingFile = null;
     public $itemTaxRate = 0;
     public $itemLastPaymentDate;
@@ -113,14 +114,14 @@ class AccountingFixCosts extends Component
     {
         return AccountingCostItem::whereHas('group', function ($q) {
             $q->where('admin_id', $this->getAdminId());
-        })->whereNull('contract_file_path')->with('group')->orderBy('name')->get();
+        })->where('requires_contract', true)->whereNull('contract_file_path')->with('group')->orderBy('name')->get();
     }
 
     public function getMissingDataItemsProperty()
     {
         return AccountingCostItem::whereHas('group', function ($q) {
             $q->where('admin_id', $this->getAdminId());
-        })->where(function($q) {
+        })->where('requires_contract', true)->where(function($q) {
             $q->whereNull('provider_company')->orWhere('provider_company', '');
         })->with('group')->orderBy('name')->get();
     }
@@ -371,12 +372,16 @@ class AccountingFixCosts extends Component
                 abort(403);
             }
 
+            // Automatisch zum richtigen Tab (Privat/Gewerblich) wechseln
+            $this->isBusiness = $item->is_business;
+
             $this->itemName = $item->name;
             $this->itemAmount = $item->amount;
             $this->itemInterval = $item->interval_months;
             $this->itemDate = $item->first_payment_date->format('Y-m-d');
             $this->itemDescription = $item->description;
             $this->itemIsBusiness = (bool) $item->is_business;
+            $this->itemRequiresContract = (bool) $item->requires_contract;
             $this->itemTaxRate = $item->tax_rate ?? 0;
             $this->itemExistingFile = $item->contract_file_path;
             $this->itemLastPaymentDate = $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null;
@@ -422,6 +427,7 @@ class AccountingFixCosts extends Component
             'last_payment_date'  => $this->itemLastPaymentDate ?: null,
             'description'        => $this->itemDescription,
             'is_business'        => $this->itemIsBusiness ? 1 : 0,
+            'requires_contract'  => $this->itemRequiresContract ? 1 : 0,
             'tax_rate'           => (int) $this->itemTaxRate,
             'provider_company'        => $this->itemProviderCompany,
             'provider_street'         => $this->itemProviderStreet,
@@ -461,6 +467,7 @@ class AccountingFixCosts extends Component
             $nameChanged = ($originalSnapshot['name'] ?? '') !== ($item->name ?? '');
             $descChanged = ($originalSnapshot['description'] ?? '') !== ($item->description ?? '');
             $businessChanged = (bool)($originalSnapshot['is_business'] ?? false) !== (bool)$item->is_business;
+            $requiresContractChanged = (bool)($originalSnapshot['requires_contract'] ?? true) !== (bool)$item->requires_contract;
             $taxChanged = (int)($originalSnapshot['tax_rate'] ?? 0) !== (int)$item->tax_rate;
                    $oldFirstDate = isset($originalSnapshot['first_payment_date'])
                 ? \Carbon\Carbon::parse($originalSnapshot['first_payment_date'])->timezone(config('app.timezone'))->format('Y-m-d')
@@ -498,14 +505,14 @@ class AccountingFixCosts extends Component
                 : null;
             $contractEndDateChanged = $oldContractEndDate !== $newContractEndDate;
 
-            $isDirty = $amountChanged || $intervalChanged || $nameChanged || $descChanged || $businessChanged || $taxChanged || $firstDateChanged || $lastDateChanged || $providerChanged || $contractEndDateChanged || $this->itemFile;
+            $isDirty = $amountChanged || $intervalChanged || $nameChanged || $descChanged || $businessChanged || $requiresContractChanged || $taxChanged || $firstDateChanged || $lastDateChanged || $providerChanged || $contractEndDateChanged || $this->itemFile;
 
             if ($isDirty && !$this->isRestoring) {
                 $description = $amountChanged
                     ? 'Betrag wurde von ' . number_format($originalSnapshot['amount'] ?? 0, 2, ',', '.') . '€ auf ' . number_format((float)$this->itemAmount, 2, ',', '.') . '€ geändert.'
                     : 'Details der Kostenstelle wurden aktualisiert.';
 
-                if ($this->itemFile && !$amountChanged && !$intervalChanged && !$nameChanged && !$descChanged && !$businessChanged && !$taxChanged && !$firstDateChanged && !$lastDateChanged) {
+                if ($this->itemFile && !$amountChanged && !$intervalChanged && !$nameChanged && !$descChanged && !$businessChanged && !$requiresContractChanged && !$taxChanged && !$firstDateChanged && !$lastDateChanged) {
                     $description = 'Vertragsdokument wurde hochgeladen/aktualisiert.';
                 }
 
@@ -519,6 +526,7 @@ class AccountingFixCosts extends Component
                     'first_payment_date'   => $item->first_payment_date ? $item->first_payment_date->format('Y-m-d') : null,
                     'last_payment_date'    => $item->last_payment_date ? $item->last_payment_date->format('Y-m-d') : null,
                     'is_business'          => $item->is_business,
+                    'requires_contract'    => $item->requires_contract,
                     'tax_rate'             => $item->tax_rate,
                     'contract_file_path'   => $item->contract_file_path,
                     'tags'                 => $item->tags,
@@ -569,6 +577,7 @@ class AccountingFixCosts extends Component
                     'first_payment_date'   => $newItem->first_payment_date ? $newItem->first_payment_date->format('Y-m-d') : null,
                     'last_payment_date'    => $newItem->last_payment_date ? $newItem->last_payment_date->format('Y-m-d') : null,
                     'is_business'          => $newItem->is_business,
+                    'requires_contract'    => $newItem->requires_contract,
                     'tax_rate'             => $newItem->tax_rate,
                     'contract_file_path'   => $newItem->contract_file_path,
                     'tags'                 => $newItem->tags,
@@ -601,6 +610,7 @@ class AccountingFixCosts extends Component
         $this->itemLastPaymentDate = $history->last_payment_date ? $history->last_payment_date->format('Y-m-d') : null;
         $this->itemDescription     = $history->description ?? null;
         $this->itemIsBusiness      = (bool) $history->is_business;
+        $this->itemRequiresContract = (bool) ($history->requires_contract ?? true);
         $this->itemTaxRate         = $history->tax_rate ?? 0;
         
         $this->itemProviderCompany      = $history->provider_company;
@@ -710,6 +720,7 @@ class AccountingFixCosts extends Component
             'itemProviderPhone', 'itemProviderEmail', 'itemProviderWebsite', 'itemContractNumber',
             'itemNoticePeriod', 'itemContractEndDate', 'cancellingItemId', 'cancellationDateType', 'cancellationCustomDate'
         ]);
+        $this->itemRequiresContract = true;
         $this->itemDate = date('Y-m-d');
     }
 

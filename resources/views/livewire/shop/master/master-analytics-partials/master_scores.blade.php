@@ -23,7 +23,7 @@
         $opErrorCount = collect($healthChecks)->where('status', 'error')->count();
         $opWarningCount = collect($healthChecks)->where('status', 'warning')->count();
 
-        $operativeScore = 100 - ($opErrorCount * 25) - ($opWarningCount * 10) - ($totalTodos * 2);
+        $operativeScore = 100 - ($opErrorCount * 25) - ($opWarningCount * 10) - ($totalTodos * 1);
         $operativeScore = max(0, min(100, $operativeScore));
 
         $opColorClass = $operativeScore >= 80 ? 'text-emerald-400' : ($operativeScore >= 50 ? 'text-amber-400' : 'text-red-400');
@@ -184,7 +184,7 @@
                     <div class="text-xs text-gray-300 space-y-2">
                         <p class="text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-white">100 Punkte</span></p>
                         <ul class="space-y-1.5">
-                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro offenes Todo:</span> <span class="text-red-400">-2</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro offenes Todo:</span> <span class="text-red-400">-1</span></li>
                             <li class="flex justify-between items-center"><span class="text-gray-400">Pro Warnung:</span> <span class="text-red-400">-10</span></li>
                             <li class="flex justify-between items-center"><span class="text-gray-400">Pro Fehler:</span> <span class="text-red-400">-25</span></li>
                         </ul>
@@ -622,6 +622,8 @@
 
                                 $statusClass = match($check['status'] ?? 'error') {
                                     'success' => 'text-emerald-500 group-hover:text-emerald-400',
+                                    'todo' => 'text-blue-500 group-hover:text-blue-400',
+                                    'warning' => 'text-amber-500 group-hover:text-amber-400',
                                     default => 'text-red-500 group-hover:text-red-400',
                                 };
 

@@ -60,7 +60,7 @@ trait AiFinanceFuncs
             ],
             [
                 'name' => 'finance_list_fixed_costs',
-                'description' => 'Listet detailliert alle erfassten Fixkosten (Einnahmen und Ausgaben) auf, gruppiert nach Kategorien. Stichworte: Welche Fixkosten haben wir, was kostet der Server, liste Fixkosten.',
+                'description' => 'Listet detailliert alle erfassten Fixkosten (Einnahmen und Ausgaben) auf, gruppiert nach Kategorien. Zeigt auch ob ein Vertrag benötigt wird (requires_contract) und ob ein Vertrag hinterlegt ist. Stichworte: Welche Fixkosten haben wir, was kostet der Server, liste Fixkosten, fehlende Verträge.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -361,6 +361,8 @@ trait AiFinanceFuncs
                         'amount' => $item->amount,
                         'interval_months' => $item->interval_months,
                         'is_business' => (bool)$item->is_business,
+                        'requires_contract' => (bool)$item->requires_contract,
+                        'has_contract_file' => !empty($item->contract_file_path),
                         'tax_rate' => $item->tax_rate
                     ];
                 }

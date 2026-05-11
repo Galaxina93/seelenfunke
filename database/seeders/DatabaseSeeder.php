@@ -45,7 +45,7 @@ class DatabaseSeeder extends Seeder
             LogisticsShippingSeeder::class,
 
             // Buchhaltung
-            FinancialSeeder::class,
+            AccountingSeeder::class,
 
             // KI Agenten
             AiAgentSeeder::class,

@@ -43,7 +43,7 @@ Damit diese Änderungen auf dem Produktionsserver (Stage/Live) fehlerfrei übern
 2. **Datenbank aktualisieren:**
    Um die Verknüpfungen herzustellen, muss der Seeder auf dem Live-Server laufen:
    ```bash
-   php artisan db:seed --class=FinancialSeeder
+   php artisan db:seed --class=AccountingSeeder
    ```
    *(Achtung: Prüfe vorher, ob deine Live-Datenbank im Bereich der Finanzen bereits händisch modifiziert wurde, andernfalls werden die Seeder-Stände angewandt).*
 

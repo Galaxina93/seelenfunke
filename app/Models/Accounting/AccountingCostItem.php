@@ -17,6 +17,7 @@ class AccountingCostItem extends Model
         'amount',
         'interval_months',
         'is_business',
+        'requires_contract',
         'contract_file_path',
         'tags',
         'tax_rate',
@@ -42,6 +43,7 @@ class AccountingCostItem extends Model
         'contract_end_date'  => 'date',
         'amount'             => 'decimal:2',
         'is_business'        => 'boolean',
+        'requires_contract'  => 'boolean',
         'tags'               => 'array',
         'tax_rate'           => 'integer',
     ];

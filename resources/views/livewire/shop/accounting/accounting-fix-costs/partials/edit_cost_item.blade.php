@@ -122,10 +122,15 @@
 
     {{-- Zeile 3: Checkbox & Textarea --}}
     <div class="pt-2">
-        <label class="inline-flex items-center cursor-pointer select-none group mb-5">
-            <input type="checkbox" wire:model="itemIsBusiness" class="sr-only peer">
+        <label class="inline-flex items-center cursor-pointer select-none group mb-5 mr-6">
+            <input type="checkbox" wire:model.live="itemIsBusiness" class="sr-only peer">
             <div class="relative w-11 h-6 bg-gray-950 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-gray-900"></div>
             <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors">Gewerblicher Eintrag</span>
+        </label>
+        <label class="inline-flex items-center cursor-pointer select-none group mb-5">
+            <input type="checkbox" wire:model.live="itemRequiresContract" class="sr-only peer">
+            <div class="relative w-11 h-6 bg-gray-950 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-gray-900"></div>
+            <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors">Vertrag/Abo benötigt</span>
         </label>
 
         <textarea wire:model="itemDescription" placeholder="Notizen, Vertragsnummer, Kundennummer..."
@@ -133,7 +138,8 @@
     </div>
 
     {{-- Zeile 4: Vertrags- und Adressdaten (Für Kündigungen) --}}
-    <div class="mt-6 border-t border-gray-800 pt-6">
+    @if($itemRequiresContract)
+    <div class="mt-6 border-t border-gray-800 pt-6 animate-fade-in-down">
         <h4 class="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-4">Vertrags- & Adressdaten (optional)</h4>
         
         <div class="mb-6">
@@ -188,6 +194,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     {{-- HISTORY & CHART SECTION --}}
     @if($editingItemId && $item && $item->histories && $item->histories->count() > 0)

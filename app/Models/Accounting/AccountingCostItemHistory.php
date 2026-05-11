@@ -11,6 +11,7 @@ class AccountingCostItemHistory extends Model
         'accounting_cost_item_id',
         'name',
         'is_business',
+        'requires_contract',
         'tax_rate',
         'first_payment_date',
         'last_payment_date',
@@ -40,6 +41,7 @@ class AccountingCostItemHistory extends Model
         'last_payment_date' => 'date',
         'contract_end_date' => 'date',
         'is_business' => 'boolean',
+        'requires_contract' => 'boolean',
         'tags' => 'array',
     ];
 

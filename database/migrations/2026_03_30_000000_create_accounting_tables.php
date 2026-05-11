@@ -101,6 +101,7 @@ return new class extends Migration
                 $table->boolean('is_business')->default(false);
                 $table->integer('tax_rate')->nullable();
                 $table->string('contract_file_path')->nullable();
+                $table->boolean('requires_contract')->default(true);
                 $table->json('tags')->nullable();
                 
                 // Provider/Contract Data
@@ -230,6 +231,7 @@ return new class extends Migration
                 $table->date('first_payment_date')->nullable();
                 $table->date('last_payment_date')->nullable();
                 $table->string('contract_file_path')->nullable();
+                $table->boolean('requires_contract')->default(true);
                 $table->json('tags')->nullable();
                 $table->foreignUuid('accounting_group_id')->nullable()->constrained('accounting_groups')->nullOnDelete();
                 

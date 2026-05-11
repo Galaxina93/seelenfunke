@@ -85,7 +85,7 @@ class AnalyticsService
             ->whereHas('items')
             ->count();
 
-        $status = $abandonedCarts > 0 ? 'error' : 'success';
+        $status = $abandonedCarts > 0 ? 'warning' : 'success';
         $msg = $abandonedCarts > 0 ? $abandonedCarts . ' Körbe unberührt' : 'Alles aktuell';
         if ($totalCarts === 0) { $msg = 'Keine aktiven Körbe'; $status = 'success'; }
 
@@ -110,7 +110,7 @@ class AnalyticsService
 
         return [
             'title' => 'Lagerbestände',
-            'status' => $lowStockProducts->count() > 0 ? 'error' : 'success',
+            'status' => $lowStockProducts->count() > 0 ? 'warning' : 'success',
             'message' => $lowStockProducts->count() > 0 ? $lowStockProducts->count() . " Artikel unter Limit!" : "Lagerbestände optimal.",
             'icon' => 'cube',
             'count' => $lowStockProducts->count(),
@@ -129,7 +129,7 @@ class AnalyticsService
             $needsAction = $percentUsed >= $threshold1;
             
             return [
-                'status' => $needsAction ? 'error' : 'success',
+                'status' => $needsAction ? 'warning' : 'success',
                 'icon' => 'server',
                 'title' => 'Speicher',
                 'description' => 'Serverfestplatte',
@@ -151,7 +151,7 @@ class AnalyticsService
 
         return [
             'title' => 'Belege',
-            'status' => $missing->count() > 0 ? 'error' : 'success',
+            'status' => $missing->count() > 0 ? 'todo' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Positionen ohne Beleg." : "Alle Ausgaben belegt.",
             'icon' => 'banknotes',
             'count' => $missing->count(),
@@ -161,11 +161,11 @@ class AnalyticsService
 
     private function checkContracts(): array
     {
-        $missing = AccountingCostItem::whereNull('contract_file_path')->with('group')->get();
+        $missing = AccountingCostItem::where('requires_contract', true)->whereNull('contract_file_path')->with('group')->get();
 
         return [
             'title' => 'Verträge',
-            'status' => $missing->count() > 0 ? 'error' : 'success',
+            'status' => $missing->count() > 0 ? 'todo' : 'success',
             'message' => $missing->count() > 0 ? $missing->count() . " Unterlagen fehlen." : "Dokumente vollständig.",
             'icon' => 'document-text',
             'count' => $missing->count(),
@@ -179,7 +179,7 @@ class AnalyticsService
         $totalTickets = \App\Models\Support\SupportTicket::count();
         $openTickets = \App\Models\Support\SupportTicket::where('status', 'open')->with('customer')->get();
         $tCount = $openTickets->count();
-        $status = $tCount > 0 ? 'error' : 'success';
+        $status = $tCount > 0 ? 'todo' : 'success';
         $msg = $tCount > 0 ? $tCount . ' Kundenanfragen warten' : 'Alles beantwortet';
         if ($totalTickets === 0) { $msg = 'Keine Tickets vorhanden'; $status = 'success'; }
         return [
@@ -205,7 +205,7 @@ class AnalyticsService
         $totalChats = \App\Models\Support\SupportCustomerChat::count();
         $openChats = \App\Models\Support\SupportCustomerChat::where('status', 'open')->get();
         $cCount = $openChats->count();
-        $status = $cCount > 0 ? 'error' : 'success';
+        $status = $cCount > 0 ? 'warning' : 'success';
         $msg = $cCount > 0 ? $cCount . ' Live-Chats offen' : 'Alles beantwortet';
         if ($totalChats === 0) { $msg = 'Keine Chats vorhanden'; $status = 'success'; }
         return [
@@ -226,7 +226,7 @@ class AnalyticsService
             ->whereNotIn('folder', ['Trash', 'Sent', 'Drafts', 'Junk', 'Archiv', 'Archive', 'Gesendet', 'Entwürfe', 'Papierkorb'])
             ->count();
 
-        $status = $openMails > 0 ? 'error' : 'success';
+        $status = $openMails > 0 ? 'todo' : 'success';
         $msg = $openMails > 0 ? $openMails . ' ungelesen' : 'Alles gelesen';
         if ($totalMails === 0) { $msg = 'Keine Mails vorhanden'; $status = 'success'; }
 
@@ -246,7 +246,7 @@ class AnalyticsService
         $totalReqs = \App\Models\Support\SupportContactRequest::count();
         $openReqs = \App\Models\Support\SupportContactRequest::where('status', '!=', 'resolved')->get();
         $rCount = $openReqs->count();
-        $status = $rCount > 0 ? 'error' : 'success';
+        $status = $rCount > 0 ? 'todo' : 'success';
         $msg = $rCount > 0 ? $rCount . ' Kontaktanfragen offen' : 'Alles beantwortet';
         if ($totalReqs === 0) { $msg = 'Keine Kontaktanfragen vorhanden'; $status = 'success'; }
         return [
@@ -265,7 +265,7 @@ class AnalyticsService
         $totalReviews = \App\Models\Product\ProductReview::count();
         $pendingReviews = \App\Models\Product\ProductReview::where('status', 'pending')->with('product')->get();
         $rCount = $pendingReviews->count();
-        $status = $rCount > 0 ? 'error' : 'success';
+        $status = $rCount > 0 ? 'todo' : 'success';
         $msg = $rCount > 0 ? $rCount . ' Bewertungen prüfen' : 'Alle geprüft';
         if ($totalReviews === 0) { $msg = 'Noch keine Bewertungen'; $status = 'success'; }
         return [
@@ -289,7 +289,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Order\OrderOrder::class)) return null;
         $totalOrders = \App\Models\Order\OrderOrder::count();
         $oCount = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])->count();
-        $status = $oCount > 0 ? 'error' : 'success';
+        $status = $oCount > 0 ? 'todo' : 'success';
         $msg = $oCount > 0 ? $oCount . ' unversendet' : 'Alles versendet';
         if ($totalOrders === 0) { $msg = 'Noch keine Bestellungen'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'shopping-cart', 'title' => 'Bestellungen', 'message' => $msg, 'count' => $oCount, 'data' => []];
@@ -300,7 +300,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Accounting\AccountingInvoice::class)) return null;
         $totalCredits = \App\Models\Accounting\AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->count();
         $cCount = \App\Models\Accounting\AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])->whereNull('email_sent_at')->count();
-        $status = $cCount > 0 ? 'error' : 'success';
+        $status = $cCount > 0 ? 'warning' : 'success';
         $msg = $cCount > 0 ? $cCount . ' unversendet' : 'Alle versendet';
         if ($totalCredits === 0) { $msg = 'Keine Gutschriften vorhanden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'document-minus', 'title' => 'Gutschriften', 'message' => $msg, 'count' => $cCount, 'data' => []];
@@ -311,7 +311,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Accounting\AccountingBankTransaction::class) || !auth('admin')->check()) return null;
         $totalTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->count();
         $unassignedTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->whereNull('assigned_by_type')->count();
-        $status = $unassignedTx > 0 ? 'error' : 'success';
+        $status = $unassignedTx > 0 ? 'todo' : 'success';
         $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
         if ($totalTx === 0) { $msg = 'Keine Transaktionen gefunden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'banknotes', 'title' => 'Bank Umsätze', 'message' => $msg, 'count' => $unassignedTx, 'data' => []];
@@ -322,7 +322,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Management\ManagementTask::class)) return null;
         $totalTasks = \App\Models\Management\ManagementTask::count();
         $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->count();
-        $status = $openTasks > 0 ? 'error' : 'success';
+        $status = $openTasks > 0 ? 'todo' : 'success';
         $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
         if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'check-circle', 'title' => 'Aufgaben', 'message' => $msg, 'count' => $openTasks, 'data' => []];
@@ -333,7 +333,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Order\OrderQuoteRequest::class)) return null;
         $totalQuotes = \App\Models\Order\OrderQuoteRequest::count();
         $openQuotes = \App\Models\Order\OrderQuoteRequest::where('status', 'open')->count();
-        $status = $openQuotes > 0 ? 'error' : 'success';
+        $status = $openQuotes > 0 ? 'todo' : 'success';
         $msg = $openQuotes > 0 ? $openQuotes . ' Angebote offen' : 'Alles aktuell';
         if ($totalQuotes === 0) { $msg = 'Keine Angebote vorhanden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'clipboard-document-list', 'title' => 'Angebote', 'message' => $msg, 'count' => $openQuotes, 'data' => []];
@@ -344,7 +344,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Order\OrderRevocation::class)) return null;
         $totalRevs = \App\Models\Order\OrderRevocation::count();
         $oldRevs = \App\Models\Order\OrderRevocation::whereNotIn('status', ['processed', 'declined'])->where('created_at', '<', now()->subDays(2))->count();
-        $status = $oldRevs > 0 ? 'error' : 'success';
+        $status = $oldRevs > 0 ? 'warning' : 'success';
         $msg = $oldRevs > 0 ? $oldRevs . ' älter als 2 Tage' : 'Alles aktuell';
         if ($totalRevs === 0) { $msg = 'Keine Widerrufe vorhanden'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'archive-box-x-mark', 'title' => 'Widerrufe', 'message' => $msg, 'count' => $oldRevs, 'data' => []];
@@ -355,7 +355,7 @@ class AnalyticsService
         if (!class_exists(\App\Models\Product\ProductLoss::class)) return null;
         $totalLosses = \App\Models\Product\ProductLoss::count();
         $openLosses = \App\Models\Product\ProductLoss::whereNull('refund_received_at')->count();
-        $status = $openLosses > 0 ? 'error' : 'success';
+        $status = $openLosses > 0 ? 'warning' : 'success';
         $msg = $openLosses > 0 ? $openLosses . ' ungelöste Fälle' : 'Alles erledigt';
         if ($totalLosses === 0) { $msg = 'Keine Schäden erfasst'; $status = 'success'; }
         return ['status' => $status, 'icon' => 'exclamation-triangle', 'title' => 'Schwund & Bruch', 'message' => $msg, 'count' => $openLosses, 'data' => []];

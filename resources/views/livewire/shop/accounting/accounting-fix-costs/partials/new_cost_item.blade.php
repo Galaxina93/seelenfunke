@@ -75,7 +75,8 @@
                 @error('itemDate') <span class="text-[10px] text-red-400 mt-2 block font-bold tracking-widest uppercase ml-1 drop-shadow-[0_0_8px_currentColor]">{{ $message }}</span> @enderror
             </div>
             <div>
-                <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5">
+                @if($itemRequiresContract)
+                <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 animate-fade-in-down">
                     Vertrag / Datei
                     <div class="relative group cursor-help">
                         <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -88,16 +89,22 @@
                         </div>
                     </div>
                 </label>
-                <input type="file" wire:model="itemFile" class="block w-full text-xs text-gray-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-gray-300 hover:file:bg-gray-700 hover:file:text-white transition-all cursor-pointer bg-gray-900 border border-gray-800 rounded-xl p-1 shadow-inner">
+                <input type="file" wire:model="itemFile" class="block w-full text-xs text-gray-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-gray-300 hover:file:bg-gray-700 hover:file:text-white transition-all cursor-pointer bg-gray-900 border border-gray-800 rounded-xl p-1 shadow-inner animate-fade-in-down">
+                @endif
             </div>
         </div>
 
         {{-- Zeile 3 --}}
         <div class="pt-2">
-            <label class="inline-flex items-center cursor-pointer select-none group mb-5">
-                <input type="checkbox" wire:model="itemIsBusiness" class="sr-only peer">
+            <label class="inline-flex items-center cursor-pointer select-none group mb-5 mr-6">
+                <input type="checkbox" wire:model.live="itemIsBusiness" class="sr-only peer">
                 <div class="relative w-11 h-6 bg-gray-900 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-gray-950"></div>
                 <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors">Gewerblicher Eintrag</span>
+            </label>
+            <label class="inline-flex items-center cursor-pointer select-none group mb-5">
+                <input type="checkbox" wire:model.live="itemRequiresContract" class="sr-only peer">
+                <div class="relative w-11 h-6 bg-gray-900 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-gray-950"></div>
+                <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors">Vertrag/Abo benötigt</span>
             </label>
             <textarea wire:model="itemDescription" placeholder="Notizen, Vertragsnummer..." class="{{ $inputClass }} resize-none leading-relaxed" rows="3"></textarea>
         </div>

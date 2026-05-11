@@ -9,7 +9,7 @@ use App\Models\Accounting\AccountingGroup;
 use App\Models\Accounting\AccountingSpecialIssue;
 use Illuminate\Database\Seeder;
 
-class FinancialSeeder extends Seeder
+class AccountingSeeder extends Seeder
 {
     public function run()
     {
@@ -122,6 +122,15 @@ class FinancialSeeder extends Seeder
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-01-30',
                 'last_date'   => '2027-01-30',
+                'provider_company' => 'K/A',
+                'provider_street'  => 'Winkeler Straße',
+                'provider_house_number' => '1',
+                'provider_zip'     => '38518',
+                'provider_city'    => 'Gifhorn',
+                'provider_email'   => 'K/A',
+                'provider_phone'   => 'K/A',
+                'contract_number'  => 'K/A',
+                'notice_period'    => 'K/A',
                 'description' => null,
                 'tags'        => ['Einnahme', 'Staat', 'Förderung', 'Einkommen'],
             ],
@@ -132,6 +141,15 @@ class FinancialSeeder extends Seeder
                 'interval'    => 1,
                 'start_date'  => '2025-07-22',
                 'description' => null,
+                'provider_company' => 'Alina Steinhauer',
+                'provider_street'  => 'Carl-Goerdeler-Ring',
+                'provider_house_number' => '26',
+                'provider_zip'     => '38518',
+                'provider_city'    => 'Gifhorn',
+                'provider_email'   => 'alina.stone@t-online.de',
+                'provider_phone'   => '015901966864',
+                'contract_number'  => 'Vertrag-002',
+                'notice_period'    => '3 Monate',
                 'tags'        => ['Einnahme', 'Immobilie', 'Passiv', 'Mieteinnahmen'],
                 'contract_file_path' => 'buchhaltung/contracts/2025/07/2025-07-22_Vermieter_Miete.pdf'
             ],
@@ -210,7 +228,16 @@ class FinancialSeeder extends Seeder
                 'amount'      => -18.36,
                 'interval'    => 1,
                 'start_date'  => '2021-09-14',
-                'description' => "IBAN: DE96200700000111111100\nBIC: DEUTDEHHXXX\nZah...",
+                'description' => "Bitte nutzen Sie für Beitragsanliegen die Online-Formulare.\nGeschäftsführer: Michael Krüßel\nIBAN: DE96200700000111111100\nBIC: DEUTDEHHXXX",
+                'provider_company' => 'ARD ZDF Deutschlandradio Beitragsservice',
+                'provider_street' => 'Freimersdorfer Weg',
+                'provider_house_number' => '6',
+                'provider_zip' => '50829',
+                'provider_city' => 'Köln',
+                'provider_phone' => '0221 5061-0',
+                'provider_email' => 'impressum@rundfunkbeitrag.de',
+                'contract_number' => '705238795',
+                'notice_period' => 'K/A',
                 'tags'        => ['Haus', 'Behörde', 'GEZ', 'Pflicht'],
                 'contract_file_path' => 'buchhaltung/contracts/2021/09/2021-09-14_GEZ_Rundfunkbeitrag.pdf'
             ],
@@ -341,7 +368,17 @@ class FinancialSeeder extends Seeder
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-04-15',
                 'is_business' => 1,
-                'description' => "Betriebs­haftpflicht zur Absicherung bei gravierenden Fehlern.",
+                'provider_company' => 'K/A',
+                'provider_street'  => 'Bernhard-Wicki-Str.',
+                'provider_house_number' => '3',
+                'provider_zip'     => '80636',
+                'provider_city'    => 'München',
+                'provider_phone'   => '+49 89 54 58 01 281',
+                'provider_email'   => 'hiscox.info@hiscox.de',
+                'provider_website' => 'https://www.hiscox.de',
+                'contract_number'  => 'K/A',
+                'notice_period'    => 'K/A',
+                'description' => "Betriebs­haftpflicht zur Absicherung bei gravierenden Fehlern.\nHandelsregister: München HRB 238125\nUSt-IDNr. DE320201626\nVersicherungssteuernr.: 802/V20000024429",
                 'tags'        => ['Versicherung', 'Gewerbe', 'Absicherung', 'Pflicht'],
             ],
             [
@@ -402,6 +439,15 @@ class FinancialSeeder extends Seeder
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-04-15',
                 'is_business' => 1,
+                'provider_company' => 'K/A',
+                'provider_street'  => 'Winkeler Straße',
+                'provider_house_number' => '1',
+                'provider_zip'     => '38518',
+                'provider_city'    => 'Gifhorn',
+                'provider_email'   => 'K/A',
+                'provider_phone'   => 'K/A',
+                'contract_number'  => 'K/A',
+                'notice_period'    => 'K/A',
                 'description' => "Arbeitslosenversicherung zur Absicherung falls die Firma nicht klappt.",
                 'tags'        => ['Versicherung', 'Gewerbe', 'Vorsorge', 'Absicherung'],
             ],
@@ -448,7 +494,16 @@ class FinancialSeeder extends Seeder
                 'amount'      => -70.21,
                 'interval'    => 12,
                 'start_date'  => '2025-04-29',
-                'description' => null,
+                'description' => "The Netherlands\nFax: +31 (0)20 205 01 19",
+                'provider_company' => 'JetBrains N.V.',
+                'provider_street'  => 'Gelrestraat',
+                'provider_house_number' => '16',
+                'provider_zip'     => '1079 MZ',
+                'provider_city'    => 'Amsterdam',
+                'provider_phone'   => '+31 (0)20 205 01 18',
+                'provider_email'   => 'legal-nl@jetbrains.com',
+                'contract_number'  => 'DZTR3UPAP9',
+                'notice_period'    => 'K/A',
                 'tags'        => ['Lizenz', 'Vertrag', 'Software', 'Entwicklung', 'Abo'],
                 'contract_file_path' => 'buchhaltung/contracts/2025/04/2025-04-29_JetBrains_PHP-Storm.pdf'
             ],
@@ -473,7 +528,16 @@ class FinancialSeeder extends Seeder
                 'interval'    => 12, // yearly
                 'start_date'  => '2026-04-15',
                 'is_business' => 1,
-                'description' => "Verpackungslizenz Gebühren zum Versand (Verpackungsmüll).",
+                'provider_company' => 'Interzero Recycling Alliance GmbH',
+                'provider_street'  => 'Stollwerckstr.',
+                'provider_house_number' => '9a',
+                'provider_zip'     => '51149',
+                'provider_city'    => 'Köln',
+                'provider_phone'   => '+49 2203 9147-1964',
+                'provider_email'   => 'kontakt@lizenzero.de',
+                'contract_number'  => 'K/A',
+                'notice_period'    => 'K/A',
+                'description' => "Verpackungslizenz Gebühren zum Versand (Verpackungsmüll).\nGeschäftsführung: Michael Bürstner, Frank Kurrat\nAmtsgericht Köln HRB 104034\nUST-IDNr. DE345747730\nVerantwortlicher im Sinne von § 18 Abs. 2 MStV: Frank Kurrat",
                 'tags'        => ['Lizenz', 'Gewerbe', 'Pflicht', 'Logistik'],
             ],
             [
@@ -517,6 +581,7 @@ class FinancialSeeder extends Seeder
                 'interval'    => 1,
                 'start_date'  => '2025-02-13',
                 'description' => null,
+                'requires_contract' => false,
                 'tags'        => ['Auto', 'Mobilität', 'Verbrauch', 'Tank'],
             ],
             [
@@ -526,6 +591,7 @@ class FinancialSeeder extends Seeder
                 'interval'    => 12,
                 'start_date'  => '2023-09-25',
                 'description' => null,
+                'requires_contract' => false,
                 'tags'        => ['Auto', 'Behörde', 'Mobilität', 'Zoll'],
             ],
             [
@@ -555,6 +621,7 @@ class FinancialSeeder extends Seeder
                 'interval'    => 1,
                 'start_date'  => '2024-01-12',
                 'description' => "Es wurde alles durch Lenas Rechtsanwältin tippe...",
+                'requires_contract' => false,
                 'tags'        => ['Unterhalt', 'Familie', 'Kind', 'Verpflichtung'],
             ],
         ];
@@ -572,6 +639,7 @@ class FinancialSeeder extends Seeder
                     'last_payment_date'  => $item['last_date'] ?? null,
                     'description'        => $item['description'],
                     'is_business'        => $item['is_business'] ?? false,
+                    'requires_contract'  => $item['requires_contract'] ?? true,
                     'tags'               => $item['tags'] ?? [],
                     'contract_file_path' => $item['contract_file_path'] ?? null,
                     'provider_company'      => $item['provider_company'] ?? null,
