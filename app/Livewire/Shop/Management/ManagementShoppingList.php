@@ -131,4 +131,12 @@ class ManagementShoppingList extends Component
             $category->delete();
         }
     }
+
+    public function deleteItem($id)
+    {
+        $item = ManagementShoppingItem::find($id);
+        if ($item) {
+            $item->delete();
+        }
+    }
 }

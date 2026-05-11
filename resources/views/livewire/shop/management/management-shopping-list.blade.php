@@ -140,6 +140,9 @@
                                             @endif
                                         </div>
                                     </div>
+                                    <button wire:click.stop="deleteItem('{{ $item->id }}')" class="ml-4 p-2 text-gray-600 hover:text-red-500 transition-colors opacity-100 md:opacity-0 group-hover:opacity-100 shrink-0">
+                                        <x-heroicon-o-trash class="w-5 h-5" />
+                                    </button>
                                 </div>
                             @endforeach
                         </div>

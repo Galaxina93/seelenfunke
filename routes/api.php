@@ -95,6 +95,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // Tasks (Aufgaben)
     require __DIR__ . '/api/tasks.php';
 
+    // E-Mails
+    require __DIR__ . '/api/emails.php';
+
+    // Kontakte
+    require __DIR__ . '/api/contacts.php';
+
+    // Einkaufsliste
+    require __DIR__ . '/api/shopping.php';
+
     // Calender & Termine
     require __DIR__ . '/api/calendar.php';
 
