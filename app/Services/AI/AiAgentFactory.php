@@ -16,6 +16,12 @@ class AiAgentFactory
     public static function make(AiAgent $agent)
     {
         $provider = strtolower($agent->provider ?? 'google');
+        $model = strtolower($agent->model ?? '');
+
+        // Auto-detect Mittwald models even if provider is wrongly set
+        if (str_contains($model, 'oss') || str_contains($model, 'stral') || str_contains($model, 'qwen') || $provider === 'mittwald') {
+            return class_exists(MittwaldAgent::class) ? new MittwaldAgent($agent) : new GeminiAgent($agent);
+        }
 
         if ($provider === 'openai') {
              // Will return an instance of ChatGPTAgent and if it errors, fallback to another provider later
@@ -41,12 +47,20 @@ class AiAgentFactory
     public static function processDirectPrompt(AiAgent $agent, string $prompt): string
     {
         $provider = strtolower($agent->provider ?? 'google');
+        $model = strtolower($agent->model ?? '');
+
+        // Auto-detect Mittwald models
+        if (str_contains($model, 'oss') || str_contains($model, 'stral') || str_contains($model, 'qwen') || $provider === 'mittwald') {
+            $provider = 'mittwald'; // Force provider variable for logic
+        }
 
         try {
             if ($provider === 'openai' && class_exists(ChatGPTAgent::class)) {
                 $response = ChatGPTAgent::processDirectPrompt($agent, $prompt);
             } elseif ($provider === 'anthropic' && class_exists(ClaudeAgent::class)) {
                 $response = ClaudeAgent::processDirectPrompt($agent, $prompt);
+            } elseif ($provider === 'mittwald' && class_exists(MittwaldAgent::class)) {
+                $response = MittwaldAgent::processDirectPrompt($agent, $prompt);
             } else {
                 $response = GeminiAgent::processDirectPrompt($agent, $prompt);
             }

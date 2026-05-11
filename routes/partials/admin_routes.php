@@ -40,6 +40,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/user-management', \App\Livewire\Shop\System\SystemUserManagement::class)->name('admin.user-management');
     Route::get('/admin/system/backups', \App\Livewire\Shop\System\SystemBackups::class)->name('admin.system.backups');
     Route::get('/admin/configuration', \App\Livewire\Shop\System\SystemShopConfig::class)->name('admin.configuration');
+    Route::get('/admin/system/neural-analysis', \App\Livewire\Backend\System\SystemNeuralAnalysisIndex::class)->name('admin.system.neural-analysis');
 
     // -----------------------------------------------------------------------
     // Support

@@ -54,8 +54,7 @@ class AiAgentEditor extends Component
 
     public $availableModels = [
         'gpt-oss-120b' => 'GPT-OSS 120B',
-        'Ministral-3-14B-Instruct-2512' => 'Ministral 3 14B',
-        'Devstral-Small-2-24B-Instruct-2512' => 'Devstral Small 2 24B',
+        'Qwen3.5-122B-A10B-FP8' => 'Qwen3.5 122B (Mittwald)',
         'Qwen3-Embedding-8B' => 'Qwen3 Embedding 8B',
         'whisper-large-v3-turbo' => 'Whisper Large v3 Turbo',
         'gemini-2.5-pro' => 'Google Gemini 2.5 Pro (Standard)',
@@ -89,19 +88,12 @@ class AiAgentEditor extends Component
             'license' => 'Apache 2.0',
             'use_cases' => ['Komplexe Logik & Programmierung', 'Tiefgründige Textanalyse', 'Autonome Entscheidungen (CEO)']
         ],
-        'Ministral-3-14B-Instruct-2512' => [
-            'type' => 'Chat + Vision', 
-            'capabilities' => 'Text, Bild, Tool-Calling', 
-            'context' => '262.144 Token', 
-            'license' => 'Apache 2.0',
-            'use_cases' => ['Bildanalyse & Beschreibung', 'Solider Alltagsbegleiter', 'Schnelle Dokumenten-Auswertung']
-        ],
-        'Devstral-Small-2-24B-Instruct-2512' => [
-            'type' => 'Chat', 
-            'capabilities' => 'Text, Bild, Tool-Calling', 
-            'context' => '262.144 Token', 
-            'license' => 'Apache 2.0',
-            'use_cases' => ['Schnelles Brainstorming', 'Kreatives Schreiben', 'Allgemeine Code-Hilfe']
+        'Qwen3.5-122B-A10B-FP8' => [
+            'type' => 'Chat + Code + Reasoning', 
+            'capabilities' => 'Text, Tool-Calling', 
+            'context' => '131.072 Token', 
+            'license' => 'Apache 2.0 (Open Source)',
+            'use_cases' => ['Komplexe Programmierung', 'Solider Support-Agent', 'Effizientes Tool-Calling']
         ],
         'Qwen3-Embedding-8B' => [
             'type' => 'Embedding', 

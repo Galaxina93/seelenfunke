@@ -258,6 +258,20 @@ class GeminiAgent implements AiProviderInterface
             }
         }
 
+        // STRICT REQUIREMENT FOR GEMINI/VERTEX AI:
+        // The last message in the array MUST be from the 'user'.
+        // If the array ends with 'assistant' (e.g., due to an agent switch without new user input),
+        // we inject a prompt to force the AI to continue its thought process.
+        if (!empty($normalizedMessages)) {
+            $lastIdx = count($normalizedMessages) - 1;
+            if ($normalizedMessages[$lastIdx]['role'] !== 'user' && $normalizedMessages[$lastIdx]['role'] !== 'system') {
+                $normalizedMessages[] = [
+                    'role' => 'user',
+                    'content' => '[SYSTEM-TRIGGER]: Bitte setze die Konversation basierend auf dem bisherigen Verlauf fort oder verarbeite die soeben empfangenen Daten.'
+                ];
+            }
+        }
+
         $payload = [
             'model' => $this->agent->model ?? 'gpt-oss-120b',
             'messages' => $normalizedMessages,

@@ -201,7 +201,7 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_penalize_offtopic',
-                'description' => 'Verwende dieses Tool IMMER SOFORT, wenn der Kunde Smalltalk beginnt, extrem vom Thema e-commerce abweicht oder Dinge fragt/sagt, die nichts mit Support/Produkten zu tun haben (z.B. "Erzähl einen Witz"). Gib eine Gewichtung (severity) von 1 bis 10 an. 1 = leichtes Abweichen vom Thema, 3 = "Hallo was geht?", 8 = Witz eingefordert, 10 = extreme Provokation. Bei 10 sammelten Punkten schließt das System den Chat.',
+                'description' => 'Verwende dieses Tool IMMER SOFORT, wenn der Kunde Smalltalk beginnt, extrem vom Thema e-commerce abweicht oder Dinge fragt/sagt, die nichts mit Support/Produkten zu tun haben (z.B. "Erzähl einen Witz"). Gib eine Gewichtung (severity) von 1 bis 10 an. 1 = leichtes Abweichen vom Thema, 3 = "Hallo was geht?", 8 = Witz eingefordert, 10 = extreme Provokation. Bei 100 gesammelten Punkten (Ausdauer-Limit) schließt das System den Chat.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -265,6 +265,18 @@ trait AiSupportFuncs
                     'required' => ['search_term']
                 ],
                 'callable' => [self::class, 'executeAdminSearchSupportTickets']
+            ],
+            [
+                'name' => 'support_get_legal_documents',
+                'description' => 'Liest die aktuellen Rechtstexte (Impressum oder Datenschutzerklärung) der Webseite aus. Nutze dies IMMER, wenn der Kunde nach rechtlichen Details fragt.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'document_type' => ['type' => 'string', 'enum' => ['impressum', 'datenschutz']]
+                    ],
+                    'required' => ['document_type']
+                ],
+                'callable' => [self::class, 'executeGetLegalDocuments']
             ]
         ];
     }
@@ -273,20 +285,38 @@ trait AiSupportFuncs
     {
         $chatHistoryStr = "";
         try {
+            $customerName = 'Kunde';
+            $chat = \App\Models\Support\SupportCustomerChat::find($chatId);
+            if ($chat && $chat->customer_id) {
+                $customer = \App\Models\Customer\Customer::find($chat->customer_id);
+                if ($customer) {
+                    $customerName = trim($customer->first_name . ' ' . $customer->last_name);
+                    if (empty($customerName)) {
+                        $customerName = 'Kunde';
+                    }
+                }
+            }
+
             $messages = \App\Models\Support\SupportCustomerChatMessage::where('support_customer_chat_id', $chatId)
                 ->orderBy('created_at', 'asc')->get();
             if ($messages->count() > 0) {
-                $chatHistoryStr .= "\n\n--- CHAT VERLAUF ---\n";
+                $chatHistoryStr .= "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+                $chatHistoryStr .= "💬 URSPRÜNGLICHER CHAT-VERLAUF:\n";
+                $chatHistoryStr .= "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
+                
                 foreach ($messages as $msg) {
-                    $sender = $msg->sender === 'ai' ? 'Funki (KI)' : 'Kunde';
-                    $chatHistoryStr .= "{$sender}: {$msg->message}\n";
+                    $senderIcon = $msg->sender === 'ai' ? '🤖' : ($msg->sender === 'system' ? '⚙️' : '👤');
+                    $resolvedName = $msg->sender === 'ai' ? 'Funki (KI)' : ($msg->sender === 'system' ? 'System' : $customerName);
+                    $time = $msg->created_at ? $msg->created_at->format('d.m.Y H:i') : 'Unbekannt';
+                    
+                    $chatHistoryStr .= "{$senderIcon} {$resolvedName} [{$time}]:\n";
+                    $chatHistoryStr .= "{$msg->message}\n\n";
                 }
-                $chatHistoryStr .= "--------------------\n";
             }
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Konnte Chat History nicht laden: ' . $e->getMessage());
         }
-        return $chatHistoryStr;
+        return trim($chatHistoryStr);
     }
 
     public static function executePenalizeOfftopic(array $args)
@@ -314,24 +344,24 @@ trait AiSupportFuncs
                 ]);
             }
 
-            $cacheKey = "chat_severity_{$chatId}";
-            $currentScore = \Illuminate\Support\Facades\Cache::get($cacheKey, 0);
-            $newScore = $currentScore + $severity;
+            $customerMsgs = \App\Models\Support\SupportCustomerChatMessage::where('support_customer_chat_id', $chatId)
+                ->where('sender', 'customer');
+            $customerMsgCount = $customerMsgs->count();
+            $severitySum = $customerMsgs->sum('severity');
+            $newScore = ($customerMsgCount * 10) + $severitySum;
 
-            \Illuminate\Support\Facades\Cache::put($cacheKey, $newScore, now()->addHour());
-
-            if ($newScore >= 10) {
+            if ($newScore >= 100) {
                 // Den Chat komplett auflösen und schließen
                 \App\Models\Support\SupportCustomerChat::where('id', $chatId)->update(['status' => 'resolved_auto']);
                 return [
                     'status' => 'success',
-                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Aufgrund wiederholt unpassender oder offtopic Nachrichten habe ich diesen Support-Chat nun endgültig geschlossen. Ich bitte um Verständnis, dass ich ausschließlich für Produkt- und Bestellsupport zur Verfügung stehe."'
+                    'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Da unser Ausdauer-Limit von 100 Punkten durch wiederholte Abweichungen vom Thema erreicht wurde, habe ich diesen Support-Chat nun endgültig geschlossen. Ich bitte um Verständnis, dass ich ausschließlich für Produkt- und Bestellsupport zur Verfügung stehe."'
                 ];
             } else {
-                $missing = 10 - $newScore;
+                $missing = 100 - $newScore;
                 return [
                     'status' => 'success',
-                    'message' => "HINTERGRUND-INFO FÜR KI: Das Vergehen wurde mit einer Schwere von {$severity}/10 gewertet. Bisher angesammelter Score: {$newScore}/10. Es fehlen noch {$missing} Punkte bis der Chat automatisch beendet wird. Sage dem Kunden nun extrem formell und höflich, dass du ausschließlich für Bestell- oder Produktfragen verfügbar bist, aber formuliere es diplomatisch."
+                    'message' => "HINTERGRUND-INFO FÜR KI: Das Vergehen wurde mit einer Schwere von {$severity}/10 gewertet. Bisher angesammelte Ausdauer-Punkte: {$newScore}/100. Es fehlen noch {$missing} Punkte bis der Chat automatisch beendet wird. Sage dem Kunden nun extrem formell und höflich, dass du ausschließlich für Bestell- oder Produktfragen verfügbar bist, aber formuliere es diplomatisch."
                 ];
             }
         } catch (\Exception $e) {
@@ -1307,6 +1337,49 @@ trait AiSupportFuncs
             return ['status' => 'success', 'data' => $result];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Systemfehler bei Ticket Suche: ' . $e->getMessage()];
+        }
+    }
+    public static function executeGetLegalDocuments(array $args)
+    {
+        try {
+            $type = $args['document_type'] ?? '';
+            
+            $allowedFiles = [
+                'impressum' => resource_path('views/frontend/pages/impressum.blade.php'),
+                'datenschutz' => resource_path('views/frontend/pages/datenschutz.blade.php'),
+            ];
+
+            if (!array_key_exists($type, $allowedFiles)) {
+                return ['status' => 'error', 'message' => 'Zugriff verweigert. Dieses Dokument ist nicht für den Support freigegeben.'];
+            }
+
+            $filePath = $allowedFiles[$type];
+            if (!file_exists($filePath)) {
+                return ['status' => 'error', 'message' => 'Das Dokument konnte im System nicht gefunden werden.'];
+            }
+
+            // Lese Datei und entferne HTML + Blade Direktiven
+            $content = file_get_contents($filePath);
+            
+            // Simples Cleaning (Blade Code & HTML entfernen)
+            $cleanContent = preg_replace('/@(?:extends|section|endsection|if|else|endif|foreach|endforeach).*?\n/', '', $content);
+            $cleanContent = strip_tags($cleanContent);
+            
+            // Mehrfache Leerzeilen bereinigen
+            $cleanContent = preg_replace("/(^[\r\n]*|[\r\n]+)[\s\t]*[\r\n]+/", "\n\n", $cleanContent);
+            $cleanContent = trim($cleanContent);
+
+            return [
+                'status' => 'success',
+                'data' => [
+                    'document_type' => $type,
+                    'content' => $cleanContent,
+                    'url' => url('/' . $type)
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler bei Rechtstexten: ' . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Systemfehler beim Lesen der Rechtsdokumente.'];
         }
     }
 }

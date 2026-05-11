@@ -72,8 +72,22 @@ class MittwaldAgent
                              "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
                              "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
                              
+        // Extract any 'system' messages from incoming messages to avoid multiple system messages
+        $incomingSystemPrompt = '';
+        $filteredMessages = [];
+        foreach ($incomingMessages as $msg) {
+            if (($msg['role'] ?? '') === 'system') {
+                $incomingSystemPrompt .= "\n\n" . $msg['content'];
+            } else {
+                $filteredMessages[] = $msg;
+            }
+        }
+
         if ($this->dynamicSystemPrompt) {
             $systemPromptText .= "\n\n" . $this->dynamicSystemPrompt;
+        }
+        if ($incomingSystemPrompt) {
+            $systemPromptText .= "\n\n[ZUSÄTZLICHE KONTEXT-ANWEISUNGEN]\n" . trim($incomingSystemPrompt);
         }
 
         $systemPrompt = [
@@ -81,8 +95,8 @@ class MittwaldAgent
             'content' => $systemPromptText
         ];
 
-        // Combine history with system prompt
-        $messages = array_merge([$systemPrompt], $incomingMessages);
+        // Combine history with single system prompt
+        $messages = array_merge([$systemPrompt], $filteredMessages);
 
         $contextData = [];
         $usageData = [
@@ -140,9 +154,10 @@ class MittwaldAgent
         ];
 
         // Ministral and Devstral models on the Mittwald Proxy currently do not support Tool Calling
-        // Passing the 'tools' array to them results in a 400 Bad Request error.
+        // Open Source Modelle (wie gpt-oss-120b) produzieren oft XML-Kauderwelsch, wenn sie Tools übergeben bekommen,
+        // daher strippen wir die Tools auch für 'oss'.
         $modelName = strtolower($this->agent->model ?? 'gpt-oss-120b');
-        if (str_contains($modelName, 'stral')) {
+        if (str_contains($modelName, 'stral') || str_contains($modelName, 'oss')) {
             $filteredSchema = [];
         }
 
@@ -152,7 +167,7 @@ class MittwaldAgent
         }
 
         try {
-            // Log::info("Sending request to Mittwald AI", ['model' => $payload['model'], 'temperature' => $payload['temperature']]);
+            Log::debug("Mittwald Payload for 400 error diagnosis", $payload);
 
             \Illuminate\Support\Facades\Cache::put('ai_live_state', [
                 'active_node' => 'cpu-chip',

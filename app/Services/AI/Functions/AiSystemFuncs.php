@@ -648,6 +648,77 @@ trait AiSystemFuncs
                     'required' => ['query']
                 ],
                 'callable' => [self::class, 'executeSearchWeb']
+            ],
+            [
+                'name' => 'system_analyze_neural_error',
+                'description' => 'Führt eine tiefgreifende neurale Fehleranalyse für eine defekte Datei (ausgewählt im 3D Projekt Gehirn) aus und generiert einen Markdown Bericht. Nutze dieses Tool, wenn der User im 3D-Gehirn einen Fehler anklickt und analysiert haben möchte.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der Pfad der betroffenen Datei (z.B. app/Models/User.php).'
+                        ],
+                        'error_context' => [
+                            'type' => 'string',
+                            'description' => 'Der Kontext des Fehlers aus dem System Log.'
+                        ]
+                    ],
+                    'required' => ['file_path']
+                ],
+                'callable' => [self::class, 'executeAnalyzeNeuralError']
+            ],
+            [
+                'name' => 'system_scan_neural_network',
+                'description' => 'Führe dieses Tool IMMER aus, wenn der Nutzer sagt: "Untersuche das Neurale Netzwerk auf Fehler", "Zeige Fehler im Gehirn", "Scanne das Projekt Gehirn". Es triggert einen visuellen Scan im 3D Raum und gibt dir als KI eine Liste der gefundenen fehlerhaften Dateien zurück.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeScanNeuralNetwork']
+            ],
+            [
+                'name' => 'system_fly_to_neural_node',
+                'description' => 'Navigiert das 3D Projekt Gehirn zu einer bestimmten Datei und liefert dir die Code-Struktur (Zustand, Abhängigkeiten, Methoden) zurück, damit du diese auf Fehler analysieren kannst.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der Pfad oder Name der Datei (z.B. User.php oder app/Models/User.php).'
+                        ]
+                    ],
+                    'required' => ['file_path']
+                ],
+                'callable' => [self::class, 'executeFlyToNeuralNode']
+            ],
+            [
+                'name' => 'system_export_neural_map',
+                'description' => 'Exportiert das gesamte neuronale Netzwerk (alle Dateien und deren Zusammenhänge) in eine Markdown-Datei im Hauptverzeichnis. Nutze dies, wenn der Nutzer verlangt, das Projekt Gehirn oder die Map zu exportieren.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeExportNeuralMap']
+            ],
+            [
+                'name' => 'system_send_neural_report_mail',
+                'description' => 'Sendet den generierten Markdown-Bericht der Neuralen Fehleranalyse per E-Mail an den Administrator oder eine Zieladresse.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'report_file' => [
+                            'type' => 'string',
+                            'description' => 'Der Dateiname des generierten Berichts aus system_analyze_neural_error (z.B. NeuralAnalysis_Controller.php_123.md)'
+                        ],
+                        'email' => [
+                            'type' => 'string',
+                            'description' => 'Die Ziel-E-Mail-Adresse (Standard: leer für Admin-Standardadresse)'
+                        ]
+                    ],
+                    'required' => ['report_file']
+                ],
+                'callable' => [self::class, 'executeSendNeuralReportMail']
             ]
         ];
 
@@ -661,6 +732,273 @@ trait AiSystemFuncs
         return $schema;
     }
 
+    public static function executeAnalyzeNeuralError(array $args)
+    {
+        try {
+            if (empty($args['file_path'])) {
+                return ['status' => 'error', 'message' => 'Es wurde keine Datei übergeben.'];
+            }
+
+            $filePath = $args['file_path'];
+            $errorContext = $args['error_context'] ?? 'Unbekannter Fehler';
+
+            // Fetch actual file content if it exists
+            $fullPath = base_path($filePath);
+            $codeSnippet = 'Datei nicht gefunden oder nicht lesbar.';
+            if (\Illuminate\Support\Facades\File::exists($fullPath) && is_file($fullPath)) {
+                $codeSnippet = mb_substr(file_get_contents($fullPath), 0, 40000); // Limit to ~40k chars to prevent token overflow
+            }
+
+            // Get the agent context (Systemi)
+            $agent = \App\Models\Ai\AiAgent::where('name', 'Systemi')->first() ?? \App\Models\Ai\AiAgent::first();
+            
+            $prompt = "Du bist ein tiefgreifender neuronaler Code-Analyzer. Untersuche den folgenden Fehlerbericht in Kombination mit dem Quellcode der Datei.\n\n";
+            $prompt .= "**Betroffene Datei:** `{$filePath}`\n";
+            $prompt .= "**Fehler-Kontext:** {$errorContext}\n\n";
+            $prompt .= "**Quellcode Auszug:**\n```php\n{$codeSnippet}\n```\n\n";
+            $prompt .= "Erstelle einen professionellen, tiefgreifenden Markdown-Bericht. Gliedere ihn in:\n";
+            $prompt .= "1. **# Neurale Fehleranalyse: " . basename($filePath) . "**\n";
+            $prompt .= "2. **Diagnose:** Was genau verursacht den Fehler?\n";
+            $prompt .= "3. **Ursachenanalyse im Code:** Wo im Code tritt der Fehler auf und warum?\n";
+            $prompt .= "4. **Empfohlene Schritte / Code-Korrektur:** Gib den exakten korrigierten Codeblock an, der das Problem löst.\n";
+            $prompt .= "Sei extrem präzise, technisch versiert und fasse dich kurz aber treffsicher.";
+
+            // Execute Real AI Analysis via Gemini
+            $reportContent = \App\Services\AI\GeminiAgent::processDirectPrompt($agent, $prompt);
+
+            // Fallback if LLM fails
+            if (empty(trim($reportContent)) || str_contains($reportContent, 'API Fehler')) {
+                $reportContent = "# Neurale Fehleranalyse: " . basename($filePath) . "\n\n";
+                $reportContent .= "**Betroffene Datei:** `" . $filePath . "`\n";
+                $reportContent .= "**Fehler-Kontext:** " . $errorContext . "\n\n";
+                $reportContent .= "### Diagnose\n";
+                $reportContent .= "Die KI konnte den Code nicht analysieren (API Limit oder Fehler).\n\n";
+                $reportContent .= "### API Response\n";
+                $reportContent .= $reportContent;
+            }
+
+            $reportName = 'NeuralAnalysis_' . basename($filePath) . '_' . time() . '.md';
+
+            // Save report to the public workspace so it's visible in the UI
+            \Illuminate\Support\Facades\Storage::disk('public')->put('agenten/workspace/md/' . $reportName, $reportContent);
+
+            return [
+                'status' => 'success',
+                'message' => "Neurale Fehleranalyse abgeschlossen. Bericht wurde als {$reportName} generiert.",
+                'report_file' => $reportName,
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-neural-analysis-complete',
+                    'detail' => [
+                        'file_path' => $filePath,
+                        'report' => $reportContent
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Neural Error Analysis failed: ' . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler bei der Analyse: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeSendNeuralReportMail(array $args)
+    {
+        try {
+            $reportFile = $args['report_file'] ?? '';
+            $email = $args['email'] ?? null;
+            if (!$email) {
+                $email = config('mail.from.address') ?: 'admin@mein-seelenfunke.de';
+            }
+
+            if (!$reportFile) {
+                return ['status' => 'error', 'message' => 'Kein report_file angegeben.'];
+            }
+
+            $path = storage_path('app/public/agenten/workspace/md/' . $reportFile);
+            if (!\Illuminate\Support\Facades\File::exists($path)) {
+                return ['status' => 'error', 'message' => 'Bericht-Datei nicht gefunden: ' . $reportFile];
+            }
+
+            $content = file_get_contents($path);
+
+            \Illuminate\Support\Facades\Mail::raw("Automatischer KI Bericht - Neurale Diagnose:\n\n" . $content, function ($message) use ($email, $reportFile) {
+                $message->to($email)
+                        ->subject("KI Analyse: " . $reportFile);
+            });
+
+            return [
+                'status' => 'success',
+                'message' => 'Der Diagnosebericht ' . $reportFile . ' wurde erfolgreich an ' . $email . ' gesendet.',
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Senden der Mail: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeScanNeuralNetwork(array $args)
+    {
+        try {
+            $logPath = storage_path('logs/laravel.log');
+            $errorsFound = [];
+
+            if (\Illuminate\Support\Facades\File::exists($logPath)) {
+                $filesize = filesize($logPath);
+                if ($filesize > 0) {
+                    $readLength = min(100000, $filesize); // Last 100k bytes
+                    $file = fopen($logPath, 'r');
+                    fseek($file, -$readLength, SEEK_END);
+                    $logContent = fread($file, $readLength);
+                    fclose($file);
+
+                    $lines = explode("\n", $logContent);
+                    $currentError = null;
+                    
+                    foreach ($lines as $line) {
+                        if (str_contains($line, 'local.ERROR:')) {
+                            $currentError = preg_replace('/^\[.*?\] local\.ERROR: /', '', $line);
+                        }
+                        
+                        // Look for app/ paths in stack traces or the error itself
+                        if ($currentError && preg_match('/(?:[\/\w]*?)(app\/[a-zA-Z0-9_\-\.\/]+\.php)/', $line, $matches)) {
+                            $filePath = $matches[1];
+                            if (!isset($errorsFound[$filePath])) {
+                                $errorsFound[$filePath] = mb_substr($currentError, 0, 300);
+                            }
+                            $currentError = null; // Reset to catch next error
+                        }
+                    }
+                }
+            }
+
+            if (empty($errorsFound)) {
+                return [
+                    'status' => 'success',
+                    'message' => 'Scan ausgeführt. Keine Systemfehler im Log gefunden. Das System ist stabil.',
+                    'errors' => []
+                ];
+            }
+
+            $filePaths = array_keys($errorsFound);
+            $nodesWithErrors = \App\Models\System\SystemNeuralNode::whereIn('file_path', $filePaths)->get(['name', 'file_path']);
+            
+            $formattedErrors = [];
+            foreach ($nodesWithErrors as $n) {
+                $formattedErrors[] = [
+                    'name' => $n->name,
+                    'file_path' => $n->file_path,
+                    'error_state' => $errorsFound[$n->file_path]
+                ];
+            }
+            
+            return [
+                'status' => 'success',
+                'message' => 'Scan ausgeführt. Reale fehlerhafte Knoten gefunden: ' . $nodesWithErrors->pluck('name')->implode(', '),
+                'errors' => $formattedErrors,
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-neural-scan-trigger',
+                    'detail' => [
+                        'errors' => $formattedErrors
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Scan: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeFlyToNeuralNode(array $args)
+    {
+        try {
+            $filePath = $args['file_path'] ?? '';
+            if (!$filePath) return ['status' => 'error', 'message' => 'Kein Dateipfad angegeben.'];
+            
+            $node = \App\Models\System\SystemNeuralNode::where('file_path', 'like', "%{$filePath}%")->first();
+            if (!$node) return ['status' => 'error', 'message' => 'Datei im Gehirn nicht gefunden.'];
+            
+            // Ermittle, ob Fehler (simuliert)
+            $mockErrors = ['app/Models/User.php', 'app/Http/Controllers/Controller.php'];
+            $isError = in_array($node->file_path, $mockErrors);
+            $errorState = $isError ? "Exception: Undefined index oder Connection Refused." : "Systemstatus 100% OK";
+
+            return [
+                'status' => 'success',
+                'message' => 'Flug zur Datei gestartet.',
+                'node_data' => [
+                    'name' => $node->name,
+                    'file_path' => $node->file_path,
+                    'dependencies' => $node->dependencies,
+                    'methods' => $node->methods,
+                    'error_state' => $errorState
+                ],
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-fly-to-neural-node',
+                    'detail' => [
+                        'id' => $node->file_path
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Ansteuern: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeExportNeuralMap(array $args)
+    {
+        try {
+            $nodes = \App\Models\System\SystemNeuralNode::all();
+            
+            $md = "# AI Neural Map - Systemarchitektur\n\n";
+            $md .= "Dieses Dokument enthält die gesamte Dateistruktur des Systems zur schnellen Referenz.\n\n";
+
+            $groups = [
+                2 => 'Models',
+                3 => 'Controllers',
+                4 => 'Livewire',
+                5 => 'Views',
+                6 => 'Routes',
+                7 => 'Config',
+                8 => 'Services',
+                9 => 'Console/Commands',
+            ];
+
+            foreach ($nodes as $node) {
+                $groupName = $groups[$node->group_id] ?? 'Allgemein';
+                $md .= "## {$node->file_path}\n";
+                $md .= "**Name:** {$node->name}\n";
+                $md .= "**Typ:** {$groupName}\n";
+                
+                $md .= "**Abhängigkeiten:**\n";
+                if (!empty($node->dependencies) && is_array($node->dependencies)) {
+                    foreach ($node->dependencies as $dep) {
+                        $md .= "- {$dep}\n";
+                    }
+                } else {
+                    $md .= "- Keine bekannten Abhängigkeiten\n";
+                }
+                $md .= "\n";
+            }
+
+            $filePath = base_path('ai-neural-map.md');
+            file_put_contents($filePath, $md);
+
+            return [
+                'status' => 'success',
+                'message' => 'Die Neural Map wurde erfolgreich exportiert.',
+                'file_path' => $filePath,
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-speech-feedback',
+                    'detail' => [
+                        'text' => 'Die neuronale Struktur wurde erfolgreich in dein Hauptverzeichnis exportiert.'
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Export fehlgeschlagen: ' . $e->getMessage()];
+        }
+    }
 
     public static function executeCreateDatabaseBackup(array $args)
     {

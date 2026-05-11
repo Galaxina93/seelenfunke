@@ -9,7 +9,7 @@
     <ram:ID>RE-2026-001</ram:ID>
     <ram:TypeCode>380</ram:TypeCode>
     <ram:IssueDateTime>
-      <udt:DateTimeString format="102">20260505</udt:DateTimeString>
+      <udt:DateTimeString format="102">20260511</udt:DateTimeString>
     </ram:IssueDateTime>
   </rsm:ExchangedDocument>
   <rsm:SupplyChainTradeTransaction>
@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Evalyn Moore</ram:Name>
+        <ram:Name>Armando Ledner</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>57334</ram:PostcodeCode>
-          <ram:LineOne>81346 Rolfson Station Apt. 543</ram:LineOne>
-          <ram:CityName>New Anneshire</ram:CityName>
+          <ram:PostcodeCode>02683</ram:PostcodeCode>
+          <ram:LineOne>41086 Frami Ranch Suite 647</ram:LineOne>
+          <ram:CityName>Mozellefurt</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>
@@ -94,7 +94,7 @@
     <ram:ApplicableHeaderTradeDelivery>
       <ram:ActualDeliverySupplyChainEvent>
         <ram:OccurrenceDateTime>
-          <udt:DateTimeString format="102">20260505</udt:DateTimeString>
+          <udt:DateTimeString format="102">20260511</udt:DateTimeString>
         </ram:OccurrenceDateTime>
       </ram:ActualDeliverySupplyChainEvent>
     </ram:ApplicableHeaderTradeDelivery>

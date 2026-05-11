@@ -101,17 +101,24 @@ trait AiShoppingListFuncs
             ],
             [
                 'name' => 'shopping_list_delete',
-                'description' => 'Löscht ein Produkt komplett aus dem System (sowohl von der Einkaufsliste als auch aus dem Vorrat).',
+                'description' => 'Löscht eines oder mehrere Produkte komplett aus dem System. Kann für Listen von Namen oder für alle Einträge ganzer Kategorien (mit Ausnahmen) genutzt werden.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'item_id' => [
-                            'type' => 'string',
-                            'description' => 'OPTIONAL. Die UUID des Produkts.'
+                        'item_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Eine Liste von exakten oder teilweisen Produktnamen, die gelöscht werden sollen.'
                         ],
-                        'name' => [
-                            'type' => 'string',
-                            'description' => 'OPTIONAL. Der Name des Produkts (falls ID nicht bekannt).'
+                        'category_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Wenn gesetzt, werden ALLE Produkte in diesen Kategorien gelöscht.'
+                        ],
+                        'exclude_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Produkte, die NICHT gelöscht werden sollen (nützlich in Kombination mit category_names).'
                         ]
                     ]
                 ],
@@ -129,7 +136,7 @@ trait AiShoppingListFuncs
                         ],
                         'icon' => [
                             'type' => 'string',
-                            'description' => 'OPTIONAL. Das Heroicon für die Kategorie (z.B. shopping-cart, home, sparkles, beaker, heart, cake, fire, gift, star, scissors, cube, sun, moon). Standard ist shopping-cart.'
+                            'description' => 'OPTIONAL. Nur GÜLTIGE Heroicons: shopping-cart, home, sparkles, beaker, heart, cake, fire, gift, star, scissors, cube, sun, moon, tag. WICHTIG: Erfinde keine Icons wie "droplet".'
                         ]
                     ],
                     'required' => ['name']
@@ -161,16 +168,33 @@ trait AiShoppingListFuncs
             ],
             [
                 'name' => 'shopping_category_delete',
-                'description' => 'Löscht eine Kategorie. Produkte in dieser Kategorie verlieren ihre Zuordnung (werden zu "Ohne Kategorie").',
+                'description' => 'Löscht eine oder mehrere Kategorien. Kann dynamisch gesteuert werden (z.B. alle löschen außer XY, Produkte verschieben, etc.).',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'name' => [
+                        'category_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Die Namen der zu löschenden Kategorien.'
+                        ],
+                        'delete_all' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, werden ALLE bestehenden Kategorien gelöscht (kann mit exclude_names kombiniert werden).'
+                        ],
+                        'exclude_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Kategorien, die von der Löschung ausgenommen werden sollen.'
+                        ],
+                        'delete_items' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, werden auch alle Produkte gelöscht, die diesen Kategorien zugeordnet waren. Wenn false, fallen die Produkte auf "Ohne Kategorie" zurück.'
+                        ],
+                        'move_items_to_category' => [
                             'type' => 'string',
-                            'description' => 'Der Name der zu löschenden Kategorie.'
+                            'description' => 'OPTIONAL. Der Name einer Ziel-Kategorie. Alle Produkte der zu löschenden Kategorien werden in diese neue Kategorie verschoben, bevor gelöscht wird.'
                         ]
-                    ],
-                    'required' => ['name']
+                    ]
                 ],
                 'callable' => [self::class, 'executeDeleteShoppingCategory']
             ],
@@ -388,24 +412,77 @@ trait AiShoppingListFuncs
     public static function executeDeleteShoppingItem(array $args)
     {
         try {
-            if (empty($args['item_id']) && empty($args['name'])) {
-                return ['status' => 'error', 'message' => 'Es muss entweder item_id oder name angegeben werden.'];
+            $itemNames = $args['item_names'] ?? [];
+            $categoryNames = $args['category_names'] ?? [];
+            $excludeNames = $args['exclude_names'] ?? [];
+
+            if (empty($itemNames) && empty($categoryNames)) {
+                return ['status' => 'error', 'message' => 'Es muss entweder eine Liste von Namen (item_names) oder Kategorien (category_names) angegeben werden.'];
             }
 
-            if (!empty($args['item_id'])) {
-                $item = ManagementShoppingItem::find($args['item_id']);
+            $query = ManagementShoppingItem::query();
+
+            // Filtern nach Kategorien
+            if (!empty($categoryNames)) {
+                $query->whereHas('category', function($q) use ($categoryNames) {
+                    $q->where(function($subQ) use ($categoryNames) {
+                        foreach ($categoryNames as $cName) {
+                            $subQ->orWhere('name', 'like', '%' . $cName . '%');
+                        }
+                    });
+                });
             } else {
-                $item = ManagementShoppingItem::where('name', 'like', '%' . $args['name'] . '%')->first();
+                // Nur spezifische Produkte suchen
+                $query->where(function($q) use ($itemNames) {
+                    foreach ($itemNames as $name) {
+                        $q->orWhere('name', 'like', '%' . $name . '%');
+                    }
+                });
             }
 
-            if (!$item) {
-                return ['status' => 'error', 'message' => 'Produkt nicht gefunden.'];
+            $items = $query->get();
+
+            if ($items->isEmpty()) {
+                return ['status' => 'error', 'message' => 'Keine passenden Produkte gefunden.'];
             }
 
-            $name = $item->name;
-            $item->delete();
+            $deletedCount = 0;
+            $deletedNames = [];
 
-            return ['status' => 'success', 'message' => "Das Produkt '{$name}' wurde vollständig gelöscht."];
+            foreach ($items as $item) {
+                // Prüfen ob das Produkt auf der Ausschlussliste steht
+                $isExcluded = false;
+                foreach ($excludeNames as $exName) {
+                    if (stripos($item->name, $exName) !== false) {
+                        $isExcluded = true;
+                        break;
+                    }
+                }
+
+                // Falls wir keine Kategorie nutzen, sondern nur eine Namensliste, prüfen wir ob der Name wirklich drin steht
+                if (empty($categoryNames) && !empty($itemNames)) {
+                    $isIncluded = false;
+                    foreach ($itemNames as $inName) {
+                        if (stripos($item->name, $inName) !== false) {
+                            $isIncluded = true;
+                            break;
+                        }
+                    }
+                    if (!$isIncluded) continue;
+                }
+
+                if (!$isExcluded) {
+                    $deletedNames[] = $item->name;
+                    $item->delete();
+                    $deletedCount++;
+                }
+            }
+
+            return [
+                'status' => 'success', 
+                'message' => "Es wurden $deletedCount Produkte vollständig gelöscht.",
+                'deleted_items' => $deletedNames
+            ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Löschen: ' . $e->getMessage()];
         }
@@ -419,6 +496,10 @@ trait AiShoppingListFuncs
             }
 
             $icon = $args['icon'] ?? 'shopping-cart';
+            $allowedIcons = ['shopping-cart', 'home', 'sparkles', 'beaker', 'heart', 'cake', 'fire', 'gift', 'star', 'scissors', 'cube', 'sun', 'moon', 'tag'];
+            if (!in_array($icon, $allowedIcons)) {
+                $icon = 'shopping-cart';
+            }
 
             $category = ManagementShoppingCategory::firstOrCreate(
                 ['name' => $args['name']],
@@ -448,7 +529,12 @@ trait AiShoppingListFuncs
                 $category->name = $args['new_name'];
             }
             if (!empty($args['new_icon'])) {
-                $category->icon = $args['new_icon'];
+                $icon = $args['new_icon'];
+                $allowedIcons = ['shopping-cart', 'home', 'sparkles', 'beaker', 'heart', 'cake', 'fire', 'gift', 'star', 'scissors', 'cube', 'sun', 'moon', 'tag'];
+                if (!in_array($icon, $allowedIcons)) {
+                    $icon = 'shopping-cart';
+                }
+                $category->icon = $icon;
             }
             
             $category->save();
@@ -462,23 +548,95 @@ trait AiShoppingListFuncs
     public static function executeDeleteShoppingCategory(array $args)
     {
         try {
-            if (empty($args['name'])) {
-                return ['status' => 'error', 'message' => 'Der Name der zu löschenden Kategorie fehlt.'];
+            $categoryNames = $args['category_names'] ?? [];
+            $deleteAll = $args['delete_all'] ?? false;
+            $excludeNames = $args['exclude_names'] ?? [];
+            $deleteItems = $args['delete_items'] ?? false;
+            $moveToCategoryName = $args['move_items_to_category'] ?? null;
+
+            if (empty($categoryNames) && !$deleteAll) {
+                return ['status' => 'error', 'message' => 'Es muss entweder eine Liste von Kategorien (category_names) oder delete_all = true angegeben werden.'];
             }
 
-            $category = ManagementShoppingCategory::where('name', 'like', $args['name'])->first();
+            $query = ManagementShoppingCategory::query();
 
-            if (!$category) {
-                return ['status' => 'error', 'message' => "Kategorie '{$args['name']}' nicht gefunden."];
+            if (!$deleteAll) {
+                $query->where(function($q) use ($categoryNames) {
+                    foreach ($categoryNames as $cName) {
+                        $q->orWhere('name', 'like', '%' . $cName . '%');
+                    }
+                });
             }
 
-            $name = $category->name;
-            ManagementShoppingItem::where('category_id', $category->id)->update(['category_id' => null]);
-            $category->delete();
+            $categories = $query->get();
 
-            return ['status' => 'success', 'message' => "Die Kategorie '{$name}' wurde gelöscht. Enthaltene Produkte wurden in 'Ohne Kategorie' verschoben."];
+            if ($categories->isEmpty()) {
+                return ['status' => 'error', 'message' => 'Keine passenden Kategorien gefunden.'];
+            }
+
+            // Ziel-Kategorie verarbeiten (wenn gesetzt)
+            $targetCategoryId = null;
+            if (!empty($moveToCategoryName)) {
+                $targetCat = ManagementShoppingCategory::firstOrCreate(
+                    ['name' => $moveToCategoryName],
+                    ['icon' => 'shopping-cart', 'sort_order' => ManagementShoppingCategory::max('sort_order') + 1]
+                );
+                $targetCategoryId = $targetCat->id;
+            }
+
+            $deletedCount = 0;
+            $deletedNames = [];
+
+            foreach ($categories as $category) {
+                // Prüfen ob die Kategorie ausgeschlossen ist
+                $isExcluded = false;
+                foreach ($excludeNames as $exName) {
+                    if (stripos($category->name, $exName) !== false) {
+                        $isExcluded = true;
+                        break;
+                    }
+                }
+                
+                if ($targetCategoryId && $category->id === $targetCategoryId) {
+                    $isExcluded = true; // Niemals das eigene Ziel löschen!
+                }
+
+                if (!$isExcluded) {
+                    $catId = $category->id;
+                    $deletedNames[] = $category->name;
+                    
+                    if ($targetCategoryId) {
+                        // Verschiebe alle Items in die Ziel-Kategorie
+                        ManagementShoppingItem::where('category_id', $catId)->update(['category_id' => $targetCategoryId]);
+                    } elseif ($deleteItems) {
+                        // Lösche alle betroffenen Items
+                        ManagementShoppingItem::where('category_id', $catId)->delete();
+                    } else {
+                        // Löse Verknüpfungen (Fallback auf "Ohne Kategorie")
+                        ManagementShoppingItem::where('category_id', $catId)->update(['category_id' => null]);
+                    }
+                    
+                    $category->delete();
+                    $deletedCount++;
+                }
+            }
+
+            $msg = "Es wurden $deletedCount Kategorien gelöscht.";
+            if ($targetCategoryId) {
+                $msg .= " Alle enthaltenen Produkte wurden erfolgreich nach '$moveToCategoryName' verschoben.";
+            } elseif ($deleteItems) {
+                $msg .= " Alle enthaltenen Produkte wurden ebenfalls hart gelöscht.";
+            } else {
+                $msg .= " Enthaltene Produkte fielen auf 'Ohne Kategorie' zurück.";
+            }
+
+            return [
+                'status' => 'success', 
+                'message' => $msg,
+                'deleted_categories' => $deletedNames
+            ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Löschen der Kategorie: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Löschen der Kategorien: ' . $e->getMessage()];
         }
     }
 

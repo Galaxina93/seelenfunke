@@ -355,6 +355,21 @@ return new class extends Migration
                 $table->timestamps();
             });
         }
+
+        // Neural Analysis Index
+        if (!Schema::hasTable('system_neural_nodes')) {
+            Schema::create('system_neural_nodes', function (Blueprint $table) {
+                $table->uuid('id')->primary();
+                $table->string('file_path')->unique();
+                $table->string('name')->nullable();
+                $table->integer('group_id')->default(0);
+                $table->json('dependencies')->nullable();
+                $table->json('methods')->nullable();
+                $table->json('properties')->nullable();
+                $table->string('content_hash')->nullable();
+                $table->timestamps();
+            });
+        }
     }
 
     /**
@@ -362,6 +377,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        Schema::dropIfExists('system_neural_nodes');
         Schema::dropIfExists('system_ai_hosting_plans');
 
         Schema::dropIfExists('directory_user');

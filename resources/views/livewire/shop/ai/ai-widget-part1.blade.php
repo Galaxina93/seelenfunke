@@ -22,6 +22,7 @@
      @ai-show-org-chart.window="console.log('ai-show-org-chart', $event.detail); orgChartWidget = $event.detail.payload || $event.detail; showFunkiView = true; isSecretMode = true;"
      @ai-transform-core.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isJarvis = (d.target === 'jarvis'); jarvisMinimized = false; if(isJarvis) { showJarvisFlash = true; setTimeout(() => showJarvisFlash = false, 100); setTimeout(() => jarvisMinimized = true, 1500); } updateJarvisMode();"
      @ai-toggle-secret-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isSecretMode = d.open; if(isSecretMode) { new Audio('/shop/ai/sounds/top_secret/open_secret_mode.mp3').play().catch(e=>console.log(e)); if(!showFunkiView) { openFunkiView(false); } } else { new Audio('/shop/ai/sounds/top_secret/close_secret_mode.mp3').play().catch(e=>console.log(e)); }"
+     @ai-toggle-brain-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isBrainFocus = d.open; if(isBrainFocus) { new Audio('/shop/ai/sounds/project_brain/open_project_brain.mp3').play().catch(e=>console.log(e)); isBrainMode = true; isMapFocus = false; isSecretMode = false; if(!showFunkiView) openFunkiView(false); setTimeout(() => { if(window.initBrainMap) window.initBrainMap(); }, 100); } else { isBrainMode = false; }"
      @map-change-style.window="if(window.changeMapStyle) { window.changeMapStyle($event.detail.style); }"
      @ai-unshelf-widget.window="
         let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
@@ -224,13 +225,13 @@
     <!-- ========================================== -->
     <!-- START KI KERN (3D) - Hier läuft Three.js -->
     <!-- ========================================== -->
-    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
+    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode || isBrainMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
     <!-- END KI KERN (3D) -->
 
     <!-- ========================================== -->
     <!-- START JARVIS (2D) - Hier läuft die Canvas Animation -->
     <!-- ========================================== -->
-    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
+    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode || isBrainMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
     <!-- END JARVIS (2D) -->
 
     <!-- Jarvis Flash Transition -->
@@ -238,6 +239,104 @@
     <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
          :class="isMapMode ? 'opacity-100 scale-100 pointer-events-auto shadow-[inset_0_0_200px_rgba(0,0,0,0.9)]' : 'opacity-0 scale-110 blur-xl pointer-events-none'"
          :style="isMapMode ? 'filter: brightness(0.6) sepia(0.3) hue-rotate(180deg) saturate(2.0);' : 'filter: brightness(0.5);'"></div>
+
+    <!-- ========================================== -->
+    <!-- START NEURALE FEHLERANALYSE (3D GEHIRN) -->
+    <!-- ========================================== -->
+    <div x-show="isBrainMode" class="absolute inset-0 z-[12] transition-opacity duration-1000" x-transition.opacity>
+        <!-- Suchleiste (Google Maps Style) -->
+        <div class="absolute bottom-12 md:bottom-16 left-1/2 -translate-x-1/2 z-[100] w-[95%] md:w-[80%] max-w-[900px] pointer-events-auto flex flex-col gap-3">
+            
+            <!-- Ausgewählter Knoten UI (wird per JS eingeblendet) -->
+            <div id="brain-selected-node-container" class="hidden flex-col md:flex-row gap-3 transition-all duration-300 items-stretch" x-data="{ genStatus: 'idle', genPath: '' }" @neural-structure-success.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; genStatus = 'success'; genPath = d.path || d[0]?.path || 'Gespeichert'; setTimeout(() => { genStatus = 'idle'; }, 6000);" @neural-structure-error.window="genStatus = 'idle';">
+                <!-- Kachel 1: Datei Info -->
+                <div class="flex-1 bg-black/95 backdrop-blur-sm border border-indigo-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(99,102,241,0.4)] flex flex-col justify-between gap-3 h-48">
+                    <div class="flex flex-col overflow-hidden relative group">
+                        <span class="text-[10px] text-indigo-400/80 font-bold uppercase tracking-widest mb-0.5">Ausgewählt</span>
+                        <div class="flex items-center justify-between gap-2 w-full">
+                            <span id="brain-selected-node-name" class="text-indigo-100 text-sm font-mono truncate"></span>
+                            <button onclick="navigator.clipboard.writeText(document.getElementById('brain-selected-node-name').innerText); this.innerText='Kopiert!'; setTimeout(()=>this.innerText='Pfad kopieren', 2000)" class="text-[9px] text-indigo-300 hover:text-white border border-indigo-500/50 rounded px-1.5 py-0.5 shrink-0 transition-colors bg-indigo-900/30">Pfad kopieren</button>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 w-full mt-auto">
+                        <button @click="if(window.generateBrainStructure) window.generateBrainStructure(); genStatus = 'loading';" 
+                            :class="{ 'bg-indigo-600/80 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)]': genStatus === 'idle', 'bg-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.4)]': genStatus === 'loading', 'bg-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.4)]': genStatus === 'success' }"
+                            class="flex-1 text-white text-[11px] px-2 py-2 rounded-xl font-medium transition-all flex flex-col items-center justify-center gap-1 text-center">
+                            <div class="flex items-center gap-1.5">
+                                <template x-if="genStatus === 'idle'">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                    </svg>
+                                </template>
+                                <template x-if="genStatus === 'loading'">
+                                    <svg class="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                </template>
+                                <template x-if="genStatus === 'success'">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                                </template>
+                                <span x-text="genStatus === 'idle' ? 'Struktur gen.' : (genStatus === 'loading' ? 'Generiert...' : 'Pfad: ' + genPath)" :class="genStatus === 'success' ? 'truncate w-full text-[9px]' : ''"></span>
+                            </div>
+                        </button>
+                        
+                        <button @click="if(window.highlightBrainStructure) window.highlightBrainStructure();" 
+                            class="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-[11px] px-2 py-2 rounded-xl font-medium transition-all shadow-[0_0_15px_rgba(0,0,0,0.4)] flex flex-col items-center justify-center gap-1 text-center">
+                            <div class="flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                </svg>
+                                <span>Struktur zeigen</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Kachel 2: Datei Zusammenhänge -->
+                <div class="flex-1 bg-black/95 backdrop-blur-sm border border-emerald-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(16,185,129,0.4)] flex flex-col gap-2 h-48 relative min-h-0">
+                    <span class="text-[10px] text-emerald-400/80 font-bold uppercase tracking-widest flex-shrink-0">Datei Zusammenhänge</span>
+                    <div class="relative flex-1 w-full min-h-0">
+                        <div id="brain-dependencies-list" class="absolute inset-0 overflow-y-auto custom-scrollbar flex flex-col gap-1 text-xs font-mono text-emerald-100/80 pr-2 pb-2 pointer-events-auto">
+                            <!-- Wird per JS befüllt -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kachel 3: Zustand / Fehler -->
+                <div id="brain-error-tile" class="flex-1 bg-black/95 backdrop-blur-sm border border-rose-500/40 rounded-2xl p-4 shadow-[0_10px_30px_-10px_rgba(244,63,94,0.4)] flex flex-col gap-2 h-48 relative">
+                    <span class="text-[10px] text-rose-400/80 font-bold uppercase tracking-widest flex-shrink-0">Zustand & Fehler</span>
+                    <div class="relative flex-1 w-full">
+                        <div id="brain-error-content" class="absolute inset-0 overflow-y-auto custom-scrollbar text-xs font-mono text-rose-100/80 pr-2">
+                            <!-- Wird per JS befüllt -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-black/90 backdrop-blur-sm border border-indigo-500/30 rounded-full shadow-[0_10px_40px_-10px_rgba(99,102,241,0.5)] p-2.5 flex items-center gap-3 transition-all focus-within:border-indigo-400/80 focus-within:shadow-[0_0_50px_-5px_rgba(99,102,241,0.6)] focus-within:bg-black/95 hover:bg-black/95 group" x-data="{ scanStatus: 'idle' }" @neural-scan-complete.window="scanStatus = 'success'; setTimeout(() => scanStatus = 'idle', 3000);">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-indigo-400 ml-3 transition-colors group-focus-within:text-indigo-300">
+                    <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
+                </svg>
+                <input type="text" id="brainSearchInput" placeholder="Suche im neuronalen Netzwerk (z.B. User.php)" class="bg-transparent border-none text-indigo-100 font-medium tracking-wide w-full focus:ring-0 text-base outline-none placeholder-indigo-500/50" onkeyup="if(window.searchBrainMap) window.searchBrainMap(this.value)">
+                
+                <button @click="if(window.scanSystemErrors) { window.scanSystemErrors(); scanStatus = 'loading'; }" 
+                    :class="{ 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white shadow-[0_0_15px_rgba(244,63,94,0.3)]': scanStatus === 'idle', 'bg-amber-500/80 border-amber-500/50 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]': scanStatus === 'loading', 'bg-emerald-500 border-emerald-500/50 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]': scanStatus === 'success' }"
+                    class="p-2.5 rounded-full border transition-all hover:scale-105 active:scale-95 flex items-center justify-center min-w-[42px] min-h-[42px]" title="Neuralen Scan starten">
+                    <template x-if="scanStatus === 'idle'">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" /></svg>
+                    </template>
+                    <template x-if="scanStatus === 'loading'">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    </template>
+                    <template x-if="scanStatus === 'success'">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+                    </template>
+                </button>
+            </div>
+        </div>
+        <!-- 3D Force Graph Container -->
+        <div id="brain-canvas-container" class="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing pointer-events-auto"></div>
+    </div>
+    <!-- END NEURALE FEHLERANALYSE -->
 
     <!-- [AREA: NEWS WIDGETS] -->
     <!-- News UI Panel (2D Overlay) -->
@@ -788,9 +887,14 @@
             <div x-show="showWorkspaceModal" x-transition class="w-80 md:w-96 mt-2 p-3 bg-black/80 border border-emerald-900/50 rounded-lg backdrop-blur-md shadow-[0_0_20px_rgba(16,185,129,0.2)] flex flex-col gap-2 pointer-events-auto" style="display: none; max-height: 60vh;">
                 <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/80 border-b border-emerald-900/30 pb-2 mb-1 shrink-0 flex justify-between items-center">
                     <span>Chat Verlauf</span>
-                    <button @click="showWorkspaceModal = false" class="text-rose-500 hover:text-rose-400 p-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
+                    <div class="flex items-center gap-1">
+                        <button @click="chatHistory = []; currentChatSessionId = null; $wire.createNewChat()" class="text-emerald-500 hover:text-emerald-400 p-1 transition-colors" title="Neuen Chat starten">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                        </button>
+                        <button @click="showWorkspaceModal = false" class="text-rose-500 hover:text-rose-400 p-1 transition-colors" title="Schließen">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1" x-effect="if (chatHistory.length || thinking) { $nextTick(() => { $el.scrollTop = $el.scrollHeight; }); }">
                     <template x-for="(msg, i) in chatHistory" :key="i">
@@ -808,6 +912,14 @@
                             Nachricht wird generiert...
                         </div>
                     </div>
+                </div>
+
+                <!-- Text Input -->
+                <div class="shrink-0 border-t border-emerald-900/30 pt-2 mt-1 flex gap-2" x-data="{ chatInput: '' }">
+                    <input type="text" x-model="chatInput" @keydown.enter.prevent="if(chatInput.trim() !== '') { sendToAI(chatInput); chatInput = ''; }" placeholder="Nachricht an KI..." class="flex-1 bg-gray-900/50 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 transition-all backdrop-blur-sm" :disabled="thinking">
+                    <button @click="if(chatInput.trim() !== '') { sendToAI(chatInput); chatInput = ''; }" class="p-2 bg-emerald-600/80 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center shadow-[0_0_10px_rgba(16,185,129,0.3)]" :disabled="thinking">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M3.478 2.404a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.404z" /></svg>
+                    </button>
                 </div>
             </div>
         </div>
@@ -852,7 +964,7 @@
     </div>
 
     <!-- Push to Talk Anchor -->
-    <div x-show="!isLiveMode" class="absolute left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none; bottom: max(2.5rem, calc(env(safe-area-inset-bottom) + 1rem));">
+    <div x-show="!isLiveMode && !isBrainFocus" class="absolute left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-auto" style="display: none; bottom: max(2.5rem, calc(env(safe-area-inset-bottom) + 1rem));">
         <span class="text-[10px] font-mono tracking-widest text-emerald-400/80 uppercase" x-show="!listening && !thinking">Halten zum Sprechen</span>
         <span class="text-[10px] font-mono tracking-widest text-cyan-400 uppercase animate-pulse" x-show="listening" x-text="activeAgentName + ' hört zu...'"></span>
         <span class="text-[10px] font-mono tracking-widest text-purple-400 uppercase animate-pulse" x-show="thinking" x-text="activeAgentName + ' verarbeitet...'"></span>

@@ -5,7 +5,7 @@ namespace Tests\Feature\Livewire\Shop\Management;
 use App\Livewire\Shop\Management\ManagementShoppingList;
 use App\Models\Management\ManagementShoppingCategory;
 use App\Models\Management\ManagementShoppingItem;
-use App\Models\System\Admin;
+use App\Models\Admin\Admin;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;

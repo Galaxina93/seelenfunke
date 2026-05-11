@@ -49,7 +49,7 @@ class SupportChats extends Component
             $query->where('rating', $this->ratingFilter);
         }
 
-        $chats = $query->orderByRaw("FIELD(status, 'needs_employee', 'open', 'resolved')")->orderBy('updated_at', 'desc')->paginate(15);
+        $chats = $query->orderBy('created_at', 'desc')->paginate(15);
 
         // KPI Daten
         $openCount = SupportCustomerChat::where('status', 'open')->count();

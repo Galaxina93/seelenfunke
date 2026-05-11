@@ -381,7 +381,7 @@
                                                 KI Erledigt
                                             </span>
                                         @endif
-                                        <div class="text-[10px] text-gray-500 mt-2 ml-1">{{ $chat->updated_at->diffForHumans() }}</div>
+                                        <div class="text-[10px] text-gray-500 mt-2 ml-1" title="Erstellt am: {{ $chat->created_at->format('d.m.Y H:i') }}">{{ $chat->created_at->diffForHumans() }}</div>
                                     </td>
                                     <td class="p-4">
                                         <div class="text-sm text-gray-200 font-semibold truncate max-w-[200px]" title="{{ $chat->top_topic }}">{{ $chat->top_topic ?? '-' }}</div>
@@ -391,6 +391,22 @@
                                         <div class="flex items-center gap-2">
                                             <x-heroicon-o-chat-bubble-bottom-center-text class="w-5 h-5 text-gray-400" />
                                             <span class="text-sm text-gray-300 font-bold">{{ $chat->messages->count() }}</span>
+                                        </div>
+                                        @php
+                                            $custMsgs = $chat->messages->where('sender', 'customer');
+                                            $baseWeight = $custMsgs->count() * 10;
+                                            $severityWeight = $custMsgs->sum('severity');
+                                            $weight = $baseWeight + $severityWeight;
+                                            $percent = min(100, $weight);
+                                        @endphp
+                                        <div class="mt-2 w-full max-w-[120px]" title="{{ $custMsgs->count() }} Kunden-Nachrichten ({{ $baseWeight }} Pkt) + {{ $severityWeight }} Pkt Strafen. Ab 40 Punkten macht die KI Druck, bei 100 ist Schluss.">
+                                            <div class="flex justify-between text-[9px] text-gray-500 font-bold uppercase tracking-widest mb-1">
+                                                <span>Ausdauer</span>
+                                                <span class="{{ $percent >= 100 ? 'text-red-500' : ($percent >= 40 ? 'text-amber-500' : 'text-emerald-500') }}">{{ $weight }}/100</span>
+                                            </div>
+                                            <div class="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                                <div class="h-full rounded-full {{ $percent >= 100 ? 'bg-red-500' : ($percent >= 40 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ $percent }}%"></div>
+                                            </div>
                                         </div>
                                     </td>
                                     <td class="p-4 text-center">
@@ -484,6 +500,9 @@
                                                                 @if($msg->sender !== 'system')
                                                                     <div class="text-[10px] opacity-70 mb-1 {{ $msg->sender === 'customer' ? 'text-right text-[var(--theme-color-80)]' : 'text-left text-gray-400' }}">
                                                                         {{ $msg->sender === 'customer' ? 'Kunde' : $agentName }} • {{ $msg->created_at->format('H:i:s') }}
+                                                                        @if($msg->sender === 'customer' && $msg->severity > 0)
+                                                                            <span class="ml-1 bg-red-500/20 text-red-400 border border-red-500/30 px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest" title="KI Strafe: {{ $msg->tag }}">STRAFE: {{ $msg->severity }}</span>
+                                                                        @endif
                                                                     </div>
                                                                 @endif
                                                                 <div class="text-sm whitespace-pre-wrap leading-relaxed [&_a]:text-[var(--theme-color)] [&_a]:font-bold [&_a]:underline [&_a]:hover:text-[var(--theme-color-80)] transition-all">{!! \Illuminate\Support\Str::markdown($msg->message) !!}</div>
@@ -542,22 +561,42 @@
                                         </span>
                                     @endif
                                 </div>
-                                <div class="text-[10px] text-gray-500">{{ $chat->updated_at->diffForHumans() }}</div>
+                                <div class="text-[10px] text-gray-500" title="Erstellt am: {{ $chat->created_at->format('d.m.Y H:i') }}">{{ $chat->created_at->diffForHumans() }}</div>
                             </div>
                             
                             <h4 class="text-sm font-bold text-gray-200 leading-tight mb-1">{{ $chat->top_topic ?? 'Generelle Anfrage' }}</h4>
                             <div class="text-xs text-gray-500 mb-3">Produkt: {{ $chat->mentioned_product ?? '-' }}</div>
                             
                             <div class="flex items-center justify-between mt-2">
-                                <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-4 w-full">
                                     <div class="flex items-center gap-1.5 text-xs text-gray-400">
                                         <x-heroicon-o-chat-bubble-bottom-center-text class="w-4 h-4" />
                                         <span>{{ $chat->messages->count() }} Msg</span>
                                     </div>
+                                    
+                                    @php
+                                        $custMsgsM = $chat->messages->where('sender', 'customer');
+                                        $baseWeightM = $custMsgsM->count() * 10;
+                                        $severityWeightM = $custMsgsM->sum('severity');
+                                        $weightM = $baseWeightM + $severityWeightM;
+                                        $percentM = min(100, $weightM);
+                                    @endphp
+                                    <div class="flex flex-col gap-0.5 w-24" title="{{ $custMsgsM->count() }} Kunden-Nachrichten ({{ $baseWeightM }} Pkt) + {{ $severityWeightM }} Pkt Strafen.">
+                                        <div class="flex justify-between text-[8px] font-bold uppercase tracking-widest">
+                                            <span class="text-gray-500">Ausdauer</span>
+                                            <span class="{{ $percentM >= 100 ? 'text-red-500' : ($percentM >= 40 ? 'text-amber-500' : 'text-emerald-500') }}">{{ $weightM }}/100</span>
+                                        </div>
+                                        <div class="w-full h-1 bg-gray-800 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full {{ $percentM >= 100 ? 'bg-red-500' : ($percentM >= 40 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ $percentM }}%"></div>
+                                        </div>
+                                    </div>
+                                    
                                     @if($chat->rating)
-                                        <div class="flex items-center gap-1 text-[var(--theme-color)] font-bold text-xs">
+                                        <div class="flex items-center gap-1 text-[var(--theme-color)] font-bold text-xs ml-auto">
                                             {{ $chat->rating }} <x-heroicon-s-star class="w-3.5 h-3.5" />
                                         </div>
+                                    @else
+                                        <div class="ml-auto"></div>
                                     @endif
                                 </div>
                                 
@@ -631,6 +670,9 @@
                                                     @if($msg->sender !== 'system')
                                                         <div class="text-[9px] opacity-70 mb-0.5 {{ $msg->sender === 'customer' ? 'text-right text-[var(--theme-color-80)]' : 'text-left text-gray-400' }}">
                                                             {{ $msg->sender === 'customer' ? 'Kunde' : $agentName }} • {{ $msg->created_at->format('H:i') }}
+                                                            @if($msg->sender === 'customer' && $msg->severity > 0)
+                                                                <span class="ml-1 bg-red-500/20 text-red-400 border border-red-500/30 px-1 py-0.5 rounded text-[7px] font-black tracking-widest" title="KI Strafe: {{ $msg->tag }}">STRAFE: {{ $msg->severity }}</span>
+                                                            @endif
                                                         </div>
                                                     @endif
                                                     <div class="text-xs whitespace-pre-wrap leading-relaxed [&_a]:text-[var(--theme-color)] [&_a]:underline">{!! \Illuminate\Support\Str::markdown($msg->message) !!}</div>

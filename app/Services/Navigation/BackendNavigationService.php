@@ -146,6 +146,7 @@ class BackendNavigationService
                         'icon' => 'server',
                         'ai_department_id' => '019d5555-5555-5555-5555-555555555555',
                         'children' => [
+                            ['id' => 'neural-analysis', 'title' => 'Neurale Analyse', 'route' => '/admin/system/neural-analysis', 'icon' => 'share'],
                             ['id' => 'global-logs', 'title' => 'Log', 'route' => '/admin/global-logs', 'icon' => 'server-stack'],
                             ['id' => 'user-management', 'title' => 'Benutzer', 'route' => '/admin/user-management', 'icon' => 'users'],
 

@@ -13,7 +13,9 @@
                         if(initAudio) {
                             initAudio.currentTime = 0;
                             initAudio.volume = 0.8;
-                            initAudio.play().catch(e => console.log("Audio play prevented", e));
+                            setTimeout(() => {
+                                initAudio.play().catch(e => console.log("Audio play prevented", e));
+                            }, 400);
                         }
                     }
 

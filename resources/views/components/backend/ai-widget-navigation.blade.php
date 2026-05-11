@@ -39,7 +39,7 @@
              @endif
          </select>
 
-         <select x-model="activeMapStyle" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-emerald-900/50 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[120px]">
+         <select x-show="isMapFocus" x-model="activeMapStyle" class="px-2 py-1.5 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md bg-black text-white border-emerald-900/50 hover:text-white focus:outline-none focus:border-[var(--theme-color)] appearance-none shadow-[0_0_15px_rgba(0,0,0,0.5)] w-full md:w-auto mb-2 md:mb-0 max-w-[120px]">
              <template x-for="style in mapStyles" :key="style.id">
                  <option :value="style.id" x-text="style.name" class="bg-black text-white"></option>
              </template>
@@ -57,7 +57,13 @@
              Livedaten
          </button>
 
-         <button @click="isMapFocus = !isMapFocus; if(isMapFocus) isMapMode = true; if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
+         <button @click="$dispatch('ai-toggle-brain-workspace', {open: !isBrainFocus}); if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
+             :class="isBrainFocus ? 'text-indigo-400 border-indigo-500/50 bg-indigo-900/30 hover:bg-indigo-800 shadow-[0_0_15px_rgba(99,102,241,0.5)] animate-pulse' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
+             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M12 2.25a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 1-1.5 0V3a.75.75 0 0 1 .75-.75ZM7.5 12a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM18.894 6.166a.75.75 0 0 0-1.06-1.06l-1.591 1.59a.75.75 0 1 0 1.06 1.061l1.591-1.59ZM21.75 12a.75.75 0 0 1-.75.75h-2.25a.75.75 0 0 1 0-1.5H21a.75.75 0 0 1 .75.75ZM17.834 18.894a.75.75 0 0 0 1.06-1.06l-1.59-1.591a.75.75 0 1 0-1.061 1.06l1.59 1.591ZM12 18.75a.75.75 0 0 1 .75.75V21a.75.75 0 0 1-1.5 0v-1.5a.75.75 0 0 1 .75-.75ZM6.166 18.894a.75.75 0 0 0 1.06 1.06l1.59-1.591a.75.75 0 1 0-1.06-1.061l-1.59 1.591ZM2.25 12a.75.75 0 0 1 .75-.75h2.25a.75.75 0 0 1 0 1.5H3a.75.75 0 0 1-.75-.75ZM6.166 5.106a.75.75 0 0 0-1.06 1.06l1.591 1.59a.75.75 0 1 0 1.06-1.061l-1.591-1.59Z" /></svg>
+             Projekt Gehirn
+         </button>
+
+         <button @click="isMapFocus = !isMapFocus; if(isMapFocus) { isMapMode = true; $dispatch('ai-toggle-brain-workspace', {open: false}); isSecretMode = false; } if(window.innerWidth < 768) mobileMenuOpen = false;" class="px-3 py-2 border rounded-lg text-[10px] font-black uppercase tracking-widest transition-all backdrop-blur-md flex items-center gap-2 w-full md:w-auto justify-start md:justify-center"
              :class="isMapFocus ? 'text-emerald-400 border-emerald-500/50 bg-emerald-900/30 hover:bg-emerald-800 shadow-[0_0_15px_rgba(16,185,129,0.5)] animate-pulse' : 'text-gray-500 border-gray-700 bg-gray-900/50 hover:text-gray-300 hover:bg-gray-800'">
              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" /></svg>
              Map

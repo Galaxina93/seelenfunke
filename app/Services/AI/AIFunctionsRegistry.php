@@ -131,6 +131,17 @@ class AIFunctionsRegistry
             ];
         }
 
+        $destructiveTools = ['system_multi_replace_file', 'system_write_to_file', 'system_run_command'];
+        if (in_array($name, $destructiveTools)) {
+            if (!\Illuminate\Support\Facades\Session::get('has_ai_implementation_plan')) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => 'SYSTEM GUARDRAIL BLOCK: Du darfst destruktive Aktionen erst ausführen, wenn du vorher einen implementation_plan geschrieben hast.'
+                ];
+            }
+        }
+
         $callable = $functions[$name]['callable'];
 
         if (!is_callable($callable)) {

@@ -662,7 +662,7 @@ trait AiAgentsFuncs
     {
         try {
             $targetAgentName = $args['agent_name'] ?? '';
-            $instruction = $args['instruction'] ?? '';
+            $instruction = $args['instruction'] ?? $args['task'] ?? '';
 
             if (empty($targetAgentName) || empty($instruction)) {
                 return ['status' => 'error', 'message' => 'Agenten-Name oder Anweisung fehlt.'];
@@ -680,14 +680,7 @@ trait AiAgentsFuncs
             }
 
             // Instantiate the appropriate agent service based on the model or class
-            $providerClass = \App\Services\AI\GeminiAgent::class; // Default to Gemini
-            if (str_contains(strtolower($agent->model), 'mittwald') || str_contains(strtolower($agent->model), 'llama')) {
-                if (class_exists(\App\Services\AI\MittwaldAgent::class)) {
-                    $providerClass = \App\Services\AI\MittwaldAgent::class;
-                }
-            }
-            
-            $aiService = new $providerClass($agent);
+            $aiService = \App\Services\AI\AiAgentFactory::make($agent);
 
             // Run a sterile ask request representing the delegation
             $response = $aiService->ask([

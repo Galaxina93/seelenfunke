@@ -12,7 +12,7 @@ trait AiTaskFuncs
         return [
             [
                 'name' => 'task_get_all',
-                'description' => 'Ruft alle aktuell offenen System-Aufgaben ab. Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste.',
+                'description' => 'Ruft alle aktuell offenen System-Aufgaben ab. Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -30,7 +30,7 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_create',
-                'description' => 'Erstellt eine neue Aufgabe (To-Do). Stichworte: Schreib auf die Todo-Liste, Erinnere mich daran das zu tun, Neue Aufgabe anlegen, Todo erstellen.',
+                'description' => 'Erstellt eine neue Aufgabe (To-Do). Stichworte: Schreib auf die Todo-Liste, Erinnere mich daran das zu tun, Neue Aufgabe anlegen, Todo erstellen. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -96,18 +96,115 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_delete',
-                'description' => 'Löscht eine offene Aufgabe vollständig. NUTZE ZWINGEND die task_id, die du vorher über task_get_all abgefragt hast. Stichworte: Lösche das Todo, entferne die Aufgabe, Task löschen.',
+                'description' => 'Löscht eine oder mehrere Aufgaben vollständig. Kann für Listen von IDs, Titeln oder für ganze Listen (mit Ausnahmen) genutzt werden.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'task_id' => [
-                            'type' => 'string',
-                            'description' => 'Die exakte ID der Aufgabe.'
+                        'task_ids' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Eine Liste von exakten Aufgaben-IDs.'
+                        ],
+                        'task_titles' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Eine Liste von exakten oder teilweisen Aufgabentiteln.'
+                        ],
+                        'list_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Wenn gesetzt, werden ALLE Aufgaben in diesen Listen gelöscht.'
+                        ],
+                        'exclude_titles' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Aufgaben, die NICHT gelöscht werden sollen (nützlich in Kombination mit list_names).'
                         ]
-                    ],
-                    'required' => ['task_id']
+                    ]
                 ],
                 'callable' => [self::class, 'executeDeleteTask']
+            ],
+            [
+                'name' => 'task_list_add',
+                'description' => 'Erstellt eine neue Aufgabenliste (Kategorie).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'name' => [
+                            'type' => 'string',
+                            'description' => 'Name der neuen Liste.'
+                        ],
+                        'color' => [
+                            'type' => 'string',
+                            'description' => 'OPTIONAL. Hex-Farbe der Liste (z.B. #10B981).'
+                        ],
+                        'icon' => [
+                            'type' => 'string',
+                            'description' => 'OPTIONAL. Nur GÜLTIGE Heroicons: clipboard-document-list, check-circle, document-text, star, heart, bookmark, home, briefcase, user. Standard: clipboard-document-list.'
+                        ]
+                    ],
+                    'required' => ['name']
+                ],
+                'callable' => [self::class, 'executeAddTaskList']
+            ],
+            [
+                'name' => 'task_list_update',
+                'description' => 'Aktualisiert eine bestehende Aufgabenliste (Name, Farbe, Icon).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'old_name' => [
+                            'type' => 'string',
+                            'description' => 'Der aktuelle Name der Liste.'
+                        ],
+                        'new_name' => [
+                            'type' => 'string',
+                            'description' => 'OPTIONAL. Der neue Name der Liste.'
+                        ],
+                        'new_color' => [
+                            'type' => 'string',
+                            'description' => 'OPTIONAL. Die neue Hex-Farbe.'
+                        ],
+                        'new_icon' => [
+                            'type' => 'string',
+                            'description' => 'OPTIONAL. Das neue Heroicon.'
+                        ]
+                    ],
+                    'required' => ['old_name']
+                ],
+                'callable' => [self::class, 'executeUpdateTaskList']
+            ],
+            [
+                'name' => 'task_list_delete',
+                'description' => 'Löscht eine oder mehrere Aufgabenlisten. Kann dynamisch gesteuert werden.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'list_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Die Namen der zu löschenden Listen.'
+                        ],
+                        'delete_all' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, werden ALLE Listen gelöscht (kann mit exclude_names kombiniert werden).'
+                        ],
+                        'exclude_names' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Listen, die NICHT gelöscht werden sollen.'
+                        ],
+                        'delete_tasks' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, werden alle Aufgaben in diesen Listen gelöscht. Sonst fallen sie auf "Ohne Liste" zurück.'
+                        ],
+                        'move_tasks_to_list' => [
+                            'type' => 'string',
+                            'description' => 'OPTIONAL. Name der Zielliste. Aufgaben werden dorthin verschoben, bevor die Ursprungsliste gelöscht wird.'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeDeleteTaskList']
             ]
         ];
     }
@@ -272,25 +369,234 @@ trait AiTaskFuncs
     public static function executeDeleteTask(array $args)
     {
         try {
-            if (empty($args['task_id'])) {
-                return ['status' => 'error', 'message' => 'Keine Aufgaben ID angegeben.'];
+            $taskIds = $args['task_ids'] ?? [];
+            $taskTitles = $args['task_titles'] ?? [];
+            $listNames = $args['list_names'] ?? [];
+            $excludeTitles = $args['exclude_titles'] ?? [];
+
+            if (empty($taskIds) && empty($taskTitles) && empty($listNames)) {
+                return ['status' => 'error', 'message' => 'Es muss entweder eine Liste von IDs, Titeln oder Listen (list_names) angegeben werden.'];
             }
 
-            $task = ManagementTask::find($args['task_id']);
+            $query = ManagementTask::query();
 
-            if (!$task) {
-                return ['status' => 'error', 'message' => "Aufgabe mit der ID '{$args['task_id']}' wurde nicht gefunden."];
+            if (!empty($listNames)) {
+                $query->whereHas('taskList', function($q) use ($listNames) {
+                    $q->where(function($subQ) use ($listNames) {
+                        foreach ($listNames as $lName) {
+                            $subQ->orWhere('name', 'like', '%' . $lName . '%');
+                        }
+                    });
+                });
+            } else {
+                $query->where(function($q) use ($taskIds, $taskTitles) {
+                    if (!empty($taskIds)) {
+                        $q->whereIn('id', $taskIds);
+                    }
+                    if (!empty($taskTitles)) {
+                        foreach ($taskTitles as $title) {
+                            $q->orWhere('title', 'like', '%' . $title . '%');
+                        }
+                    }
+                });
             }
 
-            $title = $task->title;
-            $task->delete();
+            $tasks = $query->get();
+
+            if ($tasks->isEmpty()) {
+                return ['status' => 'error', 'message' => 'Keine passenden Aufgaben gefunden.'];
+            }
+
+            $deletedCount = 0;
+            $deletedTitles = [];
+
+            foreach ($tasks as $task) {
+                $isExcluded = false;
+                foreach ($excludeTitles as $exTitle) {
+                    if (stripos($task->title, $exTitle) !== false) {
+                        $isExcluded = true;
+                        break;
+                    }
+                }
+
+                if (empty($listNames) && !empty($taskTitles) && empty($taskIds)) {
+                    $isIncluded = false;
+                    foreach ($taskTitles as $inTitle) {
+                        if (stripos($task->title, $inTitle) !== false) {
+                            $isIncluded = true;
+                            break;
+                        }
+                    }
+                    if (!$isIncluded) continue;
+                }
+
+                if (!$isExcluded) {
+                    $deletedTitles[] = $task->title;
+                    $task->delete();
+                    $deletedCount++;
+                }
+            }
 
             return [
                 'status' => 'success',
-                'message' => "Die Aufgabe '$title' wurde gelöscht."
+                'message' => "Es wurden $deletedCount Aufgaben gelöscht.",
+                'deleted_tasks' => $deletedTitles
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Löschen der Aufgabe: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Löschen der Aufgaben: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAddTaskList(array $args)
+    {
+        try {
+            if (empty($args['name'])) {
+                return ['status' => 'error', 'message' => 'Der Name der Liste fehlt.'];
+            }
+
+            $icon = $args['icon'] ?? 'clipboard-document-list';
+            $allowedIcons = ['clipboard-document-list', 'check-circle', 'document-text', 'star', 'heart', 'bookmark', 'home', 'briefcase', 'user'];
+            if (!in_array($icon, $allowedIcons)) {
+                $icon = 'clipboard-document-list';
+            }
+
+            $color = $args['color'] ?? '#3B82F6';
+
+            $list = ManagementTaskList::firstOrCreate(
+                ['name' => $args['name']],
+                ['icon' => $icon, 'color' => $color]
+            );
+
+            return ['status' => 'success', 'message' => "Die Liste '{$list->name}' wurde erfolgreich angelegt.", 'list_id' => $list->id];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Anlegen der Liste: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeUpdateTaskList(array $args)
+    {
+        try {
+            if (empty($args['old_name'])) {
+                return ['status' => 'error', 'message' => 'Der alte Name der Liste fehlt.'];
+            }
+
+            $list = ManagementTaskList::where('name', 'like', $args['old_name'])->first();
+
+            if (!$list) {
+                return ['status' => 'error', 'message' => "Liste '{$args['old_name']}' nicht gefunden."];
+            }
+
+            if (!empty($args['new_name'])) {
+                $list->name = $args['new_name'];
+            }
+            if (!empty($args['new_icon'])) {
+                $icon = $args['new_icon'];
+                $allowedIcons = ['clipboard-document-list', 'check-circle', 'document-text', 'star', 'heart', 'bookmark', 'home', 'briefcase', 'user'];
+                if (!in_array($icon, $allowedIcons)) {
+                    $icon = 'clipboard-document-list';
+                }
+                $list->icon = $icon;
+            }
+            if (!empty($args['new_color'])) {
+                $list->color = $args['new_color'];
+            }
+
+            $list->save();
+
+            return ['status' => 'success', 'message' => "Die Liste wurde erfolgreich aktualisiert auf: '{$list->name}'."];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Aktualisieren der Liste: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeDeleteTaskList(array $args)
+    {
+        try {
+            $listNames = $args['list_names'] ?? [];
+            $deleteAll = $args['delete_all'] ?? false;
+            $excludeNames = $args['exclude_names'] ?? [];
+            $deleteTasks = $args['delete_tasks'] ?? false;
+            $moveToListName = $args['move_tasks_to_list'] ?? null;
+
+            if (empty($listNames) && !$deleteAll) {
+                return ['status' => 'error', 'message' => 'Es muss entweder eine Liste von Namen (list_names) oder delete_all = true angegeben werden.'];
+            }
+
+            $query = ManagementTaskList::query();
+
+            if (!$deleteAll) {
+                $query->where(function($q) use ($listNames) {
+                    foreach ($listNames as $lName) {
+                        $q->orWhere('name', 'like', '%' . $lName . '%');
+                    }
+                });
+            }
+
+            $lists = $query->get();
+
+            if ($lists->isEmpty()) {
+                return ['status' => 'error', 'message' => 'Keine passenden Listen gefunden.'];
+            }
+
+            // Ziel-Liste verarbeiten (wenn gesetzt)
+            $targetListId = null;
+            if (!empty($moveToListName)) {
+                $targetList = ManagementTaskList::firstOrCreate(
+                    ['name' => $moveToListName],
+                    ['icon' => 'clipboard-document-list', 'color' => '#3B82F6']
+                );
+                $targetListId = $targetList->id;
+            }
+
+            $deletedCount = 0;
+            $deletedNames = [];
+
+            foreach ($lists as $list) {
+                $isExcluded = false;
+                foreach ($excludeNames as $exName) {
+                    if (stripos($list->name, $exName) !== false) {
+                        $isExcluded = true;
+                        break;
+                    }
+                }
+
+                if ($targetListId && $list->id === $targetListId) {
+                    $isExcluded = true;
+                }
+
+                if (!$isExcluded) {
+                    $listId = $list->id;
+                    $deletedNames[] = $list->name;
+
+                    if ($targetListId) {
+                        ManagementTask::where('task_list_id', $listId)->update(['task_list_id' => $targetListId]);
+                    } elseif ($deleteTasks) {
+                        ManagementTask::where('task_list_id', $listId)->delete();
+                    } else {
+                        ManagementTask::where('task_list_id', $listId)->update(['task_list_id' => null]);
+                    }
+
+                    $list->delete();
+                    $deletedCount++;
+                }
+            }
+
+            $msg = "Es wurden $deletedCount Listen gelöscht.";
+            if ($targetListId) {
+                $msg .= " Alle enthaltenen Aufgaben wurden erfolgreich nach '$moveToListName' verschoben.";
+            } elseif ($deleteTasks) {
+                $msg .= " Alle enthaltenen Aufgaben wurden ebenfalls gelöscht.";
+            } else {
+                $msg .= " Enthaltene Aufgaben fielen auf 'Ohne Liste' zurück.";
+            }
+
+            return [
+                'status' => 'success',
+                'message' => $msg,
+                'deleted_lists' => $deletedNames
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Löschen der Listen: ' . $e->getMessage()];
         }
     }
 }

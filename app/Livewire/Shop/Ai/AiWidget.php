@@ -130,6 +130,23 @@ class AiWidget extends Component
         }
     }
 
+    #[On('generate-neural-structure')]
+    public function generateNeuralStructure($file_path)
+    {
+        $node = \App\Models\System\SystemNeuralNode::where('file_path', $file_path)->first();
+        if ($node) {
+            $indexer = new \App\Livewire\Backend\System\SystemNeuralAnalysisIndex();
+            $indexer->createMarkdown($node);
+            $this->dispatch('ai-speech-feedback', text: "Ich habe die Struktur für " . $node->name . " erfolgreich generiert.");
+            
+            $safeName = str_replace(['/', '\\'], '_', $node->file_path);
+            $this->dispatch('neural-structure-success', path: "agenten/workspace/md/Struktur_" . $safeName . ".md");
+        } else {
+            $this->dispatch('ai-speech-feedback', text: "Knoten nicht in der Datenbank gefunden.");
+            $this->dispatch('neural-structure-error', message: "Nicht gefunden");
+        }
+    }
+
     public function render()
     {
         return view('livewire.shop.ai.ai-widget', [

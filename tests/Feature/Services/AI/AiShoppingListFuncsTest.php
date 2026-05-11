@@ -21,7 +21,7 @@ class AiShoppingListFuncsTest extends TestCase
         $names = array_column($schema, 'name');
         $this->assertContains('shopping_list_get', $names);
         $this->assertContains('shopping_list_add', $names);
-        $this->assertContains('shopping_list_toggle', $names);
+        $this->assertContains('shopping_list_bulk_toggle', $names);
         $this->assertContains('shopping_list_rename', $names);
         $this->assertContains('shopping_list_delete', $names);
     }
@@ -90,8 +90,8 @@ class AiShoppingListFuncsTest extends TestCase
             'status' => 'needed'
         ]);
 
-        $result = self::executeToggleShoppingItem([
-            'item_id' => $item->id,
+        $result = self::executeBulkToggleShoppingItem([
+            'item_names' => ['Milch'],
             'status' => 'stocked'
         ]);
 
@@ -114,8 +114,8 @@ class AiShoppingListFuncsTest extends TestCase
             'status' => 'needed'
         ]);
 
-        $result = self::executeToggleShoppingItem([
-            'name' => 'Hafermilch',
+        $result = self::executeBulkToggleShoppingItem([
+            'item_names' => ['Hafermilch'],
             'status' => 'stocked'
         ]);
 
@@ -160,7 +160,7 @@ class AiShoppingListFuncsTest extends TestCase
         ]);
 
         $result = self::executeDeleteShoppingItem([
-            'item_id' => $item->id
+            'item_names' => ['Zu löschendes Item']
         ]);
 
         $this->assertEquals('success', $result['status']);

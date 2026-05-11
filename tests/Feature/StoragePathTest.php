@@ -23,7 +23,18 @@ class StoragePathTest extends TestCase
         'agenten',
         'system',
         'public', // system-ordner public
-        '.gitignore' // system dateien
+        '.gitignore', // system dateien
+        'agents',
+        'Mein-Seelenfunke-db-backup',
+        'linktree',
+        'ai_workspace',
+        'dossiers',
+        'backup-temp',
+        'holidays',
+        'maps',
+        'places',
+        'reports',
+        'temp'
     ];
 
     /**

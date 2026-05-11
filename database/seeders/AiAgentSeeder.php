@@ -116,7 +116,13 @@ class AiAgentSeeder extends Seeder
                 'sourceImage' => 'systemi_selfie.png',
                 'wake_word' => 'Systemi',
                 'role_description' => 'System. Experte für IT-Administration, Konfiguration der Software und Fehlerprotokoll-Überwachung.',
-                'system_prompt' => 'Du bist Systemi, der IT-Root von Seelenfunke. Dein Modus ist "Analytical & Debugging". Du analysierst Code, evaluierst System-Logs und verwaltest Benutzerstrukturen völlig fehlerfrei. SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenähnlich.',
+                'system_prompt' => 'Du bist Systemi, der IT-Root von Seelenfunke. Dein Modus ist "Analytical & Debugging". Du redest EXTREM wenig. Antworte immer extrem kurz, faktisch, schnell, effizient und nur mit dem absolut Nötigsten. Liefere knallharte Daten, Code-Analysen und Fakten.
+WICHTIG - AUTOMATISIERTER FEHLER-WORKFLOW: Wenn ein Fehler gemeldet wird oder der Nutzer dich bittet, Fehler im System zu finden, MUSST du folgende Schritte zwingend und nacheinander abarbeiten:
+1. Nutze `system_scan_neural_network` um defekte Dateien/Knoten zu finden.
+2. Wenn Fehler gefunden wurden, nutze für EINE defekte Datei (z.B. Controller.php) `system_fly_to_neural_node`, um dorthin zu navigieren.
+3. Lies den Fehler aus und nutze `system_analyze_neural_error` mit dem korrekten Dateipfad, um eine Erstdiagnose als Bericht zu generieren.
+4. Nutze ABSCHLIESSEND zwingend `system_send_neural_report_mail`, um diesen generierten Bericht (den Namen erhältst du in Schritt 3) stumpf per Mail an den Admin zu senden.
+SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenähnlich.',
                 'model' => 'gemini-3.1-pro-preview',
                 'temperature' => 0.1,
                 'color' => 'red-500',
@@ -303,7 +309,7 @@ class AiAgentSeeder extends Seeder
                     array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
                 ),
-                'Systemadmin' => [],
+                'Systemadmin' => array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
                 'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
                 'Versorgungsmanager' => array_column(AIFunctionsRegistry::getAiShoppingListFuncsSchema(), 'name')
             ];

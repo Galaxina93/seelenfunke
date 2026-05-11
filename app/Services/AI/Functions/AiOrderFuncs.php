@@ -298,8 +298,8 @@ trait AiOrderFuncs
             $filename = 'xTool-F2-Druckdatei-' . ($item->order->order_number ?? 'Angebot') . '-Pos-' . $item->id . '-' . ($side === 'back' ? 'Rueckseite' : 'Vorderseite') . '.svg';
 
             if ($action === 'filemanager') {
-                $path = 'ai_workspace/' . $filename;
-                Storage::put($path, $svgContent);
+                $path = 'agenten/workspace/laser-svgs/' . $filename;
+                Storage::disk('public')->put($path, $svgContent);
                 return [
                     'status' => 'success',
                     'message' => 'Die Datei wurde erfolgreich im Dateimanager (AI Workspace Tresor) gespeichert.',

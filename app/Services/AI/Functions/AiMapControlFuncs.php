@@ -188,6 +188,21 @@ trait AiMapControlFuncs
                 'callable' => [self::class, 'executeMapToggleMapfocus']
             ],
             [
+                'name' => 'system_toggle_brain',
+                'description' => 'Schaltet das "Projekt Gehirn" (die Neurale 3D System Architektur) an oder aus. Nutze dies, wenn der Nutzer das System, das Gehirn oder die Code-Architektur visualisieren möchte.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'active' => [
+                            'type' => 'boolean',
+                            'description' => 'True um das Gehirn anzuschalten, False um es auszuschalten.'
+                        ]
+                    ],
+                    'required' => ['active']
+                ],
+                'callable' => [self::class, 'executeSystemToggleBrain']
+            ],
+            [
                 'name' => 'ui_toggle_log',
                 'description' => 'Schaltet den KI-Live-Log (Debug Log Panel) an oder aus. Nutze dies, wenn der Nutzer fragt "Zeige mir den Log" oder "Öffne das Fehlerprotokoll".',
                 'parameters' => [
@@ -675,6 +690,19 @@ trait AiMapControlFuncs
             '_frontend_event' => [
                 'name' => 'toggle-mapfocus',
                 'detail' => ['active' => $active]
+            ]
+        ];
+    }
+
+    public static function executeSystemToggleBrain(array $args)
+    {
+        $active = $args['active'] ?? true;
+        return [
+            'status' => 'success',
+            'message' => 'Projekt Gehirn wurde ' . ($active ? 'aktiviert' : 'deaktiviert') . '.',
+            '_frontend_event' => [
+                'name' => 'ai-toggle-brain-workspace',
+                'detail' => ['open' => $active]
             ]
         ];
     }

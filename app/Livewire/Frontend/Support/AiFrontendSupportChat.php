@@ -276,7 +276,37 @@ class AiFrontendSupportChat extends Component
         $sysPrompt .= "[OFFIZIELLES LIVE-SORTIMENT]\n";
         $sysPrompt .= "Wir verkaufen hauptsächlich Lasergravur-Artikel, Schmuck und Deko aus unserer Manufaktur.\n";
         $sysPrompt .= "WICHTIG: Erfinde NIEMALS Produkte. Wenn ein Kunde nach einem Produkt sucht, benutze immer dein 'support_get_product_info' Werkzeug!\n\n";
+
+        // --- AUSDAUER & CHAT-LIMIT MECHANIK (Weg B) ---
+        $customerMsgs = $chat->messages->where('sender', 'customer');
+        $customerMsgCount = $customerMsgs->count();
+        $severitySum = $customerMsgs->sum('severity');
+        $chatWeight = ($customerMsgCount * 10) + $severitySum;
         
+        if ($chatWeight >= 100) {
+            // Hartes Limit erreicht: Chat abbrechen und an Menschen übergeben
+            $abortMsg = "Ich merke, dass wir hier gerade an unsere technischen Grenzen stoßen und uns möglicherweise im Kreis drehen. Um dir bestmöglich und schnellstmöglich zu helfen, habe ich unser Gespräch nun als offizielles Ticket markiert und an meine menschlichen Kollegen weitergeleitet. Sie werden sich den Verlauf in Kürze ansehen und sich bei dir melden!";
+            
+            SupportCustomerChatMessage::create([
+                'support_customer_chat_id' => $this->chatId,
+                'sender' => 'system',
+                'message' => $abortMsg
+            ]);
+            $this->messages[] = ['sender' => 'system', 'text' => $abortMsg];
+            
+            $chat->update(['status' => 'needs_employee']);
+            $this->isResolved = true;
+            $this->isTyping = false;
+            $this->dispatch('message-received');
+            return; // Keine API-Kosten mehr verursachen
+        }
+        
+        if ($chatWeight >= 40) {
+            // Weicher Druck aufbauen
+            $sysPrompt .= "[SYSTEM WARNUNG - AUSDAUER-LIMIT FAST ERREICHT]\n";
+            $sysPrompt .= "Der Kunde hat bereits extrem viele Fragen gestellt (Auslastung: {$chatWeight}/100 Punkten). Dein oberstes Ziel ist es nun, dieses Gespräch extrem höflich, charmant und zielführend zum Abschluss zu bringen. Stelle KEINE Gegenfragen mehr, die den Chat unnötig verlängern könnten. Fasse dich kurz und weise charmant darauf hin, dass du das Anliegen bei Bedarf gerne als Ticket für einen menschlichen Mitarbeiter öffnest.\n\n";
+        }
+
         $payloadMessages = [
             ['role' => 'system', 'content' => $sysPrompt]
         ];

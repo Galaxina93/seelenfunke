@@ -10,7 +10,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Management\ManagementLinktree;
 use App\Models\System\SystemSetting;
-use App\Models\User;
+use App\Models\Admin\Admin;
 use App\Livewire\Backend\Management\ManagementLinktreeManager;
 use App\Livewire\Frontend\Management\ManagementLinktreePage;
 
@@ -22,9 +22,7 @@ class ManagementLinktreeTest extends TestCase
     {
         parent::setUp();
         // Create an admin user for backend tests
-        $this->admin = User::factory()->create([
-            'role' => 'admin',
-        ]);
+        $this->admin = Admin::factory()->create();
     }
 
     #[Test]
@@ -166,10 +164,11 @@ class ManagementLinktreeTest extends TestCase
         ]);
 
         Livewire::test(ManagementLinktreePage::class)
-            ->call('trackClick', $link->id);
+            ->call('trackAndRedirect', $link->id, $link->url)
+            ->assertRedirect('https://click.com');
 
         $this->assertDatabaseHas('management_linktree_clicks', [
-            'management_linktree_id' => $link->id,
+            'link_id' => $link->id,
         ]);
     }
 }

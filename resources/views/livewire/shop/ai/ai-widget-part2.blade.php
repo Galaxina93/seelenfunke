@@ -66,6 +66,8 @@
             mainScreenWidget: null,
             isMapFocus: false,
             isMapMode: false,
+            isBrainFocus: false,
+            isBrainMode: false,
             isFlightDataActive: false,
             isSecretMode: false,
             currentChatSessionId: null,
@@ -532,6 +534,30 @@
             },
 
             async sendToAI(promptText, isSpontaneous = false) {
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    const msg = {
+                        clientContent: {
+                            turns: [{
+                                role: 'user',
+                                parts: [{ text: promptText }]
+                            }],
+                            turnComplete: true
+                        }
+                    };
+                    this.liveWs.send(JSON.stringify(msg));
+                    
+                    if (!isSpontaneous) {
+                        this.chatHistory.push({ role: 'user', content: promptText });
+                        this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: promptText });
+                        if (this.$wire) {
+                            this.$wire.saveUserLiveMessage(promptText);
+                        }
+                    } else {
+                        this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: 'Spontane Analyse in Live API gesendet.' });
+                    }
+                    return;
+                }
+
                 this.thinking = true;
                 this.updateCoreColor();
 
