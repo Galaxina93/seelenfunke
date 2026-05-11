@@ -868,25 +868,29 @@ trait AiSystemFuncs
             $sendEmail = $args['send_email'] ?? false;
             $email = $args['email_address'] ?? null;
 
-            // Hole fehlerhafte Logins der letzten 48h
+            // Hole fehlerhafte Logins der letzten 48h (Optimiert: Gruppiert nach IP und E-Mail um Payload zu reduzieren)
             $failedLogins = collect();
             if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
                 $failedLogins = \App\Models\System\SystemLoginAttempt::where('success', false)
                     ->where('attempted_at', '>=', now()->subHours(48))
-                    ->orderByDesc('attempted_at')
-                    ->limit(50)
-                    ->get(['email', 'ip_address', 'attempted_at']);
+                    ->select('ip_address', 'email', \Illuminate\Support\Facades\DB::raw('count(*) as attempts'), \Illuminate\Support\Facades\DB::raw('MAX(attempted_at) as last_attempt'))
+                    ->groupBy('ip_address', 'email')
+                    ->orderByDesc('attempts')
+                    ->limit(15)
+                    ->get();
             }
 
-            // Hole Security Logs der letzten 48h
+            // Hole Security Logs der letzten 48h (Optimiert: Gruppiert nach Fehler-Titel)
             $securityLogs = collect();
             if (class_exists(\App\Models\System\SystemLog::class)) {
                 $securityLogs = \App\Models\System\SystemLog::whereIn('type', ['security', 'system'])
                     ->where('status', 'error')
                     ->where('started_at', '>=', now()->subHours(48))
-                    ->orderByDesc('started_at')
-                    ->limit(50)
-                    ->get(['title', 'message', 'type', 'started_at']);
+                    ->select('title', 'type', \Illuminate\Support\Facades\DB::raw('count(*) as occurrences'), \Illuminate\Support\Facades\DB::raw('MAX(started_at) as last_occurrence'))
+                    ->groupBy('title', 'type')
+                    ->orderByDesc('occurrences')
+                    ->limit(15)
+                    ->get();
             }
 
             $payload = [
