@@ -24,7 +24,6 @@ class ManagementTaskSeeder extends Seeder
                 ],
                 'taks' => [
                     ['title' => 'Laser Schulung durchführen', 'priority' => 'high'],
-                    ['title' => 'Funkenflug mobil Fixen', 'priority' => 'high'],
                     ['title' => '4-6 mega geile Produktbilder und 1 Video pro Produkt generieren (Auch mit Geschenkebox) - Made in Germany hinzufügen', 'priority' => 'medium'],
                     ['title' => 'Produktbild mit Maßangabe pro Produkt', 'priority' => 'medium'],
                     ['title' => 'Produktvorlagen erstellen', 'priority' => 'medium'],

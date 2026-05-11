@@ -669,6 +669,33 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeAnalyzeNeuralError']
             ],
             [
+                'name' => 'system_analyze_security_threats',
+                'description' => 'Untersucht die Sicherheit & Abwehr Logik des Systems tiefgehend. Ruft aktuelle fehlgeschlagene Loginversuche und Sicherheits-Logs ab, analysiert diese mittels KI auf DDoS, Brute-Force oder andere Angriffsmuster und generiert einen detaillierten Bericht. Kann den Bericht optional direkt per Mail versenden. Stichworte: Analysiere die Bedrohungen, Prüfe Sicherheit & Abwehr, Schick mir den Threat Report.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'send_email' => [
+                            'type' => 'boolean',
+                            'description' => 'Soll der detaillierte Bericht per E-Mail versendet werden?'
+                        ],
+                        'email_address' => [
+                            'type' => 'string',
+                            'description' => 'Die Ziel-E-Mail Adresse. Leer lassen für System-Standard.'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeAnalyzeSecurityThreats']
+            ],
+            [
+                'name' => 'system_clear_security_threats',
+                'description' => 'Leert/löscht den gesamten Threat Monitor (Sicherheitswarnungen, fehlgeschlagene Logins, Brute-Force Einträge). Nutze dies, wenn der Nutzer verlangt, die Einträge manuell zu leeren oder den Bereich "sauber zu halten".',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeClearSecurityThreats']
+            ],
+            [
                 'name' => 'system_scan_neural_network',
                 'description' => 'Führe dieses Tool IMMER aus, wenn der Nutzer sagt: "Untersuche das Neurale Netzwerk auf Fehler", "Zeige Fehler im Gehirn", "Scanne das Projekt Gehirn". Es triggert einen visuellen Scan im 3D Raum und gibt dir als KI eine Liste der gefundenen fehlerhaften Dateien zurück.',
                 'parameters' => [
@@ -832,6 +859,121 @@ trait AiSystemFuncs
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Senden der Mail: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAnalyzeSecurityThreats(array $args)
+    {
+        try {
+            $sendEmail = $args['send_email'] ?? false;
+            $email = $args['email_address'] ?? null;
+
+            // Hole fehlerhafte Logins der letzten 48h
+            $failedLogins = collect();
+            if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
+                $failedLogins = \App\Models\System\SystemLoginAttempt::where('success', false)
+                    ->where('attempted_at', '>=', now()->subHours(48))
+                    ->orderByDesc('attempted_at')
+                    ->limit(50)
+                    ->get(['email', 'ip_address', 'attempted_at']);
+            }
+
+            // Hole Security Logs der letzten 48h
+            $securityLogs = collect();
+            if (class_exists(\App\Models\System\SystemLog::class)) {
+                $securityLogs = \App\Models\System\SystemLog::whereIn('type', ['security', 'system'])
+                    ->where('status', 'error')
+                    ->where('started_at', '>=', now()->subHours(48))
+                    ->orderByDesc('started_at')
+                    ->limit(50)
+                    ->get(['title', 'message', 'type', 'started_at']);
+            }
+
+            $payload = [
+                'failed_logins' => $failedLogins->toArray(),
+                'security_logs' => $securityLogs->toArray(),
+            ];
+
+            $agent = \App\Models\Ai\AiAgent::where('name', 'Systemi')->first() ?? \App\Models\Ai\AiAgent::first();
+
+            $prompt = "Du bist der leitende Cyber-Security Analyst von Seelenfunke.\n";
+            $prompt .= "Hier sind die aggregierten Sicherheits-Daten (fehlgeschlagene Logins & Systemfehler) der letzten 48 Stunden:\n\n";
+            $prompt .= json_encode($payload, JSON_UNESCAPED_UNICODE) . "\n\n";
+            $prompt .= "Analysiere diese tiefgreifend auf Brute-Force-Attacken, DDoS-Muster oder andere Anomalien. Formuliere strategische, sofort umsetzbare Sicherheitsanweisungen als detaillierten Markdown-Bericht.";
+
+            $reportContent = \App\Services\AI\GeminiAgent::processDirectPrompt($agent, $prompt);
+
+            if (empty(trim($reportContent)) || str_contains($reportContent, 'API Fehler')) {
+                $reportContent = "# Security Threat Report\n\nDie KI konnte die Sicherheitsdaten nicht analysieren (API Limit oder Fehler).";
+            }
+
+            $reportName = 'SecurityThreatReport_' . time() . '.md';
+            \Illuminate\Support\Facades\Storage::disk('public')->put('agenten/workspace/md/' . $reportName, $reportContent);
+
+            $message = "Security Analyse abgeschlossen. Bericht wurde als {$reportName} generiert.";
+
+            if ($sendEmail) {
+                if (!$email) {
+                    $email = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+                
+                if (class_exists(\App\Mail\AiAgentMessageMail::class)) {
+                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail('Dringend: Security Threat Report', $reportContent, 'System-Security-Agent'));
+                } else {
+                    \Illuminate\Support\Facades\Mail::raw("Automatischer KI Bericht - Security:\n\n" . $reportContent, function ($m) use ($email) {
+                        $m->to($email)->subject("Security Threat Report");
+                    });
+                }
+                $message .= " Der Bericht wurde direkt an {$email} gesendet.";
+            }
+
+            return [
+                'status' => 'success',
+                'message' => $message,
+                'report_file' => $reportName,
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'ai-neural-analysis-complete',
+                    'detail' => [
+                        'file_path' => $reportName,
+                        'report' => $reportContent
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Security Threat Analysis failed: ' . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler bei der Security Analyse: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeClearSecurityThreats(array $args)
+    {
+        try {
+            $deletedLogs = 0;
+            $deletedAttempts = 0;
+
+            if (class_exists(\App\Models\System\SystemLog::class)) {
+                $deletedLogs = \App\Models\System\SystemLog::where('type', 'security')->delete();
+            }
+            if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
+                $deletedAttempts = \App\Models\System\SystemLoginAttempt::where('success', false)->delete();
+            }
+
+            return [
+                'status' => 'success',
+                'message' => "Threat Monitor wurde erfolgreich geleert. Gelöscht: {$deletedLogs} Security-Logs und {$deletedAttempts} fehlgeschlagene Logins.",
+                '_frontend_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'alert',
+                    'detail' => [
+                        'type' => 'success',
+                        'message' => 'Threat Monitor geleert.'
+                    ]
+                ]
+            ];
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Clear Security Threats failed: ' . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler beim Leeren des Threat Monitors: ' . $e->getMessage()];
         }
     }
 

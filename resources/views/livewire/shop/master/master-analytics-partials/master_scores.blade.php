@@ -109,10 +109,28 @@
         } elseif ($sysWarnings > 0 || $systemScore < 80) {
             $sysText = 'System-Warnungen';
         }
+
+        // --- 4. SECURITY SCORE ---
+        $failedLogins24h = class_exists(\App\Models\System\SystemLoginAttempt::class) ? \App\Models\System\SystemLoginAttempt::where('success', false)->where('attempted_at', '>=', now()->subHours(24))->count() : 0;
+        $securityWarnings24h = class_exists(\App\Models\System\SystemLog::class) ? \App\Models\System\SystemLog::whereIn('type', ['security', 'system'])->where('status', 'error')->where('started_at', '>=', now()->subHours(24))->count() : 0;
+        
+        $securityScore = 100 - ($failedLogins24h * 5) - ($securityWarnings24h * 10);
+        $securityScore = max(0, min(100, $securityScore));
+
+        $secColorClass = $securityScore >= 80 ? 'text-purple-400' : ($securityScore >= 50 ? 'text-amber-400' : 'text-red-400');
+        $secStrokeColor = $securityScore >= 80 ? '#c084fc' : ($securityScore >= 50 ? '#fbbf24' : '#f87171');
+        $secOffset = $circumference - ($securityScore / 100) * $circumference;
+
+        $secText = 'System gesichert';
+        if ($securityScore < 50) {
+            $secText = 'Kritische Angriffe!';
+        } elseif ($securityScore < 80) {
+            $secText = 'Erhöhte Aktivität';
+        }
     @endphp
 
-    <!-- TOP ROW: THE 3 SCORES -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <!-- TOP ROW: THE 4 SCORES -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
 
         <!-- 1. SHOP HEALTH SCORE -->
         <div @click="activeTab = activeTab === 'shop' ? null : 'shop'"
@@ -230,6 +248,54 @@
                 @else
                     <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-400">Alle APIs stabil</p>
                     <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-emerald-500">{{ $sysText }}</p>
+                @endif
+            </div>
+
+        </div>
+
+        <!-- 4. SECURITY SCORE -->
+        <div @click="activeTab = activeTab === 'security' ? null : 'security'"
+             class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             :class="activeTab === 'security' ? 'active-theme-pulse' : 'border-gray-800'">
+
+            <div class="absolute top-4 right-4 z-10" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                <div class="text-gray-400 hover:text-white cursor-help">
+                    <x-heroicon-o-information-circle class="w-5 h-5" />
+                </div>
+                <div x-show="tooltip" x-transition.opacity.duration.200ms class="absolute top-full right-0 mt-2 w-56 p-4 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl text-left pointer-events-none" style="display: none;">
+                    <p class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2 border-b border-gray-800 pb-2">Berechnung (Letzte 24h)</p>
+                    <div class="text-xs text-gray-300 space-y-2">
+                        <p class="text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-white">100 Punkte</span></p>
+                        <ul class="space-y-1.5">
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro fehlgeschlagenem Login:</span> <span class="text-red-400">-5</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro System-Fehler/Angriff:</span> <span class="text-red-400">-10</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Sicherheit & Abwehr</h3>
+
+            <div class="relative w-28 h-28 flex items-center justify-center shrink-0 mb-4">
+                <svg class="w-full h-full transform -rotate-90 overflow-visible" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="#1f2937" stroke-width="8"></circle>
+                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="{{ $secStrokeColor }}" stroke-width="8" stroke-dasharray="{{ $circumference }}" stroke-dashoffset="{{ $secOffset }}" stroke-linecap="round" class="transition-all duration-1000 ease-out drop-shadow-[0_0_8px_currentColor]"></circle>
+                </svg>
+                <div class="absolute flex flex-col items-center justify-center">
+                    <span class="text-3xl font-black {{ $secColorClass }} drop-shadow-[0_0_10px_currentColor]">{{ $securityScore }}</span>
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Score</span>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                @if($failedLogins24h > 0 || $securityWarnings24h > 0)
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-400">
+                        <span class="text-white">{{ $failedLogins24h + $securityWarnings24h }}</span> Ereignisse (24h)
+                    </p>
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 {{ $secColorClass }} animate-pulse">{{ $secText }}</p>
+                @else
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-0.5 text-gray-400">0 Ereignisse</p>
+                    <p class="text-[10px] font-bold uppercase tracking-widest mt-1.5 text-purple-400">{{ $secText }}</p>
                 @endif
             </div>
 
@@ -814,6 +880,102 @@
                         </div>
                     </div>
                 @endif
+            </div>
+
+            <!-- 4. SECURITY DETAILS -->
+            <div x-show="activeTab === 'security'" x-transition.opacity.duration.300ms>
+                <div class="flex justify-between items-end border-b border-gray-800 pb-6 mb-8 mt-8">
+                    <div>
+                        <h2 class="text-2xl font-serif font-bold text-white mb-1">Sicherheit & Abwehr</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Angriffe, Rate-Limits und Systembedrohungen in Echtzeit.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <!-- Stat 1: Failed Logins -->
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
+                        <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-finger-print class="w-5 h-5 text-purple-500" />
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Login Versuche</h3>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-3xl font-black {{ $failedLogins24h > 10 ? 'text-red-500' : 'text-purple-400' }}">{{ $failedLogins24h }}</span>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Fehlgeschlagen<br>(Letzte 24h)</span>
+                        </div>
+                    </div>
+
+                    <!-- Stat 2: Security Errors -->
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
+                        <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-shield-exclamation class="w-5 h-5 text-red-500" />
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">System Alarme</h3>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-3xl font-black {{ $securityWarnings24h > 0 ? 'text-red-500' : 'text-emerald-500' }}">{{ $securityWarnings24h }}</span>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Kritische<br>Warnungen</span>
+                        </div>
+                    </div>
+
+                    <!-- Stat 3: WAF / Rate Limit Status -->
+                    <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
+                        <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
+                            <x-heroicon-o-lock-closed class="w-5 h-5 text-emerald-500" />
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Rate Limiter</h3>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-3xl font-black text-emerald-500">Aktiv</span>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">DDoS Schutz<br>Routing</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- THREAT MONITOR -->
+                <div class="bg-gray-950/40 rounded-[2rem] border border-gray-800 p-6 shadow-inner">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
+                            <x-heroicon-s-eye class="w-5 h-5 text-purple-500" />
+                            Threat Monitor (Letzte Ereignisse)
+                        </h3>
+                        <button wire:click="clearSecurityLogs" class="text-[10px] font-bold text-gray-400 hover:text-white uppercase tracking-widest px-3 py-1.5 rounded-lg border border-gray-800 hover:border-gray-600 bg-gray-900 transition-colors flex items-center gap-2">
+                            <x-heroicon-o-trash class="w-3.5 h-3.5" />
+                            Alle leeren
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                        @php
+                            $recentSecurityLogs = $this->systemLogs->filter(function($log) {
+                                // Nur Logs anzeigen, die den Status 'error' haben (also ungelöst sind)
+                                return ($log['status'] ?? '') === 'error' && in_array(($log['type'] ?? ''), ['system', 'security']);
+                            })->take(20);
+                        @endphp
+
+                        @forelse($recentSecurityLogs as $log)
+                            <div class="bg-gray-900 rounded-xl p-4 border border-gray-800/80 hover:border-gray-700 transition-colors flex gap-4 items-start">
+                                <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center {{ ($log['type'] ?? '') === 'security' ? 'bg-purple-500/10 border-purple-500/20 text-purple-500' : 'bg-red-500/10 border-red-500/20 text-red-500' }} border">
+                                    @if(($log['type'] ?? '') === 'security')
+                                        <x-heroicon-o-finger-print class="w-5 h-5" />
+                                    @else
+                                        <x-heroicon-o-exclamation-circle class="w-5 h-5" />
+                                    @endif
+                                </div>
+                                <div class="flex-1 min-w-0 pt-0.5">
+                                    <div class="flex justify-between items-start gap-4">
+                                        <h4 class="text-sm font-bold text-gray-200 truncate">{{ $log['title'] ?? 'Unbekanntes Ereignis' }}</h4>
+                                        <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log['timestamp'])->format('d.m.Y H:i:s') }}</span>
+                                    </div>
+                                    <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">{{ $log['message'] ?? '' }}</p>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="py-12 flex flex-col items-center justify-center text-gray-500 text-center">
+                                <x-heroicon-o-shield-check class="w-12 h-12 mb-4 text-emerald-500/50" />
+                                <p class="font-bold text-sm text-gray-300">Keine Bedrohungen erkannt.</p>
+                                <p class="text-xs mt-1">Dein System hat in letzter Zeit keine Sicherheitswarnungen protokolliert.</p>
+                            </div>
+                        @endforelse
+                    </div>
+                </div>
             </div>
 
             <!-- 4. CAPACITIES (SPEICHER & PRODUKTION) -->
