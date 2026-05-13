@@ -27,6 +27,33 @@ try {
         $cronjobs = SystemCronjob::where('is_active', true)->get();
 
         foreach ($cronjobs as $job) {
+            // SICHERHEITSSPERRE FÜR DAEMONS:
+            // Commands wie 'reverb:start' oder 'queue:work' laufen unendlich.
+            // Auch mit runInBackground() wartet der Mittwald-Docker-Container auf das Ende ALLER Kind-Prozesse.
+            // Wenn diese hier geladen werden, bleibt der gesamte schedule:run hängen!
+            $daemonCommands = ['reverb:start', 'queue:work', 'queue:listen', 'websockets:serve'];
+            
+            $commandBase = explode(' ', $job->command)[0];
+            if (in_array($commandBase, $daemonCommands)) {
+                // Diese Befehle dürfen NIEMALS über den Laravel Scheduler laufen.
+                // Sie MÜSSEN als eigenständige Cronjobs im Mittwald Panel angelegt werden.
+                if (class_exists(SystemLog::class)) {
+                    SystemLog::create([
+                        'type' => 'system',
+                        'action_id' => 'system:cronjob_blocked',
+                        'title' => 'Daemon-Sperre: ' . $job->command,
+                        'message' => 'Langlaufende Prozesse dürfen nicht über den internen Scheduler laufen, da sie sonst den Server blockieren. Bitte als eigenen Mittwald-Cronjob anlegen!',
+                        'status' => 'warning',
+                        'started_at' => now(),
+                        'finished_at' => now(),
+                    ]);
+                }
+                
+                // Job automatisch deaktivieren, um zukünftige Hänger zu vermeiden
+                $job->update(['is_active' => false, 'status' => 'error']);
+                continue;
+            }
+
             $event = Schedule::command($job->command, $job->parameters ? explode(' ', $job->parameters) : []);
 
             if (method_exists($event, $job->schedule)) {
@@ -35,7 +62,7 @@ try {
                 $event->cron($job->schedule);
             }
             
-            // Verhindert, dass ein hängender Cronjob den gesamten Scheduler (schedule:run) auf dem Mittwald-Server blockiert
+            // Verhindert Überschneidungen bei normalen Jobs
             $event->runInBackground()->withoutOverlapping();
 
             $event->onSuccess(function () use ($job) {
