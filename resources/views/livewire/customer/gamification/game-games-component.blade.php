@@ -36,7 +36,7 @@
                     </label>
                 </div>
 
-                <button :disabled="!agreedToTerms" @click="if(agreedToTerms) triggerEpicStart()" class="w-full sm:w-auto group relative px-8 sm:px-12 py-4 sm:py-5 bg-gradient-to-r from-primary to-primary-dark text-gray-900 rounded-xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_0_40px_rgba(197,160,89,0.5)] transition-all flex items-center justify-center gap-4 overflow-hidden transform-gpu mx-auto lg:mx-0 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed hover:scale-105 hover:shadow-[0_0_60px_rgba(197,160,89,0.8)] disabled:hover:scale-100 disabled:hover:shadow-[0_0_40px_rgba(197,160,89,0.5)]">
+                <button :disabled="!agreedToTerms" @click="if(agreedToTerms) triggerEpicStart()" class="w-full sm:w-auto group relative px-8 sm:px-12 py-4 sm:py-5 bg-gradient-to-r from-primary to-primary-dark disabled:from-gray-800 disabled:to-gray-900 text-gray-900 disabled:text-gray-400 rounded-xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_0_40px_rgba(197,160,89,0.5)] disabled:shadow-none transition-all flex items-center justify-center gap-4 overflow-hidden transform-gpu mx-auto lg:mx-0 disabled:cursor-not-allowed hover:scale-105 hover:shadow-[0_0_60px_rgba(197,160,89,0.8)] disabled:hover:scale-100 ring-1 ring-inset ring-transparent disabled:ring-gray-700">
                     <div x-show="agreedToTerms" class="absolute inset-0 bg-white/30 transform -skew-x-12 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
                     <span>Magie aktivieren</span>
                     <svg class="w-5 h-5 group-hover:translate-x-2 group-hover:scale-110 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -319,7 +319,7 @@
     <div x-show="activeGame === 'funkenflug'" x-cloak x-transition:enter="transition ease-out duration-500 delay-200" x-transition:enter-start="opacity-0 translate-y-10" x-transition:enter-end="opacity-100 translate-y-0" class="w-full max-w-[1400px] mx-auto flex-1 flex flex-col" x-data="funkenflugExpress()">
 
         {{-- AUDIO BGM FUNKENFLUG --}}
-        <audio x-ref="ffBgmAudio" src="{{ asset('shop/customer/gamification/music/funkenflug.mp3') }}" loop preload="auto"></audio>
+        <audio x-ref="ffBgmAudio" src="{{ asset('shop/customer/gamification/music/funkenflug.mp3') }}?v=1" loop preload="auto"></audio>
 
         <div class="relative w-full flex-1 flex flex-col">
 

@@ -71,6 +71,17 @@
                     @foreach($cart->items as $item)
                         <li class="flex items-start py-6 space-x-4">
                             @php
+                                $snapshotFront = null;
+                                $snapshotBack = null;
+                                if (!empty($item->configuration['snapshot_path'])) {
+                                    $sp = $item->configuration['snapshot_path'];
+                                    if (is_array($sp)) {
+                                        $snapshotFront = $sp['front'] ?? null;
+                                        $snapshotBack = $sp['back'] ?? null;
+                                    } else {
+                                        $snapshotFront = $sp;
+                                    }
+                                }
                                 $displayImage = null;
                                 if (!empty($item->product->media_gallery)) {
                                     foreach ($item->product->media_gallery as $media) {
@@ -85,12 +96,27 @@
                                 }
                             @endphp
 
-                            @if($displayImage)
-                                <img src="{{ Storage::url($displayImage) }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200 shadow-sm">
-                            @else
-                                <div class="flex-none w-20 h-20 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300">
-                                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            @if($snapshotFront || $snapshotBack)
+                                <div class="flex flex-col gap-2">
+                                    @if($snapshotFront)
+                                        <div class="flex-none w-20 h-20 rounded-md bg-white border border-gray-200 shadow-sm overflow-hidden p-1">
+                                            <img src="{{ Storage::url($snapshotFront) }}" class="w-full h-full object-contain">
+                                        </div>
+                                    @endif
+                                    @if($snapshotBack)
+                                        <div class="flex-none w-20 h-20 rounded-md bg-white border border-gray-200 shadow-sm overflow-hidden p-1">
+                                            <img src="{{ Storage::url($snapshotBack) }}" class="w-full h-full object-contain">
+                                        </div>
+                                    @endif
                                 </div>
+                            @else
+                                @if($displayImage)
+                                    <img src="{{ Storage::url($displayImage) }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200 shadow-sm">
+                                @else
+                                    <div class="flex-none w-20 h-20 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300">
+                                        <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    </div>
+                                @endif
                             @endif
 
                             <div class="flex-auto space-y-1">
@@ -104,14 +130,72 @@
                                 @endif
 
                                 <p class="text-gray-500">{{ $item->quantity }}x</p>
-                                @if(!empty($item->configuration) && is_array($item->configuration))
-                                    <div class="text-xs text-gray-500 space-y-1">
-                                        @if(isset($item->configuration['texts']))
-                                            @foreach($item->configuration['texts'] as $t)
-                                                <div class="bg-gray-50 inline-block px-1.5 py-0.5 rounded border border-gray-100">"{{ Str::limit($t['text'], 20) }}"</div>
-                                            @endforeach
-                                        @endif
-                                    </div>
+                                @if(!empty($item->configuration) && is_array($item->configuration) && ($item->product->isPersonalizable() ?? true))
+                                    <div x-data="{ showText: false, showMotiv: false }" class="mt-2">
+                                        <div class="flex flex-wrap gap-2 mb-2">
+                                            @if(!empty($item->configuration['texts']) || !empty($item->configuration['text']))
+                                                <button type="button" @click="showText = !showText; showMotiv = false" class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition cursor-pointer">
+                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                    Text
+                                                </button>
+                                            @endif
+                                            @php
+                                                $logoCount = count(array_filter((array)($item->configuration['logos'] ?? []), fn($i) => is_string($i) && trim($i) !== ''));
+                                                $fileCount = count(array_filter((array)($item->configuration['files'] ?? []), fn($i) => is_string($i) && trim($i) !== ''));
+                                                if(is_string($item->configuration['logo_storage_path'] ?? null) && trim($item->configuration['logo_storage_path']) !== '') $logoCount++;
+                                                $totalMotivs = max($logoCount, $fileCount);
+                                            @endphp
+                                            @if($totalMotivs > 0)
+                                                <button type="button" @click="showMotiv = !showMotiv; showText = false" class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition cursor-pointer">
+                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                    Motiv ({{ $totalMotivs }})
+                                                </button>
+                                            @endif
+                                        </div>
+
+                                        <div x-show="showText" x-collapse x-cloak class="mb-2 bg-gray-50 rounded-xl p-3 border border-gray-100 text-xs text-gray-600 text-left break-words">
+                                            @php $conf = $item->configuration; @endphp
+                                            @if(!empty($conf['texts']))
+                                                @foreach($conf['texts'] as $idx => $t)
+                                                    @if(!empty($t['text']))
+                                                        <div class="mb-2"><strong>{{ count($conf['texts']) > 1 ? 'Text '.($idx+1).' (Vorderseite)' : 'Gravur (Vorderseite)' }}:</strong> <br>"{!! nl2br(e($t['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $t['font'] ?? 'Standard' }}</span></div>
+                                                    @endif
+                                                @endforeach
+                                            @elseif(!empty($conf['text']))
+                                                <div class="mb-2"><strong>Gravur:</strong> <br>"{!! nl2br(e($conf['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $conf['font'] ?? 'Standard' }}</span></div>
+                                            @endif
+
+                                            @if(!empty($conf['texts_back']))
+                                                <div class="mt-2 pt-2 border-t border-gray-200"></div>
+                                                @foreach($conf['texts_back'] as $idx => $t)
+                                                    @if(!empty($t['text']))
+                                                        <div class="mb-2"><strong>{{ count($conf['texts_back']) > 1 ? 'Text '.($idx+1).' (Rückseite)' : 'Gravur (Rückseite)' }}:</strong> <br>"{!! nl2br(e($t['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $t['font'] ?? 'Standard' }}</span></div>
+                                                    @endif
+                                                @endforeach
+                                            @endif
+                                        </div>
+
+                                        <div x-show="showMotiv" x-collapse x-cloak class="mb-2 bg-gray-50 rounded-xl p-3 border border-gray-100 text-xs text-gray-600 text-left">
+                                            @php $conf = $item->configuration; @endphp
+                                            @if(!empty($conf['files']))
+                                                @php $validFiles = array_filter((array)$conf['files'], fn($i) => is_string($i) && trim($i) !== ''); @endphp
+                                                @if(count($validFiles) > 0)
+                                                    <strong class="block mb-1">Hinterlegte Bilder: {{ count($validFiles) }} Datei(en)</strong>
+                                                    <div class="flex gap-2 flex-wrap">
+                                                        @foreach($validFiles as $file)
+                                                            @if(in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), ['jpg','jpeg','png','webp']))
+                                                                <a href="{{ asset('storage/'.$file) }}" @click.prevent="$dispatch('open-image-modal', '{{ asset('storage/'.$file) }}')" class="w-12 h-12 rounded border border-gray-200 overflow-hidden block hover:border-primary transition cursor-pointer">
+                                                                    <img src="{{ asset('storage/'.$file) }}" class="w-full h-full object-cover">
+                                                                </a>
+                                                            @else
+                                                                <a href="{{ asset('storage/'.$file) }}" target="_blank" class="w-12 h-12 rounded border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 bg-white hover:border-primary hover:text-primary transition">PDF</a>
+                                                            @endif
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                            @endif
+                                        </div>
+                                    </div> </div>
                                 @endif
                             </div>
                             <div class="text-right">

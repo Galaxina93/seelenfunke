@@ -13,34 +13,95 @@
         @if(!str_contains(strtolower($item['name']), 'versand') && !str_contains(strtolower($item['name']), 'express'))
             @php
                 $conf = $item['config'] ?? [];
-                $imgPath = $conf['product_image_path'] ?? null;
+                
+                // Image Paths extrahieren
+                $imgPaths = [];
+                if (isset($conf['snapshot_path'])) {
+                    if (is_array($conf['snapshot_path'])) {
+                        if (isset($conf['snapshot_path']['front'])) $imgPaths['front'] = $conf['snapshot_path']['front'];
+                        if (isset($conf['snapshot_path']['back'])) $imgPaths['back'] = $conf['snapshot_path']['back'];
+                    } elseif (is_string($conf['snapshot_path'])) {
+                        $imgPaths['front'] = $conf['snapshot_path'];
+                    }
+                }
+                
+                if (empty($imgPaths) && !empty($item['main_image'])) {
+                    $imgPaths['front'] = $item['main_image'];
+                }
+
+                $imgUrls = [];
+                foreach ($imgPaths as $key => $imgPath) {
+                    $imgUrl = null;
+                    if (str_starts_with($imgPath, 'http')) {
+                        $imgUrl = $imgPath;
+                    } else {
+                        $pathPrefix = str_starts_with($imgPath, 'storage/') ? '' : 'storage/';
+                        if (isset($isPdf) && $isPdf) {
+                            $fullLocalPath = public_path($pathPrefix . $imgPath);
+                            if (file_exists($fullLocalPath)) {
+                                $mime = mime_content_type($fullLocalPath);
+                                $dataInfo = base64_encode(file_get_contents($fullLocalPath));
+                                $imgUrl = 'data:' . $mime . ';base64,' . $dataInfo;
+                            }
+                        }
+                        
+                        if (!$imgUrl) {
+                            $imgUrl = asset($pathPrefix . $imgPath);
+                        }
+                    }
+                    if ($imgUrl) {
+                        $imgUrls[$key] = $imgUrl;
+                    }
+                }
             @endphp
             <tr>
                 <td style="padding: 15px 0; border-bottom: 1px solid #f5f5f5; vertical-align: top;">
                     <strong style="font-size: 14px; color: #222; display: block; margin-bottom: 5px;">{{ $item['name'] }}</strong>
 
-                    {{-- VISUELLE VORSCHAU DER KONFIGURATION --}}
-                    @if(!empty($imgPath))
-                        <div class="preview-wrapper" style="margin-top: 10px; margin-bottom: 10px; display: block;">
-                            <div class="preview-container" style="position: relative; width: 100px; height: 100px; display: block; border: 1px solid #e5e5e5; border-radius: 4px; background-color: #f9f9f9; overflow: hidden;">
-                                <img src="{{ asset($imgPath) }}" style="width: 100%; height: 100%; object-fit: contain; display: block;">
-
-                                @if(isset($conf['text_x']))
-                                    <div class="marker" style="position: absolute; width: 6px; height: 6px; border-radius: 50%; background-color: #007bff; border: 1px solid white; left: {{ $conf['text_x'] }}%; top: {{ $conf['text_y'] }}%; transform: translate(-50%, -50%); z-index: 10;"></div>
-                                @endif
-
-                                @if(isset($conf['logo_x']) && !empty($conf['logo_storage_path']))
-                                    <div class="marker" style="position: absolute; width: 6px; height: 6px; border-radius: 50%; background-color: #28a745; border: 1px solid white; left: {{ $conf['logo_x'] }}%; top: {{ $conf['logo_y'] }}%; transform: translate(-50%, -50%); z-index: 10;"></div>
-                                @endif
-                            </div>
-                        </div>
+                    {{-- VISUELLE VORSCHAU DER KONFIGURATION ODER PRODUKTBILD --}}
+                    @if(!empty($imgUrls))
+                        <table style="margin-top: 10px; margin-bottom: 10px; border-collapse: collapse;">
+                            <tr>
+                            @foreach($imgUrls as $key => $imgUrl)
+                                <td style="padding-right: 10px; vertical-align: top;">
+                                    <div style="width: 80px; height: 80px; border: 1px solid #e5e5e5; border-radius: 4px; background-color: #f9f9f9; text-align: center; vertical-align: middle;">
+                                        <img src="{{ $imgUrl }}" style="max-width: 78px; max-height: 78px; display: inline-block; margin-top: 1px;" alt="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
+                                    </div>
+                                </td>
+                            @endforeach
+                            </tr>
+                        </table>
                     @endif
 
                     {{-- DETAILS & KONFIGURATIONSDATEN --}}
                     <div style="font-size: 11px; color: #666; line-height: 1.5;">
-                        @if(!empty($conf['text']))
-                            <div style="margin-bottom: 2px;"><strong style="color: #444;">Gravur:</strong> "{{ $conf['text'] }}"</div>
+                        @if(!empty($conf['texts']) && is_array($conf['texts']))
+                            @foreach($conf['texts'] as $idx => $t)
+                                @if(!empty($t['text']))
+                                    <div style="margin-bottom: 2px;"><strong style="color: #444;">{{ count($conf['texts']) > 1 ? 'Text '.($idx+1).' (Vorderseite)' : 'Gravur (Vorderseite)' }}:</strong> "{!! nl2br(e($t['text'])) !!}"</div>
+                                    <div style="margin-bottom: 2px;"><strong style="color: #444;">Schrift:</strong> {{ $t['font'] ?? 'Standard' }}</div>
+                                @endif
+                            @endforeach
+                        @elseif(!empty($conf['text']))
+                            <div style="margin-bottom: 2px;"><strong style="color: #444;">Gravur:</strong> "{!! nl2br(e($conf['text'])) !!}"</div>
                             <div style="margin-bottom: 2px;"><strong style="color: #444;">Schrift:</strong> {{ $conf['font'] ?? 'Standard' }}</div>
+                        @endif
+
+                        @if(!empty($conf['texts_back']) && is_array($conf['texts_back']))
+                            <div style="margin-top: 5px;"></div>
+                            @foreach($conf['texts_back'] as $idx => $t)
+                                @if(!empty($t['text']))
+                                    <div style="margin-bottom: 2px;"><strong style="color: #444;">{{ count($conf['texts_back']) > 1 ? 'Text '.($idx+1).' (Rückseite)' : 'Gravur (Rückseite)' }}:</strong> "{!! nl2br(e($t['text'])) !!}"</div>
+                                    <div style="margin-bottom: 2px;"><strong style="color: #444;">Schrift:</strong> {{ $t['font'] ?? 'Standard' }}</div>
+                                @endif
+                            @endforeach
+                        @endif
+
+                        @php
+                            $uploadedFilesCount = isset($conf['files']) && is_array($conf['files']) ? count($conf['files']) : 0;
+                        @endphp
+                        @if($uploadedFilesCount > 0)
+                            <div style="margin-top: 5px; margin-bottom: 2px;"><strong style="color: #444;">Hinterlegte Bilder:</strong> {{ $uploadedFilesCount }} Datei(en)</div>
                         @endif
 
                         @if(!empty($conf['logo_storage_path']))

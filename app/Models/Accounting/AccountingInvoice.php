@@ -81,7 +81,8 @@ class AccountingInvoice extends Model
                     'unit_price' => $item->unit_price,
                     'tax_rate' => $item->tax_rate ?? $defaultTax,
                     'total_price' => $item->unit_price * $item->quantity,
-                    'configuration' => $item->configuration
+                    'configuration' => $item->configuration,
+                    'main_image' => $item->product && is_array($item->product->media_gallery) && count($item->product->media_gallery) > 0 ? $item->product->media_gallery[0]['path'] : ($item->product ? $item->product->preview_image_path : null)
                 ];
             });
         }

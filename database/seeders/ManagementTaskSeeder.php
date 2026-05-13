@@ -28,6 +28,7 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'Produktbild mit Maßangabe pro Produkt', 'priority' => 'medium'],
                     ['title' => 'Produktvorlagen erstellen', 'priority' => 'medium'],
                     ['title' => 'Landing Pages umfangreich und fett aufbauen', 'priority' => 'high'],
+                    ['title' => 'Im Bereich "Wie möchtest du starten?" Erklärvideo des Konfigurators angezeigen', 'priority' => 'high'],
                 ]
             ],
             [

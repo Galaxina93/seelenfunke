@@ -270,9 +270,21 @@
                             @endphp
                             <div class="bg-gray-950 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center sm:items-start gap-4">
                                 {{-- Thumbnail --}}
+                                @php
+                                    $conf = $item->configuration;
+                                    $snapshotImg = null;
+                                    if (!empty($conf['snapshot_path'])) {
+                                        if (is_array($conf['snapshot_path'])) {
+                                            $snapshotImg = $conf['snapshot_path']['front'] ?? null;
+                                        } else {
+                                            $snapshotImg = $conf['snapshot_path'];
+                                        }
+                                    }
+                                    $displayImage = $snapshotImg ?? (isset($prod->media_gallery[0]) ? $prod->media_gallery[0]['path'] : null);
+                                @endphp
                                 <div class="w-20 h-20 bg-gray-900 rounded-xl overflow-hidden border border-gray-800 relative group shrink-0">
-                                    @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
-                                        <img src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+                                    @if($displayImage)
+                                        <img src="{{ asset('storage/'.$displayImage) }}" class="w-full h-full {{ $snapshotImg ? 'object-contain p-1 bg-white' : 'object-cover' }} group-hover:scale-105 transition-transform duration-700">
                                     @else
                                         <div class="w-full h-full flex items-center justify-center text-gray-700">
                                             <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -304,10 +316,16 @@
                                                 Text
                                             </span>
                                         @endif
-                                        @if(!empty($item->configuration['logos']))
+                                        @php
+                                            $logoCount = count(array_filter((array)($item->configuration['logos'] ?? []), fn($i) => is_string($i) && trim($i) !== ''));
+                                            $fileCount = count(array_filter((array)($item->configuration['files'] ?? []), fn($i) => is_string($i) && trim($i) !== ''));
+                                            if(is_string($item->configuration['logo_storage_path'] ?? null) && trim($item->configuration['logo_storage_path']) !== '') $logoCount++;
+                                            $totalMotivs = max($logoCount, $fileCount);
+                                        @endphp
+                                        @if($totalMotivs > 0)
                                             <span class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-400 bg-gray-900 border border-gray-800 px-2 py-1 rounded">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                Motiv
+                                                Motiv ({{ $totalMotivs }})
                                             </span>
                                         @endif
                                     </div>

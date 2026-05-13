@@ -1,5 +1,5 @@
 @if($context !== 'preview')
-    <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}" x-data="{saved: false}" x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 6000)">
+    <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}" x-data="{saved: false}" x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 15000)">
         <div class="max-w-4xl mx-auto space-y-4">
             {{-- EXPRESS TOGGLE --}}
             @if($context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && $this->product->isPersonalizable())

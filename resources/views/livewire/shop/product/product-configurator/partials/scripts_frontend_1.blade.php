@@ -303,36 +303,54 @@
                         await new Promise(r => setTimeout(r, 150)); // Warten bis GPU die Textur hat
 
                         if (this.config.has_back_side) {
-                            const origX = engine.camera.position.x;
-                            const origZ = engine.camera.position.z;
-                            let camFrontX = origX;
-                            let camFrontZ = origZ;
-                            if (this.activeSide === 'back') {
-                                camFrontX = origX * -1;
-                                camFrontZ = origZ * -1;
+                            const origPos = engine.camera.position.clone();
+                            const origTarget = engine.controls.target.clone();
+
+                            if (engine.defaultCamPos && engine.defaultCamTarget) {
+                                engine.camera.position.copy(engine.defaultCamPos);
+                                engine.controls.target.copy(engine.defaultCamTarget);
+                            } else {
+                                engine.camera.position.set(0, 0, Math.abs(engine.camera.position.z));
+                                engine.controls.target.set(0, 0, 0);
                             }
 
-                            // Front Snapshot
-                            engine.camera.position.x = camFrontX;
-                            engine.camera.position.z = camFrontZ;
                             engine.controls.update();
                             engine.renderer.render(engine.scene, engine.camera);
                             snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
 
                             // Back Snapshot
-                            engine.camera.position.x = camFrontX * -1;
-                            engine.camera.position.z = camFrontZ * -1;
+                            if (engine.defaultCamPos) {
+                                engine.camera.position.copy(engine.defaultCamPos);
+                                engine.camera.position.z *= -1;
+                                engine.camera.position.x *= -1;
+                            } else {
+                                engine.camera.position.set(0, 0, -Math.abs(engine.camera.position.z));
+                            }
+                            
                             engine.controls.update();
                             engine.renderer.render(engine.scene, engine.camera);
                             snapshotBackBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
 
                             // Restore
-                            engine.camera.position.x = origX;
-                            engine.camera.position.z = origZ;
+                            engine.camera.position.copy(origPos);
+                            engine.controls.target.copy(origTarget);
                             engine.controls.update();
                         } else {
+                            const origPos = engine.camera.position.clone();
+                            const origTarget = engine.controls.target.clone();
+
+                            if (engine.defaultCamPos && engine.defaultCamTarget) {
+                                engine.camera.position.copy(engine.defaultCamPos);
+                                engine.controls.target.copy(engine.defaultCamTarget);
+                                engine.controls.update();
+                            }
+
                             engine.renderer.render(engine.scene, engine.camera);
                             snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                            
+                            engine.camera.position.copy(origPos);
+                            engine.controls.target.copy(origTarget);
+                            engine.controls.update();
                         }
                     } else {
                         // 2D-Fallback-Modus

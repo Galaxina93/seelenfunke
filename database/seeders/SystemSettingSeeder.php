@@ -115,5 +115,58 @@ class SystemSettingSeeder extends Seeder
         // 4. Cache leeren, damit die neuen Daten sofort überall aktiv sind
         Cache::forget('global_shop_settings');
         Cache::forget('shop_setting_inventory_threshold');
+
+        // 5. Lieferzeiten (Ampelsystem) & Spezialmodi initialisieren
+        \App\Models\Delivery\DeliverySetting::firstOrCreate(['id' => 1], [
+            'is_vacation_mode' => false,
+            'is_sick_mode' => false,
+            'vacation_description' => 'Mein Seelenfunke macht eine kurze Kreativpause! ☀️ Bestellungen sind weiterhin möglich, werden aber erst nach unserer Rückkehr gefertigt und versendet. Wir wünschen dir trotzdem ganz viel Spaß beim Stöbern im Shop!',
+            'sick_description' => 'Einige aus unseren Team sind leider aktuell gesundheitlich etwas angeschlagen und liegen flach. 🤒 Bestellungen werden natürlich weiterhin angenommen, die Fertigung und der Versand verzögern sich jedoch, bis wir wieder fit sind. Wir bitten um dein Verständnis und wünschen dir trotzdem ganz viel Spaß beim Stöbern!'
+        ]);
+
+        \App\Models\Delivery\DeliveryTime::updateOrCreate(
+            ['name' => 'Standard'],
+            [
+                'min_days' => 3,
+                'max_days' => 5,
+                'color' => 'green',
+                'description' => 'Da jedes Seelenstück ein Unikat ist, setzt sich diese Zeit aus der individuellen Fertigung in der Manufaktur und dem anschließenden Postweg zusammen.',
+            ]
+        );
+
+        \App\Models\Delivery\DeliveryTime::updateOrCreate(
+            ['name' => 'Erhöhtes Aufkommen'],
+            [
+                'min_days' => 5,
+                'max_days' => 8,
+                'color' => 'yellow',
+                'description' => 'Aufgrund vieler Bestellungen benötigen wir aktuell etwas länger für die liebevolle Handfertigung deines Unikats. Danke für deine Geduld!',
+            ]
+        );
+
+        \App\Models\Delivery\DeliveryTime::updateOrCreate(
+            ['name' => 'Hohe Auslastung'],
+            [
+                'min_days' => 10,
+                'max_days' => 14,
+                'color' => 'red',
+                'description' => 'Wir fertigen auf Hochtouren! Bitte beachte die deutlich verlängerte Bearbeitungszeit durch die aktuell extrem hohe Nachfrage.',
+            ]
+        );
+
+        \App\Models\Delivery\DeliveryTime::updateOrCreate(
+            ['name' => 'Extreme Auslastung'],
+            [
+                'min_days' => 16,
+                'max_days' => 21,
+                'color' => 'red',
+                'description' => 'Aufgrund extrem hoher Auslastung kommt es derzeit zu Verzögerungen. Dein Unikat wird mit größter Sorgfalt, aber etwas später gefertigt. Danke für dein Verständnis!',
+            ]
+        );
+
+        // Sicherstellen, dass mindestens eine Lieferzeit aktiv ist
+        if (\App\Models\Delivery\DeliveryTime::where('is_active', true)->count() === 0) {
+            \App\Models\Delivery\DeliveryTime::where('name', 'Standard')->update(['is_active' => true]);
+        }
     }
 }

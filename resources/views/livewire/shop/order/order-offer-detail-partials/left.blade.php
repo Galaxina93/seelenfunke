@@ -130,10 +130,18 @@
                                 <div class="h-16 w-16 sm:h-20 sm:w-20 bg-gray-950 rounded-xl sm:rounded-2xl border border-gray-800 overflow-hidden shrink-0 relative shadow-inner">
                                 @php
                                     $conf = $item->configuration;
-                                    $imgPath = $conf['preview_file'] ?? ($conf['logo_storage_path'] ?? ($item->product->preview_image_path ?? null));
+                                    $snapshotImg = null;
+                                    if (!empty($conf['snapshot_path'])) {
+                                        if (is_array($conf['snapshot_path'])) {
+                                            $snapshotImg = $conf['snapshot_path']['front'] ?? null;
+                                        } else {
+                                            $snapshotImg = $conf['snapshot_path'];
+                                        }
+                                    }
+                                    $imgPath = $snapshotImg ?? ($conf['preview_file'] ?? ($conf['logo_storage_path'] ?? ($item->product->preview_image_path ?? null)));
                                 @endphp
                                 @if($imgPath)
-                                    <img src="{{ asset('storage/'.$imgPath) }}" class="h-full w-full object-cover group-hover:scale-110 transition-transform duration-700">
+                                    <img src="{{ asset('storage/'.$imgPath) }}" class="h-full w-full {{ $snapshotImg ? 'object-contain p-1' : 'object-cover' }} group-hover:scale-110 transition-transform duration-700">
                                 @else
                                     <div class="h-full w-full flex items-center justify-center text-gray-700"><svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
                                 @endif

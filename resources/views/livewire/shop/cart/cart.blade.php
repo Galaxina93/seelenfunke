@@ -27,23 +27,64 @@
                             $deliveryTime = $attributes['Lieferzeit'] ?? null;
                         @endphp
 
-                        <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md w-full" wire:key="item-{{ $item->id }}">
+                        <div x-data="{ showText: false, showMotiv: false }" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md w-full" wire:key="item-{{ $item->id }}">
 
                             <div class="p-4 sm:p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-                                {{-- Produktbild --}}
-                                <div class="w-24 h-24 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group">
-                                    @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
-                                        <img src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
-                                    @else
-                                        <div class="w-full h-full flex items-center justify-center text-gray-300">
-                                            <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                        </div>
-                                    @endif
+                                {{-- Produktbild / Snapshots --}}
+                                @php
+                                    $snapshotFront = null;
+                                    $snapshotBack = null;
+                                    if (!empty($item->configuration['snapshot_path'])) {
+                                        $sp = $item->configuration['snapshot_path'];
+                                        if (is_array($sp)) {
+                                            $snapshotFront = $sp['front'] ?? null;
+                                            $snapshotBack = $sp['back'] ?? null;
+                                        } else {
+                                            $snapshotFront = $sp;
+                                        }
+                                    }
+                                @endphp
 
-                                    @if($type === 'digital')
-                                        <div class="absolute bottom-0 left-0 right-0 bg-blue-600/90 text-white text-[9px] font-bold text-center py-0.5">DIGITAL</div>
-                                    @elseif($type === 'service')
-                                        <div class="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[9px] font-bold text-center py-0.5">SERVICE</div>
+                                <div class="flex flex-col sm:flex-row gap-3">
+                                    @if($snapshotFront || $snapshotBack)
+                                        @if($snapshotFront)
+                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ asset('storage/'.$snapshotFront) }}')">
+                                                <img src="{{ asset('storage/'.$snapshotFront) }}" class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
+                                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                                                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                                </div>
+                                            </div>
+                                        @endif
+                                        @if($snapshotBack)
+                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ asset('storage/'.$snapshotBack) }}')">
+                                                <img src="{{ asset('storage/'.$snapshotBack) }}" class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
+                                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                                                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    @else
+                                        <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" 
+                                            @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
+                                            @click="$dispatch('open-image-modal', '{{ asset('storage/'.$prod->media_gallery[0]['path']) }}')"
+                                            @endif>
+                                            @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
+                                                <img src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+                                                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                                                    <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                                </div>
+                                            @else
+                                                <div class="w-full h-full flex items-center justify-center text-gray-300">
+                                                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                                </div>
+                                            @endif
+
+                                            @if($type === 'digital')
+                                                <div class="absolute bottom-0 left-0 right-0 bg-blue-600/90 text-white text-[9px] font-bold text-center py-0.5 z-10">DIGITAL</div>
+                                            @elseif($type === 'service')
+                                                <div class="absolute bottom-0 left-0 right-0 bg-orange-500/90 text-white text-[9px] font-bold text-center py-0.5 z-10">SERVICE</div>
+                                            @endif
+                                        </div>
                                     @endif
                                 </div>
 
@@ -81,20 +122,30 @@
                                         @endif
                                     </div>
 
-                                    <div class="flex flex-wrap gap-2 justify-center sm:justify-start mb-3">
-                                        @if(!empty($item->configuration['text']))
-                                            <span class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                                Text
-                                            </span>
-                                        @endif
-                                        @if(!empty($item->configuration['logos']))
-                                            <span class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                                Motiv
-                                            </span>
-                                        @endif
-                                    </div>
+                                    @if(!empty($item->configuration) && is_array($item->configuration) && ($prod->isPersonalizable() ?? true))
+                                        <div class="mt-2">
+                                            <div class="flex flex-wrap gap-2 justify-center sm:justify-start mb-3">
+                                                @if(!empty($item->configuration['texts']) || !empty($item->configuration['text']))
+                                                    <button type="button" @click="showText = !showText; showMotiv = false" class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition cursor-pointer">
+                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                        Text
+                                                    </button>
+                                                @endif
+                                                @php
+                                                    $logoCount = count(array_filter((array)($item->configuration['logos'] ?? []), fn($i) => is_string($i) && trim($i) !== ''));
+                                                    $fileCount = count(array_filter((array)($item->configuration['files'] ?? []), fn($i) => is_string($i) && trim($i) !== ''));
+                                                    if(is_string($item->configuration['logo_storage_path'] ?? null) && trim($item->configuration['logo_storage_path']) !== '') $logoCount++;
+                                                    $totalMotivs = max($logoCount, $fileCount);
+                                                @endphp
+                                                @if($totalMotivs > 0)
+                                                    <button type="button" @click="showMotiv = !showMotiv; showText = false" class="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded transition cursor-pointer">
+                                                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                        Motiv ({{ $totalMotivs }})
+                                                    </button>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endif
 
                                     <p class="text-sm text-gray-500 font-mono">
                                         Einzelpreis: {{ number_format($item->unit_price / 100, 2, ',', '.') }} €
@@ -134,6 +185,54 @@
                                     </div>
                                 </div>
                             </div>
+
+                            {{-- Full-width Details View --}}
+                            @if(!empty($item->configuration) && is_array($item->configuration) && ($prod->isPersonalizable() ?? true))
+                                <div class="px-4 pb-4 sm:px-6 sm:pb-6 break-words">
+                                    <div x-show="showText" x-collapse x-cloak class="bg-gray-50 rounded-xl p-4 border border-gray-100 text-xs text-gray-600 text-left mb-2">
+                                        @php $conf = $item->configuration; @endphp
+                                        @if(!empty($conf['texts']))
+                                            @foreach($conf['texts'] as $idx => $t)
+                                                @if(!empty($t['text']))
+                                                    <div class="mb-2"><strong>{{ count($conf['texts']) > 1 ? 'Text '.($idx+1).' (Vorderseite)' : 'Gravur (Vorderseite)' }}:</strong> <br>"{!! nl2br(e($t['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $t['font'] ?? 'Standard' }}</span></div>
+                                                @endif
+                                            @endforeach
+                                        @elseif(!empty($conf['text']))
+                                            <div class="mb-2"><strong>Gravur:</strong> <br>"{!! nl2br(e($conf['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $conf['font'] ?? 'Standard' }}</span></div>
+                                        @endif
+
+                                        @if(!empty($conf['texts_back']))
+                                            <div class="mt-2 pt-2 border-t border-gray-200"></div>
+                                            @foreach($conf['texts_back'] as $idx => $t)
+                                                @if(!empty($t['text']))
+                                                    <div class="mb-2"><strong>{{ count($conf['texts_back']) > 1 ? 'Text '.($idx+1).' (Rückseite)' : 'Gravur (Rückseite)' }}:</strong> <br>"{!! nl2br(e($t['text'])) !!}" <br><span class="text-[10px] text-gray-400">Schrift: {{ $t['font'] ?? 'Standard' }}</span></div>
+                                                @endif
+                                            @endforeach
+                                        @endif
+                                    </div>
+
+                                    <div x-show="showMotiv" x-collapse x-cloak class="bg-gray-50 rounded-xl p-4 border border-gray-100 text-xs text-gray-600 text-left">
+                                        @php $conf = $item->configuration; @endphp
+                                        @if(!empty($conf['files']))
+                                            @php $validFiles = array_filter((array)$conf['files'], fn($i) => is_string($i) && trim($i) !== ''); @endphp
+                                            @if(count($validFiles) > 0)
+                                                <strong class="block mb-1">Hinterlegte Bilder: {{ count($validFiles) }} Datei(en)</strong>
+                                                <div class="flex gap-2 flex-wrap">
+                                                    @foreach($validFiles as $file)
+                                                        @if(in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), ['jpg','jpeg','png','webp']))
+                                                            <a href="{{ asset('storage/'.$file) }}" @click.prevent="$dispatch('open-image-modal', '{{ asset('storage/'.$file) }}')" class="w-12 h-12 rounded border border-gray-200 overflow-hidden block hover:border-primary transition cursor-pointer">
+                                                                <img src="{{ asset('storage/'.$file) }}" class="w-full h-full object-cover">
+                                                            </a>
+                                                        @else
+                                                            <a href="{{ asset('storage/'.$file) }}" target="_blank" class="w-12 h-12 rounded border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 bg-white hover:border-primary hover:text-primary transition">PDF</a>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        @endif
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     @endforeach
                 </div>
@@ -246,6 +345,25 @@
     <div wire:loading class="fixed inset-0 bg-white/50 backdrop-blur-sm z-50 flex items-center justify-center">
         <svg class="animate-spin h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
     </div>
+
+    {{-- Global Image Modal --}}
+    <template x-teleport="body">
+        <div x-data="{ show: false, src: '' }" 
+             @open-image-modal.window="src = $event.detail; show = true"
+             @keydown.escape.window="show = false"
+             x-show="show" 
+             x-cloak 
+             class="fixed inset-0 z-[9999999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 sm:p-8 animate-fade-in"
+             style="display: none;">
+            <div class="absolute inset-0 cursor-pointer" @click="show = false"></div>
+            <button @click="show = false" class="absolute top-6 right-6 text-white hover:text-red-400 bg-black/50 hover:bg-black/80 border border-gray-600 rounded-full p-2 transition-colors z-[10000000] cursor-pointer">
+                <svg class="w-6 h-6 sm:w-8 sm:h-8 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <div class="relative w-full max-w-5xl h-full flex items-center justify-center pointer-events-none">
+                <img :src="src" class="max-w-full max-h-full object-contain drop-shadow-2xl pointer-events-auto rounded-lg" x-show="show" x-transition.scale.95.duration.300ms>
+            </div>
+        </div>
+    </template>
 
     {{-- NEU: Configurator als Modal Overlay (verhindert Layout-Verschiebungen) --}}
     @if($editingItemId)

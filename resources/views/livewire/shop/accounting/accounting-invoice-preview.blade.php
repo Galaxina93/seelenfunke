@@ -152,7 +152,11 @@
                                             'json',
                                             'svg',
                                             'preview',
-                                            'background'
+                                            'background',
+                                            'files',
+                                            'main_image',
+                                            'texts_back',
+                                            'snapshot_path'
                                         ];
                                     @endphp
 
@@ -160,7 +164,7 @@
                                         <tr>
                                             <td class="py-4 align-top">
                                                 <strong class="text-[13px] text-gray-900 block mb-1">{{ is_object($item) ? $item->product_name : $item['product_name'] }}</strong>
-
+                                                
                                                 @php
                                                     $config = null;
                                                     if(is_object($item) && isset($item->configuration)) {
@@ -168,7 +172,15 @@
                                                     } elseif(is_array($item) && isset($item['configuration'])) {
                                                         $config = $item['configuration'];
                                                     }
+                                                    $mainImg = is_object($item) ? ($item->main_image ?? null) : ($item['main_image'] ?? null);
+                                                    $imgPath = $config['product_image_path'] ?? $mainImg;
                                                 @endphp
+
+                                                @if(!empty($imgPath))
+                                                    <div style="margin-top: 5px; margin-bottom: 10px; width: 60px; height: 60px; border: 1px solid #e5e5e5; border-radius: 4px; background-color: #f9f9f9; overflow: hidden;">
+                                                        <img src="{{ asset($imgPath) }}" style="width: 100%; height: 100%; object-fit: contain;">
+                                                    </div>
+                                                @endif
 
                                                 @if($config)
                                                     {{-- 'break-all' sorgt dafür, dass lange Wörter notfalls umgebrochen werden --}}
@@ -187,6 +199,13 @@
                                                                 @endif
                                                             @endif
                                                         @endforeach
+                                                        
+                                                        @php
+                                                            $uploadedFilesCount = isset($config['files']) && is_array($config['files']) ? count($config['files']) : 0;
+                                                        @endphp
+                                                        @if($uploadedFilesCount > 0)
+                                                            <strong>Hinterlegte Bilder:</strong> {{ $uploadedFilesCount }} Datei(en)
+                                                        @endif
                                                     </div>
                                                 @endif
 

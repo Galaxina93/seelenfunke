@@ -158,6 +158,8 @@
 
                     this.camera.position.set(0, maxDim * 0.2, cameraZ * 1.5);
                     this.camera.updateProjectionMatrix();
+                    this.defaultCamPos = this.camera.position.clone();
+                    this.defaultCamTarget = this.controls.target.clone();
 
                     this.scene.add(this.modelContainer);
 

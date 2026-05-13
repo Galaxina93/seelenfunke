@@ -36,44 +36,6 @@
                                              $this->product->quantity <= 0 &&
                                              !$this->product->continue_selling_when_out_of_stock;
 
-                        // --- Lieferzeiten & Modi laden ---
-                        $isVacationMode = filter_var(shop_setting('is_vacation_mode', false), FILTER_VALIDATE_BOOLEAN);
-                        $vacationDesc   = shop_setting('vacation_description', '');
-                        $vacationStart  = shop_setting('vacation_start_date');
-                        $vacationEnd    = shop_setting('vacation_end_date');
-
-                        $isSickMode     = filter_var(shop_setting('is_sick_mode', false), FILTER_VALIDATE_BOOLEAN);
-                        $sickDesc       = shop_setting('sick_description', '');
-
-                        $deliveryTimesRaw = shop_setting('delivery_times', []);
-                        if (is_string($deliveryTimesRaw)) {
-                            $deliveryTimesRaw = json_decode($deliveryTimesRaw, true);
-                        }
-                        $deliveryTimes = is_array($deliveryTimesRaw) ? $deliveryTimesRaw : [];
-
-                        $activeDeliveryTimeId = shop_setting('active_delivery_time_id');
-                        $activeDeliveryTime = null;
-                        foreach ($deliveryTimes as $dt) {
-                            if (($dt['id'] ?? null) === $activeDeliveryTimeId) {
-                                $activeDeliveryTime = $dt;
-                                break;
-                            }
-                        }
-
-                        // Datumsberechnung für den Urlaubsmodus
-                        $vacationDeliveryMin = '';
-                        $vacationDeliveryMax = '';
-                        if ($isVacationMode && $vacationEnd) {
-                            try {
-                                $vEnd = \Carbon\Carbon::parse($vacationEnd);
-                                $vacationDeliveryMin = $vEnd->copy()->addDays(5)->format('d.m.Y');
-                                $vacationDeliveryMax = $vEnd->copy()->addDays(7)->format('d.m.Y');
-                            } catch (\Exception $e) {}
-                        }
-
-                        // Berechnung für den Krankheitsmodus
-                        $sickDeliveryMin = ($activeDeliveryTime['min_days'] ?? 3) + 6;
-                        $sickDeliveryMax = ($activeDeliveryTime['max_days'] ?? 5) + 6;
                     @endphp
 
                     {{-- Steuerhinweis --}}

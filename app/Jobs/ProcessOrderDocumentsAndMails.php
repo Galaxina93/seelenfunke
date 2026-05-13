@@ -81,19 +81,30 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
 
             // Sammle alle Snapshots der konfigurierten Artikel
             $snapshotPaths = [];
+            $itemIndex = 1;
             foreach ($this->order->items as $item) {
                 if (!empty($item->configuration['snapshot_path'])) {
-                    $paths = is_array($item->configuration['snapshot_path']) 
-                                ? array_values($item->configuration['snapshot_path']) 
-                                : [$item->configuration['snapshot_path']];
-                                
-                    foreach ($paths as $path) {
-                        $fullPath = storage_path('app/public/' . $path);
+                    $configSnapshots = $item->configuration['snapshot_path'];
+                    $cleanProductName = \Illuminate\Support\Str::slug($item->product_name);
+                    
+                    if (is_array($configSnapshots)) {
+                        foreach ($configSnapshots as $key => $path) {
+                            $fullPath = storage_path('app/public/' . $path);
+                            if (file_exists($fullPath)) {
+                                $sideName = ($key === 'back') ? 'Rückseite' : 'Vorderseite';
+                                $filename = $cleanProductName . '-' . $itemIndex . '-' . $sideName . '-Sicherung.jpg';
+                                $snapshotPaths[$filename] = $fullPath;
+                            }
+                        }
+                    } else {
+                        $fullPath = storage_path('app/public/' . $configSnapshots);
                         if (file_exists($fullPath)) {
-                            $snapshotPaths[] = $fullPath;
+                            $filename = $cleanProductName . '-' . $itemIndex . '-Vorderseite-Sicherung.jpg';
+                            $snapshotPaths[$filename] = $fullPath;
                         }
                     }
                 }
+                $itemIndex++;
             }
 
             // Da wir hier schon im Job sind, können wir send() nutzen.

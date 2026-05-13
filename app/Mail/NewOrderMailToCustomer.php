@@ -70,11 +70,13 @@ class NewOrderMailToCustomer extends Mailable implements ShouldQueue
 
         // 3. Snapshots anhängen
         if (!empty($this->snapshotPaths)) {
-            foreach ($this->snapshotPaths as $index => $snapshotPath) {
+            $isAssoc = array_keys($this->snapshotPaths) !== range(0, count($this->snapshotPaths) - 1);
+            
+            foreach ($this->snapshotPaths as $key => $snapshotPath) {
                 if (file_exists($snapshotPath)) {
-                    $sideName = ($index === 0) ? 'Vorderseite' : 'Rückseite';
+                    $filename = $isAssoc ? $key : (($key === 0) ? 'Vorderseite-Sicherung.jpg' : 'Rückseite-Sicherung.jpg');
                     $attachments[] = Attachment::fromPath($snapshotPath)
-                        ->as($sideName . '-Sicherung.jpg')
+                        ->as($filename)
                         ->withMime('image/jpeg');
                 }
             }

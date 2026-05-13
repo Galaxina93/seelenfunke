@@ -5,7 +5,7 @@
     <title>{{ $invoice->invoice_number }}</title>
     <style>
         @page { margin: 40px 40px 140px 40px; }
-        body { font-family: sans-serif; font-size: 11px; color: #333; line-height: 1.4; position: relative; }
+        body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 11px; color: #333; line-height: 1.4; position: relative; }
         .header { border-bottom: 2px solid #C5A059; padding-bottom: 20px; margin-bottom: 30px; }
         .logo { width: 220px; }
         .invoice-title { font-size: 22px; font-weight: bold; color: #C5A059; text-transform: uppercase; text-align: right; margin-bottom: 5px; }
@@ -155,7 +155,7 @@
 </div>
 
 {{-- ARTIKELLISTE & PREISE --}}
-@include('global.mails.partials.mail_item_list', ['data' => $data])
+@include('global.mails.partials.mail_item_list', ['data' => $data, 'isPdf' => true])
 @include('global.mails.partials.mail_price_list', ['data' => $data])
 
 

@@ -811,6 +811,7 @@ class AnalyticsService
             'health_score' => $healthScore,
             'fixed_income_total' => $fixedIncomeTotal,
             'shop_revenue' => ($filterType !== 'private') ? OrderOrder::whereBetween('created_at', [$start, $end])->where('payment_status', 'paid')->sum('total_price') / 100 : 0,
+            'orders_total' => ($filterType !== 'private') ? OrderOrder::whereBetween('created_at', [$start, $end])->count() : 0,
             'fixed_expenses_priv' => $fixPrivat,
             'fixed_expenses_gew' => $fixGewerbe,
             'variable_expenses' => $variableExpensesTotal,
