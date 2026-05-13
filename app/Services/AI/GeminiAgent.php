@@ -764,7 +764,7 @@ class GeminiAgent implements AiProviderInterface
                     }
 
                     // Execute via our safe registry
-                    $result = AIFunctionsRegistry::execute($functionName, $executeArgs);
+                    $result = AIFunctionsRegistry::execute($functionName, $executeArgs, $this->agent);
 
                     if ($toolUsageRecord && isset($result['status']) && $result['status'] === 'error') {
                         $toolUsageRecord->update([

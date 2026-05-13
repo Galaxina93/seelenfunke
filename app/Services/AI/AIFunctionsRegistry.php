@@ -119,7 +119,7 @@ class AIFunctionsRegistry
     /**
      * Executes a function by name if it exists in the registry.
      */
-    public static function execute(string $name, array $args = [])
+    public static function execute(string $name, array $args = [], $agent = null)
     {
         $functions = collect(self::getFunctions())->keyBy('name');
 
@@ -150,7 +150,7 @@ class AIFunctionsRegistry
 
         try {
             $mergedArgs = array_merge($args, self::$globalContext); // Inject invisible backend parameters
-            return call_user_func($callable, $mergedArgs);
+            return call_user_func($callable, $mergedArgs, $agent);
         } catch (\Throwable $e) {
             Log::error("AI Function Execution Error: " . $e->getMessage());
             return [

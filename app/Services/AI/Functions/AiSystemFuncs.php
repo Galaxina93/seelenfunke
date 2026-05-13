@@ -746,6 +746,29 @@ trait AiSystemFuncs
                     'required' => ['report_file']
                 ],
                 'callable' => [self::class, 'executeSendNeuralReportMail']
+            ],
+            [
+                'name' => 'system_email_neural_structure',
+                'description' => 'Generiert die vollständige neuronale Markdown-Struktur einer bestimmten Datei (Knoten) aus dem System und sendet sie per E-Mail. Nutze dies IMMER, wenn der Nutzer die Struktur einer Datei per Mail haben möchte. Wenn die Datei nicht eindeutig gefunden wird, liefert das Tool nahliegende Vorschläge (Fuzzy Search) zurück.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'filename_query' => [
+                            'type' => 'string',
+                            'description' => 'Der Name oder Teilname der Datei (z.B. "Product.php" oder "ProductShow").'
+                        ],
+                        'email' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Ziel-E-Mail Adresse. Wenn keine genannt wird, lass es leer für den Standard-Empfänger.'
+                        ],
+                        'as_pdf' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, wird die Struktur als PDF anstelle von reinem Text versendet. Nutze dies, wenn der Nutzer explizit ein PDF wünscht.'
+                        ]
+                    ],
+                    'required' => ['filename_query']
+                ],
+                'callable' => [self::class, 'executeEmailNeuralStructure']
             ]
         ];
 
@@ -825,6 +848,166 @@ trait AiSystemFuncs
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Neural Error Analysis failed: ' . $e->getMessage());
             return ['status' => 'error', 'message' => 'Fehler bei der Analyse: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeEmailNeuralStructure(array $args)
+    {
+        try {
+            $query = strtolower(trim($args['filename_query'] ?? ''));
+            if (empty($query)) {
+                return ['status' => 'error', 'message' => 'Es wurde kein Dateiname übergeben.'];
+            }
+
+            // 1. Suche in system-brain-map.json (Fuzzy Search & Index)
+            $jsonPath = storage_path('app/public/system-brain-map.json');
+            if (!\Illuminate\Support\Facades\File::exists($jsonPath)) {
+                return ['status' => 'error', 'message' => 'Die System-Brain-Map existiert nicht. Bitte führe system_execute_command(systemmap) aus.'];
+            }
+
+            $graph = json_decode(file_get_contents($jsonPath), true);
+            $nodes = $graph['nodes'] ?? [];
+            
+            $exactMatch = null;
+            $suggestions = [];
+
+            foreach ($nodes as $n) {
+                $nodeName = strtolower($n['name']);
+                $nodePath = strtolower($n['path']);
+                
+                if ($nodeName === $query || $nodePath === $query || strtolower(basename($n['name'], '.php')) === $query) {
+                    $exactMatch = $n;
+                    break;
+                }
+                
+                if (str_contains($nodeName, $query) || str_contains($nodePath, $query)) {
+                    $suggestions[] = $n['name'];
+                }
+            }
+
+            if (!$exactMatch) {
+                if (empty($suggestions)) {
+                    foreach ($nodes as $n) {
+                        if (levenshtein($query, strtolower($n['name'])) <= 3) {
+                            $suggestions[] = $n['name'];
+                        }
+                    }
+                }
+                
+                if (!empty($suggestions)) {
+                    $suggestions = array_unique($suggestions);
+                    $suggestions = array_slice($suggestions, 0, 5);
+                    return [
+                        'status' => 'error', 
+                        'message' => "Die Datei '{$args['filename_query']}' wurde nicht exakt gefunden. Nahliegende Vorschläge:\n- " . implode("\n- ", $suggestions) . "\n\nBitte frage den Nutzer, welche dieser Dateien er meint."
+                    ];
+                }
+                
+                return ['status' => 'error', 'message' => "Die Datei '{$args['filename_query']}' wurde im System nicht gefunden und es gibt keine ähnlichen Dateien."];
+            }
+
+            // 2. Generate Node Structure
+            $filePathStr = $exactMatch['path'];
+            
+            $methods = [];
+            if (str_ends_with($filePathStr, '.php') && !str_ends_with($filePathStr, '.blade.php')) {
+                if (\Illuminate\Support\Facades\File::exists(base_path($filePathStr))) {
+                    $content = file_get_contents(base_path($filePathStr));
+                    preg_match_all('/(?:public|protected|private)\s+(?:static\s+)?function\s+([a-zA-Z0-9_]+)\s*\(/', $content, $mMatches);
+                    if (!empty($mMatches[1])) {
+                        $methods = $mMatches[1];
+                    }
+                }
+            }
+
+            $dependencies = [];
+            if (isset($graph['links'])) {
+                foreach ($graph['links'] as $link) {
+                    $source = is_array($link['source']) ? ($link['source']['id'] ?? '') : $link['source'];
+                    $target = is_array($link['target']) ? ($link['target']['id'] ?? '') : $link['target'];
+                    
+                    if ($source === $filePathStr && !empty($target)) {
+                        $dependencies[] = basename($target);
+                    } elseif ($target === $filePathStr && !empty($source)) {
+                        $dependencies[] = basename($source);
+                    }
+                }
+                $dependencies = array_values(array_unique($dependencies));
+                sort($dependencies);
+            }
+
+            $node = new \App\Models\System\SystemNeuralNode([
+                'file_path' => $filePathStr,
+                'name' => basename($filePathStr),
+                'group_id' => $exactMatch['group'] ?? 1,
+                'content_hash' => \Illuminate\Support\Facades\File::exists(base_path($filePathStr)) ? md5_file(base_path($filePathStr)) : 'unknown',
+                'dependencies' => $dependencies,
+                'methods' => $methods,
+            ]);
+
+            $indexer = new \App\Livewire\Backend\System\SystemNeuralAnalysisIndex();
+            $indexer->createMarkdown($node);
+            
+            $safeName = str_replace(['/', '\\'], '_', $node->file_path);
+            $fullPath = storage_path("app/public/agenten/workspace/md/Struktur_" . $safeName . ".md");
+
+            if (!\Illuminate\Support\Facades\File::exists($fullPath)) {
+                return ['status' => 'error', 'message' => 'Die Struktur-Datei konnte nicht generiert werden.'];
+            }
+
+            $markdownContent = file_get_contents($fullPath);
+
+            // 3. E-Mail versenden
+            $to = $args['email'] ?? null;
+            
+            // Validate dummy emails
+            if ($to && (str_contains(strtolower($to), 'example') || str_contains(strtolower($to), 'test.com') || str_contains(strtolower($to), 'dummy') || str_contains(strtolower($to), 'domain.de') || str_contains(strtolower($to), 'platzhalter'))) {
+                return ['status' => 'error', 'message' => 'Ungültige E-Mail Adresse. Bitte erfinde keine Adressen. Lass das Feld email zwingend leer (null), wenn du die exakte Adresse nicht kennst.'];
+            }
+
+            if (empty($to)) {
+                $to = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+            }
+
+            $asPdf = $args['as_pdf'] ?? false;
+            $subject = "Neuronale Struktur: " . $node->name;
+
+            if ($asPdf) {
+                // Convert Markdown to HTML for PDF
+                $htmlForPdf = \Illuminate\Support\Str::markdown($markdownContent);
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ai-report-seelenfunke', [
+                    'title' => $subject,
+                    'htmlContent' => $htmlForPdf,
+                    'agentName' => 'System'
+                ]);
+                
+                $fileName = 'Struktur_' . \Illuminate\Support\Str::slug($node->name) . '.pdf';
+                
+                \Illuminate\Support\Facades\Mail::send('global.mails.ai_report', ['title' => $subject], function($message) use ($to, $subject, $pdf, $fileName) {
+                    $message->to($to)
+                            ->subject("KI-Bericht: $subject")
+                            ->attachData($pdf->output(), $fileName, ['mime' => 'application/pdf']);
+                });
+            } else {
+                // Format for AiAgentMessageMail
+                $body = "<h2>Neuronale Struktur für " . $node->name . "</h2>";
+                $body .= "<p>Du hast mich gebeten, dir die Systemstruktur für diese Datei zu generieren und zu senden. Hier ist das Ergebnis:</p>";
+                
+                // Use native PHP Markdown conversion if available, or just standard text replacement
+                $htmlContent = nl2br(htmlspecialchars($markdownContent));
+                $body .= "<div style='background: #f8fafc; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap;'>" . $htmlContent . "</div>";
+
+                \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Mail\AiAgentMessageMail($subject, $body, 'Systemi'));
+            }
+
+            $formatText = $asPdf ? 'als PDF-Anhang' : 'als Text';
+            return [
+                'status' => 'success',
+                'message' => "Die Struktur für {$node->name} wurde erfolgreich generiert und per E-Mail {$formatText} an {$to} versendet."
+            ];
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Generieren/Senden der Struktur-E-Mail: ' . $e->getMessage()];
         }
     }
 

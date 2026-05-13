@@ -259,7 +259,17 @@
                         </div>
                     </div>
                     <div class="flex gap-2 w-full mt-auto">
-                        <button @click="if(window.generateBrainStructure) window.generateBrainStructure(); genStatus = 'loading';" 
+                        <button type="button" @click="if(window.generateBrainStructure) window.generateBrainStructure(); genStatus = 'loading';" 
+                            @trigger-download.window="
+                                let d = $event.detail;
+                                if(Array.isArray(d)) d = d[0];
+                                const link = document.createElement('a');
+                                link.href = d.url;
+                                link.download = d.filename;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            "
                             :class="{ 'bg-indigo-600/80 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)]': genStatus === 'idle', 'bg-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.4)]': genStatus === 'loading', 'bg-emerald-500/80 shadow-[0_0_15px_rgba(16,185,129,0.4)]': genStatus === 'success' }"
                             class="flex-1 text-white text-[11px] px-2 py-2 rounded-xl font-medium transition-all flex flex-col items-center justify-center gap-1 text-center">
                             <div class="flex items-center gap-1.5">
