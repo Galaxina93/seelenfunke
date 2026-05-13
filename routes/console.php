@@ -34,6 +34,9 @@ try {
             } else {
                 $event->cron($job->schedule);
             }
+            
+            // Verhindert, dass ein hängender Cronjob den gesamten Scheduler (schedule:run) auf dem Mittwald-Server blockiert
+            $event->runInBackground()->withoutOverlapping();
 
             $event->onSuccess(function () use ($job) {
                 $job->update([

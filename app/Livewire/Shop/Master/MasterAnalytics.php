@@ -661,16 +661,16 @@ class MasterAnalytics extends Component
         return $logs->sortByDesc('timestamp')->values()->take(30);
     }
 
-    public function clearSecurityLogs(AnalyticsService $service)
+    public function clearSecurityLogs()
     {
+        $service = app(AnalyticsService::class);
         if (class_exists(\App\Models\System\SystemLog::class)) {
-            \App\Models\System\SystemLog::where('type', 'security')->delete();
+            \App\Models\System\SystemLog::query()->delete();
         }
         if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
             \App\Models\System\SystemLoginAttempt::where('success', false)->delete();
         }
         $this->loadStats($service);
-        session()->flash('success', 'Threat Monitor Einträge erfolgreich geleert.');
     }
 
     public function flushFailedJobs()

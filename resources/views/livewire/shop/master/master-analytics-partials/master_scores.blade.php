@@ -938,9 +938,13 @@
                             <x-heroicon-s-eye class="w-5 h-5 text-purple-500" />
                             Threat Monitor (Letzte Ereignisse)
                         </h3>
-                        <button wire:click="clearSecurityLogs" class="text-[10px] font-bold text-gray-400 hover:text-white uppercase tracking-widest px-3 py-1.5 rounded-lg border border-gray-800 hover:border-gray-600 bg-gray-900 transition-colors flex items-center gap-2">
-                            <x-heroicon-o-trash class="w-3.5 h-3.5" />
-                            Alle leeren
+                        <button x-data="{ success: false }" 
+                                x-on:click="$wire.clearSecurityLogs().then(() => { success = true; setTimeout(() => success = false, 3000) })" 
+                                :class="success ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'text-gray-400 hover:text-white border-gray-800 hover:border-gray-600 bg-gray-900'" 
+                                class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-2">
+                            <x-heroicon-o-trash x-show="!success" class="w-3.5 h-3.5" />
+                            <x-heroicon-o-check x-show="success" class="w-3.5 h-3.5" x-cloak />
+                            <span x-text="success ? 'Erfolgreich' : 'Alle leeren'"></span>
                         </button>
                     </div>
                     
