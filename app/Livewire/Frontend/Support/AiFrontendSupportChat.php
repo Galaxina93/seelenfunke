@@ -110,6 +110,17 @@ class AiFrontendSupportChat extends Component
                 }
             }
         }
+
+        // Fix: Ensure chat is not resolved if the last message was the registration prompt
+        if (!empty($this->messages)) {
+            $lastMessage = end($this->messages);
+            if ($lastMessage['sender'] === 'system' && str_contains($lastMessage['text'], 'Möchtest du unseren Chat fortsetzen')) {
+                $this->isResolved = false;
+                if ($this->chatId) {
+                    SupportCustomerChat::where('id', $this->chatId)->where('status', '!=', 'open')->update(['status' => 'open']);
+                }
+            }
+        }
     }
 
     public function acceptPrivacy()
@@ -129,11 +140,12 @@ class AiFrontendSupportChat extends Component
         
         if ($this->chatId) {
             $chat = SupportCustomerChat::find($this->chatId);
-            if ($chat && $chat->customer_id === null && $currentCustomerId) {
+            if ($chat && empty($chat->customer_id) && $currentCustomerId) {
                 $chat->update(['customer_id' => $currentCustomerId]);
-            } elseif ($chat && $chat->customer_id != $currentCustomerId) {
-                $this->chatId = null;
-                $this->messages = [];
+            } elseif ($chat && !empty($chat->customer_id) && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+                // Nur zur Sicherheit nochmal das Auto-Claiming probieren, falls es ein Migrations-Problem gab
+                // Normalerweise greift hier Livewire-Session-Schutz, also leeren wir es nicht aggressiv.
+                \Illuminate\Support\Facades\Log::warning("SupportChat ID mismatch: Chat belongs to {$chat->customer_id}, but user is {$currentCustomerId}");
             }
         }
 
@@ -142,6 +154,7 @@ class AiFrontendSupportChat extends Component
         if (!$this->chatId) {
             $chat = SupportCustomerChat::create([
                 'customer_id' => auth()->guard('customer')->id(),
+                'session_token' => request()->cookie('sf_chat_uuid'),
                 'status' => 'open'
             ]);
             $this->chatId = $chat->id;
@@ -176,7 +189,7 @@ class AiFrontendSupportChat extends Component
 
         $userMsgCount = collect($this->messages)->where('sender', 'customer')->count();
 
-        if ($isGuest && $userMsgCount >= 2) {
+        if ($isGuest && $userMsgCount >= 3) {
             $leadText = "Möchtest du unseren Chat fortsetzen? Damit ich dir uneingeschränkt weiterhelfen und unseren bisherigen Verlauf sicher speichern kann, erstelle bitte kurz ein kostenloses Kundenkonto. Danach bin ich sofort wieder für dich da! ✨";
             
             SupportCustomerChatMessage::create([
@@ -246,10 +259,13 @@ class AiFrontendSupportChat extends Component
                 }
             }
             $sysPrompt .= "\n";
+        } else {
+            $sysPrompt .= "🔥 WICHTIG: Der aktuelle Nutzer ist ein GAST (nicht eingeloggt). Du KANNST NICHT in sein Konto schauen und kennst keine Bestellungen. Wenn er nach Bestellungen fragt, weise ihn charmant darauf hin, sich bitte einzuloggen (Link: /login) oder zu registrieren (Link: /register), damit du ihm helfen kannst.\n\n";
         }
 
         // 2. KLARE REGELN FÜR DIE INTENT-ROUTER ARCHITEKTUR
         $sysPrompt .= "[VERHALTENSREGELN - ENTERPRISE SUPPORT EINER MILLIONEN-FIRMA]\n";
+        $sysPrompt .= "- 🔗 ROUTING-WISSEN: Du kennst unsere wichtigsten Links auswendig. Login: `/login`, Registrierung: `/register`, Warenkorb: `/cart`, Widerruf: `/widerruf`, AGB: `/agb`, Datenschutz: `/datenschutz`.\n";
         $sysPrompt .= "- ⚡ FORMELLE KOMMUNIKATION: Du bist extrem professionell, sachlich und objektiv. Verzichte auf jede Art von Smalltalk, langatmige Begrüßungen ('Hey Sarah, ja hier ist...') oder übertriebene Empathie. Wenn der Kunde nach seiner Bestellung fragt, startest du sofort professionell (z.B. '**Systemauskunft zur Bestellung [NR]:**').\n";
         $sysPrompt .= "- ⏱️ ANTI-SMALLTALK STRIKE-SYSTEM: Wenn der Kunde provozieren will ('Tokens verballern'), Witze, Spiele oder sinnlose Fragen stellt (z.B. über andere Kunden), DARFST DU IHM NICHT INHALTLICH ANTWORTEN. Du MUSST sofort und zwingend das Tool `support_penalize_offtopic` aufrufen! Befolge dessen Rückgabe strikt.\n";
         $sysPrompt .= "- 🚫 STORNIERUNGS-VERBOT: DU KANNST NICHT STORNIEREN! Antworte formell: 'Für eine Stornierung nutzen Sie bitte das offizielle Formular: [Widerrufsformular](/widerruf).'\n";
@@ -434,8 +450,8 @@ class AiFrontendSupportChat extends Component
         
         $userMsgCount = collect($this->messages)->where('sender', 'customer')->count();
         
-        // Wenn 2 Nachrichten gesendet wurden, rendern wir den Input als gesperrt
-        if ($isGuest && $userMsgCount >= 2) {
+        // Wenn 3 Nachrichten gesendet wurden, rendern wir den Input als gesperrt
+        if ($isGuest && $userMsgCount >= 3) {
             $this->guestLimitReached = true;
         } else {
             $this->guestLimitReached = false;

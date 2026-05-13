@@ -137,10 +137,10 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_get_product_info',
-                'description' => 'Findet Preise und Basis-Informationen zu Produkten. Wenn du "all" als search_term übergibst (oder es leer lässt), erhältst du eine Liste aller Produkte. Nutze dies zwingend, wenn der Kunde nach dem Sortiment fragt oder eine vorherige spezifische Suche fehlgeschlagen ist (z.B. wegen Leerzeichen/Rechtschreibung)!',
+                'description' => 'Findet Preise und Basis-Informationen zu Produkten. Wenn du "all" als search_term übergibst (oder es leer lässt), erhältst du 3 zufällige Produkt-Empfehlungen (nicht das ganze Sortiment!). Nutze dies, wenn der Kunde nach einer generellen Empfehlung fragt. Wenn er etwas Bestimmtes sucht, übergib zwingend einen Suchbegriff!',
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => ['search_term' => ['type' => 'string', 'description' => 'Suchbegriff (z.B. "Seelenkristall"). Leer oder "all" für alle Produkte.']]
+                    'properties' => ['search_term' => ['type' => 'string', 'description' => 'Suchbegriff (z.B. "Seelenkristall"). Leer oder "all" für 3 zufällige Empfehlungen.']]
                 ],
                 'callable' => [self::class, 'executeGetProductInfo']
             ],
@@ -482,9 +482,11 @@ trait AiSupportFuncs
         try {
             $term = trim($args['search_term'] ?? '');
             $query = \App\Models\Product\Product::where('status', 'active');
+            $noteForAi = null;
 
             if (empty($term) || strtolower($term) === 'all' || strtolower($term) === 'aktuelle produkte') {
-                $products = $query->take(15)->get();
+                $products = $query->inRandomOrder()->take(3)->get();
+                $noteForAi = 'HINTERGRUND-INFO FÜR KI: Dies sind 3 zufällige Empfehlungen aus unserem großen Sortiment. Bitte präsentiere sie dem Kunden als eine exklusive, kleine Auswahl. Frage ihn im Anschluss charmant nach weiteren Kriterien (z.B. Anlass, für wen?), um bei der nächsten Suche einen spezifischen Suchbegriff (z.B. "Herz" oder "Kristall") an das Tool übergeben zu können!';
             } else {
                 $qTerm = '%' . $term . '%';
                 $dbProducts = (clone $query)->where(function($q) use ($qTerm) {
@@ -526,7 +528,12 @@ trait AiSupportFuncs
                     'attributes' => $p->attributes ?? null
                 ];
             }
-            return ['status' => 'success', 'data' => $pData];
+            
+            $response = ['status' => 'success', 'data' => $pData];
+            if ($noteForAi) {
+                $response['message'] = $noteForAi;
+            }
+            return $response;
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Es gab einen Systemfehler bei der Produktsuche ('{$e->getMessage()}')."];

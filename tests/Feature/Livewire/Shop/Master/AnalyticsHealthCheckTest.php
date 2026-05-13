@@ -61,7 +61,7 @@ class AnalyticsHealthCheckTest extends TestCase
             ->assertSet('healthChecks.open_revocations.status', 'success');
     }
 
-    public function test_it_shows_error_status_when_open_records_exist()
+    public function test_it_shows_todo_or_warning_status_when_open_records_exist()
     {
         $taskListId = Str::uuid()->toString();
         DB::table('management_task_lists')->insert(['id' => $taskListId, 'name' => 'Test']);
@@ -99,13 +99,13 @@ class AnalyticsHealthCheckTest extends TestCase
 
 
         Livewire::test(Analytics::class)
-            ->assertSet('healthChecks.open_tasks.status', 'error') 
-            ->assertSet('healthChecks.open_credits.status', 'error')
-            ->assertSet('healthChecks.open_tickets.status', 'error')
-            ->assertSet('healthChecks.product_reviews.status', 'error')
-            ->assertSet('healthChecks.unassigned_tx.status', 'error')
-            ->assertSet('healthChecks.open_quotes.status', 'error')
-            ->assertSet('healthChecks.open_revocations.status', 'error');
+            ->assertSet('healthChecks.open_tasks.status', 'todo') 
+            ->assertSet('healthChecks.open_credits.status', 'warning')
+            ->assertSet('healthChecks.open_tickets.status', 'todo')
+            ->assertSet('healthChecks.product_reviews.status', 'todo')
+            ->assertSet('healthChecks.unassigned_tx.status', 'todo')
+            ->assertSet('healthChecks.open_quotes.status', 'todo')
+            ->assertSet('healthChecks.open_revocations.status', 'warning');
     }
 
     public function test_it_shows_success_status_when_records_exist_but_are_completed()

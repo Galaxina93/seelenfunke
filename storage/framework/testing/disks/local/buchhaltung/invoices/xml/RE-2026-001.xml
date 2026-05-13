@@ -9,7 +9,7 @@
     <ram:ID>RE-2026-001</ram:ID>
     <ram:TypeCode>380</ram:TypeCode>
     <ram:IssueDateTime>
-      <udt:DateTimeString format="102">20260511</udt:DateTimeString>
+      <udt:DateTimeString format="102">20260513</udt:DateTimeString>
     </ram:IssueDateTime>
   </rsm:ExchangedDocument>
   <rsm:SupplyChainTradeTransaction>
@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Armando Ledner</ram:Name>
+        <ram:Name>Orpha Pollich</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>02683</ram:PostcodeCode>
-          <ram:LineOne>41086 Frami Ranch Suite 647</ram:LineOne>
-          <ram:CityName>Mozellefurt</ram:CityName>
+          <ram:PostcodeCode>73664</ram:PostcodeCode>
+          <ram:LineOne>88613 Daren Flat Suite 737</ram:LineOne>
+          <ram:CityName>Littletown</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>
@@ -94,7 +94,7 @@
     <ram:ApplicableHeaderTradeDelivery>
       <ram:ActualDeliverySupplyChainEvent>
         <ram:OccurrenceDateTime>
-          <udt:DateTimeString format="102">20260511</udt:DateTimeString>
+          <udt:DateTimeString format="102">20260513</udt:DateTimeString>
         </ram:OccurrenceDateTime>
       </ram:ActualDeliverySupplyChainEvent>
     </ram:ApplicableHeaderTradeDelivery>

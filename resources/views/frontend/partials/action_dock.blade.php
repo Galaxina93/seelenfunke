@@ -39,7 +39,7 @@
     <div class="flex flex-col items-center bg-gray-900/95 backdrop-blur-xl py-4 px-1 rounded-l-2xl border-l border-t border-b border-white/10 shadow-[-10px_0_30px_rgba(0,0,0,0.3)] space-y-3 transition-all duration-300 hover:px-2 group/dock relative">
 
         {{-- 0. SUPPORT CHAT (FUNKI) --}}
-        <button @click="chatOpen = !chatOpen; if(chatOpen) vouchersOpen = false"
+        <button @click="chatOpen = !chatOpen; if(chatOpen) { vouchersOpen = false; setTimeout(() => $dispatch('chat-opened'), 50); }"
                 class="group/icon relative p-1.5 text-cyan-500 hover:bg-cyan-500/20 rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
                 title="Live Support">
             

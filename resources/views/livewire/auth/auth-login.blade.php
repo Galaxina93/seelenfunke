@@ -157,9 +157,10 @@
 
                     {{-- REGISTRIERUNG (KORRIGIERTER PFAD) --}}
                     <div class="mt-8 text-center bg-gray-950/50 rounded-xl p-4 border border-gray-800/50">
+                        <label for="email" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">JETZT HIER REGISTRIEREN</label>
                         <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1.5">Noch kein Teil unserer Reise?</p>
                         <a href="{{ route('livewire.auth.register') }}" class="text-xs font-bold text-primary hover:text-white transition-colors block">
-                            Entfache deinen Seelenfunken ✨
+                            Registrieren ✨
                         </a>
                     </div>
                 </div>
