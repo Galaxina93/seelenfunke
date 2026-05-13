@@ -402,7 +402,17 @@ trait AiSupportFuncs
             $ticketNumber = trim($args['ticket_number'] ?? '');
             if (empty($ticketNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Ticketnummer fehlt.'];
 
-            $ticket = SupportTicket::where('ticket_number', 'ILIKE', "%{$ticketNumber}%")->first();
+            $query = SupportTicket::where('ticket_number', 'ILIKE', "%{$ticketNumber}%");
+            
+            if (!auth()->guard('admin')->check()) {
+                $customerId = auth()->guard('customer')->id();
+                if (!$customerId) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
+                }
+                $query->where('customer_id', $customerId);
+            }
+
+            $ticket = $query->first();
             if (!$ticket) {
                 return ['status' => 'not_found', 'data' => null];
             }
@@ -423,16 +433,23 @@ trait AiSupportFuncs
             $identifier = trim($args['identifier'] ?? '');
             if (empty($identifier)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Suchbegriff fehlt.'];
 
-            $order = OrderOrder::where('order_number', 'LIKE', "%{$identifier}%")
-                        ->orWhere('customer_email', 'LIKE', "%{$identifier}%")->latest()->first();
+            $query = OrderOrder::where(function($q) use ($identifier) {
+                $q->where('order_number', 'LIKE', "%{$identifier}%")
+                  ->orWhere('customer_email', 'LIKE', "%{$identifier}%");
+            });
+
+            if (!auth()->guard('admin')->check()) {
+                $customerId = auth()->guard('customer')->id();
+                if (!$customerId) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
+                }
+                $query->where('customer_id', $customerId);
+            }
+
+            $order = $query->latest()->first();
 
             if (!$order) {
                 return ['status' => 'not_found', 'data' => null];
-            }
-
-            $currentCustomerId = auth()->guard('customer')->id();
-            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich in das korrekte Konto einzuloggen.'];
             }
 
             return ['status' => 'success', 'data' => [
@@ -641,13 +658,19 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
-            $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items')->first();
-            if (!$order) return ['status' => 'not_found', 'data' => null];
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items');
 
-            $currentCustomerId = auth()->guard('customer')->id();
-            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte den Kunden höflich, sich einzuloggen.'];
+            if (!auth()->guard('admin')->check()) {
+                $customerId = auth()->guard('customer')->id();
+                if (!$customerId) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
+                }
+                $query->where('customer_id', $customerId);
             }
+
+            $order = $query->latest()->first();
+
+            if (!$order) return ['status' => 'not_found', 'data' => null];
 
             $itemsData = [];
             foreach ($order->items as $item) {
@@ -697,13 +720,19 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
-            $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->first();
-            if (!$order) return ['status' => 'not_found', 'data' => null];
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%");
 
-            $currentCustomerId = auth()->guard('customer')->id();
-            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Auskunft verweigert.'];
+            if (!auth()->guard('admin')->check()) {
+                $customerId = auth()->guard('customer')->id();
+                if (!$customerId) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
+                }
+                $query->where('customer_id', $customerId);
             }
+
+            $order = $query->latest()->first();
+
+            if (!$order) return ['status' => 'not_found', 'data' => null];
 
             $tracking = $order->tracking_number;
             if (!$tracking) {
@@ -889,14 +918,20 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bitte frage erst nach der Bestellnummer!'];
 
-            $order = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items')->first();
-            if (!$order) {
-                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung mit dieser Nummer absolut nicht gefunden.'];
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items');
+
+            if (!auth()->guard('admin')->check()) {
+                $customerId = auth()->guard('customer')->id();
+                if (!$customerId) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
+                }
+                $query->where('customer_id', $customerId);
             }
 
-            $currentCustomerId = auth()->guard('customer')->id();
-            if (!$currentCustomerId || $order->customer_id !== $currentCustomerId) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Auskunft verweigert.'];
+            $order = $query->latest()->first();
+
+            if (!$order) {
+                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung mit dieser Nummer absolut nicht gefunden.'];
             }
 
             $now = now();
@@ -1071,14 +1106,20 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer nicht übergeben.'];
 
-            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('invoices')->first();
-            if (!$order) {
-                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
+            $query = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('invoices');
+
+            if (!auth()->guard('admin')->check()) {
+                $customerId = auth()->guard('customer')->id();
+                if (!$customerId) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
+                }
+                $query->where('customer_id', $customerId);
             }
 
-            $currentCustomerId = auth()->guard('customer')->id();
-            if (!auth()->guard('admin')->check() && (!$currentCustomerId || $order->customer_id !== $currentCustomerId)) {
-                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen strikt verweigert. Diese Bestellung gehört nicht zum aktuell eingeloggten Kunden! Bitte um Loginstruct.'];
+            $order = $query->latest()->first();
+
+            if (!$order) {
+                return ['status' => 'not_found', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
             }
 
             $invoices = $order->invoices;

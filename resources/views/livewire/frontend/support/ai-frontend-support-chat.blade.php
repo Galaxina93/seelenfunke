@@ -37,7 +37,7 @@
             </button>
             
             {{-- Close Button --}}
-            <button @click="if({{ count($messages) }} > 0 && !'{{ $isResolved }}') { if(confirm('Möchtest du den Support-Chat wirklich schließen? Deine Sitzung ist noch aktiv.')) { chatOpen = false; setTimeout(() => chatMaximized = false, 400); } } else { chatOpen = false; setTimeout(() => chatMaximized = false, 400); }" class="text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full" title="Chat schließen">
+            <button @click="chatOpen = false; setTimeout(() => chatMaximized = false, 400);" class="text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 p-2 rounded-full" title="Chat schließen">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>

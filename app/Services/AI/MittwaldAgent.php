@@ -58,9 +58,39 @@ class MittwaldAgent
                         "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
 
+        $isAdmin = auth()->guard('admin')->check();
+        $userStatus = $isAdmin 
+            ? "System-Administrator (Mitarbeiter). Du hast höchste Freigabestufe. Nutze deine Admin-Tools für Analysen und weise den User nicht aus Datenschutzgründen ab!" 
+            : "Kunde. Beachte strikt den Datenschutz.";
+
+        $customerName = '';
+        if (!$isAdmin && auth()->guard('customer')->check()) {
+            $customerName = auth()->guard('customer')->user()->first_name;
+        }
+
+        $verhaltensregel = $isAdmin 
+            ? "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Administratorin immer nur locker mit 'Alina' oder 'Hey Alina' an!\n"
+            : ($customerName 
+                ? "VERHALTENSREGEL: Du bist 'Funki', der freundliche Support-Bot von Seelenfunke. Du sprichst den Kunden freundlich mit seinem Vornamen '{$customerName}' an.\n"
+                : "VERHALTENSREGEL: Du bist 'Funki', der freundliche Support-Bot von Seelenfunke. Da der Nutzer ein nicht eingeloggter Gast ist, spreche ihn höflich an (kein Name verfügbar).\n");
+
+        $hasAskAgentTool = $this->agent->tools->contains('identifier', 'communication_ask_agent');
+        $hasSwitchAgentTool = $this->agent->tools->contains('identifier', 'system_switch_agent');
+        
+        $delegationsregel = "";
+        if ($hasAskAgentTool && $hasSwitchAgentTool) {
+            $delegationsregel = "DELEGATIONSREGEL: Wenn dir eine Aufgabe gegeben wird, für die dir das passende Werkzeug fehlt, darfst du dich NICHT hilflos entschuldigen! Nutze direkt 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen und sofort die Antwort zu präsentieren. Alternativ: Nutze 'system_switch_agent', um komplett an den passenden Agenten abzugeben!\n";
+        } elseif ($hasAskAgentTool) {
+            $delegationsregel = "DELEGATIONSREGEL: Wenn dir eine Aufgabe gegeben wird, für die dir das passende Werkzeug fehlt, nutze 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen.\n";
+        } else {
+            $delegationsregel = "ANTI-HALLUZINATIONS-REGEL: Wenn dir ein Werkzeug oder eine Fähigkeit für eine Anfrage fehlt (z.B. E-Mails senden, Preise ändern), entschuldige dich höflich und weise darauf hin, dass du als KI-Support-Bot diese Aktion nicht ausführen kannst. TUE NIEMALS SO, als ob du eine Aktion im Hintergrund ausführst oder an einen Kollegen weiterleitest, wenn du die Werkzeuge dafür nicht hast!\n";
+        }
+
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
         $systemPromptText .= $roleInfo . "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
-                             "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Benutzerin immer nur locker mit 'Alina' oder 'Hey Alina' an!\n" .
+                             "GESPRÄCHSPARTNER: " . $userStatus . "\n" .
+                             $verhaltensregel .
+                             $delegationsregel .
                              'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .
                              'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n" .
                              'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
@@ -233,6 +263,20 @@ class MittwaldAgent
 
                     // Decode arguments from JSON string back to array (OpenAI schema sends arguments as stringied JSON)
                     $functionArgsString = $toolCall['function']['arguments'] ?? '{}';
+
+                    // --- SECURITY: HALT UNAUTHORIZED TOOL CALLS ---
+                    if (!in_array($functionName, $allowedIdentifiers)) {
+                        Log::warning("AI Security Block: Unauthorized tool call attempted: {$functionName} by Agent ID {$this->agent->id}");
+                        $messages[] = [
+                            'role' => 'tool',
+                            'tool_call_id' => $toolCallId,
+                            'content' => json_encode([
+                                'status' => 'error', 
+                                'message' => "SYSTEM GUARDRAIL BLOCK: Zugriff auf das Werkzeug '{$functionName}' verweigert! Dieses Werkzeug existiert in deinem aktuellen Kontext nicht. Nutze stattdessen 'communication_ask_agent', um einen passenden Kollegen zu beauftragen, falls dir die Berechtigung fehlt."
+                            ], JSON_UNESCAPED_UNICODE)
+                        ];
+                        continue;
+                    }
 
                     // --- ANTI-LOOP IDENTICAL CALL CHECK ---
                     $callSignature = md5($functionName . $functionArgsString);

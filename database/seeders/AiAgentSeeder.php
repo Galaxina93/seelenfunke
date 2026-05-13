@@ -260,22 +260,20 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 $toolIds[] = $tool->id;
             }
             if (!empty($toolIds) && isset($rolesMap['Teamleiter'])) {
-                // Teamleiter soll nur globale Steuerungs- und Leitungs-Aufgaben haben.
-                // Operative Aufgaben (Order, Finance, Support, Health) werden nun delegiert.
+
+                // Teamleiter
                 $teamleiterAllowedTools = array_merge(
-                    // System
                     array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
-                    // Leitung
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiBrainFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
-                    array_column(\App\Services\AI\AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiBrainFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
                 );
 
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
@@ -286,20 +284,40 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 'Analyst' => array_merge(
                     array_column(AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
                 ),
-                'Sales' => array_column(AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
-                'Marketing' => array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
-                'Finanzmanager' => array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+
+                'Sales' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
+
+                'Marketing' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
+
+                'Finanzmanager' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                 ),
+
                 'Supporter' => array_merge(
-                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name')
                 ),
+
                 'Hausarzt' => array_merge(
                     array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
                 ),
+
                 'Leiter Globale Planung' => array_merge(
                     array_column(AIFunctionsRegistry::getAiHolidayPlannerFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiNewsFuncsSchema(), 'name'),
@@ -308,21 +326,34 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
                 ),
-                'Systemadmin' => array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
-                'Agentenmanager' => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
-                'Versorgungsmanager' => array_column(AIFunctionsRegistry::getAiShoppingListFuncsSchema(), 'name')
+
+                'Systemadmin'=> array_merge(
+                    array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
+
+                'Agentenmanager'=> array_merge(
+                    array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
+
+                'Versorgungsmanager'=> array_merge(
+                    array_column(AIFunctionsRegistry::getAiShoppingListFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
+
             ];
 
             $baseSystemTools = array_merge([
                 'brain_save_entry', 'brain_search', 'brain_update_entry', 'brain_delete_entry',
-                'system_search_chat_history', 'system_close_ui', 'system_visualize_data',
+                'system_search_chat_history', 'system_close_ui',
                 'system_search_web', 'system_switch_agent',
                 'system_write_artifact', 'system_patch_artifact'
             ],
-            array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
-            array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
-            array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name')
+                // Weitere Arrays bei Bedarf hier einfügen
             );
 
             $allToolsCollection = AiTool::all();
