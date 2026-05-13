@@ -398,7 +398,6 @@ class MasterAnalytics extends Component
             'stripe' => ['name' => 'Stripe API', 'log_msg' => 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.'],
             'dhl' => ['name' => 'DHL API', 'log_msg' => null],
             'finapi' => ['name' => 'finAPI', 'log_msg' => null],
-            'mittwald' => ['name' => 'Mittwald AI', 'log_msg' => null],
             'gemini' => ['name' => 'Google Gemini', 'log_msg' => null],
             'google_places' => ['name' => 'Google Maps', 'log_msg' => null],
             'elster' => ['name' => 'Elster RSS', 'log_msg' => null],
@@ -413,8 +412,6 @@ class MasterAnalytics extends Component
         try {
             // Alle externen APIs werden parallel (gleichzeitig) angepingt, um kumulative Timeouts und Dashboard-Hänger zu verhindern!
             $finapiUrl = env('FINAPI_ENV', 'live') === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
-            $mittwaldUrl = config('services.mittwald.url', 'https://llm.aihosting.mittwald.de');
-            $mittwaldHost = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
 
             $responses = \Illuminate\Support\Facades\Http::pool(fn (\Illuminate\Http\Client\Pool $pool) => [
                 // Wir nutzen withoutRedirecting(), weil z.B. api.dhl.com auf developer.dhl.com umleitet,
@@ -423,7 +420,6 @@ class MasterAnalytics extends Component
                 $pool->as('stripe')->timeout(4)->withoutRedirecting()->get('https://api.stripe.com/healthcheck'),
                 $pool->as('dhl')->timeout(4)->withoutRedirecting()->get('https://api.dhl.com'),
                 $pool->as('finapi')->timeout(4)->withoutRedirecting()->get($finapiUrl),
-                $pool->as('mittwald')->timeout(4)->withoutRedirecting()->get("https://{$mittwaldHost}"),
                 $pool->as('gemini')->timeout(4)->withoutRedirecting()->get('https://generativelanguage.googleapis.com'),
                 $pool->as('google_places')->timeout(4)->withoutRedirecting()->get('https://maps.googleapis.com'),
                 $pool->as('elster')->timeout(4)->withoutRedirecting()->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),

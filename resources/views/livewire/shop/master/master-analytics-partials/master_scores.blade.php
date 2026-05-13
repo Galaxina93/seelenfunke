@@ -50,7 +50,6 @@
             'ws' => ['label' => 'WebSocket ' . (app()->environment('local') ? '(Lokal)' : '(Stage/Live)'), 'host' => env('MIX_PUSHER_HOST', env('VITE_REVERB_HOST', env('PUSHER_HOST', '127.0.0.1'))), 'port' => env('MIX_PUSHER_PORT', env('VITE_REVERB_PORT', env('PUSHER_PORT', '6001'))), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
             'dhl' => ['label' => 'DHL Paket API', 'host' => 'api.dhl.com', 'port' => '443', 'desc' => 'Label-Generierung und Sendungsverfolgung.'],
             'finapi' => ['label' => 'finAPI (Bank)', 'host' => env('FINAPI_ENV', 'live') === 'live' ? 'live.finapi.io' : 'sandbox.finapi.io', 'port' => '443', 'desc' => 'Schnittstelle zur Bankkonto-Synchronisation.'],
-            'mittwald' => ['label' => 'Mittwald Agent', 'host' => parse_url(config('services.mittwald.url', 'https://llm.aihosting.mittwald.de'), PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de', 'port' => '443', 'desc' => 'Verbindung zur lokalen LLM-Infrastruktur.'],
             'gemini' => ['label' => 'Google Gemini', 'host' => 'generativelanguage.googleapis.com', 'port' => '443', 'desc' => 'Google AI Basismodell für komplexe Task-Bewältigung.'],
             'google_places' => ['label' => 'Google Places', 'host' => 'maps.googleapis.com', 'port' => '443', 'desc' => 'Schnittstelle für automatische Kundenbewertungen.'],
             'elster' => ['label' => 'Elster (ERiC)', 'host' => 'elster.de', 'port' => '443', 'desc' => 'Anbindung zur Finanzbehörde der Bundesrepublik Deutschland.'],
@@ -69,7 +68,7 @@
             ],
             'AI & Daten-Agenten' => [
                 'color' => 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]',
-                'items' => ['mittwald', 'gemini', 'telephony', 'google_places', 'scraperapi']
+                'items' => ['gemini', 'telephony', 'google_places', 'scraperapi']
             ],
             'Background & Security' => [
                 'color' => 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]',
