@@ -375,6 +375,24 @@ class MasterAnalytics extends Component
             }
         }
 
+        // 11. NEU: WebSocket (Reverb) Backend Check
+        try {
+            $wsHost = env('REVERB_SERVER_HOST', '127.0.0.1'); // We check the actual local daemon, not the public proxy
+            $wsPort = env('REVERB_SERVER_PORT', 6001);
+            $start = microtime(true);
+            $fp = @fsockopen($wsHost, $wsPort, $errno, $errstr, 2);
+            if ($fp) {
+                $time = round((microtime(true) - $start) * 1000);
+                fclose($fp);
+                $health['ws'] = ['status' => 'connected', 'value' => "Port {$wsPort} offen ({$time}ms)", 'error' => null];
+            } else {
+                $health['ws'] = ['status' => 'error', 'value' => 'Daemon Offline', 'error' => "Reverb Server antwortet nicht auf {$wsHost}:{$wsPort}!"];
+                $this->logSystemFailure('ws', "WebSocket Server (Reverb) ist offline. Laravel kann keine internen Events an {$wsHost}:{$wsPort} senden. (Cronjob prüfen!)");
+            }
+        } catch (\Exception $e) {
+            $health['ws'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim WebSocket-Backend-Check.'];
+        }
+
         // --- ASYNCHRONE EXTERNE API CHECKS ---
         $apiMapping = [
             'stripe' => ['name' => 'Stripe API', 'log_msg' => 'Timeout beim Ping zur Stripe API. Zahlungen könnten aktuell fehlschlagen.'],
@@ -697,7 +715,14 @@ class MasterAnalytics extends Component
         $this->repairLogs = [];
         $this->addRepairLog("--- SYSTEM HEALING INITIERT ---", 'info');
 
+        // Schneller Vorab-Check, wenn das gesamte System repariert werden soll
+        if (!$service) {
+            $this->addRepairLog("Führe rasanten Status-Scan aus...", 'info');
+            $this->checkSystemHealth();
+        }
+
         $targets = $service ? [$service] : array_keys($this->systemHealth);
+        $fixedSomething = false;
 
         // Gehe alle Targets durch
         foreach ($targets as $target) {
@@ -706,7 +731,8 @@ class MasterAnalytics extends Component
             $healthStatus = $this->systemHealth[$target]['status'] ?? 'connected';
 
             if ($service || $healthStatus !== 'connected') {
-                $this->addRepairLog("Analysiere Problem bei: " . strtoupper($target), 'warning');
+                $fixedSomething = true;
+                $this->addRepairLog("Problem bei " . strtoupper($target) . " erkannt. Starte Reparatur...", 'warning');
 
                 try {
                     switch ($target) {
@@ -755,6 +781,15 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'ws':
+                            $this->addRepairLog("Prüfe und beende eventuell abgestürzte Reverb-Dienste (Zombies)...");
+                            try {
+                                $processKill = \Symfony\Component\Process\Process::fromShellCommandline('pkill -f "reverb:start"');
+                                $processKill->run();
+                                $this->addRepairLog("✓ Alle hängenden Reverb-Prozesse gekillt. Der Cronjob startet den Daemon gleich neu.", 'success');
+                            } catch (\Exception $e) {
+                                $this->addRepairLog("Konnte Reverb nicht killen: " . $e->getMessage(), 'warning');
+                            }
+
                             $this->addRepairLog("Führe Config Cache Reset für WebSockets aus...");
                             \Illuminate\Support\Facades\Artisan::call('config:clear');
                             $this->addRepairLog("✓ Config/ENV Variablen neu geladen.", 'success');
@@ -807,6 +842,11 @@ class MasterAnalytics extends Component
                     $this->addRepairLog("Fehler beim Reparieren von $target: " . $e->getMessage(), 'error');
                 }
             }
+        }
+
+        if (!$fixedSomething && !$service) {
+            $this->addRepairLog("✓ Alle Kernsysteme und Schnittstellen leuchten Grün. Kein Fix notwendig!", 'success');
+            return;
         }
 
         $this->addRepairLog("Heilungsprozess abgeschlossen. Überprüfe Systemstatus...", 'info');

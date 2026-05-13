@@ -712,10 +712,22 @@
                                         <div x-data="{ 
                                             wsStatus: 'checking', 
                                             tooltip: false,
-                                            wsHost: '{{ env('VITE_REVERB_HOST', env('MIX_PUSHER_HOST', '127.0.0.1')) }}',
-                                            wsPort: '{{ env('VITE_REVERB_PORT', env('MIX_PUSHER_PORT', 6001)) }}',
+                                            wsHost: 'Lade...',
+                                            wsPort: 'Lade...',
                                             checkConnection() { 
-                                                if(window.Echo){ this.wsStatus = 'connected'; } else { this.wsStatus = 'unavailable'; } 
+                                                if(window.Echo && window.Echo.connector && window.Echo.connector.pusher) { 
+                                                    this.wsStatus = window.Echo.connector.pusher.connection.state;
+                                                    
+                                                    // Wir lesen die ECHTEN, aktiv genutzten Werte direkt aus dem laufenden Echo-Client aus
+                                                    this.wsHost = window.Echo.connector.pusher.config.wsHost || 'Unbekannt';
+                                                    this.wsPort = window.Echo.connector.pusher.config.wsPort || 'Unbekannt';
+
+                                                    window.Echo.connector.pusher.connection.bind('state_change', (states) => {
+                                                        this.wsStatus = states.current;
+                                                    });
+                                                } else { 
+                                                    this.wsStatus = 'unavailable'; 
+                                                } 
                                             } 
                                         }" x-init="checkConnection()" @mouseenter="tooltip = true" @mouseleave="tooltip = false" class="relative cursor-help">
                                             <div class="flex items-center gap-3">
@@ -737,11 +749,11 @@
 
                                                 <div class="flex flex-col gap-2 text-[9px] text-left font-mono text-gray-400">
                                                     <div class="flex justify-between gap-4">
-                                                        <span class="font-bold text-gray-500">IST-HOST:</span>
-                                                        <span class="truncate" :class="wsHost === '{{ $correctWsHost }}' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsHost"></span>
+                                                        <span class="font-bold text-gray-500">REALER JS HOST:</span>
+                                                        <span class="truncate" :class="wsHost === '{{ $correctWsHost }}' || wsHost === 'localhost' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsHost"></span>
                                                     </div>
                                                     <div class="flex justify-between gap-4">
-                                                        <span class="font-bold text-gray-500">IST-PORT:</span>
+                                                        <span class="font-bold text-gray-500">REALER JS PORT:</span>
                                                         <span :class="wsPort == '{{ $correctWsPort }}' ? 'text-emerald-400' : 'text-red-400 font-black'" x-text="wsPort"></span>
                                                     </div>
                                                     <div class="flex justify-between gap-4">
@@ -751,23 +763,31 @@
 
                                                     <div class="border-t border-gray-800 my-1"></div>
                                                     
-                                                    <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
-                                                        <span class="text-[9px] font-bold text-[#C5A059] uppercase tracking-widest mb-1"><i class="bi bi-file-earmark-code"></i> Server .env Werte:</span>
-                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
-                                                            <span class="text-gray-500 font-bold shrink-0">MIX_PUSHER_HOST:</span>
-                                                            <span class="text-gray-300">{{ env('MIX_PUSHER_HOST', 'Nicht gesetzt') }}</span>
-                                                        </div>
-                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
-                                                            <span class="text-gray-500 font-bold shrink-0">VITE_REVERB_HOST:</span>
-                                                            <span class="text-gray-300">{{ env('VITE_REVERB_HOST', 'Nicht gesetzt') }}</span>
-                                                        </div>
+                                                    <div class="flex flex-col gap-1 text-left font-mono my-2 bg-emerald-900/20 p-2 rounded-lg border border-emerald-800/50">
+                                                        <span class="text-[9px] font-bold text-emerald-500 uppercase tracking-widest mb-1"><i class="bi bi-robot"></i> Intelligentes Routing aktiv:</span>
+                                                        <div class="text-[9px] text-emerald-400/80 leading-relaxed">Das JS-Frontend erkennt die Umgebung dynamisch anhand der Browser-URL. Es sind <b>keine</b> manuellen `.env`-Wechsel vor dem lokalen Kompilieren mehr nötig!</div>
                                                     </div>
 
                                                     <div class="border-t border-gray-800 my-1"></div>
                                                     
-                                                    <div x-show="wsHost !== '{{ $correctWsHost }}' || wsPort != '{{ $correctWsPort }}'" class="text-amber-500 font-sans text-center font-bold leading-relaxed bg-amber-500/10 p-2 rounded border border-amber-500/20 mb-1">
-                                                        WARNUNG: Das Browser-JS funkt gerade an den falschen Host/Port! Du hast das JS vermutlich lokal mit den falschen .env-Daten gebaut.
+                                                    <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                                                        <span class="text-[9px] font-bold text-[#C5A059] uppercase tracking-widest mb-1"><i class="bi bi-hdd-network"></i> Backend Status:</span>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">Server Ping:</span>
+                                                            <span class="{{ ($systemHealth['ws']['status'] ?? '') === 'connected' ? 'text-emerald-400' : 'text-red-400' }} font-black">
+                                                                {{ $systemHealth['ws']['value'] ?? 'Unbekannt' }}
+                                                            </span>
+                                                        </div>
+                                                        @if(($systemHealth['ws']['status'] ?? '') !== 'connected')
+                                                            <div class="text-[9px] text-red-400 mt-1 whitespace-normal leading-tight">
+                                                                {{ $systemHealth['ws']['error'] ?? '' }}
+                                                            </div>
+                                                        @endif
                                                     </div>
+
+                                                    <div class="border-t border-gray-800 my-1"></div>
+                                                    
+
 
                                                     <div x-show="wsStatus === 'disconnected'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Der WebSocket-Server antwortet nicht.</div>
                                                     <div x-show="wsStatus === 'unavailable'" class="text-red-400 font-sans font-bold leading-relaxed text-center">Fehler: Laravel Echo konnte (im Browser) nicht initialisiert werden.</div>

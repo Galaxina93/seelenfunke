@@ -19,192 +19,151 @@
         </div>
     </div>
 
-    <!-- Grid of Cronjobs -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
-        @foreach($this->cronjobs as $job)
-            <div class="group relative bg-gray-900/50 backdrop-blur-md rounded-2xl p-4 sm:p-6 border border-gray-800 hover:border-[var(--theme-color-50)] transition-all duration-300 shadow-xl overflow-hidden flex flex-col h-full">
-                
-                <!-- Status LED Blur Effect -->
-                <div class="absolute -top-10 -right-10 w-32 h-32 rounded-full opacity-20 blur-3xl transition-colors duration-500
-                    {{ !$job->is_active ? 'bg-gray-500' : ($job->status === 'success' ? 'bg-green-500' : ($job->status === 'error' ? 'bg-red-500' : 'bg-[var(--theme-color)]')) }}">
-                </div>
+    <!-- Table Layout of Cronjobs -->
+    <div class="flex flex-col gap-3 pb-4">
+        <!-- Table Header (hidden on mobile) -->
+        <div class="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 text-gray-500 text-[10px] sm:text-xs uppercase tracking-widest bg-gray-900/40 rounded-xl font-bold border border-gray-800/50">
+            <div class="col-span-3">Cronjob & Info</div>
+            <div class="col-span-3">Befehl & Intervall</div>
+            <div class="col-span-3">Status & Letzter Lauf</div>
+            <div class="col-span-3 text-right">Aktionen</div>
+        </div>
 
-                <div class="relative flex-1 flex flex-col">
-                    <!-- Title & Toggle -->
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="flex-1 pr-4">
-                            <h3 class="text-lg font-bold text-gray-200 group-hover:text-white transition-colors flex items-center gap-2">
-                                {{ $job->name }}
-                            </h3>
-                            <div class="flex items-center gap-2 mt-1">
-                                <code class="text-xs text-[var(--theme-color-60)] bg-[var(--theme-color-10)] px-2 py-0.5 rounded font-mono">{{ $job->command }}</code>
-                            </div>
-                        </div>
-                        
-                        <!-- Toggle Switch -->
-                        <button wire:click="toggleCronjob('{{ $job->id }}')" 
-                                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-gray-900 {{ $job->is_active ? 'bg-[var(--theme-color)]' : 'bg-gray-700' }}">
-                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $job->is_active ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                        </button>
+        @foreach($this->cronjobs as $job)
+            @php
+                $nextRun = $job->next_run_at;
+                $lastRun = $job->last_run_at ?? $job->previous_run_at;
+            @endphp
+            <div class="relative bg-gray-900/50 backdrop-blur-md rounded-xl border border-gray-800 hover:border-[var(--theme-color-50)] transition-all duration-300 overflow-hidden group shadow-xl">
+                
+                <!-- Status Line indicator -->
+                <div class="absolute top-0 left-0 w-1.5 h-full transition-colors duration-500 {{ !$job->is_active ? 'bg-gray-500' : ($job->status === 'success' ? 'bg-green-500' : ($job->status === 'error' ? 'bg-red-500' : 'bg-[var(--theme-color)]')) }}"></div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 pl-6 items-center relative z-10">
+                    
+                    <!-- Title & Description -->
+                    <div class="col-span-1 lg:col-span-3">
+                        <h3 class="text-sm sm:text-base font-bold text-gray-200 group-hover:text-white transition-colors flex items-center gap-2">
+                            {{ $job->name }}
+                        </h3>
+                        <p class="text-[10px] sm:text-xs text-gray-400 mt-1 line-clamp-2" title="{{ $job->description }}">
+                            {{ $job->description }}
+                        </p>
                     </div>
 
-                    <!-- Description -->
-                    <p class="text-sm text-gray-400 mb-6 flex-1">
-                        {{ $job->description }}
-                    </p>
-
-                    <!-- Meta Data Footer -->
-                    <div class="mt-auto space-y-3 pt-4 border-t border-gray-800/50">
-                        <!-- Schedule Info -->
+                    <!-- Command & Schedule -->
+                    <div class="col-span-1 lg:col-span-3 flex flex-col gap-2">
+                        <div>
+                            <code class="text-[10px] sm:text-xs text-[var(--theme-color-60)] bg-[var(--theme-color-10)] px-2 py-0.5 rounded font-mono break-all">{{ $job->command }}</code>
+                        </div>
+                        
                         @if($editingJobId === $job->id)
-                            <div class="flex flex-col gap-2 bg-gray-900 p-3 rounded-xl border border-[var(--theme-color-50)] shadow-inner relative">
-                                <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
-                                    <span>Intervall bearbeiten:</span>
-                                    <button wire:click="cancelEdit" class="text-gray-500 hover:text-white"><x-heroicon-o-x-mark class="w-4 h-4" /></button>
-                                </div>
+                            <!-- Edit Mode -->
+                            <div class="flex items-center gap-2">
                                 <input type="text" wire:model="editingSchedule" 
-                                       class="bg-black border border-gray-700 text-white text-xs font-mono rounded focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] w-full p-2" 
-                                       placeholder="z.B. everyMinute oder 0 8 * * *">
-                                
-                                <!-- Suggestions -->
-                                <div class="flex flex-wrap gap-1.5 mt-1">
-                                    <button wire:click="$set('editingSchedule', 'everyMinute')" class="text-[9px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">everyMinute</button>
-                                    <button wire:click="$set('editingSchedule', 'everyFiveMinutes')" class="text-[9px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">everyFiveMinutes</button>
-                                    <button wire:click="$set('editingSchedule', 'hourly')" class="text-[9px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">hourly</button>
-                                    <button wire:click="$set('editingSchedule', 'daily')" class="text-[9px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700">daily</button>
-                                    <button wire:click="$set('editingSchedule', '0 8 * * *')" class="text-[9px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded border border-gray-700 font-mono">0 8 * * *</button>
-                                </div>
-                                
-                                <button wire:click="saveSchedule" class="mt-2 w-full py-1.5 bg-[var(--theme-color-20)] text-[var(--theme-color)] text-xs font-bold rounded hover:bg-[var(--theme-color-30)] transition-colors flex items-center justify-center gap-1">
-                                    <x-heroicon-o-check class="w-3.5 h-3.5" /> Speichern
-                                </button>
+                                       class="bg-black border border-gray-700 text-white text-[10px] sm:text-xs font-mono rounded focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] w-full p-1" 
+                                       placeholder="z.B. everyMinute">
+                                <button wire:click="saveSchedule" class="text-green-400 hover:text-green-300 p-1"><x-heroicon-o-check class="w-4 h-4" /></button>
+                                <button wire:click="cancelEdit" class="text-gray-500 hover:text-white p-1"><x-heroicon-o-x-mark class="w-4 h-4" /></button>
                             </div>
                         @else
-                            <div class="flex items-center justify-between text-xs">
-                                <span class="text-gray-500 flex items-center gap-1.5 shrink-0">
-                                    <x-heroicon-o-calendar class="w-3.5 h-3.5" />
-                                    Intervall:
-                                </span>
-                                <div class="flex items-center gap-1.5 sm:gap-2">
-                                    <span class="font-mono text-[10px] sm:text-xs text-gray-300 bg-gray-800 px-1.5 sm:px-2 py-0.5 rounded truncate max-w-[120px] sm:max-w-none">{{ $job->schedule }}</span>
-                                    <button wire:click="editSchedule('{{ $job->id }}')" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors p-1" title="Intervall bearbeiten">
-                                        <x-heroicon-o-pencil-square class="w-4 h-4" />
-                                    </button>
-                                </div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-[10px] sm:text-xs text-gray-300 bg-gray-800 px-1.5 sm:px-2 py-0.5 rounded truncate">{{ $job->schedule }}</span>
+                                <button wire:click="editSchedule('{{ $job->id }}')" class="text-gray-500 hover:text-[var(--theme-color)] transition-colors p-1" title="Intervall bearbeiten">
+                                    <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         @endif
+                    </div>
 
-                        <!-- Last Run Info -->
-                        <div class="flex items-center justify-between text-xs">
-                            <span class="text-gray-500 flex items-center gap-1.5">
-                                <x-heroicon-o-arrow-path class="w-3.5 h-3.5" />
-                                Letzter Lauf:
-                            </span>
-                            <span class="{{ $job->status === 'success' ? 'text-green-400' : ($job->status === 'error' ? 'text-red-400' : 'text-gray-400') }}">
+                    <!-- Last Run & Status -->
+                    <div class="col-span-1 lg:col-span-3 flex flex-col gap-1 text-[10px] sm:text-xs">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-gray-500">Zuletzt:</span>
+                            <span class="{{ $job->status === 'success' ? 'text-green-400' : ($job->status === 'error' ? 'text-red-400' : 'text-gray-400') }} font-bold">
                                 {{ $job->last_run_at ? $job->last_run_at->diffForHumans() : 'Noch nie' }}
                             </span>
                         </div>
-
-                        <!-- Next Run Time & Progress -->
-                        @php
-                            $nextRun = $job->next_run_at;
-                            $lastRun = $job->last_run_at ?? $job->previous_run_at;
-                        @endphp
                         @if($job->is_active && $nextRun && $lastRun)
-                            @php
-                                $isToday = $nextRun->isToday();
-                                $timeString = $isToday ? 'Heute, ' . $nextRun->format('H:i:s') . ' Uhr' : $nextRun->format('d.m.Y, H:i:s') . ' Uhr';
-                            @endphp
-                            <div class="mt-4 w-full" 
-                                 x-data="{
-                                    nextRunTs: {{ $nextRun->timestamp * 1000 }},
-                                    lastRunTs: {{ $lastRun->timestamp * 1000 }},
-                                    progress: 0,
-                                    countdown: '',
-                                    init() {
-                                        this.updateProgress();
-                                        setInterval(() => this.updateProgress(), 1000);
-                                    },
-                                    updateProgress() {
-                                        let now = Date.now();
-                                        let total = this.nextRunTs - this.lastRunTs;
-                                        let current = now - this.lastRunTs;
-                                        
-                                        if (total <= 0) { this.progress = 100; }
-                                        else if (current < 0) { this.progress = 0; }
-                                        else if (current >= total) { this.progress = 100; }
-                                        else { this.progress = (current / total) * 100; }
-                                        
-                                        let diff = Math.max(0, this.nextRunTs - now);
-                                        if (diff === 0) {
-                                            this.countdown = 'Jetzt';
-                                        } else {
-                                            let h = Math.floor(diff / 3600000);
-                                            let m = Math.floor((diff % 3600000) / 60000);
-                                            let s = Math.floor((diff % 60000) / 1000);
-                                            
-                                            let parts = [];
-                                            if (h > 0) parts.push(h + 'h');
-                                            if (m > 0 || h > 0) parts.push(m + 'm');
-                                            parts.push(s + 's');
-                                            
-                                            this.countdown = 'in ' + parts.join(' ');
-                                        }
-                                    }
-                                 }">
-                                <div class="flex justify-between items-end mb-1.5">
-                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
-                                        <x-heroicon-o-clock class="w-3 h-3" />
-                                        Nächste Ausführung
-                                    </span>
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-[10px] font-mono font-bold text-gray-400" x-text="countdown"></span>
-                                        <span class="text-[10px] font-bold text-[color:var(--theme-color)]">{{ $timeString }}</span>
-                                    </div>
-                                </div>
-                                <div class="w-full bg-gray-950 rounded-full h-1.5 border border-gray-800 overflow-hidden relative" :title="Math.round(progress) + '% bis zum Start'">
-                                    <div class="bg-gradient-to-r from-[color:var(--theme-color)] to-[color:var(--theme-color-50)] h-1.5 rounded-full transition-all duration-1000 ease-linear shadow-[0_0_10px_var(--theme-color-50)]" :style="`width: ${progress}%`"></div>
-                                </div>
+                            <div class="flex items-center gap-1.5" x-data="{
+                                nextRunTs: {{ $nextRun->timestamp * 1000 }},
+                                countdown: '',
+                                init() { setInterval(() => this.update(), 1000); this.update(); },
+                                update() {
+                                    let diff = Math.max(0, this.nextRunTs - Date.now());
+                                    if (diff === 0) { this.countdown = 'Jetzt'; return; }
+                                    let h = Math.floor(diff / 3600000);
+                                    let m = Math.floor((diff % 3600000) / 60000);
+                                    let s = Math.floor((diff % 60000) / 1000);
+                                    let parts = [];
+                                    if (h > 0) parts.push(h + 'h');
+                                    if (m > 0 || h > 0) parts.push(m + 'm');
+                                    parts.push(s + 's');
+                                    this.countdown = parts.join(' ');
+                                }
+                            }">
+                                <span class="text-gray-500">Nächster in:</span>
+                                <span class="text-[color:var(--theme-color)] font-mono" x-text="countdown"></span>
                             </div>
                         @elseif(!$job->is_active)
-                            <div class="mt-4 w-full">
-                                <div class="flex justify-between items-end mb-1.5">
-                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 flex items-center gap-1.5">
-                                        <x-heroicon-o-clock class="w-3 h-3" />
-                                        Nächste Ausführung
-                                    </span>
-                                    <span class="text-[10px] font-bold text-gray-500">Pausiert</span>
-                                </div>
-                                <div class="w-full bg-gray-950 rounded-full h-1.5 border border-gray-800 overflow-hidden relative">
-                                    <div class="bg-gray-700 h-1.5 rounded-full" style="width: 100%"></div>
-                                </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-gray-500">Status:</span>
+                                <span class="text-gray-500 font-bold">Pausiert</span>
                             </div>
                         @endif
-                        
-                        <!-- Run Now Button -->
-                        <div class="pt-2">
-                            <button wire:click="runNow('{{ $job->id }}')" 
-                                    wire:loading.attr="disabled"
-                                    class="w-full py-2 px-4 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex justify-center items-center gap-2
-                                    {{ $job->is_active ? 'bg-gray-800 hover:bg-[var(--theme-color-20)] text-gray-300 hover:text-[var(--theme-color)] border border-gray-700 hover:border-[var(--theme-color-50)]' : 'bg-gray-900 text-gray-600 cursor-not-allowed border border-gray-800' }}"
-                                    {{ !$job->is_active ? 'disabled' : '' }}>
-                                
-                                <span wire:loading.remove wire:target="runNow('{{ $job->id }}')" class="flex items-center gap-2">
-                                    <x-heroicon-o-play class="w-4 h-4" />
-                                    Jetzt Ausführen
-                                </span>
-                                
-                                <span wire:loading wire:target="runNow('{{ $job->id }}')" class="flex items-center gap-2">
-                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Führt aus...
-                                </span>
-                            </button>
-                        </div>
                     </div>
+
+                    <!-- Actions -->
+                    <div class="col-span-1 lg:col-span-3 flex items-center justify-end gap-3 sm:gap-4 mt-2 lg:mt-0">
+                        <button wire:click="runNow('{{ $job->id }}')" 
+                                wire:loading.attr="disabled"
+                                class="py-1.5 px-3 rounded-lg text-[10px] sm:text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2
+                                {{ $job->is_active ? 'bg-gray-800 hover:bg-[var(--theme-color-20)] text-gray-300 hover:text-[var(--theme-color)] border border-gray-700 hover:border-[var(--theme-color-50)]' : 'bg-gray-900 text-gray-600 cursor-not-allowed border border-gray-800' }}"
+                                {{ !$job->is_active ? 'disabled' : '' }}>
+                            
+                            <span wire:loading.remove wire:target="runNow('{{ $job->id }}')" class="flex items-center gap-1.5">
+                                <x-heroicon-o-play class="w-3.5 h-3.5" />
+                                <span class="hidden sm:inline">Ausführen</span>
+                            </span>
+                            
+                            <span wire:loading wire:target="runNow('{{ $job->id }}')" class="flex items-center gap-1.5 text-[color:var(--theme-color)]">
+                                <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="hidden sm:inline">Läuft...</span>
+                            </span>
+                        </button>
+
+                        <!-- Toggle Switch -->
+                        <button wire:click="toggleCronjob('{{ $job->id }}')" 
+                                class="relative inline-flex h-5 w-9 sm:h-6 sm:w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-gray-900 {{ $job->is_active ? 'bg-[var(--theme-color)]' : 'bg-gray-700' }}">
+                            <span class="pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $job->is_active ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0' }}"></span>
+                        </button>
+                    </div>
+
                 </div>
+
+                <!-- Full Width Progress Bar (Bottom) -->
+                @if($job->is_active && $nextRun && $lastRun)
+                <div class="absolute bottom-0 left-0 w-full h-1 bg-gray-950/50" 
+                     x-data="{
+                        nextRunTs: {{ $nextRun->timestamp * 1000 }},
+                        lastRunTs: {{ $lastRun->timestamp * 1000 }},
+                        progress: 0,
+                        init() { setInterval(() => this.update(), 1000); this.update(); },
+                        update() {
+                            let total = this.nextRunTs - this.lastRunTs;
+                            let current = Date.now() - this.lastRunTs;
+                            if(total <= 0) this.progress = 100;
+                            else if(current < 0) this.progress = 0;
+                            else if(current >= total) this.progress = 100;
+                            else this.progress = (current / total) * 100;
+                        }
+                     }">
+                    <div class="h-full bg-gradient-to-r from-[color:var(--theme-color)] to-[color:var(--theme-color-50)] transition-all duration-1000 ease-linear shadow-[0_0_10px_var(--theme-color-50)]" :style="`width: ${progress}%`"></div>
+                </div>
+                @endif
             </div>
         @endforeach
     </div>
