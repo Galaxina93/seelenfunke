@@ -25,14 +25,14 @@ class AiAgentEditor extends Component
     public $wake_word = '';
     public $role_description = '';
     public $system_prompt = '';
-    public $model = 'gpt-oss-120b';
+    public $model = 'gemini-2.5-flash';
     public $temperature = 0.4;
     public $activePreset = null; // Tracks the currently clicked preset button
     public $is_active = true;
     public $color = 'cyan-500';
     public $icon = 'sparkles'; // Default to a heroicon name
     public $tts_enabled = false;
-    public $tts_provider = 'toni_xttsv2';
+    public $tts_provider = 'gemini_native';
     public $tts_voice = '';
     public $tts_api_url = '';
     public $tts_speed = 1.0;
@@ -53,24 +53,18 @@ class AiAgentEditor extends Component
     ];
 
     public $availableModels = [
-        'gpt-oss-120b' => 'GPT-OSS 120B',
-        'Qwen3.5-122B-A10B-FP8' => 'Qwen3.5 122B (Mittwald)',
-        'Qwen3-Embedding-8B' => 'Qwen3 Embedding 8B',
-        'whisper-large-v3-turbo' => 'Whisper Large v3 Turbo',
         'gemini-2.5-pro' => 'Google Gemini 2.5 Pro (Standard)',
-        'gemini-2.0-flash' => 'Google Gemini 2.0 Flash',
+        'gemini-2.5-flash' => 'Google Gemini 2.5 Flash',
         'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro Preview'
     ];
 
     public $ttsProviders = [
-        'toni_xttsv2' => 'Toni - Coqui XTTSv2',
         'gemini_native' => 'Google Gemini (Native TTS)',
         'browser_tts' => 'Standard Speech (Browser)',
         'none' => 'Deaktiviert (Nur Text)'
     ];
 
     public $ttsVoices = [
-        'toni_xttsv2' => [], // Dynamische Keys
         'gemini_native' => [
             'Puck' => 'Puck (Neutral)',
             'Charon' => 'Charon (Tief)',
@@ -81,34 +75,6 @@ class AiAgentEditor extends Component
     ];
 
     public $modelDetails = [
-        'gpt-oss-120b' => [
-            'type' => 'Chat + Reasoning', 
-            'capabilities' => 'Text, Tool-Calling', 
-            'context' => '131.072 Token', 
-            'license' => 'Apache 2.0',
-            'use_cases' => ['Komplexe Logik & Programmierung', 'Tiefgründige Textanalyse', 'Autonome Entscheidungen (CEO)']
-        ],
-        'Qwen3.5-122B-A10B-FP8' => [
-            'type' => 'Chat + Code + Reasoning', 
-            'capabilities' => 'Text, Tool-Calling', 
-            'context' => '131.072 Token', 
-            'license' => 'Apache 2.0 (Open Source)',
-            'use_cases' => ['Komplexe Programmierung', 'Solider Support-Agent', 'Effizientes Tool-Calling']
-        ],
-        'Qwen3-Embedding-8B' => [
-            'type' => 'Embedding', 
-            'capabilities' => 'Text → Vektor', 
-            'context' => '32.768 Token', 
-            'license' => 'Apache 2.0',
-            'use_cases' => ['Wissensdatenbank-Aufbau', 'Semantische Suche', 'Dokumenten-Matching']
-        ],
-        'whisper-large-v3-turbo' => [
-            'type' => 'Speech-to-Text', 
-            'capabilities' => 'Audio → Text', 
-            'context' => 'n/a (Audio-basiert)', 
-            'license' => 'MIT',
-            'use_cases' => ['Spracherkennung im Widget', 'Transkription von Nachrichten', 'Barrierefreiheit']
-        ],
         'gemini-2.5-pro' => [
             'type' => 'Chat + Reasoning + Vision', 
             'capabilities' => 'Text, Bild, Tool-Calling', 
@@ -116,7 +82,7 @@ class AiAgentEditor extends Component
             'license' => 'Google Proprietary',
             'use_cases' => ['Extreme Datenanalysen', 'Sehr tiefe Code-Erstellung', 'Auswertung gigantischer Kontextmengen']
         ],
-        'gemini-2.0-flash' => [
+        'gemini-2.5-flash' => [
             'type' => 'Chat + Vision', 
             'capabilities' => 'Text, Bild, Tool-Calling', 
             'context' => '1.000.000 Token', 
@@ -185,7 +151,7 @@ class AiAgentEditor extends Component
             }
             
             $this->tts_enabled = (bool) ($agent->tts_enabled ?? false);
-            $this->tts_provider = $agent->tts_provider ?? 'toni_xttsv2';
+            $this->tts_provider = $agent->tts_provider ?? 'gemini_native';
             
 
 
@@ -259,14 +225,10 @@ class AiAgentEditor extends Component
         $maxTokens = 32000;
         $modelStr = strtolower($this->model ?? '');
         
-        if (str_contains($modelStr, 'gemini-3') || str_contains($modelStr, 'gemini-1.5-pro')) {
+        if (str_contains($modelStr, 'gemini-3') || str_contains($modelStr, 'gemini-2.5-pro')) {
             $maxTokens = 2000000;
         } elseif (str_contains($modelStr, 'gemini')) {
             $maxTokens = 1000000;
-        } elseif (str_contains($modelStr, '120b') || str_contains($modelStr, 'gpt-4')) {
-            $maxTokens = 120000;
-        } elseif (str_contains($modelStr, 'ministral') || str_contains($modelStr, 'devstral')) {
-            $maxTokens = 32000;
         }
 
         $text = $this->system_prompt ?? '';

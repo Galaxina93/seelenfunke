@@ -118,8 +118,6 @@ class AiWorkspace extends Component
         foreach ($agents as $agent) {
             $this->pingTest($agent->id);
         }
-        // Ping Toni specifically as an external agent
-        $this->pingToni();
     }
 
     public function pingTest($id)
@@ -139,15 +137,8 @@ class AiWorkspace extends Component
         $llmStatus = 'Fehler';
         try {
             $start = microtime(true);
-            $modelStr = strtolower($agent->model ?? '');
-            
-            if (str_starts_with($modelStr, 'gemini')) {
-                $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
-                $key = config('services.gemini.key');
-            } else {
-                $llmUrl = config('services.mittwald.url') ?: 'https://api.mittwald.example/v1';
-                $key = config('services.mittwald.key');
-            }
+            $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
+            $key = config('services.gemini.key');
             
             $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken($key)->get(rtrim($llmUrl, '/') . '/models');
             
@@ -163,9 +154,9 @@ class AiWorkspace extends Component
         if ($agent->tts_enabled && $agent->tts_provider && $agent->tts_provider !== 'none') {
             try {
                 $start = microtime(true);
-                $ttsUrl = $agent->tts_api_url ?: 'http://127.0.0.1:8020';
-                $response = \Illuminate\Support\Facades\Http::timeout(3)->get(rtrim($ttsUrl, '/') . '/languages');
-                if ($response->successful() || $response->status() === 404) {
+                $ttsUrl = $agent->tts_api_url ?: 'https://generativelanguage.googleapis.com';
+                $response = \Illuminate\Support\Facades\Http::timeout(3)->get(rtrim($ttsUrl, '/') . '/v1beta/models');
+                if ($response->successful() || $response->status() === 401 || $response->status() === 403 || $response->status() === 404) {
                     $ttsStatus = round((microtime(true) - $start) * 1000) . 'ms';
                 } else {
                     $ttsStatus = 'Fehler';
@@ -176,30 +167,6 @@ class AiWorkspace extends Component
         }
 
         $this->pingResults[$id] = [
-            'llm' => $llmStatus,
-            'tts' => $ttsStatus,
-        ];
-    }
-
-    public function pingToni()
-    {
-        $toniUrl = env('TONI_AI_URL', 'http://192.168.188.32:8000');
-        $llmStatus = 'Fehler';
-        $ttsStatus = 'Fehler';
-        
-        try {
-            $start = microtime(true);
-            $response = \Illuminate\Support\Facades\Http::timeout(5)->withToken(env('TONI_AI_API_KEY'))->get($toniUrl . '/api/toni/config');
-            if ($response->successful() || $response->status() === 401 || $response->status() === 404) {
-                $llmStatus = round((microtime(true) - $start) * 1000) . 'ms';
-                $ttsStatus = $llmStatus; // Toni runs everything in the same service
-            }
-        } catch (\Exception $e) {
-            $llmStatus = 'Offline';
-            $ttsStatus = 'Offline';
-        }
-
-        $this->pingResults['toni'] = [
             'llm' => $llmStatus,
             'tts' => $ttsStatus,
         ];

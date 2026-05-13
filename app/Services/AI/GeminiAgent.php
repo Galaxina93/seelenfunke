@@ -58,8 +58,13 @@ class GeminiAgent implements AiProviderInterface
         }
         $isOverride = str_contains($latestUserMessage, 'ich befehle dir');
 
-        $aiService = app(AiSupportService::class);
-        $aiCommand = $aiService->getUltimateCommand($isOverride);
+        $isAdmin = auth()->guard('admin')->check();
+        
+        $aiCommand = null;
+        if ($isAdmin) {
+            $aiService = app(AiSupportService::class);
+            $aiCommand = $aiService->getUltimateCommand($isOverride);
+        }
 
         $systemPromptText = $this->agent->system_prompt;
 
@@ -71,11 +76,10 @@ class GeminiAgent implements AiProviderInterface
                         "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
 
-        $userStatus = auth()->guard('admin')->check() 
+        $userStatus = $isAdmin 
             ? "System-Administrator (Mitarbeiter). Du hast höchste Freigabestufe. Nutze deine Admin-Tools für Analysen und weise den User nicht aus Datenschutzgründen ab!" 
             : "Kunde. Beachte strikt den Datenschutz.";
 
-        $isAdmin = auth()->guard('admin')->check();
         $customerName = '';
         if (!$isAdmin && auth()->guard('customer')->check()) {
             $customerName = auth()->guard('customer')->user()->first_name;
@@ -105,12 +109,16 @@ class GeminiAgent implements AiProviderInterface
                              $verhaltensregel .
                              $delegationsregel .
                              'AKTUELLER ORT (URL/SYSTEM-BEREICH): ' . (\Illuminate\Support\Facades\Route::currentRouteName() ?? request()->path()) . "\n" .
-                             'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n" .
-                             'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
-                             'TOP-PRIORITÄT: ' . ($aiCommand['recommendation']['title'] ?? 'Keine') . "\n" .
-                             'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
-                             'EPHEMERAL CONTEXT: ' . session()->get('ai_ephemeral_state', 'Der User hat aktuell keine Dateien oder speziellen UI-Elemente fokussiert.') . "\n" .
-                             'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n" .
+                             'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n";
+                             
+        if ($isAdmin && $aiCommand) {
+            $systemPromptText .= 'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
+                                 'TOP-PRIORITÄT: ' . ($aiCommand['recommendation']['title'] ?? 'Keine') . "\n" .
+                                 'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
+                                 'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n";
+        }
+
+        $systemPromptText .= 'EPHEMERAL CONTEXT: ' . session()->get('ai_ephemeral_state', 'Der User hat aktuell keine Dateien oder speziellen UI-Elemente fokussiert.') . "\n" .
                              "Reasoning: high\n\n" .
                              "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
                              "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
@@ -297,29 +305,25 @@ class GeminiAgent implements AiProviderInterface
         }
 
         $payload = [
-            'model' => $this->agent->model ?? 'gpt-oss-120b',
+            'model' => $this->agent->model ?? 'gemini-2.5-flash',
             'messages' => $normalizedMessages,
             'temperature' => (float)($this->agent->temperature ?? 0.6),
             'top_p' => 1.0,
-            'stream' => true // Enable Server-Sent Events Streaming
+            'stream' => true, // Enable Server-Sent Events Streaming
+            'stream_options' => ['include_usage' => true]
         ];
 
-        // Ministral and Devstral models on the Gemini Proxy currently do not support Tool Calling
-        // Passing the 'tools' array to them results in a 400 Bad Request error.
-        $modelName = strtolower($this->agent->model ?? 'gpt-oss-120b');
+        // Use the configured model or default to stable gemini-2.5-flash
+        $modelName = strtolower($this->agent->model ?? 'gemini-2.5-flash');
 
         // AUTOMATIC MODEL UPGRADE / DOWNGRADE:
         // 1.x models are deprecated. 3.x models are too unstable and cause 150s timeouts.
         // Force redirect to stable 2.5 architecture to ensure instant replies.
-        if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-3.')) {
+        if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-3.') || str_contains($modelName, 'oss') || str_contains($modelName, 'stral')) {
             $isPro = str_contains($modelName, 'pro');
             $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
             $payload['model'] = $modelName;
             #\Illuminate\Support\Facades\Log::info("Auto-mapped unstable model to: " . $modelName);
-        }
-
-        if (str_contains($modelName, 'stral')) {
-            $filteredSchema = [];
         }
 
         if (!empty($filteredSchema)) {
@@ -412,7 +416,7 @@ class GeminiAgent implements AiProviderInterface
                 $sseBuffer = '';
                 $abortKey = 'abort_ai_agent_' . $this->agent->id;
 
-                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted) {
+                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted, &$usageData) {
                     try {
                         if (\Illuminate\Support\Facades\Cache::pull($abortKey)) {
                             $isAborted = true;
@@ -433,6 +437,19 @@ class GeminiAgent implements AiProviderInterface
                             if ($jsonStr === '[DONE]') continue;
 
                             $chunk = json_decode($jsonStr, true);
+                            
+                            // Extract usage if present in the final chunk
+                            if (isset($chunk['usage'])) {
+                                if (!isset($usageData['prompt_tokens'])) {
+                                    $usageData['prompt_tokens'] = 0;
+                                    $usageData['completion_tokens'] = 0;
+                                    $usageData['total_tokens'] = 0;
+                                }
+                                $usageData['prompt_tokens'] += $chunk['usage']['prompt_tokens'] ?? 0;
+                                $usageData['completion_tokens'] += $chunk['usage']['completion_tokens'] ?? 0;
+                                $usageData['total_tokens'] += $chunk['usage']['total_tokens'] ?? 0;
+                            }
+
                             if (isset($chunk['choices'][0]['delta'])) {
                                 $delta = $chunk['choices'][0]['delta'];
 
@@ -598,19 +615,15 @@ class GeminiAgent implements AiProviderInterface
                 ];
             }
 
-            if (isset($responseData['usage'])) {
-                $usageData['prompt_tokens'] += $responseData['usage']['prompt_tokens'] ?? 0;
-                $usageData['completion_tokens'] += $responseData['usage']['completion_tokens'] ?? 0;
-                $usageData['total_tokens'] += $responseData['usage']['total_tokens'] ?? 0;
-
+            if (!empty($usageData) && isset($usageData['prompt_tokens'])) {
                 if (class_exists(\App\Models\Ai\AiMetric::class)) {
                     try {
                         \App\Models\Ai\AiMetric::create([
                             'ai_agent_id' => $this->agent->id,
                             'type' => 'inference',
                             'total_time_ms' => $latencyMs,
-                            'input_tokens' => $responseData['usage']['prompt_tokens'] ?? 0,
-                            'output_tokens' => $responseData['usage']['completion_tokens'] ?? 0,
+                            'input_tokens' => $usageData['prompt_tokens'] ?? 0,
+                            'output_tokens' => $usageData['completion_tokens'] ?? 0,
                             'is_success' => true
                         ]);
                     } catch (\Exception $e) { }

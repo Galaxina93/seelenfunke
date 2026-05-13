@@ -164,39 +164,4 @@
             </div>
         </div>
 
-        <!-- External Agent Editor Modal -->
-        <div x-data="{ showExternalAgentManager: false }" 
-             x-on:open-external-agent.window="
-                showExternalAgentManager = true; 
-                Livewire.dispatchTo('shop.ai.external-agent-editor', 'edit-external-agent', { agentId: $event.detail.agentId }); 
-             "
-             x-on:close-external-agent-manager.window="showExternalAgentManager = false">
-            
-            <div x-show="showExternalAgentManager" style="display: none;" 
-                 class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300" 
-                 x-transition:enter="ease-out duration-300"
-                 x-transition:enter-start="opacity-0"
-                 x-transition:enter-end="opacity-100"
-                 x-transition:leave="ease-in duration-200"
-                 x-transition:leave-start="opacity-100"
-                 x-transition:leave-end="opacity-0">
-                
-                <div class="relative w-[95vw] h-[95vh] lg:w-[90vw] lg:h-[90vh] bg-[#050505] border border-rose-900/40 rounded-3xl overflow-auto custom-scrollbar shadow-[0_0_50px_rgba(225,29,72,0.1)] flex flex-col pt-10" 
-                     x-transition:enter="ease-out duration-300 transform"
-                     x-transition:enter-start="opacity-0 translate-y-8 scale-95"
-                     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                     x-transition:leave="ease-in duration-200 transform"
-                     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-                     x-transition:leave-end="opacity-0 translate-y-8 scale-95"
-                     @click.away="showExternalAgentManager = false">
-                    
-                    <button @click="showExternalAgentManager = false" class="absolute top-4 right-4 z-50 text-gray-400 hover:text-white p-2 bg-gray-900/50 rounded-full border border-gray-700/50 hover:bg-gray-800 transition-colors">
-                        <x-heroicon-o-x-mark class="w-6 h-6" />
-                    </button>
-                    
-                    <div class="flex-1 w-full relative">
-                        <livewire:shop.ai.external-agent-editor />
-                    </div>
-                </div>
-            </div>
-        </div>
+

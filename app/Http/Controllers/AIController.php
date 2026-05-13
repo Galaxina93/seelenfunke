@@ -245,68 +245,7 @@ class AIController extends Controller
             $ttsEnabled = false;
         }
 
-        if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'toni_xttsv2') {
-            try {
-                $cleanText = $result['response'];
-                
-                // Extract <speak> tag content if present
-                if (preg_match('/<speak>(.*?)<\/speak>/is', $cleanText, $matches)) {
-                    $cleanText = trim($matches[1]);
-                } else {
-                    // Fallback to full text but strip markdown
-                    $cleanText = strip_tags($cleanText);
-                }
-                
-                // Limit the spoken text length slightly just in case
-                if (strlen($cleanText) > 800) {
-                    $cleanText = substr($cleanText, 0, 800) . "...";
-                }
-
-                $speed = $aiAgent->tts_speed ?? 1.0;
-                $apiUrl = $aiAgent->tts_api_url ?: env('TONI_AI_URL', 'http://192.168.188.32:8000');
-                if (!str_ends_with(parse_url($apiUrl, PHP_URL_PATH) ?? '', '/api/toni/tts')) {
-                    $apiUrl = rtrim($apiUrl, '/') . '/api/toni/tts';
-                }
-                $apiKey = env('TONI_AI_API_KEY');
-                
-                // Standard payload design for Toni / XTTS API
-                $payload = [
-                    'text' => $cleanText,
-                    'language' => 'de',
-                    'speed' => $speed
-                ];
-                
-                if ($aiAgent->tts_voice) {
-                    $payload['voice_key'] = $aiAgent->tts_voice;
-                }
-
-                $request = \Illuminate\Support\Facades\Http::connectTimeout(2)->timeout(30);
-                if (!empty($apiKey)) {
-                    $request = $request->withToken($apiKey);
-                }
-
-                $ttsResponse = $request->post($apiUrl, $payload);
-                
-                $isAudio = str_contains($ttsResponse->header('Content-Type'), 'audio/');
-
-                // Fallback: If Toni fails (HTTP error or JSON error payload instead of audio), retry with 'default'
-                if ((!$ttsResponse->successful() || !$isAudio) && isset($payload['voice_key'])) {
-                    \Illuminate\Support\Facades\Log::warning("Toni rejected voice_key '{$payload['voice_key']}'. Retrying with default voice: " . $ttsResponse->body());
-                    unset($payload['voice_key']);
-                    $ttsResponse = $request->post($apiUrl, $payload);
-                    $isAudio = str_contains($ttsResponse->header('Content-Type'), 'audio/');
-                }
-
-                if ($ttsResponse->successful() && $isAudio) {
-                    // Alles gut, Bytestream empfangen
-                    $base64Audio = base64_encode($ttsResponse->body());
-                } else {
-                    \Illuminate\Support\Facades\Log::warning("Toni TTS Soft-Error in AIController: " . $ttsResponse->body());
-                }
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Toni TTS Fetch failed: " . $e->getMessage());
-            }
-        } elseif ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
+        if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
             try {
                 $cleanText = $result['response'];
                 

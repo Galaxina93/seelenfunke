@@ -62,7 +62,6 @@ Route::middleware(['auth:admin'])->group(function () {
     
     // Editoren für spezifische KI Agenten bleiben, da sie ID-gebunden sind
     Route::get('/admin/ki-agenten/{id}', \App\Livewire\Shop\Ai\AiAgentEditor::class)->name('admin.ai-agents.editor');
-    Route::get('/admin/externe-agenten/{id}', \App\Livewire\Shop\Ai\ExternalAgentEditor::class)->name('admin.external-agents.editor');
 
     // -----------------------------------------------------------------------
     // Products

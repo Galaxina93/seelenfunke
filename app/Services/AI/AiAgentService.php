@@ -86,7 +86,7 @@ class AiAgentService
         }
 
         return [
-            'model' => $agent->model ?? 'gpt-oss-120b',
+            'model' => $agent->model ?? 'gemini-2.5-flash',
             'temperature' => (float) ($agent->temperature ?? 0.4),
             'system_prompt' => $agent->system_prompt . $roleInfo . $timeInfo,
             'tools' => empty($filteredSchema) ? null : $filteredSchema,

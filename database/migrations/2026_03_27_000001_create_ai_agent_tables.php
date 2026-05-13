@@ -44,7 +44,7 @@ return new class extends Migration
                 $table->text('system_prompt')->nullable();
                 $table->string('provider')->default('google')->nullable();
                 $table->string('fallback_provider')->nullable();
-                $table->string('model')->nullable()->default('gpt-oss-120b');
+                $table->string('model')->nullable()->default('gemini-2.5-flash');
                 $table->boolean('tts_enabled')->default(false);
                 $table->string('tts_provider')->default('toni_xttsv2');
                 $table->string('tts_voice')->nullable();

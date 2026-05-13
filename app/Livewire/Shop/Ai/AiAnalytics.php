@@ -40,17 +40,15 @@ class AiAnalytics extends Component
             
         $estimatedCostThisMonth = 0;
         foreach ($monthlyMetrics as $metric) {
-            $model = strtolower($metric->agent->model ?? 'gpt-oss-120b');
+            $model = strtolower($metric->agent->model ?? 'gemini-2.5-flash');
             $inTokens = $metric->input_tokens;
             $outTokens = $metric->output_tokens;
             
-            if (str_contains($model, 'gemini-1.5-pro') || str_contains($model, 'gemini-2.5-pro')) {
+            if (str_contains($model, 'gemini-1.5-pro') || str_contains($model, 'gemini-2.5-pro') || str_contains($model, 'gemini-3')) {
                 $estimatedCostThisMonth += ($inTokens / 1000000) * 1.25 + ($outTokens / 1000000) * 5.00;
-            } elseif (str_contains($model, 'flash')) {
-                $estimatedCostThisMonth += ($inTokens / 1000000) * 0.075 + ($outTokens / 1000000) * 0.30;
             } else {
-                // Durchschnittswert für andere OSS Modelle (Mittwald/Huggingface)
-                $estimatedCostThisMonth += ($inTokens / 1000000) * 0.50 + ($outTokens / 1000000) * 1.50;
+                // Default to Flash costs
+                $estimatedCostThisMonth += ($inTokens / 1000000) * 0.075 + ($outTokens / 1000000) * 0.30;
             }
         }
         $avgLatency = AiMetric::where('type', 'inference')->whereDate('created_at', '>=', $thirtyDaysAgo)->avg('total_time_ms') ?? 0;
@@ -136,13 +134,9 @@ class AiAnalytics extends Component
             ->get()
             ->map(function($m) {
                 $model = strtolower($m->agent->model ?? '');
-                $limit = 32000;
+                $limit = 1000000; // Default flash limit
                 if (str_contains($model, 'gemini-3') || str_contains($model, 'gemini-2.5-pro')) {
                     $limit = 2000000;
-                } elseif (str_contains($model, 'gemini')) {
-                    $limit = 1000000;
-                } elseif (str_contains($model, '120b') || str_contains($model, 'gpt-4')) {
-                    $limit = 120000;
                 }
 
                 return [

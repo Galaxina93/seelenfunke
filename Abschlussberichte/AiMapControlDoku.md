@@ -8,7 +8,7 @@ Das System sollte es dem Benutzer ermöglichen, über den "Live Mode" (WebSocket
 Die detaillierte Untersuchung der Code-Basis förderte mehrere tief verflochtene Fehler zutage:
 
 1. **Der Live Mode (WebSocket) Bypass**
-   Wenn der Benutzer mit dem Agenten über das Mikrofon sprach (Multimodal Live Mode), lief die gesamte Kommunikation über den WebSocket und den `AIController::execute` Endpunkt. Dadurch wurde der `ManagesAiChat.php`-Trait sowie die Livewire-Lebenszyklen komplett umgangen. Debugging-Logs in den Agent-Klassen (`GeminiAgent.php`, `MittwaldAgent.php`) wurden somit für Sprachbefehle nie erreicht oder geschrieben.
+   Wenn der Benutzer mit dem Agenten über das Mikrofon sprach (Multimodal Live Mode), lief die gesamte Kommunikation über den WebSocket und den `AIController::execute` Endpunkt. Dadurch wurde der `ManagesAiChat.php`-Trait sowie die Livewire-Lebenszyklen komplett umgangen. Debugging-Logs in der Agent-Klasse (`GeminiAgent.php`) wurden somit für Sprachbefehle nie erreicht oder geschrieben.
    
 2. **Der Schlüssel-Konflikt: `_event` vs `_frontend_event`**
    Die Werkzeuge (z.B. in `AiMapControlFuncs.php`) geben korrekt das Array `_frontend_event` zurück. Im WebSocket-Handler in `ai-widget-part2.blade.php` wurde jedoch fälschlicherweise `resultData.result._event` ausgelesen. Map-Steuerungs-Befehle via Sprache wurden daher komplett ins Leere laufen gelassen.

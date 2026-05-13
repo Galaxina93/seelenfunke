@@ -220,10 +220,8 @@
                                                 <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider truncate text-center w-full group-hover/agent:text-white transition-colors">{{ $agent->name }}</h3>
                                                 @php
                                                     $rawModel = $agent->model ?? 'Standard';
-                                                    if(str_contains($rawModel, 'Ministral')) $shortModel = 'Ministral';
-                                                    elseif(str_contains($rawModel, 'Devstral')) $shortModel = 'Devstral';
-                                                    elseif(str_contains($rawModel, 'GPT-OSS')) $shortModel = 'GPT-OSS';
-                                                    else $shortModel = explode('-', explode(' ', $rawModel)[0])[0];
+                                                    $shortModel = str_replace(['gemini-', '-pro', '-flash'], ['Gemini ', ' Pro', ' Flash'], $rawModel);
+                                                    $shortModel = ucwords(trim($shortModel));
                                                 @endphp
                                                 <div class="text-[8px] uppercase tracking-widest text-gray-500 truncate mb-2">{{ $shortModel }}</div>
 
