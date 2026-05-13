@@ -417,14 +417,17 @@ class MasterAnalytics extends Component
             $mittwaldHost = parse_url($mittwaldUrl, PHP_URL_HOST) ?? 'llm.aihosting.mittwald.de';
 
             $responses = \Illuminate\Support\Facades\Http::pool(fn (\Illuminate\Http\Client\Pool $pool) => [
-                $pool->as('stripe')->timeout(3)->get('https://api.stripe.com/healthcheck'),
-                $pool->as('dhl')->timeout(2)->get('https://api.dhl.com'),
-                $pool->as('finapi')->timeout(2)->get($finapiUrl),
-                $pool->as('mittwald')->timeout(2)->get("https://{$mittwaldHost}"),
-                $pool->as('gemini')->timeout(2)->get('https://generativelanguage.googleapis.com'),
-                $pool->as('google_places')->timeout(2)->get('https://maps.googleapis.com'),
-                $pool->as('elster')->timeout(2)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),
-                $pool->as('scraperapi')->timeout(2)->get('http://api.scraperapi.com'),
+                // Wir nutzen withoutRedirecting(), weil z.B. api.dhl.com auf developer.dhl.com umleitet,
+                // was zusätzliche Latenz kostet und oft in 2-Sekunden-Timeouts rennt.
+                // 301/302 Antworten zählen für uns als "Server ist erreichbar".
+                $pool->as('stripe')->timeout(4)->withoutRedirecting()->get('https://api.stripe.com/healthcheck'),
+                $pool->as('dhl')->timeout(4)->withoutRedirecting()->get('https://api.dhl.com'),
+                $pool->as('finapi')->timeout(4)->withoutRedirecting()->get($finapiUrl),
+                $pool->as('mittwald')->timeout(4)->withoutRedirecting()->get("https://{$mittwaldHost}"),
+                $pool->as('gemini')->timeout(4)->withoutRedirecting()->get('https://generativelanguage.googleapis.com'),
+                $pool->as('google_places')->timeout(4)->withoutRedirecting()->get('https://maps.googleapis.com'),
+                $pool->as('elster')->timeout(4)->withoutRedirecting()->get('https://www.elster.de/elsterweb/serverstatus_rss.xml'),
+                $pool->as('scraperapi')->timeout(4)->withoutRedirecting()->get('http://api.scraperapi.com'),
             ]);
 
             foreach ($responses as $key => $response) {
