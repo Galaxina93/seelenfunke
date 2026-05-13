@@ -840,6 +840,38 @@
                                                     @endif
                                                 @endif
 
+                                                @if($sKey === 'scheduler')
+                                                    <div class="border-t border-gray-800 my-2"></div>
+                                                    <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                                                        <span class="text-[9px] font-bold text-[#C5A059] uppercase tracking-widest mb-1"><i class="bi bi-clock-history"></i> Cronjob Status:</span>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">Heartbeat:</span>
+                                                            <span class="{{ ($health['status'] ?? '') === 'connected' ? 'text-emerald-400' : 'text-red-400' }} font-black">
+                                                                {{ $health['value'] ?? 'Unbekannt' }}
+                                                            </span>
+                                                        </div>
+                                                        @if(($health['status'] ?? '') !== 'connected')
+                                                            <div class="text-[9px] text-red-400 mt-1 whitespace-normal leading-tight">
+                                                                {{ $health['error'] ?? 'Mittwald Cronjob läuft nicht oder hängt.' }}
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                    
+                                                    <div class="flex flex-col gap-1 text-left font-mono my-2 bg-purple-900/20 p-2 rounded-lg border border-purple-800/50">
+                                                        <span class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-1"><i class="bi bi-shield-lock"></i> Daemon-Sperre Aktiv:</span>
+                                                        <div class="text-[9px] text-purple-400/80 leading-relaxed whitespace-normal">
+                                                            Der interne Scheduler blockiert automatisch Befehle wie <code>reverb:start</code> oder <code>queue:work</code>, um Endlos-Hänger im Mittwald-Docker-Container zu verhindern.
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="mt-2">
+                                                        <button type="button" wire:click="fixSystem('scheduler')" wire:loading.attr="disabled" class="w-full px-2 py-1.5 rounded-lg border border-primary/50 bg-primary/10 hover:bg-primary/30 text-primary hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5">
+                                                            <span wire:loading.remove wire:target="fixSystem('scheduler')"><i class="bi bi-play-circle"></i> Scheduler manuell anstoßen</span>
+                                                            <span wire:loading wire:target="fixSystem('scheduler')" class="animate-pulse">Startet...</span>
+                                                        </button>
+                                                    </div>
+                                                @endif
+
                                                 @if($sKey === 'backup')
                                                     <button type="button" wire:click="fixSystem('backup')" wire:loading.attr="disabled" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-purple-700 bg-purple-900/30 hover:bg-purple-800 text-purple-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5">
                                                         <span wire:loading.remove wire:target="fixSystem('backup')"><i class="bi bi-clock-history"></i> Backup manuell anstoßen</span>

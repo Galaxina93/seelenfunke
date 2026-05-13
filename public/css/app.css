@@ -4791,6 +4791,9 @@ video {
 .border-emerald-800\/50 {
   border-color: rgb(6 95 70 / 0.5);
 }
+.border-purple-800\/50 {
+  border-color: rgb(107 33 168 / 0.5);
+}
 .border-b-primary\/20 {
   border-bottom-color: rgb(201 166 107 / 0.2);
 }
