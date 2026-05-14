@@ -144,6 +144,8 @@ Route::get('/barrierefreiheit', function () {
 // Redirects für alte/falsche Links
 Route::redirect('/datenschutzerklaerung', '/datenschutz');
 
+// --- 4.5. Digitaler Notfall & Nachlass ---
+Route::get('/notfall', \App\Livewire\Frontend\Emergency\EmergencyProtocol::class)->name('emergency.index');
 
 // --- 5. Authentifizierung & Kundenbereich ---
 

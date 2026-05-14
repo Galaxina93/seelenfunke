@@ -72,7 +72,14 @@ class SystemShopConfig extends Component
         'owner_tax_ident_nr',
         'owner_health_insurance_nr',
         'owner_agency_labor_nr',
-        'owner_economic_ident_nr'
+        'owner_economic_ident_nr',
+        'emergency_keepass_location',
+        'emergency_master_password_location',
+        'emergency_contact_notary',
+        'emergency_contact_tax_advisor',
+        'emergency_contact_family',
+        'emergency_hardware_pins',
+        'emergency_master_password'
     ];
 
     public $infoTexts = [
@@ -118,7 +125,14 @@ class SystemShopConfig extends Component
         'owner_tax_ident_nr' => 'Persönliche Steuer-Identifikationsnummer (Steuer-ID).',
         'owner_health_insurance_nr' => 'Mitgliedsnummer bei der Krankenkasse.',
         'owner_agency_labor_nr' => 'Kundennummer bei der Agentur für Arbeit.',
-        'owner_economic_ident_nr' => 'Wirtschafts-Identifikationsnummer (W-IdNr.), falls vorhanden.'
+        'owner_economic_ident_nr' => 'Wirtschafts-Identifikationsnummer (W-IdNr.), falls vorhanden.',
+        'emergency_keepass_location' => 'Wo ist die KeePass-Datenbank zu finden? (z.B. USB-Stick Tresor, Dropbox)',
+        'emergency_master_password_location' => 'Wo liegt das Master-Passwort für KeePass? (z.B. im roten Ordner, Schließfach 12)',
+        'emergency_contact_notary' => 'Name und Telefonnummer des Notars (für Testament und Vollmachten).',
+        'emergency_contact_tax_advisor' => 'Name und Telefonnummer des Steuerberaters.',
+        'emergency_contact_family' => 'Wichtigster familiärer Notfallkontakt.',
+        'emergency_hardware_pins' => 'PINs für Smartphones/Laptops (oder Hinweis auf deren Verwahrort).',
+        'emergency_master_password' => 'Master-Passwort für den digitalen Zugang zum Todesfall-Protokoll (/notfall).'
     ];
 
     public $saved = false;
@@ -130,10 +144,17 @@ class SystemShopConfig extends Component
             ->toArray();
 
         foreach ($this->configKeys as $key) {
-            $value = $dbSettings[$key] ?? $this->getFallback($key);
+            $value = $dbSettings[$key] ?? null;
+            if ($value === null || $value === '' || $value === 'Keine Angabe') {
+                $value = $this->getFallback($key);
+            }
 
             if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge_min'])) {
                 $value = number_format((int)$value / 100, 2, '.', '');
+            }
+
+            if ($key === 'emergency_master_password') {
+                $value = ''; // Never send the hash to the frontend
             }
 
             $this->settings[$key] = $value;
@@ -181,6 +202,12 @@ class SystemShopConfig extends Component
             'owner_email_impressum' => 'impressum@mein-seelenfunke.de',
             'owner_email_invoices' => 'rechnungen@mein-seelenfunke.de',
             'owner_email_backup' => 'backup@mein-seelenfunke.de',
+            'emergency_keepass_location' => '\\\\nas\\Unterlagen\\Dokumente\\Keepass',
+            'emergency_master_password_location' => 'Keine Angabe',
+            'emergency_contact_notary' => 'Keine Angabe',
+            'emergency_contact_tax_advisor' => 'Keine Angabe',
+            'emergency_contact_family' => 'Jan Steinhauer, Kerstin Steinhauer, Tim Steinhauer',
+            'emergency_hardware_pins' => 'Keine Angabe',
         ];
         return $fallbacks[$key] ?? '';
     }
@@ -199,9 +226,27 @@ class SystemShopConfig extends Component
             'settings.express_surcharge_min' => 'required|numeric|min:0',
             'settings.packaging_weight_grams' => 'required|integer|min:0',
             'settings.inventory_low_stock_threshold' => 'required|integer|min:0',
+            'settings.emergency_keepass_location' => 'nullable|string',
+            'settings.emergency_master_password_location' => 'nullable|string',
+            'settings.emergency_contact_notary' => 'nullable|string',
+            'settings.emergency_contact_tax_advisor' => 'nullable|string',
+            'settings.emergency_contact_family' => 'nullable|string',
+            'settings.emergency_hardware_pins' => 'nullable|string',
+            'settings.emergency_master_password' => 'nullable|string',
         ]);
 
         foreach ($this->settings as $key => $value) {
+            if ($key === 'emergency_master_password') {
+                if (!empty($value)) {
+                    SystemSetting::updateOrCreate(
+                        ['key' => $key],
+                        ['value' => \Illuminate\Support\Facades\Hash::make($value)]
+                    );
+                    $this->settings[$key] = ''; // clear from view
+                }
+                continue;
+            }
+
             $finalValue = $value;
 
             if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge_min'])) {
@@ -221,6 +266,26 @@ class SystemShopConfig extends Component
     }
 
     public function resetSaved() { $this->saved = false; }
+
+    public function generateEmergencyPdf()
+    {
+        $this->save(); // Save current state before generating PDF
+        
+        $groups = \App\Models\Accounting\AccountingGroup::with('items')->where('admin_id', auth()->guard('admin')->id())->get();
+        $date = now()->format('d.m.Y H:i');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.emergency-plan', [
+            'settings' => $this->settings,
+            'groups' => $groups,
+            'date' => $date
+        ]);
+
+        $fileName = 'notfall_handbuch_' . now()->format('Y_m_d_H_i') . '.pdf';
+        
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, $fileName);
+    }
 
     // --- SYSTEM INFO METHODS (MIGRATED) ---
     public function loadReports()
