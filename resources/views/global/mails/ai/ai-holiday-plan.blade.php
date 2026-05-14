@@ -92,7 +92,7 @@
 
         <p>Die generierte <span class="highlight">Reiseplanung als PDF</span> findest du im Anhang dieser E-Mail.</p>
         
-        <p>Ich wünsche dir eine wunderbare Reise!<br><br>Herzliche Grüße,<br>Dein KI-Team ✨</p>
+        <p>Ich wünsche dir eine wunderbare Reise!<br><br>Herzliche Grüße,<br>{{ $agentName }} ✨</p>
     </div>
 
     <div class="footer">

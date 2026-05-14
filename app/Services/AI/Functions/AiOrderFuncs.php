@@ -88,6 +88,11 @@ trait AiOrderFuncs
                         'mail_to' => [
                             'type' => 'string',
                             'description' => 'Optional: Falls action=mail, kann hier eine spezifische E-Mail-Adresse angegeben werden. Wenn leer, wird an die Kunden-Email gesendet.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail (nur relevant falls action=mail). "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['order_item_id', 'action']
@@ -276,7 +281,7 @@ trait AiOrderFuncs
         }
     }
 
-    public static function executeOrderGenerateXtool(array $args)
+    public static function executeOrderGenerateXtool(array $args, $agent = null)
     {
         try {
             $item = OrderOrderItem::with('order')->find($args['order_item_id']);
@@ -328,15 +333,12 @@ trait AiOrderFuncs
 
                 $subject = "Produktions-Datei: " . $filename;
                 $absolutePath = storage_path('app/public/' . $path);
+                
+                $agentName = $agent ? $agent->name : 'Bestell-Agent';
+                $body = "Hallo,\n\nanbei befindet sich die generierte XTool Laserdatei für die Bestellung " . $item->order->order_number . ".\n\nViele Grüße";
+                $design = $args['design'] ?? 'seelenfunke';
 
-                Mail::raw("Hallo,\n\nanbei befindet sich die generierte XTool Laserdatei für die Bestellung " . $item->order->order_number . ".\n\nViele Grüße", function($message) use ($targetEmail, $subject, $absolutePath, $filename) {
-                    $message->to($targetEmail)
-                            ->subject($subject)
-                            ->attach($absolutePath, [
-                                'as' => $filename,
-                                'mime' => 'image/svg+xml',
-                            ]);
-                });
+                Mail::to($targetEmail)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath], $design));
 
                 return [
                     'status' => 'success',

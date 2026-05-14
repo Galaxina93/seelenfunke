@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Mail;
+namespace App\Services\AI\Mails;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,13 +17,15 @@ class AiMapSummaryMail extends Mailable
     public $messageContent;
     public $agentName;
     public $attachmentPaths;
+    public $design;
 
-    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'System', array $attachmentPaths = [])
+    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'System', array $attachmentPaths = [], string $design = 'seelenfunke')
     {
         $this->messageSubject = $messageSubject;
         $this->messageContent = $messageContent;
         $this->agentName = $agentName;
         $this->attachmentPaths = $attachmentPaths;
+        $this->design = $design;
     }
 
     public function envelope(): Envelope
@@ -36,7 +38,7 @@ class AiMapSummaryMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.ai-map-summary',
+            view: $this->design === 'generic' ? 'global.mails.ai.ai-map-summary-generic' : 'global.mails.ai.ai-map-summary',
         );
     }
 

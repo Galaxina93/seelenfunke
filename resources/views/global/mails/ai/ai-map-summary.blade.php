@@ -92,7 +92,7 @@
 
         <p>Die generierte <span class="highlight">Zusammenfassung als PDF</span> findest du im Anhang dieser E-Mail.</p>
         
-        <p>Herzliche Grüße,<br>Dein KI-Team ✨</p>
+        <p>Herzliche Grüße,<br>{{ $agentName }} ✨</p>
     </div>
 
     <div class="footer">

@@ -30,6 +30,11 @@ trait AiMailFuncs
                         'agent_name' => [
                             'type' => 'string',
                             'description' => 'Dein Name (der Name des Agenten, der die E-Mail versendet).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['subject', 'body', 'agent_name']
@@ -173,7 +178,7 @@ trait AiMailFuncs
         ];
     }
 
-    public static function executeSendEmail(array $args)
+    public static function executeSendEmail(array $args, $agent = null)
     {
         try {
             if (empty($args['subject']) || empty($args['body'])) {
@@ -196,9 +201,10 @@ trait AiMailFuncs
 
             $subject = $args['subject'];
             $body = $args['body'];
-            $agentName = $args['agent_name'] ?? 'System-Agent';
+            $agentName = $agent ? $agent->name : ($args['agent_name'] ?? 'System-Agent');
+            $design = $args['design'] ?? 'seelenfunke';
 
-            \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Mail\AiAgentMessageMail($subject, $body, $agentName));
+            \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [], $design));
 
             return [
                 'status' => 'success',

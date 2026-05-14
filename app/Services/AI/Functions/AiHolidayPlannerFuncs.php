@@ -115,6 +115,11 @@ trait AiHolidayPlannerFuncs
                         'recipient_email' => [
                             'type' => 'string',
                             'description' => 'Die E-Mail-Adresse des Empfängers. Wenn der Nutzer keine E-Mail nennt, lasse dieses Feld zwingend leer (null). Das System nutzt dann automatisch die Standard-E-Mail.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['title', 'description', 'start_date', 'end_date', 'travel_logistics', 'itinerary', 'general_tips', 'target_action']
@@ -124,7 +129,7 @@ trait AiHolidayPlannerFuncs
         ];
     }
 
-    public static function executeHolidayGeneratePdfPlan(array $args)
+    public static function executeHolidayGeneratePdfPlan(array $args, $agent = null)
     {
         $title = $args['title'] ?? 'Urlaubsplan';
         $description = $args['description'] ?? '';
@@ -149,7 +154,7 @@ trait AiHolidayPlannerFuncs
         $calendarEvents = $args['calendar_events_during_trip'] ?? [];
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
-        $agentName = session('current_ai_agent_name', 'Globi - Leiter Globale Planung');
+        $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'Globi - Leiter Globale Planung');
 
         try {
             // Generate PDF using dompdf
@@ -184,11 +189,13 @@ trait AiHolidayPlannerFuncs
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
-                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
+                $design = $args['design'] ?? 'seelenfunke';
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiHolidayPlanMail(
                     "Dein exklusiver Urlaubsplan: $title",
                     $description,
                     $agentName,
-                    [$filePath]
+                    [$filePath],
+                    $design
                 ));
 
                 return [

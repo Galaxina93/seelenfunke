@@ -83,7 +83,7 @@
 
         <div class="message-box">{!! nl2br(e($messageContent)) !!}</div>
 
-        <p>Herzliche Grüße,<br>Dein KI-Team ✨</p>
+        <p>Herzliche Grüße,<br>{{ $agentName }} ✨</p>
     </div>
 
     <div class="footer">

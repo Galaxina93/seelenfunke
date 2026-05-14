@@ -190,6 +190,11 @@ trait AiSystemFuncs
                         'target_folder_name' => [
                             'type' => 'string',
                             'description' => 'Optional, wenn target_action = "save_to_workspace". Name des Unterordners (z.B. "buchhaltung_2026"). Standard ist Hauptordner.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['report_type', 'target_action']
@@ -681,6 +686,11 @@ trait AiSystemFuncs
                         'email_address' => [
                             'type' => 'string',
                             'description' => 'Die Ziel-E-Mail Adresse. Leer lassen für System-Standard.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ]
                 ],
@@ -741,6 +751,11 @@ trait AiSystemFuncs
                         'email' => [
                             'type' => 'string',
                             'description' => 'Die Ziel-E-Mail-Adresse (Standard: leer für Admin-Standardadresse)'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['report_file']
@@ -764,6 +779,11 @@ trait AiSystemFuncs
                         'as_pdf' => [
                             'type' => 'boolean',
                             'description' => 'Wenn true, wird die Struktur als PDF anstelle von reinem Text versendet. Nutze dies, wenn der Nutzer explizit ein PDF wünscht.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der PDF und E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['filename_query']
@@ -851,7 +871,7 @@ trait AiSystemFuncs
         }
     }
 
-    public static function executeEmailNeuralStructure(array $args)
+    public static function executeEmailNeuralStructure(array $args, $agent = null)
     {
         try {
             $query = strtolower(trim($args['filename_query'] ?? ''));
@@ -970,34 +990,38 @@ trait AiSystemFuncs
             }
 
             $asPdf = $args['as_pdf'] ?? false;
+            $design = $args['design'] ?? 'seelenfunke';
             $subject = "Neuronale Struktur: " . $node->name;
 
             if ($asPdf) {
                 // Convert Markdown to HTML for PDF
                 $htmlForPdf = \Illuminate\Support\Str::markdown($markdownContent);
-                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ai-report-seelenfunke', [
+                $agentName = $agent ? $agent->name : 'System';
+                
+                $viewName = $design === 'generic' ? 'global.pdf.ai-report-generic' : 'global.pdf.ai-report-seelenfunke';
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView($viewName, [
                     'title' => $subject,
                     'htmlContent' => $htmlForPdf,
-                    'agentName' => 'System'
+                    'agentName' => $agentName
                 ]);
-                
-                $fileName = 'Struktur_' . \Illuminate\Support\Str::slug($node->name) . '.pdf';
-                
-                \Illuminate\Support\Facades\Mail::send('global.mails.ai_report', ['title' => $subject], function($message) use ($to, $subject, $pdf, $fileName) {
-                    $message->to($to)
-                            ->subject("KI-Bericht: $subject")
-                            ->attachData($pdf->output(), $fileName, ['mime' => 'application/pdf']);
-                });
+
+                $fileName = 'struktur-' . \Illuminate\Support\Str::slug($node->name) . '-' . time() . '.pdf';
+                $filePath = 'public/reports/' . $fileName;
+
+                \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
+
+                $absolutePath = storage_path('app/' . $filePath);
+                $body = "Neuronale Struktur für " . $node->name . "\n\nAnbei findest du die angeforderte Systemstruktur als PDF-Dokument.";
+                \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath], $design));
             } else {
                 // Format for AiAgentMessageMail
-                $body = "<h2>Neuronale Struktur für " . $node->name . "</h2>";
-                $body .= "<p>Du hast mich gebeten, dir die Systemstruktur für diese Datei zu generieren und zu senden. Hier ist das Ergebnis:</p>";
+                $body = "Neuronale Struktur für " . $node->name . "\n\nDu hast mich gebeten, dir die Systemstruktur für diese Datei zu generieren und zu senden. Hier ist das Ergebnis:\n\n";
                 
-                // Use native PHP Markdown conversion if available, or just standard text replacement
-                $htmlContent = nl2br(htmlspecialchars($markdownContent));
-                $body .= "<div style='background: #f8fafc; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap;'>" . $htmlContent . "</div>";
+                // Use plain text for the generic Mailable
+                $body .= $markdownContent;
 
-                \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Mail\AiAgentMessageMail($subject, $body, 'Systemi'));
+                $agentName = $agent ? $agent->name : 'System';
+                \Illuminate\Support\Facades\Mail::to($to)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [], $design));
             }
 
             $formatText = $asPdf ? 'als PDF-Anhang' : 'als Text';
@@ -1011,7 +1035,7 @@ trait AiSystemFuncs
         }
     }
 
-    public static function executeSendNeuralReportMail(array $args)
+    public static function executeSendNeuralReportMail(array $args, $agent = null)
     {
         try {
             $reportFile = $args['report_file'] ?? '';
@@ -1031,10 +1055,15 @@ trait AiSystemFuncs
 
             $content = file_get_contents($path);
 
-            \Illuminate\Support\Facades\Mail::raw("Automatischer KI Bericht - Neurale Diagnose:\n\n" . $content, function ($message) use ($email, $reportFile) {
-                $message->to($email)
-                        ->subject("KI Analyse: " . $reportFile);
-            });
+            $agentName = $agent ? $agent->name : 'System';
+            $design = $args['design'] ?? 'seelenfunke';
+            \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail(
+                "KI Analyse: " . $reportFile,
+                "Automatischer KI Bericht - Neurale Diagnose:\n\n" . $content,
+                $agentName,
+                [],
+                $design
+            ));
 
             return [
                 'status' => 'success',
@@ -1045,7 +1074,7 @@ trait AiSystemFuncs
         }
     }
 
-    public static function executeAnalyzeSecurityThreats(array $args)
+    public static function executeAnalyzeSecurityThreats(array $args, $agentObj = null)
     {
         try {
             $sendEmail = $args['send_email'] ?? false;
@@ -1104,13 +1133,9 @@ trait AiSystemFuncs
                     $email = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
                 
-                if (class_exists(\App\Mail\AiAgentMessageMail::class)) {
-                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail('Dringend: Security Threat Report', $reportContent, 'System-Security-Agent'));
-                } else {
-                    \Illuminate\Support\Facades\Mail::raw("Automatischer KI Bericht - Security:\n\n" . $reportContent, function ($m) use ($email) {
-                        $m->to($email)->subject("Security Threat Report");
-                    });
-                }
+                $agentName = $agentObj ? $agentObj->name : 'System-Security-Agent';
+                $design = $args['design'] ?? 'generic'; // Default generic for security
+                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail('Dringend: Security Threat Report', $reportContent, $agentName, [], $design));
                 $message .= " Der Bericht wurde direkt an {$email} gesendet.";
             }
 
@@ -2043,7 +2068,7 @@ trait AiSystemFuncs
         }
     }
 
-    public static function executeGeneratePdfReport(array $args)
+    public static function executeGeneratePdfReport(array $args, $agent = null)
     {
         try {
             $title = $args['title'] ?? 'KI-Bericht';
@@ -2051,7 +2076,7 @@ trait AiSystemFuncs
             $design = $args['design'] ?? 'seelenfunke';
             $action = $args['target_action'] ?? 'download';
             $recipient = $args['recipient_email'] ?? null;
-            $agentName = session('current_ai_agent_name', 'System'); // Could be fetched via context if available
+            $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System'); // Could be fetched via context if available
 
             if (empty($markdown)) {
                 return ['status' => 'error', 'message' => 'Der Markdown-Inhalt darf nicht leer sein.'];
@@ -2085,12 +2110,9 @@ trait AiSystemFuncs
                     return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
                 }
                 
-                // Generic Mail sending logic
-                \Illuminate\Support\Facades\Mail::send('global.mails.ai_report', ['title' => $title], function($message) use ($recipient, $title, $pdf, $fileName) {
-                    $message->to($recipient)
-                            ->subject("KI-Bericht: $title")
-                            ->attachData($pdf->output(), $fileName, ['mime' => 'application/pdf']);
-                });
+                $absolutePath = storage_path('app/' . $filePath);
+                $body = "Anbei der angeforderte KI-Bericht als PDF.";
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiAgentMessageMail("KI-Bericht: $title", $body, $agentName, [$absolutePath], $design));
 
                 return [
                     'status' => 'success',
@@ -2117,7 +2139,7 @@ trait AiSystemFuncs
         }
     }
 
-    public static function executeExportSystemReport(array $args)
+    public static function executeExportSystemReport(array $args, $agent = null)
     {
         try {
             $reportType = $args['report_type'] ?? null;
@@ -2230,11 +2252,10 @@ trait AiSystemFuncs
                 $pathForMail = $generatedFilePath;
                 $nameForMail = $generatedFileName;
 
-                \Illuminate\Support\Facades\Mail::send('global.mails.ai_report', ['title' => $title], function($message) use ($recipient, $title, $pathForMail, $nameForMail) {
-                    $message->to($recipient)
-                            ->subject("Ihr $title")
-                            ->attach($pathForMail, ['as' => $nameForMail]);
-                });
+                $design = $args['design'] ?? 'seelenfunke';
+                $agentName = $agent ? $agent->name : 'System';
+                $body = "Anbei der angeforderte $title.";
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiAgentMessageMail("Ihr $title", $body, $agentName, [$pathForMail], $design));
 
                 // Aufräumen
                 if ($reportType === 'ceo_report') {

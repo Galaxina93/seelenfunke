@@ -307,6 +307,11 @@ trait AiHealthFuncs
                         'email_message' => [
                             'type' => 'string',
                             'description' => 'Der Text für die E-Mail (nur nötig wenn send_email = true).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['plan_id', 'send_email']
@@ -334,6 +339,11 @@ trait AiHealthFuncs
                         'email_message' => [
                             'type' => 'string',
                             'description' => 'Der Text für die E-Mail (nur nötig wenn send_email = true).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['protocol_id', 'send_email']
@@ -679,7 +689,7 @@ trait AiHealthFuncs
         }
     }
 
-    public static function executeExportTreatmentPlan(array $args)
+    public static function executeExportTreatmentPlan(array $args, $agent = null)
     {
         try {
             $user = Auth::user();
@@ -712,8 +722,9 @@ trait AiHealthFuncs
                     $subject = "Behandlungsplan: " . $plan->title;
                     $body = $args['email_message'] ?? "Anbei erhalten Sie den aktuellen Behandlungsplan als PDF-Dokument.";
                     $agentName = $plan->agent->name ?? 'Dr. Funki';
+                    $design = $args['design'] ?? 'seelenfunke';
                     
-                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath]));
+                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath], $design));
                     return [
                         'success' => true,
                         'message' => "Der Behandlungsplan wurde als PDF ({$fileName}) im Dateimanager unter 'Gesundheit' gespeichert und per E-Mail an {$email} gesendet."
@@ -731,7 +742,7 @@ trait AiHealthFuncs
         }
     }
 
-    public static function executeExportProtocol(array $args)
+    public static function executeExportProtocol(array $args, $agent = null)
     {
         try {
             $user = Auth::user();
@@ -763,8 +774,9 @@ trait AiHealthFuncs
                     $subject = "Medizinisches Protokoll vom " . $protocol->created_at->format('d.m.Y');
                     $body = $args['email_message'] ?? "Anbei erhalten Sie das angeforderte medizinische Gesprächsprotokoll als PDF-Dokument.";
                     $agentName = $protocol->agent->name ?? 'Dr. Funki';
+                    $design = $args['design'] ?? 'seelenfunke';
                     
-                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath]));
+                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath], $design));
                     return [
                         'success' => true,
                         'message' => "Das Protokoll wurde als PDF ({$fileName}) im Dateimanager unter 'Gesundheit' gespeichert und per E-Mail an {$email} gesendet."

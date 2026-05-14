@@ -141,6 +141,11 @@ trait AiFinanceFuncs
                         'year' => [
                             'type' => 'integer',
                             'description' => 'Das Jahr. Falls nicht angegeben, aktuelles Jahr.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['email']
@@ -514,7 +519,7 @@ trait AiFinanceFuncs
         }
     }
 
-    public static function executeGenerateAndSendReport(array $args)
+    public static function executeGenerateAndSendReport(array $args, $agent = null)
     {
         try {
             $email = $args['email'];
@@ -530,10 +535,12 @@ trait AiFinanceFuncs
             $path = $service->generateTaxExport($adminId, $month, $year);
 
             if (file_exists($path)) {
+                $agentName = $agent ? $agent->name : 'System-Agent';
                 $subject = "Finanzbericht $month/$year";
-                $body = "Hallo,\n\nanbei erhalten Sie den angeforderten Finanzbericht für den Monat $month/$year als ZIP-Archiv. Darin enthalten ist die Übersicht als PDF sowie alle Transaktionen als CSV und die Belege.\n\nViele Grüße,\nIhr System-Agent";
+                $body = "Hallo,\n\nanbei erhalten Sie den angeforderten Finanzbericht für den Monat $month/$year als ZIP-Archiv. Darin enthalten ist die Übersicht als PDF sowie alle Transaktionen als CSV und die Belege.\n\nViele Grüße,\nDein $agentName";
+                $design = $args['design'] ?? 'seelenfunke';
 
-                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\AiAgentMessageMail($subject, $body, 'System-Agent', [$path]));
+                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$path], $design));
 
                 return [
                     'status' => 'success',

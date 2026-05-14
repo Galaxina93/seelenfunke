@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Mail;
+namespace App\Services\AI\Mails;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,16 +17,18 @@ class AiHolidayPlanMail extends Mailable
     public $messageContent;
     public $agentName;
     public $attachmentPaths;
+    public $design;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'Mapi - Leiter Globale Planung', array $attachmentPaths = [])
+    public function __construct(string $messageSubject, string $messageContent, string $agentName = 'Mapi - Leiter Globale Planung', array $attachmentPaths = [], string $design = 'seelenfunke')
     {
         $this->messageSubject = $messageSubject;
         $this->messageContent = $messageContent;
         $this->agentName = $agentName;
         $this->attachmentPaths = $attachmentPaths;
+        $this->design = $design;
     }
 
     /**
@@ -45,7 +47,7 @@ class AiHolidayPlanMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'global.mails.ai-holiday-plan',
+            view: $this->design === 'generic' ? 'global.mails.ai.ai-holiday-plan-generic' : 'global.mails.ai.ai-holiday-plan',
         );
     }
 

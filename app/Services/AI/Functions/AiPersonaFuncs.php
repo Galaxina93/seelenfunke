@@ -83,6 +83,11 @@ trait AiPersonaFuncs
                         'recipient_email' => [
                             'type' => 'string',
                             'description' => 'E-Mail-Adresse, falls "email" gewählt.'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['name', 'summary', 'target_action']
@@ -443,12 +448,12 @@ trait AiPersonaFuncs
     }
 
     // [AREA: PDF GENERATION]
-    public static function executePersonaGeneratePdf(array $args)
+    public static function executePersonaGeneratePdf(array $args, $agent = null)
     {
         $name = $args['name'] ?? 'Unbekannt';
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
-        $agentName = session('current_ai_agent_name', 'System');
+        $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
 
         // Robust image download
         if (!empty($args['image_url'])) {
@@ -478,11 +483,13 @@ trait AiPersonaFuncs
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
-                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
+                $design = $args['design'] ?? 'seelenfunke';
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiHolidayPlanMail(
                     "Personenprofil: $name",
                     "Anbei finden Sie die angeforderte Personenakte.",
                     $agentName,
-                    [$filePath]
+                    [$filePath],
+                    $design
                 ));
 
                 return [

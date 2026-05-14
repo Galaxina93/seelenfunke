@@ -49,6 +49,11 @@ trait AiMapControlFuncs
                         'recipient_email' => [
                             'type' => 'string',
                             'description' => 'Die E-Mail-Adresse des Empfängers. Wenn der Nutzer keine E-Mail nennt, lasse dieses Feld zwingend leer (null).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['title', 'description', 'locations', 'target_action']
@@ -135,6 +140,11 @@ trait AiMapControlFuncs
                         'recipient_email' => [
                             'type' => 'string',
                             'description' => 'E-Mail-Adresse, falls "email" gewählt. Sonst leer (null).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['title', 'places', 'target_action']
@@ -328,6 +338,11 @@ trait AiMapControlFuncs
                         'recipient_email' => [
                             'type' => 'string',
                             'description' => 'Die E-Mail-Adresse, falls action="send_email". Sonst leer (null).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der E-Mail (nur relevant falls action="send_email"). "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo) oder "generic" (neutrales Design ohne Firmenbezug). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
                         ]
                     ],
                     'required' => ['file_path', 'action', 'title']
@@ -338,14 +353,14 @@ trait AiMapControlFuncs
     }
 
     // [AREA: EXPORT & REPORTING]
-    public static function executeMapGeneratePdfSummary(array $args)
+    public static function executeMapGeneratePdfSummary(array $args, $agent = null)
     {
         $title = $args['title'] ?? 'Zusammenfassung der Orte';
         $description = $args['description'] ?? '';
         $locations = $args['locations'] ?? [];
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
-        $agentName = session('current_ai_agent_name', 'System');
+        $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
 
         try {
             // Generate PDF
@@ -371,11 +386,13 @@ trait AiMapControlFuncs
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
-                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiMapSummaryMail(
+                $design = $args['design'] ?? 'seelenfunke';
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiMapSummaryMail(
                     "Dein Bericht: $title",
                     $description,
                     $agentName,
-                    [$filePath]
+                    [$filePath],
+                    $design
                 ));
 
                 return [
@@ -595,14 +612,14 @@ trait AiMapControlFuncs
         }
     }
 
-    public static function executeMapGeneratePlacesPdf(array $args)
+    public static function executeMapGeneratePlacesPdf(array $args, $agent = null)
     {
         $title = $args['title'] ?? 'Ortsliste';
         $description = $args['description'] ?? '';
         $places = $args['places'] ?? [];
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
-        $agentName = session('current_ai_agent_name', 'Globi');
+        $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'Globi');
 
         try {
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.places_list', [
@@ -627,11 +644,13 @@ trait AiMapControlFuncs
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
-                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
+                $design = $args['design'] ?? 'seelenfunke';
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiHolidayPlanMail(
                     "Ihre Ortsliste: $title",
                     $description,
                     $agentName,
-                    [$filePath]
+                    [$filePath],
+                    $design
                 ));
 
                 return [
@@ -821,14 +840,14 @@ trait AiMapControlFuncs
         ];
     }
 
-    public static function executeCameraProcessSnapshot(array $args)
+    public static function executeCameraProcessSnapshot(array $args, $agent = null)
     {
         $filePath = $args['file_path'] ?? '';
         $action = $args['action'] ?? 'save_to_workspace';
         $title = $args['title'] ?? 'Kamera-Snapshot';
         $description = $args['description'] ?? '';
         $recipient = $args['recipient_email'] ?? null;
-        $agentName = session('current_ai_agent_name', 'System Agent');
+        $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System Agent');
 
         if (empty($filePath) || !\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
             return ['status' => 'error', 'message' => "Fehler: Die angegebene Datei ('{$filePath}') wurde nicht gefunden. Bitte überprüfe den Dateipfad aus der [SYSTEM_INFO]."];
@@ -860,11 +879,13 @@ trait AiMapControlFuncs
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
-                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\AiHolidayPlanMail(
+                $design = $args['design'] ?? 'seelenfunke';
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiHolidayPlanMail(
                     "Snapshot: $title",
                     $description,
                     $agentName,
-                    [$fullImagePath]
+                    [$fullImagePath],
+                    $design
                 ));
 
                 return [
