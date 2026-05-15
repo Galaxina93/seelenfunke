@@ -766,10 +766,10 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'backup':
-                            $this->addRepairLog("Starte Notfall-Datenbank-Backup im Hintergrund...");
-                            // Queueing the backup command to not block the UI
-                            \Illuminate\Support\Facades\Artisan::queue('backup:run', ['--only-db' => true]);
-                            $this->addRepairLog("✓ Backup-Auftrag erfolgreich in die Warteschlange eingereiht.", 'success');
+                            $this->addRepairLog("Starte Notfall-Datenbank-Backup...");
+                            // Run the backup synchronously instead of queueing
+                            \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
+                            $this->addRepairLog("✓ Backup-Auftrag erfolgreich ausgeführt.", 'success');
                             break;
 
                         case 'stripe':

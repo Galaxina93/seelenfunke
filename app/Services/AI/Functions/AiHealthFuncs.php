@@ -208,15 +208,6 @@ trait AiHealthFuncs
                 'callable' => [self::class, 'executeCreateHealthTodo']
             ],
             [
-                'name' => 'health_emergency_toggle_maintenance',
-                'description' => 'Aktiviert den Wartungsmodus (Shop pausieren). Diese Funktion darf NUR im Todesfall-Protokoll oder bei extremer Gefahr für den Shopbetrieb auf Wunsch des Angehörigen ausgeführt werden.',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => new \stdClass(),
-                ],
-                'callable' => [self::class, 'executeToggleMaintenanceMode']
-            ],
-            [
                 'name' => 'health_get_doctors',
                 'description' => 'Liest alle Ärzte und Arztpraxen (Kontakte) aus dem Adressbuch aus.',
                 'parameters' => [
@@ -818,29 +809,6 @@ trait AiHealthFuncs
 
         } catch (\Exception $e) {
             return ['error' => true, 'message' => 'Fehler beim Exportieren des Protokolls: ' . $e->getMessage()];
-        }
-    }
-    public static function executeToggleMaintenanceMode(array $args, $agent = null)
-    {
-        try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
-            if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
-
-            \App\Models\System\SystemSetting::updateOrCreate(
-                ['key' => 'maintenance_mode'],
-                ['value' => 'true']
-            );
-            \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
-
-            return [
-                'success' => true,
-                'message' => 'Wartungsmodus wurde erfolgreich aktiviert. Der Shop ist nun offline.',
-            ];
-        } catch (\Exception $e) {
-            return ['error' => true, 'message' => $e->getMessage()];
         }
     }
 }
