@@ -61,7 +61,7 @@
                     let highlightedCode = '';
                     try { highlightedCode = hljs.highlight(code, { language: hljs.getLanguage(lang) ? lang : 'plaintext' }).value; } 
                     catch(e) { highlightedCode = code.replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-                    return `<div class="my-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-950 text-xs font-mono"><div class="px-3 py-1.5 bg-gray-900 border-b border-gray-800"><span class="text-gray-500 uppercase">${lang||'code'}</span></div><div class="p-4 overflow-x-auto custom-scrollbar"><pre class="!bg-transparent !m-0 !p-0"><code class="hljs text-gray-300 leading-relaxed">${highlightedCode}</code></pre></div></div>`;
+                    return `<div class="my-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-950 text-xs font-mono max-w-full"><div class="px-3 py-1.5 bg-gray-900 border-b border-gray-800"><span class="text-gray-500 uppercase">${lang||'code'}</span></div><div class="p-4 overflow-x-auto custom-scrollbar max-w-full"><pre class="!bg-transparent !m-0 !p-0"><code class="hljs text-gray-300 leading-relaxed">${highlightedCode}</code></pre></div></div>`;
                 };
                 
                 window.renderAiMarkdown = function(md) {

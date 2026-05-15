@@ -30,6 +30,8 @@ class AiKnowledgeBaseSeeder extends Seeder
             'Gamification & 3D-Welt' => '3D-Dashboard, Mini-Spiele, Level-System und Rabattcodes.',
             'Support & Kundenservice' => 'Umgang mit Reklamationen, Beschwerden und Eskalationen.',
             'Buchhaltung & Steuern' => 'Wissen über DATEV-Exporte, Steuersätze, Sonderausgaben, Privates vs. Gewerbliches und BWAs.',
+            'Laserschutz & Sicherheit' => 'Alles rund um die sichere Bedienung der Lasermaschinen und die Laserschutzschulung.',
+            'Laserbauarten & Anwendungen' => 'Detailwissen zu verschiedenen Laser-Bauarten, Medien und deren spezifische Einsatzgebiete.',
         ];
 
         $catMap = [];
@@ -42,7 +44,7 @@ class AiKnowledgeBaseSeeder extends Seeder
         }
 
         // 2. Tags definieren und anlegen
-        $tags = ['Kontakt', 'Recht', 'Personalisierung', 'Laser', 'Gamification', 'Datenschutz', 'Widerruf', 'Etsy', 'Zahlung', '3D', 'KI-Sicherheit', 'Support', 'Ticket', 'Reklamation', 'Versand', 'Retoure', 'B2B', 'Produkte', 'Buchhaltung', 'Steuern', 'Sonderausgaben', 'Export'];
+        $tags = ['Kontakt', 'Recht', 'Personalisierung', 'Laser', 'Gamification', 'Datenschutz', 'Widerruf', 'Etsy', 'Zahlung', '3D', 'KI-Sicherheit', 'Support', 'Ticket', 'Reklamation', 'Versand', 'Retoure', 'B2B', 'Produkte', 'Buchhaltung', 'Steuern', 'Sonderausgaben', 'Export', 'Schulung', 'Sicherheit', 'Bauarten', 'Anwendungen', 'Wissen', 'Tabelle'];
         $tagMap = [];
         foreach ($tags as $tagName) {
             $tagMap[$tagName] = AiKnowledgeBaseTag::firstOrCreate([
@@ -240,18 +242,20 @@ Unser ERP-Ökosystem 'Mein-Seelenfunke' ist das Herzstück der Infrastruktur. Es
 - **DHL API:** Automatischer Label-Druck (geplant)
 
 ## KI-Architektur Workflow
-Der Sprach-Assistent verarbeitet Eingaben nach folgendem Flow:
-1. **KI Lauscht...:** Wake Word & Mic Input über das Computermikrofon
-2. **Spracheingabe via Interface:** Web Speech API / Alpine.js übersetzt Audio zu Text
-3. **FunkiraChat.php:** Livewire Component Base packt den Kontext & Historie
-4. **MittwaldAgent.php:** Prompt System Assembler tätigt den Remote API Call
-5. **LLaMA / GPT:** Mittwald AI Proxy antwortet mit Tool Call (z.B. create_task)
-6. **AIFunctionsRegistry.php:** Verifiziert und führt Werkzeuge aus
-7. **DB & Models:** Datenbank Read/Write Actions (ORM Action)
-8. **Final Response:** LLM sendet die fertige Antwort als Text
-9. **Audioausgabe (TTS):** Browser liest die Antwort vor
+        Der Sprach-Assistent verarbeitet Eingaben nach folgendem Flow:
+        1. **KI Lauscht...:** Wake Word & Mic Input über das Computermikrofon
+        2. **Spracheingabe via Interface:** Web Speech API / Alpine.js übersetzt Audio zu Text
+        3. **FunkiraChat.php:** Livewire Component Base packt den Kontext & Historie
+        4. **MittwaldAgent.php:** Prompt System Assembler tätigt den Remote API Call
+        5. **LLaMA / GPT:** Mittwald AI Proxy antwortet mit Tool Call (z.B. create_task)
+        6. **AIFunctionsRegistry.php:** Verifiziert und führt Werkzeuge aus
+        7. **DB & Models:** Datenbank Read/Write Actions (ORM Action)
+        8. **Final Response:** LLM sendet die fertige Antwort als Text
+        9. **Audioausgabe (TTS):** Browser liest die Antwort vor
                 "
-            ]
+            ],
+            // --- START LASERSCHUTZSCHULUNG ---
+            // Ausgelagert in AiKnowledgeBaseLaserSeeder.php
         ];
 
         foreach ($articles as $art) {

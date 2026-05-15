@@ -22,6 +22,30 @@ trait AiSystemFuncs
 
         $schema = [
             [
+                'name' => 'system_read_clipboard',
+                'description' => 'Weist das Frontend an, den gesamten Inhalt aus dem Zwischenspeicher (Clipboard) des Users auszulesen. Das können Bilder (Screenshots) oder auch kopierte Texte sein. Nutze dies, wenn du den Zwischenspeicher des Users analysieren sollst.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeReadClipboard']
+            ],
+            [
+                'name' => 'system_write_clipboard',
+                'description' => 'Weist das Frontend an, den Zwischenspeicher (Clipboard) des Users mit einem neuen Text zu überschreiben. Nutze dies z.B. um optimierte Texte, korrigierte E-Mails oder fertigen Code direkt in die Zwischenablage des Users zu legen.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'text' => [
+                            'type' => 'string',
+                            'description' => 'Der Text, der in den Zwischenspeicher des Users kopiert werden soll.'
+                        ]
+                    ],
+                    'required' => ['text']
+                ],
+                'callable' => [self::class, 'executeWriteClipboard']
+            ],
+            [
                 'name' => 'system_call_contact',
                 'description' => 'Führt einen KI-Sprachanruf bei einem Kontakt durch (z.B. über Vapi.ai oder Twilio).',
                 'parameters' => [
@@ -3050,5 +3074,33 @@ trait AiSystemFuncs
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei Deep Research Websuche: ' . $e->getMessage()];
         }
+    }
+
+    public static function executeReadClipboard(array $args)
+    {
+        return [
+            'status' => 'success',
+            'action_required' => 'frontend_clipboard_read',
+            'message' => 'System-Signal: Das Frontend wurde angewiesen, den Zwischenspeicher (Clipboard) auszulesen. Der User erhält nun ein Popup im Browser. Sobald er zustimmt, wird dir das Bild automatisch im nächsten Prompt zur Verfügung gestellt.',
+            '_frontend_events' => [
+                ['type' => 'dispatch', 'name' => 'request-clipboard', 'detail' => []]
+            ]
+        ];
+    }
+
+    public static function executeWriteClipboard(array $args)
+    {
+        if (!isset($args['text'])) {
+            return ['status' => 'error', 'message' => 'Text parameter is required.'];
+        }
+
+        return [
+            'status' => 'success',
+            'action_required' => 'frontend_clipboard_write',
+            'message' => 'System-Signal: Das Frontend wurde angewiesen, den Zwischenspeicher des Users mit dem neuen Text zu überschreiben. Sag dem User, dass es erledigt ist.',
+            '_frontend_events' => [
+                ['type' => 'dispatch', 'name' => 'write-clipboard', 'detail' => ['text' => $args['text']]]
+            ]
+        ];
     }
 }

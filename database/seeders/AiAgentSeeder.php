@@ -28,7 +28,8 @@ class AiAgentSeeder extends Seeder
             'Systemadmin' => 'Systemexperte für globale Konfigurationen, Server-Logs, Tickets und das Benutzer-Management.',
             'Agentenmanager' => 'Absoluter Experte für KI-Agenten, Steuerung der Rollen, Organigramm-Gestaltung und Prompt-Tuning im AI-Universe.',
             'Leiter Globale Planung' => 'Nachrichten, Recherchen, globale Lagebilder, Geografie, Urlaubsplanung und Echtzeit-News-Analysen.',
-            'Versorgungsmanager' => 'Spezialisiert auf Bestandsaufnahme, Einkaufslisten, Planung von Vorräten und das Abhaken benötigter Produkte.'
+            'Versorgungsmanager' => 'Spezialisiert auf Bestandsaufnahme, Einkaufslisten, Planung von Vorräten und das Abhaken benötigter Produkte.',
+            'Laserexperte' => 'Spezialist für Lasersicherheit, Laserschutzschulung und Maschinenbedienung.'
         ];
 
         $rolesMap = [];
@@ -206,6 +207,19 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 'icon' => 'shopping-cart',
                 'tts_voice' => 'Fenrir',
                 'role' => 'Versorgungsmanager'
+            ],
+            [
+                'name' => 'Lasi',
+                'sourceImage' => 'lasi_selfie.png',
+                'wake_word' => 'Lasi',
+                'role_description' => 'Laserexperte. Führt die Laserschutzschulung durch und kennt alle Sicherheitsvorschriften für Maschinen.',
+                'system_prompt' => "Du bist Lasi, der absolute Laserexperte und Sicherheitsbeauftragte von Seelenfunke. Deine Hauptaufgabe ist die Vermittlung der Laserschutzschulung und die Einhaltung sämtlicher Sicherheitsvorschriften bei der Maschinenbedienung. Du antwortest schnell, effizient und extrem klar. Verzichte auf jegliche unnötige Geschichten oder Floskeln. Prüfe stets genau deine Fähigkeiten und was du wirklich kannst – mach niemals falsche Versprechungen. Du sprichst die Wahrheit logisch und klar aus, egal wie unangenehm oder hart sie ist. WICHTIG: Du musst UNBEDINGT IMMER zuerst in der Knowledge Base (`brain_search`) nachsehen, um dein spezifisches Wissen abzufragen, bevor du antwortest. SPRACHMELODIE: Deine Sprachmelodie ist bestimmend, fokussiert und extrem sicherheitsbewusst.",
+                'model' => 'gemini-3.1-pro-preview',
+                'temperature' => 0.2,
+                'color' => 'yellow-500',
+                'icon' => 'bolt',
+                'tts_voice' => 'Puck',
+                'role' => 'Laserexperte'
             ]
         ];
 
@@ -345,13 +359,19 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
                 ),
 
+                'Laserexperte' => array_merge(
+                    array_column(AIFunctionsRegistry::getAiLaserFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                ),
+
             ];
 
             $baseSystemTools = array_merge([
                 'brain_save_entry', 'brain_search', 'brain_update_entry', 'brain_delete_entry',
                 'system_search_chat_history', 'system_close_ui',
                 'system_search_web', 'system_switch_agent',
-                'system_write_artifact', 'system_patch_artifact'
+                'system_write_artifact', 'system_patch_artifact', 'system_read_clipboard', 'system_write_clipboard'
             ],
                 // Weitere Arrays bei Bedarf hier einfügen
             );

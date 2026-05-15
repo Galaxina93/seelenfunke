@@ -57,7 +57,7 @@
                                 </div>
                                 <span class="text-xs font-bold {{ $msg['color'] ? 'text-'.$msg['color'] : 'text-[var(--theme-color)]' }} tracking-widest uppercase truncate max-w-[200px]">{{ $msg['name'] }}</span>
                             </div>
-                            <div class="max-w-[90%] lg:max-w-[85%] text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-950 border border-gray-700 text-gray-300 rounded-tr-none shadow-md' : 'bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]' }}">
+                            <div class="max-w-[90%] lg:max-w-[85%] min-w-0 text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-950 border border-gray-700 text-gray-300 rounded-tr-none shadow-md' : 'bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]' }}">
                                 @if($msg['role'] === 'user')
                                     @if(!empty($msg['attachments']) || !empty($msg['local_uploads']))
                                         <div class="flex flex-wrap gap-2 mb-2">
@@ -74,10 +74,11 @@
                                             @endif
                                             @if(!empty($msg['local_uploads']))
                                                 @foreach($msg['local_uploads'] as $file)
-                                                    <div class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-[var(--theme-color)] text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-inner">
-                                                        <x-heroicon-o-paper-clip class="w-3 h-3" />
-                                                        <span>{{ $file['name'] ?? 'Upload' }}</span>
-                                                    </div>
+                                                    @php $fileUrl = isset($file['path']) ? Storage::url($file['path']) : '#'; @endphp
+                                                    <a href="{{ $fileUrl }}" target="_blank" class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-[var(--theme-color)] text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-inner hover:bg-[var(--theme-color-10)] transition-colors cursor-pointer">
+                                                        <x-heroicon-o-paper-clip class="w-3 h-3 shrink-0" />
+                                                        <span class="truncate max-w-[150px]">{{ $file['name'] ?? 'Upload' }}</span>
+                                                    </a>
                                                 @endforeach
                                             @endif
                                         </div>
@@ -257,6 +258,14 @@
                         @endif
 
                         <form wire:submit.prevent="sendMessage" class="relative w-full">
+                            <!-- Clipboard Permission Button -->
+                            <button x-show="clipboardNeedsPermission" x-cloak @click.prevent="readClipboard(true)" 
+                                    class="absolute left-0 -top-12 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse hover:bg-rose-500/30 transition-all font-bold tracking-widest text-[10px] uppercase text-center backdrop-blur-md"
+                                    title="Zwischenspeicher freigeben">
+                                <x-heroicon-s-camera class="w-4 h-4 shrink-0" />
+                                <span>Klicken für Freigabe</span>
+                            </button>
+
                             <div class="absolute left-2 top-1/2 -translate-y-1/2 flex items-center z-10">
                                 <label class="cursor-pointer text-gray-500 hover:text-[var(--theme-color)] p-1">
                                     <x-heroicon-o-paper-clip class="w-5 h-5" />

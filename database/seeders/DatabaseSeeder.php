@@ -50,6 +50,7 @@ class DatabaseSeeder extends Seeder
             // KI Agenten
             AiAgentSeeder::class,
             AiKnowledgeBaseSeeder::class,
+            AiKnowledgeBaseLaserSeeder::class,
             AiCompanyStructureSeeder::class,
 
             // DEAKTIVIEREN BEI LIVEGANG

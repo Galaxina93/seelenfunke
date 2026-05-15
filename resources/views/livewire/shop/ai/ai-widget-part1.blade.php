@@ -5,6 +5,8 @@
      @funki-event.window="updateFunkiStatus($event.detail.state)"
      @funki-force-stop.window="stopSpeech()"
      @ai-speech-feedback.window="speakFeedback($event.detail.text)"
+     @request-clipboard.window="readClipboard()"
+     @write-clipboard.window="writeClipboard($event.detail.text)"
      @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId)"
      @ai-switch-agent.window="handleAgentSwitch($event.detail.agent_id)"
      @toggle-mapfocus.window="console.log('toggle-mapfocus', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isMapFocus = (d && (d.active === true || d.active === 'true' || d.active === 1)); if(isMapFocus) { isMapMode = true; }"
@@ -174,6 +176,14 @@
                             title="KI Unterbrechen erlauben">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-1.72 6.97a.75.75 0 1 0-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06L12 13.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L13.06 12l1.72-1.72a.75.75 0 1 0-1.06-1.06L12 10.94l-1.72-1.72Z" /></svg>
                         Stören
+                    </button>
+
+                    <!-- Clipboard Permission Button -->
+                    <button x-show="clipboardNeedsPermission" x-cloak @click.prevent="readClipboard(true)" 
+                            class="w-full flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl border border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse hover:bg-rose-500/30 transition-all font-bold tracking-widest text-[9px] uppercase text-center mt-2"
+                            title="Zwischenspeicher für die KI freigeben">
+                        <x-heroicon-s-camera class="w-4 h-4" />
+                        Erlauben
                     </button>
                 </div>
             </div>

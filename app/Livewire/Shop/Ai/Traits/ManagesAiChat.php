@@ -417,6 +417,43 @@ trait ManagesAiChat
         unset($this->messages); // Trigger re-render
     }
 
+    public function submitClipboardImage($base64Data, $filename, $mimeType)
+    {
+        if (empty($base64Data)) return;
+
+        // Extract base64
+        $base64Data = substr($base64Data, strpos($base64Data, ',') + 1);
+        $fileData = base64_decode($base64Data);
+        if (!$fileData) return;
+
+        $path = 'agenten/workspace/chat-medien/' . uniqid() . '_' . preg_replace('/[^A-Za-z0-9_\-\.]/', '', $filename);
+        \Illuminate\Support\Facades\Storage::disk('public')->put($path, $fileData);
+
+        $localUploads = [
+            [
+                'path' => $path,
+                'name' => $filename,
+                'mime' => $mimeType,
+            ]
+        ];
+
+        $userCtx = [
+            'name' => auth()->check() ? (auth()->user()->first_name ?? 'User') : 'User',
+            'color' => 'gray-400',
+            'icon' => 'user',
+            'profile_picture' => (auth()->check() && auth()->user()->profile) ? auth()->user()->profile->photo_path : null,
+            'local_uploads' => $localUploads
+        ];
+
+        $this->saveMessageToDb('user', "*(Bild aus Zwischenspeicher eingefügt)*", $userCtx);
+
+        $this->pendingRouterMessage = "*(Bild aus Zwischenspeicher eingefügt)*";
+        
+        $this->typingAgents = array_merge($this->typingAgents, $this->activeAgentIds);
+        
+        $this->dispatch('start-auto-routing', targetComponentId: $this->getId());
+    }
+
     #[On('start-auto-routing')]
     public function processAutoRouting($targetComponentId = null)
     {

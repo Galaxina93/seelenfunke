@@ -118,12 +118,111 @@
 
             chatAbortController: null,
             voiceAbortController: null,
+            clipboardNeedsPermission: false,
 
             // Live API State
             isLiveMode: false,
             continuousMode: false,
             liveWs: null,
             audioContext: null,
+
+            async readClipboard(isDirectClick = false) {
+                try {
+                    this.clipboardNeedsPermission = false;
+                    const clipboardItems = await navigator.clipboard.read();
+                    for (const item of clipboardItems) {
+                        if (item.types.some(type => type.startsWith('image/'))) {
+                            const imageType = item.types.find(type => type.startsWith('image/'));
+                            const blob = await item.getType(imageType);
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                                    const base64 = reader.result.split(',')[1];
+                                    const clipMsg = {
+                                        clientContent: {
+                                            turns: [{
+                                                role: "user",
+                                                parts: [
+                                                    { inlineData: { mimeType: imageType, data: base64 } },
+                                                    { text: "*(System: Das Bild aus dem Zwischenspeicher wurde erfolgreich übermittelt. Bitte verarbeite es jetzt wie vom Nutzer gefordert.)*" }
+                                                ]
+                                            }],
+                                            turnComplete: true
+                                        }
+                                    };
+                                    this.liveWs.send(JSON.stringify(clipMsg));
+                                    console.log("Clipboard Image sent to Live WS.");
+                                } else {
+                                    this.$wire.call('submitClipboardImage', reader.result, 'clipboard_image.png', imageType);
+                                }
+                            };
+                            reader.readAsDataURL(blob);
+                            return;
+                        }
+                    }
+                    
+                    // Fallback for text
+                    const text = await navigator.clipboard.readText();
+                    if (text && text.trim().length > 0) {
+                        if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                            const clipMsg = {
+                                clientContent: {
+                                    turns: [{
+                                        role: "user",
+                                        parts: [
+                                            { text: "*(System: Der Text aus dem Zwischenspeicher wurde übermittelt:*\n" + text + "\n*Bitte verarbeite diesen Text jetzt wie vom Nutzer gefordert.)*" }
+                                        ]
+                                    }],
+                                    turnComplete: true
+                                }
+                            };
+                            this.liveWs.send(JSON.stringify(clipMsg));
+                            console.log("Clipboard Text sent to Live WS.");
+                        } else {
+                            this.chatHistory.push({ role: 'user', content: "*(Text aus Zwischenspeicher eingefügt)*\n\n" + text });
+                            this.$wire.call('saveUserLiveMessage', "*(Text aus Zwischenspeicher eingefügt)*\n\n" + text);
+                            setTimeout(() => {
+                                this.$wire.call('processAutoRouting');
+                            }, 200);
+                        }
+                        return;
+                    }
+                    
+                    console.warn("Kein Bild oder Text im Zwischenspeicher gefunden.");
+                    this.notifyClipboardError("System: Der Zwischenspeicher war leer, es konnte nichts ausgelesen werden.");
+                } catch (error) {
+                    console.error("Clipboard Zugriff verweigert oder Fehler:", error);
+                    if (error.name === 'NotAllowedError' || error.message.includes('gesture')) {
+                        this.clipboardNeedsPermission = true;
+                        this.notifyClipboardError("System: Dem Browser fehlt die User-Interaktion (Sicherheitssperre) für den Zwischenspeicher. Bitte weise den Nutzer an: 'Ich brauche kurz deine Freigabe. Bitte klicke auf den blinkenden Button für den Zwischenspeicher, der gerade aufgetaucht ist!'");
+                    } else {
+                        this.notifyClipboardError("System: Der Zugriff auf den Zwischenspeicher wurde vom Browser verweigert oder ist leer.");
+                    }
+                }
+            },
+
+            notifyClipboardError(msg) {
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    const clipMsg = {
+                        clientContent: { turns: [{ role: "user", parts: [{ text: `*(${msg})*` }] }], turnComplete: true }
+                    };
+                    this.liveWs.send(JSON.stringify(clipMsg));
+                } else {
+                    this.chatHistory.push({ role: 'user', content: `*(${msg})*` });
+                    this.$wire.call('saveUserLiveMessage', `*(${msg})*`);
+                    setTimeout(() => { this.$wire.call('processAutoRouting'); }, 200);
+                }
+            },
+
+            async writeClipboard(text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    console.log("Clipboard erfolgreich überschrieben.");
+                } catch (error) {
+                    console.error("Clipboard Write Error:", error);
+                    alert("Konnte nicht in den Zwischenspeicher schreiben. Zugriff verweigert.");
+                }
+            },
 
             stripSpeak(msg) {
                 if (!msg) return '';
