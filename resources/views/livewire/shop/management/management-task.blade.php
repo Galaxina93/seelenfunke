@@ -7,9 +7,9 @@
                 <div class="flex items-center gap-2 md:gap-4 w-full">
                     <input wire:model.live="search" type="text" placeholder="Aufgaben suchen..."
                            class="w-full pl-4 md:pl-6 pr-4 py-2.5 md:py-3 bg-gray-950 border border-gray-800 rounded-xl md:rounded-2xl focus:ring-2 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-xs md:text-sm font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
-                           
+
                     <button wire:click="toggleArchiveMode" class="flex-shrink-0 px-3 md:px-5 py-2.5 md:py-3 rounded-xl md:rounded-2xl border-2 {{ $showArchive ? 'border-amber-500 text-amber-500 bg-amber-500/10' : 'border-gray-800 text-gray-500 hover:text-white hover:border-[var(--theme-color-40)]' }} transition-all flex items-center gap-2 md:gap-3 font-black uppercase text-[9px] md:text-[10px] tracking-widest shadow-inner">
-                        <x-heroicon-m-archive-box class="w-4 h-4 md:w-5 md:h-5" /> 
+                        <x-heroicon-m-archive-box class="w-4 h-4 md:w-5 md:h-5" />
                         <span class="hidden sm:inline">{{ $showArchive ? 'Archiv schließen' : 'Archiv öffnen' }}</span>
                         <span class="sm:hidden">{{ $showArchive ? 'Archiv zu' : 'Archiv auf' }}</span>
                     </button>
@@ -50,7 +50,7 @@
                 }
              }"
              x-init="initListSortable()">
-            <div class="text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1 shrink-0">Kategorien</div>
+            <div class="text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1 shrink-0">Deine Listen</div>
 
             @foreach($lists as $list)
                 <div class="category-item shrink-0 relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false }">
@@ -60,7 +60,7 @@
                             'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_15px_var(--theme-color-10)]' => $selectedListId === $list->id,
                             'bg-gray-900/50 border-transparent hover:bg-gray-800 hover:border-gray-700 text-gray-500' => $selectedListId !== $list->id
                         ])>
-                        
+
                         <div class="category-drag-handle cursor-grab active:cursor-grabbing opacity-0 group-hover/list-item:opacity-40 hover:!opacity-100 p-1 -ml-2 text-gray-500 transition-opacity">
                             <x-heroicon-m-bars-3 class="w-4 h-4" />
                         </div>
@@ -83,7 +83,7 @@
                                         {{ $list->open_count }} OFFEN
                                     </div>
                                 @endif
-                                
+
                                 @if($list->is_archived)
                                     <div class="text-[9px] font-bold text-amber-500 uppercase">Archiviert</div>
                                 @endif
@@ -94,14 +94,14 @@
                             </button>
                         </div>
                     </div>
-                    
+
                     {{-- CONTEXT MENU / RECHTSKLICK MENU --}}
                     <div x-show="showListMenu" @click.away="showListMenu = false" x-cloak
                          x-transition:enter="transition ease-out duration-200"
                          x-transition:enter-start="opacity-0 -translate-y-2 scale-95"
                          x-transition:enter-end="opacity-100 translate-y-0 scale-100"
                          class="absolute left-0 lg:left-12 top-full lg:top-3/4 mt-2 w-full lg:w-48 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-[60] overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
-                         
+
                         <div class="px-4 py-2 border-b border-gray-800 mb-1">
                             <p class="text-[9px] font-black uppercase tracking-widest text-gray-500 truncate">{{ $list->name }}</p>
                         </div>
@@ -244,7 +244,7 @@
                                                @keydown.enter="$el.blur()"
                                                 class="w-full text-sm font-bold bg-gray-950 border border-[var(--theme-color-30)] rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] -ml-2 -mt-1 text-white shadow-inner"
                                                 x-cloak>
-                                              
+
                                         <div x-show="!isEditing" class="text-[9px] text-[var(--theme-color-50)] font-black uppercase tracking-widest mt-1">
                                             Offen seit: {{ str_replace([' Sekunden', ' Minuten', ' Stunden', ' Tagen'], [' Sek.', ' Min.', ' Std.', ' T.'], $task->created_at->diffForHumans(now(), \Carbon\CarbonInterface::DIFF_ABSOLUTE)) }}
                                         </div>
@@ -262,7 +262,7 @@
                                                 </select>
                                             </div>
                                         @endif
-                                        
+
                                         {{-- ARCHIVE & DELETE INLINE HOVER --}}
                                         <div class="hidden md:flex items-center opacity-0 group-hover/task:opacity-100 transition-opacity">
                                             <button wire:click="toggleArchiveTask('{{ $task->id }}')" class="p-2 text-gray-500 hover:text-amber-500 rounded-xl transition-all">
@@ -285,13 +285,13 @@
                                             <button @click="isAddingSub = true; showMenu = false; $nextTick(() => $refs.addSubInput.focus())" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
                                                 <x-heroicon-o-list-bullet class="w-4 h-4 text-[var(--theme-color)]" /> Schritt dazu
                                             </button>
-                                            
+
                                             <div class="border-t border-gray-800 my-1 md:hidden"></div>
-                                            
+
                                             <button wire:click="toggleArchiveTask('{{ $task->id }}')" class="md:hidden w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 hover:bg-gray-800 hover:text-amber-400 flex items-center gap-3 transition-colors">
                                                 <x-heroicon-o-archive-box class="w-4 h-4 text-amber-500" /> {{ $task->is_archived ? 'Wiederherstellen' : 'Archivieren' }}
                                             </button>
-                                            
+
                                             <button wire:click="deleteTask('{{ $task->id }}')" wire:confirm="Aufgabe wirklich löschen?" class="md:hidden w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 hover:text-red-400 flex items-center gap-3 transition-colors">
                                                 <x-heroicon-o-trash class="w-4 h-4 text-red-500" /> Löschen
                                             </button>
