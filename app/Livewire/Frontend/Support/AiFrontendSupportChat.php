@@ -300,8 +300,13 @@ class AiFrontendSupportChat extends Component
         $chatWeight = ($customerMsgCount * 10) + $severitySum;
         
         if ($chatWeight >= 100) {
-            // Hartes Limit erreicht: Chat abbrechen und an Menschen übergeben
-            $abortMsg = "Ich merke, dass wir hier gerade an unsere technischen Grenzen stoßen und uns möglicherweise im Kreis drehen. Um dir bestmöglich und schnellstmöglich zu helfen, habe ich unser Gespräch nun als offizielles Ticket markiert und an meine menschlichen Kollegen weitergeleitet. Sie werden sich den Verlauf in Kürze ansehen und sich bei dir melden!";
+            $customerId = auth()->guard('customer')->id() ?? $chat->customer_id;
+
+            if ($customerId) {
+                $abortMsg = "Ich merke, dass wir hier gerade an unsere technischen Grenzen stoßen. Um dir bestmöglich und schnellstmöglich zu helfen, habe ich unser Gespräch nun als offizielles Ticket markiert und an meine menschlichen Kollegen weitergeleitet. Sie werden sich den Verlauf in Kürze ansehen und sich bei dir melden!";
+            } else {
+                $abortMsg = "Ich merke, dass wir hier gerade an unsere technischen Grenzen stoßen. Da du als Gast unterwegs bist, kann ich leider kein automatisches Ticket für dich eröffnen. Bitte melde dich an oder kontaktiere den Support über das offizielle Kontaktformular.";
+            }
             
             SupportCustomerChatMessage::create([
                 'support_customer_chat_id' => $this->chatId,
@@ -310,7 +315,38 @@ class AiFrontendSupportChat extends Component
             ]);
             $this->messages[] = ['sender' => 'system', 'text' => $abortMsg];
             
-            $chat->update(['status' => 'needs_employee']);
+            $chat->update([
+                'status' => 'needs_employee',
+                'top_topic' => 'Automatischer Abbruch (Chat-Limit)',
+                'ai_summary' => 'Das System hat diesen Chat automatisch eskaliert, da das Ausdauer-Limit (100 Punkte) durch eine zu hohe Anzahl von Nachrichten oder negativen Severity-Werten erreicht wurde. Eine manuelle Überprüfung durch das Team ist notwendig.'
+            ]);
+
+            if ($customerId) {
+                $ticket = \App\Models\Support\SupportTicket::create([
+                    'ticket_number' => 'TCK-' . strtoupper(\Illuminate\Support\Str::random(8)),
+                    'customer_id'   => $customerId,
+                    'subject'       => 'Automatischer Abbruch (Chat-Limit)',
+                    'category'      => 'allgemein',
+                    'status'        => 'open',
+                    'priority'      => 'normal',
+                ]);
+
+                $historyStr = "";
+                foreach($chat->messages as $m) {
+                    $sender = $m->sender === 'customer' ? 'Kunde' : 'KI';
+                    if ($m->sender === 'system') $sender = 'System';
+                    $historyStr .= "[{$sender}] {$m->message}\n\n";
+                }
+
+                \App\Models\Support\SupportTicketMessage::create([
+                    'support_ticket_id' => $ticket->id,
+                    'sender_type'       => 'system',
+                    'message'           => "Das System hat diesen Chat automatisch eskaliert, da das Ausdauer-Limit (100 Punkte) erreicht wurde.\n\n--- CHAT VERLAUF ---\n" . $historyStr
+                ]);
+
+                $chat->update(['support_ticket_id' => $ticket->id]);
+            }
+
             $this->isResolved = true;
             $this->isTyping = false;
             $this->dispatch('message-received');

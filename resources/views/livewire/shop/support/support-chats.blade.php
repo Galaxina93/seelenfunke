@@ -463,6 +463,14 @@
                                 <tr x-show="expanded" x-transition.opacity class="bg-gray-900/40">
                                     <td colspan="6" class="p-6">
                                         <div class="space-y-6">
+                                            @if($chat->ai_summary)
+                                                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 border-l-4 border-l-[var(--theme-color)] shadow-sm">
+                                                    <div class="text-xs text-[var(--theme-color)] uppercase tracking-wider font-black mb-2 flex items-center gap-2">
+                                                        <x-heroicon-s-document-text class="w-4 h-4" /> Vollständige Zusammenfassung
+                                                    </div>
+                                                    <p class="text-sm text-gray-300 leading-relaxed">{{ $chat->ai_summary }}</p>
+                                                </div>
+                                            @endif
                                             @if($chat->rating)
                                                 <div class="flex items-start gap-4 bg-gray-800 p-4 rounded-xl border border-gray-700">
                                                     <div>

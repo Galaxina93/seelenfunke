@@ -581,26 +581,92 @@ Eine Pflichtvorsorge kann zudem wegen giftigen Laserschmauchs fällig werden.
 Was macht der Laserschutzbeauftragte (LSB) eigentlich genau und wie weit reicht seine Haftung?
 
 ## Der Laserschutzbeauftragte (LSB) – Anforderungen & Pflichten
-Nach OStrV / TROS unterstützt der LSB den Arbeitgeber bei:
-1. Der Durchführung der Gefährdungsbeurteilung.
-2. Der Festlegung technischer und organisatorischer Schutzmaßnahmen.
-3. Der Überwachung des sicheren Betriebs von Lasereinrichtungen.
-4. Der Mitwirkung bei der Unterweisung der Beschäftigten.
+Die Anforderungen an den LSB skalieren mit der Komplexität der eingesetzten Anlage. Grundvoraussetzungen (nach § 5 OStrV) sind:
+- Eine abgeschlossene technische, naturwissenschaftliche, medizinische oder kosmetische Berufsausbildung **oder** eine vergleichbare, mindestens zweijährige Berufserfahrung.
+- Praktische berufliche Erfahrung.
+- Bestandene Teilnahme an einem entsprechenden **Lehrgang** inkl. Abschlussprüfung und Nachweis.
+- Regelmäßige Fortbildungen (i.d.R. eine 1-tägige Schulung alle 5 Jahre).
 
-*Wichtig:* Der LSB ist weisungsbefugt gegenüber den Beschäftigten, wenn es um Sicherheitsaspekte beim Laserbetrieb geht (z.B. Er kann anordnen, den Betrieb bei geöffneter Tür sofort einzustellen).
+Die Funktion des Fachkundigen (der die Gefährdungsbeurteilung ausarbeitet) und des LSB kann von derselben Person wahrgenommen werden (nach § 2 Abs. 10 OStrV).
 
-## Unterweisung nach §8 OStrV
-Arbeiter müssen **vor Aufnahme der Tätigkeit** und danach **mindestens jährlich** unterwiesen werden. Die Unterweisung muss dokumentiert und von den Beschäftigten unterschrieben werden.
+**Bestellung und Abgrenzung:**
+Der LSB ist zwingend **schriftlich** zu bestellen. In dieser Bestellung müssen Aufgaben, Pflichten und Befugnisse vom Arbeitgeber konkret benannt werden. Bei mehreren LSB im Betrieb sind die Zuständigkeitsbereiche messerscharf abzugrenzen. *Achtung:* Die rechtliche Endverantwortung für die Durchführung der Gefährdungsbeurteilung und der Schutzmaßnahmen verbleibt **immer** beim Arbeitgeber.
 
-## Verantwortungen und Rechtliche Konsequenzen des LSB
-Der LSB trägt eine immense Verantwortung, auch wenn die arbeitsrechtliche Letztverantwortung beim Arbeitgeber verbleibt.
-Der LSB ist verpflichtet, Missstände sofort dem Arbeitgeber zu melden und im Zweifel Anlagen stillzulegen, wenn akute Gefahr für Leib und Leben besteht.
+**Verantwortungen und Aufgaben des LSB (bei Anlagen der Klassen 3R, 3B und 4):**
+Er unterstützt und berät den Arbeitgeber sowie die Beschäftigten in Fragen des Laserschutzes bei:
+1. Der Durchführung (Mitwirkung) der Gefährdungsbeurteilung.
+2. Der Festlegung und Überwachung der Einhaltung von Schutzmaßnahmen (gemäß TROS).
+3. Der regelmäßigen Kontrolle von Kennzeichnung, Zugangsbeschränkungen und Warnsystemen.
+4. Der Auswahl geeigneter persönlicher Schutzausrüstung (z.B. Laserschutzbrillen).
+5. Der Mitwirkung bei Unterweisungen und der Erstellung von Betriebsanweisungen.
 
-## Ordnungswidrigkeiten und Bußgelder
-Rechtliche Folgen bei Verstößen (nach OStrV / ArbSchG):
-- Wer als Arbeitgeber keinen LSB bestellt, obwohl er Klasse 3R, 3B oder 4 betreibt, handelt ordnungswidrig.
-- Wer Prüfintervalle der Anlagen missachtet, keine Gefährdungsbeurteilung durchführt oder das Personal nicht unterweist, riskiert empfindliche Bußgelder (teilweise bis zu 25.000 EUR oder mehr).
-- Handelt der LSB oder Arbeitgeber fahrlässig oder gar vorsätzlich und es kommt zu einem Unfall (z.B. Netzhautverbrennung), macht er sich nach dem Strafgesetzbuch wegen fahrlässiger oder vorsätzlicher Körperverletzung strafbar! Zivilrechtliche Schadensersatz- und Schmerzensgeldforderungen sind oft die Folge.
+Zusätzlich arbeitet der LSB eng mit dem Betriebsarzt und der Fachkraft für Arbeitssicherheit zusammen.
+
+**Wichtig: Beratende Funktion statt Weisungsbefugnis:**
+Der LSB ist grundsätzlich **nicht weisungsbefugt** (außer es wurde explizit vom Arbeitgeber per Pflichtenübertragung delegiert), sondern er ist fachlich beratend tätig. Die rechtliche Verantwortung für den sicheren Betrieb liegt uneingeschränkt beim Arbeitgeber!
+
+**Eskalationswege:**
+- Bei Abweichungen vom sicheren Betrieb hat der LSB den Arbeitgeber *umgehend* zu informieren und auf die Durchsetzung der Schutzmaßnahmen hinzuwirken.
+- Bei **unmittelbarer Gefahr** ist der Betrieb gemäß §9 Abs. 2 Satz 2 ArbSchG sofort einzustellen.
+
+**Erforderliches Fachwissen des LSB:**
+Ein LSB muss zwingend folgende Aspekte beherrschen:
+- Arbeitsschutzgesetze (ArbSchG, OStrV, UVV, Normen).
+- Laserklassen nach DIN EN 60825-1 und Expositionsgrenzwerte der OStrV.
+- Kenngrößen der Laserstrahlung sowie direkte und indirekte biologische Wirkungen (Blendung, Brand, Lärm, Elektrik).
+- Grundlagen der Gefährdungsbeurteilung und das S-T-O-P Prinzip der Schutzmaßnahmen.
+- Den genauen Ablauf des sicheren Betriebs der Anlagen, für die er bestellt wurde, und wie diese effektiv zu überwachen sind.
+
+*(Wichtiger Hinweis: Die DGUV Vorschrift 11 \'Laserstrahlung\' wurde zum 01.04.2023 außer Kraft gesetzt! Maßgeblich sind nun die OStrV und die TROS.)*
+
+## Unterweisung nach § 8 OStrV
+**(1) Inhalt und Zeitpunkt der Unterweisung:**
+Der Arbeitgeber stellt sicher, dass Beschäftigte auf Basis der Gefährdungsbeurteilung unterwiesen werden. Dies muss erfolgen:
+- **vor Aufnahme der Beschäftigung**
+- **mindestens jährlich** (regelmäßige Abstände)
+- **sofort bei wesentlichen Änderungen** der gefährdenden Tätigkeit
+
+Die Unterweisung muss in einer für die Beschäftigten verständlichen Form und Sprache erfolgen und zwingend folgende Informationen enthalten:
+- Die mit der Tätigkeit verbundenen Gefährdungen.
+- Die durchgeführten Maßnahmen zur Beseitigung/Minimierung der Gefährdung.
+- Die Expositionsgrenzwerte und deren Bedeutung.
+- Die Ergebnisse der Expositionsermittlung und mögliche gesundheitliche Folgen.
+- Die Beschreibung sicherer Arbeitsverfahren.
+- Die sachgerechte Verwendung der persönlichen Schutzausrüstung (PSA).
+Die Unterweisung muss dokumentiert und von den Beschäftigten unterschrieben werden.
+
+**(2) Arbeitsmedizinische Beratung:**
+Können die Grenzwerte überschritten werden, muss der Arbeitgeber sicherstellen, dass betroffene Beschäftigte **arbeitsmedizinisch beraten** werden.
+- Die Beschäftigten müssen über den Zweck der Vorsorgeuntersuchungen und ihre Ansprüche darauf informiert werden.
+- Diese Beratung kann direkt im Rahmen der Unterweisung erfolgen.
+- Falls erforderlich, ist der Betriebsarzt (nach § 7 Abs. 1 ArbMedVV) einzubinden.
+## Rechtliche Konsequenzen bei Pflichtverstoß
+Die rechtliche Letztverantwortung verbleibt beim Arbeitgeber. Dennoch trägt der LSB eine immense fachliche Verantwortung im Rahmen seiner zugewiesenen Aufgaben. Der LSB haftet grundsätzlich nicht für den Arbeitgeber. Kommt es jedoch zu grober Fahrlässigkeit (z.B. der bewussten Missachtung von Warnpflichten oder dem Ignorieren von akuten Gefahren), droht dem LSB eine persönliche (zivil- oder gar strafrechtliche) Haftung.
+
+**Ordnungswidrigkeiten (gemäß § 25 Abs. 1 Nr. 1 ArbSchG):**
+Ordnungswidrig handelt ein LSB oder dessen Arbeitgeber, wenn er/sie vorsätzlich oder fahrlässig:
+- Ungeschulte Beschäftigte eine Tätigkeit mit Laser aufnehmen lässt.
+- Eine Gefährdungsbeurteilung nicht richtig, nicht vollständig oder nicht rechtzeitig dokumentiert.
+- Nicht sicherstellt, dass eine Messung oder eine Berechnung nach dem Stand der Technik durchgeführt wird.
+- Nicht sicherstellt, dass die Gefährdungsbeurteilung, Messungen oder Berechnungen von fachkundigen Personen durchgeführt werden.
+- Einen Laserschutzbeauftragten (bei Klasse 3R, 3B, 4) nicht schriftlich bestellt.
+- Einen Laserschutzbeauftragten bestellt, der nicht über die erforderlichen Fachkenntnisse verfügt.
+- Einen Arbeitsbereich nicht kennzeichnet und nicht abgrenzt.
+- Schutzmaßnahmen und Unterweisungen nicht oder nicht rechtzeitig durchführt.
+
+**Rechtliche Folgen von Ordnungswidrigkeiten:**
+Die §§ 25 und 26 des Arbeitsschutzgesetzes (ArbSchG) regeln die rechtlichen Konsequenzen. Diese können sowohl zivil- als auch strafrechtlicher Natur sein:
+- **Zivilrechtlich:** Im Falle von Personenschäden durch unsachgemäßen Umgang mit Lasern können teure zivilrechtliche Schadensersatz- und Schmerzensgeldforderungen gegen den Arbeitgeber oder den LSB (bei grober Pflichtverletzung) geltend gemacht werden.
+- **Strafrechtlich:** Strafrechtliche Konsequenzen drohen insbesondere bei grober Fahrlässigkeit oder Vorsatz (z.B. Körperverletzung).
+- **Bußgelder:** Die genauen Bußgelder für Verstöße gegen die Bestimmungen der OStrV können je nach Bundesland und Ausgestaltung der Gesetze variieren und werden im Laufe der Zeit angepasst. Daher muss stets der aktuelle Bußgeldkatalog herangezogen werden. Als grobe, allgemeine Orientierung gelten folgende Bereiche (wiederholte oder schwere Verstöße werden härter geahndet):
+  - *Nichteinhaltung der LSB-Pflichten (§ 5 OStrV):* 1. Verstoß: niedriger 3-stelliger Bereich; Wiederholt: höherer 3-stelliger bis niedriger 4-stelliger Bereich.
+  - *Betrieb unzureichend gekennzeichneter Laser:* 3-stelliger Bereich.
+  - *Betrieb ohne ordnungsgemäße Lasereinrichtung:* mittlerer 3-stelliger bis niedriger 4-stelliger Bereich.
+  - *Überschreitung der maximal zulässigen Expositionsgrenzwerte:* höherer 3-stelliger bis niedriger 4-stelliger Bereich.
+Bei Unsicherheit sollte stets rechtlicher Rat (z.B. durch einen Fachanwalt) hinzugezogen werden.
+
+**Achtung (Straftat!):**
+Wer durch eine vorsätzliche Handlung das Leben oder die Gesundheit von Beschäftigten gefährdet, macht sich nach **§ 26 Nummer 2 des Arbeitsschutzgesetzes strafbar!**
 
 ## Ablauf der Gefährdungsbeurteilung nach TROS
 1. Ermitteln der Laserstrahlungsquellen und Betriebsarten (Normalbetrieb, Service).
@@ -614,31 +680,366 @@ Rechtliche Folgen bei Verstößen (nach OStrV / ArbSchG):
             [
                 'title' => 'Modul 6 - Praxis Lasersicherheit: Gefährdungsbeurteilung',
                 'content' => "
-# Modul 6 - Praxis Lasersicherheit: Beispielhafte Durchführung einer Gefährdungsbeurteilung
+# Modul 6 - Praxis Lasersicherheit: Gefährdungsbeurteilung und Expositionsgrenzwerte
 **Dauer:** 1,0 LE (45-60min)
 
-## Wieso eine Beispielhafte Gefährdungsbeurteilung?
-Theorie muss in die Praxis übersetzt werden. Anhand typischer Szenarien aus der Industrie lässt sich das Vorgehen nach TROS am besten üben.
+## Grundlagen der Gefährdungsbeurteilung
+Grundsätzlich hat der Arbeitgeber nach **§ 5 ArbSchG** eine Beurteilung über mögliche Gefährdungen für die Beschäftigten im Zusammenhang mit ihrer Arbeit durchzuführen (inkl. chemische, biologische oder physikalische Einwirkungen). 
+Nach **§ 3 OStrV** sind ausdrücklich Gefährdungen einzubeziehen, welche durch künstliche optische Strahlung (Laserstrahlung) entstehen. Die OStrV konkretisiert somit die Gefährdungsbeurteilung nach ArbSchG für diese Strahlenart. Es sind 13 Schwerpunkte für die Gefährdungsbeurteilung bei künstlicher optischer Strahlung vorgegeben.
 
-## Beispiel - Automatisierte Laserbearbeitungsmaschine (Laserklasse 1 durch Kapselung)
-- **Szenario:** Ein großer CNC-Laserschneider mit 4.000 Watt Faserlaser (Wellenlänge 1064 nm).
-- **Normalbetrieb:** Die Maschine ist komplett von einem Blechgehäuse und Laserschutzfenstern umschlossen. Schutzschalter blockieren den Betrieb bei offener Tür.
-- **Beurteilung:** Im Normalbetrieb Laserklasse 1. Keine Brille nötig. LSB muss nur prüfen, ob die Scheiben intakt sind und die Absaugung (Schmauch!) läuft.
-- **Service/Wartungsbetrieb:** Die Tür wird vom Techniker mit einem Schlüssel zur Spiegeljustage überbrückt. Der 4kW Strahl ist offen!
-- **Maßnahmen für Wartung:** Der Bereich um die Maschine wird temporär zum **Laserbereich** (Absperrung, Warnleuchten, Warnschilder). Alle Personen im Raum müssen eine Laserschutzbrille (DIN EN 207) der passenden Stufe tragen. Es darf sich kein brennbares Material im Weg befinden.
+Gemäß OStrV darf die Gefährdungsbeurteilung nur von **fachkundigen Personen** durchgeführt werden. Verfügt der Arbeitgeber selbst nicht über die entsprechenden Fachkenntnisse, hat er sich fachkundig beraten zu lassen (z.B. durch den LSB).
 
-## Beispiel - Mobiles Laserschweißsystem (Klasse 4 Handlaser)
-- **Szenario:** Handgeführtes Laserschweißen ist stark im Kommen. Der Laser (z.B. 1.500 Watt, 1070 nm) wird wie ein Schweißbrenner in der Hand gehalten.
-- **Konkretisierung der Gefährdungen:** Keine Kapselung! Strahl geht frei in den Raum. Extreme Gefahr durch Streustrahlung (Diffuse Reflexion am Blech).
-- **Bestimmung des tatsächlichen Grenzwerts (MZB):** Die MZB wird im Raum massiv überschritten.
-- **Schutzmaßnahmen:**
-  1. Zwingende Einrichtung eines permanenten Laserbereichs mit lichtdichten, zertifizierten Laserschutzwänden um den Arbeitsplatz herum.
-  2. Türkontaktschalter am Halleneingang (Öffnet jemand die Tür, geht der Laser sofort aus).
-  3. Der Bediener muss feuerfeste Kleidung, Handschuhe und zwingend einen Laserschutzhelm bzw. eine Schutzbrille mit hohem LB-Wert (z.B. D LB6 / IR LB7) tragen.
-  4. Absaugung von gesundheitsschädlichen Nanopartikeln, die beim Schweißen entstehen.
+## Zeitpunkt und Dokumentation
+- **Zeitpunkt:** Die Beurteilung ist zwingend **vor Aufnahme der Tätigkeit** durchzuführen. Daraus sind die notwendigen Schutzmaßnahmen abzuleiten.
+- **Aktualisierung:** Sie ist regelmäßig zu überprüfen und ggf. zu aktualisieren (insbesondere wenn maßgebliche Änderungen der Arbeitsbedingungen dies notwendig machen, woraufhin auch Schutzmaßnahmen angepasst werden müssen).
+- **Dokumentation:** Die Gefährdungsbeurteilung muss dokumentiert werden, und eine spätere Einsichtnahme muss möglich sein.
+  - *Sonderfall UV-Strahlung:* Bei Expositionen mit künstlicher ultravioletter Strahlung müssen die Unterlagen sogar **30 Jahre lang** aufbewahrt werden!
+
+## Inhalte der Gefährdungsbeurteilung
+In der Gefährdungsbeurteilung müssen enthalten & dokumentiert sein:
+1. Welche Gefährdungen am Arbeitsplatz auftreten können.
+2. Welche Maßnahmen zur Vermeidung oder Minimierung der Gefährdung der Beschäftigten durchgeführt werden müssen.
+3. Die ermittelten Ergebnisse aus Messungen und Berechnungen.
+
+## Ablauf der Gefährdungsbeurteilung nach TROS
+Der Prozess läuft in 5 zusammenhängenden Schritten ab (Kreislauf):
+
+**Schritt 1: Informationsermittlung**
+- *Klassifizierte Laser:* Prüfung der Herstellerangaben (Klassifizierung nach DIN EN 60825-1). Um welche Klasse handelt es sich? Reichen die Angaben aus? Wer ist gefährdet? Bei nach oben offenen Anlagen: Können sich oben Personen aufhalten oder reflektierende Materialien befinden? Wartung und Service müssen gesondert betrachtet werden, da hier oft höhere Laserklassen freiliegen (dann LSB bestellen!).
+- *Nicht klassifizierte Laser:* Eigene Messungen und Berechnungen müssen durchgeführt werden. (Einbeziehung von Brancheninfos und ggf. arbeitsmedizinischer Vorsorge).
+
+**Schritt 2: Bewertung der Qualität der Daten**
+- Welche Expositionsszenarien bedürfen genauer Bewertung?
+- Die Exposition wird mit den Expositionsgrenzwerten verglichen.
+- Besteht die Wahrscheinlichkeit, dass Expositionsgrenzwerte überschritten werden, so müssen Maßnahmen nach dem Stand der Technik getroffen werden.
+- *Hinweis:* Für das Einschätzen der Wahrscheinlichkeit reicht in der Regel das natürliche Urteilsvermögen (hohe, mittlere, niedrige Wahrscheinlichkeit).
+
+**Schritt 3: Ableitung und Durchführung von Maßnahmen**
+- Es wird festgelegt, ob bis zur Umsetzung der Maßnahmen weitergearbeitet werden kann.
+- Angemessene Maßnahmen nach Stand der Technik (Einhausung, Kennzeichnung, Unterweisung, PSA) werden abgeleitet und umgesetzt.
+- Die Beschäftigten müssen über die Gründe für die Maßnahmen informiert werden.
+
+**Schritt 4: Überprüfung der Gefährdungsbeurteilung (Wirksamkeitsprüfung)**
+- Konnte durch die Maßnahmen eine Minimierung der Gefährdung erreicht werden?
+- Eine erneute Überprüfung ist fällig bei: Einsatz neuer Laser, Änderung der Tätigkeit/Schutzmaßnahmen, neuen Erkenntnissen zur Wirkung oder Vorschriftenänderungen.
+
+**Schritt 5: Dokumentation (und ggf. Anpassung)**
+- Die gesamten Ergebnisse, abgeleiteten Maßnahmen und Prüfintervalle werden dokumentiert. Bei fehlender Wirksamkeit beginnt der Zyklus von vorn mit Anpassungen.
+
+## Wieso eine beispielhafte Gefährdungsbeurteilung?
+Ziel dieses Kapitels ist es, ein fundiertes Verständnis für die systematische Identifizierung und Bewertung von Risiken zu vermitteln.
+- **Anwendungsbeispiele:** Demonstration anhand von praxisnahen Szenarien, die zeigen, wie eine Gefährdungsbeurteilung in der Realität aussieht.
+- **Kompetenzaufbau:** Sie werden befähigt, eigenständige Gefährdungsbeurteilungen durchzuführen und somit die Sicherheit am Arbeitsplatz zu erhöhen.
+- **Förderung des Sicherheitsbewusstseins:** Stärkung Ihres Verständnisses für die Wichtigkeit der Lasersicherheit (und z.B. bei Medizinlasern des Patientenschutzes).
+
+*Wir empfehlen, die Gefährdungsbeurteilung idealerweise direkt mit dem Hersteller und ggf. gemeinsam mit den zuständigen Behörden (wie Berufsgenossenschaften) durchzuführen!*
+
+In den folgenden Beispielen werden wir Schritt für Schritt durch die Gefährdungsbeurteilung nach dem TROS-Ablaufdiagramm führen.
+
+## Beispiel 1: Automatisierte Laserbearbeitungsmaschine
+**Klasse 1 aufgrund Einhausung (passive / aktive Lasersicherheitsmaßnahmen)**
+Die Norm **DIN EN 11553-1** definiert die Gefährdungsbereiche und Betriebszustände (z.B. Normalbetrieb, Wartung, Programmierung) an Laserbearbeitungsmaschinen.
+
+**Schritt 1: Informationsermittlung**
+Eine vollautomatisierte Laserschweißmaschine befindet sich in einer Produktionshalle und läuft im Normalbetrieb. Der zugängliche Bereich wurde vom Hersteller für den Normalbetrieb als beschränkt ausgewiesen und die Anlage als Klasse 1 eingestuft.
+
+**Schritt 2: Bewertung der Qualität der Daten**
+Reichen die Informationen aus, um geeignete Maßnahmen abzuleiten? Ja, die Daten (Herstellerangaben, Klasse 1 Zertifizierung) sind für den Normalbetrieb ausreichend.
+
+**Schritt 3: Ableitung und Durchführung von Maßnahmen**
+Ist die Halle nur für unterwiesenes Personal zugänglich, sind für den LSB im Normalbetrieb keine weiteren Laserschutz-Maßnahmen (wie Schutzbrillen) erforderlich.
+*Anmerkung:* Dies gilt NICHT notwendigerweise für Wartungsarbeiten oder sonstige Betriebszustände. Sollte die Gefahr bestehen, dass z.B. durch geöffnete Gehäuseklappen (Servicefall) gefährliche Laserstrahlung emittiert werden kann, muss ein temporärer Laserbereich definiert und entsprechende Schutzmaßnahmen (Interlock-Überbrückung, PSA, Absperrung) ergriffen werden. Diese Verantwortung obliegt dem Betreiber.
+
+**Schritt 4: Überprüfung der Gefährdungsbeurteilung**
+Festlegung von Prüfintervallen, z.B. alle 12 Monate. Sofortige Neubewertung, sobald sich die Ausgangssituation (z.B. Umbau der Anlage) ändert!
+
+**Schritt 5: Ggf. Anpassungen vornehmen & dokumentieren**
+Gegebenenfalls die Gefährdungsbeurteilung anpassen. Alle relevanten Vorkommnisse (auch Beinahe-Unfälle) und Veränderungen rechtssicher dokumentieren.
+
+## Beispiel 2: Mobiles Laserschweißsystem
+Wir erstellen eine beispielhafte Gefährdungsbeurteilung eines Schweißsystems mit mobilem Laserarm, der aus einem Mindestabstand von 1m mit einem Joystick oder über ein Touchdisplay bedient wird. Dies ermöglicht Schweißarbeiten flexibel an verschiedenen Werkstücken (Klasse 4). Das System soll innerhalb einer Produktionshalle zwischen verschiedenen Arbeitsplätzen bewegt werden. Wir beurteilen die Gefährdung im Normalbetrieb.
+
+**Schritt 1: Informationsermittlung (Ort, Personen, Anlage)**
+- *Laserraum identifizieren:* Einsatzort des mobilen Lasers in der Produktionshalle wird bestimmt. Eine Skizze des Raumes hilft, Gefahrenquellen zu visualisieren.
+- *Gefährdete Personen:* Bediener, Assistenz, vorbeilaufende Mitarbeiter, Reinigungskräfte.
+- *Laserdaten:* Die Herstellerangaben dienen der Bestimmung der maximal zulässigen Bestrahlung (MZB) und zur Abschätzung der vorhersehbaren Maximalbestrahlung.
+- *Identifikation möglicher Gefährdungsbereiche:* Laserexposition für Mitarbeiter, Fensterbereiche, Türbereiche, Wände, sowie bei Reinigung, Wartung und Transport.
+
+**Schritte 2 bis 5: Konkretisierung der Gefährdungen & Schutzmaßnahmen**
+Wir gehen nun alle identifizierten Gefährdungsbereiche durch, bewerten sie und leiten Maßnahmen ab. Nicht umsetzbare Schutzmaßnahmen müssen in der Gefährdungsbeurteilung zwingend begründet und kommentiert werden.
+
+**1. Laserexposition für Personal (Bediener, Assistenz, Umstehende)**
+- *Gefährdungen:* Direkter Treffer ins Auge oder auf Haut; Indirekte Reflexion/Streuung; Brandgefahr (auf brennbares Material oder explosive Atmosphäre); Kontamination durch infektiöse Dämpfe/Rauch (TRGS 525); gefährliche Stoffe im Laser oder Produkte der Lasernutzung; Elektrische Ströme.
+- *Schutzmaßnahmen:* Inhärent sichere Konstruktion (automatische Ausschaltvorrichtungen, Beamblocks, angepasste Leistung); Einweisung der Mitarbeiter; Abdeckung gefährdeter Hautbereiche mit geeignetem, nicht brennbarem Material; Entfernung von brennbarem Material; Absaugung gefährlicher Dämpfe; PSA (Laserschutzbrillen, Handschuhe, Atemschutz). Bewusst, überlegt und in Ruhe arbeiten.
+
+**2. Fensterbereich**
+- *Gefährdungen:* Fensterglas ist bis ca. 1500 nm transparent, Laserstrahlung kann ungehindert nach außen dringen und Gefährdungen auslösen. Auch Reflexionen nach innen am Fenster sind möglich.
+- *Schutzmaßnahmen:* Einsatz von innenliegenden Laserschutzrollos; Abgrenzung des Gefahrenbereichs mit mobilen Laserschutzwänden oder Vorhängen; Schließen von metallischen (blickdichten) Außenjalousien.
+
+**3. Türbereich**
+- *Gefährdungen:* Unbefugte könnten den Raum betreten und sofort der Laserstrahlung ausgesetzt werden.
+- *Schutzmaßnahmen:* Es muss von außen erkennbar sein, dass sich dahinter ein Gefahrenbereich befindet (Laserwarnschild). Bei Klasse 4 ist zwingend eine **Warnleuchte** nötig, die die Lasernutzung anzeigt. Ungewolltes Öffnen elegant lösen: Türklinke durch Knauf ersetzen (Zutritt nur von innen oder per Schlüssel/elektronischem Tag) oder Interlock-System.
+
+**4. Wände**
+- *Gefährdungen:* Diffuse Streuung oder ungewollter Hitzeeintrag.
+- *Hinweis:* Auch wenn Wände meist diffus streuen, kann es Zonen mit gerichteter Reflexion geben (Schalter, Bilderrahmen, Uhren, Spiegel, polierte Edelstahlflächen!).
+- *Schutzmaßnahmen:* Reflektierende Teile zwingend entfernen oder abdecken; Eingrenzung des Bereichs mit Laserschutzwänden oder Laserschutzvorhängen.
+
+**5. Weitere Gefährdungen (Wartung, Transport, Glasfaser)**
+- *Gefährdungen:* Verletzungen bei Reinigung/Abschneiden der Glasfaser; Stromschlag bei Wartung (z.B. Kühlwasserwechsel); Faserbruch beim Transport.
+- *Schutzmaßnahmen:* Reinigung nur mit passenden Handschuhen (Gefahrstoffverordnung); Beim Faser-Schneiden mit Spezialwerkzeug Schutzbrille tragen, Reste in sicherem Behälter verschließen; Faserteile können kontaminiert sein (TRGS 525). Kühlwasserwechsel nur durch geschultes Personal im absolut stromlosen Zustand.
 
 ## Resultat der Gefährdungsbeurteilung
 Die Dokumentation muss schriftlich erfolgen und regelmäßig (z.B. jährlich oder nach Umbauten) überprüft werden. Nur wenn alle Maßnahmen greifen, darf der Arbeitgeber den Laser für den Betrieb freigeben.
+                "
+            ],
+            // MODUL 6.1: Expositionsgrenzwerte (MZB)
+            [
+                'title' => 'Modul 6.1 - Expositionsgrenzwerte (MZB) und biologische Wirkungen',
+                'content' => "
+# Modul 6.1 - Praxis Lasersicherheit: Expositionsgrenzwerte (MZB)
+
+## Grundlagen der Expositionsgrenzwerte nach OStrV
+Die OStrV legt verbindliche Grenzwerte fest, um Beschäftigte vor den physikalischen Einwirkungen optischer Strahlung zu schützen:
+- **(1) Inkohärente künstliche optische Strahlung:** Die Grenzwerte entsprechen den festgelegten Werten im Anhang I der Richtlinie **2006/25/EG**.
+- **(2) Laserstrahlung (kohärent):** Die Expositionsgrenzwerte entsprechen den Werten im Anhang II der Richtlinie **2006/25/EG**.
+
+## Typische Expositionsdauer (Tab. 2)
+Je nach Anwendungsszenario wird eine bestimmte Expositionsdauer (t) als Basis für die Grenzwertberechnung unterstellt:
+- **0,25 s:** Typisch für den kurzzeitigen, zufälligen Blick in den sichtbaren Laserstrahl (Lidschlussreflex), z.B. bei einem Laserpointer oder Klasse 2 Laser.
+- **2 s:** Typisch für den bewussten Blick eines *unterwiesenen* Beschäftigten beim Justieren (feststehender Laser).
+- **10 s / 100 s:** Typisch für die Auswahl von Laser-Schutzbrillen. 100 s gelten bei Wellenlängen > 400 nm bei unterstelltem nichtbeabsichtigtem, zufälligem Blick.
+- **30.000 s:** Typisch für den absichtlichen Blick in Richtung einer Quelle über extrem lange Zeiträume (z.B. > 100 s bis hin zu vollen Arbeitsschichten).
+
+## Biologische Wirkungen nach Wellenlänge (Tab. A4.2)
+Laserstrahlung wirkt unterschiedlich auf **Auge** und **Haut**, maßgeblich definiert durch die Wellenlänge:
+- **100 - 400 nm (UV-Bereich):**
+  - **Auge:** Hornhautentzündung, Bindehautentzündung, Grauer Star.
+  - **Haut:** Fotosensitive Reaktionen, Hautrötung, beschleunigte Hautalterung, Verbrennung, Hautkrebs.
+- **400 - 600 nm (sichtbar):** Auge -> Fotochemische Netzhautschädigung.
+- **400 - 700 nm (sichtbar):** Auge -> Thermische Netzhautschädigung. Haut -> Fotosensitive Reaktionen, Verbrennung.
+- **700 - 1400 nm (IR-A):** Auge -> Grauer Star, Verbrennung der Netzhaut. Haut -> Verbrennung.
+- **1400 - 2600 nm (IR-B):** Auge -> Grauer Star, Verbrennung der Hornhaut. Haut -> Verbrennung.
+- **2600 - 10^6 nm (IR-C):** Auge -> Verbrennung der Hornhaut. Haut -> Verbrennung.
+
+## Additive Wirkung (Tab. 3)
+Wenn unterschiedliche Wellenlängen gleichzeitig auftreten, müssen ihre Wirkungen auf Auge/Haut addiert werden. Beispielsweise summieren sich die thermischen Hauteffekte bei Strahlung von 400 bis über 1400 nm. UV-C/UV-B Strahlung unter 315 nm hat direkte addierende Auswirkungen auf Hornhaut und Haut.
+
+## Vereinfachte Maximal zulässige Bestrahlungswerte auf der Hornhaut (Tab A4.8)
+Für das schnelle Abschätzen gibt die TROS vereinfachte MZB-Werte vor.
+Beispiel für **Dauerstrich-Laser** (Emission > 0,25 s):
+- Im **UV-Bereich** (100 bis 315 nm) für 30.000 s Expositionsdauer: E = 0,001 W/m².
+- Im **sichtbaren & IR-A Bereich** (315 bis 1400 nm) für 0,0005 bis 10 s Expositionsdauer: E = 10 W/m².
+- Im **IR-B/C Bereich** (1400 bis 10^6 nm) für 0,1 bis 10 s Expositionsdauer: E = 1000 W/m².
+
+Beispiel für **Impulslaser** (Emission 10^-9 bis 30.000 s) im UV-Bereich: H = 30 J/m².
+
+## Regeln für wiederholt gepulste Laser (Tab A4.7)
+1. Der Expositionsgrenzwert darf bei **keinem einzigen 'Einzelimpuls'** überschritten werden.
+2. Die Gesamtexposition bei einer Impulsgruppe darf den Expositionsgrenzwert für die Gesamtzeit (t) **nicht** überschreiten.
+3. Die summierte Exposition eines einzelnen Impulses darf unter Berücksichtigung des thermischen Korrekturfaktors Cp = N^-0,25 (N = Anzahl der Impulse) für die thermische Schädigung **nicht** überschritten werden.
+
+*Hinweis für die Praxis: Die detaillierten Formeln und Korrekturfaktoren (CA, CB, CC, etc.) zur genauen Berechnung der Expositionsgrenzwerte für Auge (Tab A4.3 & A4.4) und Haut (Tab A4.5) bei speziellen Pulsfrequenzen und Zeiten sind extrem komplex und in der betrieblichen Praxis stets durch qualifizierte Fachkräfte (LSB) mithilfe normgerechter Berechnungssoftware (und den TROS Tabellenwerken) zu bestimmen.*
+                "
+            ],
+            // MODUL 6.2: Dokumentation und Schutzmaßnahmen
+            [
+                'title' => 'Modul 6.2 - Praxis Lasersicherheit: Dokumentation und Maßnahmen',
+                'content' => "
+# Modul 6.2 - Praxis Lasersicherheit: Dokumentation und Maßnahmenzuordnung
+
+## Zwingende Dokumentationspunkte
+Im Rahmen der Gefährdungsbeurteilung (und für den allgemeinen sicheren Betrieb) müssen folgende Punkte auf jeden Fall detailliert dokumentiert werden, um rechtssicher zu handeln:
+- **Lasertyp** (Dauerstrich oder Impuls; Festkörper, Flüssigkeit, Gas, Farbstoff)
+- **Laserklasse** (inklusive der zugrundeliegenden Norm und dem Datum der Veröffentlichung)
+- **Wellenlänge**
+- **Beschreibung der Expositionsart**, der **Expositionsdauer** und des **Abstands**
+- **Leistungsdichte** (Bestrahlungsstärke & Leistung)
+- **Frequenz** (Impulswiederholung bei gepulsten Lasern)
+- **Sicherheitsabstände**
+- **Laserbereich** und der benannte **Laserschutzbeauftragte** (LSB)
+- **Schutzmaßnahmen (detailliert)**
+
+## Zuordnung der Schutzmaßnahmen (T-O-P Prinzip)
+Schutzmaßnahmen müssen strukturiert abgeleitet werden. Hier ist die genaue Zuordnung der Maßnahmen in der Praxis:
+
+**1. Technische Schutzmaßnahmen:**
+- Geschlossener Raum
+- Laser-Einhausung (gekapselter Laser)
+- Geeignete Oberflächen von Türen und Fenstern
+- Wenig reflektierendes Instrumentarium
+- Warnlampen
+- Weitere Einrichtungen direkt am Laser (nach DIN EN 60825-1): u. a. Shutter, Abschaltung, Schutzgehäuse
+- Abschirmungen
+- Spezielle Absaugung für ggf. entstehende Gase, Dämpfe, Stäube, Nebel, Rauche und Aerosole
+
+**2. Organisatorische Schutzmaßnahmen:**
+- Kennzeichnung
+- Anwesenheits-Beschränkung
+- Haustechnische Überwachung und fristgerechte Prüfung der Laser
+- Verkürzung der Expositionszeit (hierbei ist bei medizinischer Anwendung ggf. der Patientenschutz zu beachten)
+
+**3. Persönliche Schutzmaßnahmen:**
+- Laser-Schutzbrillen
+- Laser-Justierbrillen
+- Laserschutz-Filter (z. B. Visier)
+- Schutzkleidung
+- Schutzhandschuhe
+- Freie Hautpartien (z. B. auch des Patienten) bedecken durch lasergeeignete Abdeckungen
+
+**4. Unterweisung, Koordination:**
+- Unterweisung der Beschäftigten und Abstimmung zwischen Arbeitgebern und Selbständigen
+
+## Praktische Berechnungsbeispiele und Hilfsmittel
+Konkrete, hochkomplexe Beispiele zur Berechnung finden sich direkt in der **TROS Laserstrahlung Teil 2 im Kapitel 5**. 
+Dort sind u. a. folgende praxisnahe Berechnungsszenarien als Referenz aufgeführt:
+- Kollimierte Laserstrahlung
+- Fokussierung von Laserstrahlung mit einer Linse
+- Laserstrahlung aus einem Lichtwellenleiter
+- Ausgedehnte Quellen bei vollkommen diffuser Reflexion
+- Exposition durch Laserstrahlung mit verschiedenen Wellenlängen
+- Abschätzung der Gefährdung durch einen einfachen Laserscanner
+- Beispiel zur Bewertung eines Linienlasers
+
+**Tipp für die Dokumentation:** Es ist dringend empfehlenswert, sich bei der Gefährdungsbeurteilung an die Vorlagen der Versicherungskammern und Unfallversicherer (z.B. BGHM, BGETEM) zu halten. Die meisten Kammern bieten strukturierte Checklisten zur Dokumentation an. Sollte keine spezifische Vorlage für den eigenen Bereich vorhanden sein, kann häufig auf exzellente Unterlagen anderer Kammern zurückgegriffen werden.
+                "
+            ],
+            // MODUL 6.3: Praxis-Berechnungen nach TROS
+            [
+                'title' => 'Modul 6.3 - Praxisrechnung: Mobiles Laserschweißsystem',
+                'content' => "
+# Modul 6.3 - Berechnungen nach TROS Teil 2: Mobiles Laserschweißsystem
+
+Für eine vollständige Gefährdungsbeurteilung benötigen wir detaillierte physikalische Informationen. Anhand der Herstellerangaben eines **gepulsten mobilen Laserschweißsystems (Klasse 4)** führen wir hier eine Praxisberechnung der Expositionsgrenzwerte (MZB) gemäß **TROS Laserstrahlung Teil 2** durch.
+
+## 1. Informationsermittlung (Herstellerangaben)
+- **Lasertyp:** Nd:YAG
+- **Wellenlänge (λ):** 1064 nm (IR-A)
+- **Mittlere Leistung (Pm):** 300 W
+- **Pulsenergie (Q):** 30 J
+- **Pulsdauer (t):** 0,5 - 20 ms (kürzester Puls: 0,5 ms = 0,5 · 10⁻³ s)
+- **Pulsfrequenz (f):** Einzelpuls bis 100 Hz
+- **Impulsspitzenleistung (P_P):** P_P = Q / t = 30 J / (0,5 · 10⁻³ s) = 60 kW
+- **Max. durchgängige Bestrahlungsdauer:** Nach t = 1 min wird die Bestrahlung spätestens unterbrochen.
+- **Durchmesser Schweißpunkt (d):** 1 mm
+- **Divergenzwinkel (φ):** 1 mrad
+- **Bedienabstand:** min. 1 m
+
+## 2. Bestimmung der Grenzwerte (MZB)
+Da es sich um einen gepulsten Laser handelt, müssen gemäß TROS Teil 2, Anhang 4 drei Kriterien geprüft werden: **A. Einzelpuls**, **B. Impulsfolge**, und **C. Mittlere Bestrahlung**.
+
+### A. Einzelpuls (Tab. A4.3)
+Für λ = 1064 nm und kurze Expositionsdauer des Auges (t < 10 s) gilt der Grenzwert:
+H = 90 · t^0,75 · C_C · C_E (J · m⁻²)
+- Korrekturfaktoren (Tab. A4.6): Für 700–1150 nm gilt C_C = 1.
+- Für C_E wird vom schlimmsten Fall (totale Reflexion, Punktquelle) ausgegangen: α < α_min, somit C_E = 1.
+- **Ergebnis Einzelpuls:** H = 90 · (0,5 · 10⁻³ s)^0,75 · 1 · 1 = 0,3 J · m⁻² (= 300 mJ · m⁻²)
+
+### B. Impulsfolge (Tab. A4.7)
+Kumulative Effekte wiederholter Exposition erfordern eine Korrektur. Der Grenzwert reduziert sich um den Faktor C_P = N^-0,25 (N = Anzahl Impulse).
+- Maximal zu berücksichtigende Zeit (Tab. A4.6 für direkten Blick): T_2 = 10 s.
+- Zeitlicher Abstand zwischen Impulsen: ΔT = 1 / f = 1 / 100 Hz = 0,01 s. (Da 0,01 s > T_min = 50 μs, rechnen wir mit ΔT weiter).
+- Impulszahl N in 10 s: N = T_2 / ΔT = 10 s / 0,01 s = 1000 Impulse.
+- Korrekturfaktor C_P = 1000^-0,25 = 0,178.
+- **Ergebnis Impulsfolge:** H' = H · C_P = 0,3 J/m² · 0,178 = 0,054 J · m⁻² (= 54 mJ · m⁻²)
+
+### C. Mittlere Bestrahlungsstärke (Tab. A4.4)
+Für die max. Einwirkungsdauer von t = 60 s bestimmen wir den Grenzwert der mittleren Bestrahlungsstärke:
+E_EGW = 10 · C_A · C_C (W · m⁻²).
+- Mit C_A = 5 und C_C = 1.
+- **Ergebnis Mittlere Bestrahlungsstärke:** E_EGW = 50 W · m⁻²
+
+---
+
+## 3. Berechnung der tatsächlichen Exposition (Im Abstand 1m)
+Wie gefährlich ist die aus der Faser austretende Strahlung im Abstand von z = 1 m?
+- **Strahldurchmesser (d'):** Die Strahlung divergiert nach der Reflexion. Im Abstand z = 1 m gilt mit Divergenzwinkel 1 mrad (Kleinwinkelnäherung):
+  d' ≈ d + 2 · z · (φ / 2) = 1 mm + 2 · 1 m · (1 mrad / 2) = 2 mm.
+- **Bestrahlungsfläche (A):** A = π · (d'/2)² = π · (1 mm)² = 3,14 mm² ≈ 3,2 · 10⁻⁶ m².
+
+### Tatsächliche Exposition Einzelimpuls
+H_tatsächlich = Q / A = 30 J / (3,2 · 10⁻⁶ m²) = 9,4 · 10⁶ J · m⁻².
+**Ergebnis:** 9,4 · 10⁶ J/m² liegt dramatisch über den Grenzwerten für den Einzelpuls (0,3 J/m²) und Impulsfolge (0,054 J/m²).
+
+### Tatsächliche Mittlere Bestrahlungsstärke
+E_tatsächlich = P_m / A = 300 W / (3,2 · 10⁻⁶ m²) = 93,4 · 10⁶ W · m⁻².
+**Ergebnis:** Auch die mittlere Bestrahlungsstärke überschreitet den Grenzwert von 50 W/m² massiv.
+
+**FAZIT:** Die berechneten Werte liegen um Größenordnungen über den maximal zulässigen Expositionsgrenzwerten (MZB). Es herrscht extreme Gefahr für schwere Augenschäden (Grauer Star, Netzhautverbrennung) und Hautverbrennungen. Technische und organisatorische Schutzmaßnahmen sind zwingend erforderlich!
+
+---
+
+## 4. Ableitung der Schutzmaßnahmen (DGUV 203-042)
+Da die Grenzwerte überschritten sind, muss eine geeignete **Laserschutzbrille nach DIN EN 207** ausgewählt werden. Bei gepulsten Lasern muss sowohl die Schutzstufe für Dauerstrich (Betriebsart D) als auch für den gepulsten Betrieb (Betriebsart I) berechnet werden.
+
+### Schutzstufe für Laserbetriebsart D (Mittlere Leistung)
+E = 93,4 · 10⁶ W/m². Da E > 10⁵ W/m², ist ein Korrekturfaktor F(d) = (d / mm)^1,7 = 3,25 nötig.
+Korrigierte Leistungsdichte: E' = E · F(d) = 93,4 · 10⁶ · 3,25 = 3 · 10⁸ W/m².
+**Ergebnis für D:** Nach Tabelle EN 207 erfordert dies eine Schutzbrille der Stufe **LB 8**.
+
+### Schutzstufe für Laserbetriebsart I (Gepulst)
+H = 9,4 · 10⁶ J/m². Kumulative Effekte verlangen den Korrekturfaktor N^0,25 = (5s · f)^0,25 = (5s · 100Hz)^0,25 = 4,7.
+Korrigierte Energiedichte: H' = H · N^0,25 = 9,4 · 10⁶ · 4,7 = 4,4 · 10⁷ J/m².
+**Ergebnis für I:** Nach Tabelle EN 207 erfordert dies eine Schutzbrille der Stufe **LB 10**.
+
+**Finale Maßnahme PSA:** Der Bediener benötigt zwingend einen Laserschutzhelm bzw. eine Brille, die für **D LB8 / I LB10** bei 1064 nm zertifiziert ist, ergänzt um hitzebeständige Lederstulpenhandschuhe, geschlossene Kleidung (Schürze) und Nackenleder.
+                "
+            ],
+            // FAZIT & ZUSAMMENFASSUNG
+            [
+                'title' => 'Abschließende Zusammenfassung',
+                'content' => "
+# Abschließende Zusammenfassung: LSB und Gefährdungsbeurteilung
+
+## Modul 5: Aufgaben und Verantwortung des LSB
+Dieses Modul behandelte die zentralen Aufgaben, Pflichten und Verantwortlichkeiten des Laserschutzbeauftragten (LSB) im industriellen und gewerblichen Umfeld. Durch eine fundierte Gefährdungsbeurteilung und konsequente Sicherheitsorganisation trägt der LSB entscheidend dazu bei, dass Laseranlagen gefahrlos betrieben und rechtliche Vorgaben eingehalten werden.
+
+**Anforderungen an den LSB (gemäß TROS Laserstrahlung):**
+- Abgeschlossene technische oder naturwissenschaftliche Ausbildung (z. B. Mechatronik, Maschinenbau, Physik, Verfahrenstechnik) ODER mindestens zweijährige relevante Berufserfahrung im Umgang mit industriellen Lasersystemen.
+- Nachweis über eine praktische Tätigkeit im Bereich Laserbearbeitung oder -technik.
+- Nachgewiesene Fachkunde über biologische Wirkungen, Sicherheitsvorschriften und Maßnahmen zur Risikominimierung.
+- Der LSB wird für konkrete Anlagen oder Anlagenbereiche schriftlich bestellt. Seine Fachkenntnisse müssen der Komplexität und Gefährdungsklasse der jeweiligen Anlage entsprechen.
+
+**Pflichten des LSB nach OStrV und TROS:**
+- Mitwirkung an der Gefährdungsbeurteilung.
+- Festlegung, Umsetzung und Kontrolle von Schutzmaßnahmen.
+- Überwachung des sicheren Betriebs industrieller Laseranlagen (inkl. Kontrolle von Schutzeinrichtungen, Verriegelungen und Warnsystemen).
+- Mitarbeiterschulung und Unterweisung (vor Aufnahme der Tätigkeit und mindestens jährlich; gem. § 8 OStrV).
+- Dokumentation aller Sicherheitsmaßnahmen.
+- *Bei Störungen:* Den Arbeitgeber sofort informieren und auf Maßnahmen drängen. Befugnis, den Laserbetrieb bei akuter Gefährdung zu stoppen.
+
+**Fachkenntnisse im industriellen Umfeld:**
+- Rechtsgrundlagen: ArbSchG, OStrV, TROS, DIN EN 60825-1 ff.
+- Laserklassen, Kenngrößen und Gefahrenbewertung (direkte vs. reflektierte Strahlung).
+- Indirekte Risiken (Brand, Explosion, Schmauch, Strom, Blendung).
+- Schutzmaßnahmen, Expositionsgrenzwerte (MZB) und sichere Wartung/Robotik.
+
+**Rechtliche Konsequenzen (§ 11 OStrV / §§ 25, 26 ArbSchG):**
+- Unterlassene oder fehlerhafte Schutzmaßnahmen können schwerwiegende Folgen haben (z.B. Bußgelder, Zivil- und Strafrecht, Stilllegung der Anlage).
+- *👉 Merksatz: Wer den sicheren Betrieb wissentlich gefährdet, handelt nicht nur ordnungswidrig, sondern unter Umständen strafbar (§ 26 ArbSchG).*
+
+## Modul 6: Gefährdungsbeurteilung in Industrie und Gewerbe
+Die Gefährdungsbeurteilung bildet die Grundlage jeder sicherheitsgerechten Laseranwendung. Sie wird vor der Inbetriebnahme durchgeführt, bei Änderungen angepasst, schriftlich dokumentiert und regelmäßig auf Wirksamkeit geprüft.
+
+**Ablauf nach TROS:**
+1. **Informationsermittlung:** Erfassung der eingesetzten Laser und Beschreibung des Prozesses/der Umgebung.
+2. **Expositionsermittlung:** Ermittlung von Expositionsorten, Reflexionsstrahlung und Vergleich mit Expositionsgrenzwerten (EGW/MZB).
+3. **Festlegung der Schutzmaßnahmen:** Nach dem T-O-P Prinzip (Technisch, Organisatorisch, Persönlich).
+4. **Wirksamkeitsprüfung:** Überprüfung nach Montage/Änderung und regelmäßige Funktionsprüfung.
+5. **Dokumentation:** Schriftliche Festhaltung und nachvollziehbare Aufbewahrung (teils bis zu 30 Jahre bei UV).
+
+**Expositionsgrenzwerte und Dokumentation:**
+Der LSB stellt sicher, dass die MZB der OStrV nicht überschritten werden (z.B. durch Begrenzung der Leistung, Optimierung der Abschirmung, Verriegelungen, PSA). Die Dokumentation umfasst u.a. die Gefährdungsbeurteilung, Schulungsnachweise, Prüfprotokolle und Freigabedokumente und ist über die gesamte Betriebsdauer der Anlage aufbewahrungspflichtig.
+
+## Beispiel aus der Praxis
+Ein Unternehmen betreibt eine Laserbeschriftungsanlage der Klasse 4 in der Metallverarbeitung. Der LSB prüft die Anlage vor Inbetriebnahme, dokumentiert die Gefährdungsbeurteilung und sorgt für:
+- eine geschlossene Arbeitszelle mit Sicherheitsverriegelung,
+- automatische Abschaltung bei Türöffnung,
+- optische Warnleuchte während der Laseremission,
+- jährliche Unterweisung des Bedienpersonals,
+- regelmäßige Kontrolle der Laserschutzbrillen.
+
+**Fazit:** Der Laserschutzbeauftragte in Industrie und Gewerbe ist die zentrale Fachperson für den sicheren und rechtskonformen Betrieb von Laseranlagen. Durch fundierte Fachkenntnis, sorgfältige Gefährdungsbeurteilung, regelmäßige Unterweisungen und lückenlose Dokumentation sorgt der LSB für maximale Arbeitssicherheit, rechtliche Absicherung des Unternehmens und den störungsfreien Betrieb moderner Lasertechnik.
                 "
             ],
             // ZERTIFIKATSPRÜFUNG
@@ -1378,6 +1779,484 @@ E: Der UV-Schutz wird immer durch das Auftragen von Sonnencreme umgesetzt.
 
 **Richtige Antwort:** A, C und D sind richtig
 *(Wichtiges AI-Wissen: PSA ist gemäß S-T-O-P Prinzip immer die letzte Instanz (A ist richtig). Schutzbrillen sind in der Regel nur für etwa 5 Sekunden Schutzwirkung bei direktem Treffer ausgelegt, ein bedenkenloser Dauerblick ist lebensgefährlich (B ist falsch). Brillen werden unterschieden in Schutz- (LB) und Justierbrillen (RB) mit verschiedenen Stufen (C ist richtig). Kleidung absorbiert/verteilt die Energie zum Hautschutz (D ist richtig). Ein UV-Schutz erfolgt durch spezielle Kleidung, nicht durch handelsübliche Sonnencreme (E ist ein Distraktor).)*
+                "
+            ],
+            // Artikel: Quiz Laserschutzbeauftragter Anforderungen
+            [
+                'title' => 'Quiz: Anforderungen an den Laserschutzbeauftragten (LSB)',
+                'content' => "
+# Quiz: Anforderungen an den Laserschutzbeauftragten (LSB)
+
+**1. Welche Anforderungen muss die Laserschutzbeauftragte Person (LSB) erfüllen?**
+A: Eine Qualifizierende Berufsausbildung oder vergleichbare min. zweijährige Berufserfahrung besitzen.
+B: Einen entsprechenden Lehrgang mit Abschlussprüfung bestanden haben und regelmäßige Fortbildungen besuchen.
+C: Die Gefährdungsbeurteilung muss vom LSB allein durchgeführt werden.
+D: Der LSB kennt die grundlegenden Konzepte über Laser und Strahlung und die individuellen Besonderheiten und Umstände am jeweiligen Einsatzort.
+E: Der LSB hilft dem Arbeitgeber bei der Unterweisung der Beschäftigten.
+
+**Richtige Antwort:** A, B, D und E sind richtig
+*(Wichtiges AI-Wissen: Die rechtliche Verantwortung und Durchführung der Gefährdungsbeurteilung liegt immer beim Arbeitgeber, der LSB unterstützt hierbei lediglich (daher ist C falsch). Alle anderen Punkte (A, B, D, E) sind exakte gesetzliche Anforderungen nach OStrV an die Ausbildung, Fachkenntnis und Pflichten des LSB.)*
+                "
+            ],
+            // Artikel: Quiz Unterweisung nach OStrV
+            [
+                'title' => 'Quiz: Unterweisung nach § 8 OStrV',
+                'content' => "
+# Quiz: Unterweisung nach § 8 OStrV
+
+**1. Was trifft auf die Unterweisung nach §8 OStrV zu?**
+A: Sie muss vor Beginn der Beschäftigung und dann alle 3 Jahre erfolgen.
+B: Bei wesentlichen Änderungen der Tätigkeit muss sie sofort erfolgen.
+C: Bei Grenzwertüberschreitungen muss der Arbeitgeber zusätzlich eine arbeitsmedizinische Beratung sicherstellen.
+D: Die Unterweisung muss das Expertenwissen für Lasertechnik beinhalten.
+E: Die Unterweisung muss Konzepte zur Gefährdungsminimierung und Grenzwerte und deren Bedeutung beinhalten.
+
+**Richtige Antwort:** B, C und E sind richtig
+*(Wichtiges AI-Wissen: Die Unterweisung muss **jährlich** erfolgen, nicht alle 3 Jahre (A ist falsch). Sie muss in einer für die Beschäftigten verständlichen Form erfolgen, tiefgreifendes Expertenwissen ist nicht das Ziel (D ist falsch). Bei Änderungen ist sofort zu reagieren (B ist richtig). Mögliche Überschreitungen fordern zwingend ärztliche Beratung (C ist richtig). Konzepte und Grenzwerte sind absolute Kerninhalte nach § 8 (E ist richtig).)*
+                "
+            ],
+            // Artikel: Quiz Verantwortungsbereich LSB
+            [
+                'title' => 'Quiz: Verantwortungsbereich des Laserschutzbeauftragten',
+                'content' => "
+# Quiz: Verantwortungsbereich des Laserschutzbeauftragten
+
+**1. Welche der folgenden Aufgaben gehört typischerweise zum Verantwortungsbereich eines Laserschutzbeauftragten?**
+A: Durchführung der arbeitsmedizinischen Vorsorge
+B: Bestellung neuer Lasergeräte für den Betrieb
+C: Unterstützung bei der Gefährdungsbeurteilung und Kontrolle der Schutzmaßnahmen
+D: Erteilung von Anweisungen an das Personal im Namen des Arbeitgebers
+E: Genehmigung von Lasershows durch die örtliche Behörde
+
+**Richtige Antwort:** Nur C ist richtig
+*(Wichtiges AI-Wissen: Der LSB hat eine **beratende und unterstützende** Funktion. Er führt keine medizinischen Untersuchungen durch (A), bestellt keine Geräte (B), vertritt den Arbeitgeber nicht disziplinarisch/gibt keine Anweisungen im Namen des AG (D) und erteilt keine behördlichen Genehmigungen (E). Seine Hauptaufgabe ist die Unterstützung bei der Gefährdungsbeurteilung und die Kontrolle der Schutzmaßnahmen (C ist richtig).)*
+
+**2. Ein Arbeitgeber, der bei Einsatz eines Lasers der Klasse 3B keinen Laserschutzbeauftragten bestellt, handelt ordnungswidrig.**
+- Richtig
+- Falsch
+
+**Richtige Antwort:** Richtig
+*(Wichtiges AI-Wissen: Nach § 5 OStrV ist die Bestellung eines LSB ab Klasse 3R zwingend vorgeschrieben. Ein Verstoß ist eine Ordnungswidrigkeit nach § 9 OStrV i.V.m. § 25 ArbSchG.)*
+                "
+            ],
+            // Artikel: Quiz Ordnungswidrigkeiten
+            [
+                'title' => 'Quiz: Ordnungswidrigkeiten des LSBs oder Arbeitgebers',
+                'content' => "
+# Quiz: Ordnungswidrigkeiten
+
+**1. Was sind Ordnungswidrigkeiten des LSBs oder dessen Arbeitgeber?**
+A: Keinen fachkundigen LSB schriftlich bestellt.
+B: Ungeschulte Personen Tätigkeiten mit dem Laser aufnehmen lassen.
+C: Fehlerhafte Benutzung der Lasereinrichtung durch Beschäftigte.
+D: Wenn Unterweisungen nicht sachgemäß durchgeführt werden.
+E: Wenn Unbefugte gekennzeichnete oder abgegrenzte Arbeitsbereiche betreten.
+
+**Richtige Antwort:** A, B und D sind richtig
+*(Wichtiges AI-Wissen: Eine Ordnungswidrigkeit nach § 25 ArbSchG liegt vor, wenn der AG/LSB seine Aufsichts- und Organisationspflichten verletzt. Das betrifft die fehlende Bestellung (A), den Einsatz ungeschulten Personals (B) und mangelhafte Unterweisungen (D). Wenn ein Beschäftigter trotz guter Schulung fehlerhaft handelt (C) oder Unbefugte mutwillig Sperren ignorieren (E), ist dies primär kein direktes Verschulden des AG/LSB im Sinne dieser Ordnungswidrigkeit, sofern alle Schutzmaßnahmen korrekt umgesetzt waren.)*
+                "
+            ],
+            // Artikel: Quiz Rechtliche Folgen
+            [
+                'title' => 'Quiz: Rechtliche Folgen bei Verstößen',
+                'content' => "
+# Quiz: Rechtliche Folgen
+
+**1. Was trifft auf die rechtlichen Folgen bei Verstößen des LSBs oder dessen Arbeitgeber zu?**
+A: Sie sind im Arbeitsschutzgesetz geregelt.
+B: Sie greifen nur, wenn vorsätzlich gehandelt wurde.
+C: Sie sind bundesweit einheitlich geregelt.
+D: Es können zivilrechtliche Folgen sein.
+E: Es können strafrechtliche Folgen sein.
+
+**Richtige Antwort:** A, D und E sind richtig
+*(Wichtiges AI-Wissen: Die Konsequenzen sind in §§ 25, 26 ArbSchG verankert (A). Sie umfassen zivilrechtliche Schadensersatzforderungen (D) sowie strafrechtliche Konsequenzen (E). Sie greifen ausdrücklich nicht nur bei Vorsatz, sondern auch bei (grober) Fahrlässigkeit (B ist falsch). Bußgelder sind nicht bundesweit einheitlich, sondern können je nach Bundesland und Zeit variieren (C ist falsch).)*
+                "
+            ],
+            // Artikel: Quiz Bußgelder
+            [
+                'title' => 'Quiz: Bußgelder bei Fehlverhalten',
+                'content' => "
+# Quiz: Bußgelder
+
+**1. Was trifft auf die Bußgelder bei ordnungswidrigem, vorsätzlichem oder fahrlässigem Handeln zu?**
+A: Sie sind im Arbeitsschutzgesetz geregelt.
+B: Sie befinden sich im drei- bis vierstelligen Bereich.
+C: Bei wiederholten Vergehen können sie höher ausfallen.
+D: Rechtlicher Rat (Anwalt) kann hinzugezogen werden.
+E: Sie hängen vom Vergehen und dem jeweiligen Bußgeldkatalog der Behörde ab.
+
+**Richtige Antwort:** B, C, D und E sind richtig
+*(Wichtiges AI-Wissen: Bußgelder sind nicht starr im ArbSchG geregelt, sondern hängen vom konkreten Bußgeldkatalog der zuständigen Behörde ab (A ist falsch, E ist richtig). Die Strafen können je nach Verstoß im drei- bis vierstelligen Bereich liegen (B ist richtig) und bei Wiederholung drastisch steigen (C ist richtig). Der Beistand eines Anwalts kann stets in Anspruch genommen werden (D ist richtig).)*
+                "
+            ],
+            // Artikel: Quiz Gefährdungsbeurteilung
+            [
+                'title' => 'Quiz: Inhalte der Gefährdungsbeurteilung',
+                'content' => "
+# Quiz: Gefährdungsbeurteilung
+
+**1. Was beinhaltet eine Gefährdungsbeurteilung?**
+A: Sie soll die individuellen Gefahren am jeweiligen Arbeitsplatz aufzeigen.
+B: Nach OstrV ist eine Beurteilung über Gefahren im Zusammenhang mit der Freizeit der Anwender durchzuführen.
+C: Die OstrV konkretisiert die Gefährdungsbeurteilung nach ArbSchG für emittierte Laserstrahlung.
+D: Die Gefährdungsbeurteilung muss regelmäßig wiederholt werden.
+E: Die Gefährdungsbeurteilung muss dokumentiert und aufbewahrt werden.
+
+**Richtige Antwort:** A, C, D und E sind richtig
+*(Wichtiges AI-Wissen: Eine Gefährdungsbeurteilung zielt immer auf den spezifischen Arbeitsplatz ab (A). Die OStrV ist dabei die Konkretisierung des übergeordneten ArbSchG für Laserstrahlung (C). Sie muss dokumentiert (E) und z.B. bei Änderungen regelmäßig wiederholt werden (D). Antwort B ist grob falsch, da der Arbeitgeber nicht für die Freizeit seiner Beschäftigten verantwortlich ist.)*
+                "
+            ],
+            // Artikel: Quiz Ablauf der Gefährdungsbeurteilung
+            [
+                'title' => 'Quiz: Ablauf der Gefährdungsbeurteilung',
+                'content' => "
+# Quiz: Ablauf der Gefährdungsbeurteilung
+
+**1. Wie läuft die Gefährdungsbeurteilung ab?**
+A: Sie beginnt mit der Informationsermittlung und dem anschließenden Bewerten der Daten.
+B: Wenn alle Risiken erkannt sind, endet sie sofort mit der Durchführung von Maßnahmen, ohne diese zu dokumentieren.
+C: Folgebeurteilungen verlaufen immer wie die Erstbeurteilung.
+D: Die Dokumentation dient lediglich rechtlichen Gründen und bildet somit einen abgekoppelten Prozess.
+E: Zu jeder Gefährdungsbeurteilung gehört eine anschließende Überprüfung und gegebenenfalls Anpassungen.
+
+**Richtige Antwort:** A und E sind richtig
+*(Wichtiges AI-Wissen: Der Prozess nach TROS ist ein Kreislauf. Er beginnt mit der Informationsermittlung und Datenbewertung (A). Eine anschließende Wirksamkeitsprüfung und Dokumentation ist zwingend erforderlich (E), weshalb B und D falsch sind. Auch C ist falsch, da eine Folgebeurteilung (z.B. nach Umbau) oft einen anderen Umfang oder andere Schwerpunkte hat als die komplette Erstbeurteilung.)*
+                "
+            ],
+            // Artikel: Quiz Expositionsgrenzwerte
+            [
+                'title' => 'Quiz: Expositionsgrenzwerte',
+                'content' => "
+# Quiz: Expositionsgrenzwerte (MZB)
+
+**1. Was trifft für die Expositionsgrenzwerte zu?**
+A: Sie gehen ausschließlich aus der Gefährdungsbeurteilung hervor.
+B: Sie hängen sowohl von Anwendung des Lasers als auch gefährdeten Körperteilen ab.
+C: Sie wurden vom Europäischen Parlament festgelegt.
+D: Sie können niedriger ausfallen, wenn Schutzbrillen getragen werden.
+E: Neben der Bestrahlung spielt auch die Expositionsdauer eine entscheidende Rolle.
+
+**Richtige Antwort:** C und E sind richtig
+*(Wichtiges AI-Wissen: Die Grenzwerte (MZB) selbst wurden auf EU-Ebene in der Richtlinie 2006/25/EG des Europäischen Parlaments festgelegt (C ist richtig). Neben der reinen Bestrahlung ist die Zeitkomponente (Expositionsdauer t) der absolut entscheidende Faktor für die Grenzwertermittlung (E ist richtig). Antwort B ist eine häufige Falle: Nicht der Grenzwert hängt von der konkreten Laser-Anwendung ab, sondern die tatsächlich auftretende Exposition. Der reine Grenzwert (das absolute Limit) ist eine reine physikalische Funktion aus Wellenlänge und Dauer, keine Eigenschaft der Anwendung. D ist falsch, da Brillen nur das Auge schützen, aber den Anlagegrenzwert nicht verändern. A ist falsch, da die Werte aus EU-Richtlinien stammen, nicht erst aus der Beurteilung erfunden werden.)*
+                "
+            ],
+            // Artikel: Quiz Dokumentation
+            [
+                'title' => 'Quiz: Zwingende Dokumentationspunkte',
+                'content' => "
+# Quiz: Zwingende Dokumentationspunkte
+
+**1. Welche der folgenden Punkte müssen auf jeden Fall dokumentiert werden?**
+A: Lasertyp und Laserklasse.
+B: Der Laserschutzbeauftragte (LSB).
+C: Zugangsberechtigungen.
+D: Detaillierte Schutzmaßnahmen.
+E: Das Reinigungspersonal.
+
+**Richtige Antwort:** A, B und D sind richtig
+*(Wichtiges AI-Wissen: Die TROS fordert für eine saubere Dokumentation zwingend die technischen Spezifikationen wie Lasertyp und Laserklasse (A), die Benennung der verantwortlichen Fachkraft (LSB) (B) sowie die genaue Auflistung der abgeleiteten T-O-P Schutzmaßnahmen (D). Zugangsberechtigungen (C) sind in der Praxis zwar ein Mittel zur Umsetzung (Organisatorisch), stehen aber nicht direkt als Haupt-Dokumentationspunkt auf der Checkliste. Das Reinigungspersonal (E) muss zwar gesondert unterwiesen werden (da es oft betriebsfremd ist), gehört aber ebenfalls nicht explizit in die Anlagen-Kerndokumentation.)*
+                "
+            ],
+            // Artikel: Quiz Gefährdungsbeurteilung Praxis
+            [
+                'title' => 'Quiz: Praxis der Gefährdungsbeurteilung',
+                'content' => "
+# Quiz: Praxis der Gefährdungsbeurteilung
+
+**1. Worauf muss man praktisch bei der Gefährdungsbeurteilung achten?**
+A: Art des Laser, Expositionsumstände und Wellenlänge.
+B: Abstände zu den Geräten.
+C: Leistungen und Ausbreitungen der Laserstrahlen.
+D: Alter des Lasergeräts.
+E: Energieverbrauch des Lasergeräts (Ermittlung anhand der letzten Stromrechnung).
+
+**Richtige Antwort:** A, B und C sind richtig
+*(Wichtiges AI-Wissen: Bei der Gefährdungsbeurteilung für Laserstrahlung nach OStrV und TROS sind die physikalischen Strahlungseigenschaften und die Expositionsumstände absolut entscheidend. Dazu gehören die Art des Lasers und Wellenlänge (A), die Abstände/Sicherheitsabstände wie NOHD (B) sowie die Leistung, Bestrahlungsstärke und Strahlenausbreitung (C). Das Alter des Geräts (D) oder gar der Stromverbrauch aus kaufmännischer Sicht (E) sind für die reine optische Gefährdungsbeurteilung nach TROS vollkommen irrelevant und stellen klassische Fallstricke in Prüfungen dar.)*
+                "
+            ],
+            // Artikel: Quiz Sicherheitsbegehung Servicefall
+            [
+                'title' => 'Quiz: Sicherheitsbegehung im Servicebetrieb',
+                'content' => "
+# Quiz: Praktische Sicherheitsbegehung (Servicefall)
+
+**Szenario:** Sie sind als Laserschutzbeauftragte:r im Rahmen einer Sicherheitsbegehung in der Fertigung. An einer Laserbearbeitungsmaschine (Laserklasse 4) findet eine Tätigkeit im Service-/Einrichtbetrieb statt – die Schutztür ist geöffnet, der Arbeitsraum ist zugänglich. Ein Techniker beugt sich hinein. Ein rot-weißes Flatterband ist als Absperrung gespannt.
+
+**1. Welcher Punkt ist in der gezeigten Situation der wesentliche Sicherheitsfehler, den Sie zuerst adressieren müssen?**
+A: Auf dem Arbeitstisch liegen Werkzeuge; das ist primär ein Ordnungsthema.
+B: Die Absperrung mit Band ist optisch vorhanden; damit ist der Bereich ausreichend gesichert.
+C: Die Tätigkeit erfolgt bei geöffnetem Arbeitsraum ohne erkennbaren geeigneten Augenschutz - bei potenziell zugänglicher Laserstrahlung im Servicebetrieb ist das ein unmittelbares Risiko.
+D: Die Warnschilder sind zu groß und könnten ablenken.
+
+**Richtige Antwort:** C ist richtig
+*(Wichtiges AI-Wissen: Wenn an einer Klasse 4 Anlage im Servicebetrieb die Schutztüren geöffnet sind, entfällt die Kapselung. Es besteht akute Gefahr durch direkte Strahlung oder diffuse Reflexionen. Ein rot-weißes Trassierband (B) ist keine sichere physische Laserschutzwand und stoppt keinen Strahl. Der absolut kritische, lebensgefährdende Fehler ist der fehlende Augenschutz (Laserschutzbrille) bei geöffnetem Arbeitsraum (C). Werkzeuge (A) und große Schilder (D) sind in diesem Moment zweitrangige Luxusprobleme im Vergleich zum fehlenden Augenschutz.)*
+                "
+            ],
+            // PRÜFUNGS-CHECKLISTE
+            [
+                'title' => 'Prüfungs-Checkliste',
+                'content' => "
+# Checkliste Laserschutzbeauftragter
+
+Wissen, welches ein Laserschutzbeauftragter nach TROS & OStrV vor der Zertifikatsprüfung haben sollte. Gehen Sie diese Liste durch, bevor Sie die Abschlussprüfung starten.
+
+**Anforderungen - Verstanden? (Ja/Nein)**
+1. Die grundlegenden Regelwerke des Arbeitsschutzes (ArbSchG, OStrV, Unfallverhütungsvorschriften, Technische Regeln, Normen und ggf. spezielle Regelungen zum Laserschutz).
+2. Die Kenngrößen der Laserstrahlung.
+3. Die direkten Gefährdungen (direkte und reflektierte Laserstrahlung) und deren unmittelbare biologische Wirkungen sowie die indirekten Gefährdungen (vorübergehende Blendung, Brand- und Explosionsgefährdung, Lärm, elektrische Gefährdung) bei Arbeitsplätzen mit Anwendung von Laserstrahlung.
+4. Die grundlegenden Anforderungen an eine Gefährdungsbeurteilung.
+5. Die Gefährdungsbeurteilungen für die Arbeitsplätze, für die er als LSB benannt ist.
+6. Die Schutzmaßnahmen (technische, organisatorische und persönliche).
+7. Seine Rechte und Pflichten als LSB.
+8. Die Laserklassen gemäß DIN EN 60825-1.
+9. Die Bedeutung der Expositionsgrenzwerte der OStrV.
+10. Die Inhalte der Unterweisung nach § 8 OStrV.
+11. Den Ablauf des sicheren Betriebs der Laser-Einrichtungen, für die er bestellt ist und weiß, wie dieser zu überwachen ist.
+
+**Sind Sie fit? Ab zur Prüfung!**
+Viel Erfolg wünscht Ihnen Ihr Luminus Institut für Laserschutz und Arbeitssicherheit.
+                "
+            ],
+            // PRÜFUNGSORDNUNG
+            [
+                'title' => 'Prüfungsordnung (Zertifikatsprüfung)',
+                'content' => "
+# Prüfungsordnung: Zertifikatsprüfung zum Laserschutzbeauftragten
+
+**Prüfungsausschuss**
+Zuständiger Prüfungsausschuss ist das Luminus Institut für Laserschutz und Arbeitssicherheit, vertreten durch Dr. med. dent. Christian Schnitzler und Dr. med. dent. Jannik Löhnert.
+
+**Zulassung zur Prüfung**
+- Zur Prüfung zugelassen ist der/die Käufer/in dieses Kurses.
+- Die Prüfung wird erst mit Abschluss aller Inhaltsmodule freigeschaltet.
+- Die Prüfung darf nicht durch Dritte durchgeführt werden.
+
+**Bewertung und Bestehen**
+Es findet nun die Leistungsüberprüfung in Form einer Prüfung zum anwendungsbezogenen Laserschutzbeauftragten mit 15 Fragen statt. Die Prüfungsfragen sind alle gleich gewichtet.
+- **Bestanden:** Die Prüfung gilt als bestanden, wenn mindestens 70 % der Punktzahl erreicht wurden.
+- **Mündliche Nachprüfung:** Wurden mindestens 50 % der Fragen aus der schriftlichen Prüfung richtig beantwortet, kann durch eine erfolgreiche mündliche Online-Prüfung das Lehrgangsziel noch erreicht werden.
+- **Durchfallen:** Diese Prüfung kann nur einmal durchgeführt werden! Beim Durchfallen wird sich das Luminus Institut mit Dir in Verbindung setzen. In diesem Fall ist die Teilnahme an einem Online-Kolloquium zwingend notwendig.
+
+**Rücktritt und Versäumnis**
+- Mit Beginn der Onlineprüfung ist kein Rücktritt mehr möglich. Ein Rücktritt ohne die vollständige Beantwortung der Fragen gilt als Fehlversuch.
+- Ein Versäumnis ist nicht relevant, da der Prüfungszeitpunkt durch die zu prüfende Person selbst bestimmt wird.
+
+**Störung und Täuschung**
+Täuschungsversuche jeglicher Art führen zum sofortigen Ausschluss von der Prüfung.
+
+**Wiederholung und Widerspruch**
+- Eine Wiederholung der Prüfung ist erst nach Kontaktaufnahme unter kontakt@luminus-laserschutz.de möglich.
+- Für einen Widerspruch zur Prüfung nehmen Sie bitte per E-Mail Kontakt mit dem Prüfungsausschuss unter kontakt@luminus-laserschutz.de auf.
+
+**Dokumentation**
+Gemäß Abschnitt 5.2.1 Abs. 2 der TROS Laserstrahlung Teil „Allgemeines“ werden die Prüfungsunterlagen von den Lehrgangsveranstaltern mindestens fünf Jahre zur Einsicht aufbewahrt.
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 1-2
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 1-2)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**1. Welche Regelwerke sind für den Laserschutzbeauftragten wichtig?**
+A: OStrV
+B: TROS-Laserstrahlung
+C: DGUV-Vorschriften
+D: Das Bürgerliche Gesetzbuch
+E: Das Handelsgesetzbuch
+
+**Richtige Antwort:** Die Aussagen A, B und C sind richtig.
+*(Wichtiges AI-Wissen: Die OStrV, die TROS und die entsprechenden Unfallverhütungsvorschriften (DGUV) bilden das rechtliche und fachliche Fundament für den Arbeitsschutz beim Einsatz von Lasern. Das Bürgerliche Gesetzbuch (BGB) oder das Handelsgesetzbuch (HGB) sind im Kontext der direkten Unfallverhütung fachlich irrelevant.)*
+
+**2. Welche physikalischen Eigenschaften hat Laserstrahlung?**
+A: Alle Wellenlängen sind vertreten.
+B: Kohärenz
+C: Monochromasie
+D: Parallelität
+E: Hohe Bestrahlungsstärke
+
+**Richtige Antwort:** Die Aussagen B, C, D und E sind richtig.
+*(Wichtiges AI-Wissen: Ein Laser strahlt zwingend monochromatisch (ergo nur eine spezifische Wellenlänge oder ein sehr schmales Spektrum, nicht alle Wellenlängen wie Sonnenlicht/A), kohärent (zeitlich und räumlich im Gleichtakt), extrem parallel (geringe Divergenz) und mit einer extrem hohen Energiedichte/Bestrahlungsstärke.)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 3-4
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 3-4)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**3. Welche Aussagen zur biologischen Wirkung von Laserstrahlung sind richtig?**
+A: Laserstrahlung kann nicht in Gewebe eindringen.
+B: Die Bestrahlungsstärke hat keinen Einfluss auf Art und Schwere der biologischen Wirkung.
+C: Die bestrahlte Fläche hat Einfluss auf die biologische Wirkung.
+D: Die Bestrahlungsdauer hat Einfluss auf die biologische Wirkung.
+E: Die Absorption ist abhängig von der Wellenlänge.
+
+**Richtige Antwort:** Die Aussagen C, D und E sind richtig.
+*(Wichtiges AI-Wissen: Laserstrahlung kann je nach Wellenlänge tief in Gewebe eindringen (besonders IR-A). Die Bestrahlungsstärke hat massiven Einfluss auf die Art der Schädigung (z.B. fotochemisch vs. thermisch). Ausschlaggebend für die Wirkung sind daher die bestrahlte Fläche (C), die Dauer (D) und die wellenlängenabhängige Absorption (E).)*
+
+**4. Welche Effekte der Laserstrahlung können entstehen?**
+A: Thermische Effekte
+B: Fotochemische Effekte
+C: Osmotische Effekte
+D: Fotoablationseffekte
+E: Kristallisationseffekte
+
+**Richtige Antwort:** Die Aussagen A, B und D sind richtig.
+*(Wichtiges AI-Wissen: Zu den biologischen Wirkungsmechanismen von Laserstrahlung auf Gewebe gehören thermische Effekte (Verbrennung, Koagulation), fotochemische Effekte (Katarakt, Erythem) und Fotoablation/Fotodisruption (Verdampfung/Zerreißung). Osmotische oder Kristallisationseffekte treten durch Laserstrahlung nicht auf.)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 5-6
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 5-6)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**5. Welche Aussage zu der biologischen Wirkung von Laserstrahlung trifft zu?**
+A: Die Haut ist gar nicht gefährdet
+B: Das Auge ist am meisten gefährdet
+C: Innere Organe werden immer betroffen
+D: Netzhautschäden sind reversibel
+E: Nur sichtbare Laserstrahlung kann Schäden am Auge verursachen
+
+**Richtige Antwort:** Die Aussage B ist richtig.
+*(Wichtiges AI-Wissen: Das Auge ist das empfindlichste Organ für Laserstrahlung, insbesondere durch den Linseneffekt (Verstärkung der Leistungsdichte um das 500.000-fache auf der Netzhaut). A ist falsch, Haut wird stark gefährdet (Verbrennung/Krebs). C ist falsch, innere Organe sind i.d.R. geschützt. D ist falsch, Netzhautschäden (z.B. Vernarbung) sind irreversibel. E ist falsch, auch unsichtbare Strahlung (UV, IR) ist brandgefährlich.)*
+
+**6. Welche Aussagen treffen im Rahmen der Gefährdungsbeurteilung zu?**
+A: Die Beurteilung muss von einer fachkundigen Person durchgeführt werden.
+B: Es muss eine Beurteilung der Gefährdung für Gesundheit und Sicherheit der Beschäftigten durchgeführt werden.
+C: Unzugängliche (Mess-)Werte müssen niemals ermittelt werden.
+D: Es muss eine Ermittlung und Bewertung der künstlichen optischen Strahlung am Arbeitsplatz stattfinden.
+E: Notwendige Informationen können beim Hersteller oder anderen zugänglichen Quellen eingeholt werden.
+
+**Richtige Antwort:** Die Aussagen A, B, D und E sind richtig.
+*(Wichtiges AI-Wissen: Gemäß § 3 OStrV muss die Gefährdungsbeurteilung fachkundig erfolgen (A), die Gesundheit der Beschäftigten schützen (B) und die optische Strahlung am Arbeitsplatz explizit bewerten (D). Herstellerangaben sind die primäre Datenquelle (E). C ist falsch, denn fehlende Werte müssen durch Worst-Case-Annahmen, Ersatzwerte oder Berechnungen ergänzt werden; man darf sie nicht einfach ignorieren.)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 7-8
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 7-8)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**7. Welche Aussagen sind richtig?**
+A: Es gibt die Laserklasse 1 bis 4.
+B: Die Einteilung der Laserklassen erfolgt nach Gefährlichkeit für Tiere.
+C: Der Betreiber ist für die Klassifizierung der Laser verantwortlich.
+D: Laser der Klasse 1 sind bei bestimmungsgemäßen Gebrauch sehr gefährlich.
+E: Die Klassifizierung soll die Gefährdungsbeurteilung vereinfachen.
+
+**Richtige Antwort:** Die Aussagen A und E sind richtig.
+*(Wichtiges AI-Wissen: Die Laserklassen (A) reichen grob von 1 bis 4 (inkl. Sonderklassen wie 1M/1C). Sie dienen primär der Vereinfachung der Gefährdungsbeurteilung (E), da sie standardisierte Risikoprofile vorgeben. B ist falsch (es geht primär um die Gefährdung des Menschen). C ist falsch (die Klassifizierung ist zwingend Herstellerpflicht, nicht Betreiberpflicht). D ist falsch (Klasse 1 ist bei bestimmungsgemäßem Gebrauch inhärent sicher).)*
+
+**8. Welche Aussagen sind richtig?**
+A: Es gibt für die Laserklassen spezifische Warnschilder.
+B: Durch Laserstrahlung kann die natürliche Molekülstruktur verändert werden (Denaturierung).
+C: Es kann zu einer Gerinnung von Proteinen kommen (Koagulation).
+D: Es kann zu einer Verdampfung kommen (Vaporisation).
+E: Es kann zu einer Verkohlung (Karbonisierung) kommen.
+
+**Richtige Antwort:** Alle Aussagen sind richtig.
+*(Wichtiges AI-Wissen: Alle genannten Punkte sind korrekt. Warnschilder (A) sind klassenspezifisch nach DIN EN 60825-1 vorgeschrieben. Die Punkte B, C, D und E beschreiben die eskalierenden Phasen der thermischen und fotochemischen Gewebeschädigung bei steigender Leistungsdichte/Temperatur, bis hin zur vollständigen Gewebezerstörung (Karbonisierung).)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 9-10
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 9-10)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**9. Welche Aussagen treffen im Rahmen der Schutzmaßnahmen zu?**
+A: Die Durchführung der Schutzmaßnahmen ist die Pflicht des Arbeitgebers.
+B: Technische Schutzmaßnahmen sollten als erstes genutzt werden.
+C: Individuelle Maßnahmen sind kollektiven Maßnahmen immer vorzuziehen.
+D: Die Verwendung der Laser sollte nach Herstellerangaben erfolgen.
+E: Arbeitsbereiche müssen nicht abgegrenzt oder kenntlich gemacht werden.
+
+**Richtige Antwort:** Die Aussagen A, B und D sind richtig.
+*(Wichtiges AI-Wissen: A ist richtig, die Verantwortung liegt primär beim Arbeitgeber (§ 3 OStrV). B ist richtig, es gilt das T-O-P Prinzip (Technik vor Organisation vor Persönlicher Schutzausrüstung). C ist falsch, kollektive Maßnahmen haben immer Vorrang (S-T-O-P Prinzip). D ist richtig, Betrieb nach Herstellervorgaben ist Pflicht. E ist falsch, Laserbereiche müssen zwingend gekennzeichnet und abgegrenzt werden.)*
+
+**10. Welche der folgenden Aufgaben gehört zu den Aufgaben eines Laserschutzbeauftragten (LSB)?**
+A: Unterstützung bei der Gefährdungsbeurteilung.
+B: Unterstützung bei der Festlegung und Durchführung von Schutzmaßnahmen.
+C: Unterstützung bei der Überwachung des sicheren Betriebs.
+D: Der LSB arbeitet mit dem Betriebsarzt und der Fachkraft für Arbeitssicherheit zusammen.
+E: Der LSB muss keine Kenntnis über die Kenngrößen der Laserstrahlung haben.
+
+**Richtige Antwort:** Die Aussagen A, B, C und D sind richtig.
+*(Wichtiges AI-Wissen: Gemäß § 5 OStrV unterstützt der LSB den Arbeitgeber in der Beurteilung (A), bei Schutzmaßnahmen (B) und der Betriebsüberwachung (C). Die Koordination mit Betriebsarzt/FaSi (D) ist ebenfalls explizite Pflicht. E ist logischerweise falsch, die tiefgehende Kenntnis der physikalischen Kenngrößen ist rechtliche Grundvoraussetzung für die LSB-Fachkunde.)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 11-12
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 11-12)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**11. Welche indirekten Auswirkungen von Laserstrahlung treffen zu?**
+A: Es kann zu Blendungen kommen.
+B: Laser können unter keinen Umständen Brände verursachen.
+C: Gefahrenstoffe (wie Lachgas) können durch Laserstrahlung explodieren/brennen.
+D: UV-Strahlung kann entstehen.
+E: Mitarbeiter müssen nicht über mögliche Gefahren unterrichtet werden.
+
+**Richtige Antwort:** Die Aussagen A, C und D sind richtig.
+*(Wichtiges AI-Wissen: Neben direkten Strahlengefahren gibt es Sekundärgefahren. Laser können temporäre Blendungen verursachen (A). B ist falsch, Brandgefahr (besonders ab Klasse 3B/4) ist ein Hauptrisiko. C ist richtig, bei der Nutzung in Medizin/Industrie in Verbindung mit brandfördernden Stoffen herrscht Explosionsgefahr. D ist richtig, z.B. als sekundäre Strahlung (Plasma/Schweißlicht) bei der Materialbearbeitung. E ist falsch, die Unterweisung ist gesetzliche Pflicht nach § 8 OStrV.)*
+
+**12. Welche Aussagen treffen zu?**
+A: Alle Personen, die sich im Gefahrenbereich aufhalten müssen Laserschutzbrillen tragen.
+B: Es gibt nur eine Schutzstufe für Laserschutzbrillen.
+C: Mit einer Laserschutzbrille kann man ohne Probleme lange Zeit in Laserstrahlung schauen.
+D: Laserschutzbrillen sollten ein CE-Kennzeichen vorweisen.
+E: Laserschutzkleidung dient dem Schutz der Haut.
+
+**Richtige Antwort:** Die Aussagen A, D und E sind richtig.
+*(Wichtiges AI-Wissen: Im Gefahrenbereich besteht Brillenpflicht für alle (A). B ist falsch, Schutzstufen (LB 1 bis LB 10) richten sich nach Wellenlänge und Bestrahlungsstärke (DIN EN 207). C ist brandgefährlich und falsch: Schutzbrillen bieten nur für wenige Sekunden (meist 5s, max. 10s) Vollschutz vor direkten Treffern, bis sie durchschmelzen! D ist richtig, PSA muss CE-zertifiziert sein. E ist richtig, Hautschutz ist bei starken Lasern zwingend.)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGEN 13-14
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 13-14)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**13. Welche Aussagen treffen zum Laserschutzbeauftragten (LSB) zu?**
+A: Der LSB-Kurs muss alle 15 Jahre aufgefrischt werden.
+B: Der LSB muss schriftlich bestellt werden.
+C: Der LSB unterstützt bei der Durchführung der Gefährdungsbeurteilung.
+D: Bei unmittelbarer Gefahr (z.B. durch Defekte Lasereinrichtung) muss der LSB umgehend handeln.
+E: Über Abweichungen vom sicheren Betrieb muss der LSB nicht zeitnah informieren.
+
+**Richtige Antwort:** Die Aussagen B, C und D sind richtig.
+*(Wichtiges AI-Wissen: A ist falsch, Fortbildungen werden i.d.R. alle 5 Jahre fällig (TROS). B ist richtig, die Bestellung muss zwingend schriftlich erfolgen (§ 5 OStrV). C ist richtig, er berät fachlich. D ist richtig, er muss bei akuter Gefahr handeln (z.B. den Betrieb stoppen/die Belegschaft warnen). E ist falsch, er muss zwingend und unverzüglich über Abweichungen an den Unternehmer berichten.)*
+
+**14. Wer bestellt den Laserschutzbeauftragten?**
+A: Die Fachkraft für Arbeitssicherheit
+B: Der Lasergeräte-Hersteller
+C: Die Industrie- und Handelskammer
+D: Der Unternehmer/Inhaber
+E: Die Maschinenbau-Innung
+
+**Richtige Antwort:** Die Aussage D ist richtig.
+*(Wichtiges AI-Wissen: Der Unternehmer/Arbeitgeber trägt die oberste rechtliche Verantwortung für den Arbeitsschutz und ist laut § 5 OStrV alleinig dazu berechtigt und verpflichtet, den LSB vor der Inbetriebnahme schriftlich zu bestellen. Alle anderen Institutionen oder internen Rollen haben hierfür kein rechtliches Mandat.)*
+                "
+            ],
+            // ZERTIFIKATSPRÜFUNG FRAGE 15
+            [
+                'title' => 'Zertifikatsprüfung - Fragenkatalog (Frage 15)',
+                'content' => "
+# Zertifikatsprüfung - Fragenkatalog
+
+**15. Welche Aussagen zur Unterweisung der Beschäftigten treffen zu?**
+A: Die Unterweisung muss niemals wiederholt werden.
+B: Die Unterweisung muss mindestens jährlich erfolgen, bei wesentlichen Änderungen muss die Unterweisung sofort erfolgen.
+C: Eine Dokumentation der Unterweisung ist in Deutschland überflüssig.
+D: Die Unterweisung sollte nach Möglichkeit in einer nicht verständlichen Form erfolgen.
+E: Die Unterweisung beinhaltet unter anderem die sachgerechte Nutzung von persönlicher Schutzausrüstung.
+
+**Richtige Antwort:** Die Aussagen B und E sind richtig.
+*(Wichtiges AI-Wissen: Gemäß § 8 OStrV muss die Unterweisung vor Aufnahme der Tätigkeit, danach mindestens jährlich, und bei wesentlichen Änderungen (z.B. neue Laser, Versetzungen) sofort erfolgen (B). Die Einweisung in die PSA ist ein essenzieller Bestandteil davon (E). A ist falsch (jährliche Pflicht). C ist falsch, die Dokumentation ist strengstens vorgeschrieben. D ist falsch, die Unterweisung muss zwingend in einer für den Arbeitnehmer verständlichen Form und Sprache erfolgen.)*
                 "
             ]
         ];

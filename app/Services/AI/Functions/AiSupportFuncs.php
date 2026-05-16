@@ -146,36 +146,33 @@ trait AiSupportFuncs
             ],
             [
                 'name' => 'support_mark_needs_employee',
-                'description' => 'Achtung: Darf niemals sofort ausgelöst werden! Zeige dem Kunden erst eine Zusammenfassung: Warum braucht er einen Mitarbeiter? Frage ihn: "Soll ich das als Ticket für dich an unser Team einreichen?". Sobald er mit Ja antwortet, rufe das Tool mit confirmed_by_customer=true auf.',
+                'description' => 'Achtung: Darf niemals sofort ausgelöst werden! Zeige dem Kunden erst eine Zusammenfassung: Warum braucht er einen Mitarbeiter? Frage ihn: "Soll ich das als Ticket für dich an unser Team einreichen?". Sobald er mit Ja antwortet, rufe das Tool mit confirmed_by_customer=true auf. WICHTIG: Übergebe zwingend eine analytische Zusammenfassung und das Hauptthema!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'escalation_reason' => ['type' => 'string'],
-                        'confirmed_by_customer' => ['type' => 'boolean']
+                        'confirmed_by_customer' => ['type' => 'boolean'],
+                        'top_topic' => ['type' => 'string', 'description' => 'Kurzes Hauptthema (z.B. "Rücksendung", "Lieferzeit")'],
+                        'mentioned_product' => ['type' => 'string', 'description' => 'Das primär besprochene Produkt, falls zutreffend'],
+                        'ai_summary' => ['type' => 'string', 'description' => 'Kurze analytische Zusammenfassung des Chat-Verlaufs für den Mitarbeiter']
                     ],
-                    'required' => ['escalation_reason', 'confirmed_by_customer']
+                    'required' => ['escalation_reason', 'confirmed_by_customer', 'top_topic', 'ai_summary']
                 ],
                 'callable' => [self::class, 'executeNeedsEmployee']
             ],
             [
                 'name' => 'support_resolve_chat',
-                'description' => 'Schließt das Support-Gespräch final ab.',
-                'parameters' => ['type' => 'object', 'properties' => new \stdClass()],
-                'callable' => [self::class, 'executeResolveChat']
-            ],
-            [
-                'name' => 'support_record_analytics',
-                'description' => 'Speichert KI Support Analysen.',
+                'description' => 'Schließt das Support-Gespräch final ab. WICHTIG: Du musst zwingend eine kurze analytische Zusammenfassung, das Hauptthema und (falls vorhanden) das Fokusprodukt übergeben!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'top_topic' => ['type' => 'string'],
-                        'mentioned_product' => ['type' => 'string'],
-                        'ai_summary' => ['type' => 'string']
+                        'top_topic' => ['type' => 'string', 'description' => 'Kurzes Hauptthema (z.B. "Produktanfrage", "Rabattcode")'],
+                        'mentioned_product' => ['type' => 'string', 'description' => 'Das primär besprochene Produkt, falls zutreffend'],
+                        'ai_summary' => ['type' => 'string', 'description' => 'Kurze analytische Zusammenfassung des Chat-Verlaufs']
                     ],
                     'required' => ['top_topic', 'ai_summary']
                 ],
-                'callable' => [self::class, 'executeRecordAnalytics']
+                'callable' => [self::class, 'executeResolveChat']
             ],
             [
                 'name' => 'support_get_invoice_link',
@@ -352,7 +349,11 @@ trait AiSupportFuncs
 
             if ($newScore >= 100) {
                 // Den Chat komplett auflösen und schließen
-                \App\Models\Support\SupportCustomerChat::where('id', $chatId)->update(['status' => 'resolved_auto']);
+                \App\Models\Support\SupportCustomerChat::where('id', $chatId)->update([
+                    'status' => 'resolved_auto',
+                    'top_topic' => 'Spam / Offtopic / Troll',
+                    'ai_summary' => "Der Chat wurde durch die KI zwangsweise geschlossen. Der Kunde hat fortwährend unangebrachte oder Offtopic-Nachrichten gesendet und damit das Ausdauer-Limit (Score: {$newScore}/100) erreicht."
+                ]);
                 return [
                     'status' => 'success',
                     'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Da unser Ausdauer-Limit von 100 Punkten durch wiederholte Abweichungen vom Thema erreicht wurde, habe ich diesen Support-Chat nun endgültig geschlossen. Ich bitte um Verständnis, dass ich ausschließlich für Produkt- und Bestellsupport zur Verfügung stehe."'
@@ -583,7 +584,12 @@ trait AiSupportFuncs
                     ];
                 }
 
-                $chat->update(['status' => 'needs_employee']);
+                $chat->update([
+                    'status' => 'needs_employee',
+                    'top_topic' => mb_substr($args['top_topic'] ?? 'Eskalation', 0, 100),
+                    'mentioned_product' => mb_substr($args['mentioned_product'] ?? '', 0, 100) ?: null,
+                    'ai_summary' => $args['ai_summary'] ?? $reason
+                ]);
                 if ($customerId) {
                     $ticket = SupportTicket::create([
                         'ticket_number' => 'TCK-' . strtoupper(\Illuminate\Support\Str::random(8)),
@@ -620,7 +626,12 @@ trait AiSupportFuncs
         try {
             $chatId = $args['__chat_id'] ?? null;
             if ($chatId) {
-                SupportCustomerChat::where('id', $chatId)->update(['status' => 'resolved']);
+                SupportCustomerChat::where('id', $chatId)->update([
+                    'status' => 'resolved',
+                    'top_topic' => mb_substr($args['top_topic'] ?? 'Allgemein', 0, 100),
+                    'mentioned_product' => mb_substr($args['mentioned_product'] ?? '', 0, 100) ?: null,
+                    'ai_summary' => $args['ai_summary'] ?? ''
+                ]);
                 return [
                     'status' => 'success',
                     'message' => 'SYSTEM-DIREKTIVE: Gib folgenden Text exakt so aus: "Wunderbar! Ich schließe diesen Chat-Bereich nun ab. Es wäre mir eine riesige Freude, wenn du mir eine ehrliche Bewertung für unsere Unterhaltung da lässt!"'
@@ -630,25 +641,6 @@ trait AiSupportFuncs
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
             return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Chat Fehler ('{$e->getMessage()}')."];
-        }
-    }
-
-    public static function executeRecordAnalytics(array $args)
-    {
-        try {
-            $chatId = $args['__chat_id'] ?? null;
-            if ($chatId) {
-                SupportCustomerChat::where('id', $chatId)->update([
-                    'top_topic' => mb_substr($args['top_topic'] ?? 'Allgemein', 0, 100),
-                    'mentioned_product' => mb_substr($args['mentioned_product'] ?? '', 0, 100) ?: null,
-                    'ai_summary' => $args['ai_summary'] ?? ''
-                ]);
-                return ['status' => 'success', 'message' => 'HINTERGRUND-INFO FÜR KI: Analysedaten gesichert. Du darfst in deinem eigenen Ermessen weiter antworten.'];
-            }
-            return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Konnte nicht gesichert werden, Chat ID fehlt.'];
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('AiSupportFuncs Fehler: ' . $e->getMessage());
-            return ['status' => 'error', 'message' => "HINTERGRUND-INFO FÜR KI: Fehler ('{$e->getMessage()}')."];
         }
     }
 
