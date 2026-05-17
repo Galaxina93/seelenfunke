@@ -135,71 +135,28 @@ class AiWidget extends Component
     {
         $filePathStr = is_array($file_path) ? ($file_path['file_path'] ?? $file_path[0] ?? '') : $file_path;
         
-        $node = \App\Models\System\SystemNeuralNode::where('file_path', $filePathStr)->first();
-        
-        // Fallback: Wenn die Datei existiert, aber nicht in der DB ist (weil Command nicht lief)
-        if (!$node && \Illuminate\Support\Facades\File::exists(base_path($filePathStr))) {
-            $methods = [];
-            if (str_ends_with($filePathStr, '.php') && !str_ends_with($filePathStr, '.blade.php')) {
-                $content = file_get_contents(base_path($filePathStr));
-                preg_match_all('/(?:public|protected|private)\s+(?:static\s+)?function\s+([a-zA-Z0-9_]+)\s*\(/', $content, $mMatches);
-                if (!empty($mMatches[1])) {
-                    $methods = $mMatches[1];
-                }
-            }
-
-            $dependencies = [];
-            $jsonPath = storage_path('app/public/system-brain-map.json');
-            if (\Illuminate\Support\Facades\File::exists($jsonPath)) {
-                $graph = json_decode(file_get_contents($jsonPath), true);
-                if (isset($graph['links'])) {
-                    foreach ($graph['links'] as $link) {
-                        $source = is_array($link['source']) ? ($link['source']['id'] ?? '') : $link['source'];
-                        $target = is_array($link['target']) ? ($link['target']['id'] ?? '') : $link['target'];
-                        
-                        if ($source === $filePathStr && !empty($target)) {
-                            $dependencies[] = basename($target);
-                        } elseif ($target === $filePathStr && !empty($source)) {
-                            $dependencies[] = basename($source);
-                        }
-                    }
-                    $dependencies = array_values(array_unique($dependencies));
-                    sort($dependencies);
-                }
-            }
-
-            $node = new \App\Models\System\SystemNeuralNode([
-                'file_path' => $filePathStr,
-                'name' => basename($filePathStr),
-                'group_id' => 1,
-                'content_hash' => md5_file(base_path($filePathStr)),
-                'dependencies' => $dependencies,
-                'methods' => $methods,
-            ]);
-        }
-        
-        if ($node) {
-            try {
-                $indexer = new \App\Livewire\Backend\System\SystemNeuralAnalysisIndex();
-                $indexer->createMarkdown($node);
-                
-                $safeName = str_replace(['/', '\\'], '_', $node->file_path);
-                $fullPath = storage_path("app/public/agenten/workspace/md/Struktur_" . $safeName . ".md");
-
+        try {
+            $markdownPath = \App\Livewire\Backend\System\SystemNeuralAnalysisIndex::generateMarkdownForFile($filePathStr);
+            
+            if ($markdownPath) {
+                $node = \App\Models\System\SystemNeuralNode::where('file_path', $filePathStr)->first();
                 $this->dispatch('ai-speech-feedback', text: "Struktur generiert. Download startet.");
                 $this->dispatch('neural-structure-success', path: "Download gestartet");
                 
+                $safeName = str_replace(['/', '\\'], '_', $filePathStr);
                 $url = asset("storage/agenten/workspace/md/Struktur_" . $safeName . ".md");
-                $this->dispatch('trigger-download', url: $url, filename: 'Struktur_' . basename($node->file_path) . '.md');
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Fehler beim Generieren der Struktur: " . $e->getMessage());
-                $this->dispatch('ai-speech-feedback', text: "Fehler beim Erstellen der Struktur.");
+                $filename = 'Struktur_' . basename($filePathStr) . '.md';
+                
+                $this->dispatch('trigger-download', url: $url, filename: $filename);
+            } else {
+                \Illuminate\Support\Facades\Log::info("Knoten nicht gefunden oder erzeugbar. file_path war: " . json_encode($filePathStr));
+                $this->dispatch('ai-speech-feedback', text: "Knoten konnte nicht generiert werden.");
                 $this->dispatch('neural-structure-error', message: "Fehler beim Erstellen.");
             }
-        } else {
-            \Illuminate\Support\Facades\Log::info("Knoten nicht gefunden. file_path war: " . json_encode($filePathStr));
-            $this->dispatch('ai-speech-feedback', text: "Knoten nicht in der Datenbank gefunden.");
-            $this->dispatch('neural-structure-error', message: "Nicht gefunden");
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Fehler beim Generieren der Struktur: " . $e->getMessage());
+            $this->dispatch('ai-speech-feedback', text: "Fehler beim Erstellen der Struktur.");
+            $this->dispatch('neural-structure-error', message: "Fehler beim Erstellen.");
         }
     }
 

@@ -155,9 +155,39 @@ class AIFunctionsRegistry
             return call_user_func($callable, $mergedArgs, $agent);
         } catch (\Throwable $e) {
             Log::error("AI Function Execution Error: " . $e->getMessage());
+            
+            $errorMessage = 'Error executing function: ' . $e->getMessage();
+            
+            try {
+                $markdownPath = null;
+                if (class_exists(\App\Livewire\Backend\System\SystemNeuralAnalysisIndex::class)) {
+                    $markdownPath = \App\Livewire\Backend\System\SystemNeuralAnalysisIndex::generateMarkdownForFile($e->getFile());
+                }
+
+                try {
+                    $email = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                    $body = "Das KI-Werkzeug '{$name}' ist abgestürzt.\n\nFehler-Details:\n" . $e->getMessage() . "\n\n" . ($markdownPath ? "Die neuronale Struktur der fehlerhaften Datei liegt im Anhang bei." : "Die Dateistruktur konnte nicht generiert werden.");
+                    $attachments = $markdownPath ? [$markdownPath] : [];
+                    $agentName = $agent ? $agent->name : 'System';
+                    
+                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail("SYSTEM-NOTFALL: Tool-Absturz ({$name})", $body, $agentName, $attachments));
+                    
+                    $errorMessage .= "\n\n[SYSTEM-INFO: Ein Fehlerbericht " . ($markdownPath ? "inklusive der Dateistruktur " : "") . "wurde bereits automatisch an den Administrator gesendet. Du musst keine weitere E-Mail schreiben!]";
+                } catch (\Exception $mailErr) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send AI tool fallback email: " . $mailErr->getMessage());
+                    // Fallback, wenn die Mail nicht rausging
+                    if ($markdownPath) {
+                        $errorMessage .= "\n\n[SYSTEM-INFO: Eine Struktur-Analyse der fehlerhaften Datei wurde generiert. Sie liegt unter: {$markdownPath}.]";
+                    }
+                }
+            } catch (\Throwable $mdError) {
+                Log::error("Failed to generate neural structure for error reporting: " . $mdError->getMessage());
+                $errorMessage .= "\n\n[SYSTEM-INFO: Die Struktur-Analyse der fehlerhaften Datei konnte nicht erstellt werden: " . $mdError->getMessage() . "]";
+            }
+
             return [
                 'error' => true,
-                'message' => 'Error executing function: ' . $e->getMessage()
+                'message' => $errorMessage
             ];
         }
     }
