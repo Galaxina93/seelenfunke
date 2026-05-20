@@ -11,7 +11,7 @@ Route::prefix('funki/routine')->group(function () {
     // 1. Get all routines with steps
     Route::get('/', function () {
         $routines = ManagementDayRoutine::with(['steps' => function($q) {
-            $q->orderBy('sort_order', 'asc');
+            $q->orderBy('position', 'asc');
         }])
         ->where('is_active', true)
         ->orderBy('start_time', 'asc')
@@ -71,10 +71,10 @@ Route::prefix('funki/routine')->group(function () {
 
         $step = ManagementDayRoutineStep::create([
             'id' => Str::uuid(),
-            'routine_id' => $routine->id,
+            'day_routine_id' => $routine->id,
             'title' => $data['title'],
             'duration_minutes' => $data['duration_minutes'],
-            'sort_order' => $routine->steps()->max('sort_order') + 1
+            'position' => $routine->steps()->max('position') + 1
         ]);
 
         return response()->json(['success' => true, 'data' => $step]);

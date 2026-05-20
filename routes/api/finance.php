@@ -3,10 +3,11 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
-use App\Models\Accounting\FinanceGroup;
-use App\Models\Accounting\FinanceCostItem;
-use App\Models\Accounting\FinanceSpecialIssue;
-use App\Models\Accounting\FinanceCategory;
+use Illuminate\Support\Facades\Storage;
+use App\Models\Accounting\AccountingGroup;
+use App\Models\Accounting\AccountingCostItem;
+use App\Models\Accounting\AccountingSpecialIssue;
+use App\Models\Accounting\AccountingCategory;
 use App\Models\Order\OrderOrder;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -19,12 +20,18 @@ Route::get('/funki/financials/kpis', function (Request $request) {
     $month = $now->month;
     $year = $now->year;
 
-    $groups = FinanceGroup::with('items')->where('admin_id', $adminId)->get();
+    $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
     $fixedIncome = 0;
     $fixedExpenses = 0;
     foreach ($groups as $group) {
         foreach ($group->items as $item) {
-            $startMonth = $item->first_payment_date->month;
+            if (!$item->first_payment_date) continue;
+            try {
+                $firstPaymentDate = Carbon::parse($item->first_payment_date);
+                $startMonth = $firstPaymentDate->month;
+            } catch (\Exception $e) {
+                continue;
+            }
             $interval = $item->interval_months ?: 1;
             $diff = ($month - $startMonth);
             if ($diff < 0) $diff += 12;
@@ -35,7 +42,7 @@ Route::get('/funki/financials/kpis', function (Request $request) {
         }
     }
 
-    $specialIssues = FinanceSpecialIssue::where('admin_id', $adminId)
+    $specialIssues = AccountingSpecialIssue::where('admin_id', $adminId)
         ->whereYear('execution_date', $year)
         ->whereMonth('execution_date', $month)
         ->get();
@@ -63,18 +70,18 @@ Route::get('/funki/financials/kpis', function (Request $request) {
 });
 
 Route::get('/funki/financials/categories', function (Request $request) {
-    return FinanceProductCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
+    return AccountingCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
 });
 
 Route::delete('/funki/financials/categories/{name}', function (Request $request, $name) {
     $decodedName = urldecode($name);
 
-    $deleted = FinanceProductCategory::where('admin_id', $request->user()->id)
+    $deleted = AccountingCategory::where('admin_id', $request->user()->id)
         ->where('name', $decodedName)
         ->delete();
 
     if ($deleted) {
-        FinanceSpecialIssue::where('admin_id', $request->user()->id)
+        AccountingSpecialIssue::where('admin_id', $request->user()->id)
             ->where('category', $decodedName)
             ->update(['category' => 'Sonstiges']);
     }
@@ -96,7 +103,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
 
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
 
-    $issue = FinanceSpecialIssue::create([
+    $issue = AccountingSpecialIssue::create([
         'id' => Str::uuid(),
         'admin_id' => $request->user()->id,
         'title' => $data['title'],
@@ -122,7 +129,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     }
 
     if (!empty($data['category'])) {
-        $cat = FinanceProductCategory::firstOrCreate(
+        $cat = AccountingCategory::firstOrCreate(
             ['admin_id' => $request->user()->id, 'name' => $data['category']],
             ['usage_count' => 0]
         );
@@ -132,49 +139,18 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     return response()->json(['success' => true, 'entry' => $issue]);
 });
 
-Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
-    $issue = FinanceSpecialIssue::findOrFail($id);
-
-    $data = $request->validate([
-        'title' => 'required|string',
-        'amount' => 'required',
-        'category' => 'required|string',
-        'execution_date' => 'required|date',
-        'is_business' => 'required'
-    ]);
-
-    $issue->update([
-        'title' => $data['title'],
-        'amount' => (float)str_replace(',', '.', $data['amount']),
-        'category' => $data['category'],
-        'execution_date' => $data['execution_date'],
-        'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
-    ]);
-
-    // Wenn neue Dateien im Multipart-Request hochgeladen wurden
-    if ($request->hasFile('file')) {
-        $existingPaths = $issue->file_paths ?? [];
-        foreach ($request->file('file') as $file) {
-            $existingPaths[] = $file->store('buchhaltung/financial/receipts', 'public');
-        }
-        $issue->update(['file_paths' => $existingPaths]);
-    }
-
-    return response()->json(['success' => true]);
-});
-
 Route::get('/funki/financials/variable', function (Request $request) {
     // Wir lesen das Limit aus der URL, Standard ist 50
     $limit = $request->query('limit', 50);
 
-    return FinanceSpecialIssue::where('admin_id', $request->user()->id)
+    return AccountingSpecialIssue::where('admin_id', $request->user()->id)
         ->orderBy('execution_date', 'desc')
         ->take($limit)
         ->get();
 });
 
 Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
-    $issue = FinanceSpecialIssue::findOrFail($id);
+    $issue = AccountingSpecialIssue::findOrFail($id);
 
     $data = $request->validate([
         'title' => 'required|string',
@@ -216,12 +192,12 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
 });
 
 Route::delete('/funki/financials/variable/{id}', function ($id) {
-    FinanceSpecialIssue::destroy($id);
+    AccountingSpecialIssue::destroy($id);
     return response()->json(['success' => true]);
 });
 
 Route::get('/funki/financials/fixed', function (Request $request) {
-    return FinanceGroup::with('items')
+    return AccountingGroup::with('items')
         ->where('admin_id', $request->user()->id)
         ->orderBy('position')
         ->get();
@@ -233,9 +209,9 @@ Route::post('/funki/financials/groups', function (Request $request) {
         'type' => 'required|in:expense,income'
     ]);
 
-    $position = FinanceGroup::where('admin_id', $request->user()->id)->max('position') + 1;
+    $position = AccountingGroup::where('admin_id', $request->user()->id)->max('position') + 1;
 
-    $group = FinanceGroup::create([
+    $group = AccountingGroup::create([
         'id' => Str::uuid(),
         'admin_id' => $request->user()->id,
         'name' => $data['name'],
@@ -245,9 +221,9 @@ Route::post('/funki/financials/groups', function (Request $request) {
     return response()->json(['success' => true, 'group' => $group]);
 });
 
-// NEU: Gruppe löschen (Nur wenn leer)
+// Gruppe löschen (Nur wenn leer)
 Route::delete('/funki/financials/groups/{id}', function (Request $request, $id) {
-    $group = FinanceGroup::with('items')->where('admin_id', $request->user()->id)->findOrFail($id);
+    $group = AccountingGroup::with('items')->where('admin_id', $request->user()->id)->findOrFail($id);
     if ($group->items->count() > 0) {
         return response()->json(['error' => 'Gruppe enthält noch Kostenstellen.'], 400);
     }
@@ -255,7 +231,7 @@ Route::delete('/funki/financials/groups/{id}', function (Request $request, $id) 
     return response()->json(['success' => true]);
 });
 
-// NEU: Gruppen neu anordnen
+// Gruppen neu anordnen
 Route::put('/funki/financials/groups/reorder', function (Request $request) {
     $data = $request->validate([
         'groups' => 'required|array',
@@ -264,7 +240,7 @@ Route::put('/funki/financials/groups/reorder', function (Request $request) {
     ]);
 
     foreach ($data['groups'] as $groupData) {
-        FinanceGroup::where('id', $groupData['id'])
+        AccountingGroup::where('id', $groupData['id'])
             ->where('admin_id', $request->user()->id)
             ->update(['position' => $groupData['position']]);
     }
@@ -284,9 +260,9 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
 
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
 
-    $item = FinanceCostItem::create([
+    $item = AccountingCostItem::create([
         'id' => Str::uuid(),
-        'finance_group_id' => $data['finance_group_id'],
+        'accounting_group_id' => $data['finance_group_id'],
         'name' => $data['name'],
         'amount' => $amount,
         'interval_months' => (int)$data['interval_months'],
@@ -298,7 +274,7 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
 });
 
 Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id) {
-    $item = FinanceCostItem::findOrFail($id);
+    $item = AccountingCostItem::findOrFail($id);
 
     $data = $request->validate([
         'name' => 'required|string',
@@ -317,7 +293,7 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
         'first_payment_date' => $data['first_payment_date'],
         'description' => $data['description'],
         'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
-        'finance_group_id' => $data['finance_group_id'] ?? $item->finance_group_id
+        'accounting_group_id' => $data['finance_group_id'] ?? $item->accounting_group_id
     ]);
 
     // Datei-Update Logik
@@ -336,6 +312,6 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
 });
 
 Route::delete('/funki/financials/fixed-item/{id}', function ($id) {
-    FinanceCostItem::destroy($id);
+    AccountingCostItem::destroy($id);
     return response()->json(['success' => true]);
 });

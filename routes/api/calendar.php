@@ -29,7 +29,8 @@ Route::prefix('funki/calendar')->group(function () {
                 'category' => $ev->category ?? 'general',
                 'description' => $ev->description,
                 'recurrence' => 'none',
-                'reminder_minutes' => $ev->reminder_minutes
+                'reminder_minutes' => $ev->reminder_minutes,
+                'priority' => $ev->priority ?? 'low'
             ]);
         }
 
@@ -66,7 +67,8 @@ Route::prefix('funki/calendar')->group(function () {
                     'category' => $tmpl->category ?? 'general',
                     'description' => $tmpl->description,
                     'recurrence' => $tmpl->recurrence,
-                    'reminder_minutes' => $tmpl->reminder_minutes
+                    'reminder_minutes' => $tmpl->reminder_minutes,
+                    'priority' => $tmpl->priority ?? 'low'
                 ]);
 
                 switch ($tmpl->recurrence) {
@@ -89,7 +91,8 @@ Route::prefix('funki/calendar')->group(function () {
             'category' => 'nullable|string',
             'description' => 'nullable|string',
             'recurrence' => 'nullable|string',
-            'reminder_minutes' => 'nullable|integer'
+            'reminder_minutes' => 'nullable|integer',
+            'priority' => 'nullable|string'
         ]);
 
         $event = ManagementCalendarEvent::create([
@@ -101,7 +104,8 @@ Route::prefix('funki/calendar')->group(function () {
             'category' => $data['category'] ?? 'general',
             'description' => $data['description'] ?? null,
             'recurrence' => (isset($data['recurrence']) && $data['recurrence'] === 'none') ? null : ($data['recurrence'] ?? null),
-            'reminder_minutes' => $data['reminder_minutes'] ?? null
+            'reminder_minutes' => $data['reminder_minutes'] ?? null,
+            'priority' => $data['priority'] ?? 'low'
         ]);
 
         return response()->json(['success' => true, 'data' => $event]);
@@ -123,7 +127,8 @@ Route::prefix('funki/calendar')->group(function () {
             'category' => 'nullable|string',
             'description' => 'nullable|string',
             'recurrence' => 'nullable|string',
-            'reminder_minutes' => 'nullable|integer'
+            'reminder_minutes' => 'nullable|integer',
+            'priority' => 'nullable|string'
         ]);
 
         $event->update([
@@ -134,7 +139,8 @@ Route::prefix('funki/calendar')->group(function () {
             'category' => $data['category'] ?? 'general',
             'description' => $data['description'] ?? null,
             'recurrence' => (isset($data['recurrence']) && $data['recurrence'] === 'none') ? null : ($data['recurrence'] ?? null),
-            'reminder_minutes' => $data['reminder_minutes'] ?? null
+            'reminder_minutes' => $data['reminder_minutes'] ?? null,
+            'priority' => $data['priority'] ?? 'low'
         ]);
 
         return response()->json(['success' => true, 'data' => $event]);
