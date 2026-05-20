@@ -96,10 +96,16 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/accounting/receipt', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+        if (!$path) {
             abort(404);
         }
-        return response()->file(storage_path('app/' . $path));
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return response()->file(storage_path('app/' . $path));
+        }
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            return response()->file(storage_path('app/public/' . $path));
+        }
+        abort(404);
     })->name('admin.accounting.receipt.show');
     
     Route::get('/admin/invoices', \App\Livewire\Shop\Accounting\AccountingInvoice::class)->name('admin.invoices');

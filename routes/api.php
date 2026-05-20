@@ -80,6 +80,35 @@ Route::get('/flights', function (\Illuminate\Http\Request $request) {
     }
 });
 
+// --- Secure File View for Mobile App (allows query parameter token authentication) ---
+Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $request) {
+    $tokenString = $request->query('token');
+    if ($tokenString) {
+        $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($token && $token->tokenable) {
+            $user = $token->tokenable;
+            $request->setUserResolver(fn() => $user);
+        }
+    }
+
+    if (!$request->user() && !$request->user('sanctum')) {
+        abort(401, 'Unauthorized');
+    }
+
+    $path = $request->query('path');
+    if (!$path) {
+        abort(404, 'Path missing');
+    }
+
+    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+        return response()->file(storage_path('app/' . $path));
+    }
+    if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        return response()->file(storage_path('app/public/' . $path));
+    }
+    abort(404, 'File not found');
+});
+
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 
