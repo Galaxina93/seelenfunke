@@ -35,6 +35,7 @@ class AiAgent extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'is_in_chat' => 'boolean',
+        'tts_enabled' => 'boolean',
         'telegram_allowed_chat_ids' => 'array',
     ];
 

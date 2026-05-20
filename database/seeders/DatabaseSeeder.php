@@ -54,10 +54,10 @@ class DatabaseSeeder extends Seeder
             AiCompanyStructureSeeder::class,
 
             // DEAKTIVIEREN BEI LIVEGANG
+            /*FinancialDataSeeder::class,*/
             /*OrdersTableSeeder::class,*/
             /*ProductReviewSeeder::class,*/
             /*GamificationTestSeeder::class,*/
-            /*FinancialDataSeeder::class,*/
             /*BankTransactionTestSeeder::class,*/
             /*OrderShoppingCartSeeder::class,*/
 

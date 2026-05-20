@@ -70,7 +70,17 @@ Route::get('/funki/financials/kpis', function (Request $request) {
 });
 
 Route::get('/funki/financials/categories', function (Request $request) {
-    return AccountingCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
+    $categories = AccountingCategory::where('admin_id', $request->user()->id)->orderBy('usage_count', 'desc')->pluck('name');
+    if ($categories->isEmpty()) {
+        return [
+            "Fitness", "Werbung & Marketing", "Software & Lizenzen", "Verpackungen", 
+            "Rohmaterial", "Wareneinkauf", "Arbeitsmaterial", "Sprit", "Haushalt", 
+            "Kind", "Steuer", "Schmutzwasser", "Nahrungsmittel", "Feiertage", 
+            "Sonstiges", "Auto", "Technik", "Friseur", "Geschenk", "Kleidung", 
+            "Kosmetik", "Gesundheit", "Freizeit", "Glücksspiel"
+        ];
+    }
+    return $categories;
 });
 
 Route::delete('/funki/financials/categories/{name}', function (Request $request, $name) {
@@ -157,7 +167,8 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
         'amount' => 'required',
         'category' => 'required|string',
         'execution_date' => 'required|date',
-        'is_business' => 'required'
+        'is_business' => 'required',
+        'location' => 'nullable|string'
     ]);
 
     // Basis-Daten aktualisieren
@@ -167,6 +178,7 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
         'category' => $data['category'],
         'execution_date' => $data['execution_date'],
         'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
+        'location' => $data['location'] ?? null,
     ]);
 
     // DATEI-LOGIK FIX:
