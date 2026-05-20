@@ -9,6 +9,7 @@
     # LARAVEL REVERB WEBSOCKET PROXY
     # Leitet alles von der Subdomain an den Reverb-Port 6001 weiter
     # -----------------------------------------------------
+    # Laravel Reverb Routing
     RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
     RewriteCond %{HTTP:Upgrade} websocket [NC]
     RewriteRule ^(.*)$ ws://a-iurgq8:6001/$1 [P,L]
