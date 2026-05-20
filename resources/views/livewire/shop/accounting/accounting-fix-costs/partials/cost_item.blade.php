@@ -45,7 +45,7 @@
     </div>
 
     <div class="text-left sm:text-right mt-3 sm:mt-0 w-full sm:w-auto">
-        <div class="font-mono font-bold text-xl whitespace-nowrap {{ $item->amount > 0 ? 'text-emerald-400 drop-shadow-[0_0_8px_currentColor]' : ($item->amount < 0 ? 'text-red-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500') }}">{{ number_format($item->amount, 2, ',', '.') }}€ </div>
+        <div class="font-mono font-bold text-xl whitespace-nowrap {{ $item->amount == 0 ? 'text-gray-500' : ($group->type === 'income' ? 'text-emerald-400 drop-shadow-[0_0_8px_currentColor]' : ($group->type === 'expense' ? 'text-red-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500')) }}">{{ number_format($item->amount, 2, ',', '.') }}€ </div>
         <div class="flex gap-4 justify-start sm:justify-end mt-3 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             @if(isset($item->transactions) && count($item->transactions) > 0)
                 <button @click.stop="expanded = !expanded" class="text-[9px] text-blue-400 hover:text-blue-300 font-black uppercase tracking-widest border-b border-blue-500/50 hover:border-blue-400 pb-0.5 transition-colors flex items-center gap-1">
