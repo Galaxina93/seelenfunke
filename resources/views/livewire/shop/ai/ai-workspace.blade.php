@@ -99,6 +99,5 @@
             @endif
         </div>
     </div>
+    @include('livewire.shop.ai.partials-ai-workspace.modals-and-scripts')
 </div>
-
-@include('livewire.shop.ai.partials-ai-workspace.modals-and-scripts')
