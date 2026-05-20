@@ -70,7 +70,7 @@ class AiAnalytics extends Component
 
         // 1.5 Top Tools Used Globally
         $topToolsAllAgents = AiToolUsage::select('tool_name', DB::raw('COUNT(*) as usage_count'))
-            ->whereDate('created_at', '>=', $thirtyDaysAgo)
+            ->whereDate('used_at', '>=', $thirtyDaysAgo)
             ->groupBy('tool_name')
             ->orderByDesc('usage_count')
             ->limit(5)
@@ -113,7 +113,7 @@ class AiAnalytics extends Component
         // 4. Tool Errors (Bar Chart)
         $toolErrorsRaw = AiToolUsage::select('tool_name', DB::raw('COUNT(*) as error_count'))
             ->where('is_error', true)
-            ->where('created_at', '>=', $thirtyDaysAgo)
+            ->whereDate('used_at', '>=', $thirtyDaysAgo)
             ->groupBy('tool_name')
             ->orderByDesc('error_count')
             ->limit(5)

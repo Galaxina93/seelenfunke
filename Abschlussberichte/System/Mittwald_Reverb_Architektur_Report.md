@@ -88,11 +88,17 @@ Nach Rücksprache mit dem Mittwald-Support hat sich herausgestellt, warum **Vers
 - **Korrektur:** Der interne Hostname der Worker-App ist schlicht und ergreifend ihr **Shortcode** (z. B. `a-iurgq8`, zu finden in der SSH-Login-URL der Worker-App), ohne jeglichen Domain-Suffix.
 - Innerhalb des Mittwald-Container-Netzwerks kann die Web-App den Worker-Container direkt über `http://a-iurgq8:6001` bzw. `ws://a-iurgq8:6001` erreichen.
 
-Dadurch lässt sich der WebSocket-Server sauber in eine isolierte PHP Worker-App auslagern, die von Mittwalds Prozess-Manager `mittnite` permanent überwacht und am Leben erhalten wird.
-
 #### Zukünftige Konfiguration mit Worker-App:
 
-**.htaccess** (Web-App leitet Traffic auf den Worker-Shortcode um):
+> [!CAUTION]
+> **Zwingend erforderlich: Chroot-Jail & Datei-Kopiervorgang**
+> Aufgrund der Chroot-Isolierung von Mittwald darf das Installationsverzeichnis des Workers (z. B. `/html/worker-stage-3`) **keine Symlinks** auf das Hauptprojekt (`/html/seelenfunke-stage`) enthalten. Innerhalb des Worker-Containers sind solche Symlinks tot (broken), wodurch der Startbefehl (`php artisan reverb:start`) sofort abstürzt.
+>
+> Das bedeutet:
+> 1. Bei jedem Deployment / Code-Update müssen die Projektdateien physisch per `cp` in das Worker-Verzeichnis kopiert werden (analog zur Twilio-Node-App).
+> 2. Wenn der Worker-Container zum ersten Mal angelegt wird, muss er erst befüllt werden, bevor er gestartet werden kann.
+>
+> **.htaccess** (Web-App leitet Traffic auf den Worker-Shortcode um):
 ```apache
 RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
 RewriteCond %{HTTP:Upgrade} websocket [NC]

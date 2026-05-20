@@ -1,5 +1,6 @@
 <x-layouts.frontend_layout>
-    <x-sections.page-container>
+    <div x-data="{ showCertModal: false }">
+        <x-sections.page-container>
 
         {{--
                     NEUE SECTION: DIE GRÜNDERIN (Alina Steinhauer)
@@ -242,7 +243,7 @@
                             <h3 class="text-2xl font-bold text-gray-900">Präzision & Sicherheit</h3>
                         </div>
                         <p class="text-gray-600 leading-relaxed mb-4">
-                            Eine <strong>zertifizierte Laserschutzbeauftragte</strong> ist in unserem Unternehmen tätig. Mit modernster Lasertechnologie brennen wir Ihr Motiv dauerhaft in das Glas ein.
+                            Eine <strong class="text-gray-900">zertifizierte Laserschutzbeauftragte</strong> (<button @click="showCertModal = true" class="text-primary hover:underline font-semibold focus:outline-none">Zertifikat ansehen</button>) ist in unserem Unternehmen tätig. Mit modernster Lasertechnologie brennen wir Ihr Motiv dauerhaft in das Glas ein.
                             Dabei entstehen winzige, präzise Veränderungen im Material (Weiß-Effekt).
                         </p>
                         <p class="text-gray-600 leading-relaxed">
@@ -292,11 +293,21 @@
                             haben wir uns intensiv fortgebildet und prüfen lassen.
                         </p>
                         <div class="flex justify-center gap-4 flex-wrap mb-8">
-                            <div class="px-5 py-3 bg-white/10 rounded-lg border border-white/20 text-white font-medium flex items-center">
-                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Zertifizierte Laserschutzbeauftragte
-                            </div>
-                            <div class="px-5 py-3 bg-white/10 rounded-lg border border-white/20 text-white font-medium flex items-center">
-                                <span class="text-primary mr-2" aria-hidden="true">✓</span> Fachkunde nach TROS Laserstrahlung
+                            <button @click="showCertModal = true" class="px-5 py-3 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg border border-white/20 hover:border-primary/50 text-white font-medium flex items-center gap-2.5 transition-all duration-300 transform hover:-translate-y-0.5 shadow-lg cursor-pointer group">
+                                <svg class="w-5 h-5 text-primary transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                                </svg>
+                                <span>Zertifizierte Laserschutzbeauftragte</span>
+                                <svg class="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                            </button>
+                            <div class="px-5 py-3 bg-white/10 rounded-lg border border-white/20 text-white font-medium flex items-center gap-2.5">
+                                <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <span>Fachkunde nach TROS Laserstrahlung</span>
                             </div>
                         </div>
 
@@ -332,4 +343,71 @@
         @livewire('frontend.contact-form')
 
     </x-sections.page-container>
+
+    <!-- Modal Backdrop -->
+    <div x-show="showCertModal" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+         x-cloak
+         style="display: none;">
+        
+        <!-- Modal Container -->
+        <div @click.away="showCertModal = false" 
+             x-show="showCertModal"
+             x-transition:enter="transition ease-out duration-300 transform scale-95 opacity-0"
+             x-transition:enter-start="scale-95 opacity-0"
+             x-transition:enter-end="scale-100 opacity-100"
+             x-transition:leave="transition ease-in duration-200 transform scale-100 opacity-100"
+             x-transition:leave-start="scale-100 opacity-100"
+             x-transition:leave-end="scale-95 opacity-0"
+             class="relative w-full max-w-5xl h-[85vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-gray-950/50">
+                <div class="flex items-center gap-3">
+                    <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    </svg>
+                    <div class="text-left">
+                        <h3 class="text-lg font-bold text-white leading-none">Laserschutzbeauftragte Zertifikat</h3>
+                        <span class="text-xs text-gray-400">Alina Steinhauer – Ausgestellt nach OStrV & TROS Laserstrahlung</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" 
+                       target="_blank" 
+                       class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-bold rounded-lg border border-gray-700 transition-colors flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        <span>Vollbild / Herunterladen</span>
+                    </a>
+                    <button @click="showCertModal = false" 
+                            class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg border border-gray-700 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modal Content (PDF Embed / Iframe) -->
+            <div class="flex-1 bg-gray-950 relative">
+                <iframe src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}#toolbar=0" 
+                        class="w-full h-full border-0" 
+                        title="Laserschutzbeauftragte Zertifikat PDF">
+                    <div class="text-gray-400 p-8 text-center flex flex-col items-center justify-center h-full">
+                        <p class="mb-4">Ihr Browser unterstützt die direkte PDF-Vorschau nicht.</p>
+                        <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" target="_blank" class="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold transition-colors">Zertifikat hier herunterladen</a>
+                    </div>
+                </iframe>
+            </div>
+        </div>
+    </div>
+    </div>
 </x-layouts.frontend_layout>

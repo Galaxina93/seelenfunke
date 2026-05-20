@@ -16,8 +16,7 @@ class AiAnalyticsTest extends TestCase
 {
     use DatabaseTransactions;
 
-    /** @test */
-    public function it_renders_analytics_dashboard_correctly()
+    public function test_it_renders_analytics_dashboard_correctly()
     {
         // Hole oder erstelle einen Admin, da Livewire Auth Guard benötigt
         $admin = Admin::first() ?? Admin::create([
@@ -29,14 +28,13 @@ class AiAnalyticsTest extends TestCase
         ]);
 
         // Erstelle einen Test Agent
-        $agentId = Str::uuid()->toString();
-        AiAgent::create([
-            'id' => $agentId,
+        $agent = AiAgent::create([
             'name' => 'Test Agent X',
             'provider' => 'openai',
             'model' => 'test-model',
             'system_prompt' => 'Test Prompt'
         ]);
+        $agentId = $agent->id;
 
         // Simuliere Traffic Usage Metriken
         AiMetric::create([
@@ -53,6 +51,7 @@ class AiAnalyticsTest extends TestCase
         AiToolUsage::create([
             'ai_agent_id' => $agentId,
             'tool_name' => 'demo_tool_xyz',
+            'used_at' => now(),
             'is_error' => false
         ]);
 
@@ -67,8 +66,7 @@ class AiAnalyticsTest extends TestCase
             ->assertSee('demo_tool_xyz');
     }
 
-    /** @test */
-    public function it_renders_ai_agent_manager_correctly()
+    public function test_it_renders_ai_agent_manager_correctly()
     {
         $admin = Admin::first() ?? Admin::create([
             'id' => Str::uuid()->toString(),
@@ -79,13 +77,12 @@ class AiAnalyticsTest extends TestCase
         ]);
 
         Livewire::actingAs($admin, 'admin')
-            ->test(\App\Livewire\Shop\Ai\AiAgentManager::class)
+            ->test(\App\Livewire\Shop\Ai\AiCompanyStructure::class)
             ->assertStatus(200)
-            ->assertViewHas('agents');
+            ->assertViewHas('departments');
     }
 
-    /** @test */
-    public function it_renders_ai_role_manager_correctly()
+    public function test_it_renders_ai_role_manager_correctly()
     {
         $admin = Admin::first() ?? Admin::create([
             'id' => Str::uuid()->toString(),
@@ -101,8 +98,7 @@ class AiAnalyticsTest extends TestCase
             ->assertViewHas('roles');
     }
 
-    /** @test */
-    public function it_renders_support_chat_analytics_correctly()
+    public function test_it_renders_support_chat_analytics_correctly()
     {
         $admin = Admin::first() ?? Admin::create([
             'id' => Str::uuid()->toString(),

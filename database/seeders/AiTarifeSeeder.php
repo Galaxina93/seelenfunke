@@ -20,8 +20,8 @@ class AiTarifeSeeder extends Seeder
             ['name' => 'Google AI Ultra'],
             [
                 'token_limit' => null, // unlimited/custom
-                'price_monthly' => 139.99, // EUR/Month
-                'description' => 'Maximaler Zugriff auf das Beste von Google AI und exklusive Funktionen. €139,99 EUR/Monat in den ersten 3 Monaten. (Gemini Ultra 3)',
+                'price_monthly' => 219.99, // EUR/Month
+                'description' => 'Maximaler Zugriff auf das Beste von Google AI und exklusive Funktionen. €219,99 EUR/Monat in den ersten 3 Monaten. (Gemini Ultra 3)',
                 'is_active' => true,
                 'features' => [
                     [
