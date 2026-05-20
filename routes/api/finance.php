@@ -155,6 +155,7 @@ Route::get('/funki/financials/variable', function (Request $request) {
 
     return AccountingSpecialIssue::where('admin_id', $request->user()->id)
         ->orderBy('execution_date', 'desc')
+        ->orderBy('created_at', 'desc')
         ->take($limit)
         ->get();
 });
