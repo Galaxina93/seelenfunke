@@ -21,15 +21,14 @@ Route::prefix('ai')->group(function () {
     Route::get('/schema', [AIController::class, 'schema']);
     
     // Führt eine der registrierten Tools aus
-    Route::post('/execute', [AIController::class, 'execute'])->middleware('web');
+    Route::post('/execute', [AIController::class, 'execute'])->middleware(['web', 'auth:sanctum,web']);
 
     // Speichert einen Kamera-Snapshot auf dem Dateisystem
-    Route::post('/camera/snapshot', [AIController::class, 'saveCameraSnapshot'])->middleware('web');
+    Route::post('/camera/snapshot', [AIController::class, 'saveCameraSnapshot'])->middleware(['web', 'auth:sanctum,web']);
 
     // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
-    Route::post('/chat', [AIController::class, 'chat'])->middleware('web');
+    Route::post('/chat', [AIController::class, 'chat'])->middleware(['web', 'auth:sanctum,web']);
 
     // Endpunkt für den Multimodal Live API Mode (WebSockets)
-    Route::get('/live-credentials', [AIController::class, 'liveCredentials'])->middleware('web');
-
+    Route::get('/live-credentials', [AIController::class, 'liveCredentials'])->middleware(['web', 'auth:sanctum,web']);
 });

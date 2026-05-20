@@ -108,8 +108,6 @@ Route::middleware('auth:sanctum')->group(function () {
     require __DIR__ . '/api/calendar.php';
 
     // AI Chat
-    Route::post('/ai/chat', [\App\Http\Controllers\AIController::class, 'chat']);
-    Route::get('/ai/live-credentials', [\App\Http\Controllers\AIController::class, 'liveCredentials']);
     Route::get('/ai/agents', function() {
         return response()->json([
             'success' => true,
