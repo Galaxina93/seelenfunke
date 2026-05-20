@@ -38,9 +38,9 @@ class AccountingCostItem extends Model
     ];
 
     protected $casts = [
-        'first_payment_date' => 'date',
-        'last_payment_date'  => 'date',
-        'contract_end_date'  => 'date',
+        'first_payment_date' => 'date:Y-m-d',
+        'last_payment_date'  => 'date:Y-m-d',
+        'contract_end_date'  => 'date:Y-m-d',
         'amount'             => 'decimal:2',
         'is_business'        => 'boolean',
         'requires_contract'  => 'boolean',

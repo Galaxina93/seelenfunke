@@ -13,7 +13,7 @@ class AccountingSpecialIssue extends Model
 
     protected $guarded = [];
     protected $casts = [
-        'execution_date' => 'date',
+        'execution_date' => 'date:Y-m-d',
         'amount' => 'decimal:2',
         'is_business' => 'boolean',
         'file_paths' => 'array',
