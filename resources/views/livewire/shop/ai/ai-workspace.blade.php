@@ -70,7 +70,7 @@
 
     <!-- Neon Header -->
     <div x-show="!isChatFullScreen" class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
-        <h1 class="text-3xl font-black tracking-widest uppercase shadow-[var(--theme-color-20)] drop-shadow-md text-[var(--theme-color)]">KI-Zentrale</h1>
+        <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-10 md:h-12 mx-auto mb-2 filter brightness-110 drop-shadow-[0_0_8px_var(--theme-color-50)]" alt="Mein Seelenfunke Logo">
         <p class="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
 
     @include('livewire.shop.ai.partials-ai-workspace.sidebar-agents')
