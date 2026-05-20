@@ -81,7 +81,7 @@ class AIController extends Controller
     public function chat(Request $request)
     {
         $request->validate([
-            'prompt' => 'sometimes|string|max:1000',
+            'prompt' => 'sometimes|string',
             'history' => 'sometimes|array'
         ]);
 
@@ -210,10 +210,22 @@ class AIController extends Controller
         ];
 
         if ($userMsg) {
+            $dbContent = $userMsg['content'];
+            if (is_array($dbContent)) {
+                $textParts = [];
+                foreach ($dbContent as $part) {
+                    if (isset($part['type']) && $part['type'] === 'text') {
+                        $textParts[] = $part['text'];
+                    } else if (isset($part['type']) && $part['type'] === 'image_url') {
+                        $textParts[] = "[Bild]";
+                    }
+                }
+                $dbContent = implode("\n", $textParts);
+            }
             AiChatMemory::create([
                 'session_id' => $sessionId,
                 'role' => 'user',
-                'content' => $userMsg['content'],
+                'content' => $dbContent,
                 'context_data' => $userCtx,
             ]);
         }

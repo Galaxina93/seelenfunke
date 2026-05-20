@@ -167,7 +167,7 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
         'amount' => 'required',
         'category' => 'required|string',
         'execution_date' => 'required|date',
-        'is_business' => 'required',
+        'is_business' => 'boolean',
         'location' => 'nullable|string'
     ]);
 
@@ -267,7 +267,7 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
         'interval_months' => 'required|integer',
         'first_payment_date' => 'required|date',
         'description' => 'nullable|string',
-        'is_business' => 'required'
+        'is_business' => 'boolean'
     ]);
 
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
@@ -294,7 +294,7 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
         'interval_months' => 'required|integer',
         'first_payment_date' => 'required|date',
         'description' => 'nullable|string',
-        'is_business' => 'required',
+        'is_business' => 'boolean',
         'finance_group_id' => 'nullable|string'
     ]);
 
