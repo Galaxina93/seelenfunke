@@ -339,13 +339,19 @@ class ManagementEMails extends Component
     public function moveMessage($messageId, $targetFolder)
     {
         $msg = MailMessage::find($messageId);
-        if ($msg && $msg->folder !== $targetFolder) {
-            $msg->update(['folder' => $targetFolder]);
+        if ($msg) {
+            $isArchived = ($targetFolder === 'Archive');
+            if ($msg->folder !== $targetFolder || $msg->is_archived !== $isArchived) {
+                $msg->update([
+                    'folder' => $targetFolder,
+                    'is_archived' => $isArchived
+                ]);
 
-            if ($this->selectedMessageId === $messageId && $this->selectedFolder !== $targetFolder) {
-                // If the user moved the currently viewed message out of the current folder, close the reading pane
-                $this->selectedMessageId = null;
-                $this->dispatch('folder-selected');
+                if ($this->selectedMessageId === $messageId && $this->selectedFolder !== $targetFolder) {
+                    // If the user moved the currently viewed message out of the current folder, close the reading pane
+                    $this->selectedMessageId = null;
+                    $this->dispatch('folder-selected');
+                }
             }
         }
     }
@@ -374,6 +380,19 @@ class ManagementEMails extends Component
                 $this->dispatch('folder-selected');
             }
             session()->flash('success_message', 'E-Mail archiviert.');
+        }
+    }
+
+    public function unarchiveMessage($id)
+    {
+        $msg = MailMessage::find($id);
+        if ($msg && $msg->is_archived) {
+            $msg->update(['is_archived' => false, 'folder' => 'INBOX']);
+            if ($this->selectedMessageId === $id) {
+                $this->selectedMessageId = null;
+                $this->dispatch('folder-selected');
+            }
+            session()->flash('success_message', 'E-Mail aus dem Archiv wiederhergestellt.');
         }
     }
 

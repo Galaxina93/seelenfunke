@@ -34,7 +34,8 @@ class StoragePathTest extends TestCase
         'maps',
         'places',
         'reports',
-        'temp'
+        'temp',
+        'pdf_texts'
     ];
 
     /**

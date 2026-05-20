@@ -41,7 +41,73 @@
         </div>
 
         <!-- DER ULTIMATIVE BALKEN (IMMER SICHTBAR) -->
-        <div class="relative w-full mt-6 sm:mt-8 mb-4 sm:mb-6 px-1 lg:px-6" x-data="capacitySlider()" @mousemove.window="drag" @mouseup.window="stopDrag" @touchmove.window="drag" @touchend.window="stopDrag" @mouseleave.window="stopDrag">
+        <div class="relative w-full mt-6 sm:mt-8 mb-4 sm:mb-6 px-1 lg:px-6" x-data="{
+                    t1: @entangle('threshold1'),
+                    t2: @entangle('threshold2'),
+                    t3: @entangle('threshold3'),
+                    activeThumb: null,
+                    trackWidth: 0,
+                    trackLeft: 0,
+                    _dragHandler: null,
+                    _stopDragHandler: null,
+
+                    startDrag(e, thumb) {
+                        this.activeThumb = thumb;
+                        const rect = this.$refs.track.getBoundingClientRect();
+                        this.trackWidth = rect.width;
+                        this.trackLeft = rect.left;
+                        document.body.style.userSelect = 'none';
+                        if(e.stopPropagation) e.stopPropagation();
+
+                        this._dragHandler = this.drag.bind(this);
+                        this._stopDragHandler = this.stopDrag.bind(this);
+                        window.addEventListener('mousemove', this._dragHandler);
+                        window.addEventListener('mouseup', this._stopDragHandler);
+                        window.addEventListener('touchmove', this._dragHandler, { passive: true });
+                        window.addEventListener('touchend', this._stopDragHandler, { passive: true });
+                    },
+
+                    drag(e) {
+                        if (!this.activeThumb) return;
+                        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
+                        if (!clientX) return;
+
+                        let percent = ((clientX - this.trackLeft) / this.trackWidth) * 100;
+                        percent = Math.max(0, Math.min(100, Math.round(percent)));
+
+                        if (this.activeThumb === 't1') {
+                            this.t1 = Math.min(percent, this.t2 - 2); 
+                        } else if (this.activeThumb === 't2') {
+                            this.t2 = Math.max(this.t1 + 2, Math.min(percent, this.t3 - 2));
+                        } else if (this.activeThumb === 't3') {
+                            this.t3 = Math.max(this.t2 + 2, Math.min(percent, 99)); 
+                        }
+                    },
+
+                    stopDrag() {
+                        if (this.activeThumb) {
+                            this.$wire.updateThresholds(this.t1, this.t2, this.t3);
+                            this.activeThumb = null;
+                            document.body.style.userSelect = '';
+
+                            window.removeEventListener('mousemove', this._dragHandler);
+                            window.removeEventListener('mouseup', this._stopDragHandler);
+                            window.removeEventListener('touchmove', this._dragHandler);
+                            window.removeEventListener('touchend', this._stopDragHandler);
+                        }
+                    },
+
+                    destroy() {
+                        if (this._dragHandler) {
+                            window.removeEventListener('mousemove', this._dragHandler);
+                            window.removeEventListener('touchmove', this._dragHandler);
+                        }
+                        if (this._stopDragHandler) {
+                            window.removeEventListener('mouseup', this._stopDragHandler);
+                            window.removeEventListener('touchend', this._stopDragHandler);
+                        }
+                    }
+                }">
 
             <!-- Balken-Container -->
             <div x-ref="track" class="w-full h-8 bg-black/60 rounded-full border border-gray-800 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative overflow-visible select-none">
@@ -253,59 +319,4 @@
         </div> <!-- END EXPANDED VIEW -->
 
     </div>
-
-    <script>
-        const registerCapacitySlider = () => {
-            if (!Alpine.data('capacitySlider')) {
-                Alpine.data('capacitySlider', () => ({
-                    t1: @entangle('threshold1'),
-                    t2: @entangle('threshold2'),
-                    t3: @entangle('threshold3'),
-                    activeThumb: null,
-                    trackWidth: 0,
-                    trackLeft: 0,
-
-                    startDrag(e, thumb) {
-                        this.activeThumb = thumb;
-                        const rect = this.$refs.track.getBoundingClientRect();
-                        this.trackWidth = rect.width;
-                        this.trackLeft = rect.left;
-                        document.body.style.userSelect = 'none';
-                        if(e.stopPropagation) e.stopPropagation();
-                    },
-
-                    drag(e) {
-                        if (!this.activeThumb) return;
-                        let clientX = e.clientX || (e.touches && e.touches[0].clientX);
-                        if (!clientX) return;
-
-                        let percent = ((clientX - this.trackLeft) / this.trackWidth) * 100;
-                        percent = Math.max(0, Math.min(100, Math.round(percent)));
-
-                        if (this.activeThumb === 't1') {
-                            this.t1 = Math.min(percent, this.t2 - 2); 
-                        } else if (this.activeThumb === 't2') {
-                            this.t2 = Math.max(this.t1 + 2, Math.min(percent, this.t3 - 2));
-                        } else if (this.activeThumb === 't3') {
-                            this.t3 = Math.max(this.t2 + 2, Math.min(percent, 99)); 
-                        }
-                    },
-
-                    stopDrag() {
-                        if (this.activeThumb) {
-                            this.$wire.updateThresholds(this.t1, this.t2, this.t3);
-                            this.activeThumb = null;
-                            document.body.style.userSelect = '';
-                        }
-                    }
-                }));
-            }
-        };
-
-        if (window.Alpine) {
-            registerCapacitySlider();
-        } else {
-            document.addEventListener('alpine:init', registerCapacitySlider);
-        }
-    </script>
 </div>

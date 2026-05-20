@@ -78,66 +78,90 @@
                 <script src="{{ asset('vendor/jsvectormap/world.js') }}"></script>
 
                 <script>
-                    document.addEventListener('livewire:initialized', () => {
-                        let activeCodes = @json($mapVisuals['activeCodes']);
-                        let map = null;
+                    (function() {
+                        const init = () => {
+                            let activeCodes = @json($mapVisuals['activeCodes']);
+                            let map = null;
 
-                        const initMap = () => {
-                            if (map) return; // Bereits geladen
-                            const el = document.getElementById('shipping-map');
-                            if (!el || el.offsetWidth === 0) return; // Unsichtbar (versteckter Tab)
+                            const initMap = () => {
+                                const el = document.getElementById('shipping-map');
+                                if (!el || el.offsetWidth === 0) return; // Unsichtbar (versteckter Tab)
 
-                            map = new jsVectorMap({
-                                selector: '#shipping-map',
-                                map: 'world',
-                                zoomButtons: true,
-                                zoomOnScroll: true,
-                                backgroundColor: 'transparent',
-                                focusOn: { x: 0.5, y: 0.45, scale: 1.8 },
-                                regionStyle: {
-                                    initial: {
-                                        fill: 'rgba(31, 41, 55, 0.4)',
-                                        stroke: 'rgba(255, 255, 255, 0.05)',
-                                        strokeWidth: 0.5,
+                                if (map) {
+                                    if (typeof map.destroy === 'function') {
+                                        try { map.destroy(); } catch(e) {}
                                     }
-                                },
-                                onRegionTooltipShow(event, tooltip, code) {
-                                    if (activeCodes[code]) {
-                                        const zoneName = activeCodes[code];
-                                        tooltip.text(`<div class="text-center">
-                                            <span class="font-bold text-white block text-sm mb-1">${tooltip.text()}</span>
-                                            <span class="text-[9px] font-black uppercase tracking-widest bg-[var(--theme-color)]/20 text-[var(--theme-color)] border border-[var(--theme-color)]/30 px-2 py-0.5 rounded-md inline-block shadow-[0_0_10px_var(--theme-color)0.2)]">${zoneName}</span>
-                                        </div>`, true);
-                                    } else {
-                                        tooltip.text(`<div class="text-center">
-                                            <span class="font-bold text-gray-300 block text-sm mb-1">${tooltip.text()}</span>
-                                            <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-800 px-2 py-0.5 rounded-md inline-block">Kein Versand</span>
-                                        </div>`, true);
-                                    }
+                                    map = null;
+                                }
+                                el.innerHTML = ''; // Clear container
+
+                                if (typeof jsVectorMap !== 'undefined') {
+                                    map = new jsVectorMap({
+                                        selector: '#shipping-map',
+                                        map: 'world',
+                                        zoomButtons: true,
+                                        zoomOnScroll: true,
+                                        backgroundColor: 'transparent',
+                                        focusOn: { x: 0.5, y: 0.45, scale: 1.8 },
+                                        regionStyle: {
+                                            initial: {
+                                                fill: 'rgba(31, 41, 55, 0.4)',
+                                                stroke: 'rgba(255, 255, 255, 0.05)',
+                                                strokeWidth: 0.5,
+                                            }
+                                        },
+                                        onRegionTooltipShow(event, tooltip, code) {
+                                            if (activeCodes[code]) {
+                                                const zoneName = activeCodes[code];
+                                                tooltip.text(`<div class="text-center">
+                                                    <span class="font-bold text-white block text-sm mb-1">${tooltip.text()}</span>
+                                                    <span class="text-[9px] font-black uppercase tracking-widest bg-[var(--theme-color)]/20 text-[var(--theme-color)] border border-[var(--theme-color)]/30 px-2 py-0.5 rounded-md inline-block shadow-[0_0_10px_var(--theme-color)0.2)]">${zoneName}</span>
+                                                </div>`, true);
+                                            } else {
+                                                tooltip.text(`<div class="text-center">
+                                                    <span class="font-bold text-gray-300 block text-sm mb-1">${tooltip.text()}</span>
+                                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-800 px-2 py-0.5 rounded-md inline-block">Kein Versand</span>
+                                                </div>`, true);
+                                            }
+                                        }
+                                    });
+                                }
+                            };
+
+                            // 1. Initialer Versuch (falls direkt sichtbar)
+                            initMap();
+
+                            // 2. Observer für Tab-Wechsel (z.B. x-show in Alpine)
+                            const observer = new IntersectionObserver((entries) => {
+                                if (entries[0].isIntersecting) {
+                                    initMap();
                                 }
                             });
+                            
+                            const container = document.getElementById('shipping-map');
+                            if (container) {
+                                observer.observe(container);
+                            }
+
+                            // Clean up old window listener
+                            if (window.cleanupMapUpdatedListener) {
+                                window.removeEventListener('map-updated', window.cleanupMapUpdatedListener);
+                            }
+
+                            // Update Tooltips Dynamically via Livewire Event
+                            const mapUpdatedHandler = (event) => {
+                                activeCodes = event.detail.activeCodes;
+                            };
+                            window.addEventListener('map-updated', mapUpdatedHandler);
+                            window.cleanupMapUpdatedListener = mapUpdatedHandler;
                         };
 
-                        // 1. Initialer Versuch (falls direkt sichtbar)
-                        initMap();
-
-                        // 2. Observer für Tab-Wechsel (z.B. x-show in Alpine)
-                        const observer = new IntersectionObserver((entries) => {
-                            if (entries[0].isIntersecting) {
-                                initMap();
-                            }
-                        });
-                        
-                        const container = document.getElementById('shipping-map');
-                        if (container) {
-                            observer.observe(container);
+                        if (window.Livewire) {
+                            init();
+                        } else {
+                            document.addEventListener('livewire:initialized', init, { once: true });
                         }
-
-                        // Update Tooltips Dynamically via Livewire Event
-                        window.addEventListener('map-updated', (event) => {
-                            activeCodes = event.detail.activeCodes;
-                        });
-                    });
+                    })();
                 </script>
             </div>
 

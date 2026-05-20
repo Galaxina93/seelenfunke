@@ -23,7 +23,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#E53E3E',
                 ],
                 'taks' => [
-                    ['title' => 'Laser Schulung durchführen', 'priority' => 'high'],
                     ['title' => '4-6 mega geile Produktbilder und 1 Video pro Produkt generieren (Auch mit Geschenkebox) - Made in Germany hinzufügen', 'priority' => 'medium'],
                     ['title' => 'Produktbild mit Maßangabe pro Produkt', 'priority' => 'medium'],
                     ['title' => 'Produktvorlagen erstellen', 'priority' => 'medium'],
@@ -53,7 +52,6 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'Krankenkasse bescheid geben Selbständigkeit ab Mitte Februar spätestens 15.07.2026', 'priority' => 'high'],
                     ['title' => 'Gewerbe anmelden https://gewerbe.buergerdienste-online.de/webclient/app/m/3151009/gewerbeanzeige?startPage=0', 'priority' => 'high'],
                     ['title' => 'Konto bei Finom eröffnen -> https://app.finom.co/de/signup/?fnm_product=business&source=finom.de&utm_source=google&utm_medium=cpc&utm_campaign=search-tofu-banking-brand-de-germany-10209387005&utm_content=cid%7C10209387005%7Cgid%7C181322099254%7Caid%7C7644', 'priority' => 'high'],
-                    ['title' => 'Laserschulung durchführen -> https://luminus-laserschutz.de/kurse/laserschutzbeauftragter-industrie-gewerbe/?_gl=1*tzjq9u*_up*MQ..*_gs*MQ..&gclid=Cj0KCQiAo4TKBhDRARIsAGW29bcTods5PR5OMiWtKsHmbh-TmpQfEYU4HeXs2Sw_lWt40yYZRhrkot4aAqSfEALw_wcB&gbra', 'priority' => 'high'],
                     ['title' => 'Marke schützen -> https://direkt.dpma.de/DpmaDirektWebEditoren/w7005/w7005web.xhtml?jftfdi=&jffi=w7005&jfwid=64cea193-7eb1-4028-ac97-7d08a38df852:0', 'priority' => 'medium'],
                     ['title' => 'Versicherung abschließen Versicherungen für Gründer: online absichern | Hiscox Tätigkeit: E-Commerce, Händler von Büro ... https://direkt-versicherung.hiscox.de/antrag/Angebot?ProductId=H-DPD-PSC-1-VersicherungfuerShops', 'priority' => 'high'],
                     ['title' => 'Arbeitslosenversicherung abschließen - https://www.arbeitsagentur.de/freiwillige-arbeitslosenversicherung', 'priority' => 'medium'],

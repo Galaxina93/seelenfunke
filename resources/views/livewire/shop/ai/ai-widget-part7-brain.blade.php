@@ -40,8 +40,10 @@
             return;
         }
 
-        // Initialize 3D Force Graph
+        // Initialize 3D Force Graph with explicit screen dimensions
         window.brainMapInstance = ForceGraph3D()(container)
+            .width(window.innerWidth)
+            .height(window.innerHeight)
             .graphData(window.brainMapData)
             .nodeLabel('id')
             .nodeColor(node => {
@@ -59,8 +61,19 @@
             .nodeRelSize(4)
             .linkColor(() => 'rgba(255,255,255,0.1)')
             .linkWidth(0.5)
-            .backgroundColor('rgba(0,0,0,0)') // Transparent to show background
-            .onNodeClick(node => {
+            .backgroundColor('rgba(0,0,0,0)'); // Transparent to show background
+
+        // Register window resize listener to keep canvas sized correctly
+        window.addEventListener('resize', () => {
+            if (window.brainMapInstance) {
+                window.brainMapInstance
+                    .width(window.innerWidth)
+                    .height(window.innerHeight);
+            }
+        });
+
+        // Set click listener on node
+        window.brainMapInstance.onNodeClick(node => {
                 // Focus on node
                 const distance = 40;
                 const hypot = Math.hypot(node.x, node.y, node.z);

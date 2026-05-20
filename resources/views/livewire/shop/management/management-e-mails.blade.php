@@ -243,9 +243,15 @@
 
                         <div class="h-px bg-gray-700 my-1"></div>
 
-                        <button wire:click="archiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Archivieren <x-heroicon-m-archive-box class="w-4 h-4 text-gray-500"/>
-                        </button>
+                        @if($msg->is_archived)
+                            <button wire:click="unarchiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-400 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                                Dearchivieren <x-heroicon-m-arrow-path class="w-4 h-4 text-emerald-500"/>
+                            </button>
+                        @else
+                            <button wire:click="archiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                                Archivieren <x-heroicon-m-archive-box class="w-4 h-4 text-gray-500"/>
+                            </button>
+                        @endif
 
                         <div class="h-px bg-gray-700 my-1"></div>
 
@@ -318,9 +324,15 @@
                         <x-heroicon-o-arrow-uturn-right class="w-5 h-5" />
                     </button>
                     <div class="hidden sm:block w-px h-6 bg-gray-700 mx-1 my-auto"></div>
-                    <button wire:click="archiveMessage({{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Archivieren">
-                        <x-heroicon-o-archive-box class="w-5 h-5" />
-                    </button>
+                    @if($selectedMessage->is_archived)
+                        <button wire:click="unarchiveMessage({{ $selectedMessage->id }})" class="p-2 text-emerald-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Dearchivieren">
+                            <x-heroicon-o-arrow-path class="w-5 h-5" />
+                        </button>
+                    @else
+                        <button wire:click="archiveMessage({{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Archivieren">
+                            <x-heroicon-o-archive-box class="w-5 h-5" />
+                        </button>
+                    @endif
                     <button wire:click="deleteMessage({{ $selectedMessage->id }})" class="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors" title="Löschen">
                         <x-heroicon-o-trash class="w-5 h-5" />
                     </button>

@@ -253,9 +253,9 @@
     <!-- ========================================== -->
     <!-- START NEURALE FEHLERANALYSE (3D GEHIRN) -->
     <!-- ========================================== -->
-    <div x-show="isBrainMode" class="absolute inset-0 z-[12] transition-opacity duration-1000" x-transition.opacity>
+    <div x-show="isBrainMode" class="absolute inset-0 transition-opacity duration-1000" style="z-index: 55;" x-transition.opacity>
         <!-- Suchleiste (Google Maps Style) -->
-        <div class="absolute bottom-12 md:bottom-16 left-1/2 -translate-x-1/2 z-[100] w-[95%] md:w-[80%] max-w-[900px] pointer-events-auto flex flex-col gap-3">
+        <div class="absolute bottom-12 md:bottom-16 left-1/2 -translate-x-1/2 w-[95%] md:w-[80%] max-w-[900px] pointer-events-auto flex flex-col gap-3" style="z-index: 100;">
             
             <!-- Ausgewählter Knoten UI (wird per JS eingeblendet) -->
             <div id="brain-selected-node-container" class="hidden flex-col md:flex-row gap-3 transition-all duration-300 items-stretch" x-data="{ genStatus: 'idle', genPath: '' }" @neural-structure-success.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; genStatus = 'success'; genPath = d.path || d[0]?.path || 'Gespeichert'; setTimeout(() => { genStatus = 'idle'; }, 6000);" @neural-structure-error.window="genStatus = 'idle';">
@@ -864,7 +864,7 @@
 
     <!-- [AREA: NAVIGATION & LOG] -->
     <!-- UI Overlay Navigation -->
-    <div x-show="showFunkiView" class="absolute top-6 right-6 z-50 flex flex-col items-end gap-2" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <div x-show="showFunkiView" class="absolute top-6 right-6 flex flex-col items-end gap-2" style="z-index: 90;" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
         <!-- Control Bar: Aufgaben, Log, Pause, Stop, Agent -->
         <x-backend.ai-widget-navigation :available-agents="$availableAgents" />
 
@@ -949,7 +949,7 @@
     @include('livewire.shop.ai.blocks.widget-tasks')
 
     <!-- Bottom Right Controls (Audio & Close) -->
-    <div x-show="showFunkiView" class="absolute right-6 z-50 flex flex-col items-end gap-3 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom));" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <div x-show="showFunkiView" class="absolute right-6 flex flex-col items-end gap-3 pointer-events-auto" style="bottom: max(1.5rem, env(safe-area-inset-bottom)); z-index: 90;" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[20px]" x-transition:enter-end="opacity-100 translate-y-0">
         <!-- Audio Toggle & Slider -->
         <div x-show="!(isMobile && isLiveMode)" x-data="{ showVol: false }" @click.outside="showVol = false" class="flex items-center gap-2 px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black">
             <button @click="toggleBackgroundAudio()" class="w-8 h-8 flex justify-center items-center text-gray-300 hover:text-emerald-400 transition-colors" title="Hintergrundmusik an/aus">

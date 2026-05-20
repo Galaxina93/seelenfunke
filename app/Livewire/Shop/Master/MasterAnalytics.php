@@ -377,7 +377,7 @@ class MasterAnalytics extends Component
 
         // 11. NEU: WebSocket (Reverb) Backend Check
         try {
-            $wsHost = env('REVERB_SERVER_HOST', '127.0.0.1'); // We check the actual local daemon, not the public proxy
+            $wsHost = env('REVERB_HOST', '127.0.0.1'); // We check the actual daemon (local or worker container)
             $wsPort = env('REVERB_SERVER_PORT', 6001);
             $start = microtime(true);
             $fp = @fsockopen($wsHost, $wsPort, $errno, $errstr, 2);
@@ -387,7 +387,7 @@ class MasterAnalytics extends Component
                 $health['ws'] = ['status' => 'connected', 'value' => "Port {$wsPort} offen ({$time}ms)", 'error' => null];
             } else {
                 $health['ws'] = ['status' => 'error', 'value' => 'Daemon Offline', 'error' => "Reverb Server antwortet nicht auf {$wsHost}:{$wsPort}!"];
-                $this->logSystemFailure('ws', "WebSocket Server (Reverb) ist offline. Laravel kann keine internen Events an {$wsHost}:{$wsPort} senden. (Cronjob prüfen!)");
+                $this->logSystemFailure('ws', "WebSocket Server (Reverb) ist offline. Laravel kann keine internen Events an {$wsHost}:{$wsPort} senden. (Worker-App prüfen!)");
             }
         } catch (\Exception $e) {
             $health['ws'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Fehler beim WebSocket-Backend-Check.'];
@@ -780,13 +780,21 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'ws':
-                            $this->addRepairLog("Prüfe und beende eventuell abgestürzte Reverb-Dienste (Zombies)...");
-                            try {
-                                $processKill = \Symfony\Component\Process\Process::fromShellCommandline('pkill -f "reverb:start"');
-                                $processKill->run();
-                                $this->addRepairLog("✓ Alle hängenden Reverb-Prozesse gekillt. Der Cronjob startet den Daemon gleich neu.", 'success');
-                            } catch (\Exception $e) {
-                                $this->addRepairLog("Konnte Reverb nicht killen: " . $e->getMessage(), 'warning');
+                            $wsHost = env('REVERB_HOST', '127.0.0.1');
+                            $isLocal = in_array($wsHost, ['127.0.0.1', 'localhost']);
+
+                            if ($isLocal) {
+                                $this->addRepairLog("Prüfe und beende eventuell abgestürzte Reverb-Dienste (Zombies)...");
+                                try {
+                                    $processKill = \Symfony\Component\Process\Process::fromShellCommandline('pkill -f "reverb:start"');
+                                    $processKill->run();
+                                    $this->addRepairLog("✓ Alle hängenden Reverb-Prozesse gekillt. Der lokale Dämon startet gleich neu.", 'success');
+                                } catch (\Exception $e) {
+                                    $this->addRepairLog("Konnte Reverb nicht killen: " . $e->getMessage(), 'warning');
+                                }
+                            } else {
+                                $this->addRepairLog("WebSocket Daemon läuft remote in Worker-App ($wsHost) und wird dort von 'mittnite' überwacht.", 'info');
+                                $this->addRepairLog("Tipp: Ein Neustart kann im Mittwald Panel bei der App 'WORKER - Websocket Stage' erzwungen werden.", 'warning');
                             }
 
                             $this->addRepairLog("Führe Config Cache Reset für WebSockets aus...");
@@ -812,7 +820,7 @@ class MasterAnalytics extends Component
                                 $this->addRepairLog("Kritischer Fehler beim Ausführen von npm: " . $e->getMessage(), 'error');
                             }
                             
-                            $this->addRepairLog("Reverb WebSocket Daemon muss serverseitig nach wie vor laufen.", 'info');
+                            $this->addRepairLog("Reverb WebSocket Daemon muss serverseitig in der Worker-App laufen.", 'info');
                             break;
 
                         case 'telephony':

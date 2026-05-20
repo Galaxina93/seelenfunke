@@ -660,89 +660,101 @@
 
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
-            document.addEventListener('livewire:initialized',()=>{
-                const ctx = document.getElementById('liquidityChart');
-                const vatCtx = document.getElementById('vatChart');
-                const tradeCtx = document.getElementById('tradeTaxChart');
-                const incomeCtx = document.getElementById('incomeTaxChart');
-                
-                if(!ctx) return;
+            (function() {
+                const init = () => {
+                    const ctx = document.getElementById('liquidityChart');
+                    const vatCtx = document.getElementById('vatChart');
+                    const tradeCtx = document.getElementById('tradeTaxChart');
+                    const incomeCtx = document.getElementById('incomeTaxChart');
+                    
+                    if(!ctx) return;
 
-                let chartInstance = new Chart(ctx,{
-                    type: 'line',
-                    data:{
-                        labels:[],
-                        datasets:[{
-                            label: 'Kontostand (€)',
-                            data:[],
-                            borderColor: '{{ $this->themeColorHex }}',
-                            backgroundColor: '{{ $this->themeColorHex }}1A',
-                            borderWidth: 3,
-                            fill: true,
-                            tension: 0.4,
-                            pointBackgroundColor: '{{ $this->themeColorHex }}',
-                            pointRadius: 4
-                        }]
-                    },
-                    options:{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins:{legend:{display: false}},
-                        scales:{
-                            y:{grid:{color: 'rgba(255,255,255,0.05)'}, ticks:{color: '#9ca3af', callback: function(val){return val + ' €';}}},
-                            x:{grid:{color: 'rgba(255,255,255,0.05)'}, ticks:{color: '#9ca3af'}}
-                        }
-                    }
-                });
-
-                // Helper für kleine Tax-Charts
-                const getTaxChartConfig = (color, bg) => ({
-                    type: 'bar',
-                    data: { labels: [], datasets: [{ data: [], backgroundColor: bg, borderColor: color, borderWidth: 1, borderRadius: 4 }] },
-                    options: {
-                        responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 9 } } },
-                            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7280', font: { size: 9 }, callback: (val) => val + '€' } }
-                        }
-                    }
-                });
-
-                let vatChartInstance = vatCtx ? new Chart(vatCtx, getTaxChartConfig('#ef4444', 'rgba(239, 68, 68, 0.2)')) : null;
-                let tradeChartInstance = tradeCtx ? new Chart(tradeCtx, getTaxChartConfig('#f59e0b', 'rgba(245, 158, 11, 0.2)')) : null;
-                let incomeChartInstance = incomeCtx ? new Chart(incomeCtx, getTaxChartConfig('#3b82f6', 'rgba(59, 130, 246, 0.2)')) : null;
-
-                Livewire.on('update-liquidity-chart',(event)=>{
-                    const data = event.chartData || event[0]?.chartData;
-                    if(data){
-                        // Update Main Chart
-                        chartInstance.data.labels = data.labels;
-                        chartInstance.data.datasets[0].data = data.balances;
-                        chartInstance.update();
-
-                        // Update Tax Charts (aus den tax_calculations generieren wir mini Arrays)
-                        if(data.taxCharts && data.taxCharts.years) {
-                            if(vatChartInstance) {
-                                vatChartInstance.data.labels = data.taxCharts.years;
-                                vatChartInstance.data.datasets[0].data = data.taxCharts.vat;
-                                vatChartInstance.data.datasets[0].backgroundColor = data.taxCharts.vat.map(v => v < 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)');
-                                vatChartInstance.data.datasets[0].borderColor = data.taxCharts.vat.map(v => v < 0 ? '#10b981' : '#ef4444');
-                                vatChartInstance.update();
-                            }
-                            if(tradeChartInstance) {
-                                tradeChartInstance.data.labels = data.taxCharts.years;
-                                tradeChartInstance.data.datasets[0].data = data.taxCharts.trade;
-                                tradeChartInstance.update();
-                            }
-                            if(incomeChartInstance) {
-                                incomeChartInstance.data.labels = data.taxCharts.years;
-                                incomeChartInstance.data.datasets[0].data = data.taxCharts.income;
-                                incomeChartInstance.update();
+                    let chartInstance = new Chart(ctx,{
+                        type: 'line',
+                        data:{
+                            labels:[],
+                            datasets:[{
+                                label: 'Kontostand (€)',
+                                data:[],
+                                borderColor: '{{ $this->themeColorHex }}',
+                                backgroundColor: '{{ $this->themeColorHex }}1A',
+                                borderWidth: 3,
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '{{ $this->themeColorHex }}',
+                                pointRadius: 4
+                            }]
+                        },
+                        options:{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins:{legend:{display: false}},
+                            scales:{
+                                y:{grid:{color: 'rgba(255,255,255,0.05)'}, ticks:{color: '#9ca3af', callback: function(val){return val + ' €';}}},
+                                x:{grid:{color: 'rgba(255,255,255,0.05)'}, ticks:{color: '#9ca3af'}}
                             }
                         }
+                    });
+
+                    // Helper für kleine Tax-Charts
+                    const getTaxChartConfig = (color, bg) => ({
+                        type: 'bar',
+                        data: { labels: [], datasets: [{ data: [], backgroundColor: bg, borderColor: color, borderWidth: 1, borderRadius: 4 }] },
+                        options: {
+                            responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { color: '#6b7280', font: { size: 9 } } },
+                                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6b7280', font: { size: 9 }, callback: (val) => val + '€' } }
+                            }
+                        }
+                    });
+
+                    let vatChartInstance = vatCtx ? new Chart(vatCtx, getTaxChartConfig('#ef4444', 'rgba(239, 68, 68, 0.2)')) : null;
+                    let tradeChartInstance = tradeCtx ? new Chart(tradeCtx, getTaxChartConfig('#f59e0b', 'rgba(245, 158, 11, 0.2)')) : null;
+                    let incomeChartInstance = incomeCtx ? new Chart(incomeCtx, getTaxChartConfig('#3b82f6', 'rgba(59, 130, 246, 0.2)')) : null;
+
+                    if (window.cleanupLiquidityChartListener) {
+                        window.cleanupLiquidityChartListener();
                     }
-                });
-            });
+
+                    window.cleanupLiquidityChartListener = Livewire.on('update-liquidity-chart',(event)=>{
+                        const data = event.chartData || event[0]?.chartData;
+                        if(data){
+                            // Update Main Chart
+                            chartInstance.data.labels = data.labels;
+                            chartInstance.data.datasets[0].data = data.balances;
+                            chartInstance.update();
+
+                            // Update Tax Charts (aus den tax_calculations generieren wir mini Arrays)
+                            if(data.taxCharts && data.taxCharts.years) {
+                                if(vatChartInstance) {
+                                    vatChartInstance.data.labels = data.taxCharts.years;
+                                    vatChartInstance.data.datasets[0].data = data.taxCharts.vat;
+                                    vatChartInstance.data.datasets[0].backgroundColor = data.taxCharts.vat.map(v => v < 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)');
+                                    vatChartInstance.data.datasets[0].borderColor = data.taxCharts.vat.map(v => v < 0 ? '#10b981' : '#ef4444');
+                                    vatChartInstance.update();
+                                }
+                                if(tradeChartInstance) {
+                                    tradeChartInstance.data.labels = data.taxCharts.years;
+                                    tradeChartInstance.data.datasets[0].data = data.taxCharts.trade;
+                                    tradeChartInstance.update();
+                                }
+                                if(incomeChartInstance) {
+                                    incomeChartInstance.data.labels = data.taxCharts.years;
+                                    incomeChartInstance.data.datasets[0].data = data.taxCharts.income;
+                                    incomeChartInstance.update();
+                                }
+                            }
+                        }
+                    });
+                };
+
+                if (window.Livewire) {
+                    init();
+                } else {
+                    document.addEventListener('livewire:initialized', init, { once: true });
+                }
+            })();
         </script>
     </div>
 </div>

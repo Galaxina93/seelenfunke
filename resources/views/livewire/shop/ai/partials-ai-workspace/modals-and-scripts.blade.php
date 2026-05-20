@@ -1,41 +1,55 @@
-
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('workspaceCanvas', () => ({
-                draggedAgentId: null,
-                startDrag(event, agentId) {
-                    this.draggedAgentId = agentId;
-                    event.dataTransfer.effectAllowed = 'copyMove';
-                    event.dataTransfer.setData('text/plain', agentId);
-                    setTimeout(() => event.target.classList.add('opacity-30'), 0);
-                },
-                dragOver(event) {
-                    let taskNode = event.currentTarget;
-                    if(!taskNode.classList.contains('border-[var(--theme-color)]')) {
-                        taskNode.classList.add('border-[var(--theme-color)]', 'bg-[var(--theme-color-10)]');
-                    }
-                },
-                dragLeave(event) {
-                    let taskNode = event.currentTarget;
-                    taskNode.classList.remove('border-[var(--theme-color)]', 'bg-[var(--theme-color-10)]');
-                },
-                dropTask(event, taskId) {
-                    let taskNode = event.currentTarget;
-                    taskNode.classList.remove('border-[var(--theme-color)]', 'bg-[var(--theme-color-10)]');
-                    if(this.draggedAgentId && taskId) {
-                        try { @this.assignAgent(taskId, this.draggedAgentId); } catch(e) {}
-                    }
-                    this.draggedAgentId = null;
+        (function() {
+            const initCanvas = () => {
+                if (!window.Alpine) return;
+                try {
+                    window.Alpine.data('workspaceCanvas', () => ({
+                        draggedAgentId: null,
+                        startDrag(event, agentId) {
+                            this.draggedAgentId = agentId;
+                            event.dataTransfer.effectAllowed = 'copyMove';
+                            event.dataTransfer.setData('text/plain', agentId);
+                            setTimeout(() => event.target.classList.add('opacity-30'), 0);
+                        },
+                        dragOver(event) {
+                            let taskNode = event.currentTarget;
+                            if(!taskNode.classList.contains('border-[var(--theme-color)]')) {
+                                taskNode.classList.add('border-[var(--theme-color)]', 'bg-[var(--theme-color-10)]');
+                            }
+                        },
+                        dragLeave(event) {
+                            let taskNode = event.currentTarget;
+                            taskNode.classList.remove('border-[var(--theme-color)]', 'bg-[var(--theme-color-10)]');
+                        },
+                        dropTask(event, taskId) {
+                            let taskNode = event.currentTarget;
+                            taskNode.classList.remove('border-[var(--theme-color)]', 'bg-[var(--theme-color-10)]');
+                            if(this.draggedAgentId && taskId) {
+                                try { @this.assignAgent(taskId, this.draggedAgentId); } catch(e) {}
+                            }
+                            this.draggedAgentId = null;
+                        }
+                    }));
+                } catch (e) {
+                    console.warn('workspaceCanvas registration skipped or failed:', e);
                 }
-            }));
-            
-            document.addEventListener('dragend', () => {
-                document.querySelectorAll('.agent-draggable').forEach(el => el.classList.remove('opacity-30'));
-            });
-        });
+                
+                if (!window.workspaceCanvasDragRegistered) {
+                    window.workspaceCanvasDragRegistered = true;
+                    document.addEventListener('dragend', () => {
+                        document.querySelectorAll('.agent-draggable').forEach(el => el.classList.remove('opacity-30'));
+                    });
+                }
+            };
+
+            if (window.Alpine) {
+                initCanvas();
+            } else {
+                document.addEventListener('alpine:init', initCanvas);
+            }
+        })();
     </script>
     
-    @push('scripts')
     <!-- Marked.js, DOMPurify, Highlight.js for Chat Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -43,35 +57,52 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     
     <script>
-        document.addEventListener('alpine:init', () => {
+        (function() {
+            const initMarkdown = () => {
+                if (typeof marked !== 'undefined') {
+                    marked.setOptions({
+                        highlight: function(code, lang) {
+                            const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                            return hljs.highlight(code, { language }).value;
+                        },
+                        gfm: true, breaks: true
+                    });
+                    const renderer = new marked.Renderer();
+                    
+                    renderer.code = function(...args) {
+                        let token = typeof args[0] === 'object' ? args[0] : null;
+                        let code = token ? token.text : args[0];
+                        let lang = token ? token.lang : args[1];
+                        let highlightedCode = '';
+                        try { highlightedCode = hljs.highlight(code, { language: hljs.getLanguage(lang) ? lang : 'plaintext' }).value; } 
+                        catch(e) { highlightedCode = code.replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+                        return `<div class="my-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-950 text-xs font-mono max-w-full"><div class="px-3 py-1.5 bg-gray-900 border-b border-gray-800"><span class="text-gray-500 uppercase">${lang||'code'}</span></div><div class="p-4 overflow-x-auto custom-scrollbar max-w-full"><pre class="!bg-transparent !m-0 !p-0"><code class="hljs text-gray-300 leading-relaxed">${highlightedCode}</code></pre></div></div>`;
+                    };
+                    
+                    window.renderAiMarkdown = function(md) {
+                        const html = marked.parse(md, { renderer });
+                        return DOMPurify.sanitize(html);
+                    };
+                    console.log('window.renderAiMarkdown initialized successfully.');
+                }
+            };
+
             if (typeof marked !== 'undefined') {
-                marked.setOptions({
-                    highlight: function(code, lang) {
-                        const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                        return hljs.highlight(code, { language }).value;
-                    },
-                    gfm: true, breaks: true
-                });
-                const renderer = new marked.Renderer();
-                
-                renderer.code = function(...args) {
-                    let token = typeof args[0] === 'object' ? args[0] : null;
-                    let code = token ? token.text : args[0];
-                    let lang = token ? token.lang : args[1];
-                    let highlightedCode = '';
-                    try { highlightedCode = hljs.highlight(code, { language: hljs.getLanguage(lang) ? lang : 'plaintext' }).value; } 
-                    catch(e) { highlightedCode = code.replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-                    return `<div class="my-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-950 text-xs font-mono max-w-full"><div class="px-3 py-1.5 bg-gray-900 border-b border-gray-800"><span class="text-gray-500 uppercase">${lang||'code'}</span></div><div class="p-4 overflow-x-auto custom-scrollbar max-w-full"><pre class="!bg-transparent !m-0 !p-0"><code class="hljs text-gray-300 leading-relaxed">${highlightedCode}</code></pre></div></div>`;
-                };
-                
-                window.renderAiMarkdown = function(md) {
-                    const html = marked.parse(md, { renderer });
-                    return DOMPurify.sanitize(html);
-                };
+                initMarkdown();
+            } else {
+                let checkCount = 0;
+                const interval = setInterval(() => {
+                    checkCount++;
+                    if (typeof marked !== 'undefined') {
+                        initMarkdown();
+                        clearInterval(interval);
+                    } else if (checkCount > 100) {
+                        clearInterval(interval);
+                    }
+                }, 50);
             }
-        });
+        })();
     </script>
-    @endpush
 
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -163,5 +194,4 @@
                 </div>
             </div>
         </div>
-
-
+    </div>

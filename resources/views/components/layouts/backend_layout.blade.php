@@ -167,7 +167,7 @@
              x-transition:leave="transition-all duration-500 ease-out"
              x-transition:leave-start="translate-y-0 opacity-100"
              x-transition:leave-end="translate-y-10 opacity-0 pointer-events-none">
-            <a href="{{ route('admin.support-tickets') }}" class="bg-gray-900/95 backdrop-blur-md border border-gray-700 hover:border-primary/50 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer transition-all group block">
+            <a href="{{ route('admin.support-tickets') }}" wire:navigate class="bg-gray-900/95 backdrop-blur-md border border-gray-700 hover:border-primary/50 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer transition-all group block">
                 <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 group-hover:scale-110 transition-transform">
                     <span class="text-primary text-xl">💌</span>
                 </div>
@@ -199,7 +199,7 @@
 
                             {{-- MOBILE LOGO MIT LINK --}}
                             <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
-                                <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
+                                <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" wire:navigate class="block">
                                     <img class="h-24 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                                 </a>
                             </div>
@@ -217,7 +217,7 @@
 
                     {{-- DESKTOP LOGO MIT LINK --}}
                     <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
-                        <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" class="block">
+                        <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" wire:navigate class="block">
                             <img class="h-24 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                         </a>
                     </div>

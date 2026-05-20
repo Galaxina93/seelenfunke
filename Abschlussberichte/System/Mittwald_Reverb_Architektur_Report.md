@@ -82,4 +82,53 @@ RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
 RewriteRule ^(.*)$ http://127.0.0.1:6001/$1 [P,L]
 ```
 
-**Fazit:** Man darf sich von Shared-Hosting Docker-Umgebungen nicht vorschreiben lassen, was geht und was nicht. Die Aufteilung in zwei getrennte Cronjobs im selben Container hebelt sämtliche Limitierungen aus. Ergänzt um den "Zombie-Killer" und das intelligente Frontend-Routing haben wir ein vollwertiges, selbstheilendes und völlig wartungsfreies WebSocket-Ökosystem erschaffen – ganz ohne Supervisor, Forge oder teure Node-Container.
+### Update: Die offizielle & sauberste Lösung via PHP-Worker-App (19. Mai 2026)
+Nach Rücksprache mit dem Mittwald-Support hat sich herausgestellt, warum **Versuch 1** mit der PHP-Worker-App fehlgeschlagen war:
+- Wir hatten versucht, die Worker-App über die URL `a-c45drm.internal` anzusprechen. Dieser `.internal`-Suffix existiert in der mStudio DNS-Auflösung jedoch nicht.
+- **Korrektur:** Der interne Hostname der Worker-App ist schlicht und ergreifend ihr **Shortcode** (z. B. `a-iurgq8`, zu finden in der SSH-Login-URL der Worker-App), ohne jeglichen Domain-Suffix.
+- Innerhalb des Mittwald-Container-Netzwerks kann die Web-App den Worker-Container direkt über `http://a-iurgq8:6001` bzw. `ws://a-iurgq8:6001` erreichen.
+
+Dadurch lässt sich der WebSocket-Server sauber in eine isolierte PHP Worker-App auslagern, die von Mittwalds Prozess-Manager `mittnite` permanent überwacht und am Leben erhalten wird.
+
+#### Zukünftige Konfiguration mit Worker-App:
+
+**.htaccess** (Web-App leitet Traffic auf den Worker-Shortcode um):
+```apache
+RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
+RewriteCond %{HTTP:Upgrade} websocket [NC]
+RewriteRule ^(.*)$ ws://a-iurgq8:6001/$1 [P,L]
+
+RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
+RewriteRule ^(.*)$ http://a-iurgq8:6001/$1 [P,L]
+```
+
+**Backend .env** (Web-App funkt an Worker-Container):
+```env
+REVERB_HOST="a-iurgq8" # Shortcode der Worker-App
+REVERB_PORT=6001
+REVERB_SERVER_PORT=6001
+```
+
+### Ergänzung: Bereinigung & Best Practices für Hintergrund-Prozesse (20. Mai 2026)
+Im Zuge dieser Umstellung wurde auch die restliche Struktur der Hintergrund-Prozesse in Mittwald mStudio analysiert und bereinigt, da zuvor ein redundantes Setup aktiv war.
+
+#### Wann verwendet man Worker-Apps vs. Cronjobs in mStudio?
+
+1. **PHP-Worker-App (Dauerläufer / Dämonen):**
+   - **Einsatzbereich:** Für Prozesse, die dauerhaft im Hintergrund laufen müssen (z. B. `reverb:start` oder `queue:work` / `queue:listen`).
+   - **Vorteil:** Mittwalds Prozess-Manager `mittnite` hält die App dauerhaft aktiv und startet sie bei Abstürzen oder Timeouts automatisch neu.
+   - **Fehlkonfiguration:** Die Worker-App `WORKER - Scheduler Stage` mit dem Befehl `php artisan schedule:work` wurde gelöscht. Dieser Befehl simuliert lediglich eine Endlosschleife und ist nur für lokale Umgebungen ohne echten System-Cron gedacht. Im Live-Betrieb verbraucht er unnötig dauerhaft RAM.
+
+2. **Cronjobs im Panel (Periodische Ausführung):**
+   - **Einsatzbereich:** Für Befehle, die in festen Intervallen kurz starten, ihre Arbeit tun und sich wieder beenden (z. B. `php artisan schedule:run` jede Minute).
+   - **Vorteil:** Ressourcenschonend, da der PHP-Prozess nach Erledigung der Aufgaben (meist < 2 Sekunden) sofort beendet wird und den RAM wieder freigibt.
+   - **Status:** Der minütliche Cronjob auf der Web-App `seelenfunke-stage` mit dem Parameter `schedule:run` bleibt der führende Scheduler. Die redundante Worker-App wurde entfernt, um doppelte Task-Ausführungen (und damit z. B. doppelten Mailversand) zuverlässig zu verhindern.
+
+**Bereinigte Gesamtstruktur auf Stage:**
+* **Web-App Container (`seelenfunke-stage`):** Läuft als Webserver und führt minütlich den Cronjob `schedule:run` aus.
+* **Worker-App `WORKER - Jobs (Mails,PDF) Stage`:** Läuft permanent für die Queue-Abarbeitung.
+* **Worker-App `WORKER - Websocket Stage` (`a-iurgq8`):** Läuft permanent für den Laravel Reverb WebSocket-Server.
+
+**Fazit:** Der Workaround mit zwei Cronjobs im selben Container war eine exzellente temporäre Lösung. Mit den neuen Erkenntnissen des Supports zur korrekten Hostname-Auflösung (`a-iurgq8` ohne `.internal`) wechseln wir zur nativen Worker-App-Architektur. Dies macht den minütlichen Reverb-Cronjob und den "Zombie-Killer" in `MasterAnalytics.php` hinfällig, da Mittwalds `mittnite` nun die Prozessüberwachung übernimmt. Gleichzeitig sorgt die Entfernung des redundanten Scheduler-Workers für ein saubereres, ressourcenschonenderes und fehlerfreies System-Setup.
+
+

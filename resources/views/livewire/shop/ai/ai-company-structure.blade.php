@@ -52,12 +52,25 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.min.css"/>
     <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
     <script>
-        document.addEventListener('livewire:initialized', () => {
-            MobileDragDrop.polyfill({
-                dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
-            });
-            window.addEventListener('touchmove', function() {}, {passive: false});
-        });
+        (function() {
+            const init = () => {
+                if (typeof MobileDragDrop !== 'undefined') {
+                    MobileDragDrop.polyfill({
+                        dragImageTranslateOverride: MobileDragDrop.scrollBehaviourDragImageTranslateOverride
+                    });
+                }
+                if (!window.hasMobileDragDropTouchmove) {
+                    window.hasMobileDragDropTouchmove = true;
+                    window.addEventListener('touchmove', function() {}, {passive: false});
+                }
+            };
+
+            if (window.Livewire) {
+                init();
+            } else {
+                document.addEventListener('livewire:initialized', init, { once: true });
+            }
+        })();
     </script>
 
     @if($viewMode === 'tree')

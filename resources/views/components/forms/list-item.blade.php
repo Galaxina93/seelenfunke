@@ -44,7 +44,7 @@
 <li @if($dotState) x-data="{ unread: {{ $dotState }} }" @endif
     @if($dotEvent) @{{ $dotEvent }}.window="unread = true" @endif
     @if($dotClearEvent) @{{ $dotClearEvent }}.window="unread = false" @endif>
-    <a href="{{ $route }}" 
+    <a href="{{ $route }}" wire:navigate
        @if($dotState) @click="unread = false; {{ $dotState }} = false" @endif
        class="group flex items-center gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? $activeClasses : $inactiveClasses }}">
         <div class="relative">

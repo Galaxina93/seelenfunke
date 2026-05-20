@@ -53,10 +53,11 @@ class AiSupportService
             $end = $start->copy()->addMinutes($duration);
 
             // Mitternachts-Korrektur (z.B. Schlafen von 22:00 bis 06:00 Uhr)
-            if ($start > $end) {
-                $end->addDay();
-                if ($now->hour < $end->hour) {
+            $crossesMidnight = $start->format('H:i:s') > $end->format('H:i:s');
+            if ($crossesMidnight) {
+                if ($now->format('H:i:s') < $end->format('H:i:s')) {
                     $start->subDay();
+                    $end->subDay();
                 }
             }
 
@@ -281,7 +282,7 @@ class AiSupportService
                 $currentFlow['icon'] = 'calendar';
                 $currentFlow['type'] = 'event';
             }
-            if ($topOption['score'] >= 1000) {
+            if ($topOption['score'] >= 1000 && ($topOption['title'] ?? '') === 'Sicherheits-Alarm!') {
                 $currentFlow['title'] = 'SYSTEM KRITISCH';
                 $currentFlow['step'] = 'Sicherheit prüfen';
                 $currentFlow['icon'] = 'shield-exclamation';

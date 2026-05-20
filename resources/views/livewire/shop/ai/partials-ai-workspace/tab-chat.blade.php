@@ -91,7 +91,13 @@
                                                  :style="expanded ? 'max-height: none;' : (content.length > 300 ? 'max-height: 150px;' : 'max-height: none;')"
                                                  x-init="
                                                     const cleanContent = content.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '');
-                                                    const render = () => { $el.innerHTML = window.renderAiMarkdown(cleanContent); };
+                                                    const render = () => { 
+                                                        if (window.renderAiMarkdown) {
+                                                            $el.innerHTML = window.renderAiMarkdown(cleanContent); 
+                                                        } else {
+                                                            $el.innerText = cleanContent;
+                                                        }
+                                                    };
                                                     if (window.renderAiMarkdown) { render(); } else { setTimeout(render, 500); }
                                                  " wire:ignore>
                                             </div>
