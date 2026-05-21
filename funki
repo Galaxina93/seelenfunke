@@ -237,7 +237,12 @@ case "$1" in
         php artisan config:clear
         php artisan cache:clear
 
-        echo "✅ Sync erfolgreich abgeschlossen! Bitte starte die Worker-App im Mittwald-Panel neu."
+        echo "✅ Sync erfolgreich abgeschlossen!"
+        echo "💡 Da Mittwald Code-Änderungen in PHP-Workern nicht automatisch lädt, musst du ihn manuell neu starten."
+        echo "👉 Logge dich per SSH in den Worker ein (SSH-Zugang für 'WORKER - Websocket Stage') und führe aus:"
+        echo "   mittnitectl job restart"
+        echo "👉 Status prüfen kannst du dort mit:"
+        echo "   mittnitectl job status"
         ;;
     cache)
         echo "🧹 Leere alle Framework-Caches restlos aus..."
