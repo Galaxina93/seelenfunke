@@ -80,7 +80,10 @@ try {
                 }
                 
                 // Verhindert Überschneidungen bei normalen Jobs
-                $event->runInBackground()->withoutOverlapping();
+                $event->withoutOverlapping();
+                if (!isset($_GET['sync_schedule']) && (!isset($_SERVER['argv']) || !in_array('--sync', $_SERVER['argv']))) {
+                    $event->runInBackground();
+                }
 
                 $event->onSuccess(function () use ($job) {
                     $job->update([
