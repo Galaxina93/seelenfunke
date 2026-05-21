@@ -101,6 +101,155 @@ if ($fp) {
     $connectionError = "[$errno] $errstr";
 }
 
+// PHP CLI Diagnostik & Interpreter-Checks
+$cliDiagnostics = [];
+$interpretersToTest = [
+    '/usr/bin/php',
+    '/usr/bin/php8.4',
+    '/usr/bin/php8.3',
+    '/usr/bin/php8.2',
+    'php'
+];
+$artisanFile = $webAppPath . '/artisan';
+$artisanExists = file_exists($artisanFile);
+
+if (function_exists('exec')) {
+    foreach ($interpretersToTest as $interpreter) {
+        $outputLines = [];
+        $exitCode = -1;
+        @exec("$interpreter -v 2>&1", $outputLines, $exitCode);
+        if ($exitCode === 0 && !empty($outputLines)) {
+            $versionOutput = $outputLines[0];
+            
+            // Test artisan call command
+            $artisanOutputLines = [];
+            $artisanExitCode = -1;
+            if ($artisanExists) {
+                @exec("$interpreter " . escapeshellarg($artisanFile) . " -V 2>&1", $artisanOutputLines, $artisanExitCode);
+            }
+            
+            // Test proc_open availability under this interpreter
+            $procOpenOutput = [];
+            $procOpenExitCode = -1;
+            @exec("$interpreter -r \"echo function_exists('proc_open') ? 'yes' : 'no';\" 2>&1", $procOpenOutput, $procOpenExitCode);
+            $procOpenStatus = ($procOpenExitCode === 0 && implode('', $procOpenOutput) === 'yes') ? 'ok' : 'disabled';
+            
+            $cliDiagnostics[$interpreter] = [
+                'status' => 'ok',
+                'version' => $versionOutput,
+                'artisan_status' => $artisanExitCode === 0 ? 'ok' : 'error',
+                'artisan_output' => implode("\n", $artisanOutputLines),
+                'proc_open' => $procOpenStatus
+            ];
+        } else {
+            $cliDiagnostics[$interpreter] = [
+                'status' => 'not_found',
+                'version' => 'Nicht gefunden oder nicht ausführbar',
+                'artisan_status' => 'n/a',
+                'artisan_output' => '',
+                'proc_open' => 'n/a'
+            ];
+        }
+    }
+} else {
+    $cliDiagnostics['error'] = 'PHP-Funktion `exec` ist deaktiviert!';
+}
+
+// Laravel initialisieren
+$laravelLoaded = false;
+$laravelLoadError = '';
+$schedulerActive = false;
+$schedulerLastRun = null;
+$schedulerDiffMin = 0;
+$cronjobList = [];
+
+try {
+    require_once $webAppPath . '/vendor/autoload.php';
+    $app = require_once $webAppPath . '/bootstrap/app.php';
+    $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+    $kernel->bootstrap();
+    $laravelLoaded = true;
+    
+    // Überlappende Sperren löschen
+    if ($action === 'clear_scheduler_locks') {
+        try {
+            $clearedLocks = 0;
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+                $cronjobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
+                foreach ($cronjobs as $job) {
+                    $mutexKey = 'framework/schedule-' . sha1($job->command);
+                    if (\Illuminate\Support\Facades\Cache::has($mutexKey)) {
+                        \Illuminate\Support\Facades\Cache::forget($mutexKey);
+                        $clearedLocks++;
+                    }
+                }
+            }
+            $message = "Hängende Scheduler-Sperren erfolgreich bereinigt! Gelöschte Sperren: $clearedLocks";
+            $messageType = "success";
+        } catch (\Exception $ex) {
+            $message = "Fehler beim Bereinigen der Sperren: " . $ex->getMessage();
+            $messageType = "error";
+        }
+    }
+
+    // Manuelles Ausführen des Schedulers via GET Parameter (im Web Context)
+    if ($action === 'run_scheduler') {
+        try {
+            \Illuminate\Support\Facades\Artisan::call('schedule:run');
+            $message = "Scheduler manuell ausgeführt (im Web-Prozess)!\n\nAusgabe:\n" . \Illuminate\Support\Facades\Artisan::output();
+            $messageType = "success";
+        } catch (\Exception $ex) {
+            $message = "Fehler beim Ausführen des Schedulers: " . $ex->getMessage();
+            $messageType = "error";
+        }
+    }
+
+    // CLI Simulation ausführen
+    if ($action === 'run_scheduler_cli') {
+        $interpreter = $_GET['interpreter'] ?? '/usr/bin/php';
+        if (!in_array($interpreter, $interpretersToTest)) {
+            $interpreter = '/usr/bin/php';
+        }
+        
+        if (function_exists('exec')) {
+            $cliOutput = [];
+            $cliExitCode = -1;
+            $cmd = "$interpreter " . escapeshellarg($artisanFile) . " schedule:run 2>&1";
+            @exec($cmd, $cliOutput, $cliExitCode);
+            
+            $message = "CLI Simulation ausgeführt!\nBefehl: $cmd\nExit-Code: $cliExitCode\n\nAusgabe:\n" . implode("\n", $cliOutput);
+            $messageType = $cliExitCode === 0 ? "success" : "error";
+        } else {
+            $message = "Fehler: PHP `exec` Funktion steht auf diesem Server nicht zur Verfügung.";
+            $messageType = "error";
+        }
+    }
+    
+    // Cache auslesen
+    $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
+    if ($lastRunRaw) {
+        $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
+        $schedulerLastRun = $lastRun->toDateTimeString();
+        $schedulerDiffMin = (int) abs(now()->diffInMinutes($lastRun));
+        if ($schedulerDiffMin < 10) {
+            $schedulerActive = true;
+        }
+    }
+    
+    // Cronjobs aus der DB laden und Sperr-Status prüfen
+    if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+        $cronjobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
+        foreach ($cronjobs as $job) {
+            $mutexKey = 'framework/schedule-' . sha1($job->command);
+            $job->is_locked = \Illuminate\Support\Facades\Cache::has($mutexKey);
+            $cronjobList[] = $job;
+        }
+    }
+} catch (\Exception $e) {
+    $laravelLoaded = false;
+    $laravelLoadError = $e->getMessage();
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -304,7 +453,7 @@ if ($fp) {
         </header>
 
         <?php if ($message): ?>
-            <div class="alert alert-<?php echo $messageType; ?>">
+            <div class="alert alert-<?php echo $messageType; ?>" style="white-space: pre-wrap; font-family: monospace;">
                 <?php echo htmlspecialchars($message); ?>
             </div>
         <?php endif; ?>
@@ -334,6 +483,195 @@ if ($fp) {
                     1. Reverb läuft nicht auf dem Worker (SSH-Befehl <code>mittnitectl job status</code> prüfen).<br>
                     2. Reverb lauscht im Worker nur auf <code>127.0.0.1</code> statt <code>0.0.0.0</code> (Worker-.env prüfen und fixen).<br>
                     3. Der Worker-Container hat den falschen Shortcode.
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- CLIENTSEITIGER WSS-TEST -->
+        <div class="card">
+            <div class="card-title">
+                <span>💻 Browser WSS-Verbindungstest</span>
+                <span id="wss-badge" class="badge badge-warning">TESTE...</span>
+            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Der Browser versucht, eine direkte WebSocket-Verbindung (WSS) aufzubauen zu: <strong style="color: var(--text);">wss://ws.mein-seelenfunke.de</strong>
+            </p>
+            <div id="wss-log" class="code-block" style="font-size: 0.85rem; max-height: 200px; overflow-y: auto;">
+                Starte Client-Verbindungstest...<br>
+            </div>
+        </div>
+
+        <!-- SCHEDULER-STATUS -->
+        <div class="card">
+            <div class="card-title">
+                <span>⏰ Task-Scheduler & Cronjob Status</span>
+                <?php if ($schedulerActive): ?>
+                    <span class="badge badge-success">AKTIV (Heartbeat OK)</span>
+                <?php else: ?>
+                    <span class="badge badge-error">INAKTIV / FEHLER</span>
+                <?php endif; ?>
+            </div>
+            
+            <?php if (!$laravelLoaded): ?>
+                <div class="alert alert-error" style="margin-bottom: 0;">
+                    ✗ Laravel konnte nicht geladen werden! Das deutet auf einen fatalen Fehler beim Bootstrappen (Datenbank, ENV, Syntax) hin.<br>
+                    <strong>Fehlermeldung:</strong> <?php echo htmlspecialchars($laravelLoadError); ?>
+                </div>
+            <?php else: ?>
+                <p style="margin-top: 0; color: var(--text-muted);">
+                    Letzter erfolgreicher Scheduler-Lauf (im Cache): 
+                    <strong style="color: var(--text);">
+                        <?php echo $schedulerLastRun ? $schedulerLastRun . ' (vor ' . $schedulerDiffMin . ' Minuten)' : 'Bisher kein Eintrag im Cache'; ?>
+                    </strong>
+                </p>
+                
+                <?php if (!$schedulerActive): ?>
+                    <div class="alert alert-warning">
+                        ⚠️ Der Scheduler hat sich seit über 10 Minuten nicht gemeldet. Wenn der Cronjob im Mittwald-Panel aktiv ist, kann es sein, dass die Ausführung durch PHP-Fehler blockiert wird. Klicke unten auf "Scheduler manuell ausführen", um Fehler zu sehen!
+                    </div>
+                <?php endif; ?>
+                
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.75rem;">Datenbank-Cronjobs (system_cronjobs):</h3>
+                <div style="overflow-x: auto;">
+                    <table style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">Befehl</th>
+                                <th>Schedule</th>
+                                <th>Aktiv?</th>
+                                <th>Letzter Lauf</th>
+                                <th>Status</th>
+                                <th>Sperre</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($cronjobList)): ?>
+                                <tr>
+                                    <td colspan="6" style="text-align: center; color: var(--text-muted);">Keine Cronjobs in der Tabelle gefunden oder Tabelle leer.</td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($cronjobList as $job): ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?php echo htmlspecialchars($job->name); ?></strong><br>
+                                            <small style="color: var(--text-muted);">php artisan <?php echo htmlspecialchars($job->command); ?> <?php echo htmlspecialchars($job->parameters ?? ''); ?></small>
+                                        </td>
+                                        <td><code><?php echo htmlspecialchars($job->schedule); ?></code></td>
+                                        <td>
+                                            <?php if ($job->is_active): ?>
+                                                <span style="color: var(--success); font-weight: bold;">JA</span>
+                                            <?php else: ?>
+                                                <span style="color: var(--error);">NEIN</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td><?php echo $job->last_run_at ? htmlspecialchars($job->last_run_at) : '<em style="color: var(--text-muted);">nie</em>'; ?></td>
+                                        <td>
+                                            <?php if ($job->status === 'success'): ?>
+                                                <span class="badge badge-success">success</span>
+                                            <?php elseif ($job->status === 'error'): ?>
+                                                <span class="badge badge-error">error</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-warning"><?php echo htmlspecialchars($job->status ?? 'pending'); ?></span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if (isset($job->is_locked) && $job->is_locked): ?>
+                                                <span class="badge badge-error" title="Sperr-Mutex in Cache vorhanden">Gesperrt</span>
+                                            <?php else: ?>
+                                                <span class="badge badge-success">Frei</span>
+                                            <?php endif; ?>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- PHP CLI DIAGNOSTIK & INTERPRETER -->
+        <div class="card">
+            <div class="card-title">
+                <span>💻 PHP CLI & Interpreter Diagnostik</span>
+                <?php if (function_exists('exec')): ?>
+                    <span class="badge badge-success">EXEC() AKTIV</span>
+                <?php else: ?>
+                    <span class="badge badge-error">EXEC() INAKTIV</span>
+                <?php endif; ?>
+            </div>
+            
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Der Laravel-Scheduler wird über Cronjobs auf der Kommandozeile (CLI) ausgeführt. Hier sind die auf dem Server getesteten PHP-Interpreter:
+            </p>
+
+            <?php if (!function_exists('exec')): ?>
+                <div class="alert alert-error" style="margin-bottom: 0;">
+                    Die PHP-Funktion <code>exec()</code> ist für den Web-Prozess gesperrt. Eine CLI-Diagnose kann nicht durchgeführt werden.
+                </div>
+            <?php else: ?>
+                <div style="overflow-x: auto;">
+                    <table style="font-size: 0.85rem; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 20%;">Interpreter</th>
+                                <th style="width: 40%;">CLI PHP Version</th>
+                                <th style="width: 15%;">artisan -V</th>
+                                <th style="width: 15%;">proc_open</th>
+                                <th style="width: 10%;">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($cliDiagnostics as $path => $diag): ?>
+                                <tr>
+                                    <td><strong><?php echo htmlspecialchars($path); ?></strong></td>
+                                    <td>
+                                        <?php if ($diag['status'] === 'ok'): ?>
+                                            <span style="color: var(--text);"><?php echo htmlspecialchars($diag['version']); ?></span>
+                                            <?php 
+                                            if (preg_match('/PHP\s+([0-9.]+)/i', $diag['version'], $m)) {
+                                                $vNum = $m[1];
+                                                if (version_compare($vNum, '8.4.0', '<')) {
+                                                    echo '<br><small style="color: var(--warning); font-weight: bold;">⚠️ Inkompatibel! Erfordert PHP ^8.4</small>';
+                                                } else {
+                                                    echo '<br><small style="color: var(--success); font-weight: bold;">✓ Kompatibel (PHP 8.4+)</small>';
+                                                }
+                                            }
+                                            ?>
+                                        <?php else: ?>
+                                            <span style="color: var(--text-muted); font-style: italic;"><?php echo htmlspecialchars($diag['version']); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($diag['artisan_status'] === 'ok'): ?>
+                                            <span class="badge badge-success">OK</span>
+                                        <?php elseif ($diag['artisan_status'] === 'error'): ?>
+                                            <span class="badge badge-error" title="<?php echo htmlspecialchars($diag['artisan_output']); ?>">FEHLER</span>
+                                            <div style="font-size: 0.75rem; color: var(--error); margin-top: 0.25rem; font-family: monospace; max-height: 80px; overflow-y: auto; white-space: pre-wrap;"><?php echo htmlspecialchars(substr($diag['artisan_output'], 0, 150)); ?>...</div>
+                                        <?php else: ?>
+                                            <span class="badge badge-warning">n/a</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if (($diag['proc_open'] ?? '') === 'ok'): ?>
+                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                        <?php elseif (($diag['proc_open'] ?? '') === 'disabled'): ?>
+                                            <span style="color: var(--error); font-weight: bold;">NEIN</span>
+                                        <?php else: ?>
+                                            <span style="color: var(--text-muted);">n/a</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($diag['status'] === 'ok'): ?>
+                                            <a href="?action=run_scheduler_cli&interpreter=<?php echo urlencode($path); ?>" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 500; border-radius: 6px;">Simulation</a>
+                                        <?php else: ?>
+                                            -
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
             <?php endif; ?>
         </div>
@@ -414,8 +752,10 @@ if ($fp) {
         <div class="card" style="text-align: center;">
             <div class="card-title" style="justify-content: center;">🛠️ Systemaktionen</div>
             <p>Falls die Worker-Konfiguration Fehler aufweist (z.B. falsches <code>REVERB_SERVER_HOST</code> oder Key-Mismatch), können Sie dies hier beheben.</p>
-            <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1.5rem;">
+            <div style="display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;">
                 <a href="?action=fix_worker_env" class="btn">Worker .env automatisch reparieren</a>
+                <a href="?action=clear_scheduler_locks" class="btn" style="background-color: var(--error);">Hängende Sperren bereinigen</a>
+                <a href="?action=run_scheduler" class="btn" style="background-color: var(--warning);">Scheduler manuell ausführen</a>
                 <a href="?" class="btn" style="background-color: var(--card-bg); border: 1px solid var(--border); color: var(--text);">Status aktualisieren</a>
             </div>
         </div>
@@ -440,5 +780,61 @@ if ($fp) {
         </div>
 
     </div>
+
+    <script>
+        (function() {
+            const wssLog = document.getElementById('wss-log');
+            const wssBadge = document.getElementById('wss-badge');
+            
+            function log(msg, type = 'info') {
+                const colors = {
+                    info: '#9ca3af',
+                    success: '#10b981',
+                    error: '#ef4444',
+                    warning: '#f59e0b'
+                };
+                const color = colors[type] || colors.info;
+                wssLog.innerHTML += `<span style="color: ${color}">[${new Date().toLocaleTimeString()}] ${msg}</span><br>`;
+                wssLog.scrollTop = wssLog.scrollHeight;
+            }
+
+            const appKey = '<?php echo htmlspecialchars($webEnv['REVERB_APP_KEY'] ?? ($webEnv['PUSHER_APP_KEY'] ?? 'seelenfunke-key')); ?>';
+            const url = `wss://ws.mein-seelenfunke.de/app/${appKey}?protocol=7&client=js&version=8.4.0-rc2&flash=false`;
+            
+            log(`Verbinde mit ${url}...`, 'info');
+            
+            try {
+                const ws = new WebSocket(url);
+                
+                ws.onopen = function() {
+                    log('✓ Verbindung erfolgreich geöffnet!', 'success');
+                    wssBadge.className = 'badge badge-success';
+                    wssBadge.textContent = 'ERFOLGREICH VERBUNDEN';
+                    ws.send(JSON.stringify({event: 'pusher:ping', data: {}}));
+                };
+                
+                ws.onmessage = function(evt) {
+                    log(`→ Nachricht empfangen: ${evt.data}`, 'info');
+                };
+                
+                ws.onerror = function(err) {
+                    log('✗ WebSocket-Fehler aufgetreten! (Verbindung blockiert, Proxy-Fehler oder SSL-Problem)', 'error');
+                    console.error(err);
+                };
+                
+                ws.onclose = function(evt) {
+                    log(`ℹ Verbindung geschlossen. Code: ${evt.code}, Grund: ${evt.reason || 'keiner'}, Sauber beendet: ${evt.wasClean}`, 'warning');
+                    if (wssBadge.textContent === 'TESTE...') {
+                        wssBadge.className = 'badge badge-error';
+                        wssBadge.textContent = 'VERBINDUNG FEHLGESCHLAGEN';
+                    }
+                };
+            } catch(e) {
+                log(`✗ Ausnahme beim Erstellen des WebSockets: ${e.message}`, 'error');
+                wssBadge.className = 'badge badge-error';
+                wssBadge.textContent = 'AUSNAHME';
+            }
+        })();
+    </script>
 </body>
 </html>

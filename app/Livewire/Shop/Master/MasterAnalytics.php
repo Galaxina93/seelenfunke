@@ -249,33 +249,88 @@ class MasterAnalytics extends Component
             $health['queue'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Job-Tabelle nicht erreichbar.', 'pending' => 0, 'failed' => 0];
         }
 
-        // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob)
+        // 7. NEU: Scheduler Check (Lebenszeichen vom Cronjob & CLI Diagnose)
         try {
             $lastRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_last_run');
-
+            $diffMinutes = null;
             if ($lastRunRaw) {
-                // Cache-Wert in Carbon umwandeln (könnte Unix-Timestamp sein)
                 $lastRun = is_numeric($lastRunRaw) ? \Carbon\Carbon::createFromTimestamp((int)$lastRunRaw) : \Carbon\Carbon::parse($lastRunRaw);
-
-                // Wir nutzen absoluteTo() oder einfach abs() mit diffInMinutes()
                 $diffMinutes = (int) abs(now()->diffInMinutes($lastRun));
-
-                if ($diffMinutes < 10) {
-                    $text = $diffMinutes == 1 ? "Minute" : "Minuten";
-                    $health['scheduler'] = ['status' => 'connected', 'value' => "Aktiv ({$diffMinutes} {$text})", 'error' => null];
-                }
             }
 
-            if (!isset($health['scheduler'])) {
-                if (app()->environment('local')) {
-                    $health['scheduler'] = ['status' => 'connected', 'value' => 'Inaktiv (Lokal OK)', 'error' => null];
-                } else {
-                    $health['scheduler'] = ['status' => 'warning', 'value' => 'Inaktiv', 'error' => 'Kein Cronjob in den letzten 10 Minuten gelaufen!'];
+            $schedulerStatus = 'connected';
+            $schedulerValue = 'Aktiv';
+            $schedulerError = null;
+
+            if ($diffMinutes === null || $diffMinutes >= 10) {
+                if (!app()->environment('local')) {
+                    $schedulerStatus = 'warning';
+                    $schedulerValue = $diffMinutes !== null ? "Inaktiv ({$diffMinutes} Min)" : 'Inaktiv';
+                    $schedulerError = 'Kein Cronjob in den letzten 10 Minuten gelaufen!';
                     $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
+                } else {
+                    $schedulerValue = 'Inaktiv (Lokal OK)';
+                }
+            } else {
+                $text = $diffMinutes == 1 ? "Minute" : "Minuten";
+                $schedulerValue = "Aktiv ({$diffMinutes} {$text})";
+            }
+
+            // Hängende Sperren zählen
+            $lockedCount = 0;
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+                $cronjobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
+                foreach ($cronjobs as $job) {
+                    $mutexKey = 'framework/schedule-' . sha1($job->command);
+                    if (\Illuminate\Support\Facades\Cache::has($mutexKey)) {
+                        $lockedCount++;
+                    }
                 }
             }
+
+            // CLI PHP-Versionen & proc_open testen
+            $cliVersions = [];
+            $interpreters = ['/usr/bin/php8.4', '/usr/bin/php', 'php'];
+            if (function_exists('exec')) {
+                foreach ($interpreters as $interpreter) {
+                    $output = [];
+                    $code = -1;
+                    @exec("$interpreter -v 2>&1", $output, $code);
+                    if ($code === 0 && !empty($output)) {
+                        $version = 'not_found';
+                        if (preg_match('/PHP\s+([0-9.]+)/i', $output[0], $m)) {
+                            $version = $m[1];
+                        }
+                        
+                        $procOpenOutput = [];
+                        $procOpenExitCode = -1;
+                        @exec("$interpreter -r \"echo function_exists('proc_open') ? 'yes' : 'no';\" 2>&1", $procOpenOutput, $procOpenExitCode);
+                        $hasProc = ($procOpenExitCode === 0 && implode('', $procOpenOutput) === 'yes');
+                        
+                        $cliVersions[$interpreter] = [
+                            'version' => $version,
+                            'proc_open' => $hasProc
+                        ];
+                    }
+                }
+            }
+
+            $health['scheduler'] = [
+                'status' => $schedulerStatus,
+                'value' => $schedulerValue,
+                'error' => $schedulerError,
+                'locked_count' => $lockedCount,
+                'cli_versions' => $cliVersions,
+                'last_run_diff' => $diffMinutes
+            ];
         } catch (\Exception $e) {
-            $health['scheduler'] = ['status' => 'error', 'value' => 'Fehler', 'error' => 'Cache nicht lesbar.'];
+            $health['scheduler'] = [
+                'status' => 'error',
+                'value' => 'Fehler',
+                'error' => 'Cache/DB nicht lesbar: ' . $e->getMessage(),
+                'locked_count' => 0,
+                'cli_versions' => []
+            ];
         }
 
         // 8. NEU: Backup Check (Zuverlässig direkt über das Dateisystem)
@@ -760,9 +815,64 @@ class MasterAnalytics extends Component
                             break;
 
                         case 'scheduler':
-                            $this->addRepairLog("Erzwinge manuellen Scheduler-Lauf...");
-                            \Illuminate\Support\Facades\Artisan::call('schedule:run');
-                            $this->addRepairLog("✓ Scheduler manuell getriggert.", 'success');
+                            $this->addRepairLog("Räume hängende Scheduler-Sperren auf...");
+                            $clearedLocks = 0;
+                            if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+                                $cronjobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
+                                foreach ($cronjobs as $job) {
+                                    $mutexKey = 'framework/schedule-' . sha1($job->command);
+                                    if (\Illuminate\Support\Facades\Cache::has($mutexKey)) {
+                                        \Illuminate\Support\Facades\Cache::forget($mutexKey);
+                                        $clearedLocks++;
+                                    }
+                                }
+                            }
+                            $this->addRepairLog("✓ $clearedLocks hängende Sperren gelöscht.", 'success');
+
+                            $bestInterpreter = null;
+                            $interpreters = ['/usr/bin/php8.4', '/usr/bin/php', 'php'];
+                            if (function_exists('exec')) {
+                                foreach ($interpreters as $interpreter) {
+                                    $output = [];
+                                    $code = -1;
+                                    @exec("$interpreter -v 2>&1", $output, $code);
+                                    if ($code === 0 && !empty($output)) {
+                                        if (preg_match('/PHP\s+([0-9.]+)/i', $output[0], $m)) {
+                                            $v = $m[1];
+                                            if (version_compare($v, '8.4.0', '>=')) {
+                                                $bestInterpreter = $interpreter;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if (!$bestInterpreter) {
+                                $bestInterpreter = '/usr/bin/php8.4';
+                            }
+
+                            $artisanFile = base_path('artisan');
+                            $cmd = "$bestInterpreter " . escapeshellarg($artisanFile) . " schedule:run 2>&1";
+                            $this->addRepairLog("Starte Scheduler-Lauf über CLI Simulation...", 'info');
+                            $this->addRepairLog("Befehl: $cmd", 'info');
+
+                            $cliOutput = [];
+                            $cliExitCode = -1;
+                            if (function_exists('exec')) {
+                                @exec($cmd, $cliOutput, $cliExitCode);
+                                foreach ($cliOutput as $line) {
+                                    $this->addRepairLog("  [CLI] $line");
+                                }
+                                if ($cliExitCode === 0) {
+                                    $this->addRepairLog("✓ CLI-Scheduler erfolgreich ausgeführt (Exit: 0).", 'success');
+                                } else {
+                                    $this->addRepairLog("✗ CLI-Scheduler fehlgeschlagen (Exit: $cliExitCode).", 'error');
+                                }
+                            } else {
+                                $this->addRepairLog("exec() ist im Web-Context deaktiviert. Trigger über PHP Artisan::call...", 'warning');
+                                \Illuminate\Support\Facades\Artisan::call('schedule:run');
+                                $this->addRepairLog("✓ Artisan::call('schedule:run') ausgeführt.", 'success');
+                            }
                             break;
 
                         case 'backup':

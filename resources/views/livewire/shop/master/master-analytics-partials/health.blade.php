@@ -537,6 +537,37 @@
                                                             </div>
                                                         @endif
                                                     </div>
+
+                                                    @if(isset($health['cli_versions']) && count($health['cli_versions']) > 0)
+                                                        <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
+                                                            <span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1"><i class="bi bi-cpu"></i> PHP CLI Versionen:</span>
+                                                            @foreach($health['cli_versions'] as $path => $diag)
+                                                                <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                                    <span class="text-gray-500 shrink-0">{{ basename($path) }}:</span>
+                                                                    <span class="{{ version_compare($diag['version'], '8.4.0', '>=') ? 'text-emerald-400 font-bold' : 'text-amber-500' }}">
+                                                                        {{ $diag['version'] }} (proc: {{ $diag['proc_open'] ? 'JA' : 'NEIN' }})
+                                                                    </span>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
+
+                                                    @if(isset($health['locked_count']))
+                                                        <div class="flex flex-col gap-1 text-left font-mono my-2 bg-red-950/20 p-2 rounded-lg border border-red-900/50">
+                                                            <span class="text-[9px] font-bold text-red-400 uppercase tracking-widest mb-1"><i class="bi bi-lock"></i> Hängende Sperren:</span>
+                                                            <div class="flex justify-between gap-4 text-[9px]">
+                                                                <span class="text-gray-500">Sperren aktiv:</span>
+                                                                <span class="{{ $health['locked_count'] > 0 ? 'text-red-400 font-bold animate-pulse' : 'text-emerald-400' }}">
+                                                                    {{ $health['locked_count'] }}
+                                                                </span>
+                                                            </div>
+                                                            @if($health['locked_count'] > 0)
+                                                                <div class="text-[8px] text-red-400/80 leading-normal mt-1 whitespace-normal">
+                                                                    Sperren blockieren den Cronjob. Beim manuellen Anstoßen werden sie automatisch bereinigt.
+                                                                </div>
+                                                            @endif
+                                                        </div>
+                                                    @endif
                                                     
                                                     <div class="flex flex-col gap-1 text-left font-mono my-2 bg-purple-900/20 p-2 rounded-lg border border-purple-800/50">
                                                         <span class="text-[9px] font-bold text-purple-500 uppercase tracking-widest mb-1"><i class="bi bi-shield-lock"></i> Daemon-Sperre Aktiv:</span>
@@ -547,8 +578,8 @@
 
                                                     <div class="mt-2">
                                                         <button type="button" wire:click="fixSystem('scheduler')" wire:loading.attr="disabled" class="w-full px-2 py-1.5 rounded-lg border border-primary/50 bg-primary/10 hover:bg-primary/30 text-primary hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer flex items-center justify-center gap-1.5 pointer-events-auto">
-                                                            <span wire:loading.remove wire:target="fixSystem('scheduler')"><i class="bi bi-play-circle"></i> Scheduler manuell anstoßen</span>
-                                                            <span wire:loading wire:target="fixSystem('scheduler')" class="animate-pulse">Startet...</span>
+                                                            <span wire:loading.remove wire:target="fixSystem('scheduler')"><i class="bi bi-play-circle"></i> Scheduler reparieren & anstoßen</span>
+                                                            <span wire:loading wire:target="fixSystem('scheduler')" class="animate-pulse">Repariert...</span>
                                                         </button>
                                                     </div>
                                                 @endif
