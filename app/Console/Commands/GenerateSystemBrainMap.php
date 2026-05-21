@@ -115,7 +115,7 @@ class GenerateSystemBrainMap extends Command
                 // Check for includes, extends, livewire tags, components
                 
                 // @include('...') or @extends('...')
-                preg_match_all('/@(include|extends)\([\'"]([^\'"]+)[\'"]\)/', $content, $matches);
+                preg_match_all('/@(include|extends)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $matches);
                 if (!empty($matches[2])) {
                     foreach ($matches[2] as $viewName) {
                         if (isset($fileIndex['view:' . $viewName])) {

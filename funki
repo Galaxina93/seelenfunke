@@ -66,8 +66,9 @@ case "$1" in
         echo -e "  \033[1;32m🤖 mailworker\033[0m    Lässt die KI autonom E-Mails lesen, sortieren und beantworten."
         echo -e "  \033[1;32m📞 telefon\033[0m       Startet die KI-Telefonie Audio-Bridge (Twilio WebSocket)."
         echo -e "  \033[1;32m🧪 test\033[0m          Führt automatisierte Tests aus (z.B. 'funki test --filter ShopProcessTest')."
-        echo -e "  \033[1;32m🔐 rights\033[0m        Repariert die Dateiberechtigungen (www-data) und leert Caches sicher."
+        echo -e "  \033[1;32m🔐 rights\033[0m        Repariere die Dateiberechtigungen (www-data) und leert Caches sicher."
         echo -e "  \033[1;32m🧹 cache\033[0m         Leert alle Anwendungs- und System-Caches auf einen Schlag restlos aus."
+        echo -e "  \033[1;32m🔄 sync-worker\033[0m   Kopiert den aktuellen Code in den isolierten Worker-Stage-Container."
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
@@ -204,6 +205,39 @@ case "$1" in
         ;;
     rights)
         run_rights
+        ;;
+    sync-worker)
+        if [ "$IS_LOCAL" = true ]; then
+            echo -e "⚠️  \033[1;33mHinweis:\033[0m Der Befehl '\033[1;32msync-worker\033[0m' wird nur auf dem Live-Server benötigt, um Code in den isolierten Worker-Container zu kopieren. Lokal läuft bereits alles über denselben Codeordner."
+            exit 1
+        fi
+
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        SRC_DIR="$SCRIPT_DIR/"
+        DEST_DIR="$(dirname "$SCRIPT_DIR")/worker-stage-3/"
+
+        if [ ! -d "$DEST_DIR" ]; then
+            echo -e "❌ \033[1;31mFehler:\033[0m Das Zielverzeichnis '$DEST_DIR' existiert nicht!"
+            exit 1
+        fi
+
+        echo "🔄 Kopiere Projektdateien..."
+        echo "   👉 Quelle: $SRC_DIR"
+        echo "   👉 Ziel:   $DEST_DIR"
+
+        rsync -av --delete \
+          --exclude='storage' \
+          --exclude='.env' \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          "$SRC_DIR" "$DEST_DIR"
+
+        echo "🧹 Bereinige Cache im Worker..."
+        cd "$DEST_DIR"
+        php artisan config:clear
+        php artisan cache:clear
+
+        echo "✅ Sync erfolgreich abgeschlossen! Bitte starte die Worker-App im Mittwald-Panel neu."
         ;;
     cache)
         echo "🧹 Leere alle Framework-Caches restlos aus..."
