@@ -71,6 +71,7 @@ class AdminRoutesSmokeTest extends TestCase
             ['/admin/routine'],
             ['/admin/tasks'],
             ['/admin/calender'],
+            ['/admin/shopping'],
 
             ['/admin/support-tickets'],
 

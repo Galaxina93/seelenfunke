@@ -1,7 +1,7 @@
 <div style="--theme-color: {{ $this->themeColorHex }};" class="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-100px)] text-gray-300 font-sans relative"
      @admin-ticket-message-received.window="$wire.receiveMessage($event.detail)"
 >
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+    <script type="module" src="{{ asset('vendor/emoji-picker-element/index.js') }}"></script>
 
     {{-- LINKE SEITE: TICKET LISTE / TABELLE --}}
     <div class="w-full {{ $viewMode === 'split' ? 'lg:w-1/3' : 'lg:w-full' }} bg-gray-900 rounded-[2rem] shadow-2xl border border-gray-800 flex flex-col overflow-hidden h-[60vh] lg:h-full shrink-0 transition-all duration-300">

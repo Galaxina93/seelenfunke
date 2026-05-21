@@ -204,9 +204,9 @@
 
     <!-- [AREA: SCRIPTS & IMPORTS] -->
     <!-- Mapbox GL JS & Anime.js -->
-    <link href="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.css" rel="stylesheet" />
-    <script src="https://api.mapbox.com/mapbox-gl-js/v3.2.0/mapbox-gl.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="{{ asset('vendor/mapbox-gl/mapbox-gl.css') }}" rel="stylesheet" />
+    <script src="{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}"></script>
+    <script src="{{ asset('vendor/animejs/anime.min.js') }}"></script>
 
     <!-- Mapbox Map Container (Background) -->
     <div id="funki-map-container" class="absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 opacity-100 pointer-events-auto" style="filter: contrast(1.1) brightness(0.9) saturate(1.2);"></div>

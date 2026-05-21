@@ -24,7 +24,7 @@
         }
     });
 
-    document.addEventListener('alpine:init', () => {
+    window.registerFunkiView = window.registerFunkiView || (() => {
         let t3 = {
             scene: null,
             camera: null,
@@ -122,9 +122,11 @@
 
             // Live API State
             isLiveMode: false,
+            isSetupComplete: false,
             continuousMode: false,
             liveWs: null,
             audioContext: null,
+            localAudioStream: null,
 
             async readClipboard(isDirectClick = false) {
                 try {
@@ -1195,6 +1197,7 @@
                 try {
                     this.thinking = true;
                     this.updateCoreColor(true);
+                    this.isSetupComplete = false;
 
                     let activeChatId = this.$wire.currentChatSessionId || '';
 
@@ -1210,10 +1213,14 @@
                     if (!response.ok) throw new Error('Konnte keine Live-Credentials abrufen.');
                     const creds = await response.json();
 
-                    if (!creds.api_key) throw new Error('API Key fehlt.');
+                    if (!creds.token) throw new Error('Token fehlt.');
 
                     // 2. Setup WebSocket
-                    const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
+                    let wsUrl = creds.ws_url;
+                    if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
+                        wsUrl = wsUrl.replace('ws://', 'wss://');
+                    }
+                    wsUrl = `${wsUrl}${wsUrl.includes('?') ? '&' : '?'}token=${creds.token}`;
                     this.liveWs = new WebSocket(wsUrl);
 
                     this.liveWs.onopen = () => {
@@ -1244,8 +1251,8 @@
                         this.thinking = false;
                         this.updateCoreColor(true);
 
-                        // Start Microphone ONLY after setupComplete is received!
-                        // this.startMicrophone();
+                        // Start Microphone immediately on connection open
+                        this.startMicrophone();
                     };
 
                     this.liveWs.onmessage = async (event) => {
@@ -1283,18 +1290,52 @@
 
             async startMicrophone() {
                 try {
-                    // AudioContext at 16000Hz handles the downsampling safely.
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    // Try to initialize AudioContext with target 16000Hz, fallback to default if unsupported
+                    try {
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                    } catch (e) {
+                        console.warn('Could not initialize AudioContext with sampleRate 16000, falling back to default:', e);
+                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    }
                     
-                    // Hardware AEC enabled. We do NOT force sampleRate here to avoid iOS crashes.
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-                        channelCount: 1,
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    } });
+                    console.log('🎤 AudioContext initialisiert. Zustand vor Start:', this.audioContext.state, 'SampleRate:', this.audioContext.sampleRate);
+                    
+                    // Hardware AEC enabled with flexible / ideal constraints to prevent OverconstrainedError
+                    let stream;
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({
+                            audio: {
+                                channelCount: { ideal: 1 },
+                                echoCancellation: { ideal: true },
+                                noiseSuppression: { ideal: true },
+                                autoGainControl: { ideal: true }
+                            }
+                        });
+                    } catch (err) {
+                        console.warn('Standard getUserMedia constraints failed, trying simple fallback:', err);
+                        try {
+                            stream = await navigator.mediaDevices.getUserMedia({
+                                audio: {
+                                    echoCancellation: true
+                                }
+                            });
+                        } catch (err2) {
+                            console.warn('Fallback constraints failed, requesting basic audio:', err2);
+                            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        }
+                    }
+
+                    this.localAudioStream = stream;
+                    console.log('🎤 Mikrofon-Stream erfolgreich erhalten.');
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
+
+                    // Explicitly resume context if suspended (common in browsers when setup completes asynchronously)
+                    if (this.audioContext.state === 'suspended') {
+                        console.log('🎤 AudioContext ist suspended. Versuche zu aktivieren...');
+                        await this.audioContext.resume();
+                        console.log('🎤 AudioContext Zustand nach Aktivierungsversuch:', this.audioContext.state);
+                    }
 
                     const processor = this.audioContext.createScriptProcessor(4096, 1, 1);
                     this.audioWorklet = processor;
@@ -1308,7 +1349,29 @@
                         // Prevent AI from hearing itself and interrupting (echo cancellation workaround)
                         if (this.isOutputActive() && !this.allowVoiceInterruption) return;
 
-                        const inputData = e.inputBuffer.getChannelData(0);
+                        // Do not send audio data before setup is completed and acknowledged
+                        if (!this.isSetupComplete) return;
+
+                        let inputData = e.inputBuffer.getChannelData(0);
+                        
+                        // Downsample to 16000Hz if the AudioContext is not running at 16000Hz
+                        if (this.audioContext.sampleRate !== 16000) {
+                            const ratio = this.audioContext.sampleRate / 16000;
+                            const newLength = Math.round(inputData.length / ratio);
+                            const resampledData = new Float32Array(newLength);
+                            for (let i = 0; i < newLength; i++) {
+                                const position = i * ratio;
+                                const index = Math.floor(position);
+                                const fraction = position - index;
+                                if (index + 1 < inputData.length) {
+                                    resampledData[i] = inputData[index] * (1 - fraction) + inputData[index + 1] * fraction;
+                                } else {
+                                    resampledData[i] = inputData[index];
+                                }
+                            }
+                            inputData = resampledData;
+                        }
+
                         const pcmData = new Int16Array(inputData.length);
                         for (let i = 0; i < inputData.length; i++) {
                             let s = Math.max(-1, Math.min(1, inputData[i]));
@@ -1395,7 +1458,7 @@
             async handleWsMessage(data) {
                 if (data.setupComplete) {
                     console.log('Gemini Live Setup Complete received');
-                    this.startMicrophone();
+                    this.isSetupComplete = true;
                     return;
                 }
                 if (!this.hasOwnProperty('currentLiveTranscript')) {
@@ -1580,6 +1643,11 @@
                 if (this.liveWs) {
                     this.liveWs.close();
                     this.liveWs = null;
+                }
+                if (this.localAudioStream) {
+                    console.log('🎤 Beende alle Mikrofon-Tracks...');
+                    this.localAudioStream.getTracks().forEach(track => track.stop());
+                    this.localAudioStream = null;
                 }
                 if (this.audioInput) {
                     this.audioInput.disconnect();

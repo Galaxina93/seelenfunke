@@ -48,7 +48,7 @@
                             if (typeof window.JSZip !== 'undefined') return true;
                             return new Promise((resolve, reject) => {
                                 let script = document.createElement('script');
-                                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                                script.src = '{{ asset('vendor/jszip/jszip.min.js') }}';
                                 script.onload = () => resolve();
                                 script.onerror = () => reject();
                                 document.head.appendChild(script);

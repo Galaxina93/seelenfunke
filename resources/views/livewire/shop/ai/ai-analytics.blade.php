@@ -11,7 +11,7 @@
     </div>
 
     <!-- ApexCharts CDN Injection -->
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="{{ asset('vendor/apexcharts/apexcharts.min.js') }}"></script>
 
     <!-- Kachel-KPIs -->
     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
@@ -34,10 +34,12 @@
             $planName = $activePlan ? $activePlan->name : 'Unbekanntes Paket';
             $price = $activePlan ? number_format($activePlan->price_monthly, 2, ',', '.') : '0,00';
             
-            function formatTokenSuffix($amount) {
-                if ($amount >= 1000000) return round($amount / 1000000, 1) . ' Mio.';
-                if ($amount >= 1000) return round($amount / 1000, 1) . 'k';
-                return $amount;
+            if (!function_exists('formatTokenSuffix')) {
+                function formatTokenSuffix($amount) {
+                    if ($amount >= 1000000) return round($amount / 1000000, 1) . ' Mio.';
+                    if ($amount >= 1000) return round($amount / 1000, 1) . 'k';
+                    return $amount;
+                }
             }
         @endphp
         <div class="bg-gray-800 border border-gray-700 rounded-xl p-5 relative overflow-hidden">

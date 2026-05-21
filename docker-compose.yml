@@ -5,12 +5,14 @@ services:
         ports:
             - "80:80"
             - "6001:6001" # NEU: Macht die WebSockets für deinen Browser erreichbar!
+            - "8089:8081" # NEU: Port für den Gemini Live / Twilio WebSocket-Proxy!
         volumes:
             - ./:/var/www/html/
-        # Dieser Befehl ändert das Hauptverzeichnis auf /public und aktiviert mod_rewrite
+        # Dieser Befehl ändert das Hauptverzeichnis auf /public, startet den Node-Server im Hintergrund und aktiviert mod_rewrite
         command: >
             bash -c "sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
             && a2enmod rewrite
+            && (cd /var/www/html && nohup node server-twilio.js > /var/log/node-bridge.log 2>&1 &)
             && apache2-foreground"
     db:
         image: mysql:8.0

@@ -1,5 +1,8 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="space-y-6">
 
+    {{-- Dashboard Scripts registered globally via analytics-dashboards.js --}}
+
+
 
     <!-- TAB 1: COMBINED PERFORMANCE & COSTS -->
     <div class="bg-gradient-to-br from-gray-900 via-gray-950 to-black rounded-[2rem] p-6 lg:p-8 border border-[var(--theme-color-20)] shadow-2xl relative overflow-hidden">
@@ -300,136 +303,7 @@
             </div>
         </div>
 
-        {{-- Dashboard Scripts --}}
-        <script>
-            document.addEventListener('alpine:init', () => {
-                Alpine.data('productDashboard', () => {
-                    let lossChartObj = null;
-                    let topLossChartObj = null;
-                    let reviewChartObj = null;
-                    let supplierChartObj = null;
 
-                    return {
-                        getPayload() {
-                            const el = document.getElementById('analytics-data-bridge');
-                            return {
-                                loss: JSON.parse(el.getAttribute('data-loss')),
-                                topLoss: JSON.parse(el.getAttribute('data-toploss')),
-                                review: JSON.parse(el.getAttribute('data-review')),
-                                supplier: JSON.parse(el.getAttribute('data-supplier'))
-                            };
-                        },
-
-                        initCharts() {
-                            const data = this.getPayload();
-                            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
-                            const gridOptionsX = { display: false, drawBorder: false };
-
-                            const toArr = (val) => Array.isArray(val) ? val : Object.values(val || {});
-
-                            // 1. Loss Chart
-                            const ctxLs = document.getElementById('lossChart').getContext('2d');
-                            lossChartObj = new Chart(ctxLs, {
-                                type: 'bar',
-                                data: {
-                                    labels: toArr(data.loss.labels),
-                                    datasets: [{
-                                        label: 'Beschädigte Artikel (Menge)',
-                                        data: toArr(data.loss.data),
-                                        backgroundColor: 'rgba(244, 63, 94, 0.8)',
-                                        borderRadius: 4, barPercentage: 0.6
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
-                                    plugins: { legend: { display: false } }
-                                }
-                            });
-
-                            // 2. Top Loss Chart
-                            const ctxTop = document.getElementById('topLossChart').getContext('2d');
-                            topLossChartObj = new Chart(ctxTop, {
-                                type: 'bar',
-                                data: {
-                                    labels: toArr(data.topLoss.labels),
-                                    datasets: [{
-                                        label: 'Finanzieller Schaden (€)',
-                                        data: toArr(data.topLoss.data),
-                                        backgroundColor: 'rgba(239, 68, 68, 0.9)',
-                                        borderRadius: 4, barPercentage: 0.6
-                                    }]
-                                },
-                                options: {
-                                    indexAxis: 'y',
-                                    responsive: true, maintainAspectRatio: false,
-                                    scales: { x: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, y: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
-                                    plugins: { legend: { display: false } }
-                                }
-                            });
-
-                            // 3. Review Chart
-                            const ctxRev = document.getElementById('reviewChart').getContext('2d');
-                            reviewChartObj = new Chart(ctxRev, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: toArr(data.review.labels),
-                                    datasets: [{
-                                        data: toArr(data.review.data),
-                                        backgroundColor: ['#10b981', '#34d399', '#fbbf24', '#f87171', '#ef4444'],
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-
-                            // 4. Supplier Chart
-                            const ctxSup = document.getElementById('supplierChart').getContext('2d');
-                            supplierChartObj = new Chart(ctxSup, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: toArr(data.supplier.labels),
-                                    datasets: [{
-                                        data: toArr(data.supplier.data),
-                                        backgroundColor: ['#6366f1', '#06b6d4', '#ec4899', '#f59e0b', '#8b5cf6', '#14b8a6', '#64748b'],
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-                        },
-
-                        updateCharts() {
-                            const data = this.getPayload();
-                            const toArr = (val) => Array.isArray(val) ? val : Object.values(val || {});
-
-                            const updateMap = [
-                                { obj: lossChartObj, src: data.loss },
-                                { obj: topLossChartObj, src: data.topLoss },
-                                { obj: reviewChartObj, src: data.review },
-                                { obj: supplierChartObj, src: data.supplier }
-                            ];
-
-                            updateMap.forEach(m => {
-                                if (m.obj && m.src) {
-                                    m.obj.data.labels = toArr(m.src.labels);
-                                    m.obj.data.datasets[0].data = toArr(m.src.data);
-                                    m.obj.update();
-                                }
-                            });
-                        }
-                    };
-                });
-            });
-        </script>
     </div>
 
 </div>

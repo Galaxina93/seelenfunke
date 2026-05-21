@@ -1,7 +1,7 @@
 # 0. Das Base-Image (WICHTIG! Ohne das crasht der Build)
 FROM php:8.4-apache
 
-# 1. System-Abhängigkeiten installieren (inklusive default-mysql-client & libzip-dev)
+# 1. System-Abhängigkeiten installieren (inklusive default-mysql-client, libzip-dev, nodejs & npm)
 RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     libwebp-dev \
     default-mysql-client \
     libzip-dev \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. GD konfigurieren und installieren

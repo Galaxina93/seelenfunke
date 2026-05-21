@@ -56,7 +56,7 @@
                 initSortable() {
                     if (typeof Sortable === 'undefined') {
                         let script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js';
+                        script.src = '{{ asset('vendor/sortablejs/Sortable.min.js') }}';
                         script.onload = () => this.bindSortables();
                         document.head.appendChild(script);
                     } else {

@@ -10,8 +10,9 @@
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
     <script src="{{ mix('js/app.js') }}" defer></script>
     <script src="{{ mix('js/admin-bundle.js') }}" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
+    <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
+    <script src="{{ asset('js/analytics-dashboards.js') }}"></script>
+    <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js" integrity="sha384-IBDNY5TVKWr+u1841ldzW99oyOoUBpoGeouNuoXVwF0PBFR3v10dzwm09xNIEeiG" crossorigin="anonymous"></script>
 
     @livewireStyles
 

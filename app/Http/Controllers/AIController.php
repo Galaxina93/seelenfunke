@@ -481,11 +481,43 @@ class AIController extends Controller
             }
         }
 
-        return response()->json([
+        $token = \Illuminate\Support\Str::random(40);
+        
+        // Cache credentials for 5 minutes
+        \Illuminate\Support\Facades\Cache::put('gemini_live_token_' . $token, [
             'api_key' => $apiKey,
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
             'tools' => [['functionDeclarations' => $functionDeclarations]],
+        ], now()->addMinutes(5));
+
+        return response()->json([
+            'token' => $token,
+            'ws_url' => config('services.gemini.proxy_ws_url') ?: 'ws://' . request()->getHost() . ':8089/gemini-live',
+            'system_instruction' => $systemInstruction,
+            'voice_name' => $voiceName,
+            'tools' => [['functionDeclarations' => $functionDeclarations]],
         ]);
+    }
+
+    /**
+     * Verifies the websocket token and returns the actual credentials.
+     * Only accessed internally by the Node.js server.
+     */
+    public function verifyToken(Request $request)
+    {
+        $token = $request->input('token');
+        if (empty($token)) {
+            return response()->json(['error' => 'Token missing'], 400);
+        }
+
+        $cacheKey = 'gemini_live_token_' . $token;
+        $data = \Illuminate\Support\Facades\Cache::pull($cacheKey);
+
+        if (!$data) {
+            return response()->json(['error' => 'Invalid or expired token'], 403);
+        }
+
+        return response()->json($data);
     }
 }

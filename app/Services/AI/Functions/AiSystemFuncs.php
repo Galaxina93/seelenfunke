@@ -816,7 +816,7 @@ trait AiSystemFuncs
             ]
         ];
 
-        if (!app()->environment('local')) {
+        if (!app()->environment('local', 'testing')) {
             $schema = array_filter($schema, function($tool) {
                 return !in_array($tool['name'], ['system_multi_replace_file', 'system_write_to_file']);
             });

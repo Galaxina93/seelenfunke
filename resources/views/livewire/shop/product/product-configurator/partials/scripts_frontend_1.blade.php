@@ -358,7 +358,7 @@
                             console.log("Loading html2canvas dynamically...");
                             await new Promise((resolve) => {
                                 const script = document.createElement('script');
-                                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                                script.src = '{{ asset('vendor/html2canvas/html2canvas.min.js') }}';
                                 script.onload = resolve;
                                 script.onerror = resolve;
                                 document.head.appendChild(script);

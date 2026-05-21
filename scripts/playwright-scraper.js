@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const dns = require('dns').promises;
 
 const url = process.argv[2];
 if (!url) {
@@ -6,7 +7,77 @@ if (!url) {
     process.exit(1);
 }
 
+function isPrivateIp(ip) {
+    ip = ip.trim();
+    if (/^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ip)) {
+        const parts = ip.split('.').map(Number);
+        if (parts.some(p => p < 0 || p > 255)) return true;
+        if (parts[0] === 127) return true;
+        if (parts[0] === 10) return true;
+        if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+        if (parts[0] === 192 && parts[1] === 168) return true;
+        if (parts[0] === 169 && parts[1] === 254) return true;
+        if (parts[0] === 0) return true;
+        return false;
+    }
+    if (ip.includes(':')) {
+        const lowerIp = ip.toLowerCase();
+        if (lowerIp === '::1' || lowerIp === '0:0:0:0:0:0:0:1') return true;
+        if (lowerIp === '::' || lowerIp === '0:0:0:0:0:0:0:0') return true;
+        if (lowerIp.startsWith('fe80:') || lowerIp.startsWith('fe8') || lowerIp.startsWith('fe9') || lowerIp.startsWith('fea') || lowerIp.startsWith('feb')) return true;
+        if (lowerIp.startsWith('fc') || lowerIp.startsWith('fd')) return true;
+        if (lowerIp.startsWith('::ffff:')) {
+            const mapped = ip.slice(7);
+            if (mapped.includes('.')) {
+                return isPrivateIp(mapped);
+            }
+        }
+        return false;
+    }
+    return false;
+}
+
+async function isSafeUrl(urlString) {
+    try {
+        const parsed = new URL(urlString);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            return false;
+        }
+        const hostname = parsed.hostname;
+        const lowerHost = hostname.toLowerCase();
+        if (lowerHost === 'localhost' || lowerHost.endsWith('.local') || lowerHost.endsWith('.internal')) {
+            return false;
+        }
+        const cleanHost = hostname.startsWith('[') && hostname.endsWith(']') 
+            ? hostname.slice(1, -1) 
+            : hostname;
+            
+        if (isPrivateIp(cleanHost)) {
+            return false;
+        }
+        try {
+            const lookupResult = await dns.lookup(cleanHost, { all: true });
+            for (const item of lookupResult) {
+                if (isPrivateIp(item.address)) {
+                    return false;
+                }
+            }
+        } catch (e) {
+            // DNS lookup failed
+        }
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
 (async () => {
+    // 1. Pre-flight check
+    if (!await isSafeUrl(url)) {
+        console.error("SSRF Prevention: The target URL is not allowed (blocked private/local resource or invalid protocol).");
+        process.exit(1);
+    }
+
     let browser;
     try {
         browser = await chromium.launch({
@@ -35,6 +106,18 @@ if (!url) {
 
         const page = await context.newPage();
         
+        // 2. Intercept and block local/private IP requests (covers redirects and subresources)
+        await page.route('**/*', async (route) => {
+            const request = route.request();
+            const targetUrl = request.url();
+            const safe = await isSafeUrl(targetUrl);
+            if (!safe) {
+                await route.abort('blockedbyclient');
+            } else {
+                await route.continue();
+            }
+        });
+
         // Hide webdriver
         await page.addInitScript(() => {
             Object.defineProperty(navigator, 'webdriver', {

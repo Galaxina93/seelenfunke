@@ -1,5 +1,62 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
+    <script src="{{ asset('vendor/animejs/anime.min.js') }}"></script>
+    <script>
+        (() => {
+            const register = () => {
+                if (window.kpiDashboardRegistered) return;
+                window.kpiDashboardRegistered = true;
+                Alpine.data('kpiDashboard', () => ({
+                    init() {
+                        const attemptAnime = () => {
+                            if (window.anime) {
+                                this.animate();
+                            } else {
+                                setTimeout(attemptAnime, 50);
+                            }
+                        };
+                        attemptAnime();
+                    },
+                    animate() {
+                        // Staggered Opacity/Slide-Up of Grid Cards
+                        anime({
+                            targets: this.$el.querySelectorAll('.kpi-group'),
+                            translateY: [40, 0],
+                            opacity: [0, 1],
+                            delay: anime.stagger(150),
+                            easing: 'easeOutExpo',
+                            duration: 1200
+                        });
+
+                        // Animate the Numbers ticking up slowly
+                        this.$el.querySelectorAll('.anime-num').forEach(el => {
+                            let endValue = parseFloat(el.getAttribute('data-val'));
+                            let isFloat = el.getAttribute('data-format') === 'float';
+                            if (isNaN(endValue)) endValue = 0;
+                            
+                            let targetObj = { val: 0 };
+                            anime({
+                                targets: targetObj,
+                                val: endValue,
+                                easing: 'easeOutQuart',
+                                duration: 3000,
+                                delay: anime.random(200, 500),
+                                update: function() {
+                                    el.innerHTML = isFloat ? (targetObj.val).toFixed(1) : Math.round(targetObj.val);
+                                }
+                            });
+                        });
+                    }
+                }));
+            };
+
+            if (window.Alpine) {
+                register();
+            } else {
+                document.addEventListener('alpine:init', register);
+            }
+        })();
+    </script>
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="font-bold text-xl text-[var(--theme-color)] leading-tight flex items-center gap-2">
@@ -707,55 +764,4 @@
         </div>
     </div>
 </div>
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
-<script>
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('kpiDashboard', () => ({
-            init() {
-                const attemptAnime = () => {
-                    if (window.anime) {
-                        this.animate();
-                    } else {
-                        setTimeout(attemptAnime, 50);
-                    }
-                };
-                attemptAnime();
-            },
-            animate() {
-                // Staggered Opacity/Slide-Up of Grid Cards
-                anime({
-                    targets: this.$el.querySelectorAll('.kpi-group'),
-                    translateY: [40, 0],
-                    opacity: [0, 1],
-                    delay: anime.stagger(150),
-                    easing: 'easeOutExpo',
-                    duration: 1200
-                });
-
-                // Animate the Numbers ticking up slowly
-                this.$el.querySelectorAll('.anime-num').forEach(el => {
-                    let endValue = parseFloat(el.getAttribute('data-val'));
-                    let isFloat = el.getAttribute('data-format') === 'float';
-                    if (isNaN(endValue)) endValue = 0;
-                    
-                    let targetObj = { val: 0 };
-                    anime({
-                        targets: targetObj,
-                        val: endValue,
-                        easing: 'easeOutQuart',
-                        duration: 3000,
-                        delay: anime.random(200, 500),
-                        update: function() {
-                            el.innerHTML = isFloat ? (targetObj.val).toFixed(1) : Math.round(targetObj.val);
-                        }
-                    });
-                });
-            }
-        }));
-    });
-</script>
-@endpush
-
 </div>

@@ -80,7 +80,7 @@
                 if (typeof THREE === 'undefined') {
                     await new Promise((resolve, reject) => {
                         const script = document.createElement('script');
-                        script.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+                        script.src = "{{ asset('vendor/three/three.min.js') }}";
                         script.onload = resolve;
                         script.onerror = reject;
                         document.head.appendChild(script);
@@ -90,7 +90,7 @@
                 if (typeof THREE.OrbitControls === 'undefined') {
                     await new Promise((resolve, reject) => {
                         const script = document.createElement('script');
-                        script.src = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js";
+                        script.src = "{{ asset('vendor/three/OrbitControls.js') }}";
                         script.onload = resolve;
                         script.onerror = reject;
                         document.head.appendChild(script);

@@ -262,4 +262,10 @@
             }
         }));
     });
+
+    if (window.Alpine) {
+        window.registerFunkiView();
+    } else {
+        document.addEventListener('alpine:init', window.registerFunkiView);
+    }
 </script>

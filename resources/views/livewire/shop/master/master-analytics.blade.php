@@ -1,5 +1,5 @@
 <div class="p-4 md:p-6 bg-transparent min-h-screen space-y-8 relative z-10">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
 
     @include('livewire.shop.master.master-analytics-partials.header')
 

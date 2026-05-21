@@ -3,7 +3,7 @@
      @close-ticket-modal-hide.window="showCloseModal = false"
      @customer-ticket-message-received.window="$wire.receiveMessage($event.detail)"
 >
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+    <script type="module" src="{{ asset('vendor/emoji-picker-element/index.js') }}"></script>
 
     {{-- HEADER --}}
     <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-in-up">

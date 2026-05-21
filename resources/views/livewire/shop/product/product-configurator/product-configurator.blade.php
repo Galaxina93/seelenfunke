@@ -187,7 +187,7 @@
     @include('livewire.shop.product.product-configurator.partials.scripts_frontend_2')
     @include('livewire.shop.product.product-configurator.partials.scripts_frontend_1')
     @assets
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="{{ asset('vendor/html2canvas/html2canvas.min.js') }}"></script>
     <script src="{{ asset('js/admin-bundle.js') }}"></script>
     @endassets
 </div>

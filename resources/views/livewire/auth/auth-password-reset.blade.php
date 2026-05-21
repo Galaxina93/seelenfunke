@@ -1,150 +1,12 @@
-<div class="min-h-[100dvh] bg-gray-950 font-sans text-gray-300 antialiased relative overflow-hidden flex items-center justify-center" x-data="universeLayout()" x-init="init()">
-
-    {{-- HINTERGRUND UNIVERSUM --}}
-    <canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
-
-    {{-- LOGIN CONTAINER (Schwebt im Raum) --}}
-    <div class="relative z-10 w-full max-w-md px-4 sm:px-0 animate-fade-in-up">
-
-        {{-- Card: Dark Glassmorphism, abgerundet, mit edlem Glow --}}
-        <div class="bg-gray-900/80 backdrop-blur-xl py-10 px-6 sm:px-10 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-gray-800 relative overflow-hidden">
-        
-            <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-[50px] pointer-events-none"></div>
-
-            {{-- Status / Errors --}}
-            @if (session('status'))
-                <div class="mb-8 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center shadow-inner drop-shadow-[0_0_8px_currentColor]">
-                    <svg class="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    {{ session('status') }}
-                </div>
-            @endif
-
-            @if (session('error'))
-                <div class="mb-8 bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center shadow-inner drop-shadow-[0_0_8px_currentColor]">
-                    <svg class="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    {{ session('error') }}
-                </div>
-            @endif
-
-            {{-- Error Messages --}}
-            @if ($errors->any())
-                <div class="mb-8 bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-4 rounded-xl text-sm shadow-inner">
-                    <div class="flex items-center mb-3 text-[10px] font-black uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">
-                        <svg class="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        Bitte überprüfen:
-                    </div>
-                    <ul class="list-disc pl-9 space-y-1.5 text-xs font-medium text-red-300">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
-
-            <div class="relative z-10 text-center mb-10">
-                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-2xl bg-gray-950 border border-gray-800 shadow-inner mb-6">
-                    <svg class="h-8 w-8 text-primary drop-shadow-[0_0_8px_currentColor]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                </div>
-                <h1 class="text-2xl font-serif font-bold text-white tracking-wide">Passwort erneuern</h1>
-                <p class="mt-2 text-[10px] font-black uppercase tracking-widest text-gray-500 px-4 leading-relaxed">
-                    Gib deine E-Mail und dein neues Wunschpasswort ein.
-                </p>
-            </div>
-
-            <form wire:submit.prevent="submit" novalidate class="space-y-6 relative z-10">
-            
-                {{-- E-Mail --}}
-                <div>
-                    <label for="email" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">E-Mail-Adresse</label>
-                    <div class="relative">
-                        <input
-                            id="email"
-                            type="email"
-                            wire:model.defer="email"
-                            autocomplete="email"
-                            required
-                            class="block w-full bg-gray-950 border border-gray-800 rounded-xl py-3.5 px-4 text-white text-sm focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600 @error('email') border-red-500/50 @enderror"
-                            placeholder="name@beispiel.de"
-                        >
-                    </div>
-                </div>
-
-                {{-- Neues Passwort --}}
-                <div>
-                    <label for="password" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Neues Passwort</label>
-                    <div class="relative" x-data="{ show: false }">
-                        <input
-                            :type="show ? 'text' : 'password'"
-                            id="password"
-                            wire:model.defer="password"
-                            required
-                            class="block w-full bg-gray-950 border border-gray-800 rounded-xl py-3.5 px-4 pr-12 text-white text-sm focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600 @error('password') border-red-500/50 @enderror"
-                            placeholder="••••••••"
-                        >
-                        <button type="button" x-on:click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-500 hover:text-primary transition-colors">
-                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
-                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
-                        </button>
-                    </div>
-                </div>
-
-                {{-- Bestätigung --}}
-                <div>
-                    <label for="passwordConfirm" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Passwort bestätigen</label>
-                    <div class="relative" x-data="{ show: false }">
-                        <input
-                            :type="show ? 'text' : 'password'"
-                            id="passwordConfirm"
-                            wire:model.defer="passwordConfirm"
-                            required
-                            class="block w-full bg-gray-950 border border-gray-800 rounded-xl py-3.5 px-4 pr-12 text-white text-sm focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600 @error('passwordConfirm') border-red-500/50 @enderror"
-                            placeholder="••••••••"
-                        >
-                        <button type="button" x-on:click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-500 hover:text-primary transition-colors">
-                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
-                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
-                        </button>
-                    </div>
-                </div>
-
-                {{-- Button --}}
-                <div class="pt-4">
-                    <button type="submit" wire:loading.attr="disabled"
-                            class="w-full flex justify-center items-center gap-3 py-3.5 px-4 border border-primary/50 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.2)] text-[10px] uppercase tracking-widest font-black text-gray-900 bg-primary hover:bg-primary-dark hover:text-white hover:scale-[1.02] focus:outline-none transition-all duration-300 disabled:opacity-70 disabled:cursor-wait">
-                        <svg wire:loading class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                        <span>Passwort speichern</span>
-                    </button>
-                </div>
-                
-                {{-- Zurück zum Login --}}
-                <div class="mt-6 text-center">
-                    <a href="{{ route('login') }}" class="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-primary transition-colors flex items-center justify-center gap-2">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-                        Zurück zur Anmeldung
-                    </a>
-                </div>
-
-            </form>
-        </div>
-
-        {{-- Footer --}}
-        <div class="mt-8 text-center text-[9px] font-black uppercase tracking-widest text-gray-600 z-10">
-            &copy; {{ date('Y') }} mein-seelenfunke. Alle Rechte vorbehalten.
-        </div>
-
-    </div>
-
-    {{-- ========================================================= --}}
-    {{-- CSS & JS FÜR UNIVERSUM UND ANIMATIONEN                    --}}
-    {{-- ========================================================= --}}
+<div>
     <style>
         .animate-fade-in-up { animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('universeLayout', () => ({
+        window.universeLayout = function() {
+            return {
                 init() {
                     const canvas = document.getElementById('global-universe-canvas');
                     if (!canvas) return;
@@ -284,7 +146,151 @@
                     };
                     loop();
                 }
-            }));
-        });
+            };
+        };
+
+        if (window.Alpine) {
+            Alpine.data('universeLayout', window.universeLayout);
+        } else {
+            document.addEventListener('alpine:init', () => Alpine.data('universeLayout', window.universeLayout));
+        }
     </script>
+
+    <div class="min-h-[100dvh] bg-gray-950 font-sans text-gray-300 antialiased relative overflow-hidden flex items-center justify-center" x-data="universeLayout()" x-init="init()">
+
+    {{-- HINTERGRUND UNIVERSUM --}}
+    <canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
+
+    {{-- LOGIN CONTAINER (Schwebt im Raum) --}}
+    <div class="relative z-10 w-full max-w-md px-4 sm:px-0 animate-fade-in-up">
+
+        {{-- Card: Dark Glassmorphism, abgerundet, mit edlem Glow --}}
+        <div class="bg-gray-900/80 backdrop-blur-xl py-10 px-6 sm:px-10 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-gray-800 relative overflow-hidden">
+        
+            <div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/10 rounded-full blur-[50px] pointer-events-none"></div>
+
+            {{-- Status / Errors --}}
+            @if (session('status'))
+                <div class="mb-8 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center shadow-inner drop-shadow-[0_0_8px_currentColor]">
+                    <svg class="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    {{ session('status') }}
+                </div>
+            @endif
+
+            @if (session('error'))
+                <div class="mb-8 bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center shadow-inner drop-shadow-[0_0_8px_currentColor]">
+                    <svg class="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    {{ session('error') }}
+                </div>
+            @endif
+
+            {{-- Error Messages --}}
+            @if ($errors->any())
+                <div class="mb-8 bg-red-500/10 border border-red-500/30 text-red-400 px-5 py-4 rounded-xl text-sm shadow-inner">
+                    <div class="flex items-center mb-3 text-[10px] font-black uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">
+                        <svg class="w-5 h-5 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Bitte überprüfen:
+                    </div>
+                    <ul class="list-disc pl-9 space-y-1.5 text-xs font-medium text-red-300">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <div class="relative z-10 text-center mb-10">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-2xl bg-gray-950 border border-gray-800 shadow-inner mb-6">
+                    <svg class="h-8 w-8 text-primary drop-shadow-[0_0_8px_currentColor]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <h1 class="text-2xl font-serif font-bold text-white tracking-wide">Passwort erneuern</h1>
+                <p class="mt-2 text-[10px] font-black uppercase tracking-widest text-gray-500 px-4 leading-relaxed">
+                    Gib deine E-Mail und dein neues Wunschpasswort ein.
+                </p>
+            </div>
+
+            <form wire:submit.prevent="submit" novalidate class="space-y-6 relative z-10">
+            
+                {{-- E-Mail --}}
+                <div>
+                    <label for="email" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">E-Mail-Adresse</label>
+                    <div class="relative">
+                        <input
+                            id="email"
+                            type="email"
+                            wire:model.defer="email"
+                            autocomplete="email"
+                            required
+                            class="block w-full bg-gray-950 border border-gray-800 rounded-xl py-3.5 px-4 text-white text-sm focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600 @error('email') border-red-500/50 @enderror"
+                            placeholder="name@beispiel.de"
+                        >
+                    </div>
+                </div>
+
+                {{-- Neues Passwort --}}
+                <div>
+                    <label for="password" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Neues Passwort</label>
+                    <div class="relative" x-data="{ show: false }">
+                        <input
+                            :type="show ? 'text' : 'password'"
+                            id="password"
+                            wire:model.defer="password"
+                            required
+                            class="block w-full bg-gray-950 border border-gray-800 rounded-xl py-3.5 px-4 pr-12 text-white text-sm focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600 @error('password') border-red-500/50 @enderror"
+                            placeholder="••••••••"
+                        >
+                        <button type="button" x-on:click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-500 hover:text-primary transition-colors">
+                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
+                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Bestätigung --}}
+                <div>
+                    <label for="passwordConfirm" class="block text-[9px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">Passwort bestätigen</label>
+                    <div class="relative" x-data="{ show: false }">
+                        <input
+                            :type="show ? 'text' : 'password'"
+                            id="passwordConfirm"
+                            wire:model.defer="passwordConfirm"
+                            required
+                            class="block w-full bg-gray-950 border border-gray-800 rounded-xl py-3.5 px-4 pr-12 text-white text-sm focus:bg-black focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-inner outline-none transition-all placeholder-gray-600 @error('passwordConfirm') border-red-500/50 @enderror"
+                            placeholder="••••••••"
+                        >
+                        <button type="button" x-on:click="show = !show" class="absolute inset-y-0 right-0 pr-4 flex items-center cursor-pointer text-gray-500 hover:text-primary transition-colors">
+                            <span x-show="!show"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></span>
+                            <span x-show="show" style="display: none;"><svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg></span>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Button --}}
+                <div class="pt-4">
+                    <button type="submit" wire:loading.attr="disabled"
+                            class="w-full flex justify-center items-center gap-3 py-3.5 px-4 border border-primary/50 rounded-xl shadow-[0_0_20px_rgba(197,160,89,0.2)] text-[10px] uppercase tracking-widest font-black text-gray-900 bg-primary hover:bg-primary-dark hover:text-white hover:scale-[1.02] focus:outline-none transition-all duration-300 disabled:opacity-70 disabled:cursor-wait">
+                        <svg wire:loading class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        <span>Passwort speichern</span>
+                    </button>
+                </div>
+                
+                {{-- Zurück zum Login --}}
+                <div class="mt-6 text-center">
+                    <a href="{{ route('login') }}" class="text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-primary transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                        Zurück zur Anmeldung
+                    </a>
+                </div>
+
+            </form>
+        </div>
+
+        {{-- Footer --}}
+        <div class="mt-8 text-center text-[9px] font-black uppercase tracking-widest text-gray-600 z-10">
+            &copy; {{ date('Y') }} mein-seelenfunke. Alle Rechte vorbehalten.
+        </div>
+
+    </div>
+
+    </div>
 </div>

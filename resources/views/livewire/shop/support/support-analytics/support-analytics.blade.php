@@ -1,5 +1,7 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
 <div>
+    {{-- Dashboard Scripts registered globally via analytics-dashboards.js --}}
+
     {{-- Header --}}
     <div class="mb-6 md:flex md:items-center md:justify-between py-2">
         <div class="min-w-0 flex-1">
@@ -50,6 +52,7 @@
         {{-- Hidden JSON variables to bridge Livewire PHP arrays directly to Alpine/ChartJS --}}
         <div class="hidden" 
              id="analytics-data-bridge"
+             data-theme-color="{{ $this->themeColorHex }}"
              data-volume='@json($volumeData)'
              data-source='@json($sourceData)'
              data-ticketstatus='@json($ticketStatusData)'
@@ -165,182 +168,6 @@
                 </div>
             </div>
         </div>
-
-        {{-- Dashboard Scripts --}}
-        <script>
-            document.addEventListener('alpine:init', () => {
-                Alpine.data('supportDashboard', () => {
-                    let volumeChartObj = null;
-                    let sourceChartObj = null;
-                    let ticketStatusChartObj = null;
-                    let chatStatusChartObj = null;
-                    let chatRatingChartObj = null;
-                    let ticketRatingChartObj = null;
-
-                    return {
-                        getPayload() {
-                            const el = document.getElementById('analytics-data-bridge');
-                            return {
-                                volume: JSON.parse(el.getAttribute('data-volume')),
-                                source: JSON.parse(el.getAttribute('data-source')),
-                                ticketStatus: JSON.parse(el.getAttribute('data-ticketstatus')),
-                                chatStatus: JSON.parse(el.getAttribute('data-chatstatus')),
-                                chatRating: JSON.parse(el.getAttribute('data-chatrating')),
-                                ticketRating: JSON.parse(el.getAttribute('data-ticketrating'))
-                            };
-                        },
-
-                        initCharts() {
-                            const data = this.getPayload();
-                            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
-                            const gridOptionsX = { display: false, drawBorder: false };
-                            const tc = '{{ $this->themeColorHex }}';
-                            
-                            // Generate monochromatic gradient palette
-                            const monoPalette = [tc, tc+'e6', tc+'cc', tc+'b3', tc+'99', tc+'80', tc+'66', tc+'4d', tc+'33', tc+'1a'];
-
-                            // 1. Volume Growth
-                            const ctxVol = document.getElementById('volumeChart').getContext('2d');
-                            volumeChartObj = new Chart(ctxVol, {
-                                type: 'line',
-                                data: {
-                                    labels: data.volume.labels,
-                                    datasets: [{
-                                        label: 'Support Volumen',
-                                        data: data.volume.data,
-                                        borderColor: tc,
-                                        backgroundColor: tc + '1a',
-                                        borderWidth: 2, tension: 0.4, fill: true,
-                                        pointBackgroundColor: tc, pointBorderColor: '#fff',
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
-                                    plugins: { legend: { display: false } }
-                                }
-                            });
-
-                            // 2. Source Distribution
-                            const ctxSrc = document.getElementById('sourceChart').getContext('2d');
-                            sourceChartObj = new Chart(ctxSrc, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: data.source.labels,
-                                    datasets: [{
-                                        data: data.source.data,
-                                        backgroundColor: monoPalette,
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-
-                            // 3. Ticket Status
-                            const ctxTick = document.getElementById('ticketStatusChart').getContext('2d');
-                            ticketStatusChartObj = new Chart(ctxTick, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: data.ticketStatus.labels,
-                                    datasets: [{
-                                        data: data.ticketStatus.data,
-                                        backgroundColor: monoPalette,
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-
-                            // 4. Chat Status
-                            const ctxChat = document.getElementById('chatStatusChart').getContext('2d');
-                            chatStatusChartObj = new Chart(ctxChat, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: data.chatStatus.labels,
-                                    datasets: [{
-                                        data: data.chatStatus.data,
-                                        backgroundColor: monoPalette,
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-
-                            // 5. Chat Rating
-                            const ctxRating = document.getElementById('chatRatingChart').getContext('2d');
-                            chatRatingChartObj = new Chart(ctxRating, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: data.chatRating.labels,
-                                    datasets: [{
-                                        data: data.chatRating.data,
-                                        backgroundColor: monoPalette,
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-
-                            // 6. Ticket Rating
-                            const ctxTicketRating = document.getElementById('ticketRatingChart').getContext('2d');
-                            ticketRatingChartObj = new Chart(ctxTicketRating, {
-                                type: 'doughnut',
-                                data: {
-                                    labels: data.ticketRating.labels,
-                                    datasets: [{
-                                        data: data.ticketRating.data,
-                                        backgroundColor: monoPalette,
-                                        borderWidth: 2, borderColor: '#1f2937'
-                                    }]
-                                },
-                                options: {
-                                    responsive: true, maintainAspectRatio: false,
-                                    plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
-                                    cutout: '60%'
-                                }
-                            });
-                        },
-
-                        updateCharts() {
-                            const data = this.getPayload();
-                            
-                            const updateMap = [
-                                { obj: volumeChartObj, src: data.volume },
-                                { obj: sourceChartObj, src: data.source },
-                                { obj: ticketStatusChartObj, src: data.ticketStatus },
-                                { obj: chatStatusChartObj, src: data.chatStatus },
-                                { obj: chatRatingChartObj, src: data.chatRating },
-                                { obj: ticketRatingChartObj, src: data.ticketRating }
-                            ];
-
-                            updateMap.forEach(m => {
-                                if (m.obj && m.src) {
-                                    m.obj.data.labels = m.src.labels;
-                                    m.obj.data.datasets[0].data = m.src.data;
-                                    m.obj.update();
-                                }
-                            });
-                        }
-                    };
-                });
-            });
-        </script>
     </div>
 </div>
 

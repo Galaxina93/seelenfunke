@@ -1,0 +1,9 @@
+TypeError: First argument must be a valid error code number
+    at Sender.close (/var/www/html/node_modules/ws/lib/sender.js:187:13)
+    at WebSocket.close (/var/www/html/node_modules/ws/lib/websocket.js:316:18)
+    at WebSocket.<anonymous> (file:///var/www/html/server-twilio.js:91:26)
+    at WebSocket.emit (node:events:536:35)
+    at WebSocket.emitClose (/var/www/html/node_modules/ws/lib/websocket.js:273:10)
+    at Socket.socketOnClose (/var/www/html/node_modules/ws/lib/websocket.js:1346:15)
+    at Socket.emit (node:events:524:28)
+    at TCP.<anonymous> (node:net:344:12)

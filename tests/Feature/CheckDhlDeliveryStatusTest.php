@@ -12,12 +12,33 @@ class CheckDhlDeliveryStatusTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
-    public function it_updates_order_to_completed_when_all_dhl_shipments_are_delivered()
+    public function test_it_updates_order_to_completed_when_all_dhl_shipments_are_delivered()
     {
         // 1. Arrange: Create order in 'shipped' state
-        $order = OrderOrder::factory()->create([
-            'status' => 'shipped'
+        $order = OrderOrder::create([
+            'order_number' => 'ORD-12345',
+            'email' => 'test@example.com',
+            'status' => 'shipped',
+            'subtotal_price' => 1000,
+            'tax_amount' => 190,
+            'total_price' => 1190,
+            'shipping_price' => 0,
+            'billing_address' => [
+                'first_name' => 'Max',
+                'last_name' => 'Mustermann',
+                'address' => 'Musterstr. 12',
+                'postal_code' => '12345',
+                'city' => 'Musterstadt',
+                'country' => 'DE'
+            ],
+            'shipping_address' => [
+                'first_name' => 'Max',
+                'last_name' => 'Mustermann',
+                'street' => 'Musterstr. 12',
+                'zip' => '12345',
+                'city' => 'Musterstadt',
+                'country' => 'DE'
+            ]
         ]);
 
         // Create 2 shipments

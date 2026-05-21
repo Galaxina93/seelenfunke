@@ -31,7 +31,26 @@ class AiWidgetLiveModeTest extends TestCase
 
         $response->assertStatus(200)
                  ->assertJsonStructure([
-                     'api_key',
+                     'token',
+                     'ws_url',
+                     'system_instruction'
+                 ]);
+    }
+
+    /**
+     * Test that the live-credentials endpoint returns data when authenticated as an admin.
+     */
+    public function test_live_credentials_endpoint_returns_data_for_authenticated_admins(): void
+    {
+        $admin = new \App\Models\Admin\Admin();
+        $admin->id = '019e4aa6-3d82-7120-953e-d62a0843db38';
+
+        $response = $this->actingAs($admin, 'admin')->getJson('/api/ai/live-credentials');
+
+        $response->assertStatus(200)
+                 ->assertJsonStructure([
+                     'token',
+                     'ws_url',
                      'system_instruction'
                  ]);
     }

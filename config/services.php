@@ -58,6 +58,7 @@ return [
     'gemini' => [
         'url' => env('GEMINI_API_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/'),
         'key' => env('GEMINI_API_KEY'),
+        'proxy_ws_url' => env('GEMINI_PROXY_WS_URL'),
     ],
 
 ];

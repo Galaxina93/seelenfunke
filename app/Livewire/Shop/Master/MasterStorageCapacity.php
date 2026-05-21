@@ -69,15 +69,15 @@ class MasterStorageCapacity extends Component
 
     public function loadStorageDetails()
     {
-        // Cache this for 5 minutes because `File::allFiles` can take up to a second.
         $cachedData = Cache::remember('storage_capacity_file_analysis', 300, function () {
-            $allFiles = File::allFiles(storage_path());
+            $finder = new \Symfony\Component\Finder\Finder();
+            $finder->files()->in(storage_path())->ignoreUnreadableDirs();
             
             $fileData = [];
             $folderData = [];
             $totalStorageAppBytes = 0;
 
-            foreach ($allFiles as $file) {
+            foreach ($finder as $file) {
                 $size = $file->getSize();
                 $path = $file->getRelativePathname();
                 $topFolder = explode('/', $path)[0] ?? 'root';
@@ -179,8 +179,9 @@ class MasterStorageCapacity extends Component
 
             foreach ($pathsToClear as $path) {
                 if (File::exists($path)) {
-                    $files = File::allFiles($path);
-                    foreach($files as $file) {
+                    $finder = new \Symfony\Component\Finder\Finder();
+                    $finder->files()->in($path)->ignoreUnreadableDirs();
+                    foreach ($finder as $file) {
                         $freedBytes += $file->getSize();
                         File::delete($file->getPathname());
                         $deletedFiles++;

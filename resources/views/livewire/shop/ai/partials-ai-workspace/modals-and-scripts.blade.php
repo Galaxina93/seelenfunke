@@ -51,10 +51,10 @@
     </script>
     
     <!-- Marked.js, DOMPurify, Highlight.js for Chat Markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="{{ asset('vendor/marked/marked.min.js') }}"></script>
+    <script src="{{ asset('vendor/dompurify/purify.min.js') }}"></script>
+    <script src="{{ asset('vendor/highlight/highlight.min.js') }}"></script>
+    <link rel="stylesheet" href="{{ asset('vendor/highlight/github-dark.min.css') }}">
     
     <script>
         (function() {

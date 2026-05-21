@@ -21,6 +21,19 @@ require_local() {
     fi
 }
 
+# Helper-Funktion: Repariert Datei-Berechtigungen und optimiert Caches
+run_rights() {
+    echo "🔐 Repariere Datei-Berechtigungen..."
+    if [ "$IS_LOCAL" = true ]; then
+        docker compose exec -u www-data web php artisan optimize:clear
+        docker compose exec -u root web bash -c "chown -R www-data:www-data storage/ bootstrap/cache/ && chmod -R 777 storage/ bootstrap/cache/"
+    else
+        php artisan optimize:clear
+        chmod -R 775 storage/ bootstrap/cache/
+    fi
+    echo "✅ Berechtigungen und Cache erfolgreich erneuert!"
+}
+
 case "$1" in
     info)
         echo -e "\n\033[1;34m✨ Funki - Dein intelligenter Projekt-Assistent ✨\033[0m"
@@ -97,7 +110,7 @@ case "$1" in
     migrate)
         echo "🗄️ Führe Migrationen und Seeder aus..."
         $PREFIX_DEFAULT php artisan migrate:fresh --seed
-        $0 rights
+        run_rights
         ;;
     key)
         echo "🔑 Führe Key Generate aus..."
@@ -190,15 +203,7 @@ case "$1" in
         echo "✅ Backup erfolgreich abgeschlossen!"
         ;;
     rights)
-        echo "🔐 Repariere Datei-Berechtigungen..."
-        if [ "$IS_LOCAL" = true ]; then
-            docker compose exec -u www-data web php artisan optimize:clear
-            docker compose exec -u root web bash -c "chown -R www-data:www-data storage/ bootstrap/cache/ && chmod -R 777 storage/ bootstrap/cache/"
-        else
-            php artisan optimize:clear
-            chmod -R 775 storage/ bootstrap/cache/
-        fi
-        echo "✅ Berechtigungen und Cache erfolgreich erneuert!"
+        run_rights
         ;;
     cache)
         echo "🧹 Leere alle Framework-Caches restlos aus..."
@@ -225,21 +230,28 @@ case "$1" in
         fi
 
         echo "🔐 Führe Berechtigungs-Fix aus..."
-        $0 rights
+        run_rights
 
         echo "🧪 Aktualisiere Testing-Umgebung..."
         $PREFIX_USER php artisan config:clear --env=testing
         
+        TEST_EXIT_CODE=0
         if [ -z "$1" ]; then
             echo "🧪 Starte ALLE automatisierten Tests auf Test-Datenbank (seelenfunke_testing)..."
             $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing
+            TEST_EXIT_CODE=$?
         elif [[ "$1" == --* ]]; then
             echo "🧪 Starte Tests mit manuellen Parametern ($@)..."
             $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing "$@"
+            TEST_EXIT_CODE=$?
         else
             echo -e "🧪 Starte Isolationstest: \033[1;33m$1\033[0m"
             $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing --filter "$1"
+            TEST_EXIT_CODE=$?
         fi
+
+        run_rights
+        exit $TEST_EXIT_CODE
         ;;
     artisan)
         shift

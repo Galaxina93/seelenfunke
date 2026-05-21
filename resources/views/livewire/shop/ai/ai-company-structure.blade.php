@@ -49,8 +49,8 @@
      }">
 
     {{-- MOBILE DRAG AND DROP POLYFILL --}}
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.min.css"/>
-    <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+    <link rel="stylesheet" href="{{ asset('vendor/mobile-drag-drop/default.min.css') }}"/>
+    <script src="{{ asset('vendor/mobile-drag-drop/index.min.js') }}"></script>
     <script>
         (function() {
             const init = () => {

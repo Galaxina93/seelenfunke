@@ -1,7 +1,7 @@
-<div class="p-4 sm:p-6 pb-24" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <div class="max-w-7xl mx-auto space-y-6">
-        
-        {{-- HEADER --}}
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="flex flex-col h-[95vh] md:h-[calc(100vh-10rem)] bg-gray-900/80 backdrop-blur-xl rounded-2xl md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[500px] md:min-h-[700px] animate-fade-in-up">
+
+    {{-- HEADER BEREICH --}}
+    <div class="bg-gray-950/50 border-b border-gray-800 sticky top-0 z-30 shadow-sm backdrop-blur-md shrink-0 p-4 sm:p-6">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <x-heroicon-o-shopping-cart class="w-8 h-8 text-[var(--theme-color)]" />
@@ -20,6 +20,10 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    {{-- SCROLLABLE CONTENT BEREICH --}}
+    <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
 
         @if($activeTab === 'categories')
             {{-- KATEGORIEN VERWALTUNG --}}
@@ -158,4 +162,12 @@
         @endif
         
     </div>
+
+    {{-- CUSTOM SCROLLBAR --}}
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 5px; height: 5px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--theme-color); }
+    </style>
 </div>
