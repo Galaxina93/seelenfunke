@@ -10,6 +10,10 @@ if (!preg_match('/^[a-zA-Z0-9:\-\s_]+$/', $cmdArg)) {
     die("Invalid command format");
 }
 
+if (isset($_GET['sync_schedule']) && $_GET['sync_schedule'] === '1') {
+    putenv('SYNC_SCHEDULE=1');
+}
+
 $artisan = dirname(__DIR__) . '/artisan';
 $cmd = "/usr/bin/php " . escapeshellarg($artisan) . " " . $cmdArg . " 2>&1";
 

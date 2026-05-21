@@ -81,7 +81,7 @@ try {
                 
                 // Verhindert Überschneidungen bei normalen Jobs
                 $event->withoutOverlapping();
-                if (!isset($_GET['sync_schedule']) && (!isset($_SERVER['argv']) || !in_array('--sync', $_SERVER['argv']))) {
+                if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
                     $event->runInBackground();
                 }
 
