@@ -46,3 +46,22 @@ Wir haben das System auf die von Mittwald empfohlene Architektur umgestellt:
 4. **Cronjobs bereinigen:** Der minütliche Cronjob für `reverb:start` im Mittwald Panel wurde deaktiviert. Der Scheduler-Cronjob (`schedule:run`) bleibt aktiv.
 5. **Scheduler-Worker bereinigen:** [ERLEDIGT] Die redundante PHP-Worker-App `WORKER - Scheduler Stage` (mit dem Befehl `schedule:work`) wurde gelöscht, da sie zu einer fehlerhaften Doppel-Ausführung des Schedulers pro Minute führte. Der minütliche Cronjob `schedule:run` auf dem Web-App-Container ist nun die alleinige Quelle für periodische Tasks.
 
+---
+
+## 5. Aktueller Zustand der Cronjob-Konfiguration (Stand 22. Mai 2026)
+
+Der Cronjob für den Laravel Scheduler ist im Mittwald mStudio unter der App `seelenfunke-stage` aktiv und läuft jede Minute fehlerfrei:
+
+*   **Verknüpfte App:** `seelenfunke-stage`
+*   **Typ / Ausführungstyp:** Befehl ausführen
+*   **Interpreter:** `/usr/bin/php` (PHP)
+*   **Datei:** `/html/seelenfunke-stage/artisan`
+*   **Parameter:** `schedule:run`
+*   **Auszuführender Befehl:** `/usr/bin/php /html/seelenfunke-stage/artisan schedule:run`
+*   **Intervall (Cron-Syntax):** `* * * * *` (jede Minute, jede Stunde, jeden Tag)
+*   **Zeitzone:** `Europe/Berlin`
+*   **Fehlerbehandlung:** E-Mail-Versand ab dem 1. Fehler
+*   **Timeout:** 3600 Sekunden
+*   **Status:** 🟢 Aktiviert (Automatische Ausführung eingeschaltet)
+
+
