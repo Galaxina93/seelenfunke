@@ -716,6 +716,10 @@ try {
                 </div>
                 <table>
                     <tr>
+                        <th>APP_URL</th>
+                        <td><?php echo htmlspecialchars($webEnv['APP_URL'] ?? 'n/a'); ?></td>
+                    </tr>
+                    <tr>
                         <th>REVERB_HOST</th>
                         <td><?php echo htmlspecialchars($webEnv['REVERB_HOST'] ?? 'n/a'); ?></td>
                     </tr>
