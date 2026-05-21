@@ -1344,7 +1344,7 @@
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) return;
 
                         // We only send audio when the mic is not explicitly muted
-                        if (this.isMuted) return;
+                        if (this.isAudioMuted) return;
 
                         // Prevent AI from hearing itself and interrupting (echo cancellation workaround)
                         if (this.isOutputActive() && !this.allowVoiceInterruption) return;
@@ -1439,7 +1439,7 @@
                 };
 
                 this.recognition.onend = () => {
-                    if (this.isLiveMode && !this.isMuted) {
+                    if (this.isLiveMode && !this.isAudioMuted) {
                         try { this.recognition.start(); } catch(e) {}
                     }
                 };
