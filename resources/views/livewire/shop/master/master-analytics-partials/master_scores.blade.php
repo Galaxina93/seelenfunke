@@ -836,7 +836,10 @@
                                                         <button type="button" wire:click="flushFailedJobs" class="w-full mt-2 px-2 py-1.5 rounded-lg border border-red-700 bg-red-900/30 hover:bg-red-800 text-red-300 hover:text-white transition-colors text-[9px] font-black uppercase tracking-widest text-center shadow-inner cursor-pointer">
                                                             Fehlgeschlagene Jobs final löschen
                                                         </button>
-                                                                                        @if($sKey === 'scheduler')
+                                                    @endif
+                                                @endif
+
+                                                @if($sKey === 'scheduler')
                                                     <div class="border-t border-gray-800 my-2"></div>
                                                     
                                                     <!-- Cronjob Status -->
@@ -1002,7 +1005,6 @@
                                                              <div class="flex justify-between"><span class="font-bold">Parameter:</span><span class="text-white">schedule:run</span></div>
                                                          </div>
                                                      </div>
-                                                @endif                    </div>
                                                 @endif
 
                                                 @if($sKey === 'backup')
