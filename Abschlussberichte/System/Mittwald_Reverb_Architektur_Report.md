@@ -115,6 +115,42 @@ REVERB_PORT=6001
 REVERB_SERVER_PORT=6001
 ```
 
+#### Synchronisierung & Neustart bei Code-Änderungen (21. Mai 2026)
+
+Da der Worker in einem chroot-isolierten Container läuft, müssen Code-Änderungen manuell dorthin synchronisiert werden und der Worker-Prozess im Anschluss neu gestartet werden (Mittwald führt bei Code-Updates im Verzeichnis keinen automatischen Neustart des Workers durch).
+
+##### 1. Synchronisierung (über den Web-App-Container `a-lc6tkm`)
+Hierfür wurde der Befehl `sync-worker` in das globale `funki`-Hilfsskript integriert. Führen Sie im Hauptprojekt (`seelenfunke-stage`) folgenden Befehl aus:
+```bash
+bash funki sync-worker
+```
+Dies synchronisiert alle relevanten PHP-Dateien (unter Ausschluss von `storage/`, `node_modules/`, `.git/` und der `.env`) und leert anschließend die Konfigurations-Caches im Worker.
+
+##### 2. Neustart des Workers (ausschließlich im Worker-Container `a-iurgq8`)
+> [!WARNING]
+> **Achtung bei SSH-Sitzungen!**
+> Der Befehl `mittnitectl` steuert den Prozessmanager `mittnite` und funktioniert **ausschließlich** innerhalb der SSH-Konsole des jeweiligen Workers (z. B. `a-iurgq8`).
+> 
+> Selbst wenn Sie sich im Verzeichnis `~/html/worker-stage-3` befinden, aber im Web-App-Container (`a-lc6tkm`) eingeloggt sind, schlägt der Befehl mit folgendem Fehler fehl:
+> ```bash
+> p-g27wim @ [a-lc6tkm] ~/html/worker-stage-3
+> $ mittnitectl job restart
+> 💥 AN ERROR OCCURRED WHILE HANDLING YOUR COMMAND
+>    failed to list jobs: Get "http://unix/v1/jobs": dial unix /var/run/mittnite.sock: connect: no such file or directory
+> ```
+> **Grund:** Der `mittnite`-Daemon und sein Steuerungs-Socket `/var/run/mittnite.sock` existieren ausschließlich in der isolierten Sandbox des Worker-Containers (`a-iurgq8`). Der Web-App-Container (`a-lc6tkm`) hat keinen Zugriff darauf. Sie müssen sich zwingend über den SSH-Zugang des Workers (`a-iurgq8`) verbinden, um den Prozess neu zu starten!
+
+**Neustart-Befehl (auszuführen in der SSH-Konsole des Workers `a-iurgq8`):**
+```bash
+mittnitectl job restart
+```
+
+**Status prüfen:**
+```bash
+mittnitectl job status
+```
+
+
 ### Ergänzung: Bereinigung & Best Practices für Hintergrund-Prozesse (20. Mai 2026)
 Im Zuge dieser Umstellung wurde auch die restliche Struktur der Hintergrund-Prozesse in Mittwald mStudio analysiert und bereinigt, da zuvor ein redundantes Setup aktiv war.
 

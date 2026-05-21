@@ -1,7 +1,7 @@
 # Architektur- & Abschlussbericht: Twilio AI Telefony Bridge auf Mittwald mStudio
 
 ## 1. Zusammenfassung der Ausgangslage
-Beim Versuch, eine dedizierte Node.js-App (`seelenfunke-nodejs`) für den Twilio WebSocket-Stream (`wss://twilio.mein-seelenfunke.de`) auf Mittwald zu betreiben, kam es persistent zu Verbindungsabbrüchen. 
+Beim Versuch, eine dedizierte Node.js-App (`seelenfunke-nodejs`) für den Twilio WebSocket-Stream (`wss://api-live-bridge.mein-seelenfunke.de`) auf Mittwald zu betreiben, kam es persistent zu Verbindungsabbrüchen. 
 Twilio meldete wiederholt: **"Stream - WebSocket - Handshake Error"** (erwartet HTTP 101, erhielt 503). 
 Manuelle Aufrufe der Domain lieferten stets ein `503 Service Unavailable`.
 
@@ -30,7 +30,7 @@ Anstatt das Installationsverzeichnis von Laravel und Node.js zu mischen (was zu 
 
 1. **App komplett löschen:** Die alte Node.js-App `seelenfunke-nodejs` im Mittwald-Dashboard restlos löschen.
 2. **App neu erstellen:** Eine neue App `seelenfunke-nodejs` anlegen mit dem Installationsverzeichnis `/html/twilio-bridge`.
-3. **Domain verknüpfen:** Die Domain `twilio.mein-seelenfunke.de` mit der neuen App verknüpfen.
+3. **Domain verknüpfen:** Die Domain `api-live-bridge.mein-seelenfunke.de` (und optional als Fallback weiterhin `twilio.mein-seelenfunke.de`) mit der neuen App verknüpfen.
 4. **Dateien kopieren:** Über die SSH-Konsole die aktuellen Dateien aus dem Stage-Projekt in den Bridge-Ordner kopieren:
    ```bash
    cd /html/twilio-bridge
