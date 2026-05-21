@@ -42,7 +42,7 @@ class FetchMailsCommand extends Command
             $this->info("Postfach wird verarbeitet: {$account->email}...");
 
             try {
-                // Dynamically build IMAP config array
+                // Dynamically build IMAP config array with connection timeouts to prevent scheduler hangs
                 $client = \Webklex\IMAP\Facades\Client::make([
                     'host'          => $account->imap_host,
                     'port'          => $account->imap_port,
@@ -51,6 +51,10 @@ class FetchMailsCommand extends Command
                     'username'      => $account->imap_username ?: $account->email,
                     'password'      => $account->password,
                     'protocol'      => 'imap',
+                    'timeout'       => 15,
+                    'options'       => [
+                        'timeout' => 15,
+                    ]
                 ]);
 
                 $client->connect();
