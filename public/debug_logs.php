@@ -50,7 +50,8 @@ foreach ($files as $name => $path) {
                     $data = array_slice($fileLines, -$lines);
                     echo "<pre style='background: #020617; color: #38bdf8; padding: 15px; overflow: auto; max-height: 400px; font-family: monospace; border: 1px solid #334155; border-radius: 8px;'>";
                     foreach ($data as $line) {
-                        echo htmlspecialchars($line);
+                        $cleanLine = preg_replace('/[^\x09\x0A\x0D\x20-\x7E]/', '?', $line);
+                        echo htmlspecialchars($cleanLine);
                     }
                     echo "</pre>";
                 }
