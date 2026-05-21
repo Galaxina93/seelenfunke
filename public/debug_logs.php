@@ -13,7 +13,10 @@ $files = [
     'Node Live Log' => dirname(__DIR__) . '/node-live.log',
     'Audio Debug Log' => dirname(__DIR__) . '/audio-debug.log',
     'Crash Log' => dirname(__DIR__) . '/crash.log',
-    'Laravel Log' => dirname(__DIR__) . '/storage/logs/laravel.log'
+    'Laravel Log' => dirname(__DIR__) . '/storage/logs/laravel.log',
+    'Node Live Log (Bridge)' => dirname(dirname(__DIR__)) . '/twilio-bridge/node-live.log',
+    'Audio Debug Log (Bridge)' => dirname(dirname(__DIR__)) . '/twilio-bridge/audio-debug.log',
+    'Crash Log (Bridge)' => dirname(dirname(__DIR__)) . '/twilio-bridge/crash.log'
 ];
 
 foreach ($files as $name => $path) {
