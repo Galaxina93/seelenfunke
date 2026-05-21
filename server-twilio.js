@@ -490,18 +490,26 @@ wss.on('connection', (ws, req) => {
         const backendUrl = process.env.APP_URL || 'http://localhost';
         console.log(`🔑 Verifiziere Token gegen Backend: ${backendUrl}/api/ai/verify-token`);
         
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            console.log(`⏱️ Fetch-Timeout erreicht für Token-Verifizierung (${backendUrl})`);
+            controller.abort();
+        }, 5000); // 5 seconds timeout
+
         fetch(`${backendUrl}/api/ai/verify-token`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
-            body: JSON.stringify({ token: token })
+            body: JSON.stringify({ token: token }),
+            signal: controller.signal
         })
         .then(async (res) => {
+            clearTimeout(timeoutId);
             if (!res.ok) {
                 const text = await res.text();
-                throw new Error(`Verification failed with status ${res.status}: ${text}`);
+                throw new Error(`Status ${res.status}: ${text.substring(0, 100)}`);
             }
             return res.json();
         })
@@ -525,9 +533,15 @@ wss.on('connection', (ws, req) => {
             }
         })
         .catch((err) => {
+            clearTimeout(timeoutId);
             ws.off('message', handleEarlyMessage);
-            console.error('❌ Token-Verifizierung fehlgeschlagen:', err.message);
-            ws.close(4003, 'Token verification failed');
+            let errMsg = err.message;
+            if (err.name === 'AbortError') {
+                errMsg = `Timeout connecting to ${backendUrl}`;
+            }
+            console.error('❌ Token-Verifizierung fehlgeschlagen:', errMsg);
+            const reason = `Verify failed: ${errMsg}`.substring(0, 120);
+            ws.close(4003, reason);
         });
     } else {
         handleTwilioConnection(ws);
