@@ -24,8 +24,6 @@ echo "<a href='?laravel=1&t=" . time() . "' style='color: #10b981; text-decorati
 
 $files = [
     'Node Live Log' => dirname(__DIR__) . '/node-live.log',
-    'Audio Debug Log' => dirname(__DIR__) . '/audio-debug.log',
-    'Crash Log' => dirname(__DIR__) . '/crash.log',
     'Laravel Log' => dirname(__DIR__) . '/storage/logs/laravel.log'
 ];
 
