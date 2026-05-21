@@ -11,7 +11,8 @@
     # -----------------------------------------------------
     # Laravel Reverb Routing
     RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
-    RewriteCond %{HTTP:Upgrade} websocket [NC]
+    RewriteCond %{HTTP:Upgrade} =websocket [NC,OR]
+    RewriteCond %{HTTP:Connection} upgrade [NC]
     RewriteRule ^(.*)$ ws://a-iurgq8:6001/$1 [P,L]
 
     RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]

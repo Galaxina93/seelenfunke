@@ -101,7 +101,8 @@ Nach Rücksprache mit dem Mittwald-Support hat sich herausgestellt, warum **Vers
 > **.htaccess** (Web-App leitet Traffic auf den Worker-Shortcode um):
 ```apache
 RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
-RewriteCond %{HTTP:Upgrade} websocket [NC]
+RewriteCond %{HTTP:Upgrade} =websocket [NC,OR]
+RewriteCond %{HTTP:Connection} upgrade [NC]
 RewriteRule ^(.*)$ ws://a-iurgq8:6001/$1 [P,L]
 
 RewriteCond %{HTTP_HOST} ^ws\.mein-seelenfunke\.de$ [NC]
