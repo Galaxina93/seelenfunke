@@ -531,12 +531,101 @@
                                                                 {{ $health['value'] ?? 'Unbekannt' }}
                                                             </span>
                                                         </div>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">Letzter Boot-Versuch:</span>
+                                                            @if(isset($health['last_bootstrap_diff']))
+                                                                <span class="{{ $health['last_bootstrap_diff'] < 10 ? 'text-emerald-400' : 'text-amber-500' }} font-black">
+                                                                    Vor {{ $health['last_bootstrap_diff'] }} Min
+                                                                </span>
+                                                            @else
+                                                                <span class="text-red-400 font-black">Bisher nie (Cache leer)</span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">Herzschlag-Job (DB):</span>
+                                                            @if(isset($health['heartbeat_present']) && $health['heartbeat_present'])
+                                                                <span class="{{ (isset($health['heartbeat_active']) && $health['heartbeat_active']) ? 'text-emerald-400' : 'text-amber-500' }} font-bold">
+                                                                    {{ (isset($health['heartbeat_active']) && $health['heartbeat_active']) ? 'Aktiv' : 'Deaktiviert' }}
+                                                                </span>
+                                                            @else
+                                                                <span class="text-red-400 font-black">Fehlt in DB!</span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="flex justify-between gap-4 text-[9px] truncate">
+                                                            <span class="text-gray-500 font-bold shrink-0">Artisan Datei:</span>
+                                                            @if(isset($health['artisan_file_exists']) && $health['artisan_file_exists'])
+                                                                <span class="{{ (isset($health['artisan_file_readable']) && $health['artisan_file_readable']) ? 'text-emerald-400' : 'text-amber-500' }} font-bold">
+                                                                    Vorhanden {{ (isset($health['artisan_file_readable']) && $health['artisan_file_readable']) ? '(Lesbar)' : '(Nicht lesbar!)' }}
+                                                                </span>
+                                                            @else
+                                                                <span class="text-red-400 font-black">Fehlt!</span>
+                                                            @endif
+                                                        </div>
                                                         @if(($health['status'] ?? '') !== 'connected')
                                                             <div class="text-[9px] text-red-400 mt-1 whitespace-normal leading-tight">
                                                                 {{ $health['error'] ?? 'Mittwald Cronjob läuft nicht oder hängt.' }}
                                                             </div>
                                                         @endif
                                                     </div>
+
+                                                    <!-- Globaler Boot-Fehler -->
+                                                    @if(isset($health['last_exception']) && $health['last_exception'])
+                                                        <div class="flex flex-col gap-1 text-left font-mono my-2 bg-red-950/30 p-2 rounded-lg border border-red-900/50">
+                                                            <span class="text-[9px] font-bold text-red-400 uppercase tracking-widest mb-1">
+                                                                <i class="bi bi-exclamation-octagon-fill"></i> Globaler Boot-Fehler:
+                                                            </span>
+                                                            <div class="text-[9px] text-red-300 font-semibold leading-normal whitespace-normal break-words">
+                                                                {{ $health['last_exception']['message'] }}
+                                                            </div>
+                                                            <div class="text-[8px] text-gray-400 mt-1 truncate">
+                                                                In {{ basename($health['last_exception']['file']) }}:{{ $health['last_exception']['line'] }}
+                                                            </div>
+                                                            <div class="text-[8px] text-gray-500">
+                                                                {{ \Carbon\Carbon::parse($health['last_exception']['timestamp'])->diffForHumans() }}
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
+                                                    <!-- Job-Registrierungsfehler -->
+                                                    @if(isset($health['job_errors']) && count($health['job_errors']) > 0)
+                                                        <div class="flex flex-col gap-1 text-left font-mono my-2 bg-amber-950/20 p-2 rounded-lg border border-amber-900/50">
+                                                            <span class="text-[9px] font-bold text-amber-400 uppercase tracking-widest mb-1">
+                                                                <i class="bi bi-exclamation-triangle-fill"></i> Job-Registrierungsfehler ({{ count($health['job_errors']) }}):
+                                                            </span>
+                                                            <div class="space-y-1.5 max-h-[150px] overflow-y-auto pr-1">
+                                                                    @foreach($health['job_errors'] as $jobId => $jobError)
+                                                                        <div class="text-[8px] border-b border-amber-900/30 pb-1 last:border-0 last:pb-0">
+                                                                            <div class="text-white font-bold truncate">Job ID: {{ $jobId }}</div>
+                                                                            <div class="text-amber-300 whitespace-normal leading-tight">
+                                                                                {{ $jobError['message'] }}
+                                                                            </div>
+                                                                            <div class="text-gray-500 text-[7px] mt-0.5">
+                                                                                Gemeldet: {{ $jobError['timestamp'] }}
+                                                                            </div>
+                                                                        </div>
+                                                                    @endforeach
+                                                            </div>
+                                                        </div>
+                                                    @endif
+
+                                                    <!-- Ungültige Präfix-Befehle -->
+                                                    @if(isset($health['invalid_prefix_commands']) && count($health['invalid_prefix_commands']) > 0)
+                                                         <div class="flex flex-col gap-1 text-left font-mono my-2 bg-amber-950/30 p-2 rounded-lg border border-amber-900/50">
+                                                             <span class="text-[9px] font-bold text-amber-400 uppercase tracking-widest mb-1">
+                                                                 <i class="bi bi-exclamation-triangle-fill"></i> Präfix-Fehler ({{ count($health['invalid_prefix_commands']) }}):
+                                                             </span>
+                                                             <div class="text-[8.5px] text-amber-300 leading-normal whitespace-normal">
+                                                                 Folgende Jobs enthalten das Präfix "php artisan", was im Scheduler scheitert. Klicke unten auf "reparieren & anstoßen" zum Bereinigen:
+                                                             </div>
+                                                             <div class="space-y-1 mt-1 max-h-[80px] overflow-y-auto pr-1">
+                                                                 @foreach($health['invalid_prefix_commands'] as $invCmd)
+                                                                     <div class="text-[8px] text-gray-400 border-t border-amber-900/20 pt-1">
+                                                                         <b>{{ $invCmd['name'] }}:</b> <span class="text-red-400 font-mono break-all">{{ $invCmd['command'] }}</span>
+                                                                     </div>
+                                                                 @endforeach
+                                                             </div>
+                                                         </div>
+                                                     @endif
 
                                                     @if(isset($health['cli_versions']) && count($health['cli_versions']) > 0)
                                                         <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/50 p-2 rounded-lg border border-gray-800">
@@ -582,6 +671,18 @@
                                                             <span wire:loading wire:target="fixSystem('scheduler')" class="animate-pulse">Repariert...</span>
                                                         </button>
                                                     </div>
+                                                    
+                                                    <!-- Mittwald Setup Hilfe -->
+                                                     <div class="flex flex-col gap-1 text-left font-mono my-2 bg-gray-900/80 p-2.5 rounded-lg border border-gray-800">
+                                                         <span class="text-[9px] font-bold text-gray-300 uppercase tracking-widest mb-1.5"><i class="bi bi-info-circle-fill text-primary"></i> Mittwald Cronjob Setup:</span>
+                                                         <div class="flex flex-col gap-1 text-[8.5px] text-gray-400">
+                                                             <div class="flex justify-between"><span class="font-bold">Intervall:</span><span class="text-white">* * * * * (Jede Minute)</span></div>
+                                                             <div class="flex justify-between"><span class="font-bold">Typ:</span><span class="text-white">Befehl ausführen</span></div>
+                                                             <div class="flex justify-between"><span class="font-bold">Interpreter:</span><span class="text-white">/usr/bin/php (PHP 8.4+)</span></div>
+                                                             <div class="flex justify-between gap-2"><span class="font-bold shrink-0">Datei:</span><span class="text-emerald-400 truncate">{{ base_path('artisan') }}</span></div>
+                                                             <div class="flex justify-between"><span class="font-bold">Parameter:</span><span class="text-white">schedule:run</span></div>
+                                                         </div>
+                                                     </div>
                                                 @endif
 
                                                 @if($sKey === 'backup' && isset($health['path']))

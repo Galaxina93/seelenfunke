@@ -258,6 +258,17 @@ class MasterAnalytics extends Component
                 $diffMinutes = (int) abs(now()->diffInMinutes($lastRun));
             }
 
+            // Bootstrap-Monitoring (Artisan-Ladezeit)
+            $bootstrapRunRaw = \Illuminate\Support\Facades\Cache::get('scheduler_bootstrap_last_run');
+            $diffBootstrapMinutes = null;
+            if ($bootstrapRunRaw) {
+                $bootstrapRun = \Carbon\Carbon::createFromTimestamp((int)$bootstrapRunRaw);
+                $diffBootstrapMinutes = (int) abs(now()->diffInMinutes($bootstrapRun));
+            }
+
+            $lastException = \Illuminate\Support\Facades\Cache::get('scheduler_last_exception');
+            $jobErrors = \Illuminate\Support\Facades\Cache::get('scheduler_job_errors', []);
+
             $schedulerStatus = 'connected';
             $schedulerValue = 'Aktiv';
             $schedulerError = null;
@@ -266,7 +277,17 @@ class MasterAnalytics extends Component
                 if (!app()->environment('local')) {
                     $schedulerStatus = 'warning';
                     $schedulerValue = $diffMinutes !== null ? "Inaktiv ({$diffMinutes} Min)" : 'Inaktiv';
-                    $schedulerError = 'Kein Cronjob in den letzten 10 Minuten gelaufen!';
+                    
+                    if ($diffBootstrapMinutes !== null && $diffBootstrapMinutes < 10) {
+                        $schedulerError = "Der Scheduler-Prozess bootet zwar (vor {$diffBootstrapMinutes} Min), aber der Heartbeat scheitert! Eventuell blockiert eine Aufgabe.";
+                    } else {
+                        $schedulerError = "Kein Cronjob in den letzten 10 Minuten gelaufen! Mittwald-Cronjob ist inaktiv, falsch konfiguriert oder blockiert.";
+                    }
+                    
+                    if ($lastException) {
+                        $schedulerError .= " Letzter globaler Fehler (" . \Carbon\Carbon::parse($lastException['timestamp'])->diffForHumans() . "): " . $lastException['message'] . " in " . basename($lastException['file']) . ":" . $lastException['line'];
+                    }
+
                     $this->logSystemFailure('scheduler', 'Der Task-Scheduler hat sich seit über 10 Minuten nicht gemeldet. Cronjobs laufen nicht!');
                 } else {
                     $schedulerValue = 'Inaktiv (Lokal OK)';
@@ -274,6 +295,16 @@ class MasterAnalytics extends Component
             } else {
                 $text = $diffMinutes == 1 ? "Minute" : "Minuten";
                 $schedulerValue = "Aktiv ({$diffMinutes} {$text})";
+            }
+
+            // Zähle Jobs mit Registrierungsfehlern
+            $failedJobRegistrations = count($jobErrors);
+            if ($failedJobRegistrations > 0) {
+                $schedulerStatus = 'warning';
+                $schedulerValue .= " ({$failedJobRegistrations} Fehler)";
+                if (!$schedulerError) {
+                    $schedulerError = "Die Registrierung von {$failedJobRegistrations} Job(s) ist fehlgeschlagen!";
+                }
             }
 
             // Hängende Sperren zählen
@@ -315,13 +346,58 @@ class MasterAnalytics extends Component
                 }
             }
 
+            // Zusätzliche Diagnostik für DB Cronjobs
+            $heartbeatActive = false;
+            $heartbeatPresent = false;
+            $invalidPrefixCommands = [];
+            
+            if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+                $dbJobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
+                foreach ($dbJobs as $job) {
+                    $cmdLower = strtolower($job->command);
+                    if (str_contains($cmdLower, 'system:heartbeat')) {
+                        $heartbeatPresent = true;
+                        if ($job->is_active) {
+                            $heartbeatActive = true;
+                        }
+                    }
+                    if (preg_match('/^(?:\/usr\/bin\/)?php(?:[0-9.]+)?\s+/', $job->command) || preg_match('/^(?:(?:\S+)?artisan)\s+/', $job->command)) {
+                        $invalidPrefixCommands[] = [
+                            'name' => $job->name,
+                            'command' => $job->command,
+                        ];
+                    }
+                }
+            }
+            
+            $artisanFileExists = file_exists(base_path('artisan'));
+            $artisanFileReadable = $artisanFileExists ? is_readable(base_path('artisan')) : false;
+
+            if (count($invalidPrefixCommands) > 0) {
+                $schedulerStatus = 'warning';
+                $schedulerError = ($schedulerError ? $schedulerError . " " : "") . "Achtung: " . count($invalidPrefixCommands) . " Cronjob(s) in der DB enthalten das Präfix 'php artisan' (z. B. '" . $invalidPrefixCommands[0]['name'] . "'). Das blockiert die Ausführung! Klicke auf 'Reparieren & anstoßen', um dies automatisch zu bereinigen.";
+            }
+
+            if (!$heartbeatPresent || !$heartbeatActive) {
+                $schedulerStatus = 'warning';
+                $schedulerError = ($schedulerError ? $schedulerError . " " : "") . "Der 'System Herzschlag' (system:heartbeat) Job ist inaktiv oder fehlt in der DB.";
+            }
+
             $health['scheduler'] = [
                 'status' => $schedulerStatus,
                 'value' => $schedulerValue,
                 'error' => $schedulerError,
                 'locked_count' => $lockedCount,
                 'cli_versions' => $cliVersions,
-                'last_run_diff' => $diffMinutes
+                'last_run_diff' => $diffMinutes,
+                'last_bootstrap_diff' => $diffBootstrapMinutes,
+                'last_exception' => $lastException,
+                'job_errors' => $jobErrors,
+                'heartbeat_present' => $heartbeatPresent,
+                'heartbeat_active' => $heartbeatActive,
+                'invalid_prefix_commands' => $invalidPrefixCommands,
+                'artisan_file_exists' => $artisanFileExists,
+                'artisan_file_readable' => $artisanFileReadable,
             ];
         } catch (\Exception $e) {
             $health['scheduler'] = [
@@ -329,7 +405,8 @@ class MasterAnalytics extends Component
                 'value' => 'Fehler',
                 'error' => 'Cache/DB nicht lesbar: ' . $e->getMessage(),
                 'locked_count' => 0,
-                'cli_versions' => []
+                'cli_versions' => [],
+                'job_errors' => []
             ];
         }
 
@@ -828,6 +905,58 @@ class MasterAnalytics extends Component
                                 }
                             }
                             $this->addRepairLog("✓ $clearedLocks hängende Sperren gelöscht.", 'success');
+
+                            // DB-Cronjobs auto-heilen: 'php artisan ...' Präfixe entfernen!
+                            if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
+                                $affectedJobs = 0;
+                                $cronjobsToClean = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
+                                foreach ($cronjobsToClean as $job) {
+                                    $rawCommand = $job->command;
+                                    $cleanCommand = trim($rawCommand);
+                                    $cleanCommand = preg_replace('/^(?:\/usr\/bin\/)?php(?:[0-9.]+)?\s+/', '', $cleanCommand);
+                                    $cleanCommand = preg_replace('/^(?:(?:\S+)?artisan)\s+/', '', $cleanCommand);
+                                    $cleanCommand = trim($cleanCommand);
+
+                                    if ($rawCommand !== $cleanCommand) {
+                                        \Illuminate\Support\Facades\DB::table('system_cronjobs')
+                                            ->where('id', $job->id)
+                                            ->update(['command' => $cleanCommand]);
+                                        $affectedJobs++;
+                                        $this->addRepairLog("✓ Befehl für '{$job->name}' bereinigt: von '{$rawCommand}' zu '{$cleanCommand}'", 'success');
+                                    }
+                                }
+                                if ($affectedJobs > 0) {
+                                    $this->addRepairLog("✓ Insgesamt $affectedJobs Cronjobs in der Datenbank repariert.", 'success');
+                                }
+                                
+                                // System Herzschlag (system:heartbeat) Vorhandensein & Aktivität sicherstellen
+                                $hbJob = \Illuminate\Support\Facades\DB::table('system_cronjobs')
+                                    ->where(function($query) {
+                                        $query->where('command', 'system:heartbeat')
+                                              ->orWhere('command', 'like', '%system:heartbeat%');
+                                    })
+                                    ->first();
+                                if (!$hbJob) {
+                                    \Illuminate\Support\Facades\DB::table('system_cronjobs')->insert([
+                                        'id' => (string) \Illuminate\Support\Str::uuid(),
+                                        'name' => 'System Herzschlag',
+                                        'description' => 'Aktualisiert das Lebenszeichen des Schedulers für das Status-Dashboard.',
+                                        'command' => 'system:heartbeat',
+                                        'parameters' => null,
+                                        'schedule' => '* * * * *',
+                                        'is_active' => true,
+                                        'status' => 'pending',
+                                        'created_at' => now(),
+                                        'updated_at' => now(),
+                                    ]);
+                                    $this->addRepairLog("✓ Fehlenden 'System Herzschlag' Cronjob in Datenbank angelegt.", 'success');
+                                } elseif (!$hbJob->is_active) {
+                                    \Illuminate\Support\Facades\DB::table('system_cronjobs')
+                                        ->where('id', $hbJob->id)
+                                        ->update(['is_active' => true]);
+                                    $this->addRepairLog("✓ 'System Herzschlag' Cronjob in Datenbank aktiviert.", 'success');
+                                }
+                            }
 
                             $bestInterpreter = null;
                             $interpreters = ['/usr/bin/php8.4', '/usr/bin/php', 'php'];
