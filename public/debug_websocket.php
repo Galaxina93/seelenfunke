@@ -501,6 +501,37 @@ try {
             </div>
         </div>
 
+        <!-- BROWSER GEMINI LIVE WS TEST -->
+        <div class="card">
+            <div class="card-title">
+                <span>🎙️ Browser Gemini-Live (Proxy) Verbindungstest</span>
+                <span id="gemini-badge" class="badge badge-warning">TESTE...</span>
+            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Der Browser versucht, eine direkte WebSocket-Verbindung zum Gemini-Live Proxy aufzubauen zu: <strong style="color: var(--text);"><?php echo htmlspecialchars($webEnv['GEMINI_PROXY_WS_URL'] ?? 'n/a'); ?></strong>
+            </p>
+            
+            <?php 
+            $currentHost = $_SERVER['HTTP_HOST'] ?? '';
+            $isLocalHost = preg_match('/(localhost|127\.0\.0\.1|seelenfunke\.test)/i', $currentHost);
+            $geminiUrl = $webEnv['GEMINI_PROXY_WS_URL'] ?? '';
+            
+            if (!$isLocalHost && $geminiUrl && (strpos($geminiUrl, '127.0.0.1') !== false || strpos($geminiUrl, 'localhost') !== false || strpos($geminiUrl, '8089') !== false)): 
+            ?>
+                <div class="alert alert-warning" style="margin-bottom: 1rem;">
+                    ⚠️ <strong>Falsche Konfiguration für Staging/Produktion erkannt!</strong><br>
+                    Die Variable <code>GEMINI_PROXY_WS_URL</code> zeigt auf <code><?php echo htmlspecialchars($geminiUrl); ?></code>. 
+                    Da dieser WebSocket-Verbindungstest im Browser des Benutzers ausgeführt wird, versucht der Browser eine Verbindung zu sich selbst aufzubauen (localhost), was fehlschlägt.<br><br>
+                    <strong>Lösung:</strong> Bitte tragen Sie in der <code>.env</code> auf dem Staging-Server folgenden Wert ein:<br>
+                    <code>GEMINI_PROXY_WS_URL=wss://api-live-bridge.mein-seelenfunke.de/gemini-live</code>
+                </div>
+            <?php endif; ?>
+
+            <div id="gemini-log" class="code-block" style="font-size: 0.85rem; max-height: 200px; overflow-y: auto;">
+                Starte Gemini-Live Verbindungstest...<br>
+            </div>
+        </div>
+
         <!-- SCHEDULER-STATUS -->
         <div class="card">
             <div class="card-title">
@@ -704,6 +735,16 @@ try {
                         <th>REVERB_APP_KEY</th>
                         <td><?php echo htmlspecialchars($webEnv['REVERB_APP_KEY'] ?? ($webEnv['PUSHER_APP_KEY'] ?? 'n/a')); ?></td>
                     </tr>
+                    <tr>
+                        <th>GEMINI_PROXY_WS_URL</th>
+                        <td style="<?php echo (strpos($webEnv['GEMINI_PROXY_WS_URL'] ?? '', '127.0.0.1') !== false || strpos($webEnv['GEMINI_PROXY_WS_URL'] ?? '', 'localhost') !== false) ? 'color: var(--warning); font-weight: bold;' : ''; ?>">
+                            <?php echo htmlspecialchars($webEnv['GEMINI_PROXY_WS_URL'] ?? 'n/a'); ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>TWILIO_WSS_URL</th>
+                        <td><?php echo htmlspecialchars($webEnv['TWILIO_WSS_URL'] ?? 'n/a'); ?></td>
+                    </tr>
                 </table>
             </div>
 
@@ -783,6 +824,7 @@ try {
 
     <script>
         (function() {
+            // 1. REVERB WSS TEST
             const wssLog = document.getElementById('wss-log');
             const wssBadge = document.getElementById('wss-badge');
             
@@ -833,6 +875,73 @@ try {
                 log(`✗ Ausnahme beim Erstellen des WebSockets: ${e.message}`, 'error');
                 wssBadge.className = 'badge badge-error';
                 wssBadge.textContent = 'AUSNAHME';
+            }
+
+            // 2. GEMINI LIVE PROXY WSS TEST
+            const geminiLog = document.getElementById('gemini-log');
+            const geminiBadge = document.getElementById('gemini-badge');
+            const geminiUrl = '<?php echo htmlspecialchars($webEnv['GEMINI_PROXY_WS_URL'] ?? ''); ?>';
+
+            function logGemini(msg, type = 'info') {
+                const colors = {
+                    info: '#9ca3af',
+                    success: '#10b981',
+                    error: '#ef4444',
+                    warning: '#f59e0b'
+                };
+                const color = colors[type] || colors.info;
+                geminiLog.innerHTML += `<span style="color: ${color}">[${new Date().toLocaleTimeString()}] ${msg}</span><br>`;
+                geminiLog.scrollTop = geminiLog.scrollHeight;
+            }
+
+            if (!geminiUrl) {
+                logGemini('✗ Keine GEMINI_PROXY_WS_URL in der .env konfiguriert!', 'error');
+                geminiBadge.className = 'badge badge-error';
+                geminiBadge.textContent = 'NICHT KONFIGURIERT';
+            } else {
+                let testGeminiUrl = geminiUrl;
+                if (window.location.protocol === 'https:' && testGeminiUrl.startsWith('ws://')) {
+                    logGemini(`⚠️ Seite läuft über HTTPS, aber URL startet mit ws://. Passe temporär im Browser an wss:// an...`, 'warning');
+                    testGeminiUrl = testGeminiUrl.replace('ws://', 'wss://');
+                }
+
+                logGemini(`Verbinde mit ${testGeminiUrl} (Handshake-Test)...`, 'info');
+                
+                try {
+                    const gws = new WebSocket(testGeminiUrl);
+                    
+                    gws.onopen = function() {
+                        logGemini('✓ Verbindung erfolgreich geöffnet! Warte auf Handshake-Antwort...', 'success');
+                    };
+                    
+                    gws.onmessage = function(evt) {
+                        logGemini(`→ Nachricht empfangen: ${evt.data}`, 'info');
+                    };
+                    
+                    gws.onerror = function(err) {
+                        logGemini('✗ WebSocket-Fehler aufgetreten! (Verbindung blockiert, DNS-Fehler, SSL-Problem oder Port nicht erreichbar)', 'error');
+                        console.error(err);
+                    };
+                    
+                    gws.onclose = function(evt) {
+                        // Der Proxy schließt ohne Token mit 4001 oder 4003 (oder ähnlichen custom codes)
+                        if (evt.code === 4001 || evt.code === 4003 || evt.code === 1000) {
+                            logGemini(`✓ Server hat geantwortet! Verbindung geschlossen mit Code ${evt.code} (${evt.reason || 'Token fehlt / Normal'}). Dies bestätigt, dass der Server ERREICHBAR und AKTIV ist!`, 'success');
+                            geminiBadge.className = 'badge badge-success';
+                            geminiBadge.textContent = 'ERFOLGREICH VERBUNDEN';
+                        } else {
+                            logGemini(`ℹ Verbindung geschlossen. Code: ${evt.code}, Grund: ${evt.reason || 'keiner'}, Sauber beendet: ${evt.wasClean}`, 'warning');
+                            if (geminiBadge.textContent === 'TESTE...') {
+                                geminiBadge.className = 'badge badge-error';
+                                geminiBadge.textContent = 'VERBINDUNG FEHLGESCHLAGEN';
+                            }
+                        }
+                    };
+                } catch(e) {
+                    logGemini(`✗ Ausnahme beim Erstellen des WebSockets: ${e.message}`, 'error');
+                    geminiBadge.className = 'badge badge-error';
+                    geminiBadge.textContent = 'AUSNAHME';
+                }
             }
         })();
     </script>
