@@ -1401,8 +1401,10 @@
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
 
-                    // Parallele Spracherkennung WIEDER AKTIVIERT (Audio-Flags oben auf false gesetzt, um Hardware-Konflikte ('Dudumm'-Geräusch) auf Mobilgeräten zu vermeiden)
-                    this.startSpeechRecognition();
+                    // Parallele Spracherkennung auf Mobilgeräten deaktivieren, um Hardware-Konflikte & 'Dudumm'-Geräusche zu vermeiden
+                    if (!this.isMobile) {
+                        this.startSpeechRecognition();
+                    }
 
                 } catch (err) {
                     console.error('Mikrofon Fehler:', err);
@@ -1412,6 +1414,10 @@
             },
 
             startSpeechRecognition() {
+                if (this.isLiveMode && this.isMobile) {
+                    console.log('🎤 Mobile Live Mode: Überspringe parallele webkitSpeechRecognition zur Vermeidung von Hardware-Konflikten.');
+                    return;
+                }
                 if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
 
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
