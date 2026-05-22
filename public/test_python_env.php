@@ -88,6 +88,27 @@ if ($authorized && $action) {
             if (file_exists($tarballPath)) {
                 unlink($tarballPath);
             }
+            
+            // Create wrapper for python3.10 to intercept execution via linker if needed
+            $binPath = $standalonePath . '/bin';
+            $realBinary = $binPath . '/python3.10';
+            $backupBinary = $binPath . '/python3.10.bin';
+            
+            if (file_exists($realBinary) && !file_exists($backupBinary)) {
+                rename($realBinary, $backupBinary);
+                $wrapperContent = "#!/bin/sh\n" .
+                                  "LINKER=\"/usr/local/php/lib/ld-linux-x86-64.so.2\"\n" .
+                                  "REAL_PYTHON=\"\$(dirname \"\$0\")/python3.10.bin\"\n" .
+                                  "if [ -f \"\$LINKER\" ]; then\n" .
+                                  "    exec \"\$LINKER\" --library-path /usr/local/php/lib \"\$REAL_PYTHON\" \"\$@\"\n" .
+                                  "else\n" .
+                                  "    exec \"\$REAL_PYTHON\" \"\$@\"\n" .
+                                  "fi\n";
+                file_put_contents($realBinary, $wrapperContent);
+                chmod($realBinary, 0755);
+                $output .= "\nCreated wrapper script for python3.10 to support host linker execution.\n";
+            }
+            
             $output .= "\nExtraction complete! Standalone Python is located at: $standalonePython\n";
         } else {
             $output .= "Error: Download failed or file size too small (" . (file_exists($tarballPath) ? filesize($tarballPath) : 0) . " bytes).\n";
