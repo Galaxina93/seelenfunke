@@ -238,3 +238,34 @@ cp ../seelenfunke-stage/.env .
 cp ../seelenfunke-stage/package.json .
 cp -r ../seelenfunke-stage/node_modules .
 ```
+
+---
+
+## 10. Einrichtung des Laravel Task Schedulers im mStudio
+Für die periodische Ausführung von Hintergrundaufgaben (wie dem Laravel Scheduler) wurde im Mittwald mStudio ein entsprechender Cronjob eingerichtet.
+
+### mStudio Cronjob-Konfiguration
+Folgende Einstellungen wurden im Mittwald-Panel hinterlegt:
+
+*   **Verknüpfte App:** `seelenfunke-stage`
+*   **Ausführungstyp:** Befehl ausführen
+*   **Interpreter:** `PHP` (bzw. `/usr/bin/php`)
+*   **Datei:** `/html/seelenfunke-stage/artisan`
+*   **Parameter:** `schedule:run`
+*   **Auszuführender Befehl:** `/usr/bin/php /html/seelenfunke-stage/artisan schedule:run`
+*   **Intervall:** `* * * * *` (Cron-Syntax; Jede Minute, jede Stunde, jeden Tag)
+*   **Zeitzone:** `Europe/Berlin`
+*   **Fehlerbehandlung:** E-Mail-Versand ab dem 1. Fehler, Timeout bei 3600 Sekunden.
+
+### Visuelle Dokumentation
+Hier sind die Einstellungen aus dem Mittwald-Panel zur Referenz:
+
+#### 1. Cronjob Übersicht (Aktiv & Funktionsfähig)
+![Cronjob Übersicht](images/cronjob_overview.png)
+
+#### 2. Befehls-Konfiguration
+![Befehls-Konfiguration](images/command_config.png)
+
+#### 3. Intervall-Konfiguration (Cron-Syntax)
+![Intervall-Konfiguration](images/interval_config.png)
+
