@@ -17,13 +17,41 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-function debugLog(msg) {
+function debugLog(msg, err) {
+    const timestamp = new Date().toISOString();
+    let formattedMsg = msg;
+    if (err) {
+        formattedMsg += ` | Error: ${err.message || err}`;
+        if (err.stack) {
+            formattedMsg += `\n${err.stack}`;
+        }
+    }
+    
+    // In Konsole ausgeben
+    console.log(formattedMsg);
+    
+    // In Datei schreiben
     try {
-        fs.appendFileSync(join(__dirname, 'audio-debug.log'), new Date().toISOString() + ' - ' + msg + '\n');
-    } catch(e) {}
+        fs.appendFileSync(join(__dirname, 'bridge.log'), `[${timestamp}] ${formattedMsg}\n`);
+    } catch (e) {
+        console.error('Logging to bridge.log failed:', e.message);
+    }
 }
 
-debugLog("--- NODE JS SERVER RESTARTED (VERSION: AUDIO FIX V3) ---");
+// Log-Rotation beim Start
+try {
+    const logPath = join(__dirname, 'bridge.log');
+    if (fs.existsSync(logPath)) {
+        const stats = fs.statSync(logPath);
+        if (stats.size > 5 * 1024 * 1024) { // 5MB limit
+            fs.writeFileSync(logPath, `--- Log rotierte am ${new Date().toISOString()} ---\n`, 'utf8');
+        }
+    }
+} catch (e) {
+    console.error('Fehler bei Log-Rotation:', e.message);
+}
+
+debugLog("--- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V1) ---");
 
 dotenv.config();
 
@@ -54,7 +82,7 @@ function isSendableCloseCode(code) {
 }
 
 function initGeminiLiveProxy(clientWs, creds) {
-    console.log('🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...');
+    debugLog('🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...');
     
     const HOST = "generativelanguage.googleapis.com";
     const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
@@ -63,9 +91,9 @@ function initGeminiLiveProxy(clientWs, creds) {
     const googleQueue = [];
     
     googleWs.on('open', () => {
-        console.log('🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.');
+        debugLog('🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.');
         if (googleQueue.length > 0) {
-            console.log(`📦 Replay von ${googleQueue.length} gepufferten Client-Nachrichten an Google...`);
+            debugLog(`📦 Replay von ${googleQueue.length} gepufferten Client-Nachrichten an Google...`);
             while (googleQueue.length > 0) {
                 const msg = googleQueue.shift();
                 googleWs.send(msg);
@@ -77,14 +105,14 @@ function initGeminiLiveProxy(clientWs, creds) {
         try {
             const data = JSON.parse(message.toString());
             if (data.setupComplete) {
-                console.log('🧠 Gemini Live Proxy: Setup Complete von Google empfangen.');
+                debugLog('🧠 Gemini Live Proxy: Setup Complete von Google empfangen.');
             } else if (data.serverContent) {
-                console.log('🧠 Gemini Live Proxy: Server Content von Google empfangen:', JSON.stringify(data.serverContent).substring(0, 150));
+                debugLog('🧠 Gemini Live Proxy: Server Content von Google empfangen: ' + JSON.stringify(data.serverContent).substring(0, 150));
             } else {
-                console.log('🧠 Gemini Live Proxy: Sonstige Nachricht von Google:', JSON.stringify(data).substring(0, 150));
+                debugLog('🧠 Gemini Live Proxy: Sonstige Nachricht von Google: ' + JSON.stringify(data).substring(0, 150));
             }
         } catch (e) {
-            console.log('🧠 Gemini Live Proxy: Fehler beim Parsen der Google-Nachricht oder Binärdaten:', e.message);
+            debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Google-Nachricht oder Binärdaten: ' + e.message);
         }
 
         if (clientWs.readyState === WebSocket.OPEN) {
@@ -93,7 +121,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     googleWs.on('close', (code, reason) => {
-        console.log(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${reason}`);
+        debugLog(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${reason}`);
         if (clientWs.readyState === WebSocket.OPEN) {
             if (isSendableCloseCode(code)) {
                 clientWs.close(code, reason ? reason.toString() : undefined);
@@ -104,7 +132,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     googleWs.on('error', (err) => {
-        console.error('🧠 Gemini Live Proxy: Google WebSocket Fehler:', err);
+        debugLog('🧠 Gemini Live Proxy: Google WebSocket Fehler', err);
         if (clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(JSON.stringify({ error: 'Google Gemini connection error' }));
         }
@@ -114,31 +142,31 @@ function initGeminiLiveProxy(clientWs, creds) {
         try {
             const data = JSON.parse(message.toString());
             if (data.setup) {
-                console.log('🧠 Gemini Live Proxy: Client sendet Setup:', JSON.stringify(data.setup).substring(0, 150));
+                debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
             } else if (data.realtimeInput) {
                 // Nicht jeden Audio-Chunk loggen, sondern nur sporadisch (z.B. alle 100 Pakete)
                 if (!global.audioLogCounter) global.audioLogCounter = 0;
                 global.audioLogCounter++;
                 if (global.audioLogCounter % 100 === 0) {
-                    console.log(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${global.audioLogCounter}, Base64-Länge: ${data.realtimeInput.audio.data.length})`);
+                    debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${global.audioLogCounter}, Base64-Länge: ${data.realtimeInput.audio.data.length})`);
                 }
             } else {
-                console.log('🧠 Gemini Live Proxy: Client sendet sonstige Nachricht:', JSON.stringify(data).substring(0, 150));
+                debugLog('🧠 Gemini Live Proxy: Client sendet sonstige Nachricht: ' + JSON.stringify(data).substring(0, 150));
             }
         } catch (e) {
-            console.log('🧠 Gemini Live Proxy: Fehler beim Parsen der Client-Nachricht:', e.message);
+            debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Client-Nachricht: ' + e.message);
         }
 
         if (googleWs.readyState === WebSocket.OPEN) {
             googleWs.send(message);
         } else {
-            console.log('🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: ' + (googleQueue.length + 1));
+            debugLog('🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: ' + (googleQueue.length + 1));
             googleQueue.push(message);
         }
     });
     
     clientWs.on('close', (code, reason) => {
-        console.log(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
+        debugLog(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
         if (googleWs.readyState === WebSocket.OPEN) {
             if (isSendableCloseCode(code)) {
                 googleWs.close(code, reason ? reason.toString() : undefined);
@@ -149,7 +177,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     clientWs.on('error', (err) => {
-        console.error('🧠 Gemini Live Proxy: Client WebSocket Fehler:', err);
+        debugLog('🧠 Gemini Live Proxy: Client WebSocket Fehler', err);
         if (googleWs.readyState === WebSocket.OPEN) {
             googleWs.close(1011, 'Client error');
         }
@@ -470,12 +498,12 @@ wss.on('connection', (ws, req) => {
     const parsedUrl = new URL(urlString, 'http://localhost');
     const pathname = parsedUrl.pathname;
     
-    console.log(`🔌 Neue WebSocket-Verbindung auf Pfad: ${pathname}`);
+    debugLog(`🔌 Neue WebSocket-Verbindung auf Pfad: ${pathname}`);
     
     if (pathname === '/gemini-live') {
         const token = parsedUrl.searchParams.get('token');
         if (!token) {
-            console.log('❌ Verbindung abgelehnt: Kein Token übergeben.');
+            debugLog('❌ Verbindung abgelehnt: Kein Token übergeben.');
             ws.close(4001, 'Token missing');
             return;
         }
@@ -488,14 +516,14 @@ wss.on('connection', (ws, req) => {
         ws.on('message', handleEarlyMessage);
         
         const backendUrl = process.env.APP_URL || 'http://localhost';
-        console.log(`🔑 Verifiziere Token gegen Backend: ${backendUrl}/api/ai/verify-token`);
+        debugLog(`🔑 Verifiziere Token gegen Backend: ${backendUrl}/api/ai/verify-token`);
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
-            console.log(`⏱️ Fetch-Timeout erreicht für Token-Verifizierung (${backendUrl})`);
+            debugLog(`⏱️ Fetch-Timeout erreicht für Token-Verifizierung (${backendUrl})`);
             controller.abort();
         }, 5000); // 5 seconds timeout
-
+ 
         fetch(`${backendUrl}/api/ai/verify-token`, {
             method: 'POST',
             headers: { 
@@ -520,13 +548,13 @@ wss.on('connection', (ws, req) => {
             
             // Temporären Listener entfernen
             ws.off('message', handleEarlyMessage);
-
+ 
             // Proxy initialisieren (registriert neue 'message' Listener)
             initGeminiLiveProxy(ws, data);
-
+ 
             // Gespeicherte Nachrichten erneut abspielen
             if (messageQueue.length > 0) {
-                console.log(`📦 Replay von ${messageQueue.length} zwischengespeicherten Client-Nachrichten...`);
+                debugLog(`📦 Replay von ${messageQueue.length} zwischengespeicherten Client-Nachrichten...`);
                 for (const msg of messageQueue) {
                     ws.emit('message', msg);
                 }
@@ -539,7 +567,7 @@ wss.on('connection', (ws, req) => {
             if (err.name === 'AbortError') {
                 errMsg = `Timeout connecting to ${backendUrl}`;
             }
-            console.error('❌ Token-Verifizierung fehlgeschlagen:', errMsg);
+            debugLog('❌ Token-Verifizierung fehlgeschlagen: ' + errMsg);
             const reason = `Verify failed: ${errMsg}`.substring(0, 120);
             ws.close(4003, reason);
         });
@@ -547,9 +575,9 @@ wss.on('connection', (ws, req) => {
         handleTwilioConnection(ws);
     }
 });
-
+ 
 debugLog(`Versuche auf Port ${PORT} zu lauschen... (process.env.PORT=${process.env.PORT})`);
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port ${PORT}`);
+    debugLog(`🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port ${PORT}`);
     debugLog(`Erfolgreich gebunden auf Port ${PORT}`);
 });

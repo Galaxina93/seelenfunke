@@ -60,6 +60,28 @@ $action = $_GET['action'] ?? null;
 $message = '';
 $messageType = '';
 
+if ($action === 'get_bridge_log') {
+    header('Content-Type: text/plain; charset=utf-8');
+    // Die Node-App läuft in /html/twilio-bridge/
+    // debug_websocket.php liegt in /html/seelenfunke-stage/public/
+    // Also ist der relative Pfad zu twilio-bridge: ../../twilio-bridge
+    $logPath = dirname(dirname(__DIR__)) . '/twilio-bridge/bridge.log';
+    if (file_exists($logPath)) {
+        $file = file($logPath);
+        if ($file === false) {
+            echo "Fehler beim Lesen der Datei " . $logPath;
+        } else {
+            // Zeige die letzten 150 Zeilen
+            $lines = array_slice($file, -150);
+            echo implode("", $lines);
+        }
+    } else {
+        echo "Die Logdatei " . $logPath . " existiert nicht oder ist für PHP unzugänglich.\n";
+        echo "Stelle sicher, dass die Bridge bereits gestartet wurde und in dieses Verzeichnis schreibt.";
+    }
+    exit;
+}
+
 if ($action === 'fix_worker_env') {
     $updates = [
         'REVERB_SERVER_HOST' => '0.0.0.0', // Ganz wichtig: Auf allen Schnittstellen lauschen
@@ -532,6 +554,20 @@ try {
             </div>
         </div>
 
+        <!-- NODE.JS BRIDGE LOGS -->
+        <div class="card">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📋 Node.js Gemini Live Bridge Logs (letzte 150 Zeilen)</span>
+                <button onclick="loadBridgeLogs()" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin: 0; background-color: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Aktualisieren</button>
+            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Logs der Twilio-Gemini-Live-Bridge aus <code>/html/twilio-bridge/bridge.log</code>.
+            </p>
+            <div id="bridge-log-content" class="code-block" style="font-size: 0.85rem; max-height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; line-height: 1.4;">
+                Lade Logs...
+            </div>
+        </div>
+
         <!-- SCHEDULER-STATUS -->
         <div class="card">
             <div class="card-title">
@@ -948,6 +984,22 @@ try {
                 }
             }
         })();
+
+        function loadBridgeLogs() {
+            const container = document.getElementById('bridge-log-content');
+            container.innerText = "Lade Logs...";
+            fetch('?action=get_bridge_log')
+                .then(res => res.text())
+                .then(text => {
+                    container.innerText = text;
+                    container.scrollTop = container.scrollHeight;
+                })
+                .catch(err => {
+                    container.innerText = "Fehler beim Laden der Logs: " + err.message;
+                });
+        }
+        // Logs beim Laden der Seite initial abrufen
+        window.addEventListener('DOMContentLoaded', loadBridgeLogs);
     </script>
 </body>
 </html>
