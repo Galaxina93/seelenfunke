@@ -117,6 +117,10 @@ if ($authorized && $action) {
         $cmd = escapeshellarg($standalonePip) . " install python-docx 2>&1";
         $output .= "Installing python-docx inside standalone Python...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
+    } elseif ($action === 'custom_command') {
+        $cmd = $_POST['cmd'] ?? '';
+        $output .= "Running custom command: $cmd\n";
+        $output .= shell_exec($cmd . " 2>&1");
     } elseif ($action === 'search_system_python') {
         $output .= "PHP PATH: " . getenv('PATH') . "\n\n";
         
@@ -587,6 +591,14 @@ OS Release:
                     <button type="submit" class="btn-secondary" style="border-color: var(--primary); color: var(--primary);">System nach vorhandenem Python durchsuchen</button>
                 </form>
             </div>
+
+            <h2 style="margin-top: 2rem;">Diagnose-Konsole (Custom Command)</h2>
+            <form method="POST" style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+                <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
+                <input type="hidden" name="action" value="custom_command">
+                <input type="text" name="cmd" placeholder="Befehl eingeben (z.B. git status)" style="flex: 1; padding: 0.75rem 1rem; background-color: rgba(31, 41, 55, 0.5); border: 1px solid var(--border-color); border-radius: 8px; color: white;" required>
+                <button type="submit" class="btn-secondary" style="border-color: var(--primary); color: var(--primary); margin: 0; padding: 0.75rem 1.5rem;">Ausführen</button>
+            </form>
         </div>
 
         <?php if ($output): ?>
