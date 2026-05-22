@@ -173,12 +173,39 @@
                                                         $config = $item['configuration'];
                                                     }
                                                     $mainImg = is_object($item) ? ($item->main_image ?? null) : ($item['main_image'] ?? null);
-                                                    $imgPath = $config['product_image_path'] ?? $mainImg;
+                                                    
+                                                    $imgPaths = [];
+                                                    if ($config && isset($config['snapshot_path'])) {
+                                                        if (is_array($config['snapshot_path'])) {
+                                                            if (isset($config['snapshot_path']['front'])) $imgPaths['front'] = $config['snapshot_path']['front'];
+                                                            if (isset($config['snapshot_path']['back'])) $imgPaths['back'] = $config['snapshot_path']['back'];
+                                                        } elseif (is_string($config['snapshot_path'])) {
+                                                            $imgPaths['front'] = $config['snapshot_path'];
+                                                        }
+                                                    }
+                                                    
+                                                    if (empty($imgPaths) && !empty($mainImg)) {
+                                                        $imgPaths['front'] = $mainImg;
+                                                    }
+
+                                                    $imgUrls = [];
+                                                    foreach ($imgPaths as $key => $pathVal) {
+                                                        if (str_starts_with($pathVal, 'http')) {
+                                                            $imgUrls[$key] = $pathVal;
+                                                        } else {
+                                                            $pathPrefix = str_starts_with($pathVal, 'storage/') ? '' : 'storage/';
+                                                            $imgUrls[$key] = asset($pathPrefix . $pathVal);
+                                                        }
+                                                    }
                                                 @endphp
 
-                                                @if(!empty($imgPath))
-                                                    <div style="margin-top: 5px; margin-bottom: 10px; width: 60px; height: 60px; border: 1px solid #e5e5e5; border-radius: 4px; background-color: #f9f9f9; overflow: hidden;">
-                                                        <img src="{{ asset($imgPath) }}" style="width: 100%; height: 100%; object-fit: contain;">
+                                                @if(!empty($imgUrls))
+                                                    <div style="margin-top: 5px; margin-bottom: 10px; display: flex; gap: 8px;">
+                                                        @foreach($imgUrls as $key => $imgUrl)
+                                                            <div style="width: 60px; height: 60px; border: 1px solid #e5e5e5; border-radius: 4px; background-color: #f9f9f9; overflow: hidden;" title="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
+                                                                <img src="{{ $imgUrl }}" style="width: 100%; height: 100%; object-fit: contain;" alt="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
+                                                            </div>
+                                                        @endforeach
                                                     </div>
                                                 @endif
 
