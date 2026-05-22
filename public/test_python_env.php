@@ -88,6 +88,13 @@ if ($authorized && $action) {
 
 // Perform diagnostics
 $diag = [];
+$diag['os_info'] = php_uname();
+$diag['os_release'] = '';
+if (file_exists('/etc/os-release')) {
+    $diag['os_release'] = file_get_contents('/etc/os-release');
+}
+$diag['ldd_version'] = trim(shell_exec("ldd --version 2>&1") ?: 'ldd not available');
+
 
 // 1. Check system python3
 $systemPython = shell_exec("which python3 2>&1");
@@ -366,6 +373,17 @@ if ($diag['standalone_exists']) {
 
         <div class="alert">
             <strong>Hinweis zur Serverumgebung:</strong> Da der Standard-PHP-Container von Mittwald kein globales `python3` besitzt und wir keine systemweiten Pakete installieren können, verwenden wir eine portable Standalone-Python-Distribution.
+        </div>
+
+        <div class="alert" style="background-color: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6; color: #dbeafe;">
+            <strong>System-Diagnosedetails:</strong><br>
+            <pre style="font-size: 0.85rem; font-family: monospace; white-space: pre-wrap; margin: 0.5rem 0 0 0; line-height: 1.4; color: #9ca3af;">OS: <?= htmlspecialchars($diag['os_info']) ?>
+
+ldd Version:
+<?= htmlspecialchars($diag['ldd_version']) ?>
+
+OS Release:
+<?= htmlspecialchars($diag['os_release']) ?></pre>
         </div>
 
         <div class="diag-grid">
