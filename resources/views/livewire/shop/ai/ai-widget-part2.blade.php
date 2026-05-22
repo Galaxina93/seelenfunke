@@ -88,6 +88,7 @@
             ],
 
             isAudioMuted: localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true, // Default to muted as requested
+            isMicMuted: false,
             bgVolume: initialVolume,
             systemState: initialState, // 'good', 'warning', 'error', true, false
             activeSparks: initialSparks,
@@ -1344,7 +1345,7 @@
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) return;
 
                         // We only send audio when the mic is not explicitly muted
-                        if (this.isAudioMuted) return;
+                        if (this.isMicMuted) return;
 
                         // Prevent AI from hearing itself and interrupting (echo cancellation workaround)
                         if (this.isOutputActive() && !this.allowVoiceInterruption) return;
@@ -1439,7 +1440,7 @@
                 };
 
                 this.recognition.onend = () => {
-                    if (this.isLiveMode && !this.isAudioMuted) {
+                    if (this.isLiveMode && !this.isMicMuted) {
                         try { this.recognition.start(); } catch(e) {}
                     }
                 };

@@ -83,6 +83,7 @@ function isSendableCloseCode(code) {
 
 function initGeminiLiveProxy(clientWs, creds) {
     debugLog('🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...');
+    let clientAudioPacketsReceived = 0;
     
     const HOST = "generativelanguage.googleapis.com";
     const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
@@ -144,11 +145,9 @@ function initGeminiLiveProxy(clientWs, creds) {
             if (data.setup) {
                 debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
             } else if (data.realtimeInput) {
-                // Nicht jeden Audio-Chunk loggen, sondern nur sporadisch (z.B. alle 100 Pakete)
-                if (!global.audioLogCounter) global.audioLogCounter = 0;
-                global.audioLogCounter++;
-                if (global.audioLogCounter % 100 === 0) {
-                    debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${global.audioLogCounter}, Base64-Länge: ${data.realtimeInput.audio.data.length})`);
+                clientAudioPacketsReceived++;
+                if (clientAudioPacketsReceived <= 5 || clientAudioPacketsReceived % 100 === 0) {
+                    debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${clientAudioPacketsReceived}, Base64-Länge: ${data.realtimeInput.audio.data.length})`);
                 }
             } else {
                 debugLog('🧠 Gemini Live Proxy: Client sendet sonstige Nachricht: ' + JSON.stringify(data).substring(0, 150));
