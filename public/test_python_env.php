@@ -41,9 +41,20 @@ if ($authorized && $action) {
         $output .= "Installing python-docx globally for user...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
     } elseif ($action === 'download_standalone') {
+        // Detect 32-bit vs 64-bit user space
+        $is32Bit = false;
+        if (PHP_INT_SIZE === 4) {
+            $is32Bit = true;
+        } else {
+            $longBit = trim(@shell_exec('getconf LONG_BIT 2>/dev/null') ?: '');
+            if ($longBit === '32') {
+                $is32Bit = true;
+            }
+        }
+
         // Detect libc (musl/glibc) to download the correct build
         $isMusl = false;
-        if (file_exists('/lib/ld-musl-x86_64.so.1') || file_exists('/lib64/ld-musl-x86_64.so.1')) {
+        if (file_exists('/lib/ld-musl-x86_64.so.1') || file_exists('/lib64/ld-musl-x86_64.so.1') || file_exists('/lib/ld-musl-i386.so.1')) {
             $isMusl = true;
         } else {
             $lddOutput = @shell_exec('ldd --version 2>&1') ?: '';
@@ -52,12 +63,14 @@ if ($authorized && $action) {
             }
         }
         
+        $arch = $is32Bit ? 'i686' : 'x86_64';
         $flavor = $isMusl ? 'musl' : 'gnu';
-        $tarballUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-unknown-linux-{$flavor}-install_only.tar.gz";
+        $tarballUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-{$arch}-unknown-linux-{$flavor}-install_only.tar.gz";
         $tarballPath = $projectRoot . '/python_standalone.tar.gz';
         
+        $output .= "Detected architecture: " . ($is32Bit ? "i686 (32-bit)" : "x86_64 (64-bit)") . "\n";
         $output .= "Detected libc: " . ($isMusl ? "musl (Alpine Linux)" : "gnu (glibc / Ubuntu / Debian)") . "\n";
-        $output .= "Downloading standalone CPython 3.10.13 (approx. 30MB) [flavor: $flavor]...\n";
+        $output .= "Downloading standalone CPython 3.10.13 (approx. 30MB) [arch: $arch, flavor: $flavor]...\n";
         $cmdDownload = "curl -L -o " . escapeshellarg($tarballPath) . " " . escapeshellarg($tarballUrl) . " 2>&1";
         $output .= "$ Command: $cmdDownload\n";
         $output .= shell_exec($cmdDownload);
@@ -415,6 +428,7 @@ if ($diag['standalone_exists']) {
             <strong>System-Diagnosedetails:</strong><br>
             <pre style="font-size: 0.85rem; font-family: monospace; white-space: pre-wrap; margin: 0.5rem 0 0 0; line-height: 1.4; color: #9ca3af;">OS: <?= htmlspecialchars($diag['os_info']) ?>
 
+PHP Arch: <?= PHP_INT_SIZE === 4 ? '32-bit (i686)' : '64-bit (x86_64)' ?> (getconf LONG_BIT: <?= trim(@shell_exec('getconf LONG_BIT 2>/dev/null') ?: 'unknown') ?>)
 ldd Version:
 <?= htmlspecialchars($diag['ldd_version']) ?>
 
