@@ -192,6 +192,39 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeGeneratePdfReport']
             ],
             [
+                'name' => 'system_generate_docx_report',
+                'description' => 'Generiert ein hochmodernes und professionelles Word-Dokument (.docx) aus Daten/Tabellen/Texten, die du aufbereitet hast, und bietet es dem Nutzer als direkten Download an oder versendet es per E-Mail. Nutze dies IMMER, wenn der Nutzer fragt "Erstelle mir daraus ein Word Dokument", "Exportiere das als Word", "Schick mir das als Word-Dokument/docx" oder ähnliches.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Der Titel des Berichts/Dokuments, z.B. "Wohnflächenberechnung" oder "Projekt-Plan".'
+                        ],
+                        'content_markdown' => [
+                            'type' => 'string',
+                            'description' => 'Der eigentliche Inhalt des Dokuments im Markdown-Format (Tabellen, Listen, Überschriften, Fettgedrucktes, Kursiviertes, Zitate/Hinweise).'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design des Word-Dokuments. "seelenfunke" (inkl. Briefkopf, CI-Farben, Logo, Footer) oder "generic" (neutrales Design ohne Firmenbezug, ohne Logo, ohne Footer). Standardmäßig "seelenfunke", es sei denn, der Nutzer wünscht neutral.',
+                            'enum' => ['seelenfunke', 'generic']
+                        ],
+                        'target_action' => [
+                            'type' => 'string',
+                            'description' => 'Was soll mit dem generierten Word-Dokument passieren? "download" (öffnet Download-Dialog beim Nutzer im Browser), "email" (versendet die docx per Mail an recipient_email).',
+                            'enum' => ['download', 'email']
+                        ],
+                        'recipient_email' => [
+                            'type' => 'string',
+                            'description' => 'Die E-Mail-Adresse des Empfängers. Wenn der Nutzer keine E-Mail nennt, lasse dieses Feld zwingend leer (null). Das System nutzt dann automatisch die Standard-E-Mail des Admins.'
+                        ]
+                    ],
+                    'required' => ['title', 'content_markdown', 'target_action', 'design']
+                ],
+                'callable' => [self::class, 'executeGenerateDocxReport']
+            ],
+            [
                 'name' => 'system_export_system_report',
                 'description' => 'Generiert einen echten, nativen Systembericht (wie den Buchhaltungs-Export oder den CEO-Master-Report) und lädt diesen herunter, verschickt ihn per Mail oder speichert ihn im internen Datei-Manager. Nutze dies, wenn explizit der UStVA-Export, Finanz-Export, oder CEO-Report gewünscht wird.',
                 'parameters' => [
@@ -2160,6 +2193,98 @@ trait AiSystemFuncs
 
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei der PDF-Generierung: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeGenerateDocxReport(array $args, $agent = null)
+    {
+        try {
+            $title = $args['title'] ?? 'KI-Bericht';
+            $markdown = $args['content_markdown'] ?? '';
+            $design = $args['design'] ?? 'seelenfunke';
+            $action = $args['target_action'] ?? 'download';
+            $recipient = $args['recipient_email'] ?? null;
+            $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
+
+            if (empty($markdown)) {
+                return ['status' => 'error', 'message' => 'Der Inhalt darf nicht leer sein.'];
+            }
+
+            // Path setup
+            $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '.docx';
+            $filePath = 'public/reports/' . $fileName;
+            $absoluteOutputPath = storage_path('app/' . $filePath);
+
+            // Prepare arguments JSON
+            $logoPath = public_path('shop/projekt/logo/mein-seelenfunke-logo.png');
+            $ownerName = shop_setting('owner_name') ?: 'Mein Seelenfunke';
+
+            $jsonData = [
+                'title' => $title,
+                'content_markdown' => $markdown,
+                'design' => $design,
+                'agentName' => $agentName,
+                'logo_path' => $logoPath,
+                'output_path' => $absoluteOutputPath,
+                'owner_name' => $ownerName
+            ];
+
+            $tempJsonPath = storage_path('app/temp_docx_' . uniqid() . '.json');
+            file_put_contents($tempJsonPath, json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+            // Execute Python script
+            $scriptPath = base_path('app/Services/AI/Scripts/generate_docx.py');
+            $command = sprintf('python3 %s %s 2>&1', escapeshellarg($scriptPath), escapeshellarg($tempJsonPath));
+            
+            $output = shell_exec($command);
+            
+            // Clean up JSON
+            if (file_exists($tempJsonPath)) {
+                unlink($tempJsonPath);
+            }
+
+            if (!file_exists($absoluteOutputPath)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Word-Dokument konnte nicht generiert werden. Fehler: ' . $output
+                ];
+            }
+
+            $downloadUrl = \Illuminate\Support\Facades\Storage::url($filePath);
+
+            if ($action === 'email') {
+                if (empty($recipient)) {
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+                if (empty($recipient)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
+                }
+                
+                $body = "Anbei das angeforderte Word-Dokument (DOCX).";
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiAgentMessageMail("Word-Dokument: $title", $body, $agentName, [$absoluteOutputPath], $design));
+
+                return [
+                    'status' => 'success',
+                    'message' => "Das Word-Dokument '$title' wurde erfolgreich generiert und an $recipient gesendet."
+                ];
+            } else {
+                // Download action -> trigger frontend to download
+                return [
+                    'status' => 'success',
+                    'message' => "Das Word-Dokument '$title' wurde generiert. Ein Download-Dialog öffnet sich nun beim Nutzer.",
+                    '_event' => [
+                        'type' => 'dispatch',
+                        'name' => 'download-file',
+                        'detail' => [
+                            'url' => $downloadUrl,
+                            'filename' => $fileName
+                        ]
+                    ]
+                ];
+            }
+
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler bei der Word-Dokument-Generierung: ' . $e->getMessage()];
         }
     }
 
