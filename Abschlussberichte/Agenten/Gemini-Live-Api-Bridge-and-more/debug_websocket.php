@@ -472,7 +472,7 @@ try {
         <header>
             <h1>Seelenfunke WebSockets</h1>
             <div class="subtitle">Staging-Server Diagnose & Reparaturtool</div>
-        </header>
+        </header>Document
 
         <?php if ($message): ?>
             <div class="alert alert-<?php echo $messageType; ?>" style="white-space: pre-wrap; font-family: monospace;">
@@ -715,10 +715,10 @@ try {
                                         <?php elseif ($diag['artisan_status'] === 'error'): ?>
                                             <span class="badge badge-error" title="<?php echo htmlspecialchars($diag['artisan_output']); ?>">FEHLER</span>
                                             <div style="font-size: 0.75rem; color: var(--error); margin-top: 0.25rem; font-family: monospace; max-height: 80px; overflow-y: auto; white-space: pre-wrap;"><?php echo htmlspecialchars(substr($diag['artisan_output'], 0, 150)); ?>...</div>
-                                        <?php else: ?>
-                                            <span class="badge badge-warning">n/a</span>
-                                        <?php endif; ?>
-                                    </td>
+                                        </td>
+                                    <?php else: ?>
+                                        <span class="badge badge-warning">n/a</span>
+                                    <?php endif; ?>
                                     <td>
                                         <?php if (($diag['proc_open'] ?? '') === 'ok'): ?>
                                             <span style="color: var(--success); font-weight: bold;">JA</span>
