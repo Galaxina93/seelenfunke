@@ -8,9 +8,16 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 $projectRoot = dirname(__DIR__);
+
+// Virtual Env Paths
 $venvPath = $projectRoot . '/venv';
-$pythonBinary = $venvPath . '/bin/python3';
-$pipBinary = $venvPath . '/bin/pip3';
+$venvPython = $venvPath . '/bin/python3';
+$venvPip = $venvPath . '/bin/pip3';
+
+// Standalone Python Paths
+$standalonePath = $projectRoot . '/python';
+$standalonePython = $standalonePath . '/install/bin/python3';
+$standalonePip = $standalonePath . '/install/bin/pip3';
 
 // Simple password protection or token access
 define('ACCESS_TOKEN', 'sf_python_diagnostics_2026');
@@ -26,12 +33,42 @@ if ($authorized && $action) {
         $output .= "Creating virtual environment...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
     } elseif ($action === 'install_docx') {
-        $cmd = escapeshellarg($pipBinary) . " install python-docx 2>&1";
-        $output .= "Installing python-docx...\n$ Command: $cmd\n";
+        $cmd = escapeshellarg($venvPip) . " install python-docx 2>&1";
+        $output .= "Installing python-docx in venv...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
     } elseif ($action === 'pip_user_install') {
         $cmd = "python3 -m pip install --user python-docx 2>&1";
         $output .= "Installing python-docx globally for user...\n$ Command: $cmd\n";
+        $output .= shell_exec($cmd);
+    } elseif ($action === 'download_standalone') {
+        $tarballUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-unknown-linux-gnu-install_only.tar.gz";
+        $tarballPath = $projectRoot . '/python_standalone.tar.gz';
+        
+        $output .= "Downloading standalone CPython 3.10.13 (approx. 30MB)...\n";
+        $cmdDownload = "curl -L -o " . escapeshellarg($tarballPath) . " " . escapeshellarg($tarballUrl) . " 2>&1";
+        $output .= "$ Command: $cmdDownload\n";
+        $output .= shell_exec($cmdDownload);
+        
+        if (file_exists($tarballPath) && filesize($tarballPath) > 5000000) {
+            $output .= "Extracting tarball...\n";
+            // Make sure the target directory exists and is clean
+            if (file_exists($standalonePath)) {
+                shell_exec("rm -rf " . escapeshellarg($standalonePath));
+            }
+            $cmdExtract = "tar -xzf " . escapeshellarg($tarballPath) . " -C " . escapeshellarg($projectRoot) . " 2>&1";
+            $output .= "$ Command: $cmdExtract\n";
+            $output .= shell_exec($cmdExtract);
+            
+            if (file_exists($tarballPath)) {
+                unlink($tarballPath);
+            }
+            $output .= "\nExtraction complete! Standalone Python is located at: $standalonePython\n";
+        } else {
+            $output .= "Error: Download failed or file size too small (" . (file_exists($tarballPath) ? filesize($tarballPath) : 0) . " bytes).\n";
+        }
+    } elseif ($action === 'install_docx_standalone') {
+        $cmd = escapeshellarg($standalonePip) . " install python-docx 2>&1";
+        $output .= "Installing python-docx inside standalone Python...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
     }
 }
@@ -50,26 +87,38 @@ if ($diag['system_python_path'] && strpos($diag['system_python_path'], 'no pytho
 
 // 2. Check if venv exists
 $diag['venv_exists'] = file_exists($venvPath) && is_dir($venvPath);
-
-// 3. Check venv python version
-if ($diag['venv_exists'] && file_exists($pythonBinary)) {
-    $diag['venv_python_version'] = trim(shell_exec(escapeshellarg($pythonBinary) . " --version 2>&1"));
+if ($diag['venv_exists'] && file_exists($venvPython)) {
+    $diag['venv_python_version'] = trim(shell_exec(escapeshellarg($venvPython) . " --version 2>&1"));
 } else {
     $diag['venv_python_version'] = 'Not configured';
 }
 
-// 4. Test docx library import
+// 3. Check if Standalone Python exists
+$diag['standalone_exists'] = file_exists($standalonePython);
+if ($diag['standalone_exists']) {
+    $diag['standalone_version'] = trim(shell_exec(escapeshellarg($standalonePython) . " --version 2>&1"));
+} else {
+    $diag['standalone_version'] = 'Not configured';
+}
+
+// 4. Test docx library imports
 $diag['docx_import_global'] = false;
 $diag['docx_import_venv'] = false;
+$diag['docx_import_standalone'] = false;
 
 if ($diag['system_python_version'] !== 'Not found') {
     $globalImportTest = shell_exec("python3 -c \"import docx; print('ok')\" 2>&1");
     $diag['docx_import_global'] = (trim($globalImportTest) === 'ok');
 }
 
-if ($diag['venv_exists'] && file_exists($pythonBinary)) {
-    $venvImportTest = shell_exec(escapeshellarg($pythonBinary) . " -c \"import docx; print('ok')\" 2>&1");
+if ($diag['venv_exists'] && file_exists($venvPython)) {
+    $venvImportTest = shell_exec(escapeshellarg($venvPython) . " -c \"import docx; print('ok')\" 2>&1");
     $diag['docx_import_venv'] = (trim($venvImportTest) === 'ok');
+}
+
+if ($diag['standalone_exists']) {
+    $standaloneImportTest = shell_exec(escapeshellarg($standalonePython) . " -c \"import docx; print('ok')\" 2>&1");
+    $diag['docx_import_standalone'] = (trim($standaloneImportTest) === 'ok');
 }
 
 ?>
@@ -213,6 +262,7 @@ if ($diag['venv_exists'] && file_exists($pythonBinary)) {
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
+            margin-bottom: 1.5rem;
         }
 
         button {
@@ -302,7 +352,7 @@ if ($diag['venv_exists'] && file_exists($pythonBinary)) {
         <p class="subtitle">Selbsthilfe-Konfigurationsassistent für den Staging-Server</p>
 
         <div class="alert">
-            <strong>Hinweis zur Serverumgebung:</strong> Mittwald verwendet einen PHP-FPM-Prozess unter demselben Benutzer wie der SSH-Zugang. Alle hier durchgeführten Python- und venv-Operationen wirken sich direkt auf den Webserver aus.
+            <strong>Hinweis zur Serverumgebung:</strong> Da der Standard-PHP-Container von Mittwald kein globales `python3` besitzt und wir keine systemweiten Pakete installieren können, verwenden wir eine portable Standalone-Python-Distribution.
         </div>
 
         <div class="diag-grid">
@@ -322,70 +372,87 @@ if ($diag['venv_exists'] && file_exists($pythonBinary)) {
             </div>
 
             <div class="diag-card">
-                <h3>Virtual Environment (venv)</h3>
+                <h3>Standalone Python</h3>
+                <div class="diag-value">
+                    <?php if ($diag['standalone_exists']): ?>
+                        <span class="status-badge status-success">Aktiv</span>
+                        <div style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">
+                            Version: <?= htmlspecialchars($diag['standalone_version']) ?><br>
+                            Pfad: <code>python/install/bin/python3</code>
+                        </div>
+                    <?php else: ?>
+                        <span class="status-badge status-error">Fehlt</span>
+                        <div style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">
+                            Pfad: <code><?= htmlspecialchars($standalonePath) ?></code>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="diag-card">
+                <h3>docx-Bibliothek (Standalone)</h3>
+                <div class="diag-value">
+                    <?php if ($diag['docx_import_standalone']): ?>
+                        <span class="status-badge status-success">Verfügbar</span>
+                    <?php else: ?>
+                        <span class="status-badge status-error">Nicht importierbar</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="diag-card">
+                <h3>Virtual Env (System Python)</h3>
                 <div class="diag-value">
                     <?php if ($diag['venv_exists']): ?>
                         <span class="status-badge status-success">Gefunden</span>
                         <div style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">
-                            Interpreter: <code>venv/bin/python3</code><br>
                             Version: <?= htmlspecialchars($diag['venv_python_version']) ?>
                         </div>
                     <?php else: ?>
-                        <span class="status-badge status-warning">Nicht vorhanden</span>
-                        <div style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">
-                            Pfad: <code><?= htmlspecialchars($venvPath) ?></code>
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <div class="diag-card">
-                <h3>docx-Bibliothek (Global)</h3>
-                <div class="diag-value">
-                    <?php if ($diag['docx_import_global']): ?>
-                        <span class="status-badge status-success">Verfügbar</span>
-                    <?php else: ?>
-                        <span class="status-badge status-error">Nicht importierbar</span>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <div class="diag-card">
-                <h3>docx-Bibliothek (venv)</h3>
-                <div class="diag-value">
-                    <?php if ($diag['docx_import_venv']): ?>
-                        <span class="status-badge status-success">Verfügbar</span>
-                    <?php else: ?>
-                        <span class="status-badge status-error">Nicht importierbar</span>
+                        <span class="status-badge status-warning">Inaktiv</span>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
 
         <div class="actions-section">
-            <h2>Aktionen</h2>
+            <h2>Empfohlener Setup-Weg (Standalone Python)</h2>
             
             <div class="alert" style="background-color: rgba(16, 185, 129, 0.05); border-left-color: var(--success);">
-                <strong>Empfohlener Pfad:</strong> Falls noch nicht geschehen, erstelle die virtuelle Umgebung (venv) und installiere <code>python-docx</code> direkt in diese. Trage anschließend <code>PYTHON_BINARY=/html/seelenfunke-stage/venv/bin/python3</code> in Deine <code>.env</code> ein.
+                <strong>Installations-Anleitung:</strong>
+                <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0; line-height: 1.6;">
+                    <li>Klicke auf <strong>"1. Standalone Python herunterladen & entpacken"</strong>. Dies lädt ein vorkompiliertes CPython 3.10 (30MB) herunter und entpackt es lokal in den Ordner <code>python/</code>.</li>
+                    <li>Klicke auf <strong>"2. python-docx im Standalone-Python installieren"</strong>. Dies installiert das DOCX-Paket im lokalen Python.</li>
+                    <li>Trage <code>PYTHON_BINARY=/home/p-g27wim/html/seelenfunke-stage/python/install/bin/python3</code> in Deine <strong>.env</strong> ein.</li>
+                </ol>
             </div>
 
             <div class="btn-group">
                 <form method="POST">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="download_standalone">
+                    <button type="submit" class="btn-primary">1. Standalone Python herunterladen & entpacken</button>
+                </form>
+
+                <form method="POST">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="install_docx_standalone">
+                    <button type="submit" class="btn-primary" <?= !$diag['standalone_exists'] ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : '' ?>>2. python-docx im Standalone-Python installieren</button>
+                </form>
+            </div>
+
+            <h2>Alternative: System Python (Erfordert python3 auf dem Server)</h2>
+            <div class="btn-group">
+                <form method="POST">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="create_venv">
-                    <button type="submit" class="btn-primary">1. Virtuelle Umgebung (venv) erstellen</button>
+                    <button type="submit" class="btn-secondary" <?= $diag['system_python_version'] === 'Not found' ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : '' ?>>venv über System-Python erstellen</button>
                 </form>
 
                 <form method="POST">
                     <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="install_docx">
-                    <button type="submit" class="btn-primary" <?= !$diag['venv_exists'] ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : '' ?>>2. python-docx im venv installieren</button>
-                </form>
-
-                <form method="POST">
-                    <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
-                    <input type="hidden" name="action" value="pip_user_install">
-                    <button type="submit" class="btn-secondary">Alternative: python-docx für User installieren</button>
+                    <button type="submit" class="btn-secondary" <?= !$diag['venv_exists'] ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : '' ?>>python-docx im venv installieren</button>
                 </form>
             </div>
         </div>
