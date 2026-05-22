@@ -350,9 +350,37 @@ class SystemShopConfig extends Component
         $laravelVersion = app()->version();
         $phpVersion = PHP_VERSION;
         
+        $pythonVersion = 'Nicht installiert';
+        try {
+            $pythonBinary = config('services.ai.python_binary', 'python3');
+            $pythonOutput = @shell_exec(escapeshellarg($pythonBinary) . ' --version 2>&1');
+            if ($pythonOutput && preg_match('/Python\s+([0-9a-zA-Z.-]+)/i', $pythonOutput, $matches)) {
+                $pythonVersion = $matches[1];
+            }
+        } catch (\Exception $e) {
+            // Fallback remains
+        }
+
+        $livewireVersion = 'Unbekannt';
+        try {
+            if (class_exists(\Composer\InstalledVersions::class)) {
+                $livewireVersion = \Composer\InstalledVersions::getVersion('livewire/livewire') ?? 'Unbekannt';
+                if (strpos($livewireVersion, '@') !== false) {
+                    $livewireVersion = explode('@', $livewireVersion)[0];
+                }
+                if (str_starts_with($livewireVersion, 'v')) {
+                    $livewireVersion = substr($livewireVersion, 1);
+                }
+            }
+        } catch (\Exception $e) {
+            // Fallback remains
+        }
+        
         return view('livewire.shop.system.system-shop-config', [
             'laravelVersion' => $laravelVersion,
             'phpVersion' => $phpVersion,
+            'pythonVersion' => $pythonVersion,
+            'livewireVersion' => $livewireVersion,
         ]);
     }
 }

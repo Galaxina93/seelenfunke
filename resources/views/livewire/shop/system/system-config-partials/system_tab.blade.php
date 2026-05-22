@@ -1,6 +1,6 @@
 <div x-show="activeTab === 'system'" class="animate-fade-in space-y-8" style="display: none;">
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
             <div>
                 <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Laravel Core</div>
@@ -13,11 +13,33 @@
 
         <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
             <div>
+                <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Livewire</div>
+                <div class="text-xl font-black text-gray-200 group-hover:text-amber-400 transition-colors">v{{ $livewireVersion }}</div>
+            </div>
+            <div class="opacity-30 group-hover:opacity-60 transition-opacity">
+                <x-heroicon-o-bolt class="w-8 h-8 text-amber-500" />
+            </div>
+        </div>
+
+        <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
+            <div>
                 <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">PHP Engine</div>
                 <div class="text-xl font-black text-gray-200 group-hover:text-indigo-400 transition-colors">v{{ $phpVersion }}</div>
             </div>
             <div class="opacity-30 group-hover:opacity-60 transition-opacity">
                 <x-heroicon-o-command-line class="w-8 h-8 text-indigo-500" />
+            </div>
+        </div>
+
+        <div class="bg-gray-900/80 backdrop-blur-xl border border-gray-800/60 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
+            <div>
+                <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Python</div>
+                <div class="text-xl font-black text-gray-200 group-hover:text-emerald-400 transition-colors">
+                    @if($pythonVersion !== 'Nicht installiert')v{{ $pythonVersion }}@else{{ $pythonVersion }}@endif
+                </div>
+            </div>
+            <div class="opacity-30 group-hover:opacity-60 transition-opacity">
+                <x-heroicon-o-cpu-chip class="w-8 h-8 text-emerald-500" />
             </div>
         </div>
 
