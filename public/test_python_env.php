@@ -16,8 +16,8 @@ $venvPip = $venvPath . '/bin/pip3';
 
 // Standalone Python Paths
 $standalonePath = $projectRoot . '/python';
-$standalonePython = $standalonePath . '/install/bin/python3';
-$standalonePip = $standalonePath . '/install/bin/pip3';
+$standalonePython = $standalonePath . '/bin/python3';
+$standalonePip = $standalonePath . '/bin/pip3';
 
 // Simple password protection or token access
 define('ACCESS_TOKEN', 'sf_python_diagnostics_2026');
@@ -378,7 +378,7 @@ if ($diag['standalone_exists']) {
                         <span class="status-badge status-success">Aktiv</span>
                         <div style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);">
                             Version: <?= htmlspecialchars($diag['standalone_version']) ?><br>
-                            Pfad: <code>python/install/bin/python3</code>
+                            Pfad: <code>python/bin/python3</code>
                         </div>
                     <?php else: ?>
                         <span class="status-badge status-error">Fehlt</span>
@@ -423,7 +423,7 @@ if ($diag['standalone_exists']) {
                 <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0; line-height: 1.6;">
                     <li>Klicke auf <strong>"1. Standalone Python herunterladen & entpacken"</strong>. Dies lädt ein vorkompiliertes CPython 3.10 (30MB) herunter und entpackt es lokal in den Ordner <code>python/</code>.</li>
                     <li>Klicke auf <strong>"2. python-docx im Standalone-Python installieren"</strong>. Dies installiert das DOCX-Paket im lokalen Python.</li>
-                    <li>Trage <code>PYTHON_BINARY=/home/p-g27wim/html/seelenfunke-stage/python/install/bin/python3</code> in Deine <strong>.env</strong> ein.</li>
+                    <li>Trage <code>PYTHON_BINARY=/home/p-g27wim/html/seelenfunke-stage/python/bin/python3</code> in Deine <strong>.env</strong> ein.</li>
                 </ol>
             </div>
 

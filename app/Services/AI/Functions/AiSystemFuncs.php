@@ -2229,7 +2229,11 @@ trait AiSystemFuncs
                 'owner_name' => $ownerName
             ];
 
-            $tempJsonPath = storage_path('app/temp_docx_' . uniqid() . '.json');
+            $tempDir = storage_path('app/temp');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0775, true);
+            }
+            $tempJsonPath = $tempDir . '/temp_docx_' . uniqid() . '.json';
             file_put_contents($tempJsonPath, json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
             // Execute Python script
