@@ -41,10 +41,23 @@ if ($authorized && $action) {
         $output .= "Installing python-docx globally for user...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
     } elseif ($action === 'download_standalone') {
-        $tarballUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-unknown-linux-gnu-install_only.tar.gz";
+        // Detect libc (musl/glibc) to download the correct build
+        $isMusl = false;
+        if (file_exists('/lib/ld-musl-x86_64.so.1') || file_exists('/lib64/ld-musl-x86_64.so.1')) {
+            $isMusl = true;
+        } else {
+            $lddOutput = @shell_exec('ldd --version 2>&1') ?: '';
+            if (stripos($lddOutput, 'musl') !== false) {
+                $isMusl = true;
+            }
+        }
+        
+        $flavor = $isMusl ? 'musl' : 'gnu';
+        $tarballUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20240107/cpython-3.10.13+20240107-x86_64-unknown-linux-{$flavor}-install_only.tar.gz";
         $tarballPath = $projectRoot . '/python_standalone.tar.gz';
         
-        $output .= "Downloading standalone CPython 3.10.13 (approx. 30MB)...\n";
+        $output .= "Detected libc: " . ($isMusl ? "musl (Alpine Linux)" : "gnu (glibc / Ubuntu / Debian)") . "\n";
+        $output .= "Downloading standalone CPython 3.10.13 (approx. 30MB) [flavor: $flavor]...\n";
         $cmdDownload = "curl -L -o " . escapeshellarg($tarballPath) . " " . escapeshellarg($tarballUrl) . " 2>&1";
         $output .= "$ Command: $cmdDownload\n";
         $output .= shell_exec($cmdDownload);
