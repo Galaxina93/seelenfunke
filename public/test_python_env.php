@@ -85,6 +85,31 @@ if ($authorized && $action) {
         $output .= shell_exec($cmd);
     } elseif ($action === 'search_system_python') {
         $output .= "PHP PATH: " . getenv('PATH') . "\n\n";
+        
+        $output .= "--- DIAGNOSTICS OF STANDALONE PYTHON BINARY ---\n";
+        if (file_exists($standalonePython)) {
+            $realBinary = is_link($standalonePython) ? readlink($standalonePython) : $standalonePython;
+            $output .= "Standalone Python file exists. Real path: $standalonePython (links to: $realBinary)\n";
+            $output .= "Testing file command:\n";
+            $output .= shell_exec("file " . escapeshellarg($standalonePython) . " 2>&1") ?: "file command not available\n";
+            $output .= shell_exec("file " . escapeshellarg($standalonePath . '/bin/python3.10') . " 2>&1") ?: "";
+            
+            $output .= "\nTesting ldd command:\n";
+            $output .= shell_exec("ldd " . escapeshellarg($standalonePath . '/bin/python3.10') . " 2>&1") ?: "ldd command not available\n";
+            
+            $output .= "\nListing bin directory:\n";
+            $output .= shell_exec("ls -la " . escapeshellarg($standalonePath . '/bin') . " 2>&1") ?: "";
+        } else {
+            $output .= "Standalone Python NOT found at $standalonePython\n";
+        }
+        
+        $output .= "\n--- SYSTEM LINKERS SEARCH ---\n";
+        $output .= "Searching for dynamic linkers (ld.so / ld-linux) on the system...\n";
+        $cmd3 = "find /lib /lib64 /usr/lib /usr/lib64 -name 'ld-*' -o -name 'ld.so*' 2>/dev/null";
+        $output .= "$ Command: $cmd3\n";
+        $output .= shell_exec($cmd3) ?: "No dynamic linkers found.\n";
+        
+        $output .= "\n--- SYSTEM PYTHON SEARCH ---\n";
         $output .= "Searching for 'python3' binaries in system directories...\n";
         $cmd = "find /usr /bin /sbin /opt /var -name 'python3' -type f -executable 2>/dev/null";
         $output .= "$ Command: $cmd\n";
