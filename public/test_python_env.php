@@ -89,6 +89,48 @@ if ($authorized && $action) {
                 unlink($tarballPath);
             }
             
+            // Create compatibility libraries directory
+            $compatPath = $standalonePath . '/compat-libs';
+            if (!file_exists($compatPath)) {
+                mkdir($compatPath, 0755, true);
+            }
+            
+            // Copy 64-bit libdl.so.2
+            $libdlCandidates = [
+                '/usr/local/git/lib/libdl.so.2',
+                '/usr/local/node/lib/libdl.so.2',
+                '/usr/local/sftpgo/lib/libdl.so.2',
+                '/usr/local/wget/lib/libdl.so.2',
+                '/usr/local/top/lib/libdl.so.2',
+                '/usr/local/ps/lib/libdl.so.2'
+            ];
+            
+            $copiedLibdl = false;
+            foreach ($libdlCandidates as $candidate) {
+                if (file_exists($candidate)) {
+                    if (copy($candidate, $compatPath . '/libdl.so.2')) {
+                        $output .= "Copied 64-bit libdl.so.2 from $candidate to local compat-libs.\n";
+                        $copiedLibdl = true;
+                        break;
+                    }
+                }
+            }
+            
+            if (!$copiedLibdl) {
+                // Fallback search
+                $found = trim(@shell_exec('find /usr/local -name "libdl.so.2" 2>/dev/null | head -n 1') ?: '');
+                if ($found && file_exists($found)) {
+                    if (copy($found, $compatPath . '/libdl.so.2')) {
+                        $output .= "Copied 64-bit libdl.so.2 from found path: $found to local compat-libs.\n";
+                        $copiedLibdl = true;
+                    }
+                }
+            }
+            
+            if (!$copiedLibdl) {
+                $output .= "WARNING: Could not locate a 64-bit libdl.so.2 to copy to compat-libs.\n";
+            }
+            
             // Create wrapper for python3.10 to intercept execution via linker if needed
             $binPath = $standalonePath . '/bin';
             $realBinary = $binPath . '/python3.10';
@@ -99,14 +141,15 @@ if ($authorized && $action) {
                 $wrapperContent = "#!/bin/sh\n" .
                                   "LINKER=\"/usr/local/php/lib/ld-linux-x86-64.so.2\"\n" .
                                   "REAL_PYTHON=\"\$(dirname \"\$0\")/python3.10.bin\"\n" .
+                                  "COMPAT_LIBS=\"\$(dirname \"\$0\")/../compat-libs\"\n" .
                                   "if [ -f \"\$LINKER\" ]; then\n" .
-                                  "    exec \"\$LINKER\" --library-path /usr/local/php/lib \"\$REAL_PYTHON\" \"\$@\"\n" .
+                                  "    exec \"\$LINKER\" --library-path \"/usr/local/php/lib:\$COMPAT_LIBS\" \"\$REAL_PYTHON\" \"\$@\"\n" .
                                   "else\n" .
                                   "    exec \"\$REAL_PYTHON\" \"\$@\"\n" .
                                   "fi\n";
                 file_put_contents($realBinary, $wrapperContent);
                 chmod($realBinary, 0755);
-                $output .= "\nCreated wrapper script for python3.10 to support host linker execution.\n";
+                $output .= "\nCreated wrapper script for python3.10 with compat-libs and host linker support.\n";
             }
             
             $output .= "\nExtraction complete! Standalone Python is located at: $standalonePython\n";
