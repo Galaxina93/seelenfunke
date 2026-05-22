@@ -214,3 +214,27 @@ Da das Diagnosetool sensible System- und Umgebungsvariablen (wie Passwörter und
 
 ## 8. Fazit
 Mit dieser Implementierung verfügt Seelenfunke über eine **hochmoderne, extrem performante und voll integrierte Echtzeit-KI-Architektur**. Der reibungslose Fluss von Audio, System-Tools und synchronisierten Sessions ermöglicht eine bisher unerreichte Benutzererfahrung sowohl im Web-Dashboard als auch in zukünftigen Telefonie-Anwendungen.
+
+---
+
+## 9. Einrichtung & Deployment der Node.js App im mStudio
+Für die Ausführung der Gemini Live API Bridge auf dem Live-Server/Staging-Server wird im Mittwald mStudio eine Node.js-Applikation eingerichtet.
+
+### mStudio App-Konfiguration
+Folgende Einstellungen müssen beim Anlegen der Node.js App im mStudio hinterlegt werden:
+
+*   **Name:** `seelenfunke-nodejs`
+*   **Installationsverzeichnis:** `twilio-bridge`
+*   **Startbefehl:** `node server-twilio.js`
+*   **Verknüpfung / Domain:** `api-live-bridge.mein-seelenfunke.de`
+
+### Bereitstellung der Dateien
+Um die notwendigen Quelldateien aus dem Staging-Projekt in das Installationsverzeichnis der Node.js-App zu kopieren, führen Sie auf dem Server folgende Befehle aus:
+
+```bash
+cd /html/twilio-bridge
+cp ../seelenfunke-stage/server-twilio.js .
+cp ../seelenfunke-stage/.env .
+cp ../seelenfunke-stage/package.json .
+cp -r ../seelenfunke-stage/node_modules .
+```
