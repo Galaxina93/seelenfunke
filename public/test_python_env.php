@@ -99,7 +99,31 @@ if ($authorized && $action) {
     } elseif ($action === 'search_system_python') {
         $output .= "PHP PATH: " . getenv('PATH') . "\n\n";
         
-        $output .= "--- DIAGNOSTICS OF STANDALONE PYTHON BINARY ---\n";
+        $output .= "--- PHP PROCESS DETAILS ---\n";
+        $output .= "PHP Binary: " . (@readlink('/proc/self/exe') ?: 'unknown') . "\n";
+        $output .= "PHP_INT_SIZE: " . PHP_INT_SIZE . " (" . (PHP_INT_SIZE * 8) . "-bit)\n";
+        if (@file_exists('/proc/self/maps')) {
+            $output .= "Loaded libraries from /proc/self/maps:\n";
+            $maps = @file_get_contents('/proc/self/maps') ?: '';
+            $lines = explode("\n", $maps);
+            $filteredLines = [];
+            foreach ($lines as $line) {
+                if (preg_match('/\.so|ld-|libc|python/i', $line)) {
+                    $parts = preg_split('/\s+/', trim($line));
+                    $path = end($parts);
+                    if (strpos($path, '/') === 0) {
+                        $filteredLines[$path] = true;
+                    }
+                }
+            }
+            foreach (array_keys($filteredLines) as $path) {
+                $output .= "  $path\n";
+            }
+        } else {
+            $output .= "/proc/self/maps is not readable.\n";
+        }
+        
+        $output .= "\n--- DIAGNOSTICS OF STANDALONE PYTHON BINARY ---\n";
         if (file_exists($standalonePython)) {
             $realBinary = is_link($standalonePython) ? readlink($standalonePython) : $standalonePython;
             $output .= "Standalone Python file exists. Real path: $standalonePython (links to: $realBinary)\n";
