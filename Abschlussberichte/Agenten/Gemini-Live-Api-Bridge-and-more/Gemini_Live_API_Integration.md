@@ -209,6 +209,10 @@ Da das Diagnosetool sensible System- und Umgebungsvariablen (wie Passwörter und
 4.  **Resampling-Verzerrungen:**  
     *Problem:* Die Stimme der KI klang verzerrt oder wie Micky-Maus.  
     *Lösung:* Beim Konvertieren der 24 kHz Gemini-Daten in 8 kHz Twilio µ-Law ist die korrekte Definition eines `Int16Array` zwingend notwendig, da rohe Byte-Buffer sonst fälschlicherweise als 16-Bit-Werte interpretiert werden.
+5.  **Hardware-Konflikt & Aktivierungston-Schleife ("Düm-Düm") auf Mobilgeräten:**  
+    *Problem:* Beim Aktivieren des Live-Modus auf Smartphones ertönte alle 5-6 Sekunden der System-Mikrofon-Aktivierungston des Handys ("düm-düm" bzw. kurzes Beep), auch wenn nichts gesprochen wurde.  
+    *Ursache:* Im Live-Modus greift die App das Mikrofon direkt mittels `getUserMedia` ab, um den rohen 16 kHz PCM-Stream an die Gemini Live WebSocket-Verbindung zu senden. Gleichzeitig lief im Hintergrund parallel die native Spracherkennung des Browsers (`webkitSpeechRecognition`), um das gesprochene Wort für die Chat-Historie zu transkribieren. Da Mobilgeräte (iOS/Safari und Android/Chrome) den parallelen Zugriff von zwei API-Instanzen auf dasselbe physische Mikrofon nicht unterstützen, stürzte die native Spracherkennung kontinuierlich ab, triggerte ihr `onend`-Ereignis und startete sofort neu. Dies führte zu einer Dauerschleife von Mikrofon-Reinitialisierungen und den entsprechenden System-Beeps.  
+    *Lösung:* Auf Mobilgeräten (`isMobile` ist aktiv) wird die parallele `webkitSpeechRecognition` im Live-Modus nun vollständig übersprungen. Da die Spracheingabe ohnehin direkt als rohes Audio gestreamt und von Gemini verarbeitet wird, bleibt der Live-Chat voll funktionsfähig, ohne dass Systemkonflikte oder störende Aktivierungstöne auftreten.
 
 ---
 
