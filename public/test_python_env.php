@@ -83,6 +83,17 @@ if ($authorized && $action) {
         $cmd = escapeshellarg($standalonePip) . " install python-docx 2>&1";
         $output .= "Installing python-docx inside standalone Python...\n$ Command: $cmd\n";
         $output .= shell_exec($cmd);
+    } elseif ($action === 'search_system_python') {
+        $output .= "PHP PATH: " . getenv('PATH') . "\n\n";
+        $output .= "Searching for 'python3' binaries in system directories...\n";
+        $cmd = "find /usr /bin /sbin /opt /var -name 'python3' -type f -executable 2>/dev/null";
+        $output .= "$ Command: $cmd\n";
+        $output .= shell_exec($cmd) ?: "No 'python3' executables found.\n";
+        
+        $output .= "\nSearching for any 'python' binaries in system directories...\n";
+        $cmd2 = "find /usr /bin /sbin /opt /var -name 'python' -type f -executable 2>/dev/null";
+        $output .= "$ Command: $cmd2\n";
+        $output .= shell_exec($cmd2) ?: "No 'python' executables found.\n";
     }
 }
 
@@ -484,6 +495,12 @@ OS Release:
                     <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
                     <input type="hidden" name="action" value="install_docx">
                     <button type="submit" class="btn-secondary" <?= !$diag['venv_exists'] ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : '' ?>>python-docx im venv installieren</button>
+                </form>
+
+                <form method="POST">
+                    <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
+                    <input type="hidden" name="action" value="search_system_python">
+                    <button type="submit" class="btn-secondary" style="border-color: var(--primary); color: var(--primary);">System nach vorhandenem Python durchsuchen</button>
                 </form>
             </div>
         </div>
