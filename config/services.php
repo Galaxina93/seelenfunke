@@ -61,4 +61,9 @@ return [
         'proxy_ws_url' => env('GEMINI_PROXY_WS_URL'),
     ],
 
+    'ai' => [
+        'python_binary' => env('PYTHON_BINARY', 'python3'),
+    ],
+
 ];
+

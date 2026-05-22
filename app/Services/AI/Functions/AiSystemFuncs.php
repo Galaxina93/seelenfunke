@@ -2234,7 +2234,8 @@ trait AiSystemFuncs
 
             // Execute Python script
             $scriptPath = base_path('app/Services/AI/Scripts/generate_docx.py');
-            $command = sprintf('python3 %s %s 2>&1', escapeshellarg($scriptPath), escapeshellarg($tempJsonPath));
+            $pythonBinary = config('services.ai.python_binary', 'python3');
+            $command = sprintf('%s %s %s 2>&1', escapeshellarg($pythonBinary), escapeshellarg($scriptPath), escapeshellarg($tempJsonPath));
             
             $output = shell_exec($command);
             
