@@ -306,49 +306,57 @@ def generate_document(data):
             right_p.runs[0].font.bold = True
             right_p.runs[0].font.color.rgb = color_primary
     else:
-        # Generic Header (No Logo)
+        # Generic Header (No Logo, No text)
         first_section.header.is_linked_to_previous = False
         header_p = first_section.header.paragraphs[0]
-        header_p.text = "KI-Systemdokumentation"
-        header_p.runs[0].font.italic = True
-        header_p.runs[0].font.size = Pt(8.5)
-        header_p.runs[0].font.color.rgb = RGBColor(120, 120, 120)
+        header_p.text = ""
 
     # 2. Footer Design
-    footer = first_section.footer
-    footer_table = footer.add_table(rows=1, cols=3, width=Inches(6.0))
-    # Make footer table borderless
-    tblPr = footer_table._tbl.tblPr
-    tblBorders = OxmlElement('w:tblBorders')
-    for b in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
-        border = OxmlElement(f'w:{b}')
-        border.set(qn('w:val'), 'none')
-        tblBorders.append(border)
-    tblPr.append(tblBorders)
-    
-    # Left: Owner | Doc title
-    c_left = footer_table.rows[0].cells[0]
-    p_left = c_left.paragraphs[0]
-    run_owner = p_left.add_run(f"{owner_name} | " if design == 'seelenfunke' else "Dokumentation | ")
-    run_owner.font.size = Pt(8.0)
-    run_owner.font.color.rgb = RGBColor(120, 120, 120)
-    
-    # Center: Page Number
-    c_center = footer_table.rows[0].cells[1]
-    p_center = c_center.paragraphs[0]
-    p_center.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_page = p_center.add_run("Seite ")
-    run_page.font.size = Pt(8.0)
-    run_page.font.color.rgb = RGBColor(120, 120, 120)
-    add_page_number(run_page)
-    
-    # Right: AI Agent Name
-    c_right = footer_table.rows[0].cells[2]
-    p_right = c_right.paragraphs[0]
-    p_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run_agent = p_right.add_run(f"Generiert von KI Agent: {agent_name}")
-    run_agent.font.size = Pt(8.0)
-    run_agent.font.color.rgb = RGBColor(120, 120, 120)
+    if design == 'seelenfunke':
+        footer = first_section.footer
+        footer_table = footer.add_table(rows=1, cols=3, width=Inches(6.0))
+        # Make footer table borderless
+        tblPr = footer_table._tbl.tblPr
+        tblBorders = OxmlElement('w:tblBorders')
+        for b in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']:
+            border = OxmlElement(f'w:{b}')
+            border.set(qn('w:val'), 'none')
+            tblBorders.append(border)
+        tblPr.append(tblBorders)
+        
+        # Left: Owner | Doc title
+        c_left = footer_table.rows[0].cells[0]
+        p_left = c_left.paragraphs[0]
+        run_owner = p_left.add_run(f"{owner_name} | ")
+        run_owner.font.size = Pt(8.0)
+        run_owner.font.color.rgb = RGBColor(120, 120, 120)
+        
+        # Center: Page Number
+        c_center = footer_table.rows[0].cells[1]
+        p_center = c_center.paragraphs[0]
+        p_center.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_page = p_center.add_run("Seite ")
+        run_page.font.size = Pt(8.0)
+        run_page.font.color.rgb = RGBColor(120, 120, 120)
+        add_page_number(run_page)
+        
+        # Right: AI Agent Name
+        c_right = footer_table.rows[0].cells[2]
+        p_right = c_right.paragraphs[0]
+        p_right.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        run_agent = p_right.add_run(f"Generiert von KI Agent: {agent_name}")
+        run_agent.font.size = Pt(8.0)
+        run_agent.font.color.rgb = RGBColor(120, 120, 120)
+    else:
+        # Generic Footer (No Logo, No Footer text as reference to the company)
+        # Just standard simple page number in the center.
+        footer = first_section.footer
+        footer_p = footer.paragraphs[0]
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_page = footer_p.add_run("Seite ")
+        run_page.font.size = Pt(8.0)
+        run_page.font.color.rgb = RGBColor(120, 120, 120)
+        add_page_number(run_page)
 
     # 3. Content Body
     # Main Document H1 Title (Cover-style Heading)

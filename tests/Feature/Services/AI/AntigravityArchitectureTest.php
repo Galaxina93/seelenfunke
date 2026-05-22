@@ -4,6 +4,7 @@ namespace Tests\Feature\Services\AI;
 
 use App\Services\AI\AIFunctionsRegistry;
 use App\Services\AI\Functions\AiSystemFuncs;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +12,8 @@ use Tests\TestCase;
 
 class AntigravityArchitectureTest extends TestCase
 {
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -113,4 +116,27 @@ class AntigravityArchitectureTest extends TestCase
         // output might have a newline, let's just assert containing
         $this->assertStringContainsString('hello antigravity', $statusResult['output']);
     }
+
+    public function test_system_generate_docx_report()
+    {
+        $result = AiSystemFuncs::executeGenerateDocxReport([
+            'title' => 'Test-Report-DOCX',
+            'content_markdown' => "# Test Titel\nDies ist ein *kursiver* und **fetter** Absatz.\n\n> Dies ist ein Callout.\n\n| Spalte 1 | Spalte 2 |\n| --- | --- |\n| Wert 1 | Wert 2 |",
+            'design' => 'generic',
+            'target_action' => 'download'
+        ]);
+
+        $this->assertEquals('success', $result['status'], "Failed to generate report: " . json_encode($result));
+        $this->assertArrayHasKey('_event', $result);
+        $this->assertEquals('download-file', $result['_event']['name']);
+        
+        $downloadUrl = $result['_event']['detail']['url'];
+        $this->assertNotNull($downloadUrl);
+        
+        // Clean up generated file
+        $fileName = $result['_event']['detail']['filename'];
+        $filePath = 'public/reports/' . $fileName;
+        Storage::disk('local')->delete($filePath);
+    }
 }
+
