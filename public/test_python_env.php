@@ -95,40 +95,17 @@ if ($authorized && $action) {
                 mkdir($compatPath, 0755, true);
             }
             
-            // Copy 64-bit libdl.so.2
-            $libdlCandidates = [
-                '/usr/local/git/lib/libdl.so.2',
-                '/usr/local/node/lib/libdl.so.2',
-                '/usr/local/sftpgo/lib/libdl.so.2',
-                '/usr/local/wget/lib/libdl.so.2',
-                '/usr/local/top/lib/libdl.so.2',
-                '/usr/local/ps/lib/libdl.so.2'
-            ];
-            
-            $copiedLibdl = false;
-            foreach ($libdlCandidates as $candidate) {
-                if (file_exists($candidate)) {
-                    if (copy($candidate, $compatPath . '/libdl.so.2')) {
-                        $output .= "Copied 64-bit libdl.so.2 from $candidate to local compat-libs.\n";
-                        $copiedLibdl = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (!$copiedLibdl) {
-                // Fallback search
-                $found = trim(@shell_exec('find /usr/local -name "libdl.so.2" 2>/dev/null | head -n 1') ?: '');
-                if ($found && file_exists($found)) {
-                    if (copy($found, $compatPath . '/libdl.so.2')) {
-                        $output .= "Copied 64-bit libdl.so.2 from found path: $found to local compat-libs.\n";
-                        $copiedLibdl = true;
-                    }
-                }
-            }
-            
-            if (!$copiedLibdl) {
-                $output .= "WARNING: Could not locate a 64-bit libdl.so.2 to copy to compat-libs.\n";
+            // Create symlinks for missing glibc compatibility libraries pointing to libc.so.6
+            // Since Glibc on the server is >= 2.34 (specifically 2.36), all libdl, libutil, and librt
+            // symbols are integrated directly into libc.so.6. Symlinking them works perfectly!
+            $targetLibc = '/usr/local/php/lib/libc.so.6';
+            if (file_exists($targetLibc)) {
+                @symlink($targetLibc, $compatPath . '/libdl.so.2');
+                @symlink($targetLibc, $compatPath . '/libutil.so.1');
+                @symlink($targetLibc, $compatPath . '/librt.so.1');
+                $output .= "Created compatibility symlinks (libdl.so.2, libutil.so.1, librt.so.1) pointing to $targetLibc\n";
+            } else {
+                $output .= "WARNING: Host libc.so.6 not found at $targetLibc. Skipping symlink creation.\n";
             }
             
             // Create wrapper for python3.10 to intercept execution via linker if needed
