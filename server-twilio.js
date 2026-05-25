@@ -147,7 +147,10 @@ function initGeminiLiveProxy(clientWs, creds) {
             } else if (data.realtimeInput) {
                 clientAudioPacketsReceived++;
                 if (clientAudioPacketsReceived <= 5 || clientAudioPacketsReceived % 100 === 0) {
-                    debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${clientAudioPacketsReceived}, Base64-Länge: ${data.realtimeInput.audio.data.length})`);
+                    const audioLength = data.realtimeInput.audio?.data?.length 
+                        || data.realtimeInput.mediaChunks?.[0]?.data?.length 
+                        || 0;
+                    debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${clientAudioPacketsReceived}, Base64-Länge: ${audioLength})`);
                 }
             } else {
                 debugLog('🧠 Gemini Live Proxy: Client sendet sonstige Nachricht: ' + JSON.stringify(data).substring(0, 150));
