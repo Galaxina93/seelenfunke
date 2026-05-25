@@ -70,6 +70,13 @@ class AccountingFixCosts extends Component
     public ?string $targetGroupId = null;
     public $isRestoring = false;
 
+    // --- Search & UI Toggle Properties ---
+    public string $searchQuery = '';
+    public bool $showMissingDocs = false;
+    public bool $showMissingData = false;
+    public bool $showTagManagement = false;
+    public bool $showChart = false;
+
     // --- Tagging Properties ---
     public $addingTagToItemId = null;
     public $newItemTag = '';
@@ -724,9 +731,114 @@ class AccountingFixCosts extends Component
         $this->itemDate = date('Y-m-d');
     }
 
+    private function getFilteredGroups()
+    {
+        $groups = AccountingGroup::with('items.transactions')
+            ->where('admin_id', $this->getAdminId())
+            ->orderBy('position')
+            ->orderBy('created_at')
+            ->get();
+
+        $search = trim($this->searchQuery);
+        if ($search !== '') {
+            $filteredGroups = collect();
+            foreach ($groups as $group) {
+                // If group name matches, keep it and all its items
+                if ($this->fuzzyMatch($search, $group->name)) {
+                    $filteredGroups->push($group);
+                    continue;
+                }
+
+                // Otherwise, filter items in the group
+                $matchingItems = $group->items->filter(function ($item) {
+                    $tagsString = is_array($item->tags) ? implode(' ', $item->tags) : '';
+                    $searchTarget = implode(' ', [
+                        $item->name,
+                        $item->provider_company,
+                        $item->description,
+                        $tagsString
+                    ]);
+                    return $this->fuzzyMatch($this->searchQuery, $searchTarget);
+                });
+
+                if ($matchingItems->isNotEmpty()) {
+                    $group->setRelation('items', $matchingItems);
+                    $filteredGroups->push($group);
+                }
+            }
+            return $filteredGroups;
+        }
+
+        return $groups;
+    }
+
+    protected function fuzzyMatch(string $query, string $target): bool
+    {
+        $query = mb_strtolower(trim($query));
+        $target = mb_strtolower(trim($target));
+        
+        if ($query === '') {
+            return true;
+        }
+        
+        // Direct substring match
+        if (str_contains($target, $query)) {
+            return true;
+        }
+        
+        // Tokenize search query and target
+        $queryWords = array_filter(preg_split('/[\s,.\-\/]+/', $query));
+        $targetWords = array_filter(preg_split('/[\s,.\-\/]+/', $target));
+        
+        if (empty($queryWords)) {
+            return false;
+        }
+        
+        // Check if all query words match some target words
+        foreach ($queryWords as $qWord) {
+            $matched = false;
+            foreach ($targetWords as $tWord) {
+                if (str_contains($tWord, $qWord) || str_contains($qWord, $tWord)) {
+                    $matched = true;
+                    break;
+                }
+                
+                // Fuzzy match using levenshtein for words >= 4 characters
+                $qLen = mb_strlen($qWord);
+                $tLen = mb_strlen($tWord);
+                if ($qLen >= 4 && $tLen >= 4) {
+                    $lev = levenshtein($qWord, $tWord);
+                    $maxLen = max($qLen, $tLen);
+                    $similarity = 1 - ($lev / $maxLen);
+                    if ($similarity >= 0.75) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!$matched) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    public function updatedSearchQuery()
+    {
+        $this->dispatchChartUpdate();
+    }
+
+    public function updatedShowChart($value)
+    {
+        if ($value) {
+            $this->dispatchChartUpdate();
+        }
+    }
+
     private function dispatchChartUpdate()
     {
-        $groups = AccountingGroup::with('items')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
+        $groups = $this->getFilteredGroups();
         $chartLabels = [];
         $chartData = [];
         $chartColors = [];
@@ -765,7 +877,7 @@ class AccountingFixCosts extends Component
 
     public function render()
     {
-        $groups = AccountingGroup::with('items.transactions')->where('admin_id', $this->getAdminId())->orderBy('position')->orderBy('created_at')->get();
+        $groups = $this->getFilteredGroups();
 
         $chartLabels = [];
         $chartData = [];

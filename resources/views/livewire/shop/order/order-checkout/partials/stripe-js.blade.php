@@ -42,40 +42,96 @@
                 expressCheckoutElement.mount('#express-checkout-element');
 
                 // A) Validierung BEVOR das Apple Pay / Google Pay Fenster aufgeht
-                expressCheckoutElement.on('click', async (event) => {
+                expressCheckoutElement.on('click', (event) => {
                     const msgBox = document.getElementById('express-message');
                     msgBox.classList.add("hidden");
 
-                    try {
-                        // Wir zwingen Livewire, zuerst das Formular (Adressen & AGB) zu prüfen
-                        await @this.validateCheckoutData();
-                    } catch (error) {
-                        // Formular ist noch nicht komplett! Wir blockieren das Öffnen des Wallets
-                        event.preventDefault();
-                        msgBox.textContent = "Bitte füllen Sie zuerst die Rechnungsdaten und die rechtlichen Bedingungen (Schritt 1) vollständig aus.";
+                    // Schneller, synchroner Client-Check für die rechtlichen AGB-Checkboxen
+                    const termsChecked = document.getElementById('terms')?.checked;
+                    const privacyChecked = document.getElementById('privacy')?.checked;
+
+                    if (!termsChecked || !privacyChecked) {
+                        msgBox.textContent = "Bitte bestätige zuerst die AGB und die Datenschutzerklärung am Ende der Seite (Schritt 2).";
                         msgBox.classList.remove("hidden");
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        msgBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        return; // Kein event.resolve() aufrufen -> Das Wallet-Fenster bleibt geschlossen
                     }
+
+                    // Erfolgreich: Wallet-Fenster freigeben (Muss innerhalb 1s geschehen!)
+                    event.resolve();
                 });
 
                 // B) Der Kunde hat via Apple/Google Pay authentifiziert und bestätigt
                 expressCheckoutElement.on('confirm', async (event) => {
-
                     const {billingDetails, shippingAddress} = event; // Daten aus dem Wallet
 
-                    // Wir füllen die Livewire Variablen automatisch mit den Daten von Apple/Google Pay
-                    if (billingDetails) {
+                    const splitName = (fullName) => {
+                        if (!fullName) return { first: '', last: '' };
+                        const parts = fullName.trim().split(/\s+/);
+                        if (parts.length === 1) {
+                            return { first: parts[0], last: parts[0] }; // Fallback
+                        }
+                        return {
+                            first: parts[0],
+                            last: parts.slice(1).join(' ')
+                        };
+                    };
+
+                    let bName = billingDetails && billingDetails.name ? billingDetails.name : '';
+                    let sName = shippingAddress && shippingAddress.name ? shippingAddress.name : bName;
+
+                    const bNameParts = splitName(bName);
+                    const sNameParts = splitName(sName);
+
+                    // 1. E-Mail setzen
+                    if (billingDetails && billingDetails.email) {
                         @this.set('email', billingDetails.email, false);
-                        const nameParts = billingDetails.name.split(' ');
-                        @this.set('first_name', nameParts[0], false);
-                        @this.set('last_name', nameParts.slice(1).join(' '), false);
                     }
 
-                    if (shippingAddress) {
-                        @this.set('address', shippingAddress.line1 + (shippingAddress.line2 ? ' ' + shippingAddress.line2 : ''), false);
-                        @this.set('postal_code', shippingAddress.postalCode, false);
-                        @this.set('city', shippingAddress.city, false);
-                        @this.set('country', shippingAddress.country, false);
+                    // 2. Rechnungsadresse (Billing) setzen
+                    @this.set('first_name', bNameParts.first, false);
+                    @this.set('last_name', bNameParts.last, false);
+
+                    let bAddr = billingDetails && billingDetails.address ? billingDetails.address : null;
+                    let sAddr = shippingAddress && shippingAddress.address ? shippingAddress.address : null;
+
+                    // Fallback, falls kein explizites Billing-Address-Objekt vorhanden ist
+                    let finalBAddr = bAddr || sAddr;
+                    if (finalBAddr) {
+                        const line1 = finalBAddr.line1 || '';
+                        const line2 = finalBAddr.line2 || '';
+                        @this.set('address', line1 + (line2 ? ' ' + line2 : ''), false);
+                        @this.set('postal_code', finalBAddr.postal_code || finalBAddr.postalCode || '', false);
+                        @this.set('city', finalBAddr.city || '', false);
+                        @this.set('country', finalBAddr.country || 'DE', false);
+                    }
+
+                    // 3. Lieferadresse (Shipping) prüfen und setzen
+                    if (sAddr) {
+                        const isDifferentAddress = !bAddr || 
+                            bAddr.line1 !== sAddr.line1 || 
+                            bAddr.city !== sAddr.city || 
+                            bAddr.postal_code !== sAddr.postal_code || 
+                            bAddr.country !== sAddr.country;
+                        
+                        const isDifferentName = bName !== sName;
+
+                        if (isDifferentAddress || isDifferentName) {
+                            @this.set('has_separate_shipping', true, false);
+                            @this.set('shipping_first_name', sNameParts.first, false);
+                            @this.set('shipping_last_name', sNameParts.last, false);
+                            
+                            const sLine1 = sAddr.line1 || '';
+                            const sLine2 = sAddr.line2 || '';
+                            @this.set('shipping_address', sLine1 + (sLine2 ? ' ' + sLine2 : ''), false);
+                            @this.set('shipping_postal_code', sAddr.postal_code || sAddr.postalCode || '', false);
+                            @this.set('shipping_city', sAddr.city || '', false);
+                            @this.set('shipping_country', sAddr.country || 'DE', false);
+                        } else {
+                            @this.set('has_separate_shipping', false, false);
+                        }
+                    } else {
+                        @this.set('has_separate_shipping', false, false);
                     }
 
                     setLoadingState(true);

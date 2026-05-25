@@ -172,4 +172,113 @@ class ProductCalculatorTest extends TestCase
             return $mail->hasTo($owner_mail);
         });
     }
+
+    #[Test]
+    public function it_saves_item_tax_rate_and_preserves_quote_price_in_checkout()
+    {
+        // 1. Create a product with reduced tax rate (e.g. 7%) and a specific price (e.g. 15 EUR)
+        $product = Product::create([
+            'name' => '7% Product',
+            'slug' => '7-percent-prod',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 1500, // 15.00 EUR
+            'tax_class' => 'reduced',
+        ]);
+
+        // 2. Add to calculator and submit a quote request
+        $component = Livewire::test(Calculator::class)
+            ->set('agb_accepted', true)
+            ->call('startCalculator')
+            ->dispatch('calculator-save', [
+                'product_id' => $product->id,
+                'qty' => 10,
+            ])
+            ->set('form.vorname', 'John')
+            ->set('form.nachname', 'Doe')
+            ->set('form.email', 'john@example.com')
+            ->set('form.country', 'DE')
+            ->call('submit');
+
+        $component->assertSet('step', 4);
+
+        // 3. Verify that the quote request item in DB has the 7% tax rate saved!
+        $quote = OrderQuoteRequest::where('email', 'john@example.com')->first();
+        $this->assertNotNull($quote);
+        
+        $this->assertDatabaseHas('order_quote_request_items', [
+            'quote_request_id' => $quote->id,
+            'product_id' => $product->id,
+            'tax_rate' => 7.00,
+        ]);
+
+        // 4. Change product price in database to 25.00 EUR (live price increases)
+        $product->update(['price' => 2500]);
+
+        // 5. Customer accepts quote and goes to checkout
+        $cartService = app(\App\Services\CartService::class);
+        
+        // Simulating OrderQuoteAcceptance proceedToCheckout:
+        session()->put('checkout_from_quote_id', $quote->id);
+        
+        $cart = $cartService->getCart();
+        $cart->items()->delete();
+        
+        $cartService->addItem($product, 10, []);
+        
+        // Retrieve cart totals
+        $totals = $cartService->calculateTotals($cart, 'DE');
+        
+        // 6. Verify that the unit price in cart is still 15.00 EUR (snapshot quote price), NOT 25.00 EUR!
+        $cartItem = $cart->items()->where('product_id', $product->id)->first();
+        $this->assertEquals(1500, $cartItem->unit_price);
+        $this->assertEquals(15000, $totals['subtotal_gross'] ?? $totals['subtotal_original'] ?? 0);
+    }
+
+    #[Test]
+    public function it_copies_tax_rate_on_backend_conversion()
+    {
+        $product = Product::create([
+            'name' => '7% Prod backend',
+            'slug' => '7-percent-backend',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 1000,
+            'tax_class' => 'reduced',
+        ]);
+
+        $quote = OrderQuoteRequest::create([
+            'quote_number' => 'AN-TEST-BACKEND',
+            'email' => 'backend@example.com',
+            'first_name' => 'Test',
+            'last_name' => 'Backend',
+            'net_total' => 1000,
+            'tax_total' => 70,
+            'gross_total' => 1070,
+        ]);
+
+        $quoteItem = \App\Models\Order\OrderQuoteRequestItem::create([
+            'quote_request_id' => $quote->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 1000,
+            'tax_rate' => 7.00,
+            'total_price' => 1000,
+        ]);
+
+        // Call convertToOrder on Livewire component OrderQuoteRequests
+        Livewire::test(\App\Livewire\Shop\Order\OrderQuoteRequests::class)
+            ->call('convertToOrder', $quote->id, 'invoice');
+
+        // Check if order item has the 7% tax rate copied
+        $order = \App\Models\Order\OrderOrder::where('email', 'backend@example.com')->first();
+        $this->assertNotNull($order);
+        
+        $this->assertDatabaseHas('order_order_items', [
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'tax_rate' => 7.00,
+        ]);
+    }
 }

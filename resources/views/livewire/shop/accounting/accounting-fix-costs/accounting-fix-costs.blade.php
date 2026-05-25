@@ -34,6 +34,67 @@
                     </div>
                     <span>Fixkosten</span>
                 </h1>
+
+                <div class="flex items-center gap-3">
+                    {{-- Dokumenten-Check Toggle --}}
+                    <button wire:click="$toggle('showMissingDocs')" 
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showMissingDocs ? ($missingContracts->count() > 0 ? 'ring-2 ring-red-500/50 bg-red-500/20 text-red-300 border-red-500' : 'ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 border-emerald-500') : ($missingContracts->count() > 0 ? 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20') }}"
+                            title="{{ $missingContracts->count() > 0 ? 'Vertrags-Check: ' . $missingContracts->count() . ' fehlende Unterlagen' : 'Vertrags-Check: Alle Unterlagen vollständig' }}">
+                        @if($missingContracts->count() > 0)
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[8px] font-black text-white items-center justify-center">{{ $missingContracts->count() }}</span>
+                            </span>
+                        @else
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span class="absolute top-1 right-1 flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                        @endif
+                    </button>
+
+                    {{-- Daten-Check Toggle --}}
+                    <button wire:click="$toggle('showMissingData')" 
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showMissingData ? ($missingDataItems->count() > 0 ? 'ring-2 ring-yellow-500/50 bg-yellow-500/20 text-yellow-300 border-yellow-500' : 'ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 border-emerald-500') : ($missingDataItems->count() > 0 ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20') }}"
+                            title="{{ $missingDataItems->count() > 0 ? 'Daten-Check: ' . $missingDataItems->count() . ' fehlende Datensätze' : 'Daten-Check: Alle Datensätze vollständig' }}">
+                        @if($missingDataItems->count() > 0)
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-4 w-4 bg-yellow-500 text-[8px] font-black text-gray-900 items-center justify-center">{{ $missingDataItems->count() }}</span>
+                            </span>
+                        @else
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                            </svg>
+                            <span class="absolute top-1 right-1 flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                        @endif
+                    </button>
+
+                    {{-- Chart Toggle --}}
+                    <button wire:click="$toggle('showChart')" 
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showChart ? 'ring-2 ring-blue-500/50 bg-blue-500/20 text-blue-300 border-blue-500' : 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20' }}"
+                            title="Finanzielle Aufteilung">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
+                        </svg>
+                    </button>
+
+                    {{-- Tag-Verwaltung Toggle --}}
+                    <button wire:click="$toggle('showTagManagement')" 
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showTagManagement ? 'ring-2 ring-blue-500/50 bg-blue-500/20 text-blue-300 border-blue-500' : 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20' }}"
+                            title="Tag-Verwaltung">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -42,237 +103,320 @@
             <div class="max-w-7xl mx-auto px-4 mt-8 md:mt-12 space-y-8 md:space-y-10 animate-fade-in-up" style="animation-delay: 100ms;">
 
                 {{-- Validierungstabelle: Fehlende Verträge ODER Alles OK --}}
-                @if($missingContracts->count() > 0)
-                    @php
-                        $totalItems = $groups->sum(fn($group) => $group->items->count());
-                    @endphp
+                @if($showMissingDocs)
+                    @if($missingContracts->count() > 0)
+                        @php
+                            $totalItems = $groups->sum(fn($group) => $group->items->count());
+                        @endphp
 
-                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(239,68,68,0.05)] border border-red-500/20 overflow-hidden transition-all duration-300"
-                         x-data="{ expanded: false }">
-                        <div class="bg-red-900/10 px-6 sm:px-8 py-5 border-b border-red-500/20 flex justify-between items-center cursor-pointer hover:bg-red-900/20 transition-colors shadow-inner"
-                             @click="expanded = !expanded">
-                            <div class="flex items-center gap-4">
-                                <div class="p-2.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse shrink-0">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(239,68,68,0.05)] border border-red-500/20 overflow-hidden transition-all duration-300"
+                             x-data="{ expanded: true }">
+                            <div class="bg-red-900/10 px-6 sm:px-8 py-5 border-b border-red-500/20 flex justify-between items-center cursor-pointer hover:bg-red-900/20 transition-colors shadow-inner"
+                                 @click="expanded = !expanded">
+                                <div class="flex items-center gap-4">
+                                    <div class="p-2.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-base sm:text-lg font-serif font-bold text-red-400 flex flex-wrap items-center gap-3 tracking-wide">
+                                            Vertrags-Check: Fehlende Unterlagen
+                                            <span class="bg-red-500/20 text-red-300 border border-red-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingContracts->count() }} / {{ $totalItems }}</span>
+                                        </h3>
+                                        <p class="text-[10px] sm:text-xs text-red-300/80 font-medium mt-1">Bei folgenden Kostenstellen wurde noch kein Vertrag oder Beleg hinterlegt.</p>
+                                    </div>
+                                </div>
+
+                                <div class="text-red-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-red-400' : ''">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
                                 </div>
-                                <div>
-                                    <h3 class="text-base sm:text-lg font-serif font-bold text-red-400 flex flex-wrap items-center gap-3 tracking-wide">
-                                        Vertrags-Check: Fehlende Unterlagen
-                                        <span class="bg-red-500/20 text-red-300 border border-red-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingContracts->count() }} / {{ $totalItems }}</span>
-                                    </h3>
-                                    <p class="text-[10px] sm:text-xs text-red-300/80 font-medium mt-1">Bei folgenden Kostenstellen wurde noch kein Vertrag oder Beleg hinterlegt.</p>
-                                </div>
                             </div>
 
-                            <div class="text-red-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-red-400' : ''">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div x-show="expanded" x-collapse>
-                            <div class="block md:hidden divide-y divide-gray-800/50">
-                                @foreach($missingContracts as $missingItem)
-                                    <div class="p-5 hover:bg-gray-800/30 transition-colors">
-                                        <div class="mb-3">
-                                            <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
-                                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
-                                        </div>
-
-                                        <div>
-                                            @if($uploadingMissingItemId === $missingItem->id)
-                                                <div class="flex flex-col gap-3 bg-gray-950 p-4 rounded-xl border border-red-500/20">
-                                                    <input type="file" wire:model="quickUploadFile"
-                                                           class="w-full text-[9px] text-gray-400 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-red-500/10 file:text-red-400 file:border file:border-red-500/20 hover:file:bg-red-500/20 transition-all cursor-pointer">
-
-                                                    <div class="flex justify-end gap-2 mt-2">
-                                                        <button wire:click="cancelQuickUpload" class="px-4 py-2 bg-gray-900 border border-gray-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:text-white transition-colors">
-                                                            Abbrechen
-                                                        </button>
-                                                        <button wire:click="saveQuickUpload" wire:loading.attr="disabled" class="bg-red-500 text-gray-900 px-6 py-2 rounded-xl hover:bg-red-400 transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] disabled:opacity-50 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
-                                                            <span wire:loading.remove wire:target="saveQuickUpload">Speichern</span>
-                                                            <span wire:loading wire:target="saveQuickUpload" class="flex items-center gap-1">
-                                                                <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                                                            </span>
-                                                        </button>
-                                                    </div>
-                                                    @error('quickUploadFile') <span class="text-[9px] font-bold text-red-400 uppercase tracking-widest block mt-1">{{ $message }}</span> @enderror
-                                                </div>
-                                            @else
-                                                <button wire:click="startQuickUpload('{{ $missingItem->id }}')" class="w-full text-[9px] bg-red-500/10 text-red-400 px-4 py-3 rounded-xl hover:bg-red-500/20 hover:text-red-300 transition-all font-black uppercase tracking-widest shadow-inner border border-red-500/20 flex items-center justify-center gap-2">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                                                    Jetzt hochladen
-                                                </button>
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
-                                <table class="w-full text-sm text-left min-w-[600px]">
-                                    <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
-                                    <tr>
-                                        <th class="px-8 py-4">Kostenstelle</th>
-                                        <th class="px-4 py-4">Gruppe</th>
-                                        <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                            <div x-show="expanded" x-collapse>
+                                <div class="block md:hidden divide-y divide-gray-800/50">
                                     @foreach($missingContracts as $missingItem)
-                                        <tr class="hover:bg-gray-800/30 transition-colors group">
-                                            <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
-                                            <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
-                                            <td class="px-8 py-5 text-right">
-                                                @if($uploadingMissingItemId === $missingItem->id)
-                                                    <div class="flex items-center justify-end gap-3 bg-gray-950 p-2 rounded-xl border border-red-500/20">
-                                                        <input type="file" wire:model="quickUploadFile"
-                                                               class="w-[200px] text-[9px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-red-500/10 file:text-red-400 file:border file:border-red-500/20 hover:file:bg-red-500/20 transition-all cursor-pointer">
+                                        <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                            <div class="mb-3">
+                                                <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
+                                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
+                                            </div>
 
-                                                        <button wire:click="saveQuickUpload" wire:loading.attr="disabled"
-                                                                class="bg-red-500 text-gray-900 px-4 py-2 rounded-lg hover:bg-red-400 transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] disabled:opacity-50 text-[9px] font-black uppercase tracking-widest shrink-0">
-                                                            <span wire:loading.remove wire:target="saveQuickUpload">Speichern</span>
-                                                            <span wire:loading wire:target="saveQuickUpload" class="flex items-center gap-1">
-                                                                <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                                                            </span>
-                                                        </button>
-                                                        <button wire:click="cancelQuickUpload" class="text-gray-500 hover:text-red-400 px-2 transition-colors">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                                                        </button>
+                                            <div>
+                                                @if($uploadingMissingItemId === $missingItem->id)
+                                                    <div class="flex flex-col gap-3 bg-gray-950 p-4 rounded-xl border border-red-500/20">
+                                                        <input type="file" wire:model="quickUploadFile"
+                                                               class="w-full text-[9px] text-gray-400 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-red-500/10 file:text-red-400 file:border file:border-red-500/20 hover:file:bg-red-500/20 transition-all cursor-pointer">
+
+                                                        <div class="flex justify-end gap-2 mt-2">
+                                                            <button wire:click="cancelQuickUpload" class="px-4 py-2 bg-gray-900 border border-gray-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:text-white transition-colors">
+                                                                Abbrechen
+                                                            </button>
+                                                            <button wire:click="saveQuickUpload" wire:loading.attr="disabled" class="bg-red-500 text-gray-900 px-6 py-2 rounded-xl hover:bg-red-400 transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] disabled:opacity-50 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+                                                                <span wire:loading.remove wire:target="saveQuickUpload">Speichern</span>
+                                                                <span wire:loading wire:target="saveQuickUpload" class="flex items-center gap-1">
+                                                                    <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                                                </span>
+                                                            </button>
+                                                        </div>
+                                                        @error('quickUploadFile') <span class="text-[9px] font-bold text-red-400 uppercase tracking-widest block mt-1">{{ $message }}</span> @enderror
                                                     </div>
-                                                    @error('quickUploadFile') <span class="text-[9px] font-bold text-red-400 uppercase tracking-widest block mt-2">{{ $message }}</span> @enderror
                                                 @else
-                                                    <button wire:click="startQuickUpload('{{ $missingItem->id }}')" class="text-[9px] bg-red-500/10 text-red-400 px-4 py-2 rounded-xl hover:bg-red-500/20 hover:text-red-300 transition-all font-black uppercase tracking-widest shadow-inner border border-red-500/20 inline-flex items-center gap-2">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                                    <button wire:click="startQuickUpload('{{ $missingItem->id }}')" class="w-full text-[9px] bg-red-500/10 text-red-400 px-4 py-3 rounded-xl hover:bg-red-500/20 hover:text-red-300 transition-all font-black uppercase tracking-widest shadow-inner border border-red-500/20 flex items-center justify-center gap-2">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                                                         Jetzt hochladen
                                                     </button>
                                                 @endif
-                                            </td>
-                                        </tr>
+                                            </div>
+                                        </div>
                                     @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                @else
-                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
-                        <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
-                            <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Unterlagen liegen vor</h3>
-                                <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen entsprechende Belege oder Verträge hinterlegt.</p>
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-                @endif
+                                </div>
 
-                {{-- Validierungstabelle: Fehlende Datensätze ODER Alles OK --}}
-                @if($missingDataItems->count() > 0)
-                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(234,179,8,0.05)] border border-yellow-500/20 overflow-hidden transition-all duration-300"
-                         x-data="{ expanded: false }">
-                        <div class="bg-yellow-900/10 px-6 sm:px-8 py-5 border-b border-yellow-500/20 flex justify-between items-center cursor-pointer hover:bg-yellow-900/20 transition-colors shadow-inner"
-                             @click="expanded = !expanded">
-                            <div class="flex items-center gap-4">
-                                <div class="p-2.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.2)] animate-pulse shrink-0">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
+                                    <table class="w-full text-sm text-left min-w-[600px]">
+                                        <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                        <tr>
+                                            <th class="px-8 py-4">Kostenstelle</th>
+                                            <th class="px-4 py-4">Gruppe</th>
+                                            <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                        @foreach($missingContracts as $missingItem)
+                                            <tr class="hover:bg-gray-800/30 transition-colors group">
+                                                <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
+                                                <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
+                                                <td class="px-8 py-5 text-right">
+                                                    @if($uploadingMissingItemId === $missingItem->id)
+                                                        <div class="flex items-center justify-end gap-3 bg-gray-950 p-2 rounded-xl border border-red-500/20">
+                                                            <input type="file" wire:model="quickUploadFile"
+                                                                   class="w-[200px] text-[9px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-red-500/10 file:text-red-400 file:border file:border-red-500/20 hover:file:bg-red-500/20 transition-all cursor-pointer">
+
+                                                            <button wire:click="saveQuickUpload" wire:loading.attr="disabled"
+                                                                    class="bg-red-500 text-gray-900 px-4 py-2 rounded-lg hover:bg-red-400 transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] disabled:opacity-50 text-[9px] font-black uppercase tracking-widest shrink-0">
+                                                                <span wire:loading.remove wire:target="saveQuickUpload">Speichern</span>
+                                                                <span wire:loading wire:target="saveQuickUpload" class="flex items-center gap-1">
+                                                                    <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                                                </span>
+                                                            </button>
+                                                            <button wire:click="cancelQuickUpload" class="text-gray-500 hover:text-red-400 px-2 transition-colors">
+                                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                                            </button>
+                                                        </div>
+                                                        @error('quickUploadFile') <span class="text-[9px] font-bold text-red-400 uppercase tracking-widest block mt-2">{{ $message }}</span> @enderror
+                                                    @else
+                                                        <button wire:click="startQuickUpload('{{ $missingItem->id }}')" class="text-[9px] bg-red-500/10 text-red-400 px-4 py-2 rounded-xl hover:bg-red-500/20 hover:text-red-300 transition-all font-black uppercase tracking-widest shadow-inner border border-red-500/20 inline-flex items-center gap-2">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                                            Jetzt hochladen
+                                                        </button>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
+                            <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
+                                <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 class="text-base sm:text-lg font-serif font-bold text-yellow-400 flex flex-wrap items-center gap-3 tracking-wide">
-                                        Vertrags-Check: Fehlende Datensätze
-                                        <span class="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingDataItems->count() }} Fehlend</span>
-                                    </h3>
-                                    <p class="text-[10px] sm:text-xs text-yellow-300/80 font-medium mt-1">Bei folgenden Kostenstellen fehlen wichtige Adress- oder Vertragsdaten (z. B. Anbieter).</p>
+                                    <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Unterlagen liegen vor</h3>
+                                    <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen entsprechende Belege oder Verträge hinterlegt.</p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                @endif
+
+                {{-- Validierungstabelle: Fehlende Datensätze ODER Alles OK --}}
+                @if($showMissingData)
+                    @if($missingDataItems->count() > 0)
+                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(234,179,8,0.05)] border border-yellow-500/20 overflow-hidden transition-all duration-300"
+                             x-data="{ expanded: true }">
+                            <div class="bg-yellow-900/10 px-6 sm:px-8 py-5 border-b border-yellow-500/20 flex justify-between items-center cursor-pointer hover:bg-yellow-900/20 transition-colors shadow-inner"
+                                 @click="expanded = !expanded">
+                                <div class="flex items-center gap-4">
+                                    <div class="p-2.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.2)] animate-pulse shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-base sm:text-lg font-serif font-bold text-yellow-400 flex flex-wrap items-center gap-3 tracking-wide">
+                                            Vertrags-Check: Fehlende Datensätze
+                                            <span class="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingDataItems->count() }} Fehlend</span>
+                                        </h3>
+                                        <p class="text-[10px] sm:text-xs text-yellow-300/80 font-medium mt-1">Bei folgenden Kostenstellen fehlen wichtige Adress- oder Vertragsdaten (z. B. Anbieter).</p>
+                                    </div>
+                                </div>
+
+                                <div class="text-yellow-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-yellow-400' : ''">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
                                 </div>
                             </div>
 
-                            <div class="text-yellow-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-yellow-400' : ''">
+                            <div x-show="expanded" x-collapse>
+                                <div class="block md:hidden divide-y divide-gray-800/50">
+                                    @foreach($missingDataItems as $missingItem)
+                                        <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                            <div class="mb-3">
+                                                <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
+                                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
+                                            </div>
+                                            <div>
+                                                <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="w-full text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-3 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 flex items-center justify-center gap-2">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                                    Daten ergänzen
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
+                                    <table class="w-full text-sm text-left min-w-[600px]">
+                                        <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                        <tr>
+                                            <th class="px-8 py-4">Kostenstelle</th>
+                                            <th class="px-4 py-4">Gruppe</th>
+                                            <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                        @foreach($missingDataItems as $missingItem)
+                                            <tr class="hover:bg-gray-800/30 transition-colors group">
+                                                <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
+                                                <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
+                                                <td class="px-8 py-5 text-right">
+                                                    <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-2 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 inline-flex items-center gap-2">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                                                        Daten ergänzen
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    @else
+                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
+                            <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
+                                <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Datensätze vollständig</h3>
+                                    <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen die entsprechenden Adress- und Anbieterdaten hinterlegt.</p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                @endif
+
+                {{-- GLOBAL TAG MANAGEMENT SECTION --}}
+                @if($showTagManagement)
+                    <div x-data="{ expandedTags: true }" class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8 animate-fade-in-down">
+                        <div class="flex items-center justify-between cursor-pointer group" @click="expandedTags = !expandedTags">
+                            <div>
+                                <h3 class="text-xl font-serif font-bold text-white mb-1 tracking-wide flex items-center gap-3">
+                                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                    </svg>
+                                    Tag-Verwaltung
+                                </h3>
+                                <p class="text-xs text-gray-400 mb-0">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
+                            </div>
+                            <div class="text-gray-500 transition-transform duration-300" :class="expandedTags ? 'rotate-180' : ''">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </div>
                         </div>
 
-                        <div x-show="expanded" x-collapse>
-                            <div class="block md:hidden divide-y divide-gray-800/50">
-                                @foreach($missingDataItems as $missingItem)
-                                    <div class="p-5 hover:bg-gray-800/30 transition-colors">
-                                        <div class="mb-3">
-                                            <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
-                                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
-                                        </div>
-                                        <div>
-                                            <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="w-full text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-3 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 flex items-center justify-center gap-2">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                                Daten ergänzen
+                        <div x-show="expandedTags" x-collapse class="mt-6">
+                            <div class="flex flex-wrap gap-3">
+                                @forelse($this->globalTags as $tag)
+                                    @if($editingGlobalTag === $tag)
+                                        <div class="flex items-center gap-2 bg-gray-950 p-1.5 rounded-full border border-blue-500/50 shadow-inner">
+                                            <input type="text" wire:model="editingGlobalTagValue" wire:keydown.enter="saveGlobalTag" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-white px-2 outline-none w-28">
+                                            <button wire:click="saveGlobalTag" class="text-emerald-400 hover:text-emerald-300 transition-colors" title="Speichern">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                            </button>
+                                            <button wire:click="$set('editingGlobalTag', null)" class="text-gray-500 hover:text-gray-400 pr-1 transition-colors" title="Abbrechen">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
-                                <table class="w-full text-sm text-left min-w-[600px]">
-                                    <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
-                                    <tr>
-                                        <th class="px-8 py-4">Kostenstelle</th>
-                                        <th class="px-4 py-4">Gruppe</th>
-                                        <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-gray-800/50 bg-transparent">
-                                    @foreach($missingDataItems as $missingItem)
-                                        <tr class="hover:bg-gray-800/30 transition-colors group">
-                                            <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
-                                            <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
-                                            <td class="px-8 py-5 text-right">
-                                                <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-2 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 inline-flex items-center gap-2">
-                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                                                    Daten ergänzen
+                                    @else
+                                        <div class="group/tag flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] rounded-full px-3 py-1.5 transition-all">
+                                            <span class="text-[10px] font-black uppercase tracking-widest">{{ $tag }}</span>
+                                            <div class="flex items-center gap-1.5 border-l border-blue-500/30 pl-2 ml-1">
+                                                <button wire:click="editGlobalTag('{{ $tag }}')" class="text-blue-400/70 hover:text-blue-400 transition-colors" title="Tag umbenennen">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                 </button>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                @else
-                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
-                        <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
-                            <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Datensätze vollständig</h3>
-                                <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen die entsprechenden Adress- und Anbieterdaten hinterlegt.</p>
+                                                <button wire:click="deleteGlobalTag('{{ $tag }}')" wire:confirm="Tag '{{ $tag }}' wirklich von allen Kostenstellen global entfernen?" class="text-red-400/70 hover:text-red-400 transition-colors" title="Tag global löschen">
+                                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endif
+                                @empty
+                                    <span class="text-xs text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
+                                @endforelse
                             </div>
                         </div>
                     </div>
                 @endif
 
                 {{-- 1. Donut Chart Section (WIRE:IGNORE WICHTIG) --}}
-                <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden" wire:ignore>
-                    <div class="absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color-5)] rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
-                    <div class="w-full md:w-1/3 relative z-10 text-center md:text-left">
-                        <h3 class="text-xl font-serif font-bold text-white mb-3 tracking-wide">Finanzielle Aufteilung</h3>
-                        <p class="text-xs text-gray-400 leading-relaxed font-medium">Übersicht der monatlichen Volumina nach Gruppen. <br class="hidden md:block mt-2"> <span class="text-emerald-400 font-bold drop-shadow-[0_0_5px_currentColor]">Grün = Einnahmen</span>, <span class="text-red-400 font-bold drop-shadow-[0_0_5px_currentColor]">Rot = Ausgaben</span>.</p>
+                @if($showChart)
+                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden animate-fade-in-down" wire:ignore>
+                        <div class="absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color-5)] rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+                        <div class="w-full md:w-1/3 relative z-10 text-center md:text-left">
+                            <h3 class="text-xl font-serif font-bold text-white mb-3 tracking-wide">Finanzielle Aufteilung</h3>
+                            <p class="text-xs text-gray-400 leading-relaxed font-medium">Übersicht der monatlichen Volumina nach Gruppen. <br class="hidden md:block mt-2"> <span class="text-emerald-400 font-bold drop-shadow-[0_0_5px_currentColor]">Grün = Einnahmen</span>, <span class="text-red-400 font-bold drop-shadow-[0_0_5px_currentColor]">Rot = Ausgaben</span>.</p>
+                        </div>
+                        <div class="w-full md:w-2/3 h-64 sm:h-80 relative z-10">
+                            <canvas id="groupsChart"></canvas>
+                        </div>
                     </div>
-                    <div class="w-full md:w-2/3 h-64 sm:h-80 relative z-10">
-                        <canvas id="groupsChart"></canvas>
+                @endif
+
+                {{-- Suchleiste direkt unterhalb "Finanzielle Aufteilung" --}}
+                <div class="relative bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-800 p-4 shadow-2xl flex items-center gap-4 group/search">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-full blur-[40px] -translate-y-1/2 translate-x-1/3 pointer-events-none transition-all duration-300 group-hover/search:bg-[var(--theme-color-10)]"></div>
+                    <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-400 shadow-inner shrink-0 group-focus-within/search:bg-blue-500/20 transition-all duration-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <div class="flex-1 relative pr-10">
+                        <input type="text"
+                               wire:model.live.debounce.300ms="searchQuery"
+                               placeholder="Verträge, Gruppen, Anbieter, Beschreibung oder Tags durchsuchen..."
+                               class="w-full bg-transparent text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:ring-0 border-0 p-1">
+                        
+                        @if(!empty($searchQuery))
+                            <button wire:click="$set('searchQuery', '')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors" title="Suche zurücksetzen">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        @endif
                     </div>
                 </div>
 
@@ -280,6 +424,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8"
                      x-data="{
                         draggedGroup: null,
+                        draggingItemId: null,
                         handleGroupDrop(e) {
                             const target = e.target.closest('.group-sortable-card');
                             if (this.draggedGroup && target && this.draggedGroup !== target) {
@@ -339,7 +484,7 @@
                             @include('livewire.shop.accounting.accounting-fix-costs.partials.group_header')
 
                             {{-- Group Body (Items) --}}
-                            @if($activeGroupId === $group->id)
+                            @if($activeGroupId === $group->id || !empty(trim($searchQuery)))
                                 <div class="border-t border-gray-800 bg-gray-950/50 p-4 sm:p-8 animate-fade-in-down shadow-inner" @dragstart.stop>
 
                                     <div class="space-y-4">
@@ -379,58 +524,6 @@
 
                 </div>
 
-                {{-- GLOBAL TAG MANAGEMENT SECTION --}}
-                <div x-data="{ expandedTags: false }" class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8">
-                    <div class="flex items-center justify-between cursor-pointer group" @click="expandedTags = !expandedTags">
-                        <div>
-                            <h3 class="text-xl font-serif font-bold text-white mb-1 tracking-wide flex items-center gap-3">
-                                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                                </svg>
-                                Tag-Verwaltung
-                            </h3>
-                            <p class="text-xs text-gray-400 mb-0">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
-                        </div>
-                        <div class="text-gray-500 transition-transform duration-300" :class="expandedTags ? 'rotate-180' : ''">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </div>
-                    </div>
-
-                    <div x-show="expandedTags" x-collapse class="mt-6">
-
-                    <div class="flex flex-wrap gap-3">
-                        @forelse($this->globalTags as $tag)
-                            @if($editingGlobalTag === $tag)
-                                <div class="flex items-center gap-2 bg-gray-950 p-1.5 rounded-full border border-blue-500/50 shadow-inner">
-                                    <input type="text" wire:model="editingGlobalTagValue" wire:keydown.enter="saveGlobalTag" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-white px-2 outline-none w-28">
-                                    <button wire:click="saveGlobalTag" class="text-emerald-400 hover:text-emerald-300 transition-colors" title="Speichern">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                                    </button>
-                                    <button wire:click="$set('editingGlobalTag', null)" class="text-gray-500 hover:text-gray-400 pr-1 transition-colors" title="Abbrechen">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
-                                </div>
-                            @else
-                                <div class="group/tag flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] rounded-full px-3 py-1.5 transition-all">
-                                    <span class="text-[10px] font-black uppercase tracking-widest">{{ $tag }}</span>
-                                    <div class="flex items-center gap-1.5 border-l border-blue-500/30 pl-2 ml-1">
-                                        <button wire:click="editGlobalTag('{{ $tag }}')" class="text-blue-400/70 hover:text-blue-400 transition-colors" title="Tag umbenennen">
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                        </button>
-                                        <button wire:click="deleteGlobalTag('{{ $tag }}')" wire:confirm="Tag '{{ $tag }}' wirklich von allen Kostenstellen global entfernen?" class="text-red-400/70 hover:text-red-400 transition-colors" title="Tag global löschen">
-                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            @endif
-                        @empty
-                            <span class="text-xs text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
-                        @endforelse
-                    </div>
-                    </div>
-                </div>
 
             </div>
         </div>

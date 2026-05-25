@@ -195,6 +195,7 @@ class OrderQuoteRequests extends Component
                 'product_name' => $qItem->product_name,
                 'quantity' => $qItem->quantity,
                 'unit_price' => $qItem->unit_price,
+                'tax_rate' => $qItem->tax_rate !== null ? $qItem->tax_rate : ($qItem->product->tax_rate ?? shop_setting('default_tax_rate', 19.0)),
                 'total_price' => $qItem->total_price,
                 'configuration' => $qItem->configuration,
             ]);

@@ -40,6 +40,7 @@ class ProductCalculator extends Component
     public $totalNetto = 0;
     public $totalMwst = 0;
     public $totalBrutto = 0;
+    public $taxBreakdown = [];
     public $shippingCost = 0;
     public $expressCost = 0;
     public $totalWeight = 0;
@@ -312,6 +313,8 @@ class ProductCalculator extends Component
         $sumMwst = 0;
         $cartSubtotalGross = 0;
         $originalSubtotalGross = 0; // NEU: Speichert den Original-Bruttowert (ohne Rabatt)
+        $taxesBreakdownCents = [];
+        $isSmallBusiness = (bool)shop_setting('is_small_business', false);
 
         foreach ($this->cartItems as $index => $item) {
             $product = $this->dbProducts[$item['product_id']] ?? null;
@@ -357,6 +360,14 @@ class ProductCalculator extends Component
 
             $sumNetto += $lineNet;
             $sumMwst += $lineTax;
+
+            if (!$isSmallBusiness) {
+                $strRate = number_format($rate, 0);
+                if (!isset($taxesBreakdownCents[$strRate])) {
+                    $taxesBreakdownCents[$strRate] = 0;
+                }
+                $taxesBreakdownCents[$strRate] += $lineTax;
+            }
         }
 
         // NEU: Mengenrabatt als Differenz zwischen Originalwert und tatsächlichem Wert berechnen
@@ -407,12 +418,17 @@ class ProductCalculator extends Component
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
             $taxRate = (float)shop_setting('default_tax_rate', 19);
-            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             $divisor = $isSmallBusiness ? 1.0 : (1 + ($taxRate / 100));
 
             if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
                 $shippingNet = $shippingCents / $divisor;
                 $shippingTax = $shippingCents - $shippingNet;
+
+                $strRate = number_format($taxRate, 0);
+                if (!isset($taxesBreakdownCents[$strRate])) {
+                    $taxesBreakdownCents[$strRate] = 0;
+                }
+                $taxesBreakdownCents[$strRate] += $shippingTax;
             } else {
                 $shippingNet = $shippingCents;
                 $shippingTax = 0;
@@ -426,7 +442,6 @@ class ProductCalculator extends Component
 
         if ($this->isExpress && count($this->cartItems) > 0) {
             $defaultTaxRate = (float)shop_setting('default_tax_rate', 19);
-            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             $divisor = $isSmallBusiness ? 1.0 : (1 + ($defaultTaxRate / 100));
             $euCountries = ['DE', 'AT', 'FR', 'NL', 'BE', 'IT', 'ES', 'PL', 'CZ', 'DK', 'SE', 'FI', 'GR', 'PT', 'IE', 'LU', 'HU', 'SI', 'SK', 'EE', 'LV', 'LT', 'CY', 'MT', 'HR', 'BG', 'RO'];
 
@@ -440,6 +455,12 @@ class ProductCalculator extends Component
             if (in_array($countryCode, $euCountries) && !$isSmallBusiness) {
                 $expressNet = $expressBaseNet;
                 $expressTax = $expressGross - $expressNet;
+
+                $strRate = number_format($defaultTaxRate, 0);
+                if (!isset($taxesBreakdownCents[$strRate])) {
+                    $taxesBreakdownCents[$strRate] = 0;
+                }
+                $taxesBreakdownCents[$strRate] += $expressTax;
             } else {
                 $expressNet = $expressBaseNet;
                 $expressTax = 0;
@@ -453,6 +474,15 @@ class ProductCalculator extends Component
         $this->totalMwst = round($sumMwst) / 100;
         $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
         $this->gesamtKosten = $this->totalBrutto;
+
+        $this->taxBreakdown = [];
+        if (!$isSmallBusiness) {
+            foreach ($taxesBreakdownCents as $rate => $cents) {
+                if ($cents > 0 || floatval($rate) == 0) {
+                    $this->taxBreakdown[$rate] = round($cents) / 100;
+                }
+            }
+        }
     }
 
     private function getTierPriceCents($product, $qty)
@@ -535,6 +565,7 @@ class ProductCalculator extends Component
                         'product_name' => $item['name'],
                         'quantity' => $item['qty'],
                         'unit_price' => (int) round($item['calculated_single_price'] * 100),
+                        'tax_rate' => $this->dbProducts[$item['product_id']]['tax_rate'] ?? shop_setting('default_tax_rate', 19.0),
                         'total_price' => (int) round($item['calculated_total'] * 100),
                         'configuration' => $conf,
                     ]);

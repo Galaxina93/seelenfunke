@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Lelia Turcotte</ram:Name>
+        <ram:Name>Audrey Feest</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>00020</ram:PostcodeCode>
-          <ram:LineOne>277 Hintz Stravenue</ram:LineOne>
-          <ram:CityName>Blandaton</ram:CityName>
+          <ram:PostcodeCode>45341-9504</ram:PostcodeCode>
+          <ram:LineOne>87956 Efren Centers Apt. 061</ram:LineOne>
+          <ram:CityName>Heidenreichfurt</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>

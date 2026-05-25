@@ -86,7 +86,7 @@ class CartService
         $newQty = $existingItem ? $existingItem->quantity + $quantity : $quantity;
 
         // FIX: Konfiguration an Preisberechnung übergeben!
-        $unitPrice = $this->calculateTierPrice($product, $newQty, $configuration);
+        $unitPrice = $this->resolveItemUnitPrice($product, $newQty, $configuration);
 
         if ($existingItem) {
             $existingItem->update([
@@ -116,7 +116,7 @@ class CartService
         if (!$item) return;
 
         // FIX: Konfiguration an Preisberechnung übergeben!
-        $unitPrice = $this->calculateTierPrice($item->product, $quantity, $configuration ?? $item->configuration);
+        $unitPrice = $this->resolveItemUnitPrice($item->product, $quantity, $configuration ?? $item->configuration);
 
         $data = [
             'quantity' => $quantity,
@@ -146,7 +146,7 @@ class CartService
         }
 
         // FIX: Konfiguration an Preisberechnung übergeben!
-        $unitPrice = $this->calculateTierPrice($item->product, $quantity, $item->configuration);
+        $unitPrice = $this->resolveItemUnitPrice($item->product, $quantity, $item->configuration);
 
         $item->update([
             'quantity' => $quantity,
@@ -173,6 +173,31 @@ class CartService
         $cart->items()->delete();
         $cart->update(['coupon_code' => null, 'is_express' => false]);
         $this->refreshTotals($cart);
+    }
+
+    /**
+     * Resolves unit price, using quote snapshot price if checking out from a quote.
+     */
+    public function resolveItemUnitPrice(Product $product, int $qty, array $configuration = null): int
+    {
+        $quoteId = session('checkout_from_quote_id');
+        if ($quoteId) {
+            $quoteItems = \App\Models\Order\OrderQuoteRequestItem::where('quote_request_id', $quoteId)
+                ->where('product_id', $product->id)
+                ->get();
+            
+            $matchingQuoteItem = $quoteItems->first(function ($qItem) use ($configuration) {
+                return json_encode($qItem->configuration) === json_encode($configuration);
+            });
+
+            $matchingQuoteItem = $matchingQuoteItem ?? $quoteItems->first();
+
+            if ($matchingQuoteItem) {
+                return $matchingQuoteItem->unit_price;
+            }
+        }
+
+        return $this->calculateTierPrice($product, $qty, $configuration);
     }
 
     /**
@@ -302,7 +327,7 @@ class CartService
             $totalWeight += ($weight * $qty);
 
             // FIX: Frischen Preis berechnen (mit Variante)
-            $freshUnitPrice = $this->calculateTierPrice($product, $qty, $item->configuration);
+            $freshUnitPrice = $this->resolveItemUnitPrice($product, $qty, $item->configuration);
 
             if ($freshUnitPrice !== $item->unit_price) {
                 $item->unit_price = $freshUnitPrice;

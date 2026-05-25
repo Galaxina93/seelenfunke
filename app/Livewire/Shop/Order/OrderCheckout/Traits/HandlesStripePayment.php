@@ -113,7 +113,7 @@ trait HandlesStripePayment
 
                     Session::forget('checkout_from_quote_id');
 
-                    \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
+                    # \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
                 }
             }
 

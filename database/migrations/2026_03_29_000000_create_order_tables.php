@@ -140,6 +140,7 @@ return new class extends Migration
             $table->string('product_name');
             $table->integer('quantity');
             $table->integer('unit_price'); // Einzelpreis Netto/Brutto je nach Logik (hier Kalkulator-Preis)
+            $table->decimal('tax_rate', 5, 2)->nullable();
             $table->integer('total_price');
 
             $table->json('configuration')->nullable(); // Hier liegen die Dateipfade drin!

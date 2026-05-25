@@ -101,6 +101,7 @@ class OrderQuoteAcceptance extends Component
         $unitPriceCents = $this->calculateTierPrice($product, $data['qty']);
 
         $this->editingItem->unit_price = $unitPriceCents;
+        $this->editingItem->tax_rate = $product->tax_rate ?? shop_setting('default_tax_rate', 19.0);
         $this->editingItem->total_price = $unitPriceCents * $data['qty'];
         $this->editingItem->save();
 
@@ -333,6 +334,8 @@ class OrderQuoteAcceptance extends Component
     {
         if (!$this->isValidAction()) return;
 
+        Session::put('checkout_from_quote_id', $this->quote->id);
+
         $cart = $cartService->getCart();
         $cart->items()->delete();
 
@@ -357,7 +360,6 @@ class OrderQuoteAcceptance extends Component
             }
         }
 
-        Session::put('checkout_from_quote_id', $this->quote->id);
         return redirect()->route('checkout');
     }
 
