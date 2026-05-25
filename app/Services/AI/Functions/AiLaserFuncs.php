@@ -63,6 +63,9 @@ trait AiLaserFuncs
         $content = $args['content'] ?? '';
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
+        if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
+            $recipient = null;
+        }
         $design = $args['design'] ?? 'seelenfunke';
         $emailMessage = $args['email_message'] ?? "Anbei erhalten Sie die angeforderten Unterlagen zur Laserschutzschulung.";
         $agentName = $agent ? $agent->name : 'Lasi';

@@ -154,6 +154,9 @@ trait AiHolidayPlannerFuncs
         $calendarEvents = $args['calendar_events_during_trip'] ?? [];
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
+        if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
+            $recipient = null;
+        }
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'Globi - Leiter Globale Planung');
 
         try {

@@ -133,7 +133,6 @@ class OrdersTableSeeder extends Seeder
                 'customer_id' => $customerId,
                 'status' => $status,
                 'is_express' => $faker->boolean(15),
-                'deadline' => null, // Express deadlines usually handled separately if needed
                 'payment_status' => $paymentStatus,
                 'payment_method' => $faker->randomElement(['stripe', 'paypal']),
                 'email' => $customerEmail,

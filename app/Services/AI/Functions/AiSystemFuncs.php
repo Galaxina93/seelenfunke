@@ -2133,6 +2133,9 @@ trait AiSystemFuncs
             $design = $args['design'] ?? 'seelenfunke';
             $action = $args['target_action'] ?? 'download';
             $recipient = $args['recipient_email'] ?? null;
+            if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
+                $recipient = null;
+            }
             $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System'); // Could be fetched via context if available
 
             if (empty($markdown)) {
@@ -2204,6 +2207,9 @@ trait AiSystemFuncs
             $design = $args['design'] ?? 'seelenfunke';
             $action = $args['target_action'] ?? 'download';
             $recipient = $args['recipient_email'] ?? null;
+            if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
+                $recipient = null;
+            }
             $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
 
             if (empty($markdown)) {
@@ -2226,7 +2232,21 @@ trait AiSystemFuncs
                 'agentName' => $agentName,
                 'logo_path' => $logoPath,
                 'output_path' => $absoluteOutputPath,
-                'owner_name' => $ownerName
+                'owner_name' => $ownerName,
+                'footer_info' => [
+                    'company_name' => shop_setting('company_name') ?: shop_setting('owner_name') ?: 'Mein Seelenfunke',
+                    'owner_proprietor' => shop_setting('owner_proprietor') ?: 'Alina Steinhauer',
+                    'company_street' => shop_setting('company_street') ?: shop_setting('owner_street') ?: 'Carl-Goerdeler-Ring',
+                    'company_street_number' => shop_setting('company_street_number') ?: '26',
+                    'company_zip' => shop_setting('company_zip') ?: '38518',
+                    'company_city' => shop_setting('company_city') ?: shop_setting('owner_city') ?: 'Gifhorn',
+                    'company_email' => shop_setting('company_email') ?: shop_setting('owner_email') ?: 'kontakt@mein-seelenfunke.de',
+                    'owner_website' => shop_setting('owner_website') ?: 'www.mein-seelenfunke.de',
+                    'owner_iban' => shop_setting('owner_iban') ?: 'Wird nachgereicht',
+                    'owner_tax_id' => shop_setting('owner_tax_id') ?: '',
+                    'owner_ust_id' => shop_setting('owner_ust_id') ?: '',
+                    'owner_court' => shop_setting('owner_court') ?: 'Gifhorn',
+                ]
             ];
 
             $tempDir = storage_path('app/temp');
@@ -2299,6 +2319,9 @@ trait AiSystemFuncs
             $reportType = $args['report_type'] ?? null;
             $action = $args['target_action'] ?? 'download';
             $recipient = $args['recipient_email'] ?? null;
+            if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
+                $recipient = null;
+            }
             $targetFolder = $args['target_folder_name'] ?? '';
 
             if (!$reportType) {

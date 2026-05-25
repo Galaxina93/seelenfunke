@@ -4,7 +4,7 @@
     <div class="sm:flex sm:justify-between sm:items-center mb-8">
         <div class="mb-4 sm:mb-0">
             <h1 class="text-2xl md:text-3xl font-black text-[var(--theme-color)] uppercase tracking-widest drop-shadow-[0_0_10px_var(--theme-color-30)]">Instagram Generator</h1>
-            <p class="text-xs text-gray-500 uppercase tracking-widest mt-1 font-mono">Powered by {{ $agent ? $agent->name : 'KI' }}</p>
+            <p class="text-xs text-gray-500 uppercase tracking-widest mt-1 font-mono">Marketingagent: {{ $agent ? $agent->name : 'KI' }}</p>
         </div>
         <div class="grid grid-flow-col sm:auto-cols-max justify-start sm:justify-end gap-2">
             <button wire:click="createDraftPost" class="px-6 py-2.5 bg-[var(--theme-color)] hover:opacity-90 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all shadow-[0_0_15px_var(--theme-color-40)] flex items-center gap-2">
@@ -62,7 +62,7 @@
         <div class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
             @foreach($posts as $post)
                 <div class="break-inside-avoid bg-gray-950 border border-gray-800 rounded-2xl overflow-hidden shadow-2xl relative group pb-4 transition-transform hover:-translate-y-1">
-                    
+
                     <!-- Status Badge -->
                     <div class="absolute top-3 right-3 z-20">
                         @if($post->status === 'published')
@@ -83,7 +83,7 @@
                         @if($post->image_url)
                             <!-- Wenn Bild da ist, Overlay für erneuten Upload versteckt unter opacity-0 -->
                             <img src="{{ route('admin.marketing-instagram.file', ['id' => $post->id]) }}" alt="Instagram Post Image" class="w-full h-full object-cover">
-                            
+
                             <label class="absolute inset-0 z-20 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 bg-gray-950/70 cursor-pointer transition-opacity backdrop-blur-sm">
                                 <input type="file" class="hidden" wire:model.live="photos.{{ $post->id }}" accept="image/*">
                                 <x-heroicon-o-arrow-up-tray class="w-8 h-8 text-white mb-2 shadow-lg" />
@@ -117,7 +117,7 @@
                                     <span wire:loading wire:target="generateCaptionForPost('{{ $post->id }}')" class="absolute inset-0 bg-[var(--theme-color)] text-white flex items-center justify-center gap-2">
                                         <x-heroicon-o-sparkles class="w-4 h-4 animate-ping" /> Generiere...
                                     </span>
-                                    <x-heroicon-s-sparkles class="w-4 h-4" /> 
+                                    <x-heroicon-s-sparkles class="w-4 h-4" />
                                     @if(empty(trim($post->caption)))
                                         Lass {{ $agent ? $agent->name : 'KI' }} zaubern
                                     @else
@@ -126,7 +126,7 @@
                                 </button>
                             </div>
                         @endif
-                        
+
                         <div class="text-[10px] text-gray-500 font-mono flex items-center justify-between mb-4">
                             <span>Erstellt: {{ $post->created_at->diffForHumans() }}</span>
                         </div>
@@ -142,7 +142,7 @@
                                     Posten
                                 </button>
                             @endif
-                            
+
                             <button wire:click="deletePost('{{ $post->id }}')" class="px-3 py-2 bg-gray-900 hover:bg-red-500/20 border border-gray-700 hover:border-red-500/50 rounded-xl text-xs font-bold text-red-500 transition-colors" title="Verwerfen">
                                 <x-heroicon-o-trash class="w-4 h-4" />
                             </button>
