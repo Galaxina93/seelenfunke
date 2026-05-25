@@ -263,9 +263,9 @@ class AIController extends Controller
             $ttsEnabled = false;
         }
 
-        if ($ttsEnabled && !empty($result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
+        if ($ttsEnabled && !empty($result['response_raw'] ?? $result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
             try {
-                $cleanText = $result['response'];
+                $cleanText = $result['response_raw'] ?? $result['response'];
                 
                 // Extract <speak> tag content if present
                 if (preg_match('/<speak>(.*?)<\/speak>/is', $cleanText, $matches)) {

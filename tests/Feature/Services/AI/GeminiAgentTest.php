@@ -180,4 +180,47 @@ class GeminiAgentTest extends TestCase {
         }
         $this->assertTrue($toolErrorFound, "Tool error was not registered in captured messages");
     }
+
+    /** @test */
+    public function test_strips_speak_tags_from_response_and_history_but_retains_raw_response() {
+        $agent = AiAgent::create([
+            'name' => 'Speech Bot',
+            'system_prompt' => 'Speech Bot',
+            'model' => 'gemini-2.5-flash',
+            'temperature' => 0.6
+        ]);
+
+        // Prepare mock response containing <speak> tags
+        $mockResponse = "data: " . json_encode([
+            'choices' => [
+                [
+                    'delta' => [
+                        'content' => "<speak>Hallo Alina!</speak> Hier sind die Details."
+                    ]
+                ]
+            ]
+        ]) . "\n" . "data: [DONE]";
+
+        CurlMockRegistry::$responseStrings = [];
+        for ($i = 0; $i < 40; $i++) {
+            CurlMockRegistry::$responseStrings[$i] = $mockResponse;
+        }
+
+        $geminiAgent = new GeminiAgent($agent);
+
+        $response = $geminiAgent->ask([
+            ['role' => 'user', 'content' => 'Hello']
+        ]);
+
+        $this->assertIsArray($response);
+        // Clean response should have speak tags stripped
+        $this->assertEquals('Hallo Alina! Hier sind die Details.', $response['response']);
+        // Raw response should retain the tags
+        $this->assertEquals('<speak>Hallo Alina!</speak> Hier sind die Details.', $response['response_raw']);
+        // History should also have the tags stripped
+        $history = $response['history'];
+        $assistantMsg = collect($history)->firstWhere('role', 'assistant');
+        $this->assertNotNull($assistantMsg);
+        $this->assertEquals('Hallo Alina! Hier sind die Details.', $assistantMsg['content']);
+    }
 }

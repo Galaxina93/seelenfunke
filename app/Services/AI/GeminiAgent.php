@@ -190,17 +190,29 @@ class GeminiAgent implements AiProviderInterface
         $textResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData, 0, $calledTools, $streamCallback);
         $totalTimeMs = (int) round((microtime(true) - $startTime) * 1000);
 
+        // Clean response by removing <speak> and </speak> tags
+        $cleanResponse = preg_replace('/<\/?speak>/i', '', $textResponse);
+
+        // Clean any pre-existing assistant messages in history as well
+        foreach ($incomingMessages as &$msg) {
+            if (isset($msg['role']) && $msg['role'] === 'assistant' && isset($msg['content']) && is_string($msg['content'])) {
+                $msg['content'] = preg_replace('/<\/?speak>/i', '', $msg['content']);
+            }
+        }
+        unset($msg);
+
         // Even if textResponse is empty (Fast Track), we STILL return the new history
         // and importantly, the extracted events.
-        if (!empty($textResponse)) {
+        if (!empty($cleanResponse)) {
             $incomingMessages[] = [
                 'role' => 'assistant',
-                'content' => $textResponse
+                'content' => $cleanResponse
             ];
         }
 
         return [
-            'response' => $textResponse,
+            'response' => $cleanResponse,
+            'response_raw' => $textResponse,
             'context_data' => $contextData,
             'usage' => $usageData,
             'latency_ms' => $totalTimeMs,
