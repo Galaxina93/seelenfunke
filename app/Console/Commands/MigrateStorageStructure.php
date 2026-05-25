@@ -106,7 +106,8 @@ class MigrateStorageStructure extends Command
             'marketing_blog_posts' => ['featured_image', 'header_image', 'image_url'],
             'marketing_landing_pages' => ['header_image'],
             'accounting_invoices' => ['pdf_path', 'xml_path'],
-            'accounting_contracts' => ['contract_file_path'],
+            'accounting_cost_items' => ['contract_file_path'],
+            'accounting_cost_item_histories' => ['contract_file_path'],
             'management_tickets' => ['path'],
             'system_users' => ['photo_path'],
             'orders' => ['shipping_label_path']

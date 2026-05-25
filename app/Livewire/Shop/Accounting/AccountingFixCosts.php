@@ -243,7 +243,7 @@ class AccountingFixCosts extends Component
             abort(403);
         }
 
-        $path = $this->quickUploadFile->store('leitung/contracts', 'local');
+        $path = $this->quickUploadFile->store('buchhaltung/contracts', 'local');
         $item->update(['contract_file_path' => $path]);
 
         $this->uploadingMissingItemId = null;
@@ -443,7 +443,7 @@ class AccountingFixCosts extends Component
         ];
 
         if ($this->itemFile) {
-            $path = $this->itemFile->store('leitung/contracts', 'local');
+            $path = $this->itemFile->store('buchhaltung/contracts', 'local');
             $data['contract_file_path'] = $path;
         }
 
@@ -747,6 +747,20 @@ class AccountingFixCosts extends Component
             }
         }
         $this->dispatch('update-groups-chart', labels: $chartLabels, data: $chartData, colors: $chartColors);
+    }
+
+    public function downloadContract($itemId)
+    {
+        $item = AccountingCostItem::findOrFail($itemId);
+        if ($item->group->admin_id !== $this->getAdminId()) {
+            abort(403);
+        }
+
+        if ($item->contract_file_path && Storage::disk('local')->exists($item->contract_file_path)) {
+            return Storage::disk('local')->download($item->contract_file_path);
+        }
+
+        session()->flash('error', 'Vertragsdatei nicht gefunden.');
     }
 
     public function render()

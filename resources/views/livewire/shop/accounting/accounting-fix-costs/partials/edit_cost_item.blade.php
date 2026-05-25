@@ -107,10 +107,10 @@
                 
                 @if($itemExistingFile)
                     <div class="flex items-center justify-between p-2 rounded-xl border border-gray-800/50 bg-gray-950/50">
-                        <a href="{{ Storage::url($itemExistingFile) }}" target="_blank" class="text-[10px] font-bold text-blue-400 hover:text-white transition-colors truncate max-w-[80%] flex items-center gap-2">
+                        <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[10px] font-bold text-blue-400 hover:text-white transition-colors truncate max-w-[80%] flex items-center gap-2">
                             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             Aktuelle Datei ansehen
-                        </a>
+                        </button>
                         <button wire:click="removeFileFromItem('{{ $item->id }}')" class="text-gray-500 hover:text-red-400 p-1 rounded-lg transition-colors">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
