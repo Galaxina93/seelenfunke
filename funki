@@ -277,15 +277,15 @@ case "$1" in
         TEST_EXIT_CODE=0
         if [ -z "$1" ]; then
             echo "🧪 Starte ALLE automatisierten Tests auf Test-Datenbank (seelenfunke_testing)..."
-            $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing
+            $PREFIX_USER ./vendor/bin/phpunit
             TEST_EXIT_CODE=$?
         elif [[ "$1" == --* ]]; then
             echo "🧪 Starte Tests mit manuellen Parametern ($@)..."
-            $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing "$@"
+            $PREFIX_USER ./vendor/bin/phpunit "$@"
             TEST_EXIT_CODE=$?
         else
             echo -e "🧪 Starte Isolationstest: \033[1;33m$1\033[0m"
-            $PREFIX_USER php -d memory_limit=-1 artisan test --env=testing --filter "$1"
+            $PREFIX_USER ./vendor/bin/phpunit --filter "$1"
             TEST_EXIT_CODE=$?
         fi
 
