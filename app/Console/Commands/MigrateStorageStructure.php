@@ -134,7 +134,63 @@ class MigrateStorageStructure extends Command
                 }
             }
         }
+
+        // 3. Update JSON Configuration Columns in PHP
+        $jsonTables = [
+            'order_order_items' => 'configuration',
+            'cart_items' => 'configuration',
+            'order_quote_request_items' => 'configuration',
+        ];
+
+        foreach ($jsonTables as $table => $column) {
+            if (DB::getSchemaBuilder()->hasTable($table) && DB::getSchemaBuilder()->hasColumn($table, $column)) {
+                $this->info("Updating JSON configurations in table: {$table}");
+                $rows = DB::table($table)->whereNotNull($column)->get();
+                foreach ($rows as $row) {
+                    $config = json_decode($row->configuration, true);
+                    if (is_array($config)) {
+                        $updated = false;
+                        foreach ($replacements as $oldPath => $newPath) {
+                            $newConfig = $this->replacePathsRecursive($config, $oldPath, $newPath);
+                            if ($newConfig !== $config) {
+                                $config = $newConfig;
+                                $updated = true;
+                            }
+                        }
+                        if ($updated) {
+                            DB::table($table)->where('id', $row->id)->update([
+                                $column => json_encode($config)
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
         
         $this->info('Database updates finished.');
+    }
+
+    /**
+     * Recursively replaces file path prefixes within configuration array structures.
+     */
+    protected function replacePathsRecursive($data, $oldPath, $newPath)
+    {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                $data[$key] = $this->replacePathsRecursive($value, $oldPath, $newPath);
+            }
+            return $data;
+        }
+
+        if (is_string($data)) {
+            if (str_starts_with($data, $oldPath . '/')) {
+                return str_replace($oldPath . '/', $newPath . '/', $data);
+            }
+            if ($data === $oldPath) {
+                return $newPath;
+            }
+        }
+
+        return $data;
     }
 }

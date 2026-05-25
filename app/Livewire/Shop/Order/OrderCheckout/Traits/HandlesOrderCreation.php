@@ -179,9 +179,12 @@ trait HandlesOrderCreation
             ];
 
             // VERHINDERE DOPPELTE BESTELLUNGEN WENN DER USER MEHRFACH KLICKT
-            $order = OrderOrder::where('stripe_payment_intent_id', $finalIntentId)
-                ->where('payment_status', 'unpaid')
-                ->first();
+            $order = null;
+            if (!empty($finalIntentId)) {
+                $order = OrderOrder::where('stripe_payment_intent_id', $finalIntentId)
+                    ->where('payment_status', 'unpaid')
+                    ->first();
+            }
 
             if ($order) {
                 // Bestellung aktualisieren, falls sie schon existiert (z.B. nach einem fehlgeschlagenen Payment-Versuch)

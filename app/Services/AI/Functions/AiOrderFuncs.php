@@ -28,13 +28,35 @@ trait AiOrderFuncs
             ],
             [
                 'name' => 'order_get_details',
-                'description' => 'Ruft detaillierte Informationen zu einer bestimmten Bestellung oder der neuesten Bestellung ab. Liefert Positionen (inkl. Mengen), Kostenübersicht (Warenwert, Rabatte, Gesamt), Adressen (zur Erkennung von Abweichungen zwischen Liefer- und Rechnungsadresse) und den aktuellen Bearbeitungs-/Zahlungsstatus. Nutze dies, wenn Alina nach der neuesten Bestellung, Auftrag 1024, oder "Was hat Müller gekauft" fragt.',
+                'description' => 'Ruft detaillierte Informationen zu einer bestimmten Bestellung oder mehreren passenden Bestellungen ab. Unterstützt Suche nach Bestellnummer, E-Mail, Kundenname, Betragsspannen (in Euro) und Status.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'order_number' => [
                             'type' => 'string',
-                            'description' => 'Optional: Die Bestellnummer, E-Mail oder Nachname des Kunden (z.B. "1024", "Mueller"). Leer lassen, um die aktuellste Bestellung abzurufen.'
+                            'description' => 'Optional: Die genaue Bestellnummer oder E-Mail des Kunden.'
+                        ],
+                        'customer_name' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Unscharfe Suche nach Vorname oder Nachname des Kunden.'
+                        ],
+                        'min_total' => [
+                            'type' => 'number',
+                            'description' => 'Optional: Mindest-Bestellwert in Euro (z.B. 49.99).'
+                        ],
+                        'max_total' => [
+                            'type' => 'number',
+                            'description' => 'Optional: Maximal-Bestellwert in Euro (z.B. 150.00).'
+                        ],
+                        'status' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Filter nach Bestellstatus.',
+                            'enum' => ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'refunded']
+                        ],
+                        'payment_status' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Filter nach Zahlungsstatus.',
+                            'enum' => ['paid', 'unpaid', 'pending', 'refunded']
                         ]
                     ],
                 ],
@@ -154,21 +176,63 @@ trait AiOrderFuncs
         try {
             $query = OrderOrder::with(['items', 'customer', 'invoices']);
             
+            $hasFilters = false;
+
             if (!empty($args['order_number'])) {
                 $term = $args['order_number'];
                 $query->where(function($q) use ($term) {
                     $q->where('order_number', 'like', "%{$term}%")
-                      ->orWhere('email', 'like', "%{$term}%")
-                      ->orWhereHas('customer', function($cQ) use ($term) {
-                          $cQ->where('last_name', 'like', "%{$term}%")
-                             ->orWhere('first_name', 'like', "%{$term}%");
-                      });
+                      ->orWhere('email', 'like', "%{$term}%");
                 });
-            } else {
-                $query->orderBy('created_at', 'desc')->take(1);
+                $hasFilters = true;
             }
 
-            $orders = $query->take(3)->get();
+            if (!empty($args['customer_name'])) {
+                $name = $args['customer_name'];
+                $query->where(function($q) use ($name) {
+                    $q->whereHas('customer', function($cQ) use ($name) {
+                        $cQ->where('last_name', 'like', "%{$name}%")
+                           ->orWhere('first_name', 'like', "%{$name}%");
+                    })
+                    ->orWhere('billing_address->first_name', 'like', "%{$name}%")
+                    ->orWhere('billing_address->last_name', 'like', "%{$name}%")
+                    ->orWhere('shipping_address->first_name', 'like', "%{$name}%")
+                    ->orWhere('shipping_address->last_name', 'like', "%{$name}%");
+                });
+                $hasFilters = true;
+            }
+
+            if (isset($args['min_total'])) {
+                $minCents = (int) round($args['min_total'] * 100);
+                $query->where('total_price', '>=', $minCents);
+                $hasFilters = true;
+            }
+
+            if (isset($args['max_total'])) {
+                $maxCents = (int) round($args['max_total'] * 100);
+                $query->where('total_price', '<=', $maxCents);
+                $hasFilters = true;
+            }
+
+            if (!empty($args['status'])) {
+                $query->where('status', $args['status']);
+                $hasFilters = true;
+            }
+
+            if (!empty($args['payment_status'])) {
+                $query->where('payment_status', $args['payment_status']);
+                $hasFilters = true;
+            }
+
+            if (!$hasFilters) {
+                $query->orderBy('created_at', 'desc')->take(1);
+                $limit = 1;
+            } else {
+                $query->orderBy('created_at', 'desc');
+                $limit = 10;
+            }
+
+            $orders = $query->take($limit)->get();
 
             if ($orders->isEmpty()) {
                 return ['status' => 'success', 'message' => 'Keine passende Bestellung gefunden.'];
@@ -196,9 +260,13 @@ trait AiOrderFuncs
                 
                 $addressDeviation = false;
                 if (!empty($billing) && !empty($shipping)) {
+                    $billingStreet = $billing['address'] ?? $billing['street'] ?? '';
+                    $shippingStreet = $shipping['address'] ?? $shipping['street'] ?? '';
+                    $billingZip = $billing['postal_code'] ?? $billing['zip'] ?? '';
+                    $shippingZip = $shipping['postal_code'] ?? $shipping['zip'] ?? '';
                     if (
-                        ($billing['street'] ?? '') !== ($shipping['street'] ?? '') ||
-                        ($billing['zip'] ?? '') !== ($shipping['zip'] ?? '') ||
+                        $billingStreet !== $shippingStreet ||
+                        $billingZip !== $shippingZip ||
                         ($billing['city'] ?? '') !== ($shipping['city'] ?? '') ||
                         ($billing['last_name'] ?? '') !== ($shipping['last_name'] ?? '')
                     ) {
@@ -237,7 +305,7 @@ trait AiOrderFuncs
             return ['status' => 'success', 'orders' => $formatted];
 
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Abrufen der Bestellung: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Abrufen der Bestellungen: ' . $e->getMessage()];
         }
     }
 
