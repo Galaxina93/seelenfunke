@@ -19,9 +19,9 @@ class InvoiceDownloadController extends Controller
     {
         // Security Gate: Darf der User das sehen?
         // Admin darf alles, Customer nur seine eigenen
-        if (auth()->guard('admin')->check()) {
+        if (\App\Services\AI\AiAuthHelper::isAdmin()) {
             // ok
-        } elseif (auth()->guard('customer')->check() && auth()->guard('customer')->id() === $invoice->customer_id) {
+        } elseif (\App\Services\AI\AiAuthHelper::isCustomer() && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id) {
             // ok
         } else {
             abort(403);

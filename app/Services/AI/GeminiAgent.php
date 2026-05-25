@@ -58,7 +58,7 @@ class GeminiAgent implements AiProviderInterface
         }
         $isOverride = str_contains($latestUserMessage, 'ich befehle dir');
 
-        $isAdmin = auth()->guard('admin')->check();
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
         
         $aiCommand = null;
         if ($isAdmin) {
@@ -66,23 +66,15 @@ class GeminiAgent implements AiProviderInterface
             $aiCommand = $aiService->getUltimateCommand($isOverride);
         }
 
-        $systemPromptText = $this->agent->system_prompt;
-
-        $roleInfo = "";
-        if ($this->agent->role) {
-            $roleInfo = "\n\n[DEINE ZUGEWIESENE ROLLE & IDENTITÄT]\n" .
-                        "Rollen-Bezeichnung: " . $this->agent->role->name . "\n" .
-                        "Rollen-Beschreibung: " . ($this->agent->role->description ?? 'Keine spezifische Beschreibung definiert.') . "\n" .
-                        "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
-        }
+        $systemPromptText = \App\Services\AI\AiPromptService::getRichPrompt($this->agent);
 
         $userStatus = $isAdmin 
             ? "System-Administrator (Mitarbeiter). Du hast höchste Freigabestufe. Nutze deine Admin-Tools für Analysen und weise den User nicht aus Datenschutzgründen ab!" 
             : "Kunde. Beachte strikt den Datenschutz.";
 
         $customerName = '';
-        if (!$isAdmin && auth()->guard('customer')->check()) {
-            $customerName = auth()->guard('customer')->user()->first_name;
+        if (!$isAdmin && \App\Services\AI\AiAuthHelper::isCustomer()) {
+            $customerName = auth()->user()->first_name ?? (auth()->guard('customer')->user()->first_name ?? '');
         }
 
         $verhaltensregel = $isAdmin 
@@ -100,11 +92,11 @@ class GeminiAgent implements AiProviderInterface
         } elseif ($hasAskAgentTool) {
             $delegationsregel = "DELEGATIONSREGEL: Wenn dir eine Aufgabe gegeben wird, für die dir das passende Werkzeug fehlt, nutze 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen.\n";
         } else {
-            $delegationsregel = "ANTI-HALLUZINATIONS-REGEL: Wenn dir ein Werkzeug oder eine Fähigkeit für eine Anfrage fehlt (z.B. E-Mails senden, Preise ändern), entschuldige dich höflich und weise darauf hin, dass du als KI-Support-Bot diese Aktion nicht ausführen kannst. TUE NIEMALS SO, als ob du eine Aktion im Hintergrund ausführst oder an einen Kollegen weiterleitest, wenn du die Werkzeuge dafür nicht hast!\n";
+            $delegationsregel = "ANTI-HALLUZINATIONS-REGEL: Wenn dir ein Werkzeug oder eine Fähigkeit für eine Anfrage fehlt (z.B. E-Mails senden, Preise ändern), entschuldige dich höflich und weise darauf hin, dass du als KI-Support-Bot diese Aktion nicht ausführen kannst. TUE NIEMALS SO, als ob du eine Aktion im Hintergrund ausdrust oder an einen Kollegen weiterleitest, wenn du die Werkzeuge dafür nicht hast!\n";
         }
 
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
-        $systemPromptText .= $roleInfo . "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
+        $systemPromptText .= "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .
                              "GESPRÄCHSPARTNER: " . $userStatus . "\n" .
                              $verhaltensregel .
                              $delegationsregel .
@@ -480,8 +472,17 @@ class GeminiAgent implements AiProviderInterface
                                                 if (!isset($toolCallAccumulators[$idx]['function'])) $toolCallAccumulators[$idx]['function'] = [];
                                                 foreach ($v as $fk => $fv) {
                                                     if ($fk === 'arguments') {
-                                                        if (!isset($toolCallAccumulators[$idx]['function']['arguments'])) $toolCallAccumulators[$idx]['function']['arguments'] = '';
-                                                        $toolCallAccumulators[$idx]['function']['arguments'] .= $fv;
+                                                        if (!isset($toolCallAccumulators[$idx]['function']['arguments'])) {
+                                                            $toolCallAccumulators[$idx]['function']['arguments'] = '';
+                                                        }
+                                                        if (is_array($fv) || is_object($fv)) {
+                                                            $toolCallAccumulators[$idx]['function']['arguments'] = json_encode($fv, JSON_UNESCAPED_UNICODE);
+                                                        } else {
+                                                            if (is_array($toolCallAccumulators[$idx]['function']['arguments']) || is_object($toolCallAccumulators[$idx]['function']['arguments'])) {
+                                                                $toolCallAccumulators[$idx]['function']['arguments'] = json_encode($toolCallAccumulators[$idx]['function']['arguments'], JSON_UNESCAPED_UNICODE);
+                                                            }
+                                                            $toolCallAccumulators[$idx]['function']['arguments'] .= $fv;
+                                                        }
                                                     } elseif ($fk === 'name' && !empty($fv)) {
                                                         $toolCallAccumulators[$idx]['function']['name'] = $fv;
                                                     } else {
@@ -683,7 +684,7 @@ class GeminiAgent implements AiProviderInterface
                         continue;
                     }
                     
-                    if (is_array($functionArgsString)) {
+                    if (is_array($functionArgsString) || is_object($functionArgsString)) {
                         $functionArgsString = json_encode($functionArgsString, JSON_UNESCAPED_UNICODE);
                     }
                     
@@ -706,12 +707,14 @@ class GeminiAgent implements AiProviderInterface
                     $calledTools[] = $callSignature;
 
                     $executeArgs = json_decode($functionArgsString, true);
-                    if ($executeArgs === null && json_last_error() !== JSON_ERROR_NONE) {
-                        Log::warning("AI generated invalid JSON for tool call: {$functionName}", ['args' => $functionArgsString, 'error' => json_last_error_msg()]);
+                    $jsonLastError = json_last_error();
+                    $jsonLastErrorMsg = json_last_error_msg();
+                    if ($executeArgs === null && $jsonLastError !== JSON_ERROR_NONE) {
+                        Log::warning("AI generated invalid JSON for tool call: {$functionName}", ['args' => $functionArgsString, 'error' => $jsonLastErrorMsg]);
                         $messages[] = [
                             'role' => 'tool',
                             'tool_call_id' => $toolCallId,
-                            'content' => json_encode(['status' => 'error', 'message' => "SYSTEM EXCEPTION: Dein JSON-Format für die Argumente ist ungültig (Parse Error: " . json_last_error_msg() . "). Meistens passiert das, wenn du rohen HTML-Code übergibst und die Anführungszeichen bei class=\"...\" intern NICHT escaped hast! Du musst class=\\\"klassenname\\\" benutzen. BITTE KORRIGIERE DAS UND RUFE DAS TOOL ERNEUT AUF!"], JSON_UNESCAPED_UNICODE)
+                            'content' => json_encode(['status' => 'error', 'message' => "SYSTEM EXCEPTION: Dein JSON-Format für die Argumente ist ungültig (Parse Error: " . $jsonLastErrorMsg . "). Meistens passiert das, wenn du rohen HTML-Code übergibst und die Anführungszeichen bei class=\"...\" intern NICHT escaped hast! Du musst class=\\\"klassenname\\\" benutzen. BITTE KORRIGIERE DAS UND RUFE DAS TOOL ERNEUT AUF!"], JSON_UNESCAPED_UNICODE)
                         ];
                         continue;
                     }

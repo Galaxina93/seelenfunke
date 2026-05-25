@@ -2329,8 +2329,8 @@ trait AiSystemFuncs
             }
 
             $adminId = session('current_admin_id', 1); // Fallback to 1 if session not set in CLI/AI context
-            if (\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
-                $adminId = \Illuminate\Support\Facades\Auth::guard('admin')->id();
+            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
             }
 
             $generatedFilePath = null;

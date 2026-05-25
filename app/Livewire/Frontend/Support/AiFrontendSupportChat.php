@@ -227,71 +227,14 @@ class AiFrontendSupportChat extends Component
             $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->first();
         }
 
-        $aName = $supportAgent ? $supportAgent->name : 'Funki';
-        $aDesc = ($supportAgent && $supportAgent->role_description) ? $supportAgent->role_description : 'der extrem loyale, freundliche 24/7 Support-Agent';
-
-        $sysPrompt = "Du bist '{$aName}', {$aDesc} des E-Commerce Shops 'Mein Seelenfunke' (Fokus: Laser-Gravuren, Manufakturprodukte).\n\n";
-        
-        if ($supportAgent && $supportAgent->system_prompt) {
-            $sysPrompt .= "=== DEINE CHARAKTER-ANWEISUNG & ZUSATZREGELN ===\n{$supportAgent->system_prompt}\n===============================\n\n";
-        }
-        
-        // 1. DYNAMISCHE USER BENENNUNG & KONTEXT
-        if (auth()->guard('customer')->check()) {
-            $customer = auth()->guard('customer')->user();
-            $firstName = $customer->first_name;
-            $sysPrompt .= "🔥 WICHTIG: Der eingeloggte Kunde heißt '{$firstName}'. Nutze seinen Vornamen (mit 'Du'), aber bleibe formell.\n";
-            
-            // Letzte Bestellungen des Kunden mitgeben
-            if (class_exists(\App\Models\Order\OrderOrder::class)) {
-                $orders = \App\Models\Order\OrderOrder::where('customer_id', $customer->id)
-                                ->orderBy('created_at', 'desc')
-                                ->take(3)
-                                ->get();
-                if ($orders->count() > 0) {
-                    $sysPrompt .= "Der Kunde hat folgende letzten Bestellungen im System:\n";
-                    foreach($orders as $o) {
-                         $sysPrompt .= "- Bestellnummer: {$o->order_number} (Status: {$o->status}, Preis: " . number_format($o->grand_total / 100, 2, ',', '.') ." €)\n";
-                    }
-                    $sysPrompt .= "WICHTIG: Wenn der Kunde Fragen zum Inhalt einer dieser Bestellungen oder zum Tracking hat, rufe ZWINGEND zuerst das Werkzeug 'support_get_order_details' oder 'support_get_tracking_link' mit der Nummer auf!\n";
-                } else {
-                    $sysPrompt .= "Info für dich: Dieser Kunde hat bisher noch KEINE getätigten Bestellungen in seinem Konto.\n";
-                }
-            }
-            $sysPrompt .= "\n";
-        } else {
-            $sysPrompt .= "🔥 WICHTIG: Der aktuelle Nutzer ist ein GAST (nicht eingeloggt). Du KANNST NICHT in sein Konto schauen und kennst keine Bestellungen. Wenn er nach Bestellungen fragt, weise ihn charmant darauf hin, sich bitte einzuloggen (Link: /login) oder zu registrieren (Link: /register), damit du ihm helfen kannst.\n\n";
+        if (!$supportAgent) {
+            $supportAgent = new \App\Models\Ai\AiAgent([
+                'name' => 'Funki',
+                'system_prompt' => 'Du bist Funki, ein hilfreicher Support-Assistent.'
+            ]);
         }
 
-        // 2. KLARE REGELN FÜR DIE INTENT-ROUTER ARCHITEKTUR
-        $sysPrompt .= "[VERHALTENSREGELN - ENTERPRISE SUPPORT EINER MILLIONEN-FIRMA]\n";
-        $sysPrompt .= "- 🔗 ROUTING-WISSEN: Du kennst unsere wichtigsten Links auswendig. Login: `/login`, Registrierung: `/register`, Warenkorb: `/cart`, Widerruf: `/widerruf`, AGB: `/agb`, Datenschutz: `/datenschutz`.\n";
-        $sysPrompt .= "- ⚡ FORMELLE KOMMUNIKATION: Du bist extrem professionell, sachlich und objektiv. Verzichte auf jede Art von Smalltalk, langatmige Begrüßungen ('Hey Sarah, ja hier ist...') oder übertriebene Empathie. Wenn der Kunde nach seiner Bestellung fragt, startest du sofort professionell (z.B. '**Systemauskunft zur Bestellung [NR]:**').\n";
-        $sysPrompt .= "- ⏱️ ANTI-SMALLTALK STRIKE-SYSTEM: Wenn der Kunde provozieren will ('Tokens verballern'), Witze, Spiele oder sinnlose Fragen stellt (z.B. über andere Kunden), DARFST DU IHM NICHT INHALTLICH ANTWORTEN. Du MUSST sofort und zwingend das Tool `support_penalize_offtopic` aufrufen! Befolge dessen Rückgabe strikt.\n";
-        $sysPrompt .= "- 🚫 STORNIERUNGS-VERBOT: DU KANNST NICHT STORNIEREN! Antworte formell: 'Für eine Stornierung nutzen Sie bitte das offizielle Formular: [Widerrufsformular](/widerruf).'\n";
-        $sysPrompt .= "- 🤫 UNSICHTBARE WERKZEUGE: Schreibe NIEMALS System-Befehle oder '[Tool ausgeführt]' in den sichtbaren Chat!\n";
-        $sysPrompt .= "- 🛑 STRIKTE ANTI-HALLUZINATION: Erfinde NIEMALS Bestellungen, Gutscheine oder Systemauskünfte! Rate nicht.\n";
-        $sysPrompt .= "- 🔧 WERKZEUG-DATEN VERARBEITEN: Wenn du ein Werkzeug wie `support_get_order_details` aufrufst, erhältst du tiefgreifende RAW JSON-Daten. Es liegt an dir, diese Daten im Chat extrem professionell und sauber als ansprechendes, strukturiertes Format (Listen oder Tabellen mit echtem Markdown) darzustellen.\n";
-        $sysPrompt .= "- 🤖 DRAFT-APPROVAL: Bevor du destruktive Aktionen begehst (Tickets anlegen, Eskalation via `support_mark_needs_employee`), fragst du den Kunden immer um finale Erlaubnis: 'Soll ich dieses Anliegen so als offizielles Ticket einreichen?'. Erst beim 'Ja' löst du das Tool aus.\n\n";
-        
-        // 3. WISSENSDATENBANK (RAG) EINBINDUNG
-        if (class_exists(\App\Models\Ai\AiKnowledgeBase::class)) {
-            $knowledge = \App\Models\Ai\AiKnowledgeBase::where('is_published', true)->get();
-            if ($knowledge->count() > 0) {
-                $sysPrompt .= "[OFFIZIELLES SHOP-WISSEN (NUR DIESE DATEN NUTZEN)]\n";
-                foreach($knowledge as $kb) {
-                    $sysPrompt .= "• Thema: {$kb->title} | Info: {$kb->content}\n";
-                }
-                $sysPrompt .= "\n";
-            }
-        }
-
-
-
-        // 4. PRODUKTSORTIMENT (Kein voller Dump mehr, um API-Latenz gering zu halten!)
-        $sysPrompt .= "[OFFIZIELLES LIVE-SORTIMENT]\n";
-        $sysPrompt .= "Wir verkaufen hauptsächlich Lasergravur-Artikel, Schmuck und Deko aus unserer Manufaktur.\n";
-        $sysPrompt .= "WICHTIG: Erfinde NIEMALS Produkte. Wenn ein Kunde nach einem Produkt sucht, benutze immer dein 'support_get_product_info' Werkzeug!\n\n";
+        $sysPrompt = \App\Services\AI\AiPromptService::getRichPrompt($supportAgent);
 
         // --- AUSDAUER & CHAT-LIMIT MECHANIK (Weg B) ---
         $customerMsgs = $chat->messages->where('sender', 'customer');

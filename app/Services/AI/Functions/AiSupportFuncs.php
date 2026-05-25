@@ -374,11 +374,11 @@ trait AiSupportFuncs
     public static function executeGetMyTickets(array $args)
     {
         try {
-            if (auth()->guard('admin')->check()) {
+            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
                 return ['status' => 'error', 'message' => 'Du bist im Admin-Modus. Der Admin hat keine eigenen Tickets. Bitte nutze dein neues Tool admin_search_support_tickets!'];
             }
 
-            $customerId = auth()->guard('customer')->id();
+            $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Der Kunde ist nicht eingeloggt.'];
 
             $tickets = SupportTicket::where('customer_id', $customerId)->where('status', '!=', 'closed')->orderBy('created_at', 'desc')->take(3)->get();
@@ -405,8 +405,8 @@ trait AiSupportFuncs
 
             $query = SupportTicket::where('ticket_number', 'ILIKE', "%{$ticketNumber}%");
             
-            if (!auth()->guard('admin')->check()) {
-                $customerId = auth()->guard('customer')->id();
+            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
@@ -439,8 +439,8 @@ trait AiSupportFuncs
                   ->orWhere('customer_email', 'LIKE', "%{$identifier}%");
             });
 
-            if (!auth()->guard('admin')->check()) {
-                $customerId = auth()->guard('customer')->id();
+            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
                 }
@@ -468,11 +468,11 @@ trait AiSupportFuncs
     public static function executeGetCustomerOrders(array $args)
     {
         try {
-            if (auth()->guard('admin')->check()) {
+            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
                 return ['status' => 'error', 'message' => 'Du bist im Admin-Modus. Der Admin hat keine eigenen Bestellungen. Bitte frage explizit nach einer Bestellnummer oder suche den Kunden.'];
             }
 
-            $customerId = auth()->guard('customer')->id();
+            $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
 
             $orders = OrderOrder::where('customer_id', $customerId)->latest()->take(5)->get();
@@ -569,8 +569,8 @@ trait AiSupportFuncs
                 $chat = SupportCustomerChat::find($chatId);
                 if (!$chat) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Fehler - Konnte Chat ID nicht zuordnen.'];
 
-                $customerId = auth()->guard('customer')->id();
-                if (!$customerId && !auth()->check()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
+                if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Da du aktuell als Gast im Chat bist, müsstest du dich kurz einloggen oder registrieren, damit ich dies offiziell an einen Mitarbeiter weiterleiten kann.'];
                 }
 
@@ -652,8 +652,8 @@ trait AiSupportFuncs
 
             $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items');
 
-            if (!auth()->guard('admin')->check()) {
-                $customerId = auth()->guard('customer')->id();
+            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
                 }
@@ -714,8 +714,8 @@ trait AiSupportFuncs
 
             $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%");
 
-            if (!auth()->guard('admin')->check()) {
-                $customerId = auth()->guard('customer')->id();
+            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
@@ -753,10 +753,10 @@ trait AiSupportFuncs
     public static function executeGetGamificationStats(array $args)
     {
         try {
-            if (auth()->guard('admin')->check()) {
+            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Admin-Modus aktiv. Du kannst keine eigenen Gamification-Stats abrufen. Nutze admin_search_support_chats oder ähnliches.'];
             }
-            $customerId = auth()->guard('customer')->id();
+            $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde ist nicht eingeloggt.'];
 
             $stats = \App\Models\Customer\CustomerGamification::where('customer_id', $customerId)->first();
@@ -782,10 +782,10 @@ trait AiSupportFuncs
     public static function executeGetCustomerFullProfile(array $args)
     {
         try {
-            if (auth()->guard('admin')->check()) {
+            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Admin-Modus aktiv. Admins haben kein Kunden-Profil. Nutze admin_search_support_chats oder admin_search_support_tickets.'];
             }
-            $customerId = auth()->guard('customer')->id();
+            $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde nicht eingeloggt.'];
             }
@@ -912,8 +912,8 @@ trait AiSupportFuncs
 
             $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items');
 
-            if (!auth()->guard('admin')->check()) {
-                $customerId = auth()->guard('customer')->id();
+            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
@@ -965,7 +965,7 @@ trait AiSupportFuncs
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Es muss zwingend eine Bestellnummer und ein Grund (mit exaktem Artikelnamen) genannt werden!'];
             }
 
-            $customerId = auth()->guard('customer')->id();
+            $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich erst einloggen, um ein Reklamationsticket zu öffnen. Bitte ihn darum.'];
             }
@@ -1027,7 +1027,7 @@ trait AiSupportFuncs
 
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
-            $customerId = auth()->guard('customer')->id();
+            $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
             if (!$customerId) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich zum Ändern einloggen.'];
             }
@@ -1100,8 +1100,8 @@ trait AiSupportFuncs
 
             $query = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('invoices');
 
-            if (!auth()->guard('admin')->check()) {
-                $customerId = auth()->guard('customer')->id();
+            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
                 }
@@ -1165,7 +1165,7 @@ trait AiSupportFuncs
 
     public static function executeAdminSearchSupportChats(array $args)
     {
-        if (!auth()->guard('admin')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
         }
 
@@ -1203,7 +1203,7 @@ trait AiSupportFuncs
 
     public static function executeAdminGetRecentSupportChats(array $args)
     {
-        if (!auth()->guard('admin')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
         }
 
@@ -1241,7 +1241,7 @@ trait AiSupportFuncs
 
     public static function executeAdminAnalyzeSupportChat(array $args)
     {
-        if (!auth()->guard('admin')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
         }
 
@@ -1271,7 +1271,7 @@ trait AiSupportFuncs
 
     public static function executeAdminGetBadSupportChats(array $args)
     {
-        if (!auth()->guard('admin')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
         }
 
@@ -1307,7 +1307,7 @@ trait AiSupportFuncs
 
     public static function executeAdminGetSupportKpis(array $args)
     {
-        if (!auth()->guard('admin')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
         }
 
@@ -1340,7 +1340,7 @@ trait AiSupportFuncs
 
     public static function executeAdminSearchSupportTickets(array $args)
     {
-        if (!auth()->guard('admin')->check()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese tiefe Analyse ist nur für Administratoren verfügbar.'];
         }
 

@@ -22,7 +22,7 @@ class AnalyticsService
 {
     public function getHealthChecks(): array
     {
-        if (!auth()->guard('admin')->check()) return [];
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) return [];
 
         return array_filter([
             'inventory' => $this->checkInventory(),
@@ -308,9 +308,9 @@ class AnalyticsService
 
     private function checkUnassignedTx(): ?array
     {
-        if (!class_exists(\App\Models\Accounting\AccountingBankTransaction::class) || !auth('admin')->check()) return null;
-        $totalTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->count();
-        $unassignedTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', auth('admin')->id()); })->whereNull('assigned_by_type')->count();
+        if (!class_exists(\App\Models\Accounting\AccountingBankTransaction::class) || !\App\Services\AI\AiAuthHelper::isAdmin()) return null;
+        $totalTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', \App\Services\AI\AiAuthHelper::getAdminId()); })->count();
+        $unassignedTx = \App\Models\Accounting\AccountingBankTransaction::whereHas('account', function($q) { $q->where('is_active_for_analysis', true)->where('admin_id', \App\Services\AI\AiAuthHelper::getAdminId()); })->whereNull('assigned_by_type')->count();
         $status = $unassignedTx > 0 ? 'todo' : 'success';
         $msg = $unassignedTx > 0 ? $unassignedTx . ' unzugeordnet' : 'Alle sortiert';
         if ($totalTx === 0) { $msg = 'Keine Transaktionen gefunden'; $status = 'success'; }

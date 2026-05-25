@@ -56,14 +56,6 @@ class AiAgentService
         // Key-Reset nach array_filter
         $filteredSchema = array_values($filteredSchema);
 
-        $roleInfo = "";
-        if ($agent->role) {
-            $roleInfo = "\n\n[DEINE ZUGEWIESENE ROLLE & IDENTITÄT]\n" .
-                        "Rollen-Bezeichnung: " . $agent->role->name . "\n" .
-                        "Rollen-Beschreibung: " . ($agent->role->description ?? 'Keine spezifische Beschreibung definiert.') . "\n" .
-                        "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
-        }
-
         $timeInfo = "\n\n[SYSTEM-ZEIT & AKTUELLE MISSION]\n" .
                     "Die aktuelle Systemzeit ist: " . now()->format('d.m.Y H:i:s') . " Uhr.\n";
         
@@ -88,7 +80,7 @@ class AiAgentService
         return [
             'model' => $agent->model ?? 'gemini-2.5-flash',
             'temperature' => (float) ($agent->temperature ?? 0.4),
-            'system_prompt' => $agent->system_prompt . $roleInfo . $timeInfo,
+            'system_prompt' => \App\Services\AI\AiPromptService::getRichPrompt($agent) . $timeInfo,
             'tools' => empty($filteredSchema) ? null : $filteredSchema,
         ];
     }

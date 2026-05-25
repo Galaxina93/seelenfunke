@@ -63,6 +63,8 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val agentName by viewModel.agentName.collectAsState()
+    val userFirstName by viewModel.userFirstName.collectAsState()
 
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -80,7 +82,7 @@ fun ChatScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Funkira Chat",
+                            text = "$agentName Chat",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Cyan500
@@ -136,7 +138,7 @@ fun ChatScreen(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
 
                 items(messages) { message ->
-                    ChatMessageRow(message)
+                    ChatMessageRow(message, agentName)
                 }
 
                 if (isLoading) {
@@ -148,7 +150,7 @@ fun ChatScreen(
                             contentAlignment = Alignment.CenterStart
                         ) {
                             Text(
-                                text = "Funkira tippt...",
+                                text = "$agentName tippt...",
                                 fontSize = 13.sp,
                                 color = Emerald500,
                                 modifier = Modifier.padding(start = 12.dp)
@@ -180,7 +182,7 @@ fun ChatScreen(
                 OutlinedTextField(
                     value = textInput,
                     onValueChange = { textInput = it },
-                    placeholder = { Text("Schreibe Funkira...") },
+                    placeholder = { Text("Schreibe $agentName...") },
                     modifier = Modifier.weight(1f),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Cyan500,
@@ -219,7 +221,7 @@ fun ChatScreen(
 }
 
 @Composable
-fun ChatMessageRow(message: ChatMessage) {
+fun ChatMessageRow(message: ChatMessage, agentName: String) {
     val isUser = message.role == "user"
     val bubbleColor = if (isUser) Cyan500 else GlassWhite10
     val textColor = if (isUser) Slate900 else Slate50
@@ -253,7 +255,7 @@ fun ChatMessageRow(message: ChatMessage) {
         }
         
         Text(
-            text = if (isUser) "Du" else "Funkira",
+            text = if (isUser) "Du" else agentName,
             fontSize = 10.sp,
             color = Slate400,
             modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)

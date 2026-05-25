@@ -19,6 +19,12 @@ class ChatViewModel : ViewModel() {
     private val aiRepository = ServiceLocator.aiRepository
     private val authRepository = ServiceLocator.authRepository
 
+    private val _agentName = MutableStateFlow("Funkira")
+    val agentName: StateFlow<String> = _agentName.asStateFlow()
+
+    private val _userFirstName = MutableStateFlow("Alina")
+    val userFirstName: StateFlow<String> = _userFirstName.asStateFlow()
+
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(ChatMessage("assistant", "Hallo Alina! Ich bin bereit. Wie kann ich dir heute im Seelenfunke Dashboard helfen?"))
     )
@@ -31,6 +37,29 @@ class ChatViewModel : ViewModel() {
     val error: StateFlow<String?> = _error.asStateFlow()
 
     private var mediaPlayer: MediaPlayer? = null
+
+    init {
+        loadUserAndInitializeGreeting()
+    }
+
+    private fun loadUserAndInitializeGreeting() {
+        viewModelScope.launch {
+            authRepository.getCurrentUser().onSuccess { user ->
+                val isCustomer = user.user_type == "customer"
+                _userFirstName.value = user.first_name ?: (if (isCustomer) "Kunde" else "Alina")
+                _agentName.value = if (isCustomer) "Funki" else "Funkira"
+                
+                val greeting = if (isCustomer) {
+                    "Hallo ${_userFirstName.value}! Ich bin Funki, dein Seelenfunke Support-Assistent. Wie kann ich dir heute bei deinen Bestellungen helfen?"
+                } else {
+                    "Hallo ${_userFirstName.value}! Ich bin bereit. Wie kann ich dir heute im Seelenfunke Dashboard helfen?"
+                }
+                _messages.value = listOf(ChatMessage("assistant", greeting))
+            }.onFailure {
+                Log.e("ChatViewModel", "Fehler beim Laden des Benutzers: ${it.message}")
+            }
+        }
+    }
 
     fun sendMessage(content: String) {
         if (content.isBlank() || _isLoading.value) return

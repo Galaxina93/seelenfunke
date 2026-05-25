@@ -295,7 +295,7 @@ trait AiFinanceFuncs
 
     protected static function getAdminId()
     {
-        return auth()->guard('admin')->id() ?? \App\Models\Admin\Admin::first()->id;
+        return \App\Services\AI\AiAuthHelper::getAdminId() ?? \App\Models\Admin\Admin::first()->id;
     }
 
     public static function executeGetFinances(array $args)

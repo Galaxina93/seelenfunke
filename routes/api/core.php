@@ -6,7 +6,22 @@ use App\Models\System\SystemUserDevice;
 use App\Services\FunkiBotService;
 
 Route::get('/user', function (Request $request) {
-    return $request->user();
+    $user = $request->user();
+    if (!$user) {
+        return response()->json(['error' => 'Unauthenticated'], 401);
+    }
+
+    $type = 'customer';
+    if ($user instanceof \App\Models\Admin\Admin) {
+        $type = 'admin';
+    } elseif ($user instanceof \App\Models\Employee\Employee) {
+        $type = 'employee';
+    }
+
+    $userData = $user->toArray();
+    $userData['user_type'] = $type;
+
+    return response()->json($userData);
 });
 
 Route::post('/device/register', function (Request $request) {

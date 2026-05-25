@@ -162,8 +162,14 @@ class AIController extends Controller
         if ($agentId) {
             $aiAgent = \App\Models\Ai\AiAgent::find($agentId);
         } else {
-            $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first() 
-                ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            if (\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first();
+            } else {
+                $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first();
+            }
+            if (!$aiAgent) {
+                $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->first();
+            }
         }
         
         if (!$aiAgent) {
@@ -385,8 +391,9 @@ class AIController extends Controller
         if ($request->has('agent_id') && !empty($request->agent_id)) {
             $aiAgent = \App\Models\Ai\AiAgent::find($request->agent_id);
         }
-        if (!$aiAgent && auth('admin')->check()) {
-            $aiAgent = auth('admin')->user()->ai_agent;
+        if (!$aiAgent && \App\Services\AI\AiAuthHelper::isAdmin()) {
+            $user = auth()->user() ?: auth('admin')->user();
+            $aiAgent = $user ? $user->ai_agent : null;
         }
         if (!$aiAgent) {
             $aiAgent = \App\Models\Ai\AiAgent::first();
