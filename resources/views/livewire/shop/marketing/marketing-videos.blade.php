@@ -1020,7 +1020,6 @@
         </div>
     </div>
  
-</div>
  
 <!-- JAVASCRIPT ANIMATION timeline engine -->
 <script>
@@ -2170,3 +2169,4 @@ function videoEditor() {
     box-shadow: 0 0 10px var(--theme-color-50);
 }
 </style>
+</div>
