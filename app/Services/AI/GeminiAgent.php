@@ -470,10 +470,25 @@ class GeminiAgent implements AiProviderInterface
                                 // Tool Call Accumulation (Deltas over Stream)
                                 if (isset($delta['tool_calls'])) {
                                     foreach ($delta['tool_calls'] as $tc) {
-                                        $idx = $tc['index'] ?? 0;
+                                        $idx = $tc['index'] ?? null;
+                                        if ($idx === null) {
+                                            if (!empty($tc['id'])) {
+                                                $foundIdx = null;
+                                                foreach ($toolCallAccumulators as $i => $acc) {
+                                                    if (($acc['id'] ?? '') === $tc['id']) {
+                                                        $foundIdx = $i;
+                                                        break;
+                                                    }
+                                                }
+                                                $idx = $foundIdx !== null ? $foundIdx : count($toolCallAccumulators);
+                                            } else {
+                                                $idx = 0;
+                                            }
+                                        }
+
                                         if (!isset($toolCallAccumulators[$idx])) {
                                             $toolCallAccumulators[$idx] = [
-                                                'id' => uniqid('call_'),
+                                                'id' => $tc['id'] ?? uniqid('call_'),
                                                 'type' => 'function',
                                                 'function' => ['name' => '', 'arguments' => '']
                                             ];

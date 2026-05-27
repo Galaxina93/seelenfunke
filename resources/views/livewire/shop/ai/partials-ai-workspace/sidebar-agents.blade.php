@@ -87,9 +87,6 @@
                 <button wire:click="$set('activeWorkspaceView', 'knowledge-base')" class="w-full py-2 bg-gray-900 border border-gray-800 text-gray-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-white hover:bg-gray-800 hover:border-gray-700 transition-colors shadow-inner flex justify-center items-center gap-2">
                     <x-heroicon-o-book-open class="w-4 h-4"/> Wissensdatenbank
                 </button>
-                <button wire:click="clearChat" wire:confirm="Sicher, dass du den Chat-Verlauf restlos wipen möchtest?" class="w-full py-2 bg-red-900/20 text-red-500 border border-red-900/50 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-red-900/40 transition-colors">
-                    Chat & Tokens Leeren
-                </button>
             </div>
         </div>
 

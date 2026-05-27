@@ -83,7 +83,7 @@
                                             @endif
                                         </div>
                                     @endif
-                                    <div class="font-mono">{!! nl2br(e($msg['content'])) !!}</div>
+                                    <div class="font-mono">{!! nl2br(preg_replace('#(https?://[^\s()<>]+(?:[\w/]|(?:\([\w]+\))|(?:\))))#', '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-[var(--theme-color)] hover:text-white underline font-bold break-all">$1</a>', e($msg['content']))) !!}</div>
                                 @else
                                     <div class="ai-markdown-wrapper w-full custom-scrollbar font-sans" x-data="{ expanded: false, content: @js($msg['content']) }">
                                         <div class="relative">

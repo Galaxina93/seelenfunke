@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Audrey Feest</ram:Name>
+        <ram:Name>Quinn Reynolds</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>45341-9504</ram:PostcodeCode>
-          <ram:LineOne>87956 Efren Centers Apt. 061</ram:LineOne>
-          <ram:CityName>Heidenreichfurt</ram:CityName>
+          <ram:PostcodeCode>28557</ram:PostcodeCode>
+          <ram:LineOne>508 King Knolls</ram:LineOne>
+          <ram:CityName>West Juanaside</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>

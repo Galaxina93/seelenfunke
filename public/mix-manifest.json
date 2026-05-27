@@ -1,12 +1,8 @@
 {
-    "/js/app.js": "/js/app.js?id=4819bd1f9edb10209d3a9c7a6177b29d",
-    "/js/app.js.map": "/js/app.js.map?id=5f2b4b129d30839a0397a88a74244c6b",
-    "/js/admin-bundle.js": "/js/admin-bundle.js?id=548055216fde5c8c924b19b6cb6a10d3",
-    "/js/admin-bundle.js.map": "/js/admin-bundle.js.map?id=0d9807e7c0c1fe8807d9c1acf6bdfbe1",
-    "/css/app.css": "/css/app.css?id=b220cedc765a4734af21324277e57a97",
-    "/css/app.css.map": "/css/app.css.map?id=6bb35efbe6ce8397e2ad00637872ea96",
-    "/css/bootstrap.css": "/css/bootstrap.css?id=fb71a063a338e475fd88614d6e5fb6ea",
-    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366?id=9ad5aa740d7d5e6a0191b309b9b1986c",
-    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8?id=d1af9af6052c51b169be6c628ae99bb5",
-    "/css/bootstrap.css.map": "/css/bootstrap.css.map?id=5939ff2aa1cdd08dfe8a6c5000a4fcec"
+    "/js/app.js": "/js/app.js",
+    "/js/admin-bundle.js": "/js/admin-bundle.js",
+    "/css/app.css": "/css/app.css",
+    "/css/bootstrap.css": "/css/bootstrap.css",
+    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff2?92ea18a81d737146ff044ddb52010366",
+    "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8": "/fonts/vendor/bootstrap-icons/bootstrap-icons.woff?1295669cd4e305c97f2cfc16d56614b8"
 }

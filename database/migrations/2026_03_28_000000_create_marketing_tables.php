@@ -179,10 +179,32 @@ return new class extends Migration
                 ->on('products')
                 ->nullOnDelete();
         });
+
+        // Marketing Videos
+        Schema::create('marketing_videos', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('ai_agent_id')->nullable();
+            
+            $table->string('title');
+            $table->string('subtitle')->nullable();
+            $table->string('theme_color')->default('#C5A059');
+            $table->boolean('has_particles')->default(true);
+            $table->string('video_path')->nullable();
+            $table->json('config')->nullable();
+            
+            $table->string('status')->default('draft'); // draft, completed
+            $table->timestamps();
+
+            $table->foreign('ai_agent_id')
+                ->references('id')
+                ->on('ai_agents')
+                ->onDelete('set null');
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('marketing_videos');
         Schema::dropIfExists('marketing_google_ads_campaigns');
         Schema::dropIfExists('marketing_landing_pages');
         Schema::dropIfExists('marketing_instagram_posts');

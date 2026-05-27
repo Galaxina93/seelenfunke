@@ -78,10 +78,19 @@
                         catch(e) { highlightedCode = code.replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
                         return `<div class="my-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-950 text-xs font-mono max-w-full"><div class="px-3 py-1.5 bg-gray-900 border-b border-gray-800"><span class="text-gray-500 uppercase">${lang||'code'}</span></div><div class="p-4 overflow-x-auto custom-scrollbar max-w-full"><pre class="!bg-transparent !m-0 !p-0"><code class="hljs text-gray-300 leading-relaxed">${highlightedCode}</code></pre></div></div>`;
                     };
+
+                    renderer.link = function(...args) {
+                        let token = typeof args[0] === 'object' ? args[0] : null;
+                        let href = token ? token.href : args[0];
+                        let title = token ? token.title : args[1];
+                        let text = token ? token.text : args[2];
+                        let titleAttr = title ? `title="${title}"` : '';
+                        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-[var(--theme-color)] hover:text-white underline font-bold break-all" ${titleAttr}>${text}</a>`;
+                    };
                     
                     window.renderAiMarkdown = function(md) {
                         const html = marked.parse(md, { renderer });
-                        return DOMPurify.sanitize(html);
+                        return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
                     };
                     console.log('window.renderAiMarkdown initialized successfully.');
                 }

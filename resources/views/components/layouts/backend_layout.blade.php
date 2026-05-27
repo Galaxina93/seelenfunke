@@ -23,6 +23,17 @@
                 event.preventDefault(); // Fehler aus der Browser-Konsole filtern
             }
         });
+
+        // Unterdrückt die harmlose Three.js Warnung bezüglich mehrfacher Importe
+        (function() {
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('Multiple instances of Three.js')) {
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+        })();
     </script>
 
     @include("components.layouts.partials.frontend-error-tracker")

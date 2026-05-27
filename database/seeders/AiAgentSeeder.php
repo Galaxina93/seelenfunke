@@ -287,7 +287,8 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     array_column(AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name')
                 );
 
                 $teamleiterToolIds = AiTool::whereIn('identifier', $teamleiterAllowedTools)->pluck('id');
@@ -312,7 +313,9 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 'Marketing' => array_merge(
                     array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                    array_column(AIFunctionsRegistry::getAiVideoGenerateFuncsSchema(), 'name'),
+                    ['product_get_details']
                 ),
 
                 'Finanzmanager' => array_merge(
@@ -371,7 +374,8 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 'brain_save_entry', 'brain_search', 'brain_update_entry', 'brain_delete_entry',
                 'system_search_chat_history', 'system_close_ui',
                 'system_search_web', 'system_switch_agent',
-                'system_write_artifact', 'system_patch_artifact', 'system_read_clipboard', 'system_write_clipboard'
+                'system_write_artifact', 'system_patch_artifact', 'system_read_clipboard', 'system_write_clipboard',
+                'communication_list_agents', 'communication_find_agent_for_tool', 'communication_ask_agent'
             ],
                 // Weitere Arrays bei Bedarf hier einfügen
             );

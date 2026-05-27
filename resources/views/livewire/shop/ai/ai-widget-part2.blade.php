@@ -1183,12 +1183,7 @@
             },
 
             playClickSound() {
-                const clickAudio = document.getElementById('audio-funki-click');
-                if (clickAudio) {
-                    clickAudio.currentTime = 0;
-                    clickAudio.volume = 0.6;
-                    clickAudio.play().catch(e => console.log(e));
-                }
+                this.playAudio('click', 0.6);
             },
 
             // --- Multimodal Live API ---

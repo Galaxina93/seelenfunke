@@ -23,8 +23,8 @@
      @ai-show-camera.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; cameraWidget = d.open ? true : null; showFunkiView = true;"
      @ai-show-org-chart.window="console.log('ai-show-org-chart', $event.detail); orgChartWidget = $event.detail.payload || $event.detail; showFunkiView = true; isSecretMode = true;"
      @ai-transform-core.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isJarvis = (d.target === 'jarvis'); jarvisMinimized = false; if(isJarvis) { showJarvisFlash = true; setTimeout(() => showJarvisFlash = false, 100); setTimeout(() => jarvisMinimized = true, 1500); } updateJarvisMode();"
-     @ai-toggle-secret-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isSecretMode = d.open; if(isSecretMode) { new Audio('/shop/ai/sounds/top_secret/open_secret_mode.mp3').play().catch(e=>console.log(e)); if(!showFunkiView) { openFunkiView(false); } } else { new Audio('/shop/ai/sounds/top_secret/close_secret_mode.mp3').play().catch(e=>console.log(e)); }"
-     @ai-toggle-brain-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isBrainFocus = d.open; if(isBrainFocus) { new Audio('/shop/ai/sounds/project_brain/open_project_brain.mp3').play().catch(e=>console.log(e)); isBrainMode = true; isMapFocus = false; isSecretMode = false; if(!showFunkiView) openFunkiView(false); setTimeout(() => { if(window.initBrainMap) window.initBrainMap(); }, 100); } else { isBrainMode = false; }"
+     @ai-toggle-secret-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; let isSilent = (d && (d.silent || (d.payload && d.payload.silent))); if(d && d.payload) d = d.payload; isSecretMode = d.open; if(isSecretMode) { if(!isSilent) { let s = document.getElementById('audio-funki-secret-open'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } if(!showFunkiView) { openFunkiView(false); } } else { if(!isSilent) { let s = document.getElementById('audio-funki-secret-close'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } }"
+     @ai-toggle-brain-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; let isSilent = (d && (d.silent || (d.payload && d.payload.silent))); if(d && d.payload) d = d.payload; isBrainFocus = d.open; if(isBrainFocus) { if(!isSilent) { let s = document.getElementById('audio-funki-brain-open'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } isBrainMode = true; isMapFocus = false; isSecretMode = false; if(!showFunkiView) openFunkiView(false); setTimeout(() => { if(window.initBrainMap) window.initBrainMap(); }, 100); } else { isBrainMode = false; if(!isSilent) { let s = document.getElementById('audio-funki-unclick'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } }"
      @map-change-style.window="if(window.changeMapStyle) { window.changeMapStyle($event.detail.style); }"
      @ai-unshelf-widget.window="
         let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
@@ -1013,6 +1013,11 @@
     <audio id="audio-funki-heartbeat" src="{{ asset('shop/ai/sounds/ai_heartbeat.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
     <audio id="audio-funki-click" src="{{ asset('shop/ai/sounds/ai_click.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
     <audio id="audio-funki-unclick" src="{{ asset('shop/ai/sounds/ai_unclick.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-map-open" src="{{ asset('shop/ai/sounds/map_open.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-map-close" src="{{ asset('shop/ai/sounds/map_close.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-secret-open" src="{{ asset('shop/ai/sounds/top_secret/open_secret_mode.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-secret-close" src="{{ asset('shop/ai/sounds/top_secret/close_secret_mode.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-brain-open" src="{{ asset('shop/ai/sounds/project_brain/open_project_brain.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
 
     <!-- Unified Floating UI Panel (Mapped to 3D Space) -->
     <div id="diagnostic-panel"></div>

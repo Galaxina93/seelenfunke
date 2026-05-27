@@ -151,6 +151,49 @@
             },
 
             init() {
+                // Initialize Web Audio API for zero latency playback
+                try {
+                    window.funkiAudioContext = window.funkiAudioContext || new (window.AudioContext || window.webkitAudioContext)();
+                    window.funkiAudioBuffers = window.funkiAudioBuffers || {};
+                    
+                    const soundPaths = {
+                        'click': '/shop/ai/sounds/ai_click.mp3',
+                        'unclick': '/shop/ai/sounds/ai_unclick.mp3',
+                        'map-open': '/shop/ai/sounds/map_open.mp3',
+                        'map-close': '/shop/ai/sounds/map_close.mp3',
+                        'secret-open': '/shop/ai/sounds/top_secret/open_secret_mode.mp3',
+                        'secret-close': '/shop/ai/sounds/top_secret/close_secret_mode.mp3',
+                        'brain-open': '/shop/ai/sounds/project_brain/open_project_brain.mp3'
+                    };
+
+                    Object.entries(soundPaths).forEach(([key, path]) => {
+                        if (window.funkiAudioBuffers[key]) return;
+                        fetch(path)
+                            .then(response => response.arrayBuffer())
+                            .then(arrayBuffer => {
+                                if (window.funkiAudioContext) {
+                                    return window.funkiAudioContext.decodeAudioData(arrayBuffer);
+                                }
+                                throw new Error('AudioContext not initialized');
+                            })
+                            .then(audioBuffer => {
+                                window.funkiAudioBuffers[key] = audioBuffer;
+                            })
+                            .catch(e => console.warn('WebAudio failed to load sound:', key, e));
+                    });
+
+                    const resumeContext = () => {
+                        if (window.funkiAudioContext && window.funkiAudioContext.state === 'suspended') {
+                            window.funkiAudioContext.resume();
+                        }
+                    };
+                    document.addEventListener('click', resumeContext, { once: true });
+                    document.addEventListener('keydown', resumeContext, { once: true });
+                    document.addEventListener('touchstart', resumeContext, { once: true });
+                } catch(audioCtxErr) {
+                    console.warn('Web Audio API not supported or failed to init:', audioCtxErr);
+                }
+
                 if (this.allowVoiceInterruption === null) {
                     this.allowVoiceInterruption = !this.isMobile;
                 }
@@ -245,10 +288,6 @@
                         this.flightDataInterval = setInterval(() => this.fetchLiveFlightData(), 15000);
                         
                         this.generateCrisisData();
-                        
-                        const openAudio = new Audio('/shop/ai/sounds/ai_click.mp3');
-                        openAudio.volume = 0.4;
-                        openAudio.play().catch(e=>console.log(e));
                     } else {
                         if (this.flightDataInterval) clearInterval(this.flightDataInterval);
                         
@@ -264,15 +303,8 @@
                 this.$watch('isMapFocus', value => {
                     if (value) {
                         this.isMapMode = true;
-                        const openAudio = new Audio('/shop/ai/sounds/map_open.mp3');
-                        openAudio.volume = 0.6;
-                        openAudio.play().catch(e=>console.log(e));
-                        // Rotations-Schleife entfernt, da sie den flyTo-Zoom blockierte.
                     } else {
                         this.isMapMode = false;
-                        const closeAudio = new Audio('/shop/ai/sounds/map_close.mp3');
-                        closeAudio.volume = 0.6;
-                        closeAudio.play().catch(e=>console.log(e));
                     }
                 });
 
@@ -514,10 +546,51 @@
             },
 
             playUnclickSound() {
-                const unclickAudio = document.getElementById('audio-funki-unclick');
-                if (unclickAudio) {
-                    unclickAudio.currentTime = 0;
-                    unclickAudio.volume = 0.6;
-                    unclickAudio.play().catch(e => console.log(e));
+                this.playAudio('unclick', 0.6);
+            },
+
+            playAudio(key, volume = 0.6) {
+                // Resume AudioContext if suspended
+                if (window.funkiAudioContext && window.funkiAudioContext.state === 'suspended') {
+                    window.funkiAudioContext.resume().catch(e=>console.log(e));
+                }
+
+                // Try Web Audio API playback first
+                if (window.funkiAudioBuffers && window.funkiAudioBuffers[key] && window.funkiAudioContext) {
+                    try {
+                        const source = window.funkiAudioContext.createBufferSource();
+                        source.buffer = window.funkiAudioBuffers[key];
+                        
+                        const gainNode = window.funkiAudioContext.createGain();
+                        gainNode.gain.setValueAtTime(volume, window.funkiAudioContext.currentTime);
+                        
+                        source.connect(gainNode);
+                        gainNode.connect(window.funkiAudioContext.destination);
+                        
+                        source.start(0);
+                        return; // Web Audio playback successful, exit!
+                    } catch(playErr) {
+                        console.warn('Web Audio playback failed, falling back to HTML5', playErr);
+                    }
+                }
+
+                // Fallback: Map short key to DOM element ID
+                const fallbackMap = {
+                    'click': 'audio-funki-click',
+                    'unclick': 'audio-funki-unclick',
+                    'map-open': 'audio-funki-map-open',
+                    'map-close': 'audio-funki-map-close',
+                    'secret-open': 'audio-funki-secret-open',
+                    'secret-close': 'audio-funki-secret-close',
+                    'brain-open': 'audio-funki-brain-open'
+                };
+                
+                // Allow direct DOM ID play if passed directly
+                const elId = fallbackMap[key] || key;
+                const el = document.getElementById(elId);
+                if (el) {
+                    el.currentTime = 0;
+                    el.volume = volume;
+                    el.play().catch(e => console.log('playAudio HTML5 fallback failed for ' + elId, e));
                 }
             },

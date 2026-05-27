@@ -124,6 +124,17 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/marketing/landing-pages', \App\Livewire\Shop\Marketing\MarketingLandingPages::class)->name('admin.marketing-landing-pages');
     Route::get('/admin/marketing/instagram', \App\Livewire\Shop\Marketing\MarketingInstagram::class)->name('admin.marketing-instagram');
     Route::get('/admin/marketing/google-ads', \App\Livewire\Shop\Marketing\MarketingGoogleAds::class)->name('admin.marketing-google-ads');
+    Route::get('/admin/marketing/videos', \App\Livewire\Shop\Marketing\MarketingVideos::class)->name('admin.marketing-videos');
+    Route::get('/admin/marketing/videos/file/{id}', function ($id) {
+        $path = "marketing/marketing/videos/{$id}/video.webm";
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
+                'Content-Type' => 'video/webm',
+                'Cache-Control' => 'public, max-age=86400'
+            ]);
+        }
+        abort(404);
+    })->name('admin.marketing-videos.file');
     Route::get('/admin/marketing/instagram/file/{id}', function ($id) {
         $path = "marketing/marketing/instagram/posts/{$id}/image.jpg";
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
