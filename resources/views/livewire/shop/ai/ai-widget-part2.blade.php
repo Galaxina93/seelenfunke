@@ -1276,14 +1276,13 @@
 
                     this.liveWs.onerror = (error) => {
                         console.error('WebSocket Error:', error);
-                        alert('WebSocket Error aufgetreten (siehe Console).');
                         this.stopLiveMode();
                     };
 
                     this.liveWs.onclose = (event) => {
                         console.log('WebSocket Closed', event);
                         if (event.code !== 1000 && event.code !== 1005) {
-                            alert('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
+                            console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
                         }
                         this.stopLiveMode();
                     };

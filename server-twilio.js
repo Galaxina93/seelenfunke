@@ -192,6 +192,15 @@ function initGeminiLiveProxy(clientWs, creds) {
     googleWs.on('close', (code, reason) => {
         cleanup();
         debugLog(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${reason}`);
+        
+        // Log an Laravel senden
+        sendLogToBackend(
+            code === 1000 || code === 1005 ? 'info' : 'warning',
+            `Google Live API Verbindung geschlossen. Code: ${code}. Reason: ${reason ? reason.toString() : 'Keine'}`,
+            'websocket:disconnect:google',
+            { code, reason: reason ? reason.toString() : null }
+        );
+        
         safeClose(clientWs, code, reason);
     });
     
@@ -240,6 +249,15 @@ function initGeminiLiveProxy(clientWs, creds) {
     clientWs.on('close', (code, reason) => {
         cleanup();
         debugLog(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
+        
+        // Log an Laravel senden
+        sendLogToBackend(
+            code === 1000 || code === 1005 ? 'info' : 'warning',
+            `Client-WebSocket-Verbindung geschlossen. Code: ${code}. Reason: ${reason ? reason.toString() : 'Keine'}`,
+            'websocket:disconnect:client',
+            { code, reason: reason ? reason.toString() : null }
+        );
+        
         safeClose(googleWs, code, reason);
     });
     

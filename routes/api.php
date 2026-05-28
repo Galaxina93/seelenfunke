@@ -68,6 +68,46 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
             'started_at' => now(),
             'finished_at' => now(),
         ]);
+
+        // --- E-Mail Benachrichtigung an Admin bei Fehlern/Crashes oder abnormalen Abbrüchen ---
+        $isError = in_array($data['type'], ['crash', 'error']);
+        $isAbnormalDisconnect = ($data['type'] === 'warning' && isset($data['payload']['code']) && !in_array((int)$data['payload']['code'], [1000, 1005]));
+
+        if ($isError || $isAbnormalDisconnect) {
+            try {
+                $recipient = 'kontakt@mein-seelenfunke.de';
+                if (function_exists('shop_setting')) {
+                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
+                }
+
+                $subject = "⚠️ WEBSOCKET BRÜCKEN-FEHLER: " . ucfirst($data['type']);
+                if ($isAbnormalDisconnect) {
+                    $subject = "⚠️ WEBSOCKET VERBINDUNGSABBRUCH: Code " . $data['payload']['code'];
+                }
+
+                $body = "Hallo Admin,\n\n";
+                $body .= "Es wurde ein technisches Problem auf der WebSocket-Audiobrücke festgestellt.\n\n";
+                $body .= "--- Details ---\n";
+                $body .= "Typ: " . strtoupper($data['type']) . "\n";
+                $body .= "Zeit: " . now()->format('d.m.Y H:i:s') . " Uhr\n";
+                $body .= "Nachricht: " . $data['message'] . "\n\n";
+
+                if (!empty($data['payload'])) {
+                    $body .= "--- Systemdaten (Payload) ---\n";
+                    $body .= json_encode($data['payload'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n\n";
+                }
+
+                $body .= "Bitte prüfe die Systemlogs und starte ggf. die Node.js-Audiobrücke neu.\n\n";
+                $body .= "Herzliche Grüße,\nFunkira ✨ (System-Überwachung)";
+
+                \Illuminate\Support\Facades\Mail::to($recipient)->send(
+                    new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, 'Funkira', [], 'generic')
+                );
+            } catch (\Exception $mailEx) {
+                \Illuminate\Support\Facades\Log::error("Failed to send WebSocket error mail: " . $mailEx->getMessage());
+            }
+        }
+
         return response()->json(['status' => 'ok']);
     } catch (\Exception $e) {
         return response()->json(['status' => 'error', 'error' => $e->getMessage()], 500);
