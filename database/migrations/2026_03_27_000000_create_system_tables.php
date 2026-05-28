@@ -50,6 +50,7 @@ return new class extends Migration
                 $table->text('two_factor_recovery_codes')->nullable();
                 $table->timestamp('email_verified_at')->nullable();
                 $table->timestamp('last_seen')->nullable();
+                $table->string('last_ip', 45)->nullable();
                 $table->softDeletes();
                 $table->timestamps();
 
@@ -96,6 +97,7 @@ return new class extends Migration
                 $table->text('two_factor_recovery_codes')->nullable();
                 $table->timestamp('email_verified_at')->nullable();
                 $table->timestamp('last_seen')->nullable();
+                $table->string('last_ip', 45)->nullable();
                 $table->softDeletes();
                 $table->timestamps();
 
@@ -142,6 +144,7 @@ return new class extends Migration
                 $table->text('two_factor_recovery_codes')->nullable();
                 $table->timestamp('email_verified_at')->nullable();
                 $table->timestamp('last_seen')->nullable();
+                $table->string('last_ip', 45)->nullable();
                 $table->softDeletes();
                 $table->timestamps();
 

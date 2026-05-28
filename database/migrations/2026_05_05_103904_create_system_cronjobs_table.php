@@ -23,6 +23,20 @@ return new class extends Migration
             $table->string('status')->default('pending'); // success, error, pending
             $table->timestamps();
         });
+
+        // Seed default cronjobs
+        \Illuminate\Support\Facades\DB::table('system_cronjobs')->insertOrIgnore([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Unverifizierte Benutzer löschen',
+            'description' => 'Löscht alle unverifizierten Benutzer (Kunden, Mitarbeiter, Admins) nach 24 Stunden.',
+            'command' => 'system:delete-unverified-users',
+            'parameters' => null,
+            'schedule' => 'daily',
+            'is_active' => true,
+            'status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     /**

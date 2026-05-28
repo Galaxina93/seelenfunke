@@ -1,4 +1,4 @@
-<div class="space-y-6 md:space-y-8 pb-20 font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }};">
+<div class="space-y-6 md:space-y-8 pb-20 font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
 
     {{-- Table Area --}}
         {{-- Header --}}
@@ -229,10 +229,66 @@
                     <table class="w-full text-left border-collapse min-w-[1000px]">
                         <thead>
                         <tr class="bg-gray-950/80 border-b border-gray-800 text-[10px] font-black text-gray-500 uppercase tracking-widest shadow-inner">
-                            <th class="px-6 sm:px-8 py-6 w-[30%]">Identität</th>
-                            <th class="px-6 sm:px-8 py-6 w-[20%]">Status & Art</th>
-                            <th class="px-6 sm:px-8 py-6 w-[25%]">Standort & Kontakt</th>
-                            <th class="px-6 sm:px-8 py-6 w-[15%]">Intern / Login</th>
+                            <th wire:click="sortBy('identity')" class="px-6 sm:px-8 py-6 w-[25%] cursor-pointer hover:text-white transition-colors select-none">
+                                <div class="flex items-center gap-1">
+                                    Identität
+                                    @if($sortField === 'identity')
+                                        @if($sortDirection === 'asc')
+                                            <x-heroicon-m-chevron-up class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @else
+                                            <x-heroicon-m-chevron-down class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @endif
+                                    @endif
+                                </div>
+                            </th>
+                            <th wire:click="sortBy('status')" class="px-6 sm:px-8 py-6 w-[20%] cursor-pointer hover:text-white transition-colors select-none">
+                                <div class="flex items-center gap-1">
+                                    Status & Art
+                                    @if($sortField === 'status')
+                                        @if($sortDirection === 'asc')
+                                            <x-heroicon-m-chevron-up class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @else
+                                            <x-heroicon-m-chevron-down class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @endif
+                                    @endif
+                                </div>
+                            </th>
+                            <th wire:click="sortBy('location')" class="px-6 sm:px-8 py-6 w-[20%] cursor-pointer hover:text-white transition-colors select-none">
+                                <div class="flex items-center gap-1">
+                                    Standort & Kontakt
+                                    @if($sortField === 'location')
+                                        @if($sortDirection === 'asc')
+                                            <x-heroicon-m-chevron-up class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @else
+                                            <x-heroicon-m-chevron-down class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @endif
+                                    @endif
+                                </div>
+                            </th>
+                            <th wire:click="sortBy('ip')" class="px-6 sm:px-8 py-6 w-[10%] cursor-pointer hover:text-white transition-colors select-none">
+                                <div class="flex items-center gap-1">
+                                    IP-Adresse
+                                    @if($sortField === 'ip')
+                                        @if($sortDirection === 'asc')
+                                            <x-heroicon-m-chevron-up class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @else
+                                            <x-heroicon-m-chevron-down class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @endif
+                                    @endif
+                                </div>
+                            </th>
+                            <th wire:click="sortBy('login')" class="px-6 sm:px-8 py-6 w-[15%] cursor-pointer hover:text-white transition-colors select-none">
+                                <div class="flex items-center gap-1">
+                                    Intern / Login
+                                    @if($sortField === 'login')
+                                        @if($sortDirection === 'asc')
+                                            <x-heroicon-m-chevron-up class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @else
+                                            <x-heroicon-m-chevron-down class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                        @endif
+                                    @endif
+                                </div>
+                            </th>
                             <th class="px-6 sm:px-8 py-6 w-[10%] text-right">Aktionen</th>
                         </tr>
                         </thead>
@@ -283,8 +339,43 @@
                                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 shadow-[0_0_8px_currentColor]"></span>
                                                 <span class="text-emerald-400">Verifiziert</span>
                                             @else
-                                                <span class="w-1.5 h-1.5 rounded-full bg-orange-500 mr-2 shadow-[0_0_8px_currentColor]"></span>
-                                                <span class="text-orange-400">Unverifiziert</span>
+                                                <div class="flex flex-col gap-1.5">
+                                                    <div class="flex items-center">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-orange-500 mr-2 shadow-[0_0_8px_currentColor]"></span>
+                                                        <span class="text-orange-400">Unverifiziert</span>
+                                                    </div>
+                                                    @if(isset($user['created_at']))
+                                                        <div class="flex flex-col gap-1 w-full mt-1.5" x-data="{
+                                                            createdTs: {{ \Carbon\Carbon::parse($user['created_at'])->timestamp * 1000 }},
+                                                            total: 24 * 60 * 60 * 1000,
+                                                            countdown: '',
+                                                            progress: 0,
+                                                            init() { setInterval(() => this.update(), 1000); this.update(); },
+                                                            update() {
+                                                                let deleteTs = this.createdTs + this.total;
+                                                                let diff = Math.max(0, deleteTs - Date.now());
+                                                                if (diff === 0) { this.countdown = 'Sofort'; this.progress = 100; return; }
+                                                                
+                                                                let h = Math.floor(diff / 3600000);
+                                                                let m = Math.floor((diff % 3600000) / 60000);
+                                                                let s = Math.floor((diff % 60000) / 1000);
+                                                                let parts = [];
+                                                                if (h > 0) parts.push(h + 'h');
+                                                                if (m > 0 || h > 0) parts.push(m + 'm');
+                                                                parts.push(s + 's');
+                                                                this.countdown = parts.join(' ');
+                                                                
+                                                                let elapsed = Date.now() - this.createdTs;
+                                                                this.progress = Math.min(100, Math.max(0, (elapsed / this.total) * 100));
+                                                            }
+                                                        }">
+                                                            <span class="text-[9px] text-gray-500 font-bold normal-case tracking-normal">Wird gelöscht in: <span class="text-[color:var(--theme-color)] font-mono font-bold" x-text="countdown"></span></span>
+                                                            <div class="w-full max-w-[120px] h-1 bg-gray-950/60 rounded-full overflow-hidden border border-gray-800/40 shadow-inner">
+                                                                <div class="h-full bg-gradient-to-r from-[color:var(--theme-color)] to-[color:var(--theme-color-50)] transition-all duration-1000 ease-linear shadow-[0_0_10px_var(--theme-color-50)]" :style="`width: ${progress}%`"></div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                </div>
                                             @endif
                                         </div>
                                     </div>
@@ -299,6 +390,18 @@
                                             {{ $profile['street'] ?? '-' }} {{ $profile['house_number'] ?? '' }}<br>
                                             {{ mb_strlen($profile['phone_number'] ?? '') > 0 ? $profile['phone_number'] : '- Keine Nummer -' }}
                                         </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 sm:px-8 py-4 align-top">
+                                    <div class="text-xs font-mono font-bold text-gray-400 mt-1 select-all" title="Letzte bekannte IP">
+                                        @if(!empty($profile['last_ip']))
+                                            <div class="flex items-center gap-1.5 text-gray-300">
+                                                <x-heroicon-o-computer-desktop class="w-4 h-4 text-gray-500 shrink-0" />
+                                                <span>{{ $profile['last_ip'] }}</span>
+                                            </div>
+                                        @else
+                                            <span class="text-gray-600 text-[10px] uppercase font-bold tracking-wide">-</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top">
@@ -341,7 +444,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="px-8 py-32 text-center text-gray-500 font-serif text-xl italic">Keine Begleiter gefunden...</td></tr>
+                            <tr><td colspan="6" class="px-8 py-32 text-center text-gray-500 font-serif text-xl italic">Keine Begleiter gefunden...</td></tr>
                         @endforelse
                         </tbody>
                     </table>

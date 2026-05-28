@@ -6933,3 +6933,7 @@
 [2026-05-27T11:07:57.185Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"b55f8818-7ef6-47ce-b134-da399e716ece","resumable":true}}
 [2026-05-27T11:07:57.649Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1001)
 [2026-05-27T11:07:57.669Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-05-28T07:39:43.243Z] --- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V1) ---
+[2026-05-28T07:39:43.250Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-05-28T07:39:43.259Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-05-28T07:39:43.259Z] Erfolgreich gebunden auf Port 8081

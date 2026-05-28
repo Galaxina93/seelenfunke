@@ -15,7 +15,7 @@ class EmployeeProfile extends Model
         'id', 'employee_id', 'is_business', 'company_name', 'vat_id', 'internal_note',
         'photo_path', 'about', 'url', 'phone_number', 'street', 'house_number',
         'postal', 'city', 'country', 'two_factor_is_active', 'two_factor_secret',
-        'two_factor_recovery_codes', 'email_verified_at', 'last_seen'
+        'two_factor_recovery_codes', 'email_verified_at', 'last_seen', 'last_ip'
     ];
 
     public $incrementing = false;

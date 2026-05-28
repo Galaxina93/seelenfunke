@@ -27,7 +27,10 @@ class UserLastActivity
                 }
 
                 if ($user->profile) {
-                    $user->profile->update(['last_seen' => Carbon::now()]);
+                    $user->profile->update([
+                        'last_seen' => Carbon::now(),
+                        'last_ip' => $request->ip()
+                    ]);
                 }
 
                 break;

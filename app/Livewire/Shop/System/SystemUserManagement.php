@@ -24,6 +24,9 @@ class SystemUserManagement extends Component
     public $filterRole = 'all';
     public $showArchive = false;
 
+    public $sortField = 'last_seen';
+    public $sortDirection = 'desc';
+
     public $editingId = null;
     public $editingType = null;
 
@@ -47,7 +50,7 @@ class SystemUserManagement extends Component
         'is_verified' => true,
     ];
 
-    protected $queryString = ['search', 'filterRole', 'showArchive'];
+    protected $queryString = ['search', 'filterRole', 'showArchive', 'sortField', 'sortDirection'];
 
     public function toggleArchive()
     {
@@ -335,6 +338,17 @@ class SystemUserManagement extends Component
         ]);
     }
 
+    public function sortBy($column)
+    {
+        if ($this->sortField === $column) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $column;
+            $this->sortDirection = 'desc';
+        }
+        $this->resetPage();
+    }
+
     protected function getModelInstance($type, $id, $withTrashed = false)
     {
         $class = match($type) { 'admin' => Admin::class, 'customer' => Customer::class, 'employee' => Employee::class };
@@ -350,28 +364,94 @@ class SystemUserManagement extends Component
         }
 
         if ($this->search) {
-            $s = '%' . $this->search . '%';
-            $sId = $this->search . '%'; // Searching by start of UUID for customer number
-            $filter = function($q) use ($s, $sId) {
-                $q->where('first_name', 'like', $s)
-                    ->orWhere('last_name', 'like', $s)
-                    ->orWhere('email', 'like', $s)
-                    ->orWhere('id', 'like', $sId)
-                    ->orWhereHas('profile', function($pq) use ($s) {
-                        $pq->where('city', 'like', $s)->orWhere('company_name', 'like', $s);
+            $terms = explode(' ', $this->search);
+            foreach ($terms as $term) {
+                if (empty(trim($term))) continue;
+                $s = '%' . trim($term) . '%';
+                $sId = trim($term) . '%';
+                
+                $filter = function($q) use ($s, $sId) {
+                    $q->where(function($subQ) use ($s, $sId) {
+                        $subQ->where('first_name', 'like', $s)
+                            ->orWhere('last_name', 'like', $s)
+                            ->orWhere('email', 'like', $s)
+                            ->orWhere('id', 'like', $sId)
+                            ->orWhereHas('profile', function($pq) use ($s) {
+                                $pq->where('city', 'like', $s)
+                                    ->orWhere('company_name', 'like', $s)
+                                    ->orWhere('phone_number', 'like', $s)
+                                    ->orWhere('street', 'like', $s)
+                                    ->orWhere('house_number', 'like', $s)
+                                    ->orWhere('postal', 'like', $s)
+                                    ->orWhere('vat_id', 'like', $s)
+                                    ->orWhere('internal_note', 'like', $s);
+                            });
                     });
-            };
-            $queryAdmin->where($filter); $queryCustomer->where($filter); $queryEmployee->where($filter);
+                };
+                $queryAdmin->where($filter);
+                $queryCustomer->where($filter);
+                $queryEmployee->where($filter);
+            }
         }
 
         $results = collect();
-        if (in_array($this->filterRole, ['all', 'admin'])) $results = $results->merge($queryAdmin->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), ['user_type' => 'admin', 'last_seen' => $i->profile->last_seen ?? null])));
-        if (in_array($this->filterRole, ['all', 'customer'])) $results = $results->merge($queryCustomer->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), ['user_type' => 'customer', 'last_seen' => $i->profile->last_seen ?? null])));
-        if (in_array($this->filterRole, ['all', 'employee'])) $results = $results->merge($queryEmployee->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), ['user_type' => 'employee', 'last_seen' => $i->profile->last_seen ?? null])));
+        if (in_array($this->filterRole, ['all', 'admin'])) {
+            $results = $results->merge($queryAdmin->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), [
+                'user_type' => 'admin',
+                'last_seen' => $i->profile->last_seen ?? null,
+                'created_at' => $i->created_at ? $i->created_at->toDateTimeString() : null,
+                'profile' => $i->profile ? $i->profile->toArray() : []
+            ])));
+        }
+        if (in_array($this->filterRole, ['all', 'customer'])) {
+            $results = $results->merge($queryCustomer->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), [
+                'user_type' => 'customer',
+                'last_seen' => $i->profile->last_seen ?? null,
+                'created_at' => $i->created_at ? $i->created_at->toDateTimeString() : null,
+                'profile' => $i->profile ? $i->profile->toArray() : []
+            ])));
+        }
+        if (in_array($this->filterRole, ['all', 'employee'])) {
+            $results = $results->merge($queryEmployee->with('profile')->get()->map(fn($i) => array_merge($i->toArray(), [
+                'user_type' => 'employee',
+                'last_seen' => $i->profile->last_seen ?? null,
+                'created_at' => $i->created_at ? $i->created_at->toDateTimeString() : null,
+                'profile' => $i->profile ? $i->profile->toArray() : []
+            ])));
+        }
+
+        $descending = $this->sortDirection === 'desc';
+        switch ($this->sortField) {
+            case 'identity':
+                $items = $results->sortBy(function($user) {
+                    return strtolower($user['first_name'] . ' ' . $user['last_name']);
+                }, SORT_REGULAR, $descending);
+                break;
+            case 'status':
+                $items = $results->sortBy(function($user) {
+                    return !empty($user['profile']['email_verified_at']) ? 1 : 0;
+                }, SORT_REGULAR, $descending);
+                break;
+            case 'location':
+                $items = $results->sortBy(function($user) {
+                    return strtolower($user['profile']['city'] ?? '');
+                }, SORT_REGULAR, $descending);
+                break;
+            case 'ip':
+                $items = $results->sortBy(function($user) {
+                    return $user['profile']['last_ip'] ?? '';
+                }, SORT_REGULAR, $descending);
+                break;
+            case 'login':
+            default:
+                $items = $results->sortBy(function($user) {
+                    return $user['last_seen'] ?? '';
+                }, SORT_REGULAR, $descending);
+                break;
+        }
 
         $perPage = 15;
         $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
-        $items = $results->sortByDesc('last_seen');
         $pagedResults = new \Illuminate\Pagination\LengthAwarePaginator($items->forPage($currentPage, $perPage)->values(), $items->count(), $perPage, $currentPage, ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]);
 
         return view('livewire.shop.system.system-user-management', [
