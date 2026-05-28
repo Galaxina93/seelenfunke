@@ -50,7 +50,7 @@ class AiWidget extends Component
                     'volume' => 15,
                     'continuous_mode' => false,
                     'require_wake_word' => false,
-                    'allow_voice_interruption' => true
+                    'allow_voice_interruption' => false
                 ]
             );
             if (!$this->agentId && $this->widgetConfig->ai_agent_id) {

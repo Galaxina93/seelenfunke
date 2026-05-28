@@ -331,6 +331,15 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeGetSystemLogs']
             ],
             [
+                'name' => 'system_get_websocket_status',
+                'description' => 'Liest den Status der Node.js Audio-Brücke (Gemini Live WebSocket), prüft ob der Server erreichbar ist, liest die letzten Zeilen von bridge.log und zeigt eventuelle crash.log Fehler an. Stichworte: Websocket Status, Gemini Live Verbindung prüfen, Zeige Bridge Logs, Ist der WebSocket Server online, Suche nach Node Fehlern.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetWebSocketStatus']
+            ],
+            [
                 'name' => 'system_manage_logs',
                 'description' => 'System-Werkzeug zur Verwaltung (Lösen, Fehler markieren oder Löschen) von Logs. WICHTIG FÜR MASSEN-AKTIONEN: Wenn der Benutzer sagt "Lösche alle Fehler die X heißen" oder "Lösche alle frontend_error", dann MUSST du target_scope="all" setzen, action="delete" wählen und den passenden Suchparameter (z.B. search_type="frontend_error" oder error_message_contains="X") übergeben. Nur so werden mehrere Einträge auf einmal gelöscht!',
                 'parameters' => [
@@ -1743,6 +1752,75 @@ trait AiSystemFuncs
             return [
                 'status' => 'error',
                 'message' => 'Konnte Systemstatus nicht abrufen: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    public static function executeGetWebSocketStatus(array $args)
+    {
+        try {
+            $wsUrl = config('services.ai.gemini_proxy_ws_url') 
+                ?? env('GEMINI_PROXY_WS_URL') 
+                ?? 'ws://localhost:8089/gemini-live';
+                
+            // Parse URL to check host/port
+            $parsed = parse_url($wsUrl);
+            $scheme = $parsed['scheme'] ?? 'ws';
+            $host = $parsed['host'] ?? 'localhost';
+            $port = $parsed['port'] ?? ($scheme === 'wss' ? 443 : 80);
+            
+            // Ping port
+            $isOnline = false;
+            $pingError = '';
+            $fp = @fsockopen($host, $port, $errno, $errstr, 2.0);
+            if ($fp) {
+                $isOnline = true;
+                fclose($fp);
+            } else {
+                $pingError = "[$errno] $errstr";
+            }
+            
+            // Check bridge.log
+            $logPath = base_path('../twilio-bridge/bridge.log');
+            if (!file_exists($logPath)) {
+                $logPath = base_path('bridge.log');
+            }
+            
+            $logContent = 'Log-Datei nicht gefunden oder unzugänglich.';
+            if (file_exists($logPath)) {
+                $fileLines = file($logPath);
+                if ($fileLines !== false) {
+                    $recentLines = array_slice($fileLines, -100);
+                    $logContent = implode("", $recentLines);
+                }
+            }
+            
+            // Check crash.log
+            $crashLogPath = base_path('../twilio-bridge/crash.log');
+            if (!file_exists($crashLogPath)) {
+                $crashLogPath = base_path('crash.log');
+            }
+            
+            $crashContent = 'Keine Absturzberichte vorhanden.';
+            if (file_exists($crashLogPath)) {
+                $crashContent = file_get_contents($crashLogPath);
+            }
+            
+            return [
+                'status' => 'success',
+                'ws_url' => $wsUrl,
+                'host' => $host,
+                'port' => $port,
+                'is_online' => $isOnline,
+                'ping_error' => $pingError,
+                'crash_log' => $crashContent,
+                'bridge_log_tail' => $logContent
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Fehler bei der WebSocket-Diagnostik: ' . $e->getMessage()
             ];
         }
     }
