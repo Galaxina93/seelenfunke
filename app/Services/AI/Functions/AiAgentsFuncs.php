@@ -259,10 +259,24 @@ trait AiAgentsFuncs
             }
             
             $agent->update(['ai_department_id' => $dept->id]);
-            return ['status' => 'success', 'message' => "Erfolg: Agent {$agent->name} wurde erfolgreich in die Abteilung {$dept->name} verschoben.", 'ui_action' => 'reload_organigram'];
+            return [
+                'status' => 'success',
+                'message' => "Erfolg: Agent {$agent->name} wurde erfolgreich in die Abteilung {$dept->name} verschoben.",
+                '_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'structure-updated'
+                ]
+            ];
         } else {
             $agent->update(['ai_department_id' => null]);
-            return ['status' => 'success', 'message' => "Erfolg: Agent {$agent->name} wurde aus seiner Abteilung entfernt und ist nun ein freier Agent (Stabsstelle).", 'ui_action' => 'reload_organigram'];
+            return [
+                'status' => 'success',
+                'message' => "Erfolg: Agent {$agent->name} wurde aus seiner Abteilung entfernt und ist nun ein freier Agent (Stabsstelle).",
+                '_event' => [
+                    'type' => 'dispatch',
+                    'name' => 'structure-updated'
+                ]
+            ];
         }
     }
 

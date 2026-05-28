@@ -92,8 +92,12 @@ class GeminiAgent implements AiProviderInterface
         } elseif ($hasAskAgentTool) {
             $delegationsregel = "DELEGATIONSREGEL: Wenn dir eine Aufgabe gegeben wird, für die dir das passende Werkzeug fehlt, nutze 'communication_ask_agent', um im Hintergrund einen spezialisierten Kollegen zu fragen.\n";
         } else {
-            $delegationsregel = "ANTI-HALLUZINATIONS-REGEL: Wenn dir ein Werkzeug oder eine Fähigkeit für eine Anfrage fehlt (z.B. E-Mails senden, Preise ändern), entschuldige dich höflich und weise darauf hin, dass du als KI-Support-Bot diese Aktion nicht ausführen kannst. TUE NIEMALS SO, als ob du eine Aktion im Hintergrund ausdrust oder an einen Kollegen weiterleitest, wenn du die Werkzeuge dafür nicht hast!\n";
+            $delegationsregel = "ANTI-HALLUZINATIONS-REGEL: Wenn dir ein Werkzeug oder eine Fähigkeit für eine Anfrage fehlt (z.B. E-Mails senden, Preise ändern), entschuldige dich höflich und weise darauf hin, dass du als KI-Support-Bot diese Aktion nicht ausführen kannst. TUE NIEMALS SO, als ob du eine Aktion im Hintergrund ausführst oder an einen Kollegen weiterleitest, wenn du die Werkzeuge dafür nicht hast!\n";
         }
+
+        // --- Globale Regel zur reaktiven Natur des KI-Systems ---
+        $systemPromptText .= "\n\n[REAKTIVE SYSTEMREGELN]\n" .
+                             "Du bist ein rein reaktives System ohne Hintergrundprozesse oder kontinuierliche Arbeitsphasen. Du führst Werkzeuge immer sofort und einmalig während deiner aktuellen Generierung aus. Verspreche NIEMALS, im Hintergrund weiterzuarbeiten, und benutze niemals Sätze wie 'Ich arbeite noch daran', 'Ich kümmere mich später darum', 'Ich melde mich gleich wieder' oder 'Ich schaue gleich nach'. Jede Aufgabe muss in deiner aktuellen Antwort sofort und final abgeschlossen werden.\n";
 
         // Füge fixierte Kontext-Informationen an den dynamischen Prompt an
         $systemPromptText .= "\n\n[SYSTEM-KONTEXT & PRIORITÄTEN]\n" .

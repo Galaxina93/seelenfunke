@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Ai;
 
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 
 use App\Models\Ai\AiDepartment;
 use App\Models\Ai\AiRole;
@@ -52,6 +53,7 @@ class AiCompanyStructure extends Component
         $this->loadStructure();
     }
 
+    #[On('structure-updated')]
     public function loadStructure()
     {
         $this->departments = AiDepartment::with(['agents.role'])->orderBy('order_index')->get();
