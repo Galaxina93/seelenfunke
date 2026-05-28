@@ -12,6 +12,7 @@ class AiAgent extends Model
 
     protected $fillable = [
         'ai_role_id',
+        'ai_department_id',
         'name',
         'wake_word',
         'role_description',

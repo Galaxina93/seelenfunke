@@ -258,7 +258,9 @@ trait AiAgentsFuncs
                 return ['status' => 'error', 'message' => "Fehler: Abteilung '$deptName' nicht gefunden. Prüfe das Organigramm per get_ai_company_structure."];
             }
             
-            $agent->update(['ai_department_id' => $dept->id]);
+            $agent->ai_department_id = $dept->id;
+            $agent->save();
+            
             return [
                 'status' => 'success',
                 'message' => "Erfolg: Agent {$agent->name} wurde erfolgreich in die Abteilung {$dept->name} verschoben.",
@@ -268,7 +270,9 @@ trait AiAgentsFuncs
                 ]
             ];
         } else {
-            $agent->update(['ai_department_id' => null]);
+            $agent->ai_department_id = null;
+            $agent->save();
+            
             return [
                 'status' => 'success',
                 'message' => "Erfolg: Agent {$agent->name} wurde aus seiner Abteilung entfernt und ist nun ein freier Agent (Stabsstelle).",
