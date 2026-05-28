@@ -123,6 +123,16 @@ class ManagementTask extends Component
         }
     }
 
+    public function updateTaskRelevantFrom($id, $dateString)
+    {
+        $task = TaskModel::find($id);
+        if ($task) {
+            $task->update([
+                'relevant_from' => empty($dateString) ? null : \Carbon\Carbon::parse($dateString)->startOfDay()
+            ]);
+        }
+    }
+
     public function toggleComplete($id)
     {
         $task = TaskModel::find($id);

@@ -245,8 +245,23 @@
                                                 class="w-full text-sm font-bold bg-gray-950 border border-[var(--theme-color-30)] rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] -ml-2 -mt-1 text-white shadow-inner"
                                                 x-cloak>
 
-                                        <div x-show="!isEditing" class="text-[9px] text-[var(--theme-color-50)] font-black uppercase tracking-widest mt-1">
-                                            Offen seit: {{ str_replace([' Sekunden', ' Minuten', ' Stunden', ' Tagen'], [' Sek.', ' Min.', ' Std.', ' T.'], $task->created_at->diffForHumans(now(), \Carbon\CarbonInterface::DIFF_ABSOLUTE)) }}
+                                        <div x-show="!isEditing" class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-[9px] font-black uppercase tracking-widest">
+                                            <div class="text-[var(--theme-color-50)]">
+                                                Offen seit: {{ str_replace([' Sekunden', ' Minuten', ' Stunden', ' Tagen'], [' Sek.', ' Min.', ' Std.', ' T.'], $task->created_at->diffForHumans(now(), \Carbon\CarbonInterface::DIFF_ABSOLUTE)) }}
+                                            </div>
+
+                                            <div x-data="{ isEditingDate: false, tempDate: '{{ $task->relevant_from ? $task->relevant_from->format('Y-m-d') : '' }}' }" class="relative flex items-center">
+                                                <button type="button" x-show="!isEditingDate" @click="isEditingDate = true" 
+                                                        class="flex items-center gap-1 hover:text-[var(--theme-color)] transition-colors {{ $task->relevant_from ? 'text-amber-500' : 'text-gray-500' }}"
+                                                        title="Relevanzdatum festlegen/ändern">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>
+                                                    <span>{{ $task->relevant_from ? 'Relevant ab: ' . $task->relevant_from->format('d.m.Y') : 'Planen' }}</span>
+                                                </button>
+                                                <input x-show="isEditingDate" x-ref="dateInput" type="date" x-model="tempDate"
+                                                       @change="isEditingDate = false; $wire.updateTaskRelevantFrom('{{ $task->id }}', tempDate)"
+                                                       @click.away="isEditingDate = false"
+                                                       class="bg-gray-950 border border-[var(--theme-color-30)] rounded px-1.5 py-0.5 text-[9px] text-white shadow-inner font-sans outline-none">
+                                            </div>
                                         </div>
                                     </div>
 

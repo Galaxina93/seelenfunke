@@ -237,6 +237,10 @@ class AiSupportService
         // ------------------------------------------------------------------
         $nextTask = ManagementTask::where('is_completed', false)
             ->whereNull('parent_id')
+            ->where(function($query) {
+                $query->whereNull('relevant_from')
+                      ->orWhere('relevant_from', '<=', now());
+            })
             ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
             ->orderBy('created_at', 'desc')
             ->first();

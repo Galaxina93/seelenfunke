@@ -114,6 +114,7 @@ class ManagementTaskSeeder extends Seeder
                     'is_completed' => false,
                     'position' => $position,
                     'priority' => 'niedrig',
+                    'relevant_from' => '2026-08-01 00:00:00',
                     'created_at' => $taskTime,
                     'updated_at' => $taskTime,
                 ];

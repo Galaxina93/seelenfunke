@@ -6,16 +6,42 @@ import wavefile from 'wavefile';
 const { WaveFile } = wavefile; 
 
 import fs from 'fs';
-
-process.on('uncaughtException', (err) => {
-    fs.writeFileSync('crash.log', err.stack || err.toString());
-    process.exit(1);
-});
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+// Zuerst dotenv konfigurieren, damit APP_URL sofort verfügbar ist
+dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Sende Log-Einträge an das Laravel System-Log
+function sendLogToBackend(type, message, actionId, payload = {}) {
+    const backendUrl = process.env.APP_URL || 'http://localhost';
+    fetch(`${backendUrl}/api/log/websocket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            type: type, // 'crash', 'error', 'info', 'warning'
+            message: message,
+            action_id: actionId || `ws_${type}_${Date.now()}`,
+            payload: payload
+        })
+    }).catch(e => console.error("Error sending log to backend:", e.message));
+}
+
+process.on('uncaughtException', (err) => {
+    const stack = err.stack || err.toString();
+    fs.writeFileSync(join(__dirname, 'crash.log'), stack);
+    console.error('CRITICAL UNCAUGHT EXCEPTION:', stack);
+    
+    // Crash-Log an Laravel senden
+    sendLogToBackend('crash', `WebSocket-Server Absturz (uncaughtException): ${err.message || err}`, 'websocket:crash', { stack: stack });
+    
+    setTimeout(() => {
+        process.exit(1);
+    }, 800);
+});
 
 function debugLog(msg, err) {
     const timestamp = new Date().toISOString();
@@ -36,6 +62,11 @@ function debugLog(msg, err) {
     } catch (e) {
         console.error('Logging to bridge.log failed:', e.message);
     }
+
+    // Integriere Fehlermeldungen direkt ins globale System-Log
+    if (err) {
+        sendLogToBackend('error', formattedMsg, 'websocket:error', { msg: msg, error: err.toString(), stack: err.stack });
+    }
 }
 
 // Log-Rotation beim Start
@@ -51,9 +82,8 @@ try {
     console.error('Fehler bei Log-Rotation:', e.message);
 }
 
-debugLog("--- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V1) ---");
-
-dotenv.config();
+debugLog("--- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V2) ---");
+sendLogToBackend('info', 'Node.js Audio-Brücke erfolgreich gestartet.', 'websocket:start');
 
 const PORT = process.env.PORT || process.env.TWILIO_WS_PORT || 8081;
 const GOOGLE_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -79,6 +109,30 @@ function isSendableCloseCode(code) {
         return true;
     }
     return false;
+}
+
+function safeClose(ws, code, reason) {
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) return;
+    try {
+        if (isSendableCloseCode(code)) {
+            let cleanReason = undefined;
+            if (reason) {
+                cleanReason = reason.toString();
+                // Close reason must not be longer than 123 bytes UTF-8 encoded
+                if (Buffer.byteLength(cleanReason, 'utf8') > 123) {
+                    cleanReason = cleanReason.substring(0, 100) + '...';
+                }
+            }
+            ws.close(code, cleanReason);
+        } else {
+            ws.close();
+        }
+    } catch (e) {
+        debugLog('Fehler beim sicheren Schließen des WebSockets:', e);
+        try {
+            ws.close();
+        } catch (err) {}
+    }
 }
 
 function initGeminiLiveProxy(clientWs, creds) {
@@ -138,13 +192,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     googleWs.on('close', (code, reason) => {
         cleanup();
         debugLog(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${reason}`);
-        if (clientWs.readyState === WebSocket.OPEN) {
-            if (isSendableCloseCode(code)) {
-                clientWs.close(code, reason ? reason.toString() : undefined);
-            } else {
-                clientWs.close();
-            }
-        }
+        safeClose(clientWs, code, reason);
     });
     
     googleWs.on('error', (err) => {
@@ -192,21 +240,13 @@ function initGeminiLiveProxy(clientWs, creds) {
     clientWs.on('close', (code, reason) => {
         cleanup();
         debugLog(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
-        if (googleWs.readyState === WebSocket.OPEN) {
-            if (isSendableCloseCode(code)) {
-                googleWs.close(code, reason ? reason.toString() : undefined);
-            } else {
-                googleWs.close();
-            }
-        }
+        safeClose(googleWs, code, reason);
     });
     
     clientWs.on('error', (err) => {
         cleanup();
         debugLog('🧠 Gemini Live Proxy: Client WebSocket Fehler', err);
-        if (googleWs.readyState === WebSocket.OPEN) {
-            googleWs.close(1011, 'Client error');
-        }
+        safeClose(googleWs, 1011, 'Client error');
     });
 }
 

@@ -48,6 +48,32 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
     }
 });
 
+// --- WebSocket Bridge Error & Status Tracking ---
+Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
+    try {
+        $data = $request->validate([
+            'type' => 'required|string', // 'crash', 'error', 'info', 'warning'
+            'message' => 'required|string',
+            'action_id' => 'nullable|string',
+            'payload' => 'nullable|array'
+        ]);
+
+        \App\Models\System\SystemLog::create([
+            'type' => 'websocket',
+            'action_id' => $data['action_id'] ?? ('ws_' . uniqid()),
+            'title' => 'WebSocket Bridge ' . ucfirst($data['type']),
+            'message' => \Illuminate\Support\Str::limit($data['message'], 1000),
+            'status' => $data['type'] === 'crash' || $data['type'] === 'error' ? 'error' : 'success',
+            'payload' => $data['payload'] ?? [],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+        return response()->json(['status' => 'ok']);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error', 'error' => $e->getMessage()], 500);
+    }
+});
+
 // --- Telegram Webhooks ---
 Route::post('/telegram/webhook/{telegram_token}', [\App\Http\Controllers\Api\TelegramAgentController::class, 'handleWebhook'])
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class]);
