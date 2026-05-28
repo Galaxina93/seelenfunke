@@ -325,9 +325,9 @@ class GeminiAgent implements AiProviderInterface
         $modelName = strtolower($this->agent->model ?? 'gemini-2.5-flash');
 
         // AUTOMATIC MODEL UPGRADE / DOWNGRADE:
-        // 1.x models are deprecated. 3.x models are too unstable and cause 150s timeouts.
+        // 1.x models are deprecated. 3.x models (except GA 3.5+) are too unstable and cause 150s timeouts.
         // Force redirect to stable 2.5 architecture to ensure instant replies.
-        if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-3.') || str_contains($modelName, 'oss') || str_contains($modelName, 'stral')) {
+        if (str_starts_with($modelName, 'gemini-1.') || (str_starts_with($modelName, 'gemini-3.') && !str_starts_with($modelName, 'gemini-3.5')) || str_contains($modelName, 'oss') || str_contains($modelName, 'stral')) {
             $isPro = str_contains($modelName, 'pro');
             $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
             $payload['model'] = $modelName;
@@ -927,7 +927,7 @@ class GeminiAgent implements AiProviderInterface
             $url = rtrim($baseUrl, '/') . '/chat/completions';
 
             $modelName = strtolower($payload['model'] ?? 'gemini-1.5-flash');
-            if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-3.')) {
+            if (str_starts_with($modelName, 'gemini-1.') || (str_starts_with($modelName, 'gemini-3.') && !str_starts_with($modelName, 'gemini-3.5'))) {
                 $isPro = str_contains($modelName, 'pro');
                 $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
                 $payload['model'] = $modelName;

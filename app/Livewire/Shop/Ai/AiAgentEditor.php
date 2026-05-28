@@ -53,6 +53,7 @@ class AiAgentEditor extends Component
     ];
 
     public $availableModels = [
+        'gemini-3.5-flash' => 'Google Gemini 3.5 Flash',
         'gemini-2.5-pro' => 'Google Gemini 2.5 Pro (Standard)',
         'gemini-2.5-flash' => 'Google Gemini 2.5 Flash',
         'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro Preview'
@@ -75,6 +76,13 @@ class AiAgentEditor extends Component
     ];
 
     public $modelDetails = [
+        'gemini-3.5-flash' => [
+            'type' => 'Chat + Vision (Next-Gen GA)', 
+            'capabilities' => 'Text, Bild, Video, Tool-Calling', 
+            'context' => '1.000.000 Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Extreme Geschwindigkeit & Effizienz', 'Signifikant verbessertes Reasoning', 'Alltags-Begleiter mit State-of-the-Art Performance']
+        ],
         'gemini-2.5-pro' => [
             'type' => 'Chat + Reasoning + Vision', 
             'capabilities' => 'Text, Bild, Tool-Calling', 
