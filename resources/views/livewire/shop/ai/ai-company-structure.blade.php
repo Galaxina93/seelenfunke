@@ -80,7 +80,7 @@
              
         <div class="hidden" 
              x-on:department-saved.window="pulseDept = $event.detail.id; setTimeout(() => pulseDept = null, 2500)"
-             x-on:structure-updated.window="pulseLogo = true; setTimeout(() => pulseLogo = false, 800)">
+             x-on:structure-updated.window="pulseLogo = true; setTimeout(() => pulseLogo = false, 800); $wire.loadStructure()">
         </div>
 
         <div class="text-center mb-12">
