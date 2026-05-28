@@ -350,7 +350,11 @@
                                                             total: 24 * 60 * 60 * 1000,
                                                             countdown: '',
                                                             progress: 0,
-                                                            init() { setInterval(() => this.update(), 1000); this.update(); },
+                                                            init() {
+                                                                let timer = setInterval(() => this.update(), 1000);
+                                                                this.$cleanup(() => clearInterval(timer));
+                                                                this.update();
+                                                            },
                                                             update() {
                                                                 let deleteTs = this.createdTs + this.total;
                                                                 let diff = Math.max(0, deleteTs - Date.now());

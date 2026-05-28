@@ -23,5 +23,4 @@
     @include('livewire.shop.ai.ai-widget-part5', ['widgetAgent' => $widgetAgent, 'agentName' => $agentName, 'agentIsActive' => $agentIsActive, 'agentWakeWord' => $agentWakeWord, 'agentColor' => $agentColor])
     @include('livewire.shop.ai.ai-widget-part6', ['widgetAgent' => $widgetAgent, 'agentName' => $agentName, 'agentIsActive' => $agentIsActive, 'agentWakeWord' => $agentWakeWord, 'agentColor' => $agentColor])
     @include('livewire.shop.ai.ai-widget-part7-brain')
-    </div>
 </div>
