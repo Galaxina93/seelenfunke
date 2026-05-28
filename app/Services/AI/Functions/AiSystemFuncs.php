@@ -1469,6 +1469,15 @@ trait AiSystemFuncs
     public static function executeSystemCommand(array $args)
     {
         try {
+            if (!defined('STDIN')) {
+                define('STDIN', fopen('php://stdin', 'r'));
+            }
+            if (!defined('STDOUT')) {
+                define('STDOUT', fopen('php://stdout', 'w'));
+            }
+            if (!defined('STDERR')) {
+                define('STDERR', fopen('php://stderr', 'w'));
+            }
             if (empty($args['command'])) {
                 return ['status' => 'error', 'message' => 'Kein Befehl angegeben.'];
             }
