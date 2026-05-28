@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Diagnostic Tool - Seelenfunke Staging</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --primary: #8b5cf6;
+            --primary-hover: #a78bfa;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --text: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border: #1f2937;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.5rem;
+            margin: 0 0 0.5rem;
+            background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            font-weight: 500;
+            border-left: 4px solid transparent;
+        }
+
+        .alert-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border-left-color: var(--success);
+        }
+
+        .alert-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+            border-left-color: var(--error);
+        }
+
+        .alert-warning {
+            background-color: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border-left-color: var(--warning);
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .badge-error {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--error);
+        }
+
+        .badge-warning {
+            background-color: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0.5rem;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.875rem;
+            width: 40%;
+        }
+
+        td {
+            font-family: monospace;
+            font-size: 0.95rem;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .icon {
+            margin-right: 0.5rem;
+        }
+
+        .code-block {
+            background: #030712;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-top: 0.5rem;
+            font-family: monospace;
+            border: 1px solid var(--border);
+        }
+
+        .flex-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .flex-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Seelenfunke WebSockets</h1>
+            <div class="subtitle">Staging-Server Diagnose & Reparaturtool</div>
+        </header>Document
+
+        
+        <!-- NETZWERK-STATUS -->
+        <div class="card">
+            <div class="card-title">
+                <span>🌐 Netzwerk-Verbindungstest (Web-App zu Worker)</span>
+                                    <span class="badge badge-success">ERFOLGREICH VERBUNDEN</span>
+                            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Die Web-App versucht, eine TCP-Socket-Verbindung aufzubauen zu: <strong style="color: var(--text);">a-iurgq8:6001</strong>
+            </p>
+                            <div class="alert alert-success" style="margin-bottom: 0;">
+                    ✓ Der Reverb-Server antwortet auf dem Worker-Container <strong>a-iurgq8</strong>! Die Firewall und Portfreigaben sind in Ordnung.
+                </div>
+                    </div>
+
+        <!-- CLIENTSEITIGER WSS-TEST -->
+        <div class="card">
+            <div class="card-title">
+                <span>💻 Browser WSS-Verbindungstest</span>
+                <span id="wss-badge" class="badge badge-warning">TESTE...</span>
+            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Der Browser versucht, eine direkte WebSocket-Verbindung (WSS) aufzubauen zu: <strong style="color: var(--text);">wss://ws.mein-seelenfunke.de</strong>
+            </p>
+            <div id="wss-log" class="code-block" style="font-size: 0.85rem; max-height: 200px; overflow-y: auto;">
+                Starte Client-Verbindungstest...<br>
+            </div>
+        </div>
+
+        <!-- BROWSER GEMINI LIVE WS TEST -->
+        <div class="card">
+            <div class="card-title">
+                <span>🎙️ Browser Gemini-Live (Proxy) Verbindungstest</span>
+                <span id="gemini-badge" class="badge badge-warning">TESTE...</span>
+            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Der Browser versucht, eine direkte WebSocket-Verbindung zum Gemini-Live Proxy aufzubauen zu: <strong style="color: var(--text);">wss://api-live-bridge.mein-seelenfunke.de/gemini-live</strong>
+            </p>
+            
+            
+            <div id="gemini-log" class="code-block" style="font-size: 0.85rem; max-height: 200px; overflow-y: auto;">
+                Starte Gemini-Live Verbindungstest...<br>
+            </div>
+        </div>
+
+        <!-- NODE.JS BRIDGE LOGS -->
+        <div class="card">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>📋 Node.js Gemini Live Bridge Logs (letzte 150 Zeilen)</span>
+                <button onclick="loadBridgeLogs()" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; margin: 0; background-color: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Aktualisieren</button>
+            </div>
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Logs der Twilio-Gemini-Live-Bridge aus <code>/html/twilio-bridge/bridge.log</code>.
+            </p>
+            <div id="bridge-log-content" class="code-block" style="font-size: 0.85rem; max-height: 350px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; line-height: 1.4;">
+                Lade Logs...
+            </div>
+        </div>
+
+        <!-- SCHEDULER-STATUS -->
+        <div class="card">
+            <div class="card-title">
+                <span>⏰ Task-Scheduler & Cronjob Status</span>
+                                    <span class="badge badge-success">AKTIV (Heartbeat OK)</span>
+                            </div>
+            
+                            <p style="margin-top: 0; color: var(--text-muted);">
+                    Letzter erfolgreicher Scheduler-Lauf (im Cache): 
+                    <strong style="color: var(--text);">
+                        2026-05-28 16:32:02 (vor 0 Minuten)                    </strong>
+                </p>
+                
+                                
+                <h3 style="font-family: 'Outfit', sans-serif; font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.75rem;">Datenbank-Cronjobs (system_cronjobs):</h3>
+                <div style="overflow-x: auto;">
+                    <table style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">Befehl</th>
+                                <th>Schedule</th>
+                                <th>Aktiv?</th>
+                                <th>Letzter Lauf</th>
+                                <th>Status</th>
+                                <th>Sperre</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                                                                                <tr>
+                                        <td>
+                                            <strong>Newsletter Versand</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan send-newsletters </small>
+                                        </td>
+                                        <td><code>0 8 * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>IMAP E-Mail Fetch</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan crm:fetch-mails </small>
+                                        </td>
+                                        <td><code>everyFifteenSeconds</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Neujahrs Gutscheine</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan shop:generate-monthly-vouchers </small>
+                                        </td>
+                                        <td><code>5 0 1 1 *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>UStVA Autopilot</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan funki:generate-tax-export </small>
+                                        </td>
+                                        <td><code>0 2 5 * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>DHL Sendungsverfolgung</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan dhl:check-delivery-status </small>
+                                        </td>
+                                        <td><code>0 */4 * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td>2026-05-28 16:00:20</td>
+                                        <td>
+                                                                                            <span class="badge badge-success">success</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>System Herzschlag</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan system:heartbeat </small>
+                                        </td>
+                                        <td><code>* * * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td>2026-05-28 16:32:02</td>
+                                        <td>
+                                                                                            <span class="badge badge-success">success</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Datenbank Backup</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan backup:run --only-db</small>
+                                        </td>
+                                        <td><code>0 3 * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Backup Bereinigung</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan backup:clean </small>
+                                        </td>
+                                        <td><code>30 3 * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Kapazitäts-Engine</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan shop:capacity-engine </small>
+                                        </td>
+                                        <td><code>*/5 * * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td>2026-05-28 16:30:17</td>
+                                        <td>
+                                                                                            <span class="badge badge-success">success</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Auto-Resolve KI Chats</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan support:auto-resolve-chats </small>
+                                        </td>
+                                        <td><code>0 * * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td>2026-05-28 16:00:21</td>
+                                        <td>
+                                                                                            <span class="badge badge-success">success</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Warenkorb Erinnerungen</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan shop:send-abandoned-cart-reminders </small>
+                                        </td>
+                                        <td><code>*/5 * * * *</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td>2026-05-28 16:30:18</td>
+                                        <td>
+                                                                                            <span class="badge badge-success">success</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                    <tr>
+                                        <td>
+                                            <strong>Unverifizierte Benutzer löschen</strong><br>
+                                            <small style="color: var(--text-muted);">php artisan system:delete-unverified-users </small>
+                                        </td>
+                                        <td><code>daily</code></td>
+                                        <td>
+                                                                                            <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                                    </td>
+                                        <td><em style="color: var(--text-muted);">nie</em></td>
+                                        <td>
+                                                                                            <span class="badge badge-warning">pending</span>
+                                                                                    </td>
+                                        <td>
+                                                                                            <span class="badge badge-success">Frei</span>
+                                                                                    </td>
+                                    </tr>
+                                                                                    </tbody>
+                    </table>
+                </div>
+                    </div>
+
+        <!-- PHP CLI DIAGNOSTIK & INTERPRETER -->
+        <div class="card">
+            <div class="card-title">
+                <span>💻 PHP CLI & Interpreter Diagnostik</span>
+                                    <span class="badge badge-success">EXEC() AKTIV</span>
+                            </div>
+            
+            <p style="margin-top: 0; color: var(--text-muted);">
+                Der Laravel-Scheduler wird über Cronjobs auf der Kommandozeile (CLI) ausgeführt. Hier sind die auf dem Server getesteten PHP-Interpreter:
+            </p>
+
+                            <div style="overflow-x: auto;">
+                    <table style="font-size: 0.85rem; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="width: 20%;">Interpreter</th>
+                                <th style="width: 40%;">CLI PHP Version</th>
+                                <th style="width: 15%;">artisan -V</th>
+                                <th style="width: 15%;">proc_open</th>
+                                <th style="width: 10%;">Aktion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                                                            <tr>
+                                    <td><strong>/usr/bin/php</strong></td>
+                                    <td>
+                                                                                    <span style="color: var(--text);">PHP 8.4.18 (cli) (built: Feb 12 2026 08:48:31) (NTS)</span>
+                                            <br><small style="color: var(--success); font-weight: bold;">✓ Kompatibel (PHP 8.4+)</small>                                                                            </td>
+                                    <td>
+                                                                                    <span class="badge badge-success">OK</span>
+                                                                            <td>
+                                                                                    <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                            </td>
+                                    <td>
+                                                                                    <a href="?action=run_scheduler_cli&interpreter=%2Fusr%2Fbin%2Fphp" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 500; border-radius: 6px;">Simulation</a>
+                                                                            </td>
+                                </tr>
+                                                            <tr>
+                                    <td><strong>/usr/bin/php8.4</strong></td>
+                                    <td>
+                                                                                    <span style="color: var(--text-muted); font-style: italic;">Nicht gefunden oder nicht ausführbar</span>
+                                                                            </td>
+                                    <td>
+                                                                                <span class="badge badge-warning">n/a</span>
+                                                                        <td>
+                                                                                    <span style="color: var(--text-muted);">n/a</span>
+                                                                            </td>
+                                    <td>
+                                                                                    -
+                                                                            </td>
+                                </tr>
+                                                            <tr>
+                                    <td><strong>/usr/bin/php8.3</strong></td>
+                                    <td>
+                                                                                    <span style="color: var(--text-muted); font-style: italic;">Nicht gefunden oder nicht ausführbar</span>
+                                                                            </td>
+                                    <td>
+                                                                                <span class="badge badge-warning">n/a</span>
+                                                                        <td>
+                                                                                    <span style="color: var(--text-muted);">n/a</span>
+                                                                            </td>
+                                    <td>
+                                                                                    -
+                                                                            </td>
+                                </tr>
+                                                            <tr>
+                                    <td><strong>/usr/bin/php8.2</strong></td>
+                                    <td>
+                                                                                    <span style="color: var(--text-muted); font-style: italic;">Nicht gefunden oder nicht ausführbar</span>
+                                                                            </td>
+                                    <td>
+                                                                                <span class="badge badge-warning">n/a</span>
+                                                                        <td>
+                                                                                    <span style="color: var(--text-muted);">n/a</span>
+                                                                            </td>
+                                    <td>
+                                                                                    -
+                                                                            </td>
+                                </tr>
+                                                            <tr>
+                                    <td><strong>php</strong></td>
+                                    <td>
+                                                                                    <span style="color: var(--text);">PHP 8.4.18 (cli) (built: Feb 12 2026 08:48:31) (NTS)</span>
+                                            <br><small style="color: var(--success); font-weight: bold;">✓ Kompatibel (PHP 8.4+)</small>                                                                            </td>
+                                    <td>
+                                                                                    <span class="badge badge-success">OK</span>
+                                                                            <td>
+                                                                                    <span style="color: var(--success); font-weight: bold;">JA</span>
+                                                                            </td>
+                                    <td>
+                                                                                    <a href="?action=run_scheduler_cli&interpreter=php" class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 500; border-radius: 6px;">Simulation</a>
+                                                                            </td>
+                                </tr>
+                                                    </tbody>
+                    </table>
+                </div>
+                    </div>
+
+        <div class="flex-container">
+            <!-- WEB APP CONFIG -->
+            <div class="card">
+                <div class="card-title">
+                    <span>💻 Web-App .env</span>
+                    <span class="badge badge-warning" style="background-color: rgba(245, 158, 11, 0.1); color: var(--warning);">seelenfunke-stage</span>
+                </div>
+                <table>
+                    <tr>
+                        <th>APP_URL</th>
+                        <td>https://stage.mein-seelenfunke.de</td>
+                    </tr>
+                    <tr>
+                        <th>REVERB_HOST</th>
+                        <td>a-iurgq8</td>
+                    </tr>
+                    <tr>
+                        <th>REVERB_PORT</th>
+                        <td>6001</td>
+                    </tr>
+                    <tr>
+                        <th>REVERB_SERVER_PORT</th>
+                        <td>6001</td>
+                    </tr>
+                    <tr>
+                        <th>BROADCAST_CONNECTION</th>
+                        <td>reverb</td>
+                    </tr>
+                    <tr>
+                        <th>REVERB_APP_KEY</th>
+                        <td>seelenfunke-key</td>
+                    </tr>
+                    <tr>
+                        <th>GEMINI_PROXY_WS_URL</th>
+                        <td style="">
+                            wss://api-live-bridge.mein-seelenfunke.de/gemini-live                        </td>
+                    </tr>
+                    <tr>
+                        <th>TWILIO_WSS_URL</th>
+                        <td>wss://api-live-bridge.mein-seelenfunke.de/twilio-stream</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- WORKER CONFIG -->
+            <div class="card">
+                <div class="card-title">
+                    <span>👷 Worker-App .env</span>
+                    <span class="badge badge-warning" style="background-color: rgba(245, 158, 11, 0.1); color: var(--warning);">worker-stage-3</span>
+                </div>
+                                    <table>
+                        <tr>
+                            <th>REVERB_SERVER_HOST</th>
+                            <td style="">
+                                0.0.0.0                                                            </td>
+                        </tr>
+                        <tr>
+                            <th>REVERB_SERVER_PORT</th>
+                            <td>6001</td>
+                        </tr>
+                        <tr>
+                            <th>REVERB_PORT</th>
+                            <td>6001</td>
+                        </tr>
+                        <tr>
+                            <th>REVERB_HOST</th>
+                            <td>a-iurgq8</td>
+                        </tr>
+                        <tr>
+                            <th>REVERB_APP_KEY</th>
+                            <td style="">
+                                seelenfunke-key                                                            </td>
+                        </tr>
+                    </table>
+                            </div>
+        </div>
+
+        <!-- AKTIONEN -->
+        <div class="card" style="text-align: center;">
+            <div class="card-title" style="justify-content: center;">🛠️ Systemaktionen</div>
+            <p>Falls die Worker-Konfiguration Fehler aufweist (z.B. falsches <code>REVERB_SERVER_HOST</code> oder Key-Mismatch), können Sie dies hier beheben.</p>
+            <div style="display: flex; justify-content: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem;">
+                <a href="?action=fix_worker_env" class="btn">Worker .env automatisch reparieren</a>
+                <a href="?action=clear_scheduler_locks" class="btn" style="background-color: var(--error);">Hängende Sperren bereinigen</a>
+                <a href="?action=run_scheduler" class="btn" style="background-color: var(--warning);">Scheduler manuell ausführen</a>
+                <a href="?" class="btn" style="background-color: var(--card-bg); border: 1px solid var(--border); color: var(--text);">Status aktualisieren</a>
+            </div>
+        </div>
+
+        <!-- NÄCHSTE MANUELLE SCHRITTE -->
+        <div class="card">
+            <div class="card-title">📋 Nächste manuelle Schritte</div>
+            <ol style="line-height: 1.6; padding-left: 1.25rem;">
+                <li>
+                    <strong>Duplikate im Mittwald-Panel löschen:</strong> Bitte logge dich ins Mittwald-mStudio ein. Stelle sicher, dass unter der App <code>seelenfunke-stage</code> <strong>kein</strong> Cronjob mehr läuft, der <code>reverb:start</code> ausführt. Nur der Scheduler (<code>schedule:run</code>) darf als Cronjob eingerichtet sein.
+                </li>
+                <li>
+                    <strong>Worker-Job neu starten:</strong> Logge dich per SSH in den Worker-Container <code>a-iurgq8</code> ein und führe folgenden Befehl aus:
+                    <div class="code-block">mittnitectl job restart</div>
+                </li>
+                <li>
+                    <strong>Status des Workers prüfen:</strong>
+                    <div class="code-block">mittnitectl job status</div>
+                    Der Job <code>web</code> (oder wie auch immer er unter mittnite heißt) sollte im Status <code>running</code> sein.
+                </li>
+            </ol>
+        </div>
+
+    </div>
+
+    <script>
+        (function() {
+            // 1. REVERB WSS TEST
+            const wssLog = document.getElementById('wss-log');
+            const wssBadge = document.getElementById('wss-badge');
+            
+            function log(msg, type = 'info') {
+                const colors = {
+                    info: '#9ca3af',
+                    success: '#10b981',
+                    error: '#ef4444',
+                    warning: '#f59e0b'
+                };
+                const color = colors[type] || colors.info;
+                wssLog.innerHTML += `<span style="color: ${color}">[${new Date().toLocaleTimeString()}] ${msg}</span><br>`;
+                wssLog.scrollTop = wssLog.scrollHeight;
+            }
+
+            const appKey = 'seelenfunke-key';
+            const url = `wss://ws.mein-seelenfunke.de/app/${appKey}?protocol=7&client=js&version=8.4.0-rc2&flash=false`;
+            
+            log(`Verbinde mit ${url}...`, 'info');
+            
+            try {
+                const ws = new WebSocket(url);
+                
+                ws.onopen = function() {
+                    log('✓ Verbindung erfolgreich geöffnet!', 'success');
+                    wssBadge.className = 'badge badge-success';
+                    wssBadge.textContent = 'ERFOLGREICH VERBUNDEN';
+                    ws.send(JSON.stringify({event: 'pusher:ping', data: {}}));
+                };
+                
+                ws.onmessage = function(evt) {
+                    log(`→ Nachricht empfangen: ${evt.data}`, 'info');
+                };
+                
+                ws.onerror = function(err) {
+                    log('✗ WebSocket-Fehler aufgetreten! (Verbindung blockiert, Proxy-Fehler oder SSL-Problem)', 'error');
+                    console.error(err);
+                };
+                
+                ws.onclose = function(evt) {
+                    log(`ℹ Verbindung geschlossen. Code: ${evt.code}, Grund: ${evt.reason || 'keiner'}, Sauber beendet: ${evt.wasClean}`, 'warning');
+                    if (wssBadge.textContent === 'TESTE...') {
+                        wssBadge.className = 'badge badge-error';
+                        wssBadge.textContent = 'VERBINDUNG FEHLGESCHLAGEN';
+                    }
+                };
+            } catch(e) {
+                log(`✗ Ausnahme beim Erstellen des WebSockets: ${e.message}`, 'error');
+                wssBadge.className = 'badge badge-error';
+                wssBadge.textContent = 'AUSNAHME';
+            }
+
+            // 2. GEMINI LIVE PROXY WSS TEST
+            const geminiLog = document.getElementById('gemini-log');
+            const geminiBadge = document.getElementById('gemini-badge');
+            const geminiUrl = 'wss://api-live-bridge.mein-seelenfunke.de/gemini-live';
+
+            function logGemini(msg, type = 'info') {
+                const colors = {
+                    info: '#9ca3af',
+                    success: '#10b981',
+                    error: '#ef4444',
+                    warning: '#f59e0b'
+                };
+                const color = colors[type] || colors.info;
+                geminiLog.innerHTML += `<span style="color: ${color}">[${new Date().toLocaleTimeString()}] ${msg}</span><br>`;
+                geminiLog.scrollTop = geminiLog.scrollHeight;
+            }
+
+            if (!geminiUrl) {
+                logGemini('✗ Keine GEMINI_PROXY_WS_URL in der .env konfiguriert!', 'error');
+                geminiBadge.className = 'badge badge-error';
+                geminiBadge.textContent = 'NICHT KONFIGURIERT';
+            } else {
+                let testGeminiUrl = geminiUrl;
+                if (window.location.protocol === 'https:' && testGeminiUrl.startsWith('ws://')) {
+                    logGemini(`⚠️ Seite läuft über HTTPS, aber URL startet mit ws://. Passe temporär im Browser an wss:// an...`, 'warning');
+                    testGeminiUrl = testGeminiUrl.replace('ws://', 'wss://');
+                }
+
+                logGemini(`Verbinde mit ${testGeminiUrl} (Handshake-Test)...`, 'info');
+                
+                try {
+                    const gws = new WebSocket(testGeminiUrl);
+                    
+                    gws.onopen = function() {
+                        logGemini('✓ Verbindung erfolgreich geöffnet! Warte auf Handshake-Antwort...', 'success');
+                    };
+                    
+                    gws.onmessage = function(evt) {
+                        logGemini(`→ Nachricht empfangen: ${evt.data}`, 'info');
+                    };
+                    
+                    gws.onerror = function(err) {
+                        logGemini('✗ WebSocket-Fehler aufgetreten! (Verbindung blockiert, DNS-Fehler, SSL-Problem oder Port nicht erreichbar)', 'error');
+                        console.error(err);
+                    };
+                    
+                    gws.onclose = function(evt) {
+                        // Der Proxy schließt ohne Token mit 4001 oder 4003 (oder ähnlichen custom codes)
+                        if (evt.code === 4001 || evt.code === 4003 || evt.code === 1000) {
+                            logGemini(`✓ Server hat geantwortet! Verbindung geschlossen mit Code ${evt.code} (${evt.reason || 'Token fehlt / Normal'}). Dies bestätigt, dass der Server ERREICHBAR und AKTIV ist!`, 'success');
+                            geminiBadge.className = 'badge badge-success';
+                            geminiBadge.textContent = 'ERFOLGREICH VERBUNDEN';
+                        } else {
+                            logGemini(`ℹ Verbindung geschlossen. Code: ${evt.code}, Grund: ${evt.reason || 'keiner'}, Sauber beendet: ${evt.wasClean}`, 'warning');
+                            if (geminiBadge.textContent === 'TESTE...') {
+                                geminiBadge.className = 'badge badge-error';
+                                geminiBadge.textContent = 'VERBINDUNG FEHLGESCHLAGEN';
+                            }
+                        }
+                    };
+                } catch(e) {
+                    logGemini(`✗ Ausnahme beim Erstellen des WebSockets: ${e.message}`, 'error');
+                    geminiBadge.className = 'badge badge-error';
+                    geminiBadge.textContent = 'AUSNAHME';
+                }
+            }
+        })();
+
+        function loadBridgeLogs() {
+            const container = document.getElementById('bridge-log-content');
+            container.innerText = "Lade Logs...";
+            fetch('?action=get_bridge_log')
+                .then(res => res.text())
+                .then(text => {
+                    container.innerText = text;
+                    container.scrollTop = container.scrollHeight;
+                })
+                .catch(err => {
+                    container.innerText = "Fehler beim Laden der Logs: " + err.message;
+                });
+        }
+        // Logs beim Laden der Seite initial abrufen
+        window.addEventListener('DOMContentLoaded', loadBridgeLogs);
+    </script>
+</body>
+</html>

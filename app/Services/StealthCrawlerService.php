@@ -142,8 +142,8 @@ class StealthCrawlerService
                         }
 
                         if (!empty($title) && !empty($url) && !$isBulky) {
-                            $safeTitle = mb_substr(trim($title), 0, 250);
-                            $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
+                            $safeTitle = trim($title);
+                            $safeUrl = $this->cleanUrl($url, 'www.etsy.com');
                             ProductNicheItem::updateOrCreate(
                                 ['url' => $safeUrl],
                                 [
@@ -231,61 +231,65 @@ class StealthCrawlerService
                 $crawler = new Crawler($html);
                 
                 $crawler->filter('div[data-component-type="s-search-result"]')->each(function (Crawler $node) {
-                    $titleNode = $node->filter('h2 span');
-                    $title = $titleNode->count() > 0 ? $titleNode->text('') : '';
-                    
-                    $linkNode = $node->filter('.s-title-instructions-style a');
-                    $url = $linkNode->count() > 0 ? 'https://www.amazon.de' . $linkNode->attr('href') : '';
-                    
-                    $imgNode = $node->filter('img.s-image');
-                    $image_url = $imgNode->count() > 0 ? $imgNode->attr('src') : null;
-                    
-                    $priceWhole = $node->filter('.a-price-whole')->count() > 0 ? $node->filter('.a-price-whole')->text() : '';
-                    $priceFraction = $node->filter('.a-price-fraction')->count() > 0 ? $node->filter('.a-price-fraction')->text() : '';
-                    $priceStr = trim(str_replace([',', '.'], '', $priceWhole)) . '.' . trim($priceFraction);
-                    $price = (float)$priceStr;
-                    
-                    $ratingNode = $node->filter('i[data-cy="reviews-ratings-slot"] span');
-                    $ratingNode2 = $node->filter('i.a-icon-star-small span');
-                    $ratingText = $ratingNode->count() > 0 ? $ratingNode->text() : ($ratingNode2->count() > 0 ? $ratingNode2->text() : 'N/A');
-                    $rating = 5.0;
-                    if (preg_match('/([\d,]+)/', $ratingText, $m)) {
-                        $rating = (float)str_replace(',', '.', $m[1]);
-                    }
-                    
-                    $reviewNode = $node->filter('span.s-underline-text');
-                    $reviewCountText = $reviewNode->count() > 0 ? $reviewNode->text() : '0';
-                    $review_count = (int)preg_replace('/[^0-9]/', '', $reviewCountText);
-                    
-                    $sales_volume = $review_count * 15;
-                    $score = $this->calculateNicheScore($price, $sales_volume, $review_count);
-                    
-                    $isBulky = false;
-                    $bulkyKeywords = ['schrank', 'esstisch', 'sofa', 'sessel', 'bett', 'kommode', 'fass', 'xxl', 'gartenbank', 'regal', 'möbel', 'truhe', 'sitzbank', 'säule'];
-                    $titleLower = strtolower($title);
-                    foreach ($bulkyKeywords as $keyword) {
-                        if (strpos($titleLower, $keyword) !== false) {
-                            $isBulky = true; break;
+                    try {
+                        $titleNode = $node->filter('h2 span');
+                        $title = $titleNode->count() > 0 ? $titleNode->text('') : '';
+                        
+                        $linkNode = $node->filter('.s-title-instructions-style a');
+                        $url = $linkNode->count() > 0 ? 'https://www.amazon.de' . $linkNode->attr('href') : '';
+                        
+                        $imgNode = $node->filter('img.s-image');
+                        $image_url = $imgNode->count() > 0 ? $imgNode->attr('src') : null;
+                        
+                        $priceWhole = $node->filter('.a-price-whole')->count() > 0 ? $node->filter('.a-price-whole')->text() : '';
+                        $priceFraction = $node->filter('.a-price-fraction')->count() > 0 ? $node->filter('.a-price-fraction')->text() : '';
+                        $priceStr = trim(str_replace([',', '.'], '', $priceWhole)) . '.' . trim($priceFraction);
+                        $price = (float)$priceStr;
+                        
+                        $ratingNode = $node->filter('i[data-cy="reviews-ratings-slot"] span');
+                        $ratingNode2 = $node->filter('i.a-icon-star-small span');
+                        $ratingText = $ratingNode->count() > 0 ? $ratingNode->text() : ($ratingNode2->count() > 0 ? $ratingNode2->text() : 'N/A');
+                        $rating = 5.0;
+                        if (preg_match('/([\d,]+)/', $ratingText, $m)) {
+                            $rating = (float)str_replace(',', '.', $m[1]);
                         }
-                    }
-                    
-                    if (!empty($title) && !empty($url) && !$isBulky) {
-                        $safeTitle = mb_substr(trim($title), 0, 250);
-                        $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
-                        ProductNicheItem::updateOrCreate(
-                            ['url' => $safeUrl],
-                            [
-                                'title' => $safeTitle,
-                                'platform' => 'Amazon',
-                                'price' => $price,
-                                'sales_volume' => $sales_volume,
-                                'rating' => $rating,
-                                'review_count' => $review_count,
-                                'image_url' => mb_substr($image_url, 0, 250),
-                                'niche_score' => $score,
-                                'scraped_at' => now(),
-                            ]
-                        );
+                        
+                        $reviewNode = $node->filter('span.s-underline-text');
+                        $reviewCountText = $reviewNode->count() > 0 ? $reviewNode->text() : '0';
+                        $review_count = (int)preg_replace('/[^0-9]/', '', $reviewCountText);
+                        
+                        $sales_volume = $review_count * 15;
+                        $score = $this->calculateNicheScore($price, $sales_volume, $review_count);
+                        
+                        $isBulky = false;
+                        $bulkyKeywords = ['schrank', 'esstisch', 'sofa', 'sessel', 'bett', 'kommode', 'fass', 'xxl', 'gartenbank', 'regal', 'möbel', 'truhe', 'sitzbank', 'säule'];
+                        $titleLower = strtolower($title);
+                        foreach ($bulkyKeywords as $keyword) {
+                            if (strpos($titleLower, $keyword) !== false) {
+                                $isBulky = true; break;
+                            }
+                        }
+                        
+                        if (!empty($title) && !empty($url) && !$isBulky) {
+                            $safeTitle = trim($title);
+                            $safeUrl = $this->cleanUrl($url, 'www.amazon.de');
+                            ProductNicheItem::updateOrCreate(
+                                ['url' => $safeUrl],
+                                [
+                                    'title' => $safeTitle,
+                                    'platform' => 'Amazon',
+                                    'price' => $price,
+                                    'sales_volume' => $sales_volume,
+                                    'rating' => $rating,
+                                    'review_count' => $review_count,
+                                    'image_url' => mb_substr($image_url, 0, 250),
+                                    'niche_score' => $score,
+                                    'scraped_at' => now(),
+                                ]
+                            );
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("StealthCrawler: Failed to parse or save Amazon product: " . $e->getMessage());
                     }
                 });
             } catch (\Exception $e) {
@@ -340,66 +344,70 @@ class StealthCrawlerService
                 $crawler = new Crawler($html);
                 
                 $crawler->filter('.searchx-offer-item')->each(function (Crawler $node) {
-                    $titleNode = $node->filter('h2.search-card-e-title span');
-                    $title = $titleNode->count() > 0 ? $titleNode->text('') : '';
+                    try {
+                        $titleNode = $node->filter('h2.searchx-product-e-title span');
+                        $title = $titleNode->count() > 0 ? $titleNode->text('') : '';
 
-                    $linkNode = $node->filter('h2.search-card-e-title a');
-                    $url = $linkNode->count() > 0 ? $linkNode->attr('href') : '';
-                    if ($url !== '' && strpos($url, '//') === 0) {
-                        $url = 'https:' . $url;
-                    }
-
-                    $imgNode = $node->filter('img.search-card-e-slider__img');
-                    $image_url = $imgNode->count() > 0 ? $imgNode->attr('src') : null;
-                    if ($image_url && strpos($image_url, '//') === 0) {
-                        $image_url = 'https:' . $image_url;
-                    }
-
-                    $priceNode = $node->filter('.search-card-e-price-main');
-                    $priceText = $priceNode->count() > 0 ? $priceNode->text() : '';
-                    preg_match('/([0-9.,]+)/', $priceText, $m);
-                    $price = isset($m[1]) ? (float)str_replace(',', '.', $m[1]) : 0;
-
-                    $reviewNode = $node->filter('.search-card-e-review');
-                    $rating = 5.0;
-                    $review_count = 0;
-                    if ($reviewNode->count() > 0) {
-                        $text = $reviewNode->text();
-                        if (preg_match('/([0-9.]+)\/5\.0\s*\(([^)]+)\)/', $text, $matches)) {
-                            $rating = (float)$matches[1];
-                            $review_count = (int)preg_replace('/[^0-9]/', '', $matches[2]);
+                        $linkNode = $node->filter('h2.searchx-product-e-title a');
+                        $url = $linkNode->count() > 0 ? $linkNode->attr('href') : '';
+                        if ($url !== '' && strpos($url, '//') === 0) {
+                            $url = 'https:' . $url;
                         }
-                    }
-                    
-                    $sales_volume = $review_count * 15;
-                    $score = $this->calculateNicheScore($price, $sales_volume, $review_count);
-                    
-                    $isBulky = false;
-                    $bulkyKeywords = ['schrank', 'esstisch', 'sofa', 'sessel', 'bett', 'kommode', 'fass', 'xxl', 'gartenbank', 'regal', 'möbel', 'truhe', 'sitzbank', 'säule'];
-                    $titleLower = strtolower($title);
-                    foreach ($bulkyKeywords as $keyword) {
-                        if (strpos($titleLower, $keyword) !== false) {
-                            $isBulky = true; break;
+
+                        $imgNode = $node->filter('img.searchx-product-e-slider__img');
+                        $image_url = $imgNode->count() > 0 ? $imgNode->attr('src') : null;
+                        if ($image_url && strpos($image_url, '//') === 0) {
+                            $image_url = 'https:' . $image_url;
                         }
-                    }
-                    
-                    if (!empty($title) && !empty($url) && !$isBulky) {
-                        $safeTitle = mb_substr(trim($title), 0, 250);
-                        $safeUrl = mb_substr($this->cleanUrl($url), 0, 250);
-                        ProductNicheItem::updateOrCreate(
-                            ['url' => $safeUrl],
-                            [
-                                'title' => $safeTitle,
-                                'platform' => 'Alibaba',
-                                'price' => $price,
-                                'sales_volume' => $sales_volume,
-                                'rating' => $rating,
-                                'review_count' => $review_count,
-                                'image_url' => mb_substr($image_url, 0, 250),
-                                'niche_score' => $score,
-                                'scraped_at' => now(),
-                            ]
-                        );
+
+                        $priceNode = $node->filter('.searchx-product-price-price-main');
+                        $priceText = $priceNode->count() > 0 ? $priceNode->text() : '';
+                        preg_match('/([0-9.,]+)/', $priceText, $m);
+                        $price = isset($m[1]) ? (float)str_replace(',', '.', $m[1]) : 0;
+
+                        $reviewNode = $node->filter('.searchx-product-e-review');
+                        $rating = 5.0;
+                        $review_count = 0;
+                        if ($reviewNode->count() > 0) {
+                            $text = $reviewNode->text();
+                            if (preg_match('/([0-9.]+)\/5\.0\s*\(([^)]+)\)/', $text, $matches)) {
+                                $rating = (float)$matches[1];
+                                $review_count = (int)preg_replace('/[^0-9]/', '', $matches[2]);
+                            }
+                        }
+                        
+                        $sales_volume = $review_count * 15;
+                        $score = $this->calculateNicheScore($price, $sales_volume, $review_count);
+                        
+                        $isBulky = false;
+                        $bulkyKeywords = ['schrank', 'esstisch', 'sofa', 'sessel', 'bett', 'kommode', 'fass', 'xxl', 'gartenbank', 'regal', 'möbel', 'truhe', 'sitzbank', 'säule'];
+                        $titleLower = strtolower($title);
+                        foreach ($bulkyKeywords as $keyword) {
+                            if (strpos($titleLower, $keyword) !== false) {
+                                $isBulky = true; break;
+                            }
+                        }
+                        
+                        if (!empty($title) && !empty($url) && !$isBulky) {
+                            $safeTitle = trim($title);
+                            $safeUrl = $this->cleanUrl($url, 'www.alibaba.com');
+                            ProductNicheItem::updateOrCreate(
+                                ['url' => $safeUrl],
+                                [
+                                    'title' => $safeTitle,
+                                    'platform' => 'Alibaba',
+                                    'price' => $price,
+                                    'sales_volume' => $sales_volume,
+                                    'rating' => $rating,
+                                    'review_count' => $review_count,
+                                    'image_url' => mb_substr($image_url, 0, 250),
+                                    'niche_score' => $score,
+                                    'scraped_at' => now(),
+                                ]
+                            );
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("StealthCrawler: Failed to parse or save Alibaba product: " . $e->getMessage());
                     }
                 });
             } catch (\Exception $e) {
@@ -450,8 +458,31 @@ class StealthCrawlerService
         ];
     }
     
-    private function cleanUrl($url) {
+    private function cleanUrl($url, $defaultHost = 'www.etsy.com') {
+        if (empty($url)) return '';
+        
+        if (strpos($url, '//') === 0) {
+            $url = 'https:' . $url;
+        }
+        
+        if (preg_match('/(https?:\/\/[^\/]+)(https?:\/\/.*)/i', $url, $matches)) {
+            $url = $matches[2];
+        }
+        
         $parsed = parse_url($url);
-        return ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? 'www.etsy.com') . ($parsed['path'] ?? '');
+        $host = $parsed['host'] ?? $defaultHost;
+        
+        if (empty($host)) {
+            $host = $defaultHost;
+        }
+        
+        $scheme = $parsed['scheme'] ?? 'https';
+        $path = $parsed['path'] ?? '';
+        
+        if (!empty($path) && strpos($path, '/') !== 0) {
+            $path = '/' . $path;
+        }
+        
+        return $scheme . '://' . $host . $path;
     }
 }
