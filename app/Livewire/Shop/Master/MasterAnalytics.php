@@ -483,8 +483,17 @@ class MasterAnalytics extends Component
         }
 
         // 10. NEU: Telephony (Audio-Bridge) Check
+        $telephonyVersion = 'Unbekannt';
+        $bridgePath = base_path('server-twilio.js');
+        if (file_exists($bridgePath)) {
+            $bridgeContent = file_get_contents($bridgePath);
+            if (preg_match('/const\s+BRIDGE_VERSION\s*=\s*[\'"]([^\'"]+)[\'"]/i', $bridgeContent, $matches)) {
+                $telephonyVersion = $matches[1];
+            }
+        }
+
         if (app()->environment('local')) {
-            $health['telephony'] = ['status' => 'connected', 'value' => 'Lokal (inaktiv)', 'error' => null];
+            $health['telephony'] = ['status' => 'connected', 'value' => 'Lokal (inaktiv)', 'error' => null, 'version' => $telephonyVersion];
         } else {
             try {
                 $wssUrl = env('TWILIO_WSS_URL', 'wss://localhost:8081');
@@ -496,14 +505,14 @@ class MasterAnalytics extends Component
                 $time = round((microtime(true) - $start) * 1000);
 
                 if ($response->successful()) {
-                    $health['telephony'] = ['status' => 'connected', 'value' => "BEREIT ({$time}ms)", 'error' => null];
+                    $health['telephony'] = ['status' => 'connected', 'value' => "BEREIT ({$time}ms)", 'error' => null, 'version' => $telephonyVersion];
                 } else {
                     $status = $response->status();
-                    $health['telephony'] = ['status' => 'error', 'value' => "GESTORBEN ({$status})", 'error' => "Die Node.js App ist abgestürzt oder Mittwald lädt noch! Gehe ins mStudio -> App 'seelenfunke-nodejs' -> Klicke auf 'Neu starten'!"];
+                    $health['telephony'] = ['status' => 'error', 'value' => "GESTORBEN ({$status})", 'error' => "Die Node.js App ist abgestürzt oder Mittwald lädt noch! Gehe ins mStudio -> App 'seelenfunke-nodejs' -> Klicke auf 'Neu starten'!", 'version' => $telephonyVersion];
                     $this->logSystemFailure('telephony', "Die KI-Telefonie Audio-Bridge ist down! HTTP Status: {$status}");
                 }
             } catch (\Exception $e) {
-                $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Fehler beim Telephony-Check.'];
+                $health['telephony'] = ['status' => 'error', 'value' => 'Offline', 'error' => 'Fehler beim Telephony-Check.', 'version' => $telephonyVersion];
             }
         }
 

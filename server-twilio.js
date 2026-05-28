@@ -12,6 +12,8 @@ import { dirname, join } from 'path';
 // Zuerst dotenv konfigurieren, damit APP_URL sofort verfügbar ist
 dotenv.config();
 
+const BRIDGE_VERSION = 'v1.0';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -82,7 +84,7 @@ try {
     console.error('Fehler bei Log-Rotation:', e.message);
 }
 
-debugLog("--- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V2) ---");
+debugLog(`--- NODE JS SERVER RESTARTED (VERSION: ${BRIDGE_VERSION}) ---`);
 sendLogToBackend('info', 'Node.js Audio-Brücke erfolgreich gestartet.', 'websocket:start');
 
 const PORT = process.env.PORT || process.env.TWILIO_WS_PORT || 8081;

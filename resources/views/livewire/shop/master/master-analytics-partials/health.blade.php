@@ -231,6 +231,7 @@
                 'queue' => ['label' => 'Queue Worker', 'host' => 'Hintergrund', 'port' => 'N/A', 'desc' => 'Verarbeitet Aufgaben (Mails, PDFs) im Hintergrund.'],
                 'scheduler' => ['label' => 'Task Scheduler', 'host' => 'Cronjob', 'port' => 'CLI', 'desc' => 'Führt zeitgesteuerte Hintergrundaufgaben aus (z.B. Bereinigungen, Erinnerungen).'],
                 'backup' => ['label' => 'System Backup', 'host' => 'Storage', 'port' => 'N/A', 'desc' => 'Prüft, ob in den letzten 48 Stunden eine Sicherung der Datenbank erstellt wurde.'],
+                'telephony' => ['label' => 'WebSocket (Stage/Live)', 'host' => parse_url(env('TWILIO_WSS_URL', 'wss://localhost:8081'), PHP_URL_HOST) ?: env('TWILIO_WSS_URL', 'wss://localhost:8081'), 'port' => parse_url(env('TWILIO_WSS_URL', 'wss://localhost:8081'), PHP_URL_PORT) ?: 'N/A', 'desc' => 'Unsere Node.js Audio-Bridge für den Gemini Live-Call.'],
             ];
 
             // Hier definieren wir unsere schicken Gruppierungen!
@@ -241,7 +242,7 @@
                 ],
                 'Schnittstellen & API' => [
                     'color' => 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]',
-                    'items' => ['ws', 'stripe', 'smtp']
+                    'items' => ['ws', 'telephony', 'stripe', 'smtp']
                 ],
                 'Background & Security' => [
                     'color' => 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]',
@@ -380,7 +381,7 @@
                                              @mouseleave="showWsInfo = false">
 
                                             <div class="flex items-center gap-1.5">
-                                                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors" :class="showWsInfo ? 'text-white' : ''">WebSocket</span>
+                                                <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors" :class="showWsInfo ? 'text-white' : ''">WebSocket (Events/Reverb)</span>
                                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3 text-gray-600 transition-colors" :class="showWsInfo ? 'text-primary' : ''"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
                                             </div>
 
@@ -500,6 +501,9 @@
                                             <div class="relative z-10 flex flex-col gap-2 text-[9px] font-mono text-gray-400">
                                                 <div class="flex justify-between gap-4"><span class="font-bold text-gray-500">HOST:</span><span class="text-primary truncate">{{ $sInfo['host'] }}</span></div>
                                                 <div class="flex justify-between gap-4"><span class="font-bold text-gray-500">PORT:</span><span class="text-primary">{{ $sInfo['port'] }}</span></div>
+                                                @if(isset($health['version']))
+                                                    <div class="flex justify-between gap-4"><span class="font-bold text-gray-500">VERSION:</span><span class="text-emerald-400 font-bold">{{ $health['version'] }}</span></div>
+                                                @endif
                                                 <div class="border-t border-gray-800 my-1"></div>
 
                                                 <p class="text-xs font-sans text-gray-300 leading-relaxed">{{ $sInfo['desc'] }}</p>

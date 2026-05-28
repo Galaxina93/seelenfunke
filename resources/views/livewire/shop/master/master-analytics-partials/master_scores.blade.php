@@ -47,14 +47,14 @@
             'queue' => ['label' => 'Queue Worker', 'host' => 'Hintergrund', 'port' => 'N/A', 'desc' => 'Verarbeitet Aufgaben (Mails, PDFs) im Hintergrund.'],
             'scheduler' => ['label' => 'Task Scheduler', 'host' => 'Cronjob', 'port' => 'CLI', 'desc' => 'Führt zeitgesteuerte Hintergrundaufgaben aus (z.B. Bereinigungen, Erinnerungen).'],
             'backup' => ['label' => 'System Backup', 'host' => 'Storage', 'port' => 'N/A', 'desc' => 'Prüft, ob in den letzten 48 Stunden eine Sicherung der Datenbank erstellt wurde.'],
-            'ws' => ['label' => 'WebSocket ' . (app()->environment('local') ? '(Lokal)' : '(Stage/Live)'), 'host' => env('MIX_PUSHER_HOST', env('VITE_REVERB_HOST', env('PUSHER_HOST', '127.0.0.1'))), 'port' => env('MIX_PUSHER_PORT', env('VITE_REVERB_PORT', env('PUSHER_PORT', '6001'))), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
+            'ws' => ['label' => 'WebSocket (Events/Reverb)', 'host' => env('MIX_PUSHER_HOST', env('VITE_REVERB_HOST', env('PUSHER_HOST', '127.0.0.1'))), 'port' => env('MIX_PUSHER_PORT', env('VITE_REVERB_PORT', env('PUSHER_PORT', '6001'))), 'desc' => 'WebSocket-Verbindung (z.B. Reverb / Pusher) für Live-Updates (Chat, Analytics).'],
             'dhl' => ['label' => 'DHL Paket API', 'host' => 'api.dhl.com', 'port' => '443', 'desc' => 'Label-Generierung und Sendungsverfolgung.'],
             'finapi' => ['label' => 'finAPI (Bank)', 'host' => env('FINAPI_ENV', 'live') === 'live' ? 'live.finapi.io' : 'sandbox.finapi.io', 'port' => '443', 'desc' => 'Schnittstelle zur Bankkonto-Synchronisation.'],
             'gemini' => ['label' => 'Google Gemini', 'host' => 'generativelanguage.googleapis.com', 'port' => '443', 'desc' => 'Google AI Basismodell für komplexe Task-Bewältigung.'],
             'google_places' => ['label' => 'Google Places', 'host' => 'maps.googleapis.com', 'port' => '443', 'desc' => 'Schnittstelle für automatische Kundenbewertungen.'],
             'elster' => ['label' => 'Elster (ERiC)', 'host' => 'elster.de', 'port' => '443', 'desc' => 'Anbindung zur Finanzbehörde der Bundesrepublik Deutschland.'],
             'scraperapi' => ['label' => 'ScraperAPI', 'host' => 'api.scraperapi.com', 'port' => '80', 'desc' => 'Proxy-Service für Marktforschung und SEO-Agenten.'],
-            'telephony' => ['label' => 'Audio-Bridge', 'host' => 'localhost', 'port' => env('TWILIO_WS_PORT', '8081'), 'desc' => app()->environment('local') ? 'Lokal deaktiviert. Funktioniert nur auf Stage/Live und hat keinen Einfluss auf den Health-Score.' : 'Node.js WebSocket Server für Echtzeit-Sprachanrufe zwischen Twilio und KI.'],
+            'audiobridge' => ['label' => 'Gemini Audio Bridge', 'host' => 'localhost', 'port' => env('TWILIO_WS_PORT', '8081'), 'desc' => app()->environment('local') ? 'Lokal deaktiviert. Funktioniert nur auf Stage/Live und hat keinen Einfluss auf den Health-Score.' : 'Node.js WebSocket Server für Echtzeit-Sprachanrufe zwischen Twilio und KI.'],
         ];
 
         $systemGroups = [
@@ -68,7 +68,7 @@
             ],
             'AI & Daten-Agenten' => [
                 'color' => 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]',
-                'items' => ['gemini', 'telephony', 'google_places', 'scraperapi']
+                'items' => ['gemini', 'audiobridge', 'google_places', 'scraperapi']
             ],
             'Background & Security' => [
                 'color' => 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]',

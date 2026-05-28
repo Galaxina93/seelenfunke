@@ -7434,3 +7434,31 @@
 [2026-05-28T14:22:23.703Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
 [2026-05-28T14:22:23.704Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
 [2026-05-28T14:22:23.727Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-05-28T17:56:29.899Z] --- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V2) ---
+[2026-05-28T17:56:29.953Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-05-28T17:56:29.976Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-05-28T17:56:29.976Z] Erfolgreich gebunden auf Port 8081
+[2026-05-28T19:49:53.469Z] 🔌 Neue WebSocket-Verbindung auf Pfad: /gemini-live
+[2026-05-28T19:49:53.474Z] 🔑 Verifiziere Token gegen Backend: http://seelenfunke.test/api/ai/verify-token
+[2026-05-28T19:49:53.544Z] 🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...
+[2026-05-28T19:49:53.565Z] 📦 Replay von 1 zwischengespeicherten Client-Nachrichten...
+[2026-05-28T19:49:53.566Z] 🧠 Gemini Live Proxy: Client sendet Setup: {"model":"models/gemini-3.1-flash-live-preview","systemInstruction":{"parts":[{"text":"System-Prompt:\nDu bist Funkira, der System-Root und die CEO-KI
+[2026-05-28T19:49:53.567Z] 🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: 1
+[2026-05-28T19:49:53.641Z] 🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.
+[2026-05-28T19:49:53.642Z] 📦 Replay von 1 gepufferten Client-Nachrichten an Google...
+[2026-05-28T19:49:53.927Z] 🧠 Gemini Live Proxy: Setup Complete von Google empfangen.
+[2026-05-28T19:49:54.163Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #1, Base64-Länge: 10924)
+[2026-05-28T19:49:54.441Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #2, Base64-Länge: 10924)
+[2026-05-28T19:49:54.707Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #3, Base64-Länge: 10924)
+[2026-05-28T19:49:55.004Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #4, Base64-Länge: 10924)
+[2026-05-28T19:49:55.252Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #5, Base64-Länge: 10924)
+[2026-05-28T19:49:55.693Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"be38e8c0-30bb-45fa-99c5-59e27d0ff96c","resumable":true}}
+[2026-05-28T19:49:56.546Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"0b77e823-8fcb-47e6-89bc-ae88001eeef4","resumable":true}}
+[2026-05-28T19:49:57.287Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"9a0792dc-7d9b-496b-9d6d-8420fd5d7e16","resumable":true}}
+[2026-05-28T19:49:58.364Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"80c26c63-b7f2-4891-9589-76b2f1666a0b","resumable":true}}
+[2026-05-28T19:49:59.153Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"fc8b42eb-1939-4f9f-a019-94cf34ca21d4","resumable":true}}
+[2026-05-28T19:49:59.933Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"430b516f-ad73-4b3b-a4e5-d97bd5362aa8","resumable":true}}
+[2026-05-28T19:50:01.007Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"728fe388-b303-4408-900c-9cdaad5dba46","resumable":true}}
+[2026-05-28T19:50:01.054Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
+[2026-05-28T19:50:01.054Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
+[2026-05-28T19:50:01.078Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 

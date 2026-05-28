@@ -347,8 +347,8 @@ trait AiSystemFuncs
                     'properties' => [
                         'action' => [
                             'type' => 'string',
-                            'description' => 'Die Aktion, die ausgeführt werden soll: "resolve" (als gelöst markieren), "set_error" (als Fehler markieren) oder "delete" (komplett aus der Datenbank löschen).',
-                            'enum' => ['resolve', 'set_error', 'delete']
+                            'description' => 'Die Aktion, die ausgeführt werden soll: "resolve" (als gelöst markieren), "set_error" (als Fehler markieren), "delete" (komplett aus der Datenbank löschen) oder "clear_files" (leert alle physischen Log-Dateien auf der Festplatte wie bridge.log, crash.log, laravel.log etc.).',
+                            'enum' => ['resolve', 'set_error', 'delete', 'clear_files']
                         ],
                         'log_id' => [
                             'type' => 'integer',
@@ -1837,6 +1837,50 @@ trait AiSystemFuncs
     public static function executeManageSystemLogs(array $args)
     {
         $action = $args['action'] ?? 'resolve';
+
+        if ($action === 'clear_files') {
+            $logFiles = [
+                base_path('../twilio-bridge/bridge.log'),
+                base_path('bridge.log'),
+                base_path('../twilio-bridge/crash.log'),
+                base_path('crash.log'),
+                base_path('../twilio-bridge/node-live.log'),
+                base_path('node-live.log'),
+            ];
+
+            $storageLogs = glob(storage_path('logs/*.log'));
+            if ($storageLogs) {
+                $logFiles = array_merge($logFiles, $storageLogs);
+            }
+
+            $clearedFiles = [];
+            $failedFiles = [];
+            foreach (array_unique($logFiles) as $file) {
+                if (file_exists($file)) {
+                    @file_put_contents($file, '');
+                    clearstatcache(true, $file);
+                    if (filesize($file) === 0) {
+                        $clearedFiles[] = basename($file);
+                    } else {
+                        $failedFiles[] = basename($file);
+                    }
+                }
+            }
+
+            $msg = "Erfolgreich geleert: " . implode(', ', $clearedFiles);
+            if (!empty($failedFiles)) {
+                $msg .= ". Fehler beim Leeren (Schreibschutz): " . implode(', ', $failedFiles);
+            }
+            if (empty($clearedFiles) && empty($failedFiles)) {
+                $msg = "Es wurden keine Log-Dateien zum Leeren auf der Festplatte gefunden.";
+            }
+
+            return [
+                'status' => 'success',
+                'message' => $msg
+            ];
+        }
+
         $logId = $args['log_id'] ?? null;
         $manageAllSimilar = $args['manage_all_similar'] ?? false;
         
