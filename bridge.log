@@ -6937,3 +6937,391 @@
 [2026-05-28T07:39:43.250Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
 [2026-05-28T07:39:43.259Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
 [2026-05-28T07:39:43.259Z] Erfolgreich gebunden auf Port 8081
+[2026-05-28T14:16:28.132Z] 🔌 Neue WebSocket-Verbindung auf Pfad: /gemini-live
+[2026-05-28T14:16:28.141Z] 🔑 Verifiziere Token gegen Backend: http://seelenfunke.test/api/ai/verify-token
+[2026-05-28T14:16:28.458Z] 🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...
+[2026-05-28T14:16:28.480Z] 📦 Replay von 1 zwischengespeicherten Client-Nachrichten...
+[2026-05-28T14:16:28.483Z] 🧠 Gemini Live Proxy: Client sendet Setup: {"model":"models/gemini-3.1-flash-live-preview","systemInstruction":{"parts":[{"text":"System-Prompt:\nDu bist Funkira, der System-Root und die CEO-KI
+[2026-05-28T14:16:28.483Z] 🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: 1
+[2026-05-28T14:16:28.573Z] 🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.
+[2026-05-28T14:16:28.573Z] 📦 Replay von 1 gepufferten Client-Nachrichten an Google...
+[2026-05-28T14:16:28.912Z] 🧠 Gemini Live Proxy: Setup Complete von Google empfangen.
+[2026-05-28T14:16:37.766Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #1, Base64-Länge: 10924)
+[2026-05-28T14:16:38.041Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #2, Base64-Länge: 10924)
+[2026-05-28T14:16:38.300Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #3, Base64-Länge: 10924)
+[2026-05-28T14:16:38.586Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #4, Base64-Länge: 10924)
+[2026-05-28T14:16:38.856Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #5, Base64-Länge: 10924)
+[2026-05-28T14:16:39.042Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:16:39.306Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f1012167-cea8-4117-a9d6-ec49e175d994","resumable":true}}
+[2026-05-28T14:16:40.054Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"a3cffca5-6df2-4b85-9709-c3aa76565b70","resumable":true}}
+[2026-05-28T14:16:42.564Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"inputTranscription":{"text":"Ehmm Funkie Rob, bist du da?"}}
+[2026-05-28T14:16:42.565Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:16:42.985Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:16:43.153Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AAA="}}]},"outputTranscription":{"text":"Ja, ich"}}
+[2026-05-28T14:16:43.167Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AAA="}}]}}
+[2026-05-28T14:16:43.214Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"6P/o/+j/6P/n/+j/5//n/+f/5//n/+j/6P/o/+f/5v/m/+b/5f/l/+X/5f/k/+T/5P/k/+
+[2026-05-28T14:16:43.302Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"8i3WK8EpJig/JvohKSHTHqccbRoLF9EV4BB/DuoMbg1TChsJxgduBBkAyvwj/kIA6/7r+u
+[2026-05-28T14:16:43.320Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"TwxuCwgOfBFQFksXmhN1EDIQxxD9DXsJ3QTD/gD4IPOF9V/4LPjr+AP9/QZVD2cWPRyYH6
+[2026-05-28T14:16:43.328Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"NAtICewJ+wu5C44KFwccCMMJWwn0BgoI2AjTB7wGHgY5BoUHEgcmBrgFrwbzB2kHuAXABP
+[2026-05-28T14:16:43.400Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"9fyJAI8EwwR5BHX6MvrU/T7/HQOhBmoDqP0h/QQAdwDd/w0CZwSGAaj96f4S/sUBFgQJAd
+[2026-05-28T14:16:43.459Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"7Pby9Ory5vAd7p7q3uex5GLiCuB33X/ccdsD2lvY3dWY1fTWBNeu1x7attof2+vcSNyt2z
+[2026-05-28T14:16:43.493Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"ChocHQUcBhpxF0IRKQmfAh/+qfsx/Ij+1/4MAD8CIwXiB5kLyA74D3gOPwspCT4HkAKS+0
+[2026-05-28T14:16:43.528Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"5//q/+n/6f/p/+n/6P/o/+j/6P/p/+n/6P/p/+v/6P/q/+r/7P/t/+7/7v/s/+v/6//s/+
+[2026-05-28T14:16:43.562Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"RwAcAEkABQBw/6f/JwBMADsAMgBTADYA1v/8/0AAIQCN/5n/FgByAFcA5v/a/6v/oP/2/1
+[2026-05-28T14:16:43.609Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AwACAAUABAAHAAcABgAEAAIABgAMABEAGgAiACEAHgAVAA8ADwAOABAAEQAOAA0ACQAIAA
+[2026-05-28T14:16:43.660Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"2QZyBwQIeQjOCB4JXQl0CXsJvwnXCRsKpQpmCs8KXwuPC3EMEg0MDSMNPA3YDJcMWwxoC1
+[2026-05-28T14:16:43.671Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"wPusAvf9DgN6/I4ChQBP/XIDgv65AEQBtPxuAikDe/zvAGMC7vrdAsAA8f5L/TgF0PzR/N
+[2026-05-28T14:16:43.702Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"CAAEAP3/CAALAAcAAAAAAAkAAAD4////9/8EAAUA/v8GAPz/AwD+//X//f/6//T/9//2//
+[2026-05-28T14:16:43.803Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Y/5lAG8CkgRsBjUI5wlwCxENUg5KDxcQ+RAuEhcT/hN0FPsUUxXBFVYW5hZpF84X5xfJFz
+[2026-05-28T14:16:43.805Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"bf9RAgAC3ADb/5f7wvzeAXQBGf0Z/50C1gKqAhwDiv52+637XPwZ/1IDoASU/s/8Cv2z/a
+[2026-05-28T14:16:43.813Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"5dedcef9-1ad0-4547-aac7-4dcd4ed6c46f","resumable":true}}
+[2026-05-28T14:16:43.830Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Ng9GDIEJdAipBh0DYwMCBEoE5wPoA8wFsAeLBKgDOwTkBFQBM/sQ+VL0QfOG71vpU+f/6n
+[2026-05-28T14:16:43.877Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"HAMrAkAAYAGyAnoBifvpAskHLP5v+QD/Yw1p/iD7cgEpBJ0DGf53+F8F5wXSAOL49AC/Bd
+[2026-05-28T14:16:43.973Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"bfp3+c35mvjU+Rf6iPl6+WP5hvna+Gf5dPl1+UX5Gvnv+Fj5APpG+s36t/q2+rT7M/zk/E
+[2026-05-28T14:16:43.990Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"2RvJIaQlXSkmLPsr0iv9K8AwqDNYMFgo4h+cGxsYEBb2E3USdBCyCjgD5/li8evru+ge5z
+[2026-05-28T14:16:44.112Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"yADmAAEBHAE3AVEBaQGBAZYBqQG8Ac8B3QHsAfkBBQIOAhUCHAIiAiUCJwImAiMCIAIZAh
+[2026-05-28T14:16:44.187Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"8whoCeYJogsHDCcL5AqDC7MMEw7TDUsMdAyNDZ0OSg5sDvENBg0SDa4NRA/oD2MNqQwzDa
+[2026-05-28T14:16:44.203Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"JQAmACEAHgAeAB0AHgAeAB4AGwAbABYAEwATABEAEAAOAAwACgAKAAcABgAFAAYABgAEAA
+[2026-05-28T14:16:44.247Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"FQAWABYAFwAWABUAFQAUABUAFQAVABQAFAAWABUAFAAUABMAEwATABIAEgASABEAEAAPAA
+[2026-05-28T14:16:44.286Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"BQAFAAYABgAIAAkACQAKAAsACwANAAwADwAJAAkADAALAAwADAANAA4ADgANAA4ADgAOAA
+[2026-05-28T14:16:44.311Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AAAAAP//+P/2//b/9//2//f/+P/5//r/+//9//7//v/+//3//v////7//P/3//P/7//q/+
+[2026-05-28T14:16:44.385Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"aALeAX0ImQa9AXb8xPzOAoMF4QIt/Dv6KQJPD4UImPM29gD7lvuR+5n2qvhkBasGrAFkAg
+[2026-05-28T14:16:44.483Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"OAulBdoDOAbjClIP1hE8EgsTdRIrEQAOgQmlA5P8iPTC7TLq7+o07wP0Zfkd/FH9VP0+/U
+[2026-05-28T14:16:44.518Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"FidDLIIzQDk0OjE2jy8IJC8VRAhA/yb4X+0R4ELXpNQf1vHZxuDL6EHv3PKJ8x702fSS9h
+[2026-05-28T14:16:44.528Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"UwBxAHsAGwAPAM7/HwD9/47/7f6A/rb+xf2t/VL8pvlL+IXzj+3559TgIdw/1ajQ4ctly5
+[2026-05-28T14:16:44.628Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"JP92/9T/OQCfAAQBZAHMAT8CrwIWA3gD2wNFBKYECQVfBcAFHgZtBq8G7gYwB2MHkQe1B8
+[2026-05-28T14:16:44.686Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"kB+HHs0cVRmgFusTbhGlEeUSWBQ5EygQMwstBdkAlf8eAiQF+AUdBHH+MvoJ9rb0FfUv9d
+[2026-05-28T14:16:44.733Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"hP5z/vz+xv8lAHIAwQAuAa8BtAKjA0UE3gQnBTMFmgU1BvwGSghSCc0JSgqECnkK4Qp+C7
+[2026-05-28T14:16:44.766Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"ifwZ/rn/ogDLAKAB5QJOBF4FmgX1BLQDLQK2AOv/Sv/p/RX8V/p1+bv5UPqp+iH7ePy6/u
+[2026-05-28T14:16:44.855Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"aQ2yDe0NYA5PDcAKvAeOBlYGGwXhAxIENgT5AuACxwSgB7QJawogC3MKngewBLgDSgNnAT
+[2026-05-28T14:16:44.946Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Kv7q/nf/BwDbAPgBcQM6BKQEKgRlAxMDzgOsBe8HfApIDBMN/gziC3gKfQloCcUJMQp+Cg
+[2026-05-28T14:16:45.010Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"QdRM2xDgVeDo3bXbbdoT273cb+Ee58LrvPII+IX4Ofee9pP6tf/jBIMMDBQ5GYcZABZ6E3
+[2026-05-28T14:16:45.116Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"x//Y/Fr8pvx0/ED+3vxkAFwHpwfJA/r/uf82/QX6QvwNA3QEsAK0/in4Gvdf/y8KNg7fB4
+[2026-05-28T14:16:45.171Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"HRgjFc8RUxBjDY4KcAeOBLEDWANcA8UCbgHk/jT83/o2+Q75Yvkq+u/7t/3Q/0kB0gHvAH
+[2026-05-28T14:16:45.180Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"HtwG3gjgDOLs46jlfOfu6UvsY+6e8JfymfQr99f5Rfxs/kUA9gG7A4oF1AdGCl8MWg6FD4
+[2026-05-28T14:16:45.271Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"OPzm+bwFzwE//vn6UAO4A/77mwDO/tb/dQFMAS0D8gG6/0kD9P64/zoCKQqQ+k34xgVxBR
+[2026-05-28T14:16:45.365Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"0/zD/UD+ZQFqAcAAPwGk/5cBiwBQ/8IAYv8E/vf+pv6YAo8Ax/96AHwAdwErAPwAwP6dAH
+[2026-05-28T14:16:45.372Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AwAEAAQABAADAAQAAwADAAIABAAEAAQABQAFAAQABAAEAAQAAwADAAMABAADAAQABQAGAA
+[2026-05-28T14:16:45.433Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"generationComplete":true}
+[2026-05-28T14:16:46.378Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"acc27fdc-e11e-47f9-a501-394180c99dd6","resumable":true}}
+[2026-05-28T14:16:47.202Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"d29dcf87-c13b-47ce-87da-a5ae8768c3d1","resumable":true}}
+[2026-05-28T14:16:48.000Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"99612cdd-c3d5-4753-a98a-40e18a903e0c","resumable":true}}
+[2026-05-28T14:16:49.204Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"ed98cc4d-a75c-490d-b0be-3536a4092478","resumable":true}}
+[2026-05-28T14:16:49.312Z] 🧠 Gemini Live Proxy: Client sendet sonstige Nachricht: {"type":"ping"}
+[2026-05-28T14:16:49.374Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1007): Invalid JSON payload received. Unknown name "type": Cannot find field.
+[2026-05-28T14:16:49.377Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1007)
+[2026-05-28T14:17:49.132Z] --- NODE JS SERVER RESTARTED (VERSION: DEEP DEBUG V1) ---
+[2026-05-28T14:17:49.136Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-05-28T14:17:49.145Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-05-28T14:17:49.146Z] Erfolgreich gebunden auf Port 8081
+[2026-05-28T14:18:21.929Z] 🔌 Neue WebSocket-Verbindung auf Pfad: /gemini-live
+[2026-05-28T14:18:21.930Z] 🔑 Verifiziere Token gegen Backend: http://seelenfunke.test/api/ai/verify-token
+[2026-05-28T14:18:22.079Z] 🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...
+[2026-05-28T14:18:22.092Z] 📦 Replay von 1 zwischengespeicherten Client-Nachrichten...
+[2026-05-28T14:18:22.093Z] 🧠 Gemini Live Proxy: Client sendet Setup: {"model":"models/gemini-3.1-flash-live-preview","systemInstruction":{"parts":[{"text":"System-Prompt:\nDu bist Funkira, der System-Root und die CEO-KI
+[2026-05-28T14:18:22.093Z] 🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: 1
+[2026-05-28T14:18:22.173Z] 🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.
+[2026-05-28T14:18:22.174Z] 📦 Replay von 1 gepufferten Client-Nachrichten an Google...
+[2026-05-28T14:18:22.883Z] 🧠 Gemini Live Proxy: Setup Complete von Google empfangen.
+[2026-05-28T14:18:23.195Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #1, Base64-Länge: 10924)
+[2026-05-28T14:18:23.469Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #2, Base64-Länge: 10924)
+[2026-05-28T14:18:23.733Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #3, Base64-Länge: 10924)
+[2026-05-28T14:18:24.009Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #4, Base64-Länge: 10924)
+[2026-05-28T14:18:24.274Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #5, Base64-Länge: 10924)
+[2026-05-28T14:18:24.695Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"191d4d68-19bf-4a53-a0b3-017b0d9215e7","resumable":true}}
+[2026-05-28T14:18:25.896Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7bbe95b3-21ab-4ce5-ab43-1cc4a51b7a0a","resumable":true}}
+[2026-05-28T14:18:26.837Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"44ad583e-3eaa-4521-9502-c92955bb8efd","resumable":true}}
+[2026-05-28T14:18:27.653Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"4381058f-af14-4bdf-964d-cdbca0b18907","resumable":true}}
+[2026-05-28T14:18:28.451Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"106a2082-9afa-42b9-bb85-cef17f9e9f5e","resumable":true}}
+[2026-05-28T14:18:29.239Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"3bac8fcf-47fc-499e-80ac-d5911593d10a","resumable":true}}
+[2026-05-28T14:18:30.085Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2fbe39e2-619f-4aa0-968a-2de95307c229","resumable":true}}
+[2026-05-28T14:18:31.251Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"a1de3b21-f64b-4dd7-9625-a5cdc4f534f4","resumable":true}}
+[2026-05-28T14:18:32.201Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"a31eac08-9c06-416b-af07-8b528c36bd62","resumable":true}}
+[2026-05-28T14:18:33.111Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"a8aad40a-37db-4aaa-b6f1-a0ba17f86796","resumable":true}}
+[2026-05-28T14:18:34.057Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"3018bb3e-9c9f-414a-8496-6f826a08a0f9","resumable":true}}
+[2026-05-28T14:18:35.096Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"de7ccd05-7640-485a-8d60-956f11f2f642","resumable":true}}
+[2026-05-28T14:18:35.835Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"eee4cc0f-77fd-4dfe-ab69-71d239428243","resumable":true}}
+[2026-05-28T14:18:36.723Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"bab437f0-28cc-47ef-9523-95f86c844ff0","resumable":true}}
+[2026-05-28T14:18:37.527Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
+[2026-05-28T14:18:37.528Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1001)
+[2026-05-28T14:18:37.562Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-05-28T14:18:41.292Z] 🔌 Neue WebSocket-Verbindung auf Pfad: /gemini-live
+[2026-05-28T14:18:41.292Z] 🔑 Verifiziere Token gegen Backend: http://seelenfunke.test/api/ai/verify-token
+[2026-05-28T14:18:41.364Z] 🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...
+[2026-05-28T14:18:41.366Z] 📦 Replay von 1 zwischengespeicherten Client-Nachrichten...
+[2026-05-28T14:18:41.367Z] 🧠 Gemini Live Proxy: Client sendet Setup: {"model":"models/gemini-3.1-flash-live-preview","systemInstruction":{"parts":[{"text":"System-Prompt:\nDu bist Funkira, der System-Root und die CEO-KI
+[2026-05-28T14:18:41.368Z] 🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: 1
+[2026-05-28T14:18:41.463Z] 🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.
+[2026-05-28T14:18:41.463Z] 📦 Replay von 1 gepufferten Client-Nachrichten an Google...
+[2026-05-28T14:18:41.640Z] 🧠 Gemini Live Proxy: Setup Complete von Google empfangen.
+[2026-05-28T14:18:41.680Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #1, Base64-Länge: 10924)
+[2026-05-28T14:18:41.958Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #2, Base64-Länge: 10924)
+[2026-05-28T14:18:42.230Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #3, Base64-Länge: 10924)
+[2026-05-28T14:18:42.495Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #4, Base64-Länge: 10924)
+[2026-05-28T14:18:42.770Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #5, Base64-Länge: 10924)
+[2026-05-28T14:18:42.907Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:18:43.131Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"cf279aef-f38f-493b-92a0-f317cefbedb0","resumable":true}}
+[2026-05-28T14:18:44.049Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f02384cd-d930-4513-9a9b-0d15d1c41d1e","resumable":true}}
+[2026-05-28T14:18:43.621Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"inputTranscription":{"text":"fungi, bist du da?"}}
+[2026-05-28T14:18:43.622Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:18:43.622Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:18:43.749Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"NwBNAE8ARgBBAD0AKgAfACsANgBHAD0ANAAxACwAMgA3AEkARgA4ACcAJAAsADIAOABBAE
+[2026-05-28T14:18:43.858Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"jNab16XfSeY/6JzusQCPGH0sUjh5PfQ9lzcKKIARHvkS5IbVDc/9zwzV1Nuv5LjwkP89Dh
+[2026-05-28T14:18:43.949Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"lgXuB2MJuAhDB0UGBwVXBEQELQVbBgoHoweJCGMIxQbkBMcCbgDB/v79t/3t/c7+egDHAZ
+[2026-05-28T14:18:44.012Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"xwFM/g/9G/58/CX9CQEdBOIBiwGQALD88vwmA5MDXwBg/yv9ov2d/qb/IwIeA3wB8/8Y/Z
+[2026-05-28T14:18:44.089Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"BgADAAYAEgASABIAIAAnACwAKQAjABkAFQAMAP///P/+/wcACQADAA0ACQAIAAgABAAAAP
+[2026-05-28T14:18:44.180Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"SC3EJgQcrg9/A6X3me6D5DzdHtbczxvMGMpl0bjSTc2Zw1C57Lqkv2LGhMyD0uHbWOfq8l
+[2026-05-28T14:18:44.272Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"nd4W3xvhlOLr5EXpI/Bk9zD9vAGGBm4JeAzUD+sWiSGhJ/QnEyJKFaIFovpg+K37+vwD/6
+[2026-05-28T14:18:44.368Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"S/+Z/5T/0/5p/yABiQHcACgAiwCgAIr/Q//K/xwAbv9c/x0AzQA5ADH/CQClAJT/9v6q/9
+[2026-05-28T14:18:44.408Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f0e6874d-c0fd-46da-a2d9-08d155f10804","resumable":true}}
+[2026-05-28T14:18:44.499Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"SQA2AA8Ahv/z/gP/SP92/8r/CAAdAAQAyf/9/ykACACf/5j/3f8eAP//fv91/6H/DQB6AJ
+[2026-05-28T14:18:44.584Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"KQAkABwAFAAQAA8AEQAQAA8ADQAOAAgADAARABMAEwAPAA0ACgAKAAwADgAQABEADAAMAA
+[2026-05-28T14:18:44.637Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"IQAdABsAFwAYAB0AIAAlACQAIwAdABsAEgAXACMAIgAlACIAJQAhAB8AHgAdAB8AIwArAC
+[2026-05-28T14:18:44.687Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"+94L3p/WGNQRzjzOitze/fMtPFFgXLhRaUTfNRklgBScAjj+iwHSBSEFWgL2/u78tf3R/k
+[2026-05-28T14:18:44.826Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"z/rD+2X9gP6O/qL9PfzK+vP6+Psj/ez90v0+/t39Cf6H/mX/AABdAEoABABx/wL/4P9sAK
+[2026-05-28T14:18:44.916Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"rwySDDYMfQ6wErgWEhkgGQEYKha/E1gR2Q5VDdULdAr+CPMGdgR9Abb+PvwC++T5Jviz9Z
+[2026-05-28T14:18:45.086Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"ePy3/v8ANgNhBSYH8AiFCgYMpA04D94QeBLnE1gVixaVF80YmhlKGr0ajhouGoUZjhivF+
+[2026-05-28T14:18:45.112Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"/P/8//z//P/8//z//P/8//v/+//7//v/+//9//z/+//7//r/+v/5//n/+P/5//j/+f/4//
+[2026-05-28T14:18:45.222Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"BwAGAAgABwAIAAgACAAIAAgACAAJAAoACQAIAAUACAAJAAcACAAIAAcABwAHAAcABgAGAA
+[2026-05-28T14:18:45.261Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"hQN1BFIFRAZrB7QIpwkaCicKUwrkCnULRAy+DAcNmw0cDmQObQ4iDqkNVQ0qDSUNKA0PDb
+[2026-05-28T14:18:45.438Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"HQAeABwAHgAfABsAHAAhACMAHwAdABwAGAAbACEAHgAcAB0AHAAWABcAGQAWABQAFQAWAB
+[2026-05-28T14:18:45.590Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"/f7K/pX+Yf4v/v39yf2Y/W79Qv0b/fz84vzT/Mj8ufy2/LT8tvy+/MP80fzj/PT8DP0m/T
+[2026-05-28T14:18:45.716Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"fQAWAJD/Kv8l/8T+o/7g/sn+5f6M/rL+f/7A/RH+3v3S/SX+dv6M/sv+K/93/+v/6/9vAL
+[2026-05-28T14:18:45.890Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"7vEL6g/kO+Bv3d3dJ+PA6ZHvXfPt82DyxPCP8QT2X/u9/iYCqggFEEgUExakGbofOSPsIH
+[2026-05-28T14:18:46.080Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"HAG4+GD+mARE9yn7vgBF+J/4rvwb/x/9cvtYAaEAU/1j/AH+gwDH/O75ZQTSCML7jvk3Bi
+[2026-05-28T14:18:46.260Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"niNbIyMhkB57G0kYihV3EmEQyQ4RDdsKkQg4BXMALftX9mHyCe/Z7Cjs4uyR7ezu/PFh9g
+[2026-05-28T14:18:46.405Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"/wD7/zv/kv45/tf9iv1Y/fz8xPx3/Cj87/u1+5P7cPtT+037Qfst+yT79/q9+rT6i/pa+j
+[2026-05-28T14:18:46.559Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"PAf/CNYKuQzCDQAPWhANEVESOBMwE68TJxRNFMAUuhSAFLAUXBQtFCsUYRP0Es4S+hFtEd
+[2026-05-28T14:18:46.715Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AAD4/+z/9/8DAAUADQAJACgAOwBCAFEAYABZAC8A6/+r/53/u//Q/+z/AwD2//7/EgAXAA
+[2026-05-28T14:18:46.894Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"uf/7/0AAfAC2AOgADgEoASQBEQHnAKsAcgA7AAAAxP+P/2z/Xf9a/2n/hP+k/9L//P8wAG
+[2026-05-28T14:18:46.896Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Z/897ob4aP7S6JjZlumR/6sEtQGkAcsBefQh2X7Hzcv91/zcFNsu45r6hA9CFTkanCuLQV
+[2026-05-28T14:18:47.002Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"sO8e9q/4c/l6+4X+hABqAa4CtAQGBi8FYwRDB4cN6BMdGG8aqxyGHVAaGRSzDdgInATw/4
+[2026-05-28T14:18:47.043Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"V+H66W/0iQHiD3cciiWvLOw01T13QvJAbDi4LWklex+hGSATigzuBlMCcf4d/OH6N/m99o
+[2026-05-28T14:18:47.091Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"nwdVCBEIUwbBAxoBof7o/Wb8A/q69972ZPlz/iMEjAgsDNAOcBDrEDMPRg2mC2ALEQ3VDx
+[2026-05-28T14:18:47.222Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"9vZ79hT2xvWb9Y31ffVr9VD1RfU/9Uz1fvXh9Wr2E/fP95r4b/k4+vL6qfto/Db9Hv4O//
+[2026-05-28T14:18:47.370Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"zf2+DE34lfaOCcEEnQJ78x7+0gr6Bi38e/kZ/LENzgWO9r/5of34Ej/2KPaJADMB6QZl/W
+[2026-05-28T14:18:47.512Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"wy9INCM25zIcLdwpOCfUH/UVqA0rDDIP7Q/cCToARvdH8IzqhuOn3kbeFuBf4VXfYdrS1Z
+[2026-05-28T14:18:47.661Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"KADb9MfvPwHAFIIPBAHn8nL1JvogANYI0gmc/2f3w/+qBkACpP7EBlj8C+ls8tEN6BmeDE
+[2026-05-28T14:18:47.706Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"4v+5AEIBrAEPAiICIQJ6ArED0QSrBUgFpwQkBJQDPwRWBRwGYAYaBmIFxgSeBI4EcQRWBO
+[2026-05-28T14:18:47.869Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"tt0C0ZnFVb4ivpDKH+JI/ZwSyBx9KAxBMFOSWC5S8UhtRCc8+CWwDcv5tOql4d/ccdsn36
+[2026-05-28T14:18:47.935Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Fv7k+ib53/h3+TL6XfkG+Gv3tveq94v3c/j1+rX9yP6t/vn+5/97ARsDYQRvBSMGIQZbBZ
+[2026-05-28T14:18:47.987Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"w/7q/gv/KP86/0f/T/9S/1H/U/9Y/2T/cv+D/5D/l/+e/6X/q/+s/6b/mf+E/2X/P/8T/+
+[2026-05-28T14:18:48.202Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Bfmt+Iz6nf0vA/oHlwrMDJwNsguvBagAWATHEOobYR3SGPIUrBIZELIMdwqVDAEQoxAgDz
+[2026-05-28T14:18:48.246Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"dg01C/MI+QfgB0QIBwoqDLUMqwp3BvYC6QFCAigDrQPNAWb+0Pvi+Wb55PmJ+m/99ADcAa
+[2026-05-28T14:18:48.270Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"CgAJAAcABQACAP7/+v/3//X/9P/z//L/7v/q/+P/3f/b/9n/2P/Y/9n/2//c/9v/3P/e/+
+[2026-05-28T14:18:48.459Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"bQBxAHUAdABxAHMAcQB0AHIAbwBnAGoAagBEACkAGgAAAPL/6P/h/97/2//Y/9f/2//i/+
+[2026-05-28T14:18:48.634Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"uBMJFNcTvBPWE+QTahO7ElsSExLsEbcRShFvEGUPcA5RDQEMqQrRCYIJ/ggoCDYHNAZnBQ
+[2026-05-28T14:18:48.767Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"generationComplete":true}
+[2026-05-28T14:18:49.992Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"eb324e6f-6b3a-4865-9bd7-31f73f2e0945","resumable":true}}
+[2026-05-28T14:18:50.816Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"139a55c3-fc6f-4c81-8d30-014adc7889ea","resumable":true}}
+[2026-05-28T14:18:51.863Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"c00d2123-42c5-4951-8406-f7d75a4d9c36","resumable":true}}
+[2026-05-28T14:18:52.853Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"turnComplete":true}
+[2026-05-28T14:18:52.860Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"4128b647-5a7c-4b65-aaa2-aed948d55c33","resumable":true}}
+[2026-05-28T14:18:53.741Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"dc24b6f7-b79b-42b2-a79d-830721b92f1d","resumable":true}}
+[2026-05-28T14:18:54.625Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"d2a62010-be4f-4619-8412-2d9e9db9187f","resumable":true}}
+[2026-05-28T14:18:55.437Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"5000c3c3-b1f0-4ce6-8171-608560a571ff","resumable":true}}
+[2026-05-28T14:18:56.418Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"aa81d4a1-b718-43b3-a1ba-5126651b8ccd","resumable":true}}
+[2026-05-28T14:18:57.352Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"fc50dc79-8161-4594-b469-9ab2c9ddae93","resumable":true}}
+[2026-05-28T14:18:58.213Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"3706d1cf-3583-41aa-8260-a5fd94f82039","resumable":true}}
+[2026-05-28T14:18:59.246Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"06b40024-492a-4269-a90a-658f08c4fafe","resumable":true}}
+[2026-05-28T14:19:00.223Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7c1a2ae3-3fd8-4e91-82b3-965de78c96c9","resumable":true}}
+[2026-05-28T14:19:01.222Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"71eb8008-f2f8-4f90-84e5-55356dee62d2","resumable":true}}
+[2026-05-28T14:19:02.052Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"98ed1efd-86b2-4d70-8aeb-99c5a570d753","resumable":true}}
+[2026-05-28T14:19:03.023Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"9a76fba1-2bb6-4d6a-8c79-314792c470b2","resumable":true}}
+[2026-05-28T14:19:03.885Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"22bec38d-78cb-4052-910c-21e88168580b","resumable":true}}
+[2026-05-28T14:19:05.011Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"5b0de82a-d26f-4e8b-8293-65d9c6834bca","resumable":true}}
+[2026-05-28T14:19:05.919Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2388a22a-20e1-4f66-a50e-6c57bf0a5ddf","resumable":true}}
+[2026-05-28T14:19:06.918Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"12cd65ef-f44b-4739-9c8a-1cabd6596a36","resumable":true}}
+[2026-05-28T14:19:06.971Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #100, Base64-Länge: 10924)
+[2026-05-28T14:19:07.600Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"97199434-50bc-4ad4-ab63-c5bcbfbe724e","resumable":true}}
+[2026-05-28T14:19:08.565Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"6756633f-ba89-4b5c-87e8-f49043a07a2b","resumable":true}}
+[2026-05-28T14:19:09.437Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"78a7d500-0ecf-45aa-8227-d75051723fb9","resumable":true}}
+[2026-05-28T14:19:10.430Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"9c329744-67e5-476e-9a96-62b4a58dd9d6","resumable":true}}
+[2026-05-28T14:19:11.223Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"0e59265a-eadb-42b6-b7fe-fc02871ebb38","resumable":true}}
+[2026-05-28T14:19:12.071Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7bcbae49-d312-4356-b418-ab55f701218a","resumable":true}}
+[2026-05-28T14:19:11.238Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"96d11c5c-e410-4e9e-bc55-d607b3859f11","resumable":true}}
+[2026-05-28T14:19:12.028Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"e94cf5c5-9c96-4d9b-9e05-cc0bfc9d2fc1","resumable":true}}
+[2026-05-28T14:19:12.857Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"48c8ffeb-2b81-4524-adb8-db2bcda30a99","resumable":true}}
+[2026-05-28T14:19:14.013Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"430567b3-8652-4014-98cb-e40a4591ea2a","resumable":true}}
+[2026-05-28T14:19:15.073Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"8d1b47b2-b3ef-4a2f-868a-62e04fb5874e","resumable":true}}
+[2026-05-28T14:19:16.033Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"d0cc0288-f527-402f-955c-a1e5c8fc9b8b","resumable":true}}
+[2026-05-28T14:19:16.899Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"c6831412-bd7f-4f50-9e09-6e0b696143b2","resumable":true}}
+[2026-05-28T14:19:17.970Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"c0747702-b137-407a-8d91-083c126e40f2","resumable":true}}
+[2026-05-28T14:19:18.980Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2e752b49-b8a9-4a1d-907a-d845c66d0f66","resumable":true}}
+[2026-05-28T14:19:19.425Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:19:19.810Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2df7a462-6eb6-4b5b-92b2-25123c72aaaf","resumable":true}}
+[2026-05-28T14:19:20.866Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"1cdeca0b-5792-47a7-861c-2cc49288999e","resumable":true}}
+[2026-05-28T14:19:32.008Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"inputTranscription":{"text":"Nee, alles gut. Also, ich teste gerade nur, weil der Websocket die ganze Zeit abgestürzt ist. Ähm, brauchst auch nichts
+[2026-05-28T14:19:32.009Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:19:32.009Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-05-28T14:19:32.009Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AAA="}}]},"outputTranscription":{"text":"Alles klar,"}}
+[2026-05-28T14:19:32.010Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"4/3PARwEpwZgCpcKbwUsASUE4wopDb4KIgmBCr8KZAhGBhwGMwY5BRoFywXFAzT+KPnK97
+[2026-05-28T14:19:32.010Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"4wiLBbEHRQdLBoEBbAG+AYn++wDx/Mn68v61AGb6M/lZ+6H49fkn+P/yc/eO96nzS/WX8b
+[2026-05-28T14:19:32.010Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"KPf09oD3+ffC93/2JvUe9cv1jfbS9ln3qfgy+tz75vw5/TH9tfwv/BL7evkA+GT3cvem90
+[2026-05-28T14:19:32.033Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"vhZEGXQZxRhSGvUepiRTKfkrLyytKcIjyRs4E9QKvgJ7+/T1fvIe8NjtzOua6//tnPIi+J
+[2026-05-28T14:19:32.078Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"QwAt/rb/+f8GADQANf4W/m/+vf+G/wwAbwDs/8j/MAAp/zj/C/5sAH79pv9YAXQBLQAE/6
+[2026-05-28T14:19:32.151Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"FAAWABEADQAMAA4AFQAVABIADQAIAAYAAwAJAAkABQACAAIACgAQABEADwAPAA0ADwAQAB
+[2026-05-28T14:19:32.183Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"QACX/wX/bv7N/Sr9qfw8/Ov7mvtQ+wP7sfp6+kv6Gfrj+bT5mvmC+X75efmK+bn55/ko+m
+[2026-05-28T14:19:32.202Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"OP4q/hz+EP4I/g3+HP4l/iT+Iv4v/j3+Tf5W/mT+fP6g/tL+BP83/17/kv/K/wsAQwBrAJ
+[2026-05-28T14:19:32.224Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"t/9cAL4AggBjAB0A5P8gAE4ATwDx/1j/WP8RAOQARgH7AH4AKgDZ/6P/rP+8//n/7P/e/z
+[2026-05-28T14:19:32.278Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #200, Base64-Länge: 10924)
+[2026-05-28T14:19:32.289Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Zf87ACwBvQGNAaAACAAe/7L+S/8HAM0AdwHoAfcBZQFTABn/cf5y/hT/BwBQANkAYgFHAY
+[2026-05-28T14:19:32.322Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"9v/6/wMAAgAHAAcAAAD6//j/AAAEAAkAFQAbABcAEwAMAA0ADgALAAsABwABAAQABQANAB
+[2026-05-28T14:19:32.358Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"HiZHL88wMyzlJEkcBhTBDUkLygxQEBITjhSdFeUVJhRiD1kI2wCn+ZfznfA28lr3Kv3CAg
+[2026-05-28T14:19:32.433Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"3eZ854/nweY85nzkHePj4fDfFN2L3IHe8t5p3/HbTNx53PHZm9kM2LTawdzp3/bkMOf455
+[2026-05-28T14:19:32.434Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"5uuG7PPtoO497wLvJ+7G7ZHtn+wd6/npJ+gr57fnxOdm6G7qLet66gfoPOII26XUg9DpzV
+[2026-05-28T14:19:32.516Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AwpICyYM+w3AEDASjBICEmsS7hIGE/ESbxKuEhET9xICER0PKQ5jDfYMfQvDCQ4HBQXuAi
+[2026-05-28T14:19:32.517Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"3f7m/ur+9/5i/8//KgBhAHQAkACnAKoA1QDfAAQBHQE5AVwBPgE2ASABMgFbAY4B5gEsAn
+[2026-05-28T14:19:32.543Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"6CZ9IrsdbRiHEnkMdgcQA9b+Qvoo9o7zV/KY8Vrw6u4L7n/u7++p8XbymfK88pvzHfVb9h
+[2026-05-28T14:19:32.597Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Z/06/RL95fy8/Jz8ePxa/Dj8HvwL/Pr79fvy+/T7APwU/C38TPxy/Jn8y/z8/DD9Zv2X/c
+[2026-05-28T14:19:32.659Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"4/9S/vX8KwMAAAf+hP0B/loEdgeOARL/YQCrAaIAbPzD+1H+agO2BNAAIQDHAdz+GgKiAS
+[2026-05-28T14:19:32.663Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"afTz9wH+JgEq/7P7/PsPARkHHAqECf4HPQhzCrAMwA3+DUQPjhIFFg8XihSoENoOfBBKFF
+[2026-05-28T14:19:32.682Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Y/z8/Oz+WP+i/vz/7wBgAIz/MP/8AJMBAAD2/7oDsQUdAzABPgD2/2MCFAYyBzEEoQKZA0
+[2026-05-28T14:19:32.794Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"GwAVABcAFgAMAAcAAAACAAEAAAD5//r/7v/j/+//7f/p/9n/2v/e/9H/z//M/8j/y//B/7
+[2026-05-28T14:19:32.876Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"QAGeAQj+Hf5eAcwBL/97+ob/9QTAASv8ZftiAAAH1/6h/Yb8Uv6qAkED1gKP+M75SwVhBl
+[2026-05-28T14:19:32.903Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"SwFGAUIBPQE3ATMBKwEnASMBIgEbARMBCAH+APUA6wDjANsA1ADKAMAAtwCrAJ0AkQCIAH
+[2026-05-28T14:19:32.931Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"CgDz//n/EgANABUAFQAaAAYA9//7//P/7//3////GAAVAAQAAAD2//H/AAAMAAUAHAAjAB
+[2026-05-28T14:19:33.034Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"8//L/6j/i/+///f/TQBsADMAyv++/ysASAD+/83/xf/f/0UAsQDDAFoA2f+T/+n/TABVAF
+[2026-05-28T14:19:33.039Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Es5ew4DV9ujl3qi43aMmqwi6J7JBn/SepcXfAjQmFSF+BWfr8+DD7dQEWR9FNkxH/09sUF
+[2026-05-28T14:19:33.104Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"bc3a070d-9fdd-4cfd-83d7-2b3e852c4353","resumable":true}}
+[2026-05-28T14:19:33.124Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"lv6M/Ob8dv1s/Zn8CPyQ+xv6ePZd8RjtLOuN6rPp+efK5rnlHOSU4YjdWdof2MXWZtU60l
+[2026-05-28T14:19:33.150Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"RRz2FlcRfApPA+P8fveM8njteenr5gPl1+Ov4y/l4ud/6qzsYe+I82H4rvwrANcDMwgvDL
+[2026-05-28T14:19:33.172Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Zrsku+y/pNHn6J379wqsEc4QHQwQBfAC2AYWD/0X8B13IL8i2CIkIcod8Rb4D9MIKAAA+d
+[2026-05-28T14:19:33.278Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"hN8+3UTbCto82UXZINog217cNN0V3k3f+N/Z4TDjluQE52npFO357+HyBvbz+G78Iv+BAe
+[2026-05-28T14:19:33.345Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"vS+pMPgspSTYGi0SQgy2CVQKVgu6Cx0H5f7U9YfvGuwc69DslO7C76jwcfEu8MLwOPON96
+[2026-05-28T14:19:33.395Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"cPyW/NH8EP01/W79pv3c/Rz+Sf50/qT+5v4k/23/rv/f/w8ARACAALMA3wALAUQBfwG9Ae
+[2026-05-28T14:19:33.418Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"ku+/7urtd+t86Fvk/uEe4svhZOIj46vk4+fI6hDrm+kG6O3n6elH7dTwg/P/9x/9lQG+BL
+[2026-05-28T14:19:33.494Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"cP3q/UT+HP6V/Qf+0P3O/Pn7DPzv/K79I/4a/m/9M/2X/H375vo5+zr8hPym/Bb8PfuT+r
+[2026-05-28T14:19:33.576Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"8v8ZAEkAQAAbAPP/6P/m/+j/6P/1/x4ACAANAA0AGAABAPX/AwAAAPf/x/+3/+T/DAAAAN
+[2026-05-28T14:19:33.644Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"Bd6C2bvVetFQzIXH8sVlyFDLUs0Vz8XSGNcz2B7X0dpt5B7yFALTEwcpTT4vRbRC6TxIOp
+[2026-05-28T14:19:33.731Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"lf9YADMB5QHKAq8DPgT6BKIFFga1BiwHTwcyB/QGlAZLBhMGgAXVBOADyALoAQkBGAAd/y
+[2026-05-28T14:19:33.790Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"CgF9AYgAm/+7/iz9IPz2+zf7ZvpA+l35FPhe93b2/PRC9bf2RfZo9DPzZPFA7wnuRe227I
+[2026-05-28T14:19:33.805Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"7QugC1IL2gp7CvkJuAmCCTsJSAn5CKsIkQgYCLIHawffBmkG9AUkBXoEnAOoAt8ByQC8/8
+[2026-05-28T14:19:33.893Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"YBQBFTwVJRX3FKAUIxSWEwATXBJxEZoQ7w84D7wOdw4cDrsNUQ3dDG4M6QuEC1IL+QqwCm
+[2026-05-28T14:19:33.935Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"QwSK/zf88P7jB7n7Tv7v/z0DZf43/hUFDP17/lcCawaC9g0AMgXC/sf7NwE8BGP6vgHXA6
+[2026-05-28T14:19:34.013Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"LwB5AGMADwDe//j/FADw/xUAVQCRAI8AUwBdAHcABACa/6f/DgCgAC0BTQHoAEUAu/9G/0
+[2026-05-28T14:19:34.119Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"QDZHNXo83kJpRRZEVkM5RLQ/AjJ4H+sN8QCw+EP5DfuD9UPqbt9b23za2tcH1ITVH9nb13
+[2026-05-28T14:19:34.165Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"LP5H/xwAxgCiAfICbgS9BeIGAgjkCFYJ5AjhB38GDgVsA5UBtP9v/lH9KPzl+u35dvlu+Z
+[2026-05-28T14:19:34.186Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"CAAGAAoACQARACQALgAfAPv/1v/G/7z/0f/n/wQAFwANAP//9P8AAAsA/v/m/+f/AQAjAE
+[2026-05-28T14:19:34.301Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"BAAFABUADwDh/7b/pv+i/67/rv+u/9L//v8QAA8AKAA6AB4A9P/V/93/AAA8AGgAeQB6AF
+[2026-05-28T14:19:34.395Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"PPyP+577Cfs4+hH5wvcB95r2tvW39MjzFfOl8pzxPfD77vvtRu3y6xTqNugy5p3kLeOd4T
+[2026-05-28T14:19:34.396Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"1fLP8wb1Rvab94/5WPtI/f/+kgBzAioE0AVEB24Iswm9CqgLZQy0DDsNng0UDnkOtA49D8
+[2026-05-28T14:19:34.476Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"fPUn9kf3VPil+Rz7uvyV/lIA/AFgA4UElgW0BpkHUgjgCEoJ1QlBCogK4QoeC5YLEAxMDI
+[2026-05-28T14:19:34.562Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"W//+AaQAqALm//UAq/9BAaMARQB+AMEAcAJK/tr+e/93/ywA5QDq/sEB4wGUAWD9mgIq/7
+[2026-05-28T14:19:34.562Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"WROYEYERSxHMD+YOmQ0ZDDUK7QcoBtADSQNFBGsEGgRDAk7/Ef0x+4j79/vS+1H8zfsG+g
+[2026-05-28T14:19:34.595Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"0hR9FwQckB6JHKwcqCKELOQzJTkhOkA0RzFQL78uXjBuMKYvLi/ALZMqhyWjHucZrhcBFF
+[2026-05-28T14:19:34.607Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"KgFtAaEB2QHYAQMCEwIiAmACbQKuAtcC+gI1AyQDQANIA1cDdgN3A8wD8wMGBCQE9gP1A+
+[2026-05-28T14:19:34.665Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"8veY+1n4fvUo88Tzr/b296H17/VB9Tz29/e0+E72Ffbo95r3cva592r7e/6Q/Yb41faD+c
+[2026-05-28T14:19:34.703Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"n/C8CLUi8zZYQsNEDEC0MfwfLhF8CTQJVA3fEZMU5BIYDWsF//3h98X09PJt8M3t1epE5j
+[2026-05-28T14:19:34.776Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"4NkF5kT3dQk5GxMq+TJ0M+MvnyxxKnAovCMAIGchxiNDIVcc/hY3FvMWuhIjDJMC3faR68
+[2026-05-28T14:19:34.863Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"LwFNAF7/PP8ZAKAA6P+H/sn9Av49/jL9efxq/Pr8XP03/Mv6fPnW+Ev4pvfQ9ob1/PSo9d
+[2026-05-28T14:19:34.973Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"FwAeABwAHQAgACIAJAAmACkAKwAtADAAMQA1ADoAPwBHAEsAUQBUAFYAWQBaAF8AYgBkAG
+[2026-05-28T14:19:35.039Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"sv1K/Rb+6v/ZATsExQTMA+ICbAEu/379U/7TAIoCXgIDAtYAzv/v/tL+DgDzAR4DoAKxAI
+[2026-05-28T14:19:35.233Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"lf77/2L+3ADpAZYAZAAkAtIA7ABDAl0ADgGLAFsBNADE/xoAb/7iADgAlgD5/8AA2f+dAO
+[2026-05-28T14:19:35.236Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"TP+y/zkAVABPAOf/GQBYAI0A5gDKACEB0ACHAGQAKgDU/1//Yf/t/3wAZAAxACEALQCKAG
+[2026-05-28T14:19:35.271Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"5fxY/QX+ZP7k/qn/XQA2AaABtQEKAkACWwJkAjYC3gGZAVEB6ACAAPn/of90/z//Q/8X//
+[2026-05-28T14:19:35.274Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"CwAbADMAOQA6ADcAMwApAC4ASgBvAGUASgAjAAUA8v/U/7z/vv+5/83/+f8fADUAKAAIAO
+[2026-05-28T14:19:35.388Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"8f/n/3cAEAHrAG0ADgDc/8r/AABEAGAAMADX/63/0f/b//r/5P/B/63/ZP9b/5b/6//y/x
+[2026-05-28T14:19:35.440Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"2PtK+gv5YPeH9MX0Sfaq9iD4rfva/9oFLAk+CKQKJw23DjERoRNJFtMZshwBHXcdRh63Hf
+[2026-05-28T14:19:35.511Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"R/SH8v7wr/EQ8vzxWPCw73TwCfJ28oLxbu6B76nv1+1d6z3ohuYR5g3n+OOK48fkv+Ze6V
+[2026-05-28T14:19:35.627Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"IAA2AC0AOwA6ACcAOQA0ADIAPgAxADQAPAA0ADUAMgAzADQAMgAnACwAJgAjABcAGQAkAC
+[2026-05-28T14:19:35.686Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"NQAzAC8ALAArACkAKQAnACcAJAAjAB4AGwAaABcAFQARAA4ADAALAAkABwAEAAIAAAD+//
+[2026-05-28T14:19:35.744Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"generationComplete":true}
+[2026-05-28T14:19:36.741Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"610e5bfd-4e56-476e-95b0-9cd129ef9a7c","resumable":true}}
+[2026-05-28T14:19:37.681Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"e10130ca-c625-4196-b24d-84cd490cab01","resumable":true}}
+[2026-05-28T14:19:38.478Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"be821a97-1e62-45f3-8bf2-ada02aa9fb39","resumable":true}}
+[2026-05-28T14:19:39.338Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"23dee34a-9807-4926-96f0-478126e8ffe2","resumable":true}}
+[2026-05-28T14:19:40.240Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7510a0db-909b-4487-a8d6-ab44d785afd2","resumable":true}}
+[2026-05-28T14:19:39.692Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"39446c60-1826-4d5d-b93f-09ef3a8ad4fa","resumable":true}}
+[2026-05-28T14:19:40.504Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"1800bf7b-f282-4eab-8ab6-df5ee0eb13c3","resumable":true}}
+[2026-05-28T14:19:41.411Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"e350331f-f91d-44c3-b74d-d05a6eeac945","resumable":true}}
+[2026-05-28T14:19:42.362Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"ea748ee4-6fc3-4a00-a79e-409b25ce0d4f","resumable":true}}
+[2026-05-28T14:19:43.211Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"bb37d290-39c5-43c2-a4ac-c3625e1218c7","resumable":true}}
+[2026-05-28T14:19:44.035Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"e3b54cf2-e273-41e3-9653-ade23e56c533","resumable":true}}
+[2026-05-28T14:19:44.177Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {"turnComplete":true}
+[2026-05-28T14:19:44.994Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"bfc12c37-5280-48c4-a915-b260551bc7e0","resumable":true}}
+[2026-05-28T14:19:45.680Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
+[2026-05-28T14:19:45.681Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
+[2026-05-28T14:19:45.708Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-05-28T14:19:47.147Z] 🔌 Neue WebSocket-Verbindung auf Pfad: /gemini-live
+[2026-05-28T14:19:47.147Z] 🔑 Verifiziere Token gegen Backend: http://seelenfunke.test/api/ai/verify-token
+[2026-05-28T14:19:47.229Z] 🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...
+[2026-05-28T14:19:47.231Z] 📦 Replay von 1 zwischengespeicherten Client-Nachrichten...
+[2026-05-28T14:19:47.233Z] 🧠 Gemini Live Proxy: Client sendet Setup: {"model":"models/gemini-3.1-flash-live-preview","systemInstruction":{"parts":[{"text":"System-Prompt:\nDu bist Funkira, der System-Root und die CEO-KI
+[2026-05-28T14:19:47.233Z] 🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: 1
+[2026-05-28T14:19:47.380Z] 🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.
+[2026-05-28T14:19:47.381Z] 📦 Replay von 1 gepufferten Client-Nachrichten an Google...
+[2026-05-28T14:19:47.537Z] 🧠 Gemini Live Proxy: Setup Complete von Google empfangen.
+[2026-05-28T14:19:47.703Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #1, Base64-Länge: 10924)
+[2026-05-28T14:19:48.047Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #2, Base64-Länge: 10924)
+[2026-05-28T14:19:48.248Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #3, Base64-Länge: 10924)
+[2026-05-28T14:19:48.499Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #4, Base64-Länge: 10924)
+[2026-05-28T14:19:48.774Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #5, Base64-Länge: 10924)
+[2026-05-28T14:19:49.236Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"0ea11f4f-8fb0-49a1-a095-36f997a5a78d","resumable":true}}
+[2026-05-28T14:19:50.088Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f9b76424-c4c9-43e9-b322-03efc881a622","resumable":true}}
+[2026-05-28T14:19:50.859Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f2398040-b94d-4ab1-9049-fa2846bc07b7","resumable":true}}
+[2026-05-28T14:19:52.024Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"db03e277-f9e8-4c17-ab60-3220ec07bbdd","resumable":true}}
+[2026-05-28T14:19:52.942Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"74c963aa-fdcc-49c2-8854-4cb549abe130","resumable":true}}
+[2026-05-28T14:19:53.822Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"bcd20a06-be31-4364-ab64-d5790f0ad578","resumable":true}}
+[2026-05-28T14:19:55.133Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"36edc388-7e20-4008-b7d4-5c30d8ed1ee7","resumable":true}}
+[2026-05-28T14:19:55.941Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"b8f5e0cc-83c6-43a1-b71a-2ecf2d979eaa","resumable":true}}
+[2026-05-28T14:19:56.890Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"8684005c-127b-4707-9940-2aa6080401d8","resumable":true}}
+[2026-05-28T14:19:58.018Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"400cefee-f0e5-47b4-9c0c-31e790f6af3d","resumable":true}}
+[2026-05-28T14:19:58.883Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"390ab634-fc34-495b-b9c5-8fd2066bdfaa","resumable":true}}
+[2026-05-28T14:19:59.670Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"3d960093-b92e-42db-b70f-2f98e579f35c","resumable":true}}
+[2026-05-28T14:20:00.609Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"b0e3e896-096e-4c0b-9c6e-bdba717ed58c","resumable":true}}
+[2026-05-28T14:20:01.397Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"22f15eda-a825-434b-a23b-dd4e5d070df7","resumable":true}}
+[2026-05-28T14:20:02.223Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"24fb347e-65c0-4d5f-9ffa-9f586260f8a9","resumable":true}}
+[2026-05-28T14:20:03.134Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7bc7f45e-f3d4-49dc-bf49-5b57494807fe","resumable":true}}
+[2026-05-28T14:20:04.083Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7d7912dc-a857-49c1-bf73-538c2d596693","resumable":true}}
+[2026-05-28T14:20:04.975Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"641f350a-2710-4b1f-b650-0c04894a42d5","resumable":true}}
+[2026-05-28T14:20:05.833Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"fada8788-b5ce-4cd5-85de-708e2bc6dc15","resumable":true}}
+[2026-05-28T14:20:06.579Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"6044d800-911f-4162-b2e0-1b707488fecb","resumable":true}}
+[2026-05-28T14:20:07.611Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"bea28bad-3fab-460d-801d-eaf272c9fe08","resumable":true}}
+[2026-05-28T14:20:08.546Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"816cc3c2-6d4a-490b-8f9e-e0db6be955fc","resumable":true}}
+[2026-05-28T14:20:07.966Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7eac7a3c-9177-4aab-bb6c-0dce3be769e6","resumable":true}}
+[2026-05-28T14:20:08.796Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2e68f98e-178e-44e4-af6a-c29411aa7226","resumable":true}}
+[2026-05-28T14:20:09.586Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7bea44fb-c0c8-4e03-8618-09ea12bb8977","resumable":true}}
+[2026-05-28T14:20:10.637Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"25839648-cc17-4f13-a921-1bd573c28be6","resumable":true}}
+[2026-05-28T14:20:11.742Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2d3061c8-6eec-4493-a1e9-b0be97214482","resumable":true}}
+[2026-05-28T14:20:12.659Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"88d26d99-f358-47a2-8cc0-f7836db8f4bf","resumable":true}}
+[2026-05-28T14:20:12.861Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #100, Base64-Länge: 10924)
+[2026-05-28T14:20:13.757Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"dff7ca34-1ffa-4027-9dfc-b1e4fffe2542","resumable":true}}
+[2026-05-28T14:20:14.919Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"290d6589-a1d7-4d70-8b40-8afddadec9c2","resumable":true}}
+[2026-05-28T14:20:17.087Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"26d253e3-97e0-4195-a142-e280676dbd05","resumable":true}}
+[2026-05-28T14:20:17.088Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"1b5dffa7-6aa6-4afc-81ad-b72cd581b222","resumable":true}}
+[2026-05-28T14:20:18.511Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"00a21267-7a01-4f8d-9e56-1a6f05fd278f","resumable":true}}
+[2026-05-28T14:20:19.524Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"d1a2b7cc-c0d4-49ac-afb4-f12a05adc315","resumable":true}}
+[2026-05-28T14:20:20.427Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"0dbf8249-b893-4919-869c-d9d30116e397","resumable":true}}
+[2026-05-28T14:20:21.228Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"67158647-5218-4328-a42d-479fe037a23b","resumable":true}}
+[2026-05-28T14:20:22.154Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"accbecdb-a0c2-4b29-bbb2-b68543f71d02","resumable":true}}
+[2026-05-28T14:20:23.361Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"a1e8a796-6f00-4796-8c59-4daee51f4c8f","resumable":true}}
+[2026-05-28T14:20:24.366Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"35e45a72-3852-41b3-bcd9-d0870d89979f","resumable":true}}
+[2026-05-28T14:20:25.656Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"6cc009d7-fd17-4710-9472-24dd6a7d9de9","resumable":true}}
+[2026-05-28T14:20:26.918Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"80c3c291-81f3-4d92-afaf-001393085355","resumable":true}}
+[2026-05-28T14:20:27.852Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"ffc9033c-d786-42b0-8334-566758391a5a","resumable":true}}
+[2026-05-28T14:20:28.706Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"d5a2f206-9d52-473b-8b33-02f45319dda9","resumable":true}}
+[2026-05-28T14:20:29.651Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"01bab74d-37a1-49af-8eaa-9a81e9268a5b","resumable":true}}
+[2026-05-28T14:20:30.457Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"a6d2bbff-ec7e-4dc3-b95c-dbcafb29e214","resumable":true}}
+[2026-05-28T14:20:31.278Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"b1fb263f-442d-4741-8995-2ad2d9239a0a","resumable":true}}
+[2026-05-28T14:20:32.407Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"fef1d2f2-c068-488e-ac46-6ff46cd65d4a","resumable":true}}
+[2026-05-28T14:20:33.234Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"99995fe8-bddc-4c77-8797-bae2b0c3a85f","resumable":true}}
+[2026-05-28T14:20:34.135Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"6e0d3583-b7fc-45d5-867a-efc9150e8b95","resumable":true}}
+[2026-05-28T14:20:35.102Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"82fb7c3d-de1c-4cc5-b203-037b9485ab8b","resumable":true}}
+[2026-05-28T14:20:36.319Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"5e48162f-1ee1-4165-b447-5d5294e47813","resumable":true}}
+[2026-05-28T14:20:37.166Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"c7712a42-794e-45bc-80df-bc4d97c42cca","resumable":true}}
+[2026-05-28T14:20:36.441Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"cd15c6e2-3f87-4aa7-be31-536807be3449","resumable":true}}
+[2026-05-28T14:20:37.410Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"6ff5b795-0c55-4e85-85e5-a81b75739352","resumable":true}}
+[2026-05-28T14:20:38.167Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2a4806f2-65c9-485d-8123-4a351dbcc12f","resumable":true}}
+[2026-05-28T14:20:39.476Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"04c6c3e6-26fa-4432-a4ea-a2afa00c116a","resumable":true}}
+[2026-05-28T14:20:40.291Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #200, Base64-Länge: 10924)
+[2026-05-28T14:20:40.321Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"373db3fa-46d0-46ea-8279-72804fcbd5af","resumable":true}}
+[2026-05-28T14:20:41.100Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"9d35bba2-2336-411c-bef4-8b163eff6be2","resumable":true}}
+[2026-05-28T14:20:42.102Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f2acc17b-628f-44a8-81e3-4a7b3707f8a8","resumable":true}}
+[2026-05-28T14:20:43.077Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"72a6bca0-9d8f-4c18-999c-55838ffa78c6","resumable":true}}
+[2026-05-28T14:20:44.230Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"d1658339-847f-4971-93fd-1c0a977861d4","resumable":true}}
+[2026-05-28T14:20:45.252Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"59c67c13-6c73-40b1-8ab6-e2276ec3f8b3","resumable":true}}
+[2026-05-28T14:20:46.068Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"08902975-26bb-44b8-8208-03ea7a674352","resumable":true}}
+[2026-05-28T14:20:46.913Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"c4442e01-d9f1-4db4-a4d3-f2b4cc1b9157","resumable":true}}
+[2026-05-28T14:20:48.036Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"f82ab697-b449-461b-a096-e82222869826","resumable":true}}
+[2026-05-28T14:20:49.007Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"7b084433-ea30-4a0c-a20c-eab6f38b7ae7","resumable":true}}

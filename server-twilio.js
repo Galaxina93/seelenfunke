@@ -90,6 +90,20 @@ function initGeminiLiveProxy(clientWs, creds) {
     
     const googleWs = new WebSocket(WS_URL);
     const googleQueue = [];
+
+    let isCleanedUp = false;
+    const googlePingInterval = setInterval(() => {
+        if (googleWs.readyState === WebSocket.OPEN) {
+            googleWs.ping();
+        }
+    }, 20000);
+
+    function cleanup() {
+        if (isCleanedUp) return;
+        isCleanedUp = true;
+        clearInterval(googlePingInterval);
+        debugLog('🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.');
+    }
     
     googleWs.on('open', () => {
         debugLog('🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.');
@@ -122,6 +136,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     googleWs.on('close', (code, reason) => {
+        cleanup();
         debugLog(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${reason}`);
         if (clientWs.readyState === WebSocket.OPEN) {
             if (isSendableCloseCode(code)) {
@@ -133,6 +148,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     googleWs.on('error', (err) => {
+        cleanup();
         debugLog('🧠 Gemini Live Proxy: Google WebSocket Fehler', err);
         if (clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(JSON.stringify({ error: 'Google Gemini connection error' }));
@@ -142,6 +158,12 @@ function initGeminiLiveProxy(clientWs, creds) {
     clientWs.on('message', (message) => {
         try {
             const data = JSON.parse(message.toString());
+            if (data && data.type === 'ping') {
+                if (clientWs.readyState === WebSocket.OPEN) {
+                    clientWs.send(JSON.stringify({ type: 'pong' }));
+                }
+                return;
+            }
             if (data.setup) {
                 debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
             } else if (data.realtimeInput) {
@@ -168,6 +190,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     clientWs.on('close', (code, reason) => {
+        cleanup();
         debugLog(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
         if (googleWs.readyState === WebSocket.OPEN) {
             if (isSendableCloseCode(code)) {
@@ -179,6 +202,7 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     clientWs.on('error', (err) => {
+        cleanup();
         debugLog('🧠 Gemini Live Proxy: Client WebSocket Fehler', err);
         if (googleWs.readyState === WebSocket.OPEN) {
             googleWs.close(1011, 'Client error');
@@ -191,6 +215,7 @@ function handleTwilioConnection(ws) {
     
     let streamSid = null;
     let geminiWs = null;
+    let geminiPingInterval = null;
     let callContext = {};
     let callTranscript = [];
     let callStartTime = null;
@@ -226,6 +251,12 @@ function handleTwilioConnection(ws) {
         const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
         
         geminiWs = new WebSocket(WS_URL);
+
+        geminiPingInterval = setInterval(() => {
+            if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
+                geminiWs.ping();
+            }
+        }, 20000);
 
         geminiWs.on('open', () => {
             console.log('🧠 Mit Google Gemini Live API verbunden.');
@@ -417,9 +448,17 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
         });
 
         geminiWs.on('close', (code, reason) => {
+            if (geminiPingInterval) {
+                clearInterval(geminiPingInterval);
+                geminiPingInterval = null;
+            }
             debugLog(`🧠 Gemini Verbindung getrennt. Code: ${code}, Reason: ${reason.toString()}`);
         });
         geminiWs.on('error', (err) => {
+            if (geminiPingInterval) {
+                clearInterval(geminiPingInterval);
+                geminiPingInterval = null;
+            }
             debugLog('Gemini WS Error: ' + err.toString());
         });
     };
@@ -477,6 +516,10 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
             console.log('🏁 Twilio hat das Mark-Event erreicht. Schließe Verbindung.');
             ws.close();
         } else if (msg.event === 'stop') {
+            if (geminiPingInterval) {
+                clearInterval(geminiPingInterval);
+                geminiPingInterval = null;
+            }
             if (geminiWs) geminiWs.close();
             saveCallLog();
         }
@@ -484,6 +527,10 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
 
     ws.on('close', () => {
         console.log('Twilio WebSocket getrennt.');
+        if (geminiPingInterval) {
+            clearInterval(geminiPingInterval);
+            geminiPingInterval = null;
+        }
         if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
             geminiWs.close();
         }

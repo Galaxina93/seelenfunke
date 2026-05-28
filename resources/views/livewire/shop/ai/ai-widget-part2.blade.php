@@ -1191,6 +1191,10 @@
 
             async initLiveMode() {
                 try {
+                    if (this.pingInterval) {
+                        clearInterval(this.pingInterval);
+                        this.pingInterval = null;
+                    }
                     this.thinking = true;
                     this.updateCoreColor(true);
                     this.isSetupComplete = false;
@@ -1249,6 +1253,13 @@
 
                         // Start Microphone immediately on connection open
                         this.startMicrophone();
+
+                        // Start client-to-bridge Keep-Alive heartbeat (every 20s)
+                        this.pingInterval = setInterval(() => {
+                            if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                                this.liveWs.send(JSON.stringify({ type: 'ping' }));
+                            }
+                        }, 20000);
                     };
 
                     this.liveWs.onmessage = async (event) => {
@@ -1642,6 +1653,10 @@
             },
 
             stopLiveMode() {
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                    this.pingInterval = null;
+                }
                 if (this.liveWs) {
                     this.liveWs.close();
                     this.liveWs = null;
