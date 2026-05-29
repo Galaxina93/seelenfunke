@@ -197,7 +197,7 @@ function initGeminiLiveProxy(clientWs, creds) {
         
         // Log an Laravel senden
         sendLogToBackend(
-            code === 1000 || code === 1005 ? 'info' : 'warning',
+            code === 1000 || code === 1001 || code === 1005 || code === 1006 ? 'info' : 'warning',
             `Google Live API Verbindung geschlossen. Code: ${code}. Reason: ${reason ? reason.toString() : 'Keine'}`,
             'websocket:disconnect:google',
             { code, reason: reason ? reason.toString() : null }
@@ -254,7 +254,7 @@ function initGeminiLiveProxy(clientWs, creds) {
         
         // Log an Laravel senden
         sendLogToBackend(
-            code === 1000 || code === 1005 ? 'info' : 'warning',
+            code === 1000 || code === 1001 || code === 1005 || code === 1006 ? 'info' : 'warning',
             `Client-WebSocket-Verbindung geschlossen. Code: ${code}. Reason: ${reason ? reason.toString() : 'Keine'}`,
             'websocket:disconnect:client',
             { code, reason: reason ? reason.toString() : null }

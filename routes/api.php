@@ -71,7 +71,7 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
 
         // --- E-Mail Benachrichtigung an Admin bei Fehlern/Crashes oder abnormalen Abbrüchen ---
         $isError = in_array($data['type'], ['crash', 'error']);
-        $isAbnormalDisconnect = ($data['type'] === 'warning' && isset($data['payload']['code']) && !in_array((int)$data['payload']['code'], [1000, 1001, 1005]));
+        $isAbnormalDisconnect = ($data['type'] === 'warning' && isset($data['payload']['code']) && !in_array((int)$data['payload']['code'], [1000, 1001, 1005, 1006]));
 
         if ($isError || $isAbnormalDisconnect) {
             try {

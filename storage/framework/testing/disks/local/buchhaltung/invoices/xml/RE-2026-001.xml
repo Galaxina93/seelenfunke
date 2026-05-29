@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Reyna Reichert</ram:Name>
+        <ram:Name>Tressa Price</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>81054</ram:PostcodeCode>
-          <ram:LineOne>23155 Ethyl Haven Suite 482</ram:LineOne>
-          <ram:CityName>North Albury</ram:CityName>
+          <ram:PostcodeCode>49892-6923</ram:PostcodeCode>
+          <ram:LineOne>5605 Lexie Mountains</ram:LineOne>
+          <ram:CityName>Janetmouth</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>
