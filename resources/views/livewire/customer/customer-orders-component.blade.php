@@ -319,50 +319,49 @@
                                 <div class="text-center py-8 bg-gray-950 rounded-2xl border border-gray-800">
                                     <svg class="mx-auto h-10 w-10 text-gray-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                     <p class="text-xs text-gray-500 font-bold uppercase tracking-widest">Rechnung wird erstellt</p>
-                                </div>
                             @else
                                 <div class="space-y-4">
                                     @foreach($selectedOrder->invoices as $invoice)
                                         <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 {{ $invoice->isCreditNote() ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10' : 'border-gray-700 bg-gray-800/50 hover:bg-gray-800 hover:border-primary/50' }}">
-                                            <div class="flex items-center gap-4">
-                                                <div class="{{ $invoice->isCreditNote() ? 'text-red-500' : 'text-primary' }}">
+                                            <div class="flex-1 flex items-center gap-4 min-w-0">
+                                                <div class="{{ $invoice->isCreditNote() ? 'text-red-500' : 'text-primary' }} shrink-0">
                                                     <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                                                 </div>
-                                                <div>
-                                                    <p class="text-sm font-bold tracking-wider {{ $invoice->isCreditNote() ? 'text-red-400' : 'text-white group-hover:text-primary' }} transition-colors">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-bold tracking-wider {{ $invoice->isCreditNote() ? 'text-red-400' : 'text-white group-hover:text-primary' }} transition-colors truncate">
                                                         {{ $invoice->invoice_number }}
                                                     </p>
-                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ $invoice->created_at->format('d.m.Y') }}</p>
+                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate">{{ $invoice->created_at->format('d.m.Y') }}</p>
                                                 </div>
                                             </div>
-                                            <a href="{{ route('invoice.download', $invoice->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg" title="Herunterladen">
+                                            <a href="{{ route('invoice.download', $invoice->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg shrink-0" title="Herunterladen">
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                             </a>
                                         </div>
                                     @endforeach
-
+ 
                                     {{-- Digitale Downloads als Dokumente --}}
                                     @foreach($selectedOrder->items as $item)
                                         @if($item->product && $item->product->type === 'digital' && !empty($item->product->digital_download_path))
                                         <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10 hover:border-cyan-500/50">
-                                            <div class="flex items-center gap-4">
-                                                <div class="text-cyan-500">
+                                            <div class="flex-1 flex items-center gap-4 min-w-0">
+                                                <div class="text-cyan-500 shrink-0">
                                                     <svg class="w-8 h-8 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                                 </div>
-                                                <div>
-                                                    <p class="text-sm font-bold tracking-wider text-cyan-400 group-hover:text-cyan-300 transition-colors line-clamp-1" title="{{ $item->product_name }}">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-bold tracking-wider text-cyan-400 group-hover:text-cyan-300 transition-colors truncate" title="{{ $item->product_name }}">
                                                         {{ $item->product_name }}
                                                     </p>
-                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Digitale Produktdatei ({{ pathinfo($item->product->digital_filename ?? '', PATHINFO_EXTENSION) ?: 'File' }})</p>
+                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate">Digitale Produktdatei ({{ pathinfo($item->product->digital_filename ?? '', PATHINFO_EXTENSION) ?: 'File' }})</p>
                                                 </div>
                                             </div>
-                                            <button wire:click="downloadDigitalFile('{{ $item->id }}')" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:border-cyan-400 transition-all shadow-lg" title="Datei herunterladen">
+                                            <button wire:click="downloadDigitalFile('{{ $item->id }}')" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:border-cyan-400 transition-all shadow-lg shrink-0" title="Datei herunterladen">
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                             </button>
                                         </div>
                                         @endif
                                     @endforeach
-
+ 
                                     {{-- Configurator Snapshots als Dokumente --}}
                                     @php
                                         $allSnapshots = [];
@@ -370,13 +369,13 @@
                                             if (!empty($item->configuration['snapshot_path'])) {
                                                 $paths = is_array($item->configuration['snapshot_path'])
                                                     ? $item->configuration['snapshot_path']
-                                                    : ['Konfiguration' => $item->configuration['snapshot_path']];
-
+                                                     : ['Konfiguration' => $item->configuration['snapshot_path']];
+ 
                                                 foreach($paths as $side => $path) {
                                                     $label = count($paths) > 1
                                                         ? $item->product_name . ' (' . ($side === 'front' ? 'Vorder-' : ($side === 'back' ? 'Rückseite' : ucfirst($side))) . ')'
                                                         : $item->product_name . ' (Sicherung)';
-
+ 
                                                     $allSnapshots[] = [
                                                         'label' => $label,
                                                         'path' => $path,
@@ -386,29 +385,29 @@
                                             }
                                         }
                                     @endphp
-
+ 
                                     @foreach($allSnapshots as $snap)
                                         <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-gray-700 bg-gray-800/50 hover:bg-gray-800 hover:border-primary/50">
-                                            <div class="flex items-center gap-4">
-                                                <div class="text-primary">
+                                            <div class="flex-1 flex items-center gap-4 min-w-0">
+                                                <div class="text-primary shrink-0">
                                                     <svg class="w-8 h-8 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                                 </div>
-                                                <div>
-                                                    <p class="text-sm font-bold tracking-wider text-white group-hover:text-primary transition-colors line-clamp-1" title="{{ $snap['label'] }}">
-                                                        {{ Str::limit($snap['label'], 25) }}
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-bold tracking-wider text-white group-hover:text-primary transition-colors truncate" title="{{ $snap['label'] }}">
+                                                        {{ $snap['label'] }}
                                                     </p>
-                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">{{ $snap['date'] }}</p>
+                                                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate">{{ $snap['date'] }}</p>
                                                 </div>
                                             </div>
-
-                                            <a href="{{ asset('storage/' . $snap['path']) }}" download="Seelenfunke_Entwurf_{{ $this->selectedOrder->order_number }}_{{ Str::slug($snap['label']) }}.{{ pathinfo($snap['path'], PATHINFO_EXTENSION) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg" title="Herunterladen">
+ 
+                                            <a href="{{ asset('storage/' . $snap['path']) }}" download="Seelenfunke_Entwurf_{{ $this->selectedOrder->order_number }}_{{ Str::slug($snap['label']) }}.{{ pathinfo($snap['path'], PATHINFO_EXTENSION) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:border-primary transition-all shadow-lg shrink-0" title="Herunterladen">
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                             </a>
                                         </div>
                                     @endforeach
                                 </div>
                             @endif
-                        </div>
+                        </div>        </div>
 
                         <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border border-gray-800 rounded-[2.5rem] p-8">
                             <div class="mb-8">

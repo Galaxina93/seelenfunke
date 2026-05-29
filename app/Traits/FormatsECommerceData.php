@@ -55,6 +55,7 @@ trait FormatsECommerceData
                 'config'       => $config,
                 'is_personalizable' => (is_object($item) && isset($item->product) && method_exists($item->product, 'isPersonalizable')) ? $item->product->isPersonalizable() : true,
                 'main_image'   => is_object($item) ? ($item->main_image ?? null) : ($item['main_image'] ?? null),
+                'type'         => is_object($item) && isset($item->product) ? ($item->product->type ?? 'physical') : ($item['product']['type'] ?? ($config['type'] ?? 'physical')),
             ];
         }
 

@@ -8,7 +8,33 @@
 
     {{-- ANSPRACHE --}}
     <h1>Vielen Dank, {{ $data['contact']['vorname'] }}!</h1>
-    <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten und bereiten diese nun mit viel Liebe für dich vor.</p>
+    @php
+        $hasPhysical = false;
+        $hasDigital = false;
+        
+        foreach($data['items'] ?? [] as $item) {
+            $itemType = $item['type'] ?? 'physical';
+            $isShippingOrExpress = str_contains(strtolower($item['name'] ?? ''), 'versand') || str_contains(strtolower($item['name'] ?? ''), 'express');
+            
+            if ($isShippingOrExpress) {
+                continue;
+            }
+            
+            if ($itemType === 'digital') {
+                $hasDigital = true;
+            } else {
+                $hasPhysical = true;
+            }
+        }
+    @endphp
+
+    @if($hasDigital && !$hasPhysical)
+        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Deine digitalen Produkte stehen ab sofort in deinem Kundenkonto zum Download bereit!</p>
+    @elseif($hasDigital && $hasPhysical)
+        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten. Die digitalen Produkte stehen ab sofort in deinem Kundenkonto zum Download bereit, und deine physischen Schätze bereiten wir nun mit viel Liebe für dich vor.</p>
+    @else
+        <p>Wir haben deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> erhalten und bereiten diese nun mit viel Liebe für dich vor.</p>
+    @endif
 
     {{-- ARTIKEL LISTE --}}
     @include('global.mails.partials.mail_item_list')
@@ -41,6 +67,18 @@
                 Keine Panik! Solange deine Bestellung noch <strong>nicht in Bearbeitung</strong> genommen wurde, kannst du in deinem Kundenportal über die Detailansicht der Bestellung das Design nachträglich selbst anpassen.
                 <br><br>
                 <a href="{{ url('/orders') }}" style="display: inline-block; padding: 10px 20px; background-color: #d97706; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Bestellung prüfen</a>
+            </p>
+        </div>
+    @endif
+
+    @if($hasDigital)
+        {{-- HINWEIS: DIGITALE DOWNLOADS --}}
+        <div style="margin-top: 30px; padding: 20px; background-color: #e0f7fa; border: 1px solid #b2ebf2; border-radius: 8px; text-align: center;">
+            <h3 style="margin-top: 0; color: #00838f; font-size: 16px;">🚀 Deine digitalen Downloads sind bereit!</h3>
+            <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 0;">
+                Du kannst deine digitalen Dateien direkt im Kundenkonto unter "Bestellungen" herunterladen.
+                <br><br>
+                <a href="{{ url('/orders') }}" style="display: inline-block; padding: 10px 20px; background-color: #00838f; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Dateien herunterladen</a>
             </p>
         </div>
     @endif

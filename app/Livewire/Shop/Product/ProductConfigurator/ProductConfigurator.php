@@ -271,6 +271,13 @@ class ProductConfigurator extends Component
                     if ($newFileName) {
                         $path = dirname($path) . '/' . $newFileName;
                     }
+                } elseif ($extension === 'svg' || $mime === 'image/svg+xml') {
+                    $fullPath = Storage::disk('public')->path($path);
+                    $this->sanitizeSvg($fullPath);
+                    if (!file_exists($fullPath)) {
+                        $this->addError('new_files.' . $key, "Die SVG-Datei ist ungültig oder enthält potenziell schädlichen Code.");
+                        continue;
+                    }
                 }
 
                 $this->uploaded_files[] = $path;
@@ -515,6 +522,87 @@ class ProductConfigurator extends Component
     {
         $path = $this->product->preview_image_path ?? collect($this->product->media_gallery)->firstWhere('type', 'image')['path'] ?? null;
         return $path ? asset('storage/' . $path) : null;
+    }
+
+    protected function sanitizeSvg($filePath)
+    {
+        if (!file_exists($filePath)) {
+            return;
+        }
+
+        $content = file_get_contents($filePath);
+
+        // Prevent XXE: remove DOCTYPE declarations entirely
+        $content = preg_replace('/<!DOCTYPE[^>]*>/i', '', $content);
+        $content = preg_replace('/<!ENTITY[^>]*>/i', '', $content);
+
+        // Parse XML safely
+        $dom = new \DOMDocument();
+        
+        // Prevent loading of external entities
+        $libxml_flags = LIBXML_NONET | LIBXML_NOENT | LIBXML_NOXMLDECL;
+        
+        // Suppress warnings/errors from malformed XML
+        libxml_use_internal_errors(true);
+        if ($dom->loadXML($content, $libxml_flags)) {
+            libxml_clear_errors();
+
+            // 1. Remove script elements
+            $scripts = $dom->getElementsByTagName('script');
+            while ($scripts->length > 0) {
+                $script = $scripts->item(0);
+                $script->parentNode->removeChild($script);
+            }
+
+            // 2. Remove iframe, object, embed, meta elements
+            $badElements = ['iframe', 'object', 'embed', 'meta'];
+            foreach ($badElements as $tagName) {
+                $elements = $dom->getElementsByTagName($tagName);
+                while ($elements->length > 0) {
+                    $element = $elements->item(0);
+                    $element->parentNode->removeChild($element);
+                }
+            }
+
+            // 3. Remove event handler attributes (any attribute starting with 'on')
+            // and remove href attributes starting with 'javascript:' or 'data:'
+            $xpath = new \DOMXPath($dom);
+            
+            // Find all elements with any attribute
+            $elements = $xpath->query('//*');
+            foreach ($elements as $element) {
+                $attributesToRemove = [];
+                foreach ($element->attributes as $attrName => $attrNode) {
+                    $lowerName = strtolower($attrNode->localName);
+                    $lowerNodeName = strtolower($attrNode->nodeName);
+                    // Check for inline event handler (starts with 'on')
+                    if (str_starts_with($lowerName, 'on') || str_starts_with($lowerNodeName, 'on')) {
+                        $attributesToRemove[] = $attrNode;
+                    }
+                    // Check for javascript:/data: URI in href/xlink:href
+                    if ($lowerName === 'href' || $lowerNodeName === 'href' || str_ends_with($lowerName, ':href') || str_ends_with($lowerNodeName, ':href')) {
+                        $val = strtolower(trim($attrNode->value));
+                        // Remove spaces, tabs, and newlines from the URI to avoid bypasses like j a v a s c r i p t :
+                        $sanitizedVal = preg_replace('/[\s\x00-\x1F\x7F-\x9F]/u', '', $val);
+                        if (str_starts_with($sanitizedVal, 'javascript:') || str_starts_with($sanitizedVal, 'data:')) {
+                            $attributesToRemove[] = $attrNode;
+                        }
+                    }
+                }
+                
+                foreach ($attributesToRemove as $attrNode) {
+                    $element->removeAttributeNode($attrNode);
+                }
+            }
+
+            // Save the sanitized XML
+            $sanitizedContent = $dom->saveXML();
+            file_put_contents($filePath, $sanitizedContent);
+        } else {
+            libxml_clear_errors();
+            // If the XML is so malformed it cannot be loaded, delete it as a fallback/precaution
+            unlink($filePath);
+        }
     }
 
     public function render()

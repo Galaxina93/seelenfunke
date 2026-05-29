@@ -47,9 +47,8 @@ class ProductSeeder extends Seeder
         }
 
         // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
-        $p1 = Product::create([
+        $p1 = Product::firstOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
-            'slug' => 'seelen-kristall',
             'type' => 'physical',
             'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in einer schützenden Premium-Geschenkbox geliefert, optimal vorbereitet für die sofortige Übergabe.',
             'short_description' => 'Hochgradig personalisierbares und exklusiv veredeltes Premium-Kristallglas. Inklusive maßgeschneiderter 3D-Innengravur und edler Geschenkpräsentation.',
@@ -97,7 +96,7 @@ class ProductSeeder extends Seeder
                 'model_pos_y' => 1.04,
                 'model_pos_z' => 2.37,
                 'model_rot_x' => -102.57,
-                'model_rot_y' => 89,49,
+                'model_rot_y' => 89.49,
                 'model_rot_z' => 99.97,
                 'engraving_scale' => 66.04,
                 'engraving_pos_x' => -0.49,
@@ -116,16 +115,17 @@ class ProductSeeder extends Seeder
                 'Größe' => '180x200x40 mm',
                 'Farbe' => 'Transparent'
             ],
-            'tier_pricing' => [], // Wir nutzen jetzt die relationale Datenbank für Staffelpreise
+            'tier_pricing' => [],
             'seo_title' => 'Der Seelen Kristall | Personalisiertes Premium Glas-Geschenk online gestalten',
             'seo_description' => 'Erwecken Sie Erinnerungen zum Leben. Entdecken Sie den Seelen Kristall aus exklusivem K9-Glas mit präziser 3D-Gravur. Ihr individuelles Geschenk für besondere Menschen.',
             'completion_step' => 4
         ]);
 
         $catIds1 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
-        $p1->categories()->attach($catIds1);
+        $p1->categories()->sync($catIds1);
 
         // Staffelpreise als relationale Datensätze
+        $p1->tierPrices()->delete();
         $p1->tierPrices()->createMany([
             ['qty' => 5, 'percent' => 5],
             ['qty' => 10, 'percent' => 10],
@@ -133,9 +133,8 @@ class ProductSeeder extends Seeder
         ]);
 
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
-        $p2 = Product::create([
+        $p2 = Product::firstOrCreate(['slug' => 'seelen-anhaenger'], [
             'name' => 'Der Seelenanhänger',
-            'slug' => 'seelen-anhaenger',
             'type' => 'physical',
             'description' => 'Der Seelenanhänger verkörpert pure Emotion in einer greifbaren Form. Dieses außergewöhnlich schwere und massiv gefertigte Aluminium-Herz besticht durch eine Handschmeichler-Haptik, die beruhigend und überzeugend zugleich wirkt. Durch unsere exklusive Laser-Veredelung können Sie das Herz sowohl auf der Vorder- als auch auf der Rückseite mit feinsten Botschaften, Koordinaten oder Initialen versehen lassen. Ein idealer ständiger Begleiter, sei es am Schlüsselbund oder als stiller Glücksbringer in der Hosentasche.',
             'short_description' => 'Massives, handschmeichelndes Aluminium-Herz mit beidseitiger, hochpräziser Lasergravur. Ein fühlbarer Ausdruck wahrer Zuneigung.',
@@ -155,14 +154,12 @@ class ProductSeeder extends Seeder
             'track_quantity' => true,
             'quantity' => 150,
             'continue_selling_when_out_of_stock' => true,
-
             'weight' => 19,
             'packaging_weight' => 0,
             'height' => 40,
             'width' => 45,
             'length' => 2.3,
             'shipping_class' => 'paket_s',
-
             'preview_image_path' => 'produkte/products/seelen-anhaenger/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-anhaenger/seelenanhaenger_3d_.glb',
             'three_d_background_path' => 'produkte/products/seelen-anhaenger/header_bg.png',
@@ -173,32 +170,25 @@ class ProductSeeder extends Seeder
                 'allow_text_pos' => true,
                 'allow_logo' => true,
                 'has_back_side' => true,
-
                 'area_top' => 10,
                 'area_left' => 10,
                 'area_width' => 80,
                 'area_height' => 80,
                 'area_shape' => 'custom',
-
                 'overlay_type' => 'plane',
                 'cylinder_radius' => 50,
                 'material_type' => 'metal',
-
                 'model_scale' => 100,
                 'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
                 'model_rot_x' => 0, 'model_rot_y' => 90, 'model_rot_z' => 0,
-
                 // VORDERSEITE
                 'engraving_scale' => 71.3,
                 'engraving_pos_x' => -0.43, 'engraving_pos_y' => -0.22, 'engraving_pos_z' => -4.86,
                 'engraving_rot_x' => 0, 'engraving_rot_y' => 90, 'engraving_rot_z' => 0,
-
                 // RÜCKSEITE (Gespiegelt zur Vorderseite)
                 'back_engraving_scale' => 71.3,
                 'back_engraving_pos_x' => 0.43, 'back_engraving_pos_y' => -0.17, 'back_engraving_pos_z' => -4.88,
                 'back_engraving_rot_x' => 0, 'back_engraving_rot_y' => 270, 'back_engraving_rot_z' => 0,
-
-                // DEINE NEUEN, EXAKTEN HERZ-KOORDINATEN
                 'custom_points' => [
                     ['x' => 55.8, 'y' => 18.3],
                     ['x' => 65.07, 'y' => 13.51],
@@ -244,14 +234,13 @@ class ProductSeeder extends Seeder
         ]);
 
         $catIds2 = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger'])->pluck('id');
-        $p2->categories()->attach($catIds2);
+        $p2->categories()->sync($catIds2);
 
         // --- PRODUKT 3: Der Feierabend-Funke (NEU) ---
-        $p3 = Product::create([
+        $p3 = Product::firstOrCreate(['slug' => 'weizenglas-personalisiert'], [
             'name' => 'Der Feierabend-Funke',
-            'slug' => 'weizenglas-personalisiert',
             'type' => 'physical',
-            'description' => 'Krönen Sie den wohlverdienten Feierabend mit einem Glas, das genauso einzigartig ist wie Sie! Der Feierabend-Funke ist ein klassisch geformtes, hochwertiges Kristall-Weizenbierglas, das durch eine atemberaubende 360° Rundum-Gravur Ihr persönliches Highlight wird. Mittels feinster Laser-Rotationstechnik brennen wir Ihre Texte, Vereinslogos oder humorvollen Sprüche tief und abriebfest ins Material ein. Das Glas bleibt dabei zu 100% spülmaschinenfest und behält auch nach vielen Einsätzen seine vollkommene Brillanz.',
+            'description' => 'Krönen Sie den wohlverdienten Feierabend mit einem Glas, das genauso einzigartig ist wie Sie! Der Feierabend-Funke is ein klassisch geformtes, hochwertiges Kristall-Weizenbierglas, das durch eine atemberaubende 360° Rundum-Gravur Ihr persönliches Highlight wird. Mittels feinster Laser-Rotationstechnik brennen wir Ihre Texte, Vereinslogos oder humorvollen Sprüche tief und abriebfest ins Material ein. Das Glas bleibt dabei zu 100% spülmaschinenfest und behält auch nach vielen Einsätzen seine vollkommene Brillanz.',
             'short_description' => 'Premium-Weizenbierglas (0,5l) versehen mit einer beeindruckenden, spülmaschinenfesten 360° Lasergravur. Perfekt als Vereins- oder Männergeschenk.',
             'status' => 'active',
             'price' => 2490,
@@ -269,61 +258,45 @@ class ProductSeeder extends Seeder
             'track_quantity' => true,
             'quantity' => 200,
             'continue_selling_when_out_of_stock' => true,
-
-            // ECHTE PHYSIKALISCHE MAßE IN MM (aus cm umgerechnet)
             'weight' => 450,
             'packaging_weight' => null,
             'width' => 74,      // 7,4 cm
             'height' => 218,    // 21,8 cm
             'length' => 74,     // 7,4 cm
             'shipping_class' => 'paket_m',
-
-            // Dateipfade
             'preview_image_path' => 'produkte/products/weizenglas-personalisiert/overlay.png',
             'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
             'three_d_background_path' => null,
-
-            // Einzelbild
             'media_gallery' => [
                 ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Weizenglas Frontansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => true,
                 'allow_logo' => true,
-
-                // LOGISCH BERECHNETE xTool MASCHINEN-PARAMETER (in mm)
                 'xtool_d_top' => 74.0,           // Max Breite des Glases
                 'xtool_d_bottom' => 50.0,        // Schätzwert für den verjüngten Fuß
                 'xtool_height' => 148.0,         // Gesamthöhe (218) - Oben (30) - Unten (40)
                 'xtool_offset_top' => 30.0,      // 3 cm Platz als Trinkrand
                 'xtool_offset_bottom' => 40.0,   // 4 cm Platz am Boden für Rollen/Klemmen
-
-                // Exakte 2D Arbeitsbereich-Werte aus deinem 3D-Konfigurator-Design
                 'area_shape' => 'rect',
                 'area_top' => 14.6,
                 'area_left' => 0,
                 'area_width' => 100,
                 'area_height' => 64.7,
-
                 'overlay_type' => 'cylinder',
                 'cylinder_radius' => 50,
                 'material_type' => 'glass',
-
                 'model_scale' => 100,
                 'model_pos_x' => 0, 'model_pos_y' => 0, 'model_pos_z' => 0,
                 'model_rot_x' => -180, 'model_rot_y' => 0, 'model_rot_z' => -180,
-
                 'engraving_scale' => 100,
                 'engraving_pos_x' => 0, 'engraving_pos_y' => 0, 'engraving_pos_z' => 0,
                 'engraving_rot_x' => 0, 'engraving_rot_y' => 0, 'engraving_rot_z' => 0,
-
                 'custom_points' => [
                     ['x' => 20, 'y' => 20], ['x' => 80, 'y' => 20],
                     ['x' => 80, 'y' => 80], ['x' => 20, 'y' => 80]
                 ]
             ],
-
-            // ANGEPASSTE KUNDEN-ATTRIBUTE (Werden auf der Produktseite im Shop angezeigt)
             'attributes' => [
                 'Material' => 'Hochwertiges Kristallglas',
                 'Volumen' => '0,5 Liter (max. 580 ml)',
@@ -337,52 +310,64 @@ class ProductSeeder extends Seeder
         ]);
 
         $catIds5 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
-        $p3->categories()->attach($catIds5);
+        $p3->categories()->sync($catIds5);
 
-/*        // --- PRODUKT 4: Das Seelenbuch (Digital) ---
-        $p4 = Product::create([
-            'name' => 'Das Seelenbuch',
-            'slug' => 'seelenbuch',
+        // --- PRODUKT 4: KI-Agenten im E-Commerce (Digital) ---
+        $p4 = Product::updateOrCreate(['slug' => 'ki-agenten-ecommerce-playbook'], [
+            'name' => 'KI-Agenten im E-Commerce: Der Solo-Entwickler-Praxisbericht',
             'type' => 'digital',
-            'description' => 'Ihr digitaler Begleiter für mehr Achtsamkeit und Inspiration. Dieses E-Book enthält wertvolle Impulse, Gedankenanstöße und praktische Übungen für den Alltag. Einfach herunterladen und sofort loslegen.',
+            'description' => 'Der ultimative, unzensierte Praxisbericht für Entwickler, Softwarearchitekten und Tech-Entrepreneure. Auf 176 Seiten dokumentieren wir Schritt für Schritt die 4-monatige Entwicklungsreise eines autonomen Multi-Agenten-ERP-Systems. Kein theoretisches KI-Marketing-Geschwätz, sondern pure, produktionsreife Realität für dein eigenes Business.
+
+Deine konkreten Vorteile und Umsetzungsfähigkeiten nach dem Lesen:
+• KI-Telefonie-Infrastruktur selbst aufbauen: Verbinde Twilio-Sprachströme in Echtzeit über WebSockets mit der Gemini Live API. Führe vollautomatische Telefonate mit intelligenten Support- und Vertriebs-Agenten, die Aktionen im Backend ausführen.
+• Interaktive 3D-Konfiguratoren entwickeln: Erlerne mathematisch präzises zylindrisches Texture-Mapping in Three.js, um 3D-Modelle im WebGL-Canvas live zu manipulieren und nahtlos mit Alpine.js und Livewire 3 zu synchronisieren.
+• Native C++ ELSTER ERiC Integration: Binde die native C++ Bibliothek der Finanzbehörden direkt in deine PHP-Anwendung ein – für rechtssichere Umsatzsteuermeldungen ohne teure API-Drittanbieter.
+• Agent-zu-Agent-Kommunikationsprotokolle: Implementiere Loop-Detection und automatisiertes Klonen von Agenten-Instanzen für komplexe, parallele Hintergrundprozesse.
+• Self-Healing & Backend-Ausfallsicherheit: Integriere Exception Listener, die Stacktraces analysieren, eigenständig Code-Patches generieren und fehlerhafte Transaktionen atomar absichern.
+
+Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzbereiten Code-Assets (Laravel-Migrations, Models, Node.js-Proxys und C++ Wrapper-Strukturen) zum direkten Kopieren und Einfügen in dein eigenes Projekt. Überspringe Monate voller Trial-and-Error!',
             'is_personalizable' => false,
-            'short_description' => 'Digitaler Guide für Inspiration & Achtsamkeit (PDF).',
+            'short_description' => 'Digitaler Praxisbericht (176 Seiten PDF) + 200 Code-Assets (ZIP) für Multi-Agenten-Systeme.',
             'status' => 'active',
-            'price' => 1990,
-            'compare_at_price' => 2990,
-            'sku' => 'EBOOK-SEELEN-01',
+            'price' => 4900,
+            'compare_at_price' => null,
+            'sku' => 'PLAYBOOK-KI-AGENTS-01',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => false,
             'quantity' => 0,
             'continue_selling_when_out_of_stock' => true,
             'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
-            'digital_download_path' => 'system/testdata/seelenbuch/Produktübersicht - Mein Seelenfunke.pdf',
-            'digital_filename' => 'Produktübersicht - Mein Seelenfunke.pdf',
-            'preview_image_path' => null,
+            'digital_download_path' => 'produkte/products-secure/KI_Agenten_Management_Paket.zip',
+            'digital_filename' => 'KI_Agenten_Management_Paket.zip',
+            'preview_image_path' => 'system/testdata/ki-agenten-playbook/playbook-cover.jpg',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'system/testdata/seelenbuch/Seelen-Book.png', 'is_main' => true, 'alt' => 'Das Seelenbuch Cover']
+                ['type' => 'image', 'path' => 'system/testdata/ki-agenten-playbook/playbook-cover.jpg', 'is_main' => true, 'alt' => 'KI-Agenten im E-Commerce Cover'],
+                ['type' => 'video', 'path' => 'system/testdata/ki-agenten-playbook/playbook-promo.mp4', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Promo-Video'],
+                ['type' => 'image', 'path' => 'system/testdata/ki-agenten-playbook/playbook-perspective-tablet.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Tablet-Ansicht'],
+                ['type' => 'image', 'path' => 'system/testdata/ki-agenten-playbook/playbook-perspective-devices.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Multi-Device-Ansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => false,
                 'allow_logo' => false,
             ],
             'attributes' => [
-                'Format' => 'PDF (Digital)',
-                'Seiten' => 'Produktübersicht',
+                'Format' => 'PDF + ZIP (Digital)',
+                'Seiten' => '176',
+                'Assets' => '200 Code-Dateien',
                 'Sprache' => 'Deutsch',
                 'Auslieferung' => 'Sofort-Download'
             ],
             'tier_pricing' => [],
-            'seo_title' => 'Das Seelenbuch | Digitaler Ratgeber | Mein-Seelenfunke',
-            'seo_description' => 'Inspiration und Achtsamkeit für jeden Tag. Jetzt das Seelenbuch als PDF herunterladen.',
+            'seo_title' => 'KI-Agenten im E-Commerce | Solo-Entwickler-Praxisbericht',
+            'seo_description' => '176 Seiten PDF + 200 Code-Assets. Wie man ein Multi-Agenten-ERP mit Laravel 13, Twilio WebSockets, Three.js und C++ ELSTER aufbaut.',
             'completion_step' => 4
         ]);
 
         $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
-        $p4->categories()->attach($catIds3);
+        $p4->categories()->sync($catIds3);
 
-        // --- PRODUKT 5: Persönliche Laser-Beratung (Service) ---
+/*        // --- PRODUKT 5: Persönliche Laser-Beratung (Service) ---
         $p5 = Product::create([
             'name' => 'Persönliche Laser-Beratung',
             'slug' => 'laser-beratung',
