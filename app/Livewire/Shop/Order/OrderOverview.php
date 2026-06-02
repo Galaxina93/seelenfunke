@@ -105,7 +105,9 @@ class OrderOverview extends Component
         }
 
         $standardMessage = '';
-        if ($isOnlyStandard) {
+        if ($prio->isOnlyDigital()) {
+            $standardMessage = '<div class="mt-3 bg-blue-950 p-3 rounded-xl border border-blue-800 shadow-inner"><span class="text-blue-400 font-black text-sm tracking-widest block mb-1">⚡ DIGITALE BEREITSTELLUNG:</span> <span class="text-white font-bold block">Ausschließlich digitale Produkte! Die Auslieferung erfolgt vollautomatisch nach Zahlungseingang über das Kundenkonto. Keine physische Bearbeitung nötig.</span></div>';
+        } elseif ($isOnlyStandard) {
             $standardMessage = '<div class="mt-3 bg-[var(--theme-color-10)] p-3 rounded-xl border border-[var(--theme-color-30)] shadow-inner"><span class="text-[var(--theme-color)] font-black text-sm tracking-widest block mb-1">⚡ SCHNELLE NUMMER:</span> <span class="text-white font-bold block">Ausschließlich Lagerware! Keine Personalisierung/Laser-Arbeit nötig. Einfach aus dem Regal nehmen, verpacken, Label drauf und ab die Post!</span></div>';
         }
 

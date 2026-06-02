@@ -143,4 +143,34 @@ class OrderOverviewTest extends TestCase
 
         Queue::assertNotPushed(ProcessOrderDocumentsAndMails::class);
     }
+
+    public function test_priority_order_tip_for_digital_products()
+    {
+        $order = $this->createOrder();
+
+        // Digitales Produkt anlegen
+        $digitalProduct = \App\Models\Product\Product::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'name' => 'Test Digital PDF',
+            'slug' => 'test-digital-pdf',
+            'description' => 'eBook PDF.',
+            'price' => 1999,
+            'status' => 'active',
+            'type' => 'digital',
+            'digital_download_path' => 'downloads/test.pdf'
+        ]);
+
+        // OrderOrderItem hinzufügen
+        $order->items()->create([
+            'product_id' => $digitalProduct->id,
+            'product_name' => $digitalProduct->name,
+            'quantity' => 1,
+            'unit_price' => $digitalProduct->price,
+            'total_price' => $digitalProduct->price,
+        ]);
+
+        Livewire::test(Orders::class)
+            ->assertSeeHtml('⚡ DIGITALE BEREITSTELLUNG');
+    }
 }
+
