@@ -505,6 +505,11 @@ class OrderOverview extends Component
         $order = OrderOrder::find($this->dhlModalOrderId);
         if (!$order) return;
 
+        if ($order->isOnlyDigital()) {
+            $this->dhlError = 'Für rein digitale Bestellungen können keine DHL-Versandlabels erstellt werden.';
+            return;
+        }
+
         $this->validate([
             'dhlPackageCount' => 'required|integer|min:1|max:30',
             'dhlWeightPerPackage' => 'required|numeric|min:0.1|max:31.5',

@@ -65,33 +65,39 @@
 
         {{-- DHL Integration --}}
         <div class="flex flex-col xl:items-center gap-2 border-t xl:border-t-0 xl:border-l border-gray-800 pt-3 mt-1 xl:pt-0 xl:mt-0 xl:pl-4 xl:ml-2 w-full xl:w-auto">
-            @if($this->selectedOrder->shipments->isNotEmpty())
-                <div class="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
-                    @foreach($this->selectedOrder->shipments as $shipment)
-                        <div class="flex items-center gap-2 bg-gray-900/50 p-1.5 rounded-lg border border-gray-800 justify-between w-full xl:w-48">
-                            <div class="flex flex-col min-w-0">
-                                <span class="text-[9px] text-gray-500 font-bold tracking-widest uppercase">Paket {{ $loop->iteration }}</span>
-                                <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" target="_blank" class="text-[10px] font-semibold text-[var(--theme-color)] hover:text-white transition-colors truncate">
-                                    {{ $shipment->tracking_number }}
-                                </a>
+            @if(!$this->selectedOrder->isOnlyDigital())
+                @if($this->selectedOrder->shipments->isNotEmpty())
+                    <div class="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
+                        @foreach($this->selectedOrder->shipments as $shipment)
+                            <div class="flex items-center gap-2 bg-gray-900/50 p-1.5 rounded-lg border border-gray-800 justify-between w-full xl:w-48">
+                                <div class="flex flex-col min-w-0">
+                                    <span class="text-[9px] text-gray-500 font-bold tracking-widest uppercase">Paket {{ $loop->iteration }}</span>
+                                    <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}" target="_blank" class="text-[10px] font-semibold text-[var(--theme-color)] hover:text-white transition-colors truncate">
+                                        {{ $shipment->tracking_number }}
+                                    </a>
+                                </div>
+                                @if($shipment->shipping_label_path)
+                                    <button wire:click="downloadDhlLabel('{{ $shipment->id }}')" class="shrink-0 w-8 h-8 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color)] transition-all shadow-inner" title="Label Herunterladen">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    </button>
+                                @endif
                             </div>
-                            @if($shipment->shipping_label_path)
-                                <button wire:click="downloadDhlLabel('{{ $shipment->id }}')" class="shrink-0 w-8 h-8 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center text-gray-400 hover:text-white hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color)] transition-all shadow-inner" title="Label Herunterladen">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                </button>
-                            @endif
-                        </div>
-                    @endforeach
-                    <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="flex items-center justify-center gap-2 w-full mt-1 px-2 py-1.5 border border-dashed border-gray-700 rounded-lg text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:border-yellow-400 hover:text-yellow-400 transition-colors">
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                        Weitere Labels
+                        @endforeach
+                        <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="flex items-center justify-center gap-2 w-full mt-1 px-2 py-1.5 border border-dashed border-gray-700 rounded-lg text-[10px] uppercase tracking-widest font-bold text-gray-500 hover:border-yellow-400 hover:text-yellow-400 transition-colors">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            Weitere Labels
+                        </button>
+                    </div>
+                @elseif(in_array($this->selectedOrder->status, ['processing', 'shipped', 'completed']))
+                    <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold text-xs hover:bg-opacity-80 transition-all shadow-[0_0_15px_rgba(var(--theme-color-rgb,197,160,89),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-color-rgb,197,160,89),0.4)]">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <span>Label erstellen</span>
                     </button>
-                </div>
-            @elseif(in_array($this->selectedOrder->status, ['processing', 'shipped', 'completed']))
-                <button wire:click="openDhlModal('{{ $this->selectedOrder->id }}')" class="group flex items-center gap-2 px-4 py-2 bg-[var(--theme-color)] text-gray-900 rounded-xl font-bold text-xs hover:bg-opacity-80 transition-all shadow-[0_0_15px_rgba(var(--theme-color-rgb,197,160,89),0.2)] hover:shadow-[0_0_20px_rgba(var(--theme-color-rgb,197,160,89),0.4)]">
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    <span>Label erstellen</span>
-                </button>
+                @endif
+            @else
+                <span class="text-[9px] text-blue-400 font-bold uppercase tracking-widest bg-blue-950/20 px-3 py-2 rounded-xl border border-blue-900/40 flex items-center gap-1.5">
+                    💻 Digitales Produkt (Kein Versand)
+                </span>
             @endif
         </div>
 

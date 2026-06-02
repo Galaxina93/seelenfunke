@@ -172,5 +172,37 @@ class OrderOverviewTest extends TestCase
         Livewire::test(Orders::class)
             ->assertSeeHtml('⚡ DIGITALE BEREITSTELLUNG');
     }
+
+    public function test_generate_dhl_labels_blocks_digital_orders()
+    {
+        $order = $this->createOrder();
+
+        // Digitales Produkt anlegen
+        $digitalProduct = \App\Models\Product\Product::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'name' => 'Test Digital PDF',
+            'slug' => 'test-digital-pdf',
+            'description' => 'eBook PDF.',
+            'price' => 1999,
+            'status' => 'active',
+            'type' => 'digital',
+            'digital_download_path' => 'downloads/test.pdf'
+        ]);
+
+        // OrderOrderItem hinzufügen
+        $order->items()->create([
+            'product_id' => $digitalProduct->id,
+            'product_name' => $digitalProduct->name,
+            'quantity' => 1,
+            'unit_price' => $digitalProduct->price,
+            'total_price' => $digitalProduct->price,
+        ]);
+
+        Livewire::test(Orders::class)
+            ->call('openDhlModal', $order->id)
+            ->call('generateDhlLabels')
+            ->assertSet('dhlError', 'Für rein digitale Bestellungen können keine DHL-Versandlabels erstellt werden.');
+    }
 }
+
 
