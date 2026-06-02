@@ -79,10 +79,11 @@ trait HandlesStripePayment
         }
 
         if ($order) {
+            $newStatus = $order->isOnlyDigital() ? 'completed' : 'pending';
             // 2. Status & Zahlung der Bestellung aktualisieren
             $order->update([
                 'payment_status' => 'paid',
-                'status' => 'pending'
+                'status' => $newStatus
             ]);
 
             // --- LAGERBESTAND REDUZIEREN ---

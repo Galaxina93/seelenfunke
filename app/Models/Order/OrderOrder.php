@@ -149,4 +149,18 @@ class OrderOrder extends Model
     {
         return $this->hasMany(AccountingInvoice::class, 'order_id');
     }
+
+    /**
+     * Check if the order contains only digital products.
+     */
+    public function isOnlyDigital(): bool
+    {
+        if ($this->items->isEmpty()) {
+            return false;
+        }
+        return $this->items->every(function ($item) {
+            return $item->product && $item->product->type === 'digital';
+        });
+    }
 }
+

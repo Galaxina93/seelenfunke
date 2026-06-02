@@ -47,10 +47,12 @@ class StripeWebhookController extends Controller
                 // (Verhindert doppelte Verarbeitung bei Retries von Stripe)
                 if ($order && $order->payment_status !== 'paid') {
 
+                    $newStatus = $order->isOnlyDigital() ? 'completed' : 'processing';
+
                     // A) Status der BESTELLUNG aktualisieren
                     $order->update([
                         'payment_status' => 'paid',
-                        'status' => 'processing', // Wird nun bearbeitet
+                        'status' => $newStatus,
                         'stripe_payment_intent_id' => $session->payment_intent
                     ]);
 
