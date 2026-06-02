@@ -177,3 +177,7 @@ Route::post('/email/verification-notification', function (\Illuminate\Http\Reque
 // --- 6. Rechnungsdownload Route ---
 Route::get('/invoice/{invoice}/download', [\App\Http\Controllers\Accounting\InvoiceDownloadController::class, 'download'])
     ->name('invoice.download');
+
+// --- 7. Digitaler Produkt-Download Route ---
+Route::get('/digital-product/{item}/download', [\App\Http\Controllers\Customer\DigitalProductDownloadController::class, 'download'])
+    ->name('digital-product.download');

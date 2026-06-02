@@ -47,6 +47,30 @@ trait FormatsECommerceData
                 $taxesBreakdownCents[$strRate] += $lineTax;
             }
 
+            // Calculate item type safely to prevent stdClass as array errors
+            $itemType = 'physical';
+            if (is_object($item)) {
+                if (isset($item->product) && is_object($item->product)) {
+                    $itemType = $item->product->type ?? 'physical';
+                } elseif (isset($item->type)) {
+                    $itemType = $item->type;
+                } elseif (is_object($config) && isset($config->type)) {
+                    $itemType = $config->type;
+                } elseif (is_array($config) && isset($config['type'])) {
+                    $itemType = $config['type'];
+                }
+            } else {
+                if (isset($item['product']['type'])) {
+                    $itemType = $item['product']['type'];
+                } elseif (isset($item['type'])) {
+                    $itemType = $item['type'];
+                } elseif (is_array($config) && isset($config['type'])) {
+                    $itemType = $config['type'];
+                } elseif (is_object($config) && isset($config->type)) {
+                    $itemType = $config->type;
+                }
+            }
+
             $items[] = [
                 'name'         => is_object($item) ? ($item->product_name ?? $item->name ?? 'Unbekanntes Produkt') : ($item['product_name'] ?? 'Unbekanntes Produkt'),
                 'quantity'     => is_object($item) ? $item->quantity : ($item['quantity'] ?? 1),
@@ -55,7 +79,7 @@ trait FormatsECommerceData
                 'config'       => $config,
                 'is_personalizable' => (is_object($item) && isset($item->product) && method_exists($item->product, 'isPersonalizable')) ? $item->product->isPersonalizable() : true,
                 'main_image'   => is_object($item) ? ($item->main_image ?? null) : ($item['main_image'] ?? null),
-                'type'         => is_object($item) && isset($item->product) ? ($item->product->type ?? 'physical') : ($item['product']['type'] ?? ($config['type'] ?? 'physical')),
+                'type'         => $itemType,
             ];
         }
 

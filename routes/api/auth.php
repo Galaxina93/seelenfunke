@@ -33,7 +33,7 @@ Route::post('/login', function (Request $request) {
     }
 
     return response()->json(['message' => 'Zugangsdaten ungültig.'], 401);
-});
+})->middleware('throttle:5,1');
 
 Route::post('/password/email', function (Request $request) {
     $request->validate([

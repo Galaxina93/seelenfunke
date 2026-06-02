@@ -61,6 +61,29 @@ class AuthLogin extends Component
 
         $this->validate();
 
+        // 3x fehlerhaftes Einloggen -> Wartezeit/Sperre von 5 Minuten
+        $maxFailedAttempts = 3;
+        $lockoutMinutes = 5;
+        $recentAttempts = SystemLoginAttempt::where(function($q) {
+                $q->where('ip_address', request()->ip())
+                  ->orWhere('email', $this->email);
+            })
+            ->where('created_at', '>=', now()->subMinutes($lockoutMinutes))
+            ->orderBy('created_at', 'desc')
+            ->take($maxFailedAttempts)
+            ->get();
+
+        if ($recentAttempts->count() >= $maxFailedAttempts && $recentAttempts->every(fn($attempt) => !$attempt->success)) {
+            $lastFailed = $recentAttempts->first()->created_at;
+            $secondsRemaining = ($lockoutMinutes * 60) - now()->diffInSeconds($lastFailed);
+            if ($secondsRemaining > 0) {
+                $minutes = (int) ceil($secondsRemaining / 60);
+                throw ValidationException::withMessages([
+                    'email' => "Zu viele fehlerhafte Login-Versuche. Bitte warte {$minutes} Minuten, bevor du es erneut versuchst.",
+                ]);
+            }
+        }
+
         $guardsToCheck = ['admin', 'employee', 'customer'];
         $foundGuard = null;
         $foundUser = null;

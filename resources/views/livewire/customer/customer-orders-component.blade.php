@@ -355,9 +355,9 @@
                                                     <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate">Digitale Produktdatei ({{ pathinfo($item->product->digital_filename ?? '', PATHINFO_EXTENSION) ?: 'File' }})</p>
                                                 </div>
                                             </div>
-                                            <button wire:click="downloadDigitalFile('{{ $item->id }}')" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:border-cyan-400 transition-all shadow-lg shrink-0" title="Datei herunterladen">
+                                            <a href="{{ route('digital-product.download', $item->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-cyan-400 group-hover:border-cyan-400 transition-all shadow-lg shrink-0" title="Datei herunterladen">
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                            </button>
+                                            </a>
                                         </div>
                                         @endif
                                     @endforeach
