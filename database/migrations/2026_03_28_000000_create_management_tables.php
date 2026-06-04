@@ -107,6 +107,8 @@ return new class extends Migration {
             // Priority for color coding (low=gray, medium=yellow, high=red)
             $table->string('priority')->default('low');
 
+            $table->boolean('send_email')->default(false);
+
             $table->timestamps();
         });
 
