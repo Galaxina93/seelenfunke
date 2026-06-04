@@ -462,6 +462,93 @@ class ManagementCalender extends Component
         return $grid;
     }
 
+    public function getWeeksProperty()
+    {
+        $grid = $this->calendarGrid;
+        $weeks = [];
+        $chunks = array_chunk($grid, 7);
+
+        foreach ($chunks as $weekDays) {
+            $weekStart = $weekDays[0]['date']->copy()->startOfDay();
+            $weekEnd = $weekDays[6]['date']->copy()->endOfDay();
+
+            // Find all events overlapping this week
+            $weekEvents = $this->events->filter(function($event) use ($weekStart, $weekEnd) {
+                $evtStart = $event->start_date;
+                $evtEnd = $event->end_date ?: $event->start_date->copy()->endOfDay();
+                return $evtStart <= $weekEnd && $evtEnd >= $weekStart;
+            });
+
+            // Sort events: multi-day first (longer duration first), then by start date/time
+            $sortedEvents = $weekEvents->sortBy(function($event) {
+                $duration = $event->start_date->diffInSeconds($event->end_date ?: $event->start_date);
+                $isMulti = $event->start_date->isSameDay($event->end_date ?: $event->start_date) ? 1 : 0;
+                return sprintf('%d-%012d-%s', $isMulti, 999999999999 - $duration, $event->start_date->toDateTimeString());
+            })->values();
+
+            // Track allocation
+            $tracks = []; // trackIndex => [colIndex => occupied]
+            $allocatedEvents = [];
+
+            foreach ($sortedEvents as $event) {
+                $evtStart = $event->start_date;
+                $evtEnd = $event->end_date ?: $event->start_date->copy()->endOfDay();
+
+                if ($evtStart < $weekStart) {
+                    $startCol = 1;
+                } else {
+                    $startCol = $evtStart->dayOfWeekIso;
+                }
+
+                if ($evtEnd > $weekEnd) {
+                    $endCol = 7;
+                } else {
+                    $endCol = $evtEnd->dayOfWeekIso;
+                }
+
+                $span = $endCol - $startCol + 1;
+
+                $allocatedTrack = 0;
+                while (true) {
+                    $overlap = false;
+                    for ($c = $startCol; $c <= $endCol; $c++) {
+                        if (isset($tracks[$allocatedTrack][$c])) {
+                            $overlap = true;
+                            break;
+                        }
+                    }
+                    if (!$overlap) {
+                        break;
+                    }
+                    $allocatedTrack++;
+                }
+
+                for ($c = $startCol; $c <= $endCol; $c++) {
+                    $tracks[$allocatedTrack][$c] = true;
+                }
+
+                $allocatedEvents[] = [
+                    'event' => $event,
+                    'track' => $allocatedTrack,
+                    'start_col' => $startCol,
+                    'span' => $span
+                ];
+            }
+
+            $maxTrack = count($tracks) > 0 ? max(array_keys($tracks)) : 0;
+
+            $weeks[] = [
+                'days' => $weekDays,
+                'events' => $allocatedEvents,
+                'max_track' => $maxTrack,
+                'start' => $weekStart,
+                'end' => $weekEnd
+            ];
+        }
+
+        return $weeks;
+    }
+
     public function getYearGridProperty()
     {
         $months = [];

@@ -55,7 +55,7 @@ Route::prefix('funki/calendar')->group(function () {
             while ($simDate <= $calcEnd) {
                 if ($tmpl->recurrence_end_date && $simDate > $tmpl->recurrence_end_date) break;
 
-                $duration = $tmpl->end_date->diffInSeconds($tmpl->start_date);
+                $duration = $tmpl->start_date->diffInSeconds($tmpl->end_date);
                 $simEnd = $simDate->copy()->addSeconds($duration);
 
                 $expandedEvents->push([
@@ -116,8 +116,8 @@ Route::prefix('funki/calendar')->group(function () {
         $event = ManagementCalendarEvent::create([
             'id' => Str::uuid(),
             'title' => $data['title'],
-            'start_date' => Carbon::parse($data['start']),
-            'end_date' => $data['end'] ? Carbon::parse($data['end']) : Carbon::parse($data['start'])->addHour(),
+            'start_date' => Carbon::parse($data['start'])->setTimezone(config('app.timezone')),
+            'end_date' => $data['end'] ? Carbon::parse($data['end'])->setTimezone(config('app.timezone')) : Carbon::parse($data['start'])->setTimezone(config('app.timezone'))->addHour(),
             'is_all_day' => $data['is_all_day'] ?? false,
             'category' => $data['category'] ?? 'general',
             'description' => $data['description'] ?? null,
@@ -161,8 +161,8 @@ Route::prefix('funki/calendar')->group(function () {
 
         $event->update([
             'title' => $data['title'],
-            'start_date' => Carbon::parse($data['start']),
-            'end_date' => $data['end'] ? Carbon::parse($data['end']) : Carbon::parse($data['start'])->addHour(),
+            'start_date' => Carbon::parse($data['start'])->setTimezone(config('app.timezone')),
+            'end_date' => $data['end'] ? Carbon::parse($data['end'])->setTimezone(config('app.timezone')) : Carbon::parse($data['start'])->setTimezone(config('app.timezone'))->addHour(),
             'is_all_day' => $data['is_all_day'] ?? false,
             'category' => $data['category'] ?? 'general',
             'description' => $data['description'] ?? null,

@@ -123,32 +123,63 @@
                         <div class="text-center py-2 text-[10px] font-black uppercase text-gray-600 tracking-[0.2em]">{{ $day }}</div>
                     @endforeach
                 </div>
-                <div class="grid grid-cols-7 gap-3 flex-1 auto-rows-fr">
-                    @foreach($this->calendarGrid as $day)
-                        <div @click="handleDateClick('{{ $day['date']->format('Y-m-d') }}')"
-                             @dblclick="handleDateDblClick('{{ $day['date']->format('Y-m-d') }}')"
-                            @class([
-                           'min-h-[110px] bg-gray-900/40 rounded-[1.5rem] p-2 flex flex-col transition-all border relative cursor-pointer select-none group/day',
-                           'border-gray-800 hover:border-gray-600 hover:bg-gray-800/60 shadow-inner' => $day['is_current_month'],
-                           'border-transparent opacity-20' => !$day['is_current_month'],
-                           'ring-2 ring-[var(--theme-color)] ring-offset-4 ring-offset-gray-950 z-10' => $day['is_today']
-                       ])>
-                            <div class="flex justify-between items-start mb-2">
-                                <span @class([
-                                    'text-xs font-black w-7 h-7 flex items-center justify-center rounded-lg transition-transform group-hover/day:scale-110',
-                                    'bg-[var(--theme-color)] text-gray-900 shadow-glow' => $day['is_today'],
-                                    'text-gray-500 bg-gray-950/50 border border-gray-800' => !$day['is_today'] && $day['is_current_month']
-                                ])>
-                                    {{ $day['date']->day }}
-                                </span>
-                                @if($day['date']->day === 1)
-                                    <span class="text-[9px] font-black uppercase text-gray-700 tracking-tighter">{{ $day['date']->locale('de')->shortMonthName }}</span>
-                                @endif
-                            </div>
+                <div class="flex-1 flex flex-col gap-3">
+                    @foreach($this->weeks as $week)
+                        @php
+                            $maxTrack = min($week['max_track'], 2); // Show max 3 tracks (0, 1, 2)
+                            $gridRows = $maxTrack + 2; // Day cell spans from row 1 to $gridRows
+                        @endphp
+                        <div class="grid grid-cols-7 gap-x-3 gap-y-1 relative" style="grid-template-rows: 2.25rem repeat({{ $maxTrack + 1 }}, minmax(0, 1fr));">
+                            <!-- Background Day Cells -->
+                            @foreach($week['days'] as $day)
+                                @php
+                                    $col = $loop->iteration;
+                                    
+                                    // Count overflow events for this day
+                                    $overflowCount = 0;
+                                    foreach ($week['events'] as $item) {
+                                        if ($item['track'] >= 3) {
+                                            if ($col >= $item['start_col'] && $col < ($item['start_col'] + $item['span'])) {
+                                                $overflowCount++;
+                                            }
+                                        }
+                                    }
+                                @endphp
+                                <div @click="handleDateClick('{{ $day['date']->format('Y-m-d') }}')"
+                                     @dblclick="handleDateDblClick('{{ $day['date']->format('Y-m-d') }}')"
+                                     style="grid-row: 1 / span {{ $gridRows }}; grid-column: {{ $col }};"
+                                     @class([
+                                         'min-h-[120px] bg-gray-900/40 rounded-[1.5rem] p-2 flex flex-col transition-all border relative cursor-pointer select-none group/day',
+                                         'border-gray-800 hover:border-gray-600 hover:bg-gray-800/60 shadow-inner' => $day['is_current_month'],
+                                         'border-transparent opacity-20' => !$day['is_current_month'],
+                                         'ring-2 ring-[var(--theme-color)] ring-offset-4 ring-offset-gray-950 z-10' => $day['is_today']
+                                     ])>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <span @class([
+                                            'text-xs font-black w-7 h-7 flex items-center justify-center rounded-lg transition-transform group-hover/day:scale-110',
+                                            'bg-[var(--theme-color)] text-gray-900 shadow-glow' => $day['is_today'],
+                                            'text-gray-500 bg-gray-950/50 border border-gray-800' => !$day['is_today'] && $day['is_current_month']
+                                        ])>
+                                            {{ $day['date']->day }}
+                                        </span>
+                                        @if($day['date']->day === 1)
+                                            <span class="text-[9px] font-black uppercase text-gray-700 tracking-tighter">{{ $day['date']->locale('de')->shortMonthName }}</span>
+                                        @endif
+                                    </div>
+                                    
+                                    @if($overflowCount > 0)
+                                        <div class="text-[8px] font-black text-gray-500 uppercase mt-auto pt-1 text-right group-hover/day:text-[var(--theme-color)] transition-colors">
+                                            +{{ $overflowCount }} weitere
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
 
-                            <div class="space-y-1.5 flex-1 overflow-y-auto no-scrollbar pr-1">
-                                @foreach($day['events'] as $event)
+                            <!-- Foreground Event Bars -->
+                            @foreach($week['events'] as $item)
+                                @if($item['track'] < 3)
                                     @php
+                                        $event = $item['event'];
                                         $s = $styles[$event->category] ?? $styles['general'];
                                         if ($event->priority === 'high') {
                                             $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
@@ -157,37 +188,35 @@
                                         } else {
                                             $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
                                         }
-                                        $spanType = $event->span_type ?? 'single';
-
-                                        $roundedClass = 'rounded-lg';
-                                        $borderClass = 'border-transparent hover:border-current/30';
-
-                                        if ($spanType === 'start') {
-                                            $roundedClass = 'rounded-l-lg rounded-r-none';
-                                            $borderClass = 'border-y border-l border-r-0 border-transparent hover:border-current/30';
-                                        } elseif ($spanType === 'middle') {
-                                            $roundedClass = 'rounded-none';
-                                            $borderClass = 'border-y border-x-0 border-transparent hover:border-current/30';
-                                        } elseif ($spanType === 'end') {
-                                            $roundedClass = 'rounded-l-none rounded-r-lg';
-                                            $borderClass = 'border-y border-r border-l-0 border-transparent hover:border-current/30';
+                                        
+                                        // Rounding for start/end of the span in this week
+                                        $isStart = ($item['start_col'] > 1 || $event->start_date->startOfDay()->gte($week['start']));
+                                        $isEnd = (($item['start_col'] + $item['span'] - 1) < 7 || $event->end_date->endOfDay()->lte($week['end']));
+                                        
+                                        $roundClass = '';
+                                        if ($isStart && $isEnd) {
+                                            $roundClass = 'rounded-lg';
+                                        } elseif ($isStart) {
+                                            $roundClass = 'rounded-l-lg rounded-r-none';
+                                        } elseif ($isEnd) {
+                                            $roundClass = 'rounded-r-lg rounded-l-none';
+                                        } else {
+                                            $roundClass = 'rounded-none';
                                         }
                                     @endphp
                                     <div wire:click.stop="editEvent('{{ $event->id }}')"
-                                         class="px-2 py-1 {{ $roundedClass }} {{ $s['bg'] }} {{ $s['text'] }} w-full text-[9px] font-bold truncate transition-all border {{ $borderClass }} shadow-lg flex items-center justify-between group/event" title="{{ $event->title }}">
+                                         style="grid-column: {{ $item['start_col'] }} / span {{ $item['span'] }}; grid-row: {{ $item['track'] + 2 }}; margin-top: 2px; margin-bottom: 2px;"
+                                         class="h-6 px-2 py-0.5 {{ $roundClass }} {{ $s['bg'] }} {{ $s['text'] }} text-[9px] font-bold truncate transition-all border border-transparent hover:border-current/30 shadow-lg flex items-center justify-between group/event z-20 select-none"
+                                         title="{{ $event->title }}">
                                         <span class="truncate">
-                                            @if($spanType === 'start' || $spanType === 'single')
-                                                {{ $event->title }}
-                                            @else
-                                                <span class="opacity-0">{{ $event->title }}</span>
-                                            @endif
+                                            {{ $event->title }}
                                         </span>
-                                        @if($event->reminder_minutes && ($spanType === 'start' || $spanType === 'single'))
-                                            <x-heroicon-s-bell class="w-2.5 h-2.5 opacity-50 shrink-0" />
+                                        @if($event->reminder_minutes)
+                                            <x-heroicon-s-bell class="w-2.5 h-2.5 opacity-50 shrink-0 ml-1" />
                                         @endif
                                     </div>
-                                @endforeach
-                            </div>
+                                @endif
+                            @endforeach
                         </div>
                     @endforeach
                 </div>
