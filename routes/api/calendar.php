@@ -83,6 +83,23 @@ Route::prefix('funki/calendar')->group(function () {
     });
 
     Route::post('/events', function (Request $request) {
+        if ($request->has('is_all_day')) {
+            $val = $request->input('is_all_day');
+            if ($val === 'true') {
+                $request->merge(['is_all_day' => true]);
+            } elseif ($val === 'false') {
+                $request->merge(['is_all_day' => false]);
+            }
+        }
+        if ($request->has('send_email')) {
+            $val = $request->input('send_email');
+            if ($val === 'true') {
+                $request->merge(['send_email' => true]);
+            } elseif ($val === 'false') {
+                $request->merge(['send_email' => false]);
+            }
+        }
+ 
         $data = $request->validate([
             'title' => 'required|string',
             'start' => 'required|date',
@@ -92,9 +109,10 @@ Route::prefix('funki/calendar')->group(function () {
             'description' => 'nullable|string',
             'recurrence' => 'nullable|string',
             'reminder_minutes' => 'nullable|integer',
-            'priority' => 'nullable|string'
+            'priority' => 'nullable|string',
+            'send_email' => 'boolean'
         ]);
-
+ 
         $event = ManagementCalendarEvent::create([
             'id' => Str::uuid(),
             'title' => $data['title'],
@@ -105,9 +123,10 @@ Route::prefix('funki/calendar')->group(function () {
             'description' => $data['description'] ?? null,
             'recurrence' => (isset($data['recurrence']) && $data['recurrence'] === 'none') ? null : ($data['recurrence'] ?? null),
             'reminder_minutes' => $data['reminder_minutes'] ?? null,
-            'priority' => $data['priority'] ?? 'low'
+            'priority' => $data['priority'] ?? 'low',
+            'send_email' => $data['send_email'] ?? false
         ]);
-
+ 
         return response()->json(['success' => true, 'data' => $event]);
     });
 
@@ -118,6 +137,15 @@ Route::prefix('funki/calendar')->group(function () {
 
     Route::put('/events/{id}', function (Request $request, $id) {
         $event = ManagementCalendarEvent::findOrFail($id);
+
+        if ($request->has('is_all_day')) {
+            $val = $request->input('is_all_day');
+            if ($val === 'true') {
+                $request->merge(['is_all_day' => true]);
+            } elseif ($val === 'false') {
+                $request->merge(['is_all_day' => false]);
+            }
+        }
 
         $data = $request->validate([
             'title' => 'required|string',

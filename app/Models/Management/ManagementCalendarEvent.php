@@ -15,7 +15,7 @@ class ManagementCalendarEvent extends Model
         'title', 'start_date', 'end_date', 'is_all_day',
         'recurrence', 'recurrence_end_date',
         'reminder_minutes',
-        'category', 'description', 'ics_uid'
+        'category', 'description', 'ics_uid', 'send_email'
     ];
 
     protected $casts = [
@@ -23,6 +23,7 @@ class ManagementCalendarEvent extends Model
         'end_date' => 'datetime',
         'recurrence_end_date' => 'date',
         'is_all_day' => 'boolean',
+        'send_email' => 'boolean',
     ];
 
     // Helper: Ist es ein wiederkehrender Termin?
@@ -34,6 +35,9 @@ class ManagementCalendarEvent extends Model
     protected static function booted()
     {
         static::created(function ($event) {
+            if (!$event->send_email) {
+                return;
+            }
             // Find Alina or fallback to the first Admin
             $recipient = \App\Models\Admin\Admin::where('first_name', 'like', '%Alina%')->first();
             if (!$recipient) {
