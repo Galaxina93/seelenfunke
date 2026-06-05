@@ -94,8 +94,13 @@ Route::prefix('funki/tasks')->group(function () {
         $data = $request->validate([
             'title' => 'sometimes|required',
             'priority' => 'sometimes|in:niedrig,mittel,hoch',
-            'is_completed' => 'sometimes|boolean'
+            'is_completed' => 'sometimes|boolean',
+            'relevant_from' => 'nullable|string'
         ]);
+        if (array_key_exists('relevant_from', $data) || $request->has('relevant_from')) {
+            $relevantVal = $request->input('relevant_from');
+            $data['relevant_from'] = empty($relevantVal) ? null : \Carbon\Carbon::parse($relevantVal)->startOfDay();
+        }
         $task->update($data);
         return response()->json(['success' => true, 'data' => $task]);
     });

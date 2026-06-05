@@ -51,7 +51,18 @@ Route::prefix('funki/emails')->group(function () {
                 'id' => $acc->id,
                 'name' => $acc->name,
                 'email' => $acc->email,
+                'imap_username' => $acc->imap_username,
+                'smtp_username' => $acc->smtp_username,
+                'imap_host' => $acc->imap_host,
+                'imap_port' => $acc->imap_port,
+                'imap_encryption' => $acc->imap_encryption,
+                'signature' => $acc->signature,
+                'smtp_host' => $acc->smtp_host,
+                'smtp_port' => $acc->smtp_port,
+                'smtp_encryption' => $acc->smtp_encryption,
                 'is_default' => $acc->is_default,
+                'is_commercial' => $acc->is_commercial,
+                'status' => $acc->status,
                 'folders' => $accFolders,
                 'counts' => $folderCounts,
                 'total_unread' => $totalUnread
@@ -108,13 +119,31 @@ Route::prefix('funki/emails')->group(function () {
     // 4. Send Mail
     Route::post('/send', function (Request $request) {
         $data = $request->validate([
-            'account_id' => 'required',
+            'account_id' => 'nullable',
+            'from' => 'nullable|string',
             'to' => 'required|email',
             'subject' => 'required|string',
             'body' => 'required|string',
         ]);
 
-        $account = MailAccount::findOrFail($data['account_id']);
+        $account = null;
+        if (!empty($data['account_id'])) {
+            $account = MailAccount::find($data['account_id']);
+            if (!$account && filter_var($data['account_id'], FILTER_VALIDATE_EMAIL)) {
+                $account = MailAccount::where('email', $data['account_id'])->first();
+            }
+        }
+        if (!$account && !empty($data['from'])) {
+            $account = MailAccount::where('email', $data['from'])->first();
+        }
+
+        if (!$account) {
+            $account = MailAccount::where('is_default', true)->first() ?: MailAccount::first();
+        }
+
+        if (!$account) {
+            return response()->json(['error' => 'Kein E-Mail-Konto konfiguriert'], 400);
+        }
 
         if (!$account->smtp_host) {
             return response()->json(['error' => 'SMTP Konfiguration fehlt'], 400);
@@ -201,6 +230,62 @@ Route::prefix('funki/emails')->group(function () {
         } else {
             $msg->update(['folder' => 'Trash']);
         }
+        return response()->json(['success' => true]);
+    });
+
+    // 8. Create or Update Account
+    Route::post('/accounts', function (Request $request) {
+        $data = $request->validate([
+            'id' => 'nullable',
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'password' => 'nullable|string',
+            'imap_host' => 'required|string|max:255',
+            'imap_port' => 'required|integer',
+            'imap_encryption' => 'nullable|string|max:10',
+            'imap_username' => 'nullable|string|max:255',
+            'smtp_host' => 'required|string|max:255',
+            'smtp_port' => 'required|integer',
+            'smtp_encryption' => 'nullable|string|max:10',
+            'smtp_username' => 'nullable|string|max:255',
+            'signature' => 'nullable|string',
+            'is_default' => 'boolean',
+            'is_commercial' => 'boolean',
+        ]);
+
+        $updateData = [
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'imap_host' => $data['imap_host'],
+            'imap_port' => $data['imap_port'],
+            'imap_encryption' => $data['imap_encryption'] ?? 'ssl',
+            'imap_username' => $data['imap_username'] ?? $data['email'],
+            'smtp_host' => $data['smtp_host'],
+            'smtp_port' => $data['smtp_port'],
+            'smtp_encryption' => $data['smtp_encryption'] ?? 'ssl',
+            'smtp_username' => $data['smtp_username'] ?? $data['email'],
+            'signature' => $data['signature'] ?? null,
+            'is_default' => $data['is_default'] ?? false,
+            'is_commercial' => $data['is_commercial'] ?? true,
+            'status' => 'connected',
+        ];
+
+        if (!empty($data['password'])) {
+            $updateData['password'] = $data['password'];
+        }
+
+        $account = MailAccount::updateOrCreate(
+            ['id' => $data['id'] ?? null],
+            $updateData
+        );
+
+        return response()->json(['success' => true, 'data' => $account]);
+    });
+
+    // 9. Delete Account
+    Route::delete('/accounts/{id}', function ($id) {
+        $account = MailAccount::findOrFail($id);
+        $account->delete();
         return response()->json(['success' => true]);
     });
 });
