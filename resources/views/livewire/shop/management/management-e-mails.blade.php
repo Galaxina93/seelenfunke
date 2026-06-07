@@ -632,15 +632,15 @@
 
         {{-- Modal: E-Mail Schreiben / Antworten --}}
         @if($showComposeModal)
-            <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showComposeModal', false)">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.set('showComposeModal', false)">
+            <div x-data="{ composePreviewFile: null }" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.call('closeCompose')">
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.call('closeCompose')">
                     <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950 rounded-t-2xl">
                         <h3 class="text-lg font-bold text-white">Neue Nachricht</h3>
-                        <button wire:click="$set('showComposeModal', false)" class="text-gray-400 hover:text-white transition-colors">
+                        <button type="button" wire:click="closeCompose" class="text-gray-400 hover:text-white transition-colors">
                             <x-heroicon-o-x-mark class="w-6 h-6"/>
                         </button>
                     </div>
-                    <form wire:submit.prevent="sendMail" class="flex flex-col flex-1 overflow-hidden">
+                    <form wire:submit.prevent="sendMail" class="flex flex-col flex-1 overflow-hidden relative">
                         <div class="p-4 border-b border-gray-800 space-y-3 shrink-0">
                             @if(count($accounts) > 1)
                                 <div class="flex items-center gap-2">
@@ -758,33 +758,108 @@
                                                 editor.setData(@this.get('composeBody'));
                                             }
                                         }" x-init="init()" class="h-full flex flex-col">
-                                
-                                @if(count($forwardedAttachments) > 0)
-                                    <div class="p-3 bg-gray-900 border-b border-gray-800 shrink-0">
-                                        <div class="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wider">Erhaltene Anhänge werden bei Versand angehängt:</div>
-                                        <div class="flex flex-wrap gap-2">
-                                            @foreach($forwardedAttachments as $att)
-                                                <div class="flex items-center gap-2 bg-gray-800 text-gray-300 text-xs px-3 py-1.5 rounded-lg border border-gray-700">
-                                                    <x-heroicon-o-paper-clip class="w-3 h-3 text-[#E6C687]" />
-                                                    <span class="truncate max-w-[200px]">{{ $att['filename'] }}</span>
-                                                    <span class="text-gray-500">({{ number_format($att['size'] / 1024, 1) }} KB)</span>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    </div>
-                                @endif
-                                
                                 <div class="flex-1 min-h-0 bg-transparent">
                                     <textarea id="composeEditor" class="w-full h-full"></textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="p-4 border-t border-gray-800 bg-gray-950 rounded-b-2xl flex justify-end gap-3 shrink-0">
-                            <button type="button" wire:click="$set('showComposeModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Verwerfen</button>
-                            <button @click="$wire.set('composeBody', CKEDITOR.instances['composeEditor'].getData())" type="submit" class="py-2.5 px-6 rounded-xl font-bold bg-[#E6C687] text-black hover:bg-[#d4b57a] hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
-                                <x-heroicon-o-paper-airplane class="w-5 h-5 -rotate-45" wire:loading.class="animate-ping" wire:target="sendMail" />
-                                Senden
-                            </button>
+                        @php
+                            $totalSizeBytes = collect($composeAttachments)->sum('size');
+                            $totalSizeFormatted = $totalSizeBytes > 1024 * 1024 
+                                ? number_format($totalSizeBytes / (1024 * 1024), 2) . ' MB' 
+                                : number_format($totalSizeBytes / 1024, 1) . ' KB';
+                            $limitExceeded = $totalSizeBytes > 20 * 1024 * 1024;
+                        @endphp
+                        <div class="p-4 border-t border-gray-800 bg-gray-950 rounded-b-2xl flex flex-col gap-3 shrink-0">
+                            {{-- Top row: upload button and submit buttons --}}
+                            <div class="flex justify-between items-center w-full">
+                                <div>
+                                    <input type="file" wire:model="uploadedFiles" id="attachment-upload" class="hidden" multiple>
+                                    <label for="attachment-upload" class="cursor-pointer py-2 px-4 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-gray-800 transition-colors flex items-center gap-2 border border-gray-700 bg-gray-900/50 hover:border-gray-600">
+                                        <x-heroicon-o-paper-clip class="w-4 h-4 text-[#E6C687]" />
+                                        <span>Datei anfügen</span>
+                                    </label>
+                                    @error('uploadedFiles.*') <span class="text-red-500 text-xs block mt-1">{{ $message }}</span> @enderror
+                                    @error('uploadedFiles') <span class="text-red-500 text-xs block mt-1">{{ $message }}</span> @enderror
+                                </div>
+
+                                <div class="flex gap-3">
+                                    <button type="button" wire:click="closeCompose" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Verwerfen</button>
+                                    <button @click="$wire.set('composeBody', CKEDITOR.instances['composeEditor'].getData())" 
+                                            type="submit" 
+                                            {{ $limitExceeded ? 'disabled' : '' }}
+                                            class="py-2.5 px-6 rounded-xl font-bold bg-[#E6C687] text-black hover:bg-[#d4b57a] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 {{ $limitExceeded ? 'opacity-50 cursor-not-allowed' : '' }}">
+                                        <x-heroicon-o-paper-airplane class="w-5 h-5 -rotate-45" wire:loading.class="animate-ping" wire:target="sendMail" />
+                                        Senden
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Display composition attachments under the "Datei anfügen" button --}}
+                            @if(count($composeAttachments) > 0 || !empty($uploadedFiles))
+                                <div class="border-t border-gray-800/50 pt-3">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs text-gray-400 font-semibold uppercase tracking-wider">Anhänge ({{ count($composeAttachments) }}):</span>
+                                        
+                                        <span class="text-xs font-bold {{ $limitExceeded ? 'text-red-500 animate-pulse' : 'text-gray-400' }}">
+                                            Gesamtgröße: {{ $totalSizeFormatted }} / 20.00 MB
+                                        </span>
+                                    </div>
+
+                                    @if($limitExceeded)
+                                        <div class="mb-3 px-3 py-2 bg-red-950/60 border border-red-800 text-red-400 text-xs rounded-lg flex items-center gap-2">
+                                            <x-heroicon-o-exclamation-triangle class="w-4 h-4 text-red-500 shrink-0" />
+                                            <span>Das Gesamtlimit von 20 MB ist überschritten. Bitte lösche einige Anhänge, um senden zu können.</span>
+                                        </div>
+                                    @endif
+
+                                    <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                        @foreach($composeAttachments as $index => $att)
+                                            @php
+                                                $previewUrl = route('crm.mail-compose-preview', ['path' => $att['path']]);
+                                                $ext = strtolower(pathinfo($att['filename'], PATHINFO_EXTENSION));
+                                                $icon = 'document';
+                                                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])) $icon = 'photo';
+                                                elseif (in_array($ext, ['pdf'])) $icon = 'document-text';
+                                            @endphp
+                                            <div class="flex items-center p-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-[var(--theme-color)] hover:bg-gray-800/80 cursor-pointer transition-colors max-w-xs w-full sm:w-auto"
+                                                 @click="composePreviewFile = '{{ $previewUrl }}'">
+                                                <div class="w-10 h-10 shrink-0 rounded bg-gray-900 flex items-center justify-center mr-3 border border-gray-700">
+                                                    <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-5 h-5 text-gray-400" />
+                                                </div>
+                                                <div class="min-w-0 pr-2 flex-col flex justify-center">
+                                                    <div class="text-xs text-white font-medium truncate" title="{{ $att['filename'] }}">{{ Str::limit($att['filename'], 15) }}</div>
+                                                    <div class="text-[10px] text-gray-500">{{ $att['size'] > 1024 * 1024 ? number_format($att['size'] / (1024 * 1024), 2) . ' MB' : number_format($att['size'] / 1024, 1) . ' KB' }}</div>
+                                                </div>
+                                                <button type="button" wire:click.prevent="removeAttachment({{ $index }})" class="ml-auto p-1.5 text-gray-500 hover:text-red-400 rounded-md transition-colors focus:outline-none" @click.stop title="Anhang entfernen">
+                                                    <x-heroicon-o-x-mark class="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        @endforeach
+
+                                        <div wire:loading wire:target="uploadedFiles" class="flex items-center gap-2 bg-gray-800/50 text-gray-400 text-xs px-3 py-1.5 rounded-lg border border-gray-700 border-dashed">
+                                            <svg class="animate-spin h-3.5 w-3.5 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span>Lade Dateien hoch...</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+
+                        {{-- Preview Overlay Modal/Inline inside Compose --}}
+                        <div x-show="composePreviewFile" class="absolute inset-0 bg-black/85 z-40 p-4 flex flex-col animate-fade-in" style="display: none;">
+                            <div class="flex justify-between items-center mb-2 shrink-0">
+                                <span class="text-sm text-gray-300 font-semibold">Vorschau</span>
+                                <button type="button" @click="composePreviewFile = null" class="p-1.5 bg-gray-800 border border-gray-700 text-gray-400 hover:text-white hover:bg-red-500/20 hover:border-red-500/50 rounded-lg shadow-xl transition-all" title="Vorschau schließen">
+                                    <x-heroicon-m-x-mark class="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div class="flex-1 rounded-xl overflow-hidden bg-white shadow-inner">
+                                <iframe :src="composePreviewFile" class="w-full h-full border-0" frameborder="0"></iframe>
+                            </div>
                         </div>
                     </form>
                 </div>

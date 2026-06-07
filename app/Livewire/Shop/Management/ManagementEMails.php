@@ -15,11 +15,13 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Artisan;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
+use Livewire\WithFileUploads;
 
 #[Layout('components.layouts.backend_layout')]
 class ManagementEMails extends Component
 {
     use WithDepartmentTheming;
+    use WithFileUploads;
 
     public string $themingDepartment = 'Leitung';
 
@@ -66,7 +68,8 @@ class ManagementEMails extends Component
     public $composeSubject = '';
     public $composeBody = '';
     public $composeAccountId = null;
-    public $forwardedAttachments = [];
+    public $composeAttachments = [];
+    public $uploadedFiles = [];
 
     public function mount()
     {
@@ -436,7 +439,8 @@ class ManagementEMails extends Component
         $this->composeAccountId = $this->selectedAccountId;
         $account = MailAccount::find($this->composeAccountId);
         $signature = $account ? "<br><br>" . $account->signature : '';
-        $this->forwardedAttachments = [];
+        $this->composeAttachments = [];
+        $this->uploadedFiles = [];
 
         if ($type === 'reply' && $messageId) {
             $msg = MailMessage::find($messageId);
@@ -454,11 +458,12 @@ class ManagementEMails extends Component
                 
                 // Get all attachments from the original message and store them to be forwarded
                 foreach (\App\Models\Management\Mail\MailAttachment::where('mail_message_id', $msg->id)->get() as $att) {
-                    $this->forwardedAttachments[] = [
+                    $this->composeAttachments[] = [
                         'path' => $att->path,
                         'filename' => $att->filename,
                         'mime' => $att->content_type,
                         'size' => $att->size,
+                        'is_uploaded' => false,
                     ];
                 }
             }
@@ -470,6 +475,50 @@ class ManagementEMails extends Component
         $this->showComposeModal = true;
     }
 
+    public function updatedUploadedFiles()
+    {
+        $this->validate([
+            'uploadedFiles.*' => 'file|max:20480', // limit of 20MB per file
+        ]);
+
+        foreach ($this->uploadedFiles as $file) {
+            $path = $file->store('mail-attachments');
+            $this->composeAttachments[] = [
+                'path' => $path,
+                'filename' => $file->getClientOriginalName(),
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+                'is_uploaded' => true,
+            ];
+        }
+
+        $this->uploadedFiles = [];
+    }
+
+    public function removeAttachment($index)
+    {
+        if (isset($this->composeAttachments[$index])) {
+            $att = $this->composeAttachments[$index];
+            if (!empty($att['is_uploaded'])) {
+                \Illuminate\Support\Facades\Storage::delete($att['path']);
+            }
+            unset($this->composeAttachments[$index]);
+            $this->composeAttachments = array_values($this->composeAttachments);
+        }
+    }
+
+    public function closeCompose()
+    {
+        foreach ($this->composeAttachments as $att) {
+            if (!empty($att['is_uploaded'])) {
+                \Illuminate\Support\Facades\Storage::delete($att['path']);
+            }
+        }
+        $this->composeAttachments = [];
+        $this->uploadedFiles = [];
+        $this->showComposeModal = false;
+    }
+
     public function sendMail()
     {
         $this->validate([
@@ -478,6 +527,13 @@ class ManagementEMails extends Component
             'composeBody' => 'required|string',
             'composeAccountId' => 'required'
         ]);
+
+        $totalSize = collect($this->composeAttachments)->sum('size');
+        if ($totalSize > 20 * 1024 * 1024) {
+            session()->flash('error_message', 'Senden fehlgeschlagen: Die Gesamtgröße der Anhänge überschreitet das Limit von 20 MB.');
+            $this->addError('uploadedFiles', 'Die Gesamtgröße der Anhänge überschreitet das Limit von 20 MB.');
+            return;
+        }
 
         $account = MailAccount::find($this->composeAccountId);
 
@@ -510,7 +566,7 @@ class ManagementEMails extends Component
 
             // Prepare Attachments
             $attachmentDataParams = [];
-            foreach ($this->forwardedAttachments as $att) {
+            foreach ($this->composeAttachments as $att) {
                 $attachmentDataParams[] = $att;
             }
 
@@ -566,6 +622,8 @@ class ManagementEMails extends Component
                 ]);
             }
 
+            $this->composeAttachments = [];
+            $this->uploadedFiles = [];
             $this->showComposeModal = false;
             session()->flash('success_message', 'E-Mail wurde via SMTP erfolgreich gesendet!');
 

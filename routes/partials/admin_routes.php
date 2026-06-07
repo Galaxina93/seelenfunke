@@ -32,6 +32,21 @@ Route::middleware(['auth:admin'])->group(function () {
         abort(404);
     })->name('crm.mail-attachment');
 
+    Route::get('/admin/inbox/compose-preview', function (\Illuminate\Http\Request $request) {
+        $path = $request->query('path');
+        if (!$path || !str_starts_with($path, 'mail-attachments/') || str_contains($path, '..')) {
+            abort(403);
+        }
+        if (\Illuminate\Support\Facades\Storage::exists($path)) {
+            $mime = \Illuminate\Support\Facades\Storage::mimeType($path);
+            return response()->file(\Illuminate\Support\Facades\Storage::path($path), [
+                'Content-Type' => $mime,
+                'Content-Disposition' => 'inline'
+            ]);
+        }
+        abort(404);
+    })->name('crm.mail-compose-preview');
+
     // -----------------------------------------------------------------------
     // System
     // -----------------------------------------------------------------------

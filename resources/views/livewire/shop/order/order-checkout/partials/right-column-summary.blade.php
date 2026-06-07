@@ -1,4 +1,4 @@
-<div class="mt-10 lg:mt-0 lg:col-span-5 sticky top-24 z-20"
+<div class="mt-10 lg:mt-0 lg:col-span-5 lg:sticky lg:top-24 z-20"
      x-data="{
         isProcessing: false,
         terms: @entangle('terms_accepted'),
@@ -66,7 +66,7 @@
                 </div>
             @endif
 
-            <div class="max-h-96 overflow-y-auto pr-2 overscroll-contain custom-scrollbar">
+            <div class="max-h-96 overflow-y-auto pr-2 custom-scrollbar">
                 <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
                     @foreach($cart->items as $item)
                         <li class="flex items-start py-6 space-x-4">

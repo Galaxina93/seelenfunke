@@ -419,4 +419,70 @@ class ManagementEMailsTest extends TestCase
         Livewire::test(CrmInbox::class)
             ->call('downloadAttachment', $attachment->id, $mockService);
     }
+
+    public function test_can_upload_attachments_manually()
+    {
+        \Illuminate\Support\Facades\Storage::fake();
+
+        $file1 = \Illuminate\Http\UploadedFile::fake()->create('document.pdf', 500); // 500 KB
+        $file2 = \Illuminate\Http\UploadedFile::fake()->image('photo.jpg', 100);    // 100 KB
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->set('uploadedFiles', [$file1, $file2])
+            ->assertCount('composeAttachments', 2)
+            ->assertSet('composeAttachments.0.filename', 'document.pdf')
+            ->assertSet('composeAttachments.1.filename', 'photo.jpg');
+    }
+
+    public function test_can_remove_attachments_manually()
+    {
+        \Illuminate\Support\Facades\Storage::fake();
+
+        $file = \Illuminate\Http\UploadedFile::fake()->create('doc.pdf', 100);
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->set('uploadedFiles', [$file])
+            ->assertCount('composeAttachments', 1)
+            ->call('removeAttachment', 0)
+            ->assertCount('composeAttachments', 0);
+    }
+
+    public function test_discards_attachments_when_closing_compose()
+    {
+        \Illuminate\Support\Facades\Storage::fake();
+
+        $file = \Illuminate\Http\UploadedFile::fake()->create('doc.pdf', 100);
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->set('uploadedFiles', [$file])
+            ->assertCount('composeAttachments', 1)
+            ->call('closeCompose')
+            ->assertCount('composeAttachments', 0)
+            ->assertSet('showComposeModal', false);
+    }
+
+    public function test_validates_total_attachment_size_limit()
+    {
+        Mail::fake();
+        \Illuminate\Support\Facades\Storage::fake();
+
+        // Create two 11 MB files (together 22 MB, exceeding the 20 MB limit)
+        $file1 = \Illuminate\Http\UploadedFile::fake()->create('file1.zip', 11264);
+        $file2 = \Illuminate\Http\UploadedFile::fake()->create('file2.zip', 11264);
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->set('uploadedFiles', [$file1, $file2])
+            ->set('composeTo', 'recipient@test.com')
+            ->set('composeSubject', 'Huge Attachment')
+            ->set('composeBody', 'Checking size limit.')
+            ->call('sendMail')
+            ->assertHasErrors(['uploadedFiles'])
+            ->assertSet('showComposeModal', true); // Modal stays open since sending failed
+
+        Mail::assertNotSent(\App\Mail\CrmOutgoingMailToCustomer::class);
+    }
 }
