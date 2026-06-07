@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="#1E293B"
+    android:padding="8dp"
+    android:layout_marginTop="2dp"
+    android:layout_marginBottom="2dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    android:gravity="center_vertical">
+
+    <!-- Time tag on the left -->
+    <TextView
+        android:id="@+id/item_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="65dp"
+        android:textColor="#94A3B8"
+        android:textSize="9sp"
+        android:gravity="end|center_vertical"
+        android:layout_marginEnd="8dp"
+        android:layout_gravity="center_vertical" />
+
+    <!-- Category Accent Bar in the middle -->
+    <FrameLayout
+        android:id="@+id/item_category_bar"
+        android:layout_width="4dp"
+        android:layout_height="24dp"
+        android:background="#C5A059"
+        android:layout_marginEnd="8dp"
+        android:layout_gravity="center_vertical" />
+
+    <!-- Text Content on the right -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_gravity="center_vertical">
+
+        <!-- Title -->
+        <TextView
+            android:id="@+id/item_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Termin Titel"
+            android:textColor="#F8FAFC"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+        <!-- Description -->
+        <TextView
+            android:id="@+id/item_description"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Beschreibung"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"
+            android:singleLine="true"
+            android:ellipsize="end"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+</LinearLayout>
