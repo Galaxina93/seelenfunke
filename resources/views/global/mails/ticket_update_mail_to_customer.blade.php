@@ -9,7 +9,7 @@
     {{-- ANSPRACHE --}}
     <h1>Hallo {{ $customer->first_name ?? 'lieber Kunde' }},</h1>
 
-    <p>es gibt Neuigkeiten zu deiner Support-Anfrage bei der Manufaktur der Magie.</p>
+    <p>es gibt Neuigkeiten zu deiner Support-Anfrage - Mein Seelenfunke.</p>
 
     <div style="margin-top: 20px; margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #c5a059; border-radius: 4px;">
         <strong>Ticket:</strong> {{ $ticket->ticket_number }}<br>

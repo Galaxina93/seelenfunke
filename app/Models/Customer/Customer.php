@@ -23,10 +23,16 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         'last_name',
         'email',
         'password',
+        'needs_password_change',
+        'temporary_password',
     ];
 
     public $incrementing = false; // Deaktivieren Sie das Inkrementieren des Primärschlüssels
     protected $keyType = 'string'; // Setzen Sie den Primärschlüsseltyp auf 'string'
+
+    protected $casts = [
+        'needs_password_change' => 'boolean',
+    ];
 
     protected static function boot(): void
     {

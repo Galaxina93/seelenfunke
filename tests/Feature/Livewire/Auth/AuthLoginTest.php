@@ -109,4 +109,40 @@ class AuthLoginTest extends TestCase
                   
         $this->assertStringContainsString('Langsam!', collect($component->errors()->get('email'))->first());
     }
+
+    public function test_login_lockout_after_three_failed_attempts_lasts_10_seconds()
+    {
+        // Simulate 3 failed attempts
+        for ($i = 0; $i < 3; $i++) {
+            SystemLoginAttempt::create([
+                'email' => 'test@kunde.de',
+                'ip_address' => '127.0.0.1',
+                'success' => false,
+                'created_at' => now(),
+            ]);
+        }
+
+        $component = Livewire::test(AuthLogin::class)
+            ->set('email', 'test@kunde.de')
+            ->set('password', 'password123')
+            ->call('login')
+            ->assertHasErrors(['email']);
+            
+        $this->assertStringContainsString('Zu viele fehlerhafte Login-Versuche', collect($component->errors()->get('email'))->first());
+    }
+
+    public function test_login_redirects_to_password_change_force_if_needed()
+    {
+        $this->user->update([
+            'needs_password_change' => true,
+            'temporary_password' => 'temp123',
+        ]);
+
+        Livewire::test(AuthLogin::class)
+            ->set('email', 'test@kunde.de')
+            ->set('password', 'password123')
+            ->call('login')
+            ->assertHasNoErrors()
+            ->assertRedirect(route('customer.password-change-force'));
+    }
 }

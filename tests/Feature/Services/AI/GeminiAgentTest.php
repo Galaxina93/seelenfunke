@@ -17,7 +17,7 @@ class CurlMockRegistry {
 class TestableGeminiAgent extends GeminiAgent {
     public array $capturedMessages = [];
 
-    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = [], \Closure $streamCallback = null): string {
+    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = [], ?\Closure $streamCallback = null): string {
         $result = parent::chatLoop($messages, $contextData, $usageData, $eventsData, $depth, $calledTools, $streamCallback);
         $this->capturedMessages = $messages;
         return $result;

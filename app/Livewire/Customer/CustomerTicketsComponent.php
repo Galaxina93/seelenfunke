@@ -193,7 +193,7 @@ class CustomerTicketsComponent extends Component
         $welcomeMessage = SupportTicketMessage::create([
             'support_ticket_id' => $ticket->id,
             'sender_type' => 'admin',
-            'message' => "Hallo {$firstName},\n\nvielen Dank für deine Nachricht. Dein Ticket mit der Nummer {$ticket->ticket_number} ist sicher bei uns eingegangen.\n\nEiner unserer Support-Magier wird sich in Kürze deines Anliegens annehmen und dir so schnell wie möglich antworten. Du erhältst eine Benachrichtigung, sobald es Neuigkeiten gibt.\n\nEine magische Zeit wünscht dir\nDein Seelenfunke Team",
+            'message' => "Hallo {$firstName},\n\nvielen Dank für deine Nachricht. Dein Ticket mit der Nummer {$ticket->ticket_number} ist sicher bei uns eingegangen.\n\nWir melden uns in Kürze. Du erhältst eine Benachrichtigung, sobald es Neuigkeiten gibt.\n\nEine magische Zeit wünscht dir\nDein Seelenfunke Team",
             'is_read_by_customer' => false,
         ]);
 

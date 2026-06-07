@@ -34,7 +34,7 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/inbox/compose-preview', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || !str_starts_with($path, 'mail-attachments/') || str_contains($path, '..')) {
+        if (!$path || !str_starts_with($path, 'temp/mail-attachments/') || str_contains($path, '..')) {
             abort(403);
         }
         if (\Illuminate\Support\Facades\Storage::exists($path)) {

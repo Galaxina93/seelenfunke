@@ -182,6 +182,10 @@ trait FormatsECommerceData
 
             'express'  => (bool)$this->is_express,
 
+            'customer_needs_password_change' => isset($this->customer) && (bool)$this->customer->needs_password_change,
+            'customer_temporary_password' => isset($this->customer) ? $this->customer->temporary_password : null,
+            'customer_email' => isset($this->customer) ? $this->customer->email : null,
+
             'payment_url' => $this->payment_url ?? null,
             'tracking_numbers' => method_exists($this, 'shipments') && $this->shipments ? $this->shipments->pluck('tracking_number')->filter()->toArray() : [],
 

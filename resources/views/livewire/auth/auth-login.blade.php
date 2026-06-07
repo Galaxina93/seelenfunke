@@ -211,10 +211,10 @@
                     </a>
 
                     <h1 class="text-3xl font-serif font-bold text-white tracking-wide">
-                        Willkommen zurück
+                        Kunden-Login
                     </h1>
                     <p class="mt-2 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                        Melde dich an, um fortzufahren.
+                        Melde dich an, um auf deine digitalen Güter und dein Profil zuzugreifen.
                     </p>
                 </div>
 

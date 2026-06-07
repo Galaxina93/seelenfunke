@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     nodejs \
     npm \
+    python3-docx \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. GD konfigurieren und installieren

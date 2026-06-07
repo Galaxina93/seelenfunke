@@ -61,25 +61,25 @@ class AuthLogin extends Component
 
         $this->validate();
 
-        // 3x fehlerhaftes Einloggen -> Wartezeit/Sperre von 5 Minuten
+        // 3x fehlerhaftes Einloggen -> Wartezeit/Sperre von 10 Sekunden
         $maxFailedAttempts = 3;
-        $lockoutMinutes = 5;
+        $lockoutSeconds = 10;
         $recentAttempts = SystemLoginAttempt::where(function($q) {
                 $q->where('ip_address', request()->ip())
                   ->orWhere('email', $this->email);
             })
-            ->where('created_at', '>=', now()->subMinutes($lockoutMinutes))
+            ->where('created_at', '>=', now()->subSeconds($lockoutSeconds))
             ->orderBy('created_at', 'desc')
             ->take($maxFailedAttempts)
             ->get();
 
         if ($recentAttempts->count() >= $maxFailedAttempts && $recentAttempts->every(fn($attempt) => !$attempt->success)) {
             $lastFailed = $recentAttempts->first()->created_at;
-            $secondsRemaining = ($lockoutMinutes * 60) - now()->diffInSeconds($lastFailed);
-            if ($secondsRemaining > 0) {
-                $minutes = (int) ceil($secondsRemaining / 60);
+            $diff = now()->diffInRealSeconds($lastFailed);
+            $secondsRemaining = (int) max(1, ceil($lockoutSeconds - $diff));
+            if ($diff < $lockoutSeconds) {
                 throw ValidationException::withMessages([
-                    'email' => "Zu viele fehlerhafte Login-Versuche. Bitte warte {$minutes} Minuten, bevor du es erneut versuchst.",
+                    'email' => "Zu viele fehlerhafte Login-Versuche. Bitte warte {$secondsRemaining} Sekunden, bevor du es erneut versuchst.",
                 ]);
             }
         }
@@ -144,7 +144,11 @@ class AuthLogin extends Component
 
             session(['permissions' => $permissions]);
 
-
+            if ($this->guard === 'customer' && $loggedInUser->needs_password_change) {
+                session(['force_password_change_customer_id' => $loggedInUser->id]);
+                $this->redirect(route('customer.password-change-force'));
+                return;
+            }
 
             $this->redirect(route($this->guard . '.dashboard'));
             return;

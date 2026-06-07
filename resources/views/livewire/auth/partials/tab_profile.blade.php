@@ -56,7 +56,7 @@
             </div>
         </div>
         <form wire:submit.prevent="saveProfile" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 items-start">
                 <div class="space-y-4">
                     @if($guard === 'customer')
                         <div class="flex gap-4">
@@ -128,7 +128,7 @@
                 </div>
             </div>
             <div class="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-gray-800 gap-4 mt-4">
-                @if($guard === 'customer')
+                @if($guard === 'customer' && $isGameModeActive)
                     <button type="button" wire:click="optOut" wire:confirm="Möchtest du das magische Dashboard wirklich deaktivieren? Dein Fortschritt bleibt gespeichert." class="bg-red-500/10 border border-red-500/30 text-red-500 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)]">Spielmodus deaktivieren</button>
                 @else
                     <div></div>

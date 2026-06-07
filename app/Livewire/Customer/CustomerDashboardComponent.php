@@ -11,6 +11,8 @@ use Livewire\Attributes\On;
 class CustomerDashboardComponent extends Component
 {
     public $profileSteps = [];
+    public $recentOrders = [];
+    public bool $isGameModeActive = false;
 
     public function mount()
     {
@@ -19,7 +21,7 @@ class CustomerDashboardComponent extends Component
             return redirect()->route('login');
         }
 
-        $this->checkProfileSteps($user);
+        $this->loadDashboardData($user);
     }
 
     #[On('profile-updated')]
@@ -29,8 +31,23 @@ class CustomerDashboardComponent extends Component
         if ($user) {
             $user->refresh();
             $user->load('profile');
-            $this->checkProfileSteps($user);
+            $this->loadDashboardData($user);
         }
+    }
+
+    private function loadDashboardData($user)
+    {
+        $this->checkProfileSteps($user);
+        
+        // Load recent orders
+        $this->recentOrders = \App\Models\Order\OrderOrder::where('customer_id', $user->id)
+            ->latest()
+            ->take(3)
+            ->get();
+            
+        // Check if game mode is active
+        $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
+            ->value('is_active');
     }
 
     private function checkProfileSteps($user)

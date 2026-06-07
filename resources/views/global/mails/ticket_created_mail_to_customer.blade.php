@@ -9,14 +9,14 @@
     {{-- ANSPRACHE --}}
     <h1>Hallo {{ $customer->first_name ?? 'lieber Kunde' }},</h1>
 
-    <p>vielen Dank für deine Nachricht an die Manufaktur der Magie. Wir haben dein Ticket erfolgreich in unserem System erfasst!</p>
+    <p>vielen Dank für deine Nachricht an uns. Wir haben dein Ticket erfolgreich in unserem System erfasst!</p>
 
     <div style="margin-top: 20px; margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #c5a059; border-radius: 4px;">
         <strong>Ticket:</strong> {{ $ticket->ticket_number }}<br>
         <strong>Betreff:</strong> {{ $ticket->subject }}
     </div>
 
-    <p>Einer unserer Support-Magier wird sich in Kürze deines Anliegens annehmen und dir so schnell wie möglich antworten. Du erhältst automatisch eine weitere Benachrichtigung, sobald eine Antwort für dich vorliegt.</p>
+    <p>Einer unserer Supporter wird sich in Kürze deines Anliegens annehmen und dir so schnell wie möglich antworten. Du erhältst automatisch eine weitere Benachrichtigung, sobald eine Antwort für dich vorliegt.</p>
 
     {{-- CALL TO ACTION BUTTON --}}
     <div style="text-align: center; margin: 40px 0;">

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Manufaktur der Magie - Seelenfunke</title>
+    <title>Manufaktur - Mein Seelenfunke</title>
 
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
     <script src="{{ mix('js/app.js') }}" defer></script>
@@ -59,7 +59,7 @@
                     window.Echo.private('customer.{{ $customerId }}')
                         .listen('.TicketMessageSent', (e) => {
                             window.dispatchEvent(new CustomEvent('customer-ticket-message-received', { detail: e }));
-                            
+
                             if (e.message && e.message.sender_type === 'admin') {
                                 // 1. Roten Punkt sofort anschalten
                                 this.hasUnreadSupport = true;

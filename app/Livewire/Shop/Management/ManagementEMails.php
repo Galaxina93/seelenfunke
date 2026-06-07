@@ -482,7 +482,7 @@ class ManagementEMails extends Component
         ]);
 
         foreach ($this->uploadedFiles as $file) {
-            $path = $file->store('mail-attachments');
+            $path = $file->store('temp/mail-attachments');
             $this->composeAttachments[] = [
                 'path' => $path,
                 'filename' => $file->getClientOriginalName(),

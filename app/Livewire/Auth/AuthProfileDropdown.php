@@ -25,6 +25,7 @@ class AuthProfileDropdown extends Component
     public $photo;
     public object $user;
     public string $guard;
+    public bool $isGameModeActive = false;
 
     public string $firstName = '';
     public string $lastName = '';
@@ -63,6 +64,10 @@ class AuthProfileDropdown extends Component
             if (!$this->twoFactorActive) {
                 $google2fa = new Google2FA();
                 $this->secretKey = $google2fa->generateSecretKey();
+            }
+
+            if ($this->guard === 'customer') {
+                $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->value('is_active');
             }
         }
     }

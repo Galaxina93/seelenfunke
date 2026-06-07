@@ -71,7 +71,22 @@
         </div>
     @endif
 
-    @if($hasDigital)
+    @if(!empty($data['customer_needs_password_change']) && !empty($data['customer_temporary_password']))
+        {{-- HINWEIS: KONTO ERSTELLT MIT EINMAL-PASSWORT --}}
+        <div style="margin-top: 30px; padding: 20px; background-color: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; text-align: center;">
+            <h3 style="margin-top: 0; color: #6d28d9; font-size: 16px;">🔑 Dein Kundenkonto wurde erstellt!</h3>
+            <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 15px;">
+                Da du als Gast eingekauft hast, haben wir automatisch ein Kundenkonto für dich angelegt, damit du auf deine digitalen Güter zugreifen kannst.
+                Bitte logge dich mit folgenden Zugangsdaten ein und ändere anschließend dein Passwort:
+            </p>
+            <div style="display: inline-block; padding: 10px 20px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; text-align: left; font-family: monospace; font-size: 14px; color: #1f2937; margin-bottom: 20px;">
+                <strong>E-Mail:</strong> {{ $data['customer_email'] }}<br>
+                <strong>Passwort:</strong> {{ $data['customer_temporary_password'] }}
+            </div>
+            <br>
+            <a href="{{ url('/login') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Jetzt einloggen & herunterladen</a>
+        </div>
+    @elseif($hasDigital)
         {{-- HINWEIS: DIGITALE DOWNLOADS --}}
         <div style="margin-top: 30px; padding: 20px; background-color: #e0f7fa; border: 1px solid #b2ebf2; border-radius: 8px; text-align: center;">
             <h3 style="margin-top: 0; color: #00838f; font-size: 16px;">🚀 Deine digitalen Downloads sind bereit!</h3>

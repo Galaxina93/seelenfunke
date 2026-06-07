@@ -60,8 +60,19 @@ trait handleProfilesTrait
         $this->phoneNumber = $this->user->profile->phone_number ?? '';
         $this->about = $this->user->profile->about ?? '';
         $this->url = $this->user->profile->url ?? '';
-        $this->street = $this->user->profile->street ?? '';
-        $this->houseNumber = $this->user->profile->house_number ?? '';
+
+        $streetVal = $this->user->profile->street ?? '';
+        $houseNumVal = $this->user->profile->house_number ?? '';
+
+        if (empty($houseNumVal) && !empty($streetVal)) {
+            if (preg_match('#^(.*?)\s*(\d+[a-zA-Z]?(?:\s*[-/]\s*\d+[a-zA-Z]?)?)$#', trim($streetVal), $matches)) {
+                $streetVal = trim($matches[1]);
+                $houseNumVal = trim($matches[2]);
+            }
+        }
+
+        $this->street = $streetVal;
+        $this->houseNumber = $houseNumVal;
         $this->postal = $this->user->profile->postal ?? '';
         $this->city = $this->user->profile->city ?? '';
         $this->country = $this->user->profile->country ?? 'DE';

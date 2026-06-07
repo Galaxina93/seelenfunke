@@ -302,7 +302,7 @@
                     </div>
 
                     <div x-show="showLogin" x-cloak class="max-w-sm mx-auto text-left animate-fade-in-up bg-white p-8 rounded-2xl border border-gray-200 shadow-xl mt-4 relative">
-                        <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 text-center">Willkommen zurück</h3>
+                        <h3 class="text-xl font-serif font-bold text-gray-900 mb-6 text-center">Konto verifizieren</h3>
 
                         <form wire:submit.prevent="loginUser" class="space-y-5">
 

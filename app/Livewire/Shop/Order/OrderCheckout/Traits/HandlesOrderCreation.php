@@ -51,6 +51,7 @@ trait HandlesOrderCreation
                 'type' => 'error',
                 'agent_id' => null,
                 'action_id' => 'checkout_order_creation',
+                'title' => 'Kritischer Fehler bei der Order-Erstellung',
                 'message' => 'Kritischer Fehler bei der Order-Erstellung: ' . $e->getMessage(),
                 'details' => json_encode([
                     'file' => $e->getFile(),
@@ -115,19 +116,43 @@ trait HandlesOrderCreation
             }
 
             if (!$customer) {
+                $tempPassword = Str::random(10);
                 $customer = Customer::create([
                     'email' => $this->email,
                     'first_name' => $this->first_name,
                     'last_name' => $this->last_name,
-                    'password' => bcrypt(Str::random(16)),
+                    'password' => bcrypt($tempPassword),
+                    'needs_password_change' => true,
+                    'temporary_password' => $tempPassword,
                 ]);
 
-                $customer->profile()->create([
-                    'street' => $this->address,
-                    'city' => $this->city,
-                    'postal' => $this->postal_code,
-                    'country' => $this->country,
-                ]);
+                // Split street and house number
+                $streetVal = trim($this->address);
+                $houseNumVal = '';
+                if (preg_match('#^(.*?)\s*(\d+[a-zA-Z]?(?:\s*[-/]\s*\d+[a-zA-Z]?)?)$#', $streetVal, $matches)) {
+                    $streetVal = trim($matches[1]);
+                    $houseNumVal = trim($matches[2]);
+                }
+
+                if ($customer->profile) {
+                    $customer->profile->update([
+                        'street' => $streetVal,
+                        'house_number' => $houseNumVal,
+                        'city' => $this->city,
+                        'postal' => $this->postal_code,
+                        'country' => $this->country,
+                        'email_verified_at' => now(),
+                    ]);
+                } else {
+                    $customer->profile()->create([
+                        'street' => $streetVal,
+                        'house_number' => $houseNumVal,
+                        'city' => $this->city,
+                        'postal' => $this->postal_code,
+                        'country' => $this->country,
+                        'email_verified_at' => now(),
+                    ]);
+                }
             }
 
             $customerId = $customer->id;

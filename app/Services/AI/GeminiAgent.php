@@ -36,7 +36,7 @@ class GeminiAgent implements AiProviderInterface
      * Send a conversation history to Gemini, hand over the tools, and handle the execution loop
      * until the model gives a final text response.
      */
-    public function ask(array $incomingMessages, \Closure $streamCallback = null): array
+    public function ask(array $incomingMessages, ?\Closure $streamCallback = null): array
     {
         $latestUserMessage = '';
         foreach (array_reverse($incomingMessages) as $msg) {
@@ -228,7 +228,7 @@ class GeminiAgent implements AiProviderInterface
     /**
      * The recursive chat loop handling Tool Calling via OpenAI-compatible API.
      */
-    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = [], \Closure $streamCallback = null): string
+    protected function chatLoop(array &$messages, array &$contextData = [], array &$usageData = [], array &$eventsData = [], int $depth = 0, array &$calledTools = [], ?\Closure $streamCallback = null): string
     {
         if ($depth >= 5) {
             Log::warning("Gemini API Tool Loop depth exceeded. Halting to prevent infinite loop.");
