@@ -46,7 +46,7 @@ class AuthRegister extends Component
         return [
             'firstname' => 'required|string|max:255',
             'lastname' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:customers',
+            'email' => 'required|string|email|max:255|unique:customers|indisposable',
             'password' => ['required', 'string', 'min:8'],
             'street' => 'required|string|max:255',
             'house_number' => 'required|string|max:20',
@@ -62,6 +62,7 @@ class AuthRegister extends Component
     protected $messages = [
         'email.unique' => 'Diese E-Mail-Adresse wird bereits verwendet.',
         'email.email' => 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
+        'email.indisposable' => 'Temporäre E-Mail-Adressen (Wegwerf-E-Mails) sind nicht erlaubt.',
         'terms.accepted' => 'Bitte akzeptieren Sie die AGB und Datenschutzbestimmungen.',
         'required' => 'Dieses Feld ist erforderlich.',
     ];

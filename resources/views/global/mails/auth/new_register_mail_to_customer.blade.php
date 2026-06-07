@@ -16,7 +16,7 @@
 
     {{-- VERIFIZIERUNGS-BUTTON --}}
     <div style="text-align: center; margin: 40px 0;">
-        {{-- Passe die Hintergrundfarbe an deine Mein-Seelenfunken CI-Farbe an --}}
+        {{-- Passe die Hintergrundfarbe an deine Mein-Seelenfunke CI-Farbe an --}}
         <a href="{{ $url }}" style="background-color: #d4a373; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
             E-Mail-Adresse bestätigen
         </a>
@@ -33,7 +33,7 @@
     </p>
 
     <p>Mit funkelnden Grüßen,<br>
-        <strong>Dein Team von Mein-Seelenfunken</strong></p>
+        <strong>Dein Team von Mein-Seelenfunke</strong></p>
 
     {{--FOOTER--}}
     @include('global.mails.partials.mail_footer')

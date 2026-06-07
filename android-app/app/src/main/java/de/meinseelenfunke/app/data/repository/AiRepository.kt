@@ -27,6 +27,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
             )
             Result.success(response)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -64,7 +65,45 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Keine Antwort vom lokalen Gemini Modell erhalten."))
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getLiveCredentials(agentId: String? = null, chatSessionId: String? = null): Result<de.meinseelenfunke.app.data.api.LiveCredentialsResponse> {
+        return try {
+            val response = serviceLocator.getAiApi().getLiveCredentials(agentId, chatSessionId)
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun executeTool(functionName: String, args: com.google.gson.JsonElement?, sessionId: String? = null): Result<de.meinseelenfunke.app.data.api.ExecuteToolResponse> {
+        return try {
+            val response = serviceLocator.getAiApi().executeTool(
+                de.meinseelenfunke.app.data.api.ExecuteToolRequest(function = functionName, args = args, session_id = sessionId)
+            )
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getAgents(): Result<List<de.meinseelenfunke.app.data.api.AiAgent>> {
+        return try {
+            val response = serviceLocator.getAiApi().getAgents()
+            if (response.success == "success" || response.success == "true") {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Fehler beim Laden der Agenten."))
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
 }
+

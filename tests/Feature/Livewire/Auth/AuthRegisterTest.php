@@ -111,4 +111,29 @@ class AuthRegisterTest extends TestCase
             'session_token' => $uuid,
         ]);
     }
+
+    public function test_cannot_register_with_disposable_email()
+    {
+        Mail::fake();
+        Livewire::test(AuthRegister::class)
+            ->set('firstname', 'John')
+            ->set('lastname', 'Doe')
+            ->set('email', 'john@mailinator.com')
+            ->set('password', 'Secret123')
+            ->set('password_confirmation', 'Secret123')
+            ->set('street', 'Main St')
+            ->set('house_number', '12')
+            ->set('postal', '10115')
+            ->set('city', 'Berlin')
+            ->set('country', 'DE')
+            ->set('is_business', 0)
+            ->set('birthday', '1990-01-01')
+            ->set('terms', true)
+            ->call('register')
+            ->assertHasErrors(['email' => 'indisposable']);
+
+        $this->assertDatabaseMissing('customers', [
+            'email' => 'john@mailinator.com',
+        ]);
+    }
 }

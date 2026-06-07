@@ -13,8 +13,7 @@ data class User(
     val id: String,
     val first_name: String?,
     val last_name: String?,
-    val email: String,
-    val user_type: String? = null
+    val email: String
 )
 
 data class LoginResponse(
@@ -24,10 +23,22 @@ data class LoginResponse(
     val user: User?
 )
 
+data class ForgotPasswordRequest(
+    val email: String
+)
+
+data class ForgotPasswordResponse(
+    val status: String,
+    val message: String
+)
+
 interface AuthApi {
     @POST("login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
     @GET("user")
     suspend fun getUser(): User
+
+    @POST("password/email")
+    suspend fun forgotPassword(@Body request: ForgotPasswordRequest): ForgotPasswordResponse
 }

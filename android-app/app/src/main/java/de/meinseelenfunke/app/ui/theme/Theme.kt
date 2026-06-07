@@ -7,13 +7,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Cyan500,
-    secondary = Emerald500,
-    tertiary = Indigo500,
-    background = Slate900,
-    surface = Slate800,
-    onPrimary = Slate900,
-    onSecondary = Slate900,
+    primary = Gold,
+    secondary = Copper,
+    tertiary = SpaceBlue,
+    background = SpaceBlack,
+    surface = Slate900,
+    onPrimary = SpaceBlack,
+    onSecondary = SpaceBlack,
     onTertiary = Slate50,
     onBackground = Slate50,
     onSurface = Slate50,

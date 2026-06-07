@@ -19,12 +19,6 @@ class ChatViewModel : ViewModel() {
     private val aiRepository = ServiceLocator.aiRepository
     private val authRepository = ServiceLocator.authRepository
 
-    private val _agentName = MutableStateFlow("Funkira")
-    val agentName: StateFlow<String> = _agentName.asStateFlow()
-
-    private val _userFirstName = MutableStateFlow("Alina")
-    val userFirstName: StateFlow<String> = _userFirstName.asStateFlow()
-
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(ChatMessage("assistant", "Hallo Alina! Ich bin bereit. Wie kann ich dir heute im Seelenfunke Dashboard helfen?"))
     )
@@ -36,48 +30,104 @@ class ChatViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _agents = MutableStateFlow<List<de.meinseelenfunke.app.data.api.AiAgent>>(emptyList())
+    val agents: StateFlow<List<de.meinseelenfunke.app.data.api.AiAgent>> = _agents.asStateFlow()
+
+    private val _selectedAgent = MutableStateFlow<de.meinseelenfunke.app.data.api.AiAgent?>(null)
+    val selectedAgent: StateFlow<de.meinseelenfunke.app.data.api.AiAgent?> = _selectedAgent.asStateFlow()
+
     private var mediaPlayer: MediaPlayer? = null
 
     init {
-        loadUserAndInitializeGreeting()
+        loadAgents()
     }
 
-    private fun loadUserAndInitializeGreeting() {
+    fun loadAgents() {
         viewModelScope.launch {
-            authRepository.getCurrentUser().onSuccess { user ->
-                val isCustomer = user.user_type == "customer"
-                _userFirstName.value = user.first_name ?: (if (isCustomer) "Kunde" else "Alina")
-                _agentName.value = if (isCustomer) "Funki" else "Funkira"
-                
-                val greeting = if (isCustomer) {
-                    "Hallo ${_userFirstName.value}! Ich bin Funki, dein Seelenfunke Support-Assistent. Wie kann ich dir heute bei deinen Bestellungen helfen?"
-                } else {
-                    "Hallo ${_userFirstName.value}! Ich bin bereit. Wie kann ich dir heute im Seelenfunke Dashboard helfen?"
+            aiRepository.getAgents()
+                .onSuccess { list ->
+                    _agents.value = list
+                    val defaultAgent = list.find { it.name.equals("Funkira", ignoreCase = true) } ?: list.firstOrNull()
+                    defaultAgent?.let { selectAgent(it) }
                 }
-                _messages.value = listOf(ChatMessage("assistant", greeting))
-            }.onFailure {
-                Log.e("ChatViewModel", "Fehler beim Laden des Benutzers: ${it.message}")
-            }
+                .onFailure { err ->
+                    _error.value = "Fehler beim Laden der Agenten: ${err.localizedMessage}"
+                }
         }
     }
 
-    fun sendMessage(content: String) {
-        if (content.isBlank() || _isLoading.value) return
+    fun selectAgent(agent: de.meinseelenfunke.app.data.api.AiAgent) {
+        if (_selectedAgent.value?.id == agent.id) return
+        
+        if (_selectedAgent.value != null) {
+            de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.top_secret_sound_4)
+        }
 
-        val userMessage = ChatMessage("user", content)
+        stopAudio()
+        _selectedAgent.value = agent
+        
+        val greeting = "Hallo Alina! Ich bin ${agent.name}. ${agent.role_description ?: "Wie kann ich dir heute helfen?"}"
+        _messages.value = listOf(ChatMessage("assistant", greeting))
+    }
+
+    private val _selectedFile = MutableStateFlow<SelectedFile?>(null)
+    val selectedFile: StateFlow<SelectedFile?> = _selectedFile.asStateFlow()
+
+    fun selectFile(file: SelectedFile?) {
+        _selectedFile.value = file
+    }
+
+    fun sendMessage(content: String) {
+        if (content.isBlank() && _selectedFile.value == null) return
+        if (_isLoading.value) return
+
+        de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.sent_message_1)
+
+        val file = _selectedFile.value
+        val formattedContent = buildString {
+            append(content)
+            if (file != null) {
+                if (file.mimeType?.startsWith("image/") == true && file.base64Content != null) {
+                    append("\n[SYSTEM_IMAGE]: data:${file.mimeType};base64,${file.base64Content}")
+                } else if (file.textContent != null) {
+                    append("\n\n[Anhang: ${file.name}]\n```\n${file.textContent}\n```")
+                } else {
+                    append("\n\n[Anhang: ${file.name} (${file.sizeBytes} Bytes)]")
+                }
+            }
+        }
+
+        val displayContent = buildString {
+            append(content)
+            if (file != null) {
+                if (content.isNotBlank()) append("\n")
+                append("📎 Anhang: ${file.name}")
+            }
+        }
+
+        val userMessage = ChatMessage("user", displayContent)
         val currentHistory = _messages.value
         _messages.value = currentHistory + userMessage
         _error.value = null
+        _selectedFile.value = null // Clear selected file
 
         viewModelScope.launch {
             _isLoading.value = true
             
             // Build cleaned request history for the Laravel API structure
-            val apiHistory = _messages.value.map { msg ->
-                ChatMessage(role = msg.role, content = msg.content)
+            val apiHistory = _messages.value.mapIndexed { index, msg ->
+                if (index == _messages.value.lastIndex) {
+                    ChatMessage(role = msg.role, content = formattedContent)
+                } else {
+                    ChatMessage(role = msg.role, content = msg.content)
+                }
             }
 
-            aiRepository.sendChatMessage(prompt = content, history = apiHistory)
+            aiRepository.sendChatMessage(
+                prompt = formattedContent,
+                history = apiHistory,
+                agentId = _selectedAgent.value?.id
+            )
                 .onSuccess { chatResponse ->
                     val assistantResponseText = chatResponse.response ?: "Keine Antwort erhalten."
                     _messages.value = _messages.value + ChatMessage("assistant", assistantResponseText)
@@ -95,6 +145,7 @@ class ChatViewModel : ViewModel() {
             _isLoading.value = false
         }
     }
+
 
     private fun playTtsAudio(base64Wav: String) {
         try {
@@ -147,3 +198,12 @@ class ChatViewModel : ViewModel() {
         stopAudio()
     }
 }
+
+data class SelectedFile(
+    val uriString: String,
+    val name: String,
+    val mimeType: String?,
+    val sizeBytes: Long,
+    val base64Content: String?,
+    val textContent: String?
+)

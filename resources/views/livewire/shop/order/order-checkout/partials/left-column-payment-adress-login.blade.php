@@ -146,6 +146,15 @@
                                class="mt-1 block w-full rounded-lg bg-gray-50 border-gray-300 shadow-sm focus:bg-white focus:border-primary focus:ring-primary sm:text-sm px-4 py-3 transition-colors @error('email') border-red-300 focus:border-red-500 focus:ring-red-500 @enderror"
                                placeholder="max@muster.de">
                         @error('email') <span class="text-red-500 text-xs mt-1 block font-medium">{{ $message }}</span> @enderror
+
+                        @if($showDisposableEmailWarning)
+                            <div class="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-start gap-2 shadow-sm animate-pulse">
+                                <svg class="w-4 h-4 shrink-0 text-amber-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                                <span>Achtung: Du verwendest eine temporäre E-Mail-Adresse. Du verlierst nach Ablauf der Zeit den Zugriff auf dein Kundenkonto und deine digitalen Downloads!</span>
+                            </div>
+                        @endif
                     </div>
 
                     {{-- Name --}}

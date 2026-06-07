@@ -144,4 +144,47 @@ class ShopProcessTest extends TestCase
             return $job->order->id === $order->id;
         });
     }
+
+    public function test_checkout_with_disposable_email_displays_warning_but_allows_checkout()
+    {
+        Queue::fake();
+        Session::start();
+
+        $product = Product::first();
+
+        // Put a product in the cart
+        Livewire::test(Configurator::class, ['product' => $product, 'context' => 'add'])
+            ->set('qty', 1)
+            ->set('config_confirmed', true)
+            ->call('save');
+
+        // Test checkout warning and process
+        Livewire::test(Checkout::class)
+            ->assertSet('showDisposableEmailWarning', false)
+            
+            // Set valid email
+            ->set('email', 'valid@gmail.com')
+            ->assertSet('showDisposableEmailWarning', false)
+
+            // Set disposable email
+            ->set('email', 'disposable@mailinator.com')
+            ->assertSet('showDisposableEmailWarning', true)
+
+            // Set details and complete checkout
+            ->set('first_name', 'Max')
+            ->set('last_name', 'Mustermann')
+            ->set('address', 'Teststraße 123')
+            ->set('city', 'Musterstadt')
+            ->set('postal_code', '12345')
+            ->set('country', 'DE')
+            ->set('terms_accepted', true)
+            ->set('privacy_accepted', true)
+            ->call('validateAndCreateOrder')
+            ->assertHasNoErrors();
+
+        // Assert order was created successfully in the DB
+        $this->assertDatabaseHas('order_orders', [
+            'email' => 'disposable@mailinator.com',
+        ]);
+    }
 }

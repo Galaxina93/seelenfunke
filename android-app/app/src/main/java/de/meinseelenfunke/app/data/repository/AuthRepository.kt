@@ -38,4 +38,17 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
     fun isLoggedIn(): Boolean {
         return serviceLocator.getAuthToken() != null
     }
+
+    suspend fun sendPasswordResetEmail(email: String): Result<String> {
+        return try {
+            val response = serviceLocator.getAuthApi().forgotPassword(de.meinseelenfunke.app.data.api.ForgotPasswordRequest(email))
+            if (response.status == "success") {
+                Result.success(response.message)
+            } else {
+                Result.failure(Exception(response.message))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

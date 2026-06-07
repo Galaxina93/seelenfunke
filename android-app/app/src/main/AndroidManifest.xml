@@ -2,26 +2,100 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".SeelenfunkeApp"
         android:allowBackup="true"
-        android:icon="@android:mipmap/sym_def_app_icon"
+        android:icon="@mipmap/ic_launcher"
         android:label="Seelenfunke"
-        android:roundIcon="@android:mipmap/sym_def_app_icon"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Seelenfunke"
         android:usesCleartextTraffic="true">
+        
+        <service
+            android:name=".services.WakeWordService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:label="Seelenfunke"
-            android:theme="@style/Theme.Seelenfunke">
+            android:theme="@style/Theme.Seelenfunke"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|locale|layoutDirection|fontScale|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="de.meinseelenfunke.app.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <receiver
+            android:name=".widget.CalendarAppWidgetProvider"
+            android:exported="true"
+            android:label="Seelenfunke Kalender">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CalendarMonthWidgetProvider"
+            android:exported="true"
+            android:label="Seelenfunke Monatskalender">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_PREV_MONTH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_NEXT_MONTH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_RESET_MONTH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_SELECT_DAY" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOW_MONTH" />
+
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_month_widget_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.CalendarWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <receiver
+            android:name=".receiver.CalendarAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

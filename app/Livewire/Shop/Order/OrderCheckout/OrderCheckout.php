@@ -17,6 +17,7 @@ class OrderCheckout extends Component
 
     // --- BESTELLDATEN ---
     public $email;
+    public bool $showDisposableEmailWarning = false;
     public $first_name;
     public $last_name;
     public $company;
@@ -187,6 +188,8 @@ class OrderCheckout extends Component
 
         // Stripe Intent sofort erstellen, damit das Payment Element laden kann
         $this->createPaymentIntent();
+
+        $this->checkDisposableEmail();
     }
 
     /**
@@ -195,12 +198,31 @@ class OrderCheckout extends Component
      */
     public function updated($propertyName)
     {
+        if ($propertyName === 'email') {
+            $this->checkDisposableEmail();
+        }
+
         // Diese Methode wird bei jeder Änderung gefeuert.
         // Wir validieren nur das geänderte Feld für Echtzeit-Feedback
         $this->validateOnly($propertyName);
 
         // Wir benachrichtigen das Frontend, dass sich Daten geändert haben könnten
         $this->dispatch('checkout-updated');
+    }
+
+    public function checkDisposableEmail()
+    {
+        if (empty($this->email)) {
+            $this->showDisposableEmailWarning = false;
+            return;
+        }
+
+        $validator = validator(
+            ['email' => $this->email],
+            ['email' => 'indisposable']
+        );
+
+        $this->showDisposableEmailWarning = $validator->fails();
     }
 
     public function updatedCountry()

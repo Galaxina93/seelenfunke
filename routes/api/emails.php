@@ -124,6 +124,7 @@ Route::prefix('funki/emails')->group(function () {
             'to' => 'required|email',
             'subject' => 'required|string',
             'body' => 'required|string',
+            'attachments' => 'nullable|array',
         ]);
 
         $account = null;
@@ -149,6 +150,18 @@ Route::prefix('funki/emails')->group(function () {
             return response()->json(['error' => 'SMTP Konfiguration fehlt'], 400);
         }
 
+        $attachmentDataParams = [];
+        if (!empty($data['attachments']) && is_array($data['attachments'])) {
+            foreach ($data['attachments'] as $att) {
+                $attachmentDataParams[] = [
+                    'path' => $att['path'],
+                    'filename' => $att['filename'],
+                    'mime' => $att['mime'] ?? $att['content_type'] ?? 'application/octet-stream',
+                    'size' => $att['size'] ?? 0
+                ];
+            }
+        }
+
         try {
             Config::set('mail.mailers.dynamic', [
                 'transport' => 'smtp',
@@ -171,19 +184,19 @@ Route::prefix('funki/emails')->group(function () {
             if (app()->environment('testing')) {
                 Mail::to($data['to'])->send(
                     new \App\Mail\CrmOutgoingMailToCustomer(
-                        $data['subject'], $bodyHtml, $signatureHtml, $account->email, $account->name, []
+                        $data['subject'], $bodyHtml, $signatureHtml, $account->email, $account->name, $attachmentDataParams
                     )
                 );
             } else {
                 Mail::mailer('dynamic')->to($data['to'])->send(
                     new \App\Mail\CrmOutgoingMailToCustomer(
-                        $data['subject'], $bodyHtml, $signatureHtml, $account->email, $account->name, []
+                        $data['subject'], $bodyHtml, $signatureHtml, $account->email, $account->name, $attachmentDataParams
                     )
                 );
             }
 
             // Save in Sent
-            MailMessage::create([
+            $sentMessage = MailMessage::create([
                 'mail_account_id' => $account->id,
                 'message_id' => 'sent-' . uniqid(),
                 'folder' => 'Sent',
@@ -194,9 +207,20 @@ Route::prefix('funki/emails')->group(function () {
                 'body_plain' => $data['body'],
                 'body_html' => $bodyHtml,
                 'is_read' => true,
-                'has_attachments' => false,
+                'has_attachments' => count($attachmentDataParams) > 0,
                 'received_at' => now()
             ]);
+
+            // Save attachments in the DB for the sent message so they appear in Sent folder
+            foreach ($attachmentDataParams as $att) {
+                \App\Models\Management\Mail\MailAttachment::create([
+                    'mail_message_id' => $sentMessage->id,
+                    'filename' => $att['filename'],
+                    'content_type' => $att['mime'],
+                    'size' => $att['size'],
+                    'path' => $att['path'],
+                ]);
+            }
 
             return response()->json(['success' => true]);
 
@@ -287,5 +311,30 @@ Route::prefix('funki/emails')->group(function () {
         $account = MailAccount::findOrFail($id);
         $account->delete();
         return response()->json(['success' => true]);
+    });
+
+    // 10. Upload Attachment
+    Route::post('/attachments', function (Request $request) {
+        $request->validate([
+            'file' => 'required|file|max:20480', // limit of 20MB per file
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store('temp/mail-attachments');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'path' => $path,
+                'filename' => $file->getClientOriginalName(),
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ]
+        ]);
+    });
+
+    // 11. Download Attachment
+    Route::get('/attachments/{id}', function ($id, \App\Services\Export\FileDownloadService $downloadService) {
+        return $downloadService->downloadMailAttachment($id);
     });
 });
