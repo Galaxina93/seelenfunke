@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "33587974981",
+    "project_id": "funkiapp-55960",
+    "storage_bucket": "funkiapp-55960.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:33587974981:android:9d42063d7585eaf4bca42c",
+        "android_client_info": {
+          "package_name": "com.example.funki_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDk8dyurHD4_RDZWZGGeu5NCtmgXpc6a6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:33587974981:android:5a6db09403243fa5bca42c",
+        "android_client_info": {
+          "package_name": "de.meinseelenfunke.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDk8dyurHD4_RDZWZGGeu5NCtmgXpc6a6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
