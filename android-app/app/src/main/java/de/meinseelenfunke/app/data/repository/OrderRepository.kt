@@ -10,9 +10,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class OrderRepository(private val serviceLocator: ServiceLocator) {
-    suspend fun getOrders(status: String?, page: Int? = null): Result<OrderListResponse> = withContext(Dispatchers.IO) {
+    suspend fun getOrders(status: String?, search: String? = null, page: Int? = null): Result<OrderListResponse> = withContext(Dispatchers.IO) {
         try {
-            Result.success(serviceLocator.getOrderApi().getOrders(status, page))
+            Result.success(serviceLocator.getOrderApi().getOrders(status, search, page))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -33,4 +33,13 @@ class OrderRepository(private val serviceLocator: ServiceLocator) {
             Result.failure(e)
         }
     }
+
+    suspend fun createDhlLabel(id: String, packageCount: Int, weightPerPackage: Double): Result<de.meinseelenfunke.app.data.api.DhlLabelResponse> = withContext(Dispatchers.IO) {
+        try {
+            Result.success(serviceLocator.getOrderApi().createDhlLabel(id, de.meinseelenfunke.app.data.api.DhlLabelRequest(packageCount, weightPerPackage)))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+

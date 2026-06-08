@@ -14,13 +14,93 @@ Route::group(['middleware' => [function ($request, $next) {
     // Get all orders
     Route::get('/shop/orders', function (Request $request) {
         $status = $request->query('status');
-        $query = OrderOrder::with(['items.product'])->orderBy('created_at', 'desc');
+        $search = $request->query('search');
+        
+        $query = OrderOrder::with(['items.product']);
+        
+        if ($search) {
+            $searchTerm = '%' . $search . '%';
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('order_number', 'like', $searchTerm)
+                    ->orWhere('email', 'like', $searchTerm)
+                    ->orWhere('billing_address->last_name', 'like', $searchTerm)
+                    ->orWhere('billing_address->first_name', 'like', $searchTerm)
+                    ->orWhere('billing_address->company', 'like', $searchTerm);
+            });
+        }
         
         if ($status && $status !== 'all') {
             $query->where('status', $status);
         }
+
+        $query->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
+            ->orderBy('is_express', 'desc')
+            ->orderBy('created_at', 'asc');
         
         $orders = $query->paginate(20);
+        
+        // Fetch absolute priority order from the database (not affected by search/status filters)
+        $prio = OrderOrder::with(['items.product'])
+            ->whereIn('status', ['pending', 'processing'])
+            ->orderByRaw("CASE WHEN status IN ('completed', 'cancelled', 'refunded') THEN 1 ELSE 0 END ASC")
+            ->orderBy('is_express', 'desc')
+            ->orderBy('created_at', 'asc')
+            ->first();
+
+        $priorityOrderData = null;
+        if ($prio) {
+            // Generate priority tip text
+            $missingItems = [];
+            $isOnlyStandard = true;
+
+            foreach ($prio->items as $item) {
+                if ($item->product) {
+                    if (method_exists($item->product, 'isPersonalizable') && $item->product->isPersonalizable()) {
+                        $isOnlyStandard = false;
+                    }
+                    
+                    if ($prio->is_express && $item->product->track_quantity) {
+                        if ($item->quantity > $item->product->quantity && !$item->product->continue_selling_when_out_of_stock) {
+                            $missingItems[] = $item->product->name;
+                        }
+                    }
+                }
+            }
+
+            $standardMessage = '';
+            if (method_exists($prio, 'isOnlyDigital') && $prio->isOnlyDigital()) {
+                $standardMessage = "\n\n⚡ DIGITALE BEREITSTELLUNG:\nAusschließlich digitale Produkte! Die Auslieferung erfolgt vollautomatisch.";
+            } elseif ($isOnlyStandard) {
+                $standardMessage = "\n\n⚡ SCHNELLE NUMMER:\nAusschließlich Lagerware! Keine Personalisierung/Laser-Arbeit nötig. Einfach aus dem Regal nehmen, verpacken, Label drauf und ab die Post!";
+            }
+
+            if ($prio->is_express) {
+                if (count($missingItems) > 0) {
+                    $tip = 'Lagerbestand Kritisch! ' . count($missingItems) . ' Artikel für diesen Express-Versand fehlen physisch. Bitte sofort prüfen!' . $standardMessage;
+                } else {
+                    $tip = 'Lagerbestand gesichert! Dieser Express-Versand ist komplett auf Lager und kann sofort abgewickelt werden.' . $standardMessage;
+                }
+            } else {
+                $tip = 'Dies ist der älteste offene Auftrag im System. Arbeite ihn zügig ab, um die Wartezeiten gering zu halten.' . $standardMessage;
+            }
+
+            $priorityOrderData = [
+                'id' => $prio->id,
+                'order_number' => $prio->order_number,
+                'email' => $prio->email,
+                'customer_name' => $prio->customer_name,
+                'status' => $prio->status,
+                'status_color' => $prio->status_color,
+                'payment_status' => $prio->payment_status,
+                'payment_status_color' => $prio->payment_status_color,
+                'payment_method' => $prio->payment_method,
+                'total_price' => $prio->total_price,
+                'created_at' => $prio->created_at->toIso8601String(),
+                'item_count' => $prio->items->sum('quantity'),
+                'is_express' => (bool)$prio->is_express,
+                'priority_tip' => $tip,
+            ];
+        }
         
         // Transform orders to include customer name, status color, etc.
         $orders->getCollection()->transform(function ($order) {
@@ -37,10 +117,14 @@ Route::group(['middleware' => [function ($request, $next) {
                 'total_price' => $order->total_price, // in cents
                 'created_at' => $order->created_at->toIso8601String(),
                 'item_count' => $order->items->sum('quantity'),
+                'is_express' => (bool)$order->is_express,
             ];
         });
         
-        return response()->json($orders);
+        $responseData = $orders->toArray();
+        $responseData['priority_order'] = $priorityOrderData;
+        
+        return response()->json($responseData);
     });
 
     // Get order details

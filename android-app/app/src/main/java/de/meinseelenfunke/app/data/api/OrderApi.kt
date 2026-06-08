@@ -18,14 +18,28 @@ data class OrderSummary(
     val payment_method: String,
     val total_price: Long, // in cents
     val created_at: String,
-    val item_count: Int
+    val item_count: Int,
+    val is_express: Boolean? = false,
+    val priority_tip: String? = null
 )
 
 data class OrderListResponse(
     val data: List<OrderSummary>,
     val current_page: Int,
     val last_page: Int,
-    val total: Int
+    val total: Int,
+    val priority_order: OrderSummary? = null
+)
+
+data class OrderShipment(
+    val id: String,
+    val order_id: String,
+    val tracking_number: String?,
+    val shipping_label_path: String?,
+    val carrier: String?,
+    val status: String?,
+    val created_at: String?,
+    val updated_at: String?
 )
 
 data class OrderItem(
@@ -61,7 +75,8 @@ data class OrderDetail(
     val express_price: Long?,
     val created_at: String,
     val items: List<OrderItem>,
-    val tracking_number: String?
+    val tracking_number: String?,
+    val shipments: List<OrderShipment>?
 )
 
 data class OrderStatusRequest(
@@ -78,6 +93,7 @@ interface OrderApi {
     @GET("shop/orders")
     suspend fun getOrders(
         @Query("status") status: String?,
+        @Query("search") search: String?,
         @Query("page") page: Int? = null
     ): OrderListResponse
 
@@ -89,4 +105,23 @@ interface OrderApi {
         @Path("id") id: String,
         @Body request: OrderStatusRequest
     ): OrderStatusResponse
+
+    @POST("shop/orders/{id}/dhl-label")
+    suspend fun createDhlLabel(
+        @Path("id") id: String,
+        @Body request: DhlLabelRequest
+    ): DhlLabelResponse
 }
+
+data class DhlLabelRequest(
+    val package_count: Int,
+    val weight_per_package: Double
+)
+
+data class DhlLabelResponse(
+    val success: Boolean,
+    val message: String,
+    val tracking_number: String?,
+    val shipments: List<OrderShipment>?
+)
+
