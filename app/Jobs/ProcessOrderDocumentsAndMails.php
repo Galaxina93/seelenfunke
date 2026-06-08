@@ -122,7 +122,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                     "Neue Bestellung eingegangen! 🎉",
                     "Bestellung #" . $this->order->order_number . " von " . $this->order->customer_name . " (" . number_format($this->order->total_price / 100, 2, ',', '.') . " €)",
                     [
-                        'open_tab' => '5', // Der Index des neuen "Bestellungen" Tabs
+                        'open_tab' => '1', // Der Index des neuen "Bestellungen" Tabs (nach Zentrum)
                         'order_id' => $this->order->id
                     ]
                 );

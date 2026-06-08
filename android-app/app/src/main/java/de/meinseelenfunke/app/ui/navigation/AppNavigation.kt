@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -61,11 +62,11 @@ import de.meinseelenfunke.app.R
 sealed class Screen(val route: String, val title: String = "", val icon: ImageVector? = null) {
     object Login : Screen("login")
     object Zentrum : Screen("zentrum", "Zentrum", Icons.Default.Home)
-    object Finances : Screen("finances", "Finanzen", Icons.Default.ShoppingCart)
+    object Finances : Screen("finances", "Finanzen", Icons.Default.AttachMoney)
     object Organizer : Screen("organizer", "Organizer", Icons.Default.DateRange)
     object Chat : Screen("chat", "Agenten", Icons.Default.Person)
     object Settings : Screen("settings", "Einstellungen", Icons.Default.Settings)
-    object Orders : Screen("orders", "Bestellungen", Icons.Default.List)
+    object Orders : Screen("orders", "Bestellungen", Icons.Default.ShoppingCart)
     object LiveVoice : Screen("live_voice")
 }
 
@@ -148,11 +149,11 @@ fun MainTabbedScreen(
         if (isAdmin) {
             listOf(
                 Screen.Zentrum,
+                Screen.Orders,
                 Screen.Finances,
                 Screen.Organizer,
                 Screen.Chat,
-                Screen.Settings,
-                Screen.Orders
+                Screen.Settings
             )
         } else {
             listOf(
@@ -184,11 +185,20 @@ fun MainTabbedScreen(
         }
         val targetImmediate = de.meinseelenfunke.app.util.NavigationBridge.pendingTab
         if (targetImmediate != null) {
-            if (targetImmediate == bottomNavItems.indexOf(Screen.Organizer)) {
+            val targetScreen = when (targetImmediate) {
+                0 -> Screen.Zentrum
+                1 -> if (isAdmin) Screen.Orders else Screen.Finances
+                2 -> Screen.Organizer
+                3 -> Screen.Chat
+                4 -> Screen.Settings
+                else -> Screen.Zentrum
+            }
+            val resolvedIndex = bottomNavItems.indexOf(targetScreen).coerceAtLeast(0)
+            if (targetScreen == Screen.Organizer) {
                 organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
             }
             coroutineScope.launch {
-                pagerState.scrollToPage(targetImmediate)
+                pagerState.scrollToPage(resolvedIndex)
             }
             de.meinseelenfunke.app.util.NavigationBridge.pendingTab = null
         }
@@ -196,11 +206,20 @@ fun MainTabbedScreen(
         de.meinseelenfunke.app.util.NavigationBridge.navigationTrigger.collect {
             val target = de.meinseelenfunke.app.util.NavigationBridge.pendingTab
             if (target != null) {
-                if (target == bottomNavItems.indexOf(Screen.Organizer)) {
+                val targetScreen = when (target) {
+                    0 -> Screen.Zentrum
+                    1 -> if (isAdmin) Screen.Orders else Screen.Finances
+                    2 -> Screen.Organizer
+                    3 -> Screen.Chat
+                    4 -> Screen.Settings
+                    else -> Screen.Zentrum
+                }
+                val resolvedIndex = bottomNavItems.indexOf(targetScreen).coerceAtLeast(0)
+                if (targetScreen == Screen.Organizer) {
                     organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
                 }
                 coroutineScope.launch {
-                    pagerState.animateScrollToPage(target)
+                    pagerState.animateScrollToPage(resolvedIndex)
                 }
                 de.meinseelenfunke.app.util.NavigationBridge.pendingTab = null
             }
@@ -253,13 +272,6 @@ fun MainTabbedScreen(
                                     tint = if (selected) Gold else Slate400
                                 )
                             }
-                        },
-                        label = {
-                            Text(
-                                text = screen.title,
-                                color = if (selected) Gold else Slate400,
-                                fontSize = 10.sp
-                            )
                         },
                         colors = NavigationBarItemDefaults.colors(
                             indicatorColor = Color(0x11C5A059)

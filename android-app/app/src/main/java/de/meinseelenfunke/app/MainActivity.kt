@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import de.meinseelenfunke.app.ui.navigation.AppNavigation
 import de.meinseelenfunke.app.ui.theme.SeelenfunkeTheme
 import de.meinseelenfunke.app.util.SoundManager
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
