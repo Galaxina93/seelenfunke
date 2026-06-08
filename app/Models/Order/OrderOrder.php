@@ -124,24 +124,24 @@ class OrderOrder extends Model
     public function getStatusColorAttribute()
     {
         return match($this->status) {
-            'pending' => 'bg-yellow-100 text-yellow-800',
-            'processing' => 'bg-blue-100 text-blue-800',
-            'shipped' => 'bg-purple-100 text-purple-800',
-            'completed' => 'bg-green-100 text-green-800',
-            'cancelled' => 'bg-red-100 text-red-800',
-            'refunded' => 'bg-gray-100 text-gray-800',
-            default => 'bg-gray-100 text-gray-800',
+            'pending' => '#FF7D4F',
+            'processing' => '#3b82f6',
+            'shipped' => '#a855f7',
+            'completed' => '#10b981',
+            'cancelled' => '#ef4444',
+            'refunded' => '#6b7280',
+            default => '#6b7280',
         };
     }
 
     public function getPaymentStatusColorAttribute()
     {
         return match($this->payment_status) {
-            'paid' => 'bg-green-100 text-green-800',
-            'unpaid' => 'bg-red-100 text-red-800',
-            'pending' => 'bg-yellow-100 text-yellow-800',
-            'refunded' => 'bg-gray-100 text-gray-800',
-            default => 'bg-gray-100 text-gray-800',
+            'paid' => '#10b981',
+            'unpaid' => '#ef4444',
+            'pending' => '#FF7D4F',
+            'refunded' => '#6b7280',
+            default => '#6b7280',
         };
     }
 

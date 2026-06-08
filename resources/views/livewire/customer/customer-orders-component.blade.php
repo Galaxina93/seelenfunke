@@ -62,7 +62,7 @@
                             @php
                                 $status = $selectedOrder->status;
                                 $progress = match($status) { 'pending' => '15%', 'processing' => '50%', 'shipped' => '80%', 'completed' => '100%', 'cancelled', 'refunded' => '100%', default => '0%' };
-                                $barColor = match($status) { 'cancelled', 'refunded' => 'bg-red-500', 'completed' => 'bg-emerald-500', default => 'bg-primary' };
+                                $barColor = match($status) { 'cancelled', 'refunded' => 'bg-red-500', 'completed' => 'bg-emerald-500', 'shipped' => 'bg-purple-500', 'processing' => 'bg-blue-500', default => 'bg-orange-500' };
                                 $isProcessing = in_array($status, ['processing', 'shipped', 'completed']);
                                 $isShipped = in_array($status, ['shipped', 'completed']);
                                 $isCompleted = $status === 'completed';
@@ -74,10 +74,11 @@
                                 @php
                                     $statusBadge = match($status) {
                                         'completed' => 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20',
-                                        'shipped' => 'text-blue-400 bg-blue-500/10 border border-blue-500/20',
-                                        'cancelled', 'refunded' => 'text-red-400 bg-red-500/10 border border-red-500/20',
-                                        'processing' => 'text-primary bg-primary/10 border border-primary/20 shadow-glow',
-                                        default => 'text-gray-400 bg-gray-800 border border-gray-700'
+                                        'shipped' => 'text-purple-400 bg-purple-500/10 border border-purple-500/20',
+                                        'cancelled' => 'text-red-400 bg-red-500/10 border border-red-500/20',
+                                        'refunded' => 'text-gray-400 bg-gray-500/10 border border-gray-500/20',
+                                        'processing' => 'text-blue-400 bg-blue-500/10 border border-blue-500/20 shadow-glow',
+                                        default => 'text-orange-400 bg-orange-500/10 border border-orange-500/20'
                                     };
                                 @endphp
                                 <span class="text-xs font-black px-4 py-1.5 rounded-full {{ $statusBadge }}">
@@ -93,9 +94,9 @@
 
                             @if(!$isCancelled)
                                 <div class="grid grid-cols-4 text-[10px] sm:text-xs font-black uppercase tracking-widest text-gray-600 text-center">
-                                    <span class="text-primary">Bestellt</span>
-                                    <span class="{{ $isProcessing ? 'text-primary' : '' }}">Bearbeitung</span>
-                                    <span class="{{ $isShipped ? 'text-primary' : '' }}">Unterwegs</span>
+                                    <span class="text-orange-500">Bestellt</span>
+                                    <span class="{{ $isProcessing ? 'text-blue-400' : '' }}">Bearbeitung</span>
+                                    <span class="{{ $isShipped ? 'text-purple-400' : '' }}">Unterwegs</span>
                                     <span class="{{ $isCompleted ? 'text-emerald-500' : '' }}">Zugestellt</span>
                                 </div>
                             @else
@@ -545,15 +546,17 @@
                                 @php
                                     $statusColor = match($o->status) {
                                         'completed' => 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-                                        'shipped' => 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+                                        'shipped' => 'text-purple-400 bg-purple-500/10 border-purple-500/20',
                                         'cancelled' => 'text-red-400 bg-red-500/10 border-red-500/20',
-                                        'processing' => 'text-primary bg-primary/10 border-primary/20',
-                                        default => 'text-gray-400 bg-gray-800 border-gray-700'
+                                        'refunded' => 'text-gray-400 bg-gray-500/10 border-gray-500/20',
+                                        'processing' => 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+                                        default => 'text-orange-400 bg-orange-500/10 border-orange-500/20'
                                     };
                                     $statusLabel = match($o->status) {
                                         'completed' => 'Zustellung erfolgreich',
                                         'shipped' => 'Unterwegs zu dir',
                                         'cancelled' => 'Storniert',
+                                        'refunded' => 'Erstattet',
                                         'processing' => 'Wird vorbereitet',
                                         'pending' => 'Bestellung eingegangen',
                                         default => 'Unbekannt'
