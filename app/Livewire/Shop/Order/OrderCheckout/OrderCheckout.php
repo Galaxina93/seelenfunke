@@ -217,12 +217,17 @@ class OrderCheckout extends Component
             return;
         }
 
-        $validator = validator(
-            ['email' => $this->email],
-            ['email' => 'indisposable']
-        );
+        try {
+            $validator = validator(
+                ['email' => $this->email],
+                ['email' => 'indisposable']
+            );
 
-        $this->showDisposableEmailWarning = $validator->fails();
+            $this->showDisposableEmailWarning = $validator->fails();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Disposable email validation failed: " . $e->getMessage());
+            $this->showDisposableEmailWarning = false;
+        }
     }
 
     public function updatedCountry()
