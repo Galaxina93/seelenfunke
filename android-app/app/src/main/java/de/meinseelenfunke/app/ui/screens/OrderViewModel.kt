@@ -61,7 +61,7 @@ class OrderViewModel : ViewModel() {
         }
     }
 
-    fun loadOrderDetails(id: Long) {
+    fun loadOrderDetails(id: String) {
         viewModelScope.launch {
             repository.getOrderDetails(id)
                 .onSuccess { details ->
@@ -77,7 +77,7 @@ class OrderViewModel : ViewModel() {
         _selectedOrder.value = null
     }
 
-    fun updateOrderStatus(id: Long, newStatus: String) {
+    fun updateOrderStatus(id: String, newStatus: String) {
         _isUpdatingStatus.value = true
         viewModelScope.launch {
             repository.updateOrderStatus(id, newStatus)

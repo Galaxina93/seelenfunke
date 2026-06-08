@@ -7,7 +7,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 data class OrderSummary(
-    val id: Long,
+    val id: String,
     val order_number: String,
     val email: String,
     val customer_name: String,
@@ -29,7 +29,7 @@ data class OrderListResponse(
 )
 
 data class OrderItem(
-    val id: Long,
+    val id: String,
     val product_name: String,
     val quantity: Int,
     val unit_price: Long, // in cents
@@ -38,7 +38,7 @@ data class OrderItem(
 )
 
 data class OrderDetail(
-    val id: Long,
+    val id: String,
     val order_number: String,
     val email: String,
     val customer_name: String,
@@ -82,11 +82,11 @@ interface OrderApi {
     ): OrderListResponse
 
     @GET("shop/orders/{id}")
-    suspend fun getOrderDetails(@Path("id") id: Long): OrderDetail
+    suspend fun getOrderDetails(@Path("id") id: String): OrderDetail
 
     @POST("shop/orders/{id}/status")
     suspend fun updateOrderStatus(
-        @Path("id") id: Long,
+        @Path("id") id: String,
         @Body request: OrderStatusRequest
     ): OrderStatusResponse
 }

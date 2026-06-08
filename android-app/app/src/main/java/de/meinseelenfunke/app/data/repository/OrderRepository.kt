@@ -18,7 +18,7 @@ class OrderRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    suspend fun getOrderDetails(id: Long): Result<OrderDetail> = withContext(Dispatchers.IO) {
+    suspend fun getOrderDetails(id: String): Result<OrderDetail> = withContext(Dispatchers.IO) {
         try {
             Result.success(serviceLocator.getOrderApi().getOrderDetails(id))
         } catch (e: Exception) {
@@ -26,7 +26,7 @@ class OrderRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    suspend fun updateOrderStatus(id: Long, status: String): Result<OrderStatusResponse> = withContext(Dispatchers.IO) {
+    suspend fun updateOrderStatus(id: String, status: String): Result<OrderStatusResponse> = withContext(Dispatchers.IO) {
         try {
             Result.success(serviceLocator.getOrderApi().updateOrderStatus(id, OrderStatusRequest(status)))
         } catch (e: Exception) {
