@@ -53,21 +53,26 @@ class FirebaseService
         $url = "https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send";
 
         // Build the FCM payload
+        $message = [
+            'token' => $deviceToken,
+            'data' => array_map('strval', $data), // FCM data values must be strings
+            'android' => [
+                'priority' => 'high',
+            ],
+        ];
+
+        if (!empty($title) || !empty($body)) {
+            $message['notification'] = [
+                'title' => $title,
+                'body' => $body,
+            ];
+            $message['android']['notification'] = [
+                'sound' => 'default',
+            ];
+        }
+
         $payload = [
-            'message' => [
-                'token' => $deviceToken,
-                'notification' => [
-                    'title' => $title,
-                    'body' => $body,
-                ],
-                'data' => array_map('strval', $data), // FCM data values must be strings
-                'android' => [
-                    'priority' => 'high',
-                    'notification' => [
-                        'sound' => 'default',
-                    ],
-                ],
-            ]
+            'message' => $message
         ];
 
         try {

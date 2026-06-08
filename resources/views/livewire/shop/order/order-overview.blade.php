@@ -333,7 +333,7 @@
                     </div>
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Gewicht pro Paket (in kg)</label>
-                        <input type="number" step="0.1" wire:model.live="dhlWeightPerPackage" min="0.1" max="31.5" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        <input type="number" step="0.01" wire:model.live="dhlWeightPerPackage" min="0.01" max="31.5" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
                         @error('dhlWeightPerPackage') <span class="text-red-400 text-[10px] mt-1">{{ $message }}</span> @enderror
                     </div>
                 </div>

@@ -35,6 +35,8 @@ class ManagementCalendarEvent extends Model
     protected static function booted()
     {
         static::created(function ($event) {
+            self::sendSyncNotification();
+
             if (!$event->send_email) {
                 return;
             }
@@ -49,5 +51,25 @@ class ManagementCalendarEvent extends Model
                     ->queue(new \App\Mail\CalendarEventCreated($event));
             }
         });
+
+        static::updated(function ($event) {
+            self::sendSyncNotification();
+        });
+
+        static::deleted(function ($event) {
+            self::sendSyncNotification();
+        });
+    }
+
+    protected static function sendSyncNotification()
+    {
+        try {
+            $firebase = resolve(\App\Services\FirebaseService::class);
+            $firebase->sendToAdmins("", "", [
+                'action' => 'sync_calendar'
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("FCM Calendar Sync Trigger Error: " . $e->getMessage());
+        }
     }
 }

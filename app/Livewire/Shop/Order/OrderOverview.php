@@ -444,52 +444,7 @@ class OrderOverview extends Component
         $order = OrderOrder::with('items.product')->find($this->dhlModalOrderId);
         if (!$order) return;
 
-        $existingLabelsCount = \App\Models\Order\OrderShipment::where('order_id', $order->id)->count();
-
-        $totalProductWeightGrams = 0;
-        $remainingProductWeightGrams = 0;
-        $maxTaraWeight = 0;
-        $totalItemsCount = 0;
-
-        foreach ($order->items as $item) {
-            if ($item->product) {
-                // Fallback: 100g pro Artikel annehmen, falls kein Gewicht in der DB gepflegt ist, damit die Rechenlogik immer greift
-                $itemWeight = $item->product->weight > 0 ? $item->product->weight : 100;
-                
-                $totalProductWeightGrams += ($itemWeight * $item->quantity);
-                
-                $remainingQty = max(0, $item->quantity - $item->completed_quantity);
-                $remainingProductWeightGrams += ($itemWeight * $remainingQty);
-                
-                if ($item->product->packaging_weight && $item->product->packaging_weight > $maxTaraWeight) {
-                    $maxTaraWeight = $item->product->packaging_weight;
-                }
-                
-                $totalItemsCount += $item->quantity;
-            }
-        }
-
-        // Intelligente Gewichtswahl:
-        // Wenn noch Artikel "offen" (unverpackt) sind, nehme deren Gewicht.
-        // Wurde die Bestellung *komplett verpackt* (remaining = 0), nehmen wir natürlich das Gesamtgewicht der Order!
-        $weightToUse = $remainingProductWeightGrams > 0 ? $remainingProductWeightGrams : $totalProductWeightGrams;
-
-        // Sicherheits-Fallback
-        if ($weightToUse == 0 && $totalItemsCount > 0) {
-            $weightToUse = $totalItemsCount * 100;
-        }
-
-        // Standard-Verpackungsgewicht (Kartonage + Füllmaterial) pro Paket
-        $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);  
-
-        $packageCount = (int) $this->dhlPackageCount ?: 1;
-        $totalGrams = $weightToUse + ($packageCount * $packagingWeightGrams);
-        
-        // In Kg umrechnen und durch Paketanzahl teilen
-        $weightPerPackage = ($totalGrams / 1000) / max(1, $packageCount);
-        
-        // Minimalwert für DHL ist oft 0.1kg. Wir runden auf 2 Nachkommastellen (z.B. "2.45")
-        $this->dhlWeightPerPackage = max(0.1, round($weightPerPackage, 2));
+        $this->dhlWeightPerPackage = $order->calculateDhlWeight((int) $this->dhlPackageCount ?: 1);
     }
 
     public function closeDhlModal()
@@ -512,7 +467,7 @@ class OrderOverview extends Component
 
         $this->validate([
             'dhlPackageCount' => 'required|integer|min:1|max:30',
-            'dhlWeightPerPackage' => 'required|numeric|min:0.1|max:31.5',
+            'dhlWeightPerPackage' => 'required|numeric|min:0.01|max:31.5',
         ]);
 
         try {

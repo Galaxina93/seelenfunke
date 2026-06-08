@@ -198,5 +198,60 @@ class OrderOrder extends Model
             return $item->product && $item->product->type === 'digital';
         });
     }
+
+    /**
+     * Get DHL weight details for the order.
+     */
+    public function getDhlWeightDetails(): array
+    {
+        $totalProductWeightGrams = 0;
+        $remainingProductWeightGrams = 0;
+        $maxTaraWeight = 0;
+        $totalItemsCount = 0;
+
+        foreach ($this->items as $item) {
+            if ($item->product) {
+                $itemWeight = $item->product->weight > 0 ? $item->product->weight : 100;
+                $totalProductWeightGrams += ($itemWeight * $item->quantity);
+                
+                $remainingQty = max(0, $item->quantity - $item->completed_quantity);
+                $remainingProductWeightGrams += ($itemWeight * $remainingQty);
+                
+                if ($item->product->packaging_weight && $item->product->packaging_weight > $maxTaraWeight) {
+                    $maxTaraWeight = $item->product->packaging_weight;
+                }
+                
+                $totalItemsCount += $item->quantity;
+            }
+        }
+
+        $weightToUse = $remainingProductWeightGrams > 0 ? $remainingProductWeightGrams : $totalProductWeightGrams;
+
+        if ($weightToUse == 0 && $totalItemsCount > 0) {
+            $weightToUse = $totalItemsCount * 100;
+        }
+
+        $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);  
+
+        return [
+            'product_weight_grams' => $weightToUse,
+            'packaging_weight_grams' => $packagingWeightGrams
+        ];
+    }
+
+    /**
+     * Calculate DHL shipping weight for the order.
+     */
+    public function calculateDhlWeight(int $packageCount = 1): float
+    {
+        $details = $this->getDhlWeightDetails();
+        $weightToUse = $details['product_weight_grams'];
+        $packagingWeightGrams = $details['packaging_weight_grams'];
+
+        $totalGrams = $weightToUse + ($packageCount * $packagingWeightGrams);
+        $weightPerPackage = ($totalGrams / 1000) / max(1, $packageCount);
+        
+        return max(0.01, round($weightPerPackage, 2));
+    }
 }
 
