@@ -35,7 +35,9 @@ class StoragePathTest extends TestCase
         'places',
         'reports',
         'temp',
-        'pdf_texts'
+        'pdf_texts',
+        'firebase-service-account',
+        'firebase-service-account.json'
     ];
 
     /**

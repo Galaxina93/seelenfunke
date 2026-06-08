@@ -77,6 +77,7 @@ class FinancialService
         $shopRevenueQuery = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
+            ->whereNotNull('paid_at')
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note']);
             
         if ($isNet) {
@@ -216,6 +217,7 @@ class FinancialService
         // 3. Shop (Basis: Rechnungen)
         $shopInvoicesQuery = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
             ->whereIn('status', ['paid', 'cancelled'])
+            ->whereNotNull('paid_at')
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->groupBy('month');
             
@@ -363,6 +365,7 @@ class FinancialService
         // Shop Invoices (anstatt Orders)
         $invoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [$from, $to])
             ->whereIn('status', ['paid', 'cancelled'])
+            ->whereNotNull('paid_at')
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->get();
 
@@ -435,6 +438,7 @@ class FinancialService
         $invoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
+            ->whereNotNull('paid_at')
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->get();
 

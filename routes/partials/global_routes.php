@@ -30,6 +30,11 @@ Route::get('/system/cronjob/run-secret-847294', function () {
     return 'Cronjob erfolgreich ausgeführt.';
 });
 
+Route::get('/system/cache/clear-secret-847294', function () {
+    Artisan::call('optimize:clear');
+    return 'Cache erfolgreich geleert und optimiert.';
+});
+
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
 

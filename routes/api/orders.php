@@ -155,6 +155,23 @@ Route::group(['middleware' => [function ($request, $next) {
             'express_price' => $order->express_price,
             'created_at' => $order->created_at->toIso8601String(),
             'items' => $order->items->map(function ($item) {
+                $productImage = null;
+                if ($item->product) {
+                    $path = null;
+                    if (is_array($item->product->media_gallery) && count($item->product->media_gallery) > 0) {
+                        $path = $item->product->media_gallery[0]['path'] ?? null;
+                    }
+                    if (!$path) {
+                        $path = $item->product->preview_image_path;
+                    }
+                    if ($path) {
+                        if (preg_match('/^https?:\/\//', $path)) {
+                            $productImage = $path;
+                        } else {
+                            $productImage = \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+                        }
+                    }
+                }
                 return [
                     'id' => $item->id,
                     'product_name' => $item->product ? $item->product->name : ($item->product_name ?? 'Gelöschtes Produkt'),
@@ -162,6 +179,7 @@ Route::group(['middleware' => [function ($request, $next) {
                     'unit_price' => $item->unit_price,
                     'total_price' => $item->total_price,
                     'configuration' => $item->configuration,
+                    'product_image' => $productImage,
                 ];
             }),
             'shipments' => $order->shipments,

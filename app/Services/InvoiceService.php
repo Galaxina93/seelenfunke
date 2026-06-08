@@ -81,6 +81,7 @@ class InvoiceService
     {
         return retry(5, function () use ($originalInvoice) {
             return DB::transaction(function () use ($originalInvoice) {
+                $isPaid = $originalInvoice->status === 'paid' || $originalInvoice->paid_at !== null;
                 $originalInvoice->update(['status' => 'cancelled']);
                 $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
 
@@ -90,11 +91,11 @@ class InvoiceService
                     'customer_id' => $originalInvoice->customer_id,
                     'invoice_number' => $stornoNumber,
                     'type' => 'cancellation',
-                    'status' => 'paid',
+                    'status' => $isPaid ? 'paid' : 'cancelled',
                     'invoice_date' => now(),
                     'delivery_date' => now(),
                     'due_date' => now(),
-                    'paid_at' => now(),
+                    'paid_at' => $isPaid ? now() : null,
                     'subject' => 'Gutschrift zur Rechnung ' . $originalInvoice->invoice_number,
                     'header_text' => 'Hiermit erhalten Sie eine Gutschrift.',
                     'footer_text' => 'Der Betrag wird Ihnen erstattet.',
