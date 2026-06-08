@@ -65,5 +65,11 @@ return [
         'python_binary' => env('PYTHON_BINARY', 'python3'),
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID', 'funkiapp-55960'),
+        'credentials_file' => env('FIREBASE_CREDENTIALS_PATH', storage_path('app/firebase-service-account.json')),
+    ],
+
 ];
+
 

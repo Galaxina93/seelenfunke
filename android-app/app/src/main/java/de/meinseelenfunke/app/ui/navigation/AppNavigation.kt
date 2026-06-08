@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -23,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +47,7 @@ import de.meinseelenfunke.app.ui.screens.SettingsScreen
 import de.meinseelenfunke.app.ui.screens.LoginScreen
 import de.meinseelenfunke.app.ui.screens.OrganizerScreen
 import de.meinseelenfunke.app.ui.screens.ZentrumScreen
+import de.meinseelenfunke.app.ui.screens.OrdersTabContent
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.GlassWhite10
@@ -62,16 +65,9 @@ sealed class Screen(val route: String, val title: String = "", val icon: ImageVe
     object Organizer : Screen("organizer", "Organizer", Icons.Default.DateRange)
     object Chat : Screen("chat", "Agenten", Icons.Default.Person)
     object Settings : Screen("settings", "Einstellungen", Icons.Default.Settings)
+    object Orders : Screen("orders", "Bestellungen", Icons.Default.List)
     object LiveVoice : Screen("live_voice")
 }
-
-val bottomNavItems = listOf(
-    Screen.Zentrum,
-    Screen.Finances,
-    Screen.Organizer,
-    Screen.Chat,
-    Screen.Settings
-)
 
 @Composable
 fun AppNavigation(
@@ -146,16 +142,46 @@ fun MainTabbedScreen(
     onNavigateToLiveChat: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val userType by ServiceLocator.userTypeState.collectAsState(initial = ServiceLocator.getUserType())
+    val isAdmin = userType == "admin"
+    val bottomNavItems = remember(isAdmin) {
+        if (isAdmin) {
+            listOf(
+                Screen.Zentrum,
+                Screen.Finances,
+                Screen.Organizer,
+                Screen.Chat,
+                Screen.Settings,
+                Screen.Orders
+            )
+        } else {
+            listOf(
+                Screen.Zentrum,
+                Screen.Finances,
+                Screen.Organizer,
+                Screen.Chat,
+                Screen.Settings
+            )
+        }
+    }
+
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(
-        initialPage = 0,
-        pageCount = { bottomNavItems.size }
-    )
+    val pagerState = androidx.compose.runtime.key(isAdmin) {
+        rememberPagerState(
+            initialPage = 0,
+            pageCount = { bottomNavItems.size }
+        )
+    }
     var organizerInitialTab by remember { mutableIntStateOf(0) }
     var isFirstLoad by remember { mutableStateOf(true) }
     var isInitialTargetPagePass by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
+        if (ServiceLocator.authRepository.isLoggedIn()) {
+            coroutineScope.launch {
+                ServiceLocator.authRepository.getCurrentUser()
+            }
+        }
         val targetImmediate = de.meinseelenfunke.app.util.NavigationBridge.pendingTab
         if (targetImmediate != null) {
             if (targetImmediate == bottomNavItems.indexOf(Screen.Organizer)) {
@@ -277,6 +303,7 @@ fun MainTabbedScreen(
                     onLogout = onLogout
                 )
                 Screen.Settings -> SettingsScreen()
+                Screen.Orders -> OrdersTabContent()
                 else -> {}
             }
         }

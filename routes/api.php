@@ -202,8 +202,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Calender & Termine
     require __DIR__ . '/api/calendar.php';
 
+    // Shop Orders (Bestellungen)
+    require __DIR__ . '/api/orders.php';
+
     // AI Chat
     Route::get('/ai/agents', function() {
+
         return response()->json([
             'success' => true,
             'data' => \App\Models\Ai\AiAgent::where('is_active', true)->orderBy('name')->get()

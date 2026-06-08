@@ -337,4 +337,45 @@ Route::prefix('funki/emails')->group(function () {
     Route::get('/attachments/{id}', function ($id, \App\Services\Export\FileDownloadService $downloadService) {
         return $downloadService->downloadMailAttachment($id);
     });
+
+    // 12. Create Custom Folder
+    Route::post('/folders', function (Request $request) {
+        $data = $request->validate([
+            'account_id' => 'required|exists:mail_accounts,id',
+            'name' => 'required|string|max:50'
+        ]);
+
+        $folder = \App\Models\Management\Mail\MailFolder::firstOrCreate([
+            'mail_account_id' => $data['account_id'],
+            'name' => trim($data['name'])
+        ]);
+
+        return response()->json(['success' => true, 'data' => $folder]);
+    });
+
+    // 13. Delete Custom Folder
+    Route::delete('/folders', function (Request $request) {
+        $data = $request->validate([
+            'account_id' => 'required|exists:mail_accounts,id',
+            'name' => 'required|string|max:50'
+        ]);
+
+        $baseFolders = ['INBOX', 'Sent', 'Trash', 'Archive', 'Drafts', 'Junk'];
+        if (in_array($data['name'], $baseFolders)) {
+            return response()->json(['success' => false, 'message' => 'Standardordner können nicht gelöscht werden.'], 400);
+        }
+
+        \App\Models\Management\Mail\MailFolder::where('mail_account_id', $data['account_id'])
+            ->where('name', $data['name'])
+            ->delete();
+
+        // Move messages back to INBOX
+        \App\Models\Management\Mail\MailMessage::where('mail_account_id', $data['account_id'])
+            ->where('folder', $data['name'])
+            ->update(['folder' => 'INBOX']);
+
+        return response()->json(['success' => true]);
+    });
 });
+
+

@@ -7,11 +7,14 @@ import de.meinseelenfunke.app.data.api.AuthApi
 import de.meinseelenfunke.app.data.api.FinanceApi
 import de.meinseelenfunke.app.data.api.OrganizerApi
 import de.meinseelenfunke.app.data.api.EmailApi
+import de.meinseelenfunke.app.data.api.OrderApi
 import de.meinseelenfunke.app.data.repository.AiRepository
 import de.meinseelenfunke.app.data.repository.AuthRepository
 import de.meinseelenfunke.app.data.repository.FinanceRepository
 import de.meinseelenfunke.app.data.repository.OrganizerRepository
 import de.meinseelenfunke.app.data.repository.EmailRepository
+import de.meinseelenfunke.app.data.repository.OrderRepository
+import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -30,6 +33,7 @@ object ServiceLocator {
     private var financeApi: FinanceApi? = null
     private var organizerApi: OrganizerApi? = null
     private var emailApi: EmailApi? = null
+    private var orderApi: OrderApi? = null
 
     // Repositories
     lateinit var authRepository: AuthRepository
@@ -42,6 +46,8 @@ object ServiceLocator {
         private set
     lateinit var emailRepository: EmailRepository
         private set
+    lateinit var orderRepository: OrderRepository
+        private set
 
     private const val PREFS_NAME = "seelenfunke_prefs"
     private const val KEY_AUTH_TOKEN = "auth_token"
@@ -50,6 +56,35 @@ object ServiceLocator {
     private const val KEY_REMEMBER_ME = "remember_me"
     private const val KEY_SAVED_EMAIL = "saved_email"
     private const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
+    private const val KEY_FCM_TOKEN = "fcm_token"
+    private const val KEY_USER_TYPE = "user_type"
+
+    private val _userTypeState = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val userTypeState = _userTypeState.asStateFlow()
+
+    fun getUserType(): String? {
+        return sharedPreferences.getString(KEY_USER_TYPE, null)
+    }
+
+    fun saveUserType(type: String) {
+        sharedPreferences.edit().putString(KEY_USER_TYPE, type).apply()
+        _userTypeState.value = type
+    }
+
+    fun clearUserType() {
+        sharedPreferences.edit().remove(KEY_USER_TYPE).apply()
+        _userTypeState.value = null
+    }
+
+    fun getFcmToken(): String? {
+
+        return sharedPreferences.getString(KEY_FCM_TOKEN, null)
+    }
+
+    fun saveFcmToken(token: String) {
+        sharedPreferences.edit().putString(KEY_FCM_TOKEN, token).apply()
+    }
+
     
     private fun isEmulator(): Boolean {
         return android.os.Build.FINGERPRINT.startsWith("generic")
@@ -74,6 +109,7 @@ object ServiceLocator {
     fun init(context: Context) {
         this.context = context.applicationContext
         this.sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        _userTypeState.value = sharedPreferences.getString(KEY_USER_TYPE, null)
         
         val defaultUrl = getDynamicDefaultBaseUrl()
         val currentUrl = sharedPreferences.getString(KEY_BASE_URL, null)
@@ -89,6 +125,7 @@ object ServiceLocator {
         financeRepository = FinanceRepository(this)
         organizerRepository = OrganizerRepository(this)
         emailRepository = EmailRepository(this)
+        orderRepository = OrderRepository(this)
     }
 
     fun getGeminiApiKey(): String {
@@ -119,8 +156,10 @@ object ServiceLocator {
 
     fun clearAuthToken() {
         sharedPreferences.edit().remove(KEY_AUTH_TOKEN).apply()
+        clearUserType()
         rebuildRetrofit()
     }
+
 
     fun getBaseUrl(): String {
         val defaultUrl = getDynamicDefaultBaseUrl()
@@ -152,6 +191,7 @@ object ServiceLocator {
         financeApi = null
         organizerApi = null
         emailApi = null
+        orderApi = null
     }
 
     private fun getRetrofit(): Retrofit {
@@ -227,6 +267,13 @@ object ServiceLocator {
             emailApi = getRetrofit().create(EmailApi::class.java)
         }
         return emailApi!!
+    }
+
+    fun getOrderApi(): OrderApi {
+        if (orderApi == null) {
+            orderApi = getRetrofit().create(OrderApi::class.java)
+        }
+        return orderApi!!
     }
 
     fun isRememberMeEnabled(): Boolean {

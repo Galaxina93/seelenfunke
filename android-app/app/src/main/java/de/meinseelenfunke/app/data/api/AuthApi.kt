@@ -13,7 +13,8 @@ data class User(
     val id: String,
     val first_name: String?,
     val last_name: String?,
-    val email: String
+    val email: String,
+    val user_type: String? = null
 )
 
 data class LoginResponse(
@@ -32,6 +33,16 @@ data class ForgotPasswordResponse(
     val message: String
 )
 
+data class FcmTokenRequest(
+    val fcm_token: String,
+    val device_name: String? = "Android App"
+)
+
+data class FcmTokenResponse(
+    val success: Boolean,
+    val message: String?
+)
+
 interface AuthApi {
     @POST("login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
@@ -41,4 +52,9 @@ interface AuthApi {
 
     @POST("password/email")
     suspend fun forgotPassword(@Body request: ForgotPasswordRequest): ForgotPasswordResponse
+
+    @POST("device/register")
+    suspend fun updateFcmToken(@Body request: FcmTokenRequest): FcmTokenResponse
 }
+
+

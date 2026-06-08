@@ -32,22 +32,31 @@ data class EmailAccount(
     @SerializedName("is_default") val isDefault: Boolean = false,
     @SerializedName("is_commercial") val isCommercial: Boolean = true,
     val status: String? = null,
-    @SerializedName("total_unread") val totalUnread: Int = 0
+    @SerializedName("total_unread") val totalUnread: Int = 0,
+    val folders: Map<String, String>? = null
 )
 
 data class EmailMessage(
     val id: String,
-    @SerializedName("account_id") val accountId: String,
-    val folder: String,
-    val from: String,
-    val to: String,
-    val subject: String,
-    val body: String?,
-    @SerializedName("html_body") val htmlBody: String?,
-    @SerializedName("is_read") val isRead: Boolean,
-    @SerializedName("received_at") val receivedAt: String,
+    @SerializedName("mail_account_id") val accountId: String?,
+    val folder: String?,
+    @SerializedName("from_name") val fromName: String?,
+    @SerializedName("from_email") val fromEmail: String?,
+    @SerializedName("to_email") val toEmail: String?,
+    val subject: String?,
+    @SerializedName("body_plain") val body: String?,
+    @SerializedName("body_html") val htmlBody: String?,
+    @SerializedName("is_read") val isRead: Boolean = false,
+    @SerializedName("received_at") val receivedAt: String?,
     @SerializedName("has_attachments") val hasAttachments: Boolean = false
-)
+) {
+    val from: String
+        get() = fromName?.takeIf { it.isNotBlank() } ?: fromEmail ?: ""
+
+    val to: String
+        get() = toEmail ?: ""
+}
+
 
 data class EmailAttachment(
     val path: String,
@@ -106,8 +115,8 @@ interface EmailApi {
         @Field("smtp_encryption") smtpEncryption: String?,
         @Field("smtp_username") smtpUsername: String?,
         @Field("signature") signature: String?,
-        @Field("is_default") isDefault: Boolean,
-        @Field("is_commercial") isCommercial: Boolean
+        @Field("is_default") isDefault: Int,
+        @Field("is_commercial") isCommercial: Int
     ): SingleEmailAccountResponse
 
     @DELETE("funki/emails/accounts/{id}")
@@ -154,4 +163,19 @@ interface EmailApi {
 
     @DELETE("funki/emails/messages/{id}")
     suspend fun deleteMessage(@Path("id") id: String): SimpleSuccessResponse
+
+    @FormUrlEncoded
+    @POST("funki/emails/folders")
+    suspend fun createFolder(
+        @Field("account_id") accountId: String,
+        @Field("name") name: String
+    ): SimpleSuccessResponse
+
+    @DELETE("funki/emails/folders")
+    suspend fun deleteFolder(
+        @Query("account_id") accountId: String,
+        @Query("name") name: String
+    ): SimpleSuccessResponse
 }
+
+

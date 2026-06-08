@@ -21,8 +21,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Fetch and register FCM token
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                de.meinseelenfunke.app.di.ServiceLocator.saveFcmToken(token)
+                if (de.meinseelenfunke.app.di.ServiceLocator.authRepository.isLoggedIn()) {
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        de.meinseelenfunke.app.di.ServiceLocator.authRepository.updateFcmToken(token)
+                    }
+                }
+            }
+        }
+
         handleIntent(intent)
     }
+
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)

@@ -1,5 +1,7 @@
 package de.meinseelenfunke.app.ui.screens
 
+import de.meinseelenfunke.app.di.ServiceLocator
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,6 +77,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -178,7 +181,7 @@ fun OrganizerScreen(
             viewModel.loadAllOrganizerData(showLoading = false)
         }
     }
-    val tabTitles = listOf("Aufgaben", "Kalender", "Routinen", "Einkauf", "E-Mails")
+    val tabTitles = listOf("Aufgaben", "Kalender", "Routine", "Einkauf", "E-Mail")
 
     Box(
         modifier = Modifier
@@ -236,16 +239,17 @@ fun OrganizerScreen(
             }
 
             // Tab bar
-            ScrollableTabRow(
+            TabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
                 contentColor = Slate50,
-                edgePadding = 16.dp,
                 indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-                        color = Gold
-                    )
+                    if (pagerState.currentPage < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                            color = Gold
+                        )
+                    }
                 }
             ) {
                 tabTitles.forEachIndexed { index, title ->
@@ -256,7 +260,15 @@ fun OrganizerScreen(
                                 pagerState.animateScrollToPage(index)
                             }
                         },
-                        text = { Text(title, fontWeight = FontWeight.SemiBold) }
+                        text = {
+                            Text(
+                                text = title,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     )
                 }
             }
@@ -2297,7 +2309,10 @@ fun RoutinesTabContent(
                                             text = routine.title,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Slate50
+                                            color = Slate50,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                         )
                                         if (isCurrentlyRunning) {
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -2310,7 +2325,8 @@ fun RoutinesTabContent(
                                                     text = "AKTIV",
                                                     color = Gold,
                                                     fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Bold
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1
                                                 )
                                             }
                                         }

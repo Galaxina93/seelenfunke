@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.meinseelenfunke.app.data.api.EmailAccount
 import de.meinseelenfunke.app.data.api.EmailMessage
+import de.meinseelenfunke.app.data.api.ManagementContact
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,6 +53,9 @@ class EmailViewModel : ViewModel() {
     private val _composeAttachments = MutableStateFlow<List<Uri>>(emptyList())
     val composeAttachments: StateFlow<List<Uri>> = _composeAttachments.asStateFlow()
 
+    private val _contacts = MutableStateFlow<List<ManagementContact>>(emptyList())
+    val contacts: StateFlow<List<ManagementContact>> = _contacts.asStateFlow()
+
     fun addComposeAttachment(uri: Uri) {
         val current = _composeAttachments.value.toMutableList()
         if (!current.contains(uri)) {
@@ -78,7 +82,16 @@ class EmailViewModel : ViewModel() {
 
     init {
         loadAccountsAndMessages()
+        loadContacts()
         de.meinseelenfunke.app.data.EmailWebSocketClient.addListener(webSocketListener)
+    }
+
+    fun loadContacts() {
+        viewModelScope.launch {
+            repository.getContacts().onSuccess { contactsList ->
+                _contacts.value = contactsList
+            }
+        }
     }
 
     override fun onCleared() {
@@ -225,7 +238,7 @@ class EmailViewModel : ViewModel() {
         signature: String?,
         isDefault: Boolean,
         isCommercial: Boolean,
-        onComplete: (Boolean) -> Unit
+        onComplete: (Boolean, String?) -> Unit
     ) {
         viewModelScope.launch {
             repository.saveAccount(
@@ -233,9 +246,18 @@ class EmailViewModel : ViewModel() {
                 smtpHost, smtpPort, smtpEncryption, smtpUsername, signature, isDefault, isCommercial
             ).onSuccess {
                 loadAccountsAndMessages(showLoading = false)
-                onComplete(true)
-            }.onFailure {
-                onComplete(false)
+                onComplete(true, null)
+            }.onFailure { exception ->
+                val errorMsg = if (exception is retrofit2.HttpException) {
+                    try {
+                        exception.response()?.errorBody()?.string() ?: exception.message()
+                    } catch (e: Exception) {
+                        exception.message()
+                    }
+                } else {
+                    exception.localizedMessage ?: exception.message
+                }
+                onComplete(false, errorMsg)
             }
         }
     }
@@ -282,6 +304,7 @@ class EmailViewModel : ViewModel() {
                 }
                 
                 repository.sendEmail(
+                    accountId = fromAccount.id,
                     from = fromAccount.email,
                     to = to,
                     subject = subject,
@@ -302,4 +325,46 @@ class EmailViewModel : ViewModel() {
             }
         }
     }
+
+    fun createFolder(name: String, onComplete: (Boolean) -> Unit) {
+        val accountId = _selectedAccount.value?.id ?: return
+        viewModelScope.launch {
+            repository.createFolder(accountId, name).onSuccess {
+                repository.getAccounts().onSuccess { accountsList ->
+                    _accounts.value = accountsList
+                    val updatedAccount = accountsList.find { it.id == accountId }
+                    if (updatedAccount != null) {
+                        _selectedAccount.value = updatedAccount
+                    }
+                }
+                onComplete(true)
+            }.onFailure {
+                onComplete(false)
+            }
+        }
+    }
+
+    fun deleteFolder(name: String, onComplete: (Boolean) -> Unit) {
+        val accountId = _selectedAccount.value?.id ?: return
+        viewModelScope.launch {
+            repository.deleteFolder(accountId, name).onSuccess {
+                repository.getAccounts().onSuccess { accountsList ->
+                    _accounts.value = accountsList
+                    val updatedAccount = accountsList.find { it.id == accountId }
+                    if (updatedAccount != null) {
+                        _selectedAccount.value = updatedAccount
+                    }
+                }
+                if (_selectedFolder.value == name) {
+                    _selectedFolder.value = "INBOX"
+                }
+                loadMessages(showLoading = true)
+                onComplete(true)
+            }.onFailure {
+                onComplete(false)
+            }
+        }
+    }
 }
+
+

@@ -115,8 +115,24 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             Mail::to('kontakt@mein-seelenfunke.de')
                 ->send(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
 
+            // Push-Benachrichtigung an Admins senden
+            try {
+                $firebase = resolve(\App\Services\FirebaseService::class);
+                $firebase->sendToAdmins(
+                    "Neue Bestellung eingegangen! 🎉",
+                    "Bestellung #" . $this->order->order_number . " von " . $this->order->customer_name . " (" . number_format($this->order->total_price / 100, 2, ',', '.') . " €)",
+                    [
+                        'open_tab' => '5', // Der Index des neuen "Bestellungen" Tabs
+                        'order_id' => $this->order->id
+                    ]
+                );
+            } catch (\Exception $fbEx) {
+                \Illuminate\Support\Facades\Log::error("Firebase Push Fehler für {$this->order->order_number}: " . $fbEx->getMessage());
+            }
+
         } catch (\Exception $e) {
             Log::error("Checkout Mail Fehler für {$this->order->order_number}: " . $e->getMessage());
         }
     }
 }
+

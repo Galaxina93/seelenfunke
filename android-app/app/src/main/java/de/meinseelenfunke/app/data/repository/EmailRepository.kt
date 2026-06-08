@@ -48,7 +48,9 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getEmailApi().saveAccount(
                 id, name, email, password, imapHost, imapPort, imapEncryption, imapUsername,
-                smtpHost, smtpPort, smtpEncryption, smtpUsername, signature, isDefault, isCommercial
+                smtpHost, smtpPort, smtpEncryption, smtpUsername, signature,
+                if (isDefault) 1 else 0,
+                if (isCommercial) 1 else 0
             )
             if (response.success) {
                 Result.success(response.data)
@@ -118,6 +120,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
     }
 
     suspend fun sendEmail(
+        accountId: String?,
         from: String,
         to: String,
         subject: String,
@@ -126,6 +129,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
     ): Result<Unit> {
         return try {
             val request = SendEmailRequest(
+                accountId = accountId,
                 from = from,
                 to = to,
                 subject = subject,
@@ -237,4 +241,32 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
             Result.failure(e)
         }
     }
+
+    suspend fun createFolder(accountId: String, name: String): Result<Unit> {
+        return try {
+            val response = serviceLocator.getEmailApi().createFolder(accountId, name)
+            if (response.success) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.message ?: "Konnte Ordner nicht erstellen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteFolder(accountId: String, name: String): Result<Unit> {
+        return try {
+            val response = serviceLocator.getEmailApi().deleteFolder(accountId, name)
+            if (response.success) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.message ?: "Konnte Ordner nicht löschen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
+
