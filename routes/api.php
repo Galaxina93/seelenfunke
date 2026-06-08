@@ -175,6 +175,29 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
     abort(404, 'File not found');
 });
 
+// --- Secure Laser SVG Download for Mobile App ---
+Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illuminate\Http\Request $request, $itemId, $side, \App\Services\Export\FileDownloadService $downloadService) {
+    $tokenString = $request->query('token');
+    if ($tokenString) {
+        $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
+        if ($token && $token->tokenable) {
+            $user = $token->tokenable;
+            $request->setUserResolver(fn() => $user);
+        }
+    }
+
+    $user = $request->user() ?: $request->user('sanctum');
+    if (!$user) {
+        abort(401, 'Unauthorized');
+    }
+
+    if (!$user instanceof \App\Models\Admin\Admin) {
+        abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
+    }
+
+    return $downloadService->downloadLaserSvg($itemId, $side);
+});
+
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 
