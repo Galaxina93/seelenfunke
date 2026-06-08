@@ -44,7 +44,7 @@
                 </label>
             </div>
 
-            <div class="md:col-span-2 max-w-sm">
+            <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Standard-MwSt Satz (%)</label>
                     @include('components.alerts.info-tooltip', ['key' => 'default_tax_rate'])
@@ -53,6 +53,24 @@
                     <input type="number" wire:model="settings.default_tax_rate" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-black">%</span>
                 </div>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Admin E-Mail Benachrichtigung</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'send_order_email_to_admin'])
+                </div>
+                <label class="{{ $checkboxContainerClass }}">
+                    <div class="relative flex items-center shrink-0">
+                        <input type="checkbox" wire:model="settings.send_order_email_to_admin" class="peer sr-only">
+                        <div class="w-5 h-5 bg-gray-900 border-2 border-gray-700 rounded transition-all peer-checked:bg-[var(--theme-color)] peer-checked:border-[var(--theme-color)] shadow-inner"></div>
+                        <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    </div>
+                    <div class="min-w-0">
+                        <span class="block font-bold text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Bestell-Mails erhalten</span>
+                        <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-0.5 block">Admin erhält Kopie der Bestellung</span>
+                    </div>
+                </label>
             </div>
         </div>
     </div>

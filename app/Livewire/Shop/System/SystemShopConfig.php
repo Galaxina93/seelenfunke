@@ -64,6 +64,7 @@ class SystemShopConfig extends Component
         'maintenance_mode',
         'inventory_low_stock_threshold',
         'skip_shipping_for_digital',
+        'send_order_email_to_admin',
         'stripe_publishable_key',
         'stripe_secret_key',
         'stripe_webhook_secret',
@@ -117,6 +118,7 @@ class SystemShopConfig extends Component
         'maintenance_mode' => 'Sperrt den Zugang zum Shop & Konfigurator. Nur Admins können Wartungen durchführen.',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
         'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
+        'send_order_email_to_admin' => 'Bestimmt, ob der Admin bei Bestelleingang eine E-Mail erhalten soll.',
         'stripe_publishable_key' => 'Der öffentliche Schlüssel von Stripe (pk_test_... oder pk_live_...).',
         'stripe_secret_key' => 'Der geheime Schlüssel von Stripe (sk_test_... oder sk_live_...).',
         'stripe_webhook_secret' => 'Das Secret für Webhooks (whsec_...), um Zahlungsbestätigungen zu empfangen.',
@@ -160,7 +162,7 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'maintenance_mode', 'skip_shipping_for_digital'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'maintenance_mode', 'skip_shipping_for_digital', 'send_order_email_to_admin'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
@@ -199,6 +201,7 @@ class SystemShopConfig extends Component
             'maintenance_mode' => false,
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
+            'send_order_email_to_admin' => true,
             'owner_email_impressum' => 'impressum@mein-seelenfunke.de',
             'owner_email_invoices' => 'rechnungen@mein-seelenfunke.de',
             'owner_email_backup' => 'backup@mein-seelenfunke.de',

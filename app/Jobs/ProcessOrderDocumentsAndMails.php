@@ -112,8 +112,10 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             Mail::to($this->order->email)
                 ->send(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
 
-            Mail::to('kontakt@mein-seelenfunke.de')
-                ->send(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+            if (shop_setting('send_order_email_to_admin', true)) {
+                Mail::to('kontakt@mein-seelenfunke.de')
+                    ->send(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+            }
 
             // Push-Benachrichtigung an Admins senden
             try {
