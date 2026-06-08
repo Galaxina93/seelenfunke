@@ -101,4 +101,42 @@ Route::group(['middleware' => [function ($request, $next) {
             'status_color' => $order->status_color,
         ]);
     });
+
+    // Generate DHL Label
+    Route::post('/shop/orders/{id}/dhl-label', function (Request $request, $id) {
+        $order = OrderOrder::findOrFail($id);
+        
+        if ($order->isOnlyDigital()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Für rein digitale Bestellungen können keine DHL-Versandlabels erstellt werden.'
+            ], 400);
+        }
+        
+        $data = $request->validate([
+            'package_count' => 'required|integer|min:1|max:30',
+            'weight_per_package' => 'required|numeric|min:0.1|max:31.5',
+        ]);
+        
+        try {
+            $dhlService = new \App\Services\DhlService();
+            $shipments = $dhlService->createLabels($order, (int)$data['package_count'], (float)$data['weight_per_package']);
+            
+            // Auto update order status to shipped
+            $order->update(['status' => 'shipped']);
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'DHL Versandlabel(s) erfolgreich erstellt.',
+                'tracking_number' => $order->refresh()->tracking_number,
+                'shipments' => $order->shipments,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    });
 });
+

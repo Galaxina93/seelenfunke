@@ -158,6 +158,11 @@ class Product extends Model
         }
     }
 
+    public function increaseStock(int $amount): void
+    {
+        $this->restoreStock($amount);
+    }
+
     // --- NEUE TYP-LOGIK ---
 
     public function isPersonalizable(): bool

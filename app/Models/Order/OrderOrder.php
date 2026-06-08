@@ -57,6 +57,42 @@ class OrderOrder extends Model
         'cancellation_reason' => 'string',
     ];
 
+    protected static function booted()
+    {
+        static::updated(function ($order) {
+            // 1. Synchronize "paid" status
+            if ($order->isDirty('payment_status') && $order->payment_status === 'paid') {
+                $invoices = $order->invoices()->where('type', 'invoice')->whereIn('status', ['open', 'draft'])->get();
+                foreach ($invoices as $invoice) {
+                    $invoice->update([
+                        'status' => 'paid',
+                        'paid_at' => now(),
+                    ]);
+                    try {
+                        app(\App\Services\InvoiceService::class)->storePdf($invoice);
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error("Failed to store PDF for invoice {$invoice->invoice_number} on order status sync: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // 2. Synchronize "cancelled" or "refunded" status
+            if (
+                ($order->isDirty('payment_status') && $order->payment_status === 'refunded') ||
+                ($order->isDirty('status') && in_array($order->status, ['cancelled', 'refunded']))
+            ) {
+                $invoices = $order->invoices()->where('type', 'invoice')->whereIn('status', ['paid', 'open'])->get();
+                foreach ($invoices as $invoice) {
+                    try {
+                        app(\App\Services\InvoiceService::class)->cancelInvoice($invoice);
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error("Failed to cancel invoice {$invoice->invoice_number} on order status sync: " . $e->getMessage());
+                    }
+                }
+            }
+        });
+    }
+
     public function items()
     {
         return $this->hasMany(OrderOrderItem::class, 'order_id');

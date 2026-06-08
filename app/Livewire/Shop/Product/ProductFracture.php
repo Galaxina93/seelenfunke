@@ -172,7 +172,7 @@ class ProductFracture extends Component
         if ($difference > 0) {
             $product->reduceStock($difference);
         } elseif ($difference < 0) {
-            $product->increaseStock(abs($difference));
+            $product->restoreStock(abs($difference));
         }
 
         $costValue = ($product->purchase_price ?? 0) * $this->editLossQuantity;
@@ -192,7 +192,7 @@ class ProductFracture extends Component
         $loss = ProductLoss::findOrFail($id);
         
         if ($loss->product) {
-            $loss->product->increaseStock($loss->quantity);
+            $loss->product->restoreStock($loss->quantity);
         }
 
         $loss->delete();
