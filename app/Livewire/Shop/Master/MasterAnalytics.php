@@ -666,9 +666,9 @@ class MasterAnalytics extends Component
                 'dateStart' => 'required|date',
                 'dateEnd' => 'required|date|after_or_equal:dateStart',
             ], [
-                'dateStart.required' => 'Ein Startdatum wird benötigt.',
+                'dateStart.required' => 'Bitte gib ein gültiges Startdatum an.',
                 'dateStart.date' => 'Das Startdatum ist ungültig.',
-                'dateEnd.required' => 'Ein Enddatum wird benötigt.',
+                'dateEnd.required' => 'Bitte gib ein gültiges Enddatum an.',
                 'dateEnd.date' => 'Das Enddatum ist ungültig.',
                 'dateEnd.after_or_equal' => 'Das Enddatum muss nach oder gleich dem Startdatum sein.',
             ]);
