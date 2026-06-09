@@ -56,10 +56,7 @@
 <div class="header">
     <div class="doc-title">{{ $title ?? 'Bericht' }}</div>
     <div class="doc-meta">
-        Erstellt am: {{ date('d.m.Y, H:i') }} Uhr<br>
-        @if(isset($agentName))
-            Erstellt von: {{ $agentName }}
-        @endif
+        Erstellt am: {{ date('d.m.Y, H:i') }} Uhr
     </div>
 </div>
 

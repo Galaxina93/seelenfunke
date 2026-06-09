@@ -128,6 +128,9 @@
             liveWs: null,
             audioContext: null,
             localAudioStream: null,
+            sessionResumptionHandle: null,
+            reconnectAttempts: 0,
+            maxReconnectAttempts: 5,
 
             async readClipboard(isDirectClick = false) {
                 try {
@@ -233,6 +236,8 @@
             },
 
             updateAgentConfig(color, name, wakeWord, agentId) {
+                this.sessionResumptionHandle = null;
+                this.reconnectAttempts = 0;
                 this.agentColor = color || 'emerald-500';
                 if (name) this.activeAgentName = name;
                 if (wakeWord) this.agentWakeWord = wakeWord.toLowerCase();
@@ -1230,6 +1235,9 @@
                         const setupMsg = {
                             setup: {
                                 model: "models/gemini-3.1-flash-live-preview",
+                                sessionResumption: this.sessionResumptionHandle ? {
+                                    handle: this.sessionResumptionHandle
+                                } : {},
                                 systemInstruction: {
                                     parts: [{ text: creds.system_instruction }]
                                 },
@@ -1276,7 +1284,6 @@
 
                     this.liveWs.onerror = (error) => {
                         console.error('WebSocket Error:', error);
-                        this.stopLiveMode();
                     };
 
                     this.liveWs.onclose = (event) => {
@@ -1284,13 +1291,44 @@
                         if (event.code !== 1000 && event.code !== 1005) {
                             console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
                         }
-                        this.stopLiveMode();
+                        
+                        this.cleanupLiveConnection();
+                        
+                        if (this.isLiveMode) {
+                            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                                this.reconnectAttempts++;
+                                console.log(`WebSocket geschlossen. Versuche Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 1.5s...`);
+                                this.thinking = true;
+                                this.updateCoreColor(true);
+                                setTimeout(() => {
+                                    if (this.isLiveMode) {
+                                        this.initLiveMode();
+                                    }
+                                }, 1500);
+                            } else {
+                                console.error('Maximale Reconnect-Versuche erreicht.');
+                                this.stopLiveMode();
+                                alert('Die Verbindung zur Gemini Live API wurde unterbrochen. Bitte überprüfe deine Internetverbindung.');
+                            }
+                        } else {
+                            this.stopLiveMode();
+                        }
                     };
 
                 } catch (err) {
                     console.error("Live Mode Init Error:", err);
-                    alert("Init Error: " + err.message);
-                    this.stopLiveMode();
+                    if (this.isLiveMode && this.reconnectAttempts < this.maxReconnectAttempts) {
+                        this.reconnectAttempts++;
+                        console.log(`Fehler bei Init, versuche Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 3s...`);
+                        setTimeout(() => {
+                            if (this.isLiveMode) {
+                                this.initLiveMode();
+                            }
+                        }, 3000);
+                    } else {
+                        alert("Init Error: " + err.message);
+                        this.stopLiveMode();
+                    }
                 }
             },
 
@@ -1468,9 +1506,15 @@
             },
 
             async handleWsMessage(data) {
+                if (data.sessionResumptionUpdate) {
+                    console.log('Gemini Live: Session Resumption Update received', data.sessionResumptionUpdate);
+                    this.sessionResumptionHandle = data.sessionResumptionUpdate.newHandle;
+                    return;
+                }
                 if (data.setupComplete) {
                     console.log('Gemini Live Setup Complete received');
                     this.isSetupComplete = true;
+                    this.reconnectAttempts = 0;
                     return;
                 }
                 if (!this.hasOwnProperty('currentLiveTranscript')) {
@@ -1652,6 +1696,8 @@
             },
 
             stopLiveMode() {
+                this.sessionResumptionHandle = null;
+                this.reconnectAttempts = 0;
                 if (this.pingInterval) {
                     clearInterval(this.pingInterval);
                     this.pingInterval = null;
@@ -1691,6 +1737,44 @@
                 this.isSpeaking = false;
                 this.thinking = false;
                 this.updateCoreColor(true);
+            },
+
+            cleanupLiveConnection() {
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                    this.pingInterval = null;
+                }
+                if (this.liveWs) {
+                    this.liveWs.onclose = null;
+                    this.liveWs.onerror = null;
+                    this.liveWs.close();
+                    this.liveWs = null;
+                }
+                if (this.localAudioStream) {
+                    console.log('🎤 Beende alle Mikrofon-Tracks...');
+                    this.localAudioStream.getTracks().forEach(track => track.stop());
+                    this.localAudioStream = null;
+                }
+                if (this.audioInput) {
+                    this.audioInput.disconnect();
+                    this.audioInput = null;
+                }
+                if (this.audioWorklet) {
+                    this.audioWorklet.disconnect();
+                    this.audioWorklet = null;
+                }
+                if (this.audioContext) {
+                    try { this.audioContext.close(); } catch(e) {}
+                    this.audioContext = null;
+                }
+                if (this.liveRecognition) {
+                    this.liveRecognition.onend = null;
+                    try { this.liveRecognition.abort(); } catch(e) {}
+                    try { this.liveRecognition.stop(); } catch(e) {}
+                    this.liveRecognition = null;
+                }
+                this.nextPlayTime = 0;
+                this.isSpeaking = false;
             },
 
             // --- CAMERA VISION STREAMING ---

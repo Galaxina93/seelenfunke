@@ -108,7 +108,7 @@
                         <button wire:click="toggleArchiveList('{{ $list->id }}')" @click="showListMenu = false" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 hover:bg-gray-800 flex items-center gap-3 transition-colors">
                             <x-heroicon-s-archive-box class="w-4 h-4 text-amber-500" /> {{ $list->is_archived ? 'Wiederherstellen' : 'Archivieren' }}
                         </button>
-                        <button wire:click="deleteList('{{ $list->id }}')" wire:confirm="Möchtest du die Liste '{{ $list->name }}' und alle Aufgaben wirklich löschen?" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 flex items-center gap-3 transition-colors">
+                        <button wire:click="deleteList('{{ $list->id }}')" wire:confirm="Wirklich löschen?" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500/10 flex items-center gap-3 transition-colors">
                             <x-heroicon-s-trash class="w-4 h-4 text-red-500" /> Löschen
                         </button>
                     </div>
@@ -161,13 +161,7 @@
                     <input wire:model="newTask_title" type="text"
                            placeholder="{{ $selectedListId ? 'Was gibt es zu tun?' : 'Wähle links eine Liste...' }}"
                            @disabled(!$selectedListId)
-                           class="relative w-full pl-4 md:pl-8 pr-14 md:pr-40 py-3.5 md:py-6 bg-gray-950 border-2 border-gray-800 rounded-xl md:rounded-3xl focus:ring-4 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-base md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
-
-                    <button type="submit" @disabled(!$selectedListId)
-                    class="absolute right-1.5 md:right-2 top-1.5 md:top-2 bottom-1.5 md:bottom-2 px-4 md:px-8 bg-[var(--theme-color)] text-gray-900 rounded-lg md:rounded-2xl flex items-center justify-center hover:bg-white transition-all shadow-lg active:scale-95 disabled:bg-gray-800 disabled:text-gray-600">
-                        <x-heroicon-o-plus class="w-5 h-5 md:w-8 md:h-8 stroke-[3]" />
-                        <span class="hidden md:inline-block ml-2 font-black uppercase text-sm tracking-widest">Hinzufügen</span>
-                    </button>
+                           class="relative w-full pl-4 md:pl-8 pr-4 md:pr-8 py-3.5 md:py-6 bg-gray-950 border-2 border-gray-800 rounded-xl md:rounded-3xl focus:ring-4 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-base md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
                 </form>
             </div>
 
@@ -209,7 +203,7 @@
                          }"
                          x-init="initSortable()">
                         @forelse($tasks as $task)
-                            <div class="group/task transition-all" :class="showMenu ? 'relative z-50' : 'relative z-0'" data-task-id="{{ $task->id }}" x-data="{ showMenu: false, isAddingSub: false, subTitle: '' }" wire:key="task-{{ $task->id }}">
+                            <div class="group/task transition-all" :class="showMenu ? 'relative z-50' : 'relative z-0'" data-task-id="{{ $task->id }}" x-data="{ showMenu: false, isAddingSub: false, subTitle: '', isEditing: false, updatedTitle: '{{ addslashes($task->title) }}' }" wire:key="task-{{ $task->id }}">
 
                                 <div @class([
                                     'relative flex items-center justify-between p-3.5 md:p-5 rounded-2xl md:rounded-3xl border transition-all duration-500 group-hover/task:shadow-2xl',
@@ -228,9 +222,9 @@
                                         <x-heroicon-m-check class="w-4 h-4 stroke-[3]" />
                                     </button>
 
-                                    <div class="flex-1 min-w-0 pt-0.5" x-data="{ isEditing: false, updatedTitle: '{{ $task->title }}' }">
+                                    <div class="flex-1 min-w-0 pt-0.5">
                                         <div x-show="!isEditing"
-                                             @click.self="isEditing = true; $nextTick(() => $refs.editInput.focus())"
+                                             @click="isEditing = true; $nextTick(() => $refs.editInput.focus())"
                                             @class(['text-sm font-bold leading-relaxed break-words cursor-text hover:text-[var(--theme-color)] transition-colors pr-2 md:pr-4', 'line-through text-gray-600 italic' => $task->is_completed, 'text-gray-200' => !$task->is_completed])>
                                             {!! preg_replace(
                                                   '/((?:https?|ftp|file):\/\/|www\.)[a-z0-9+&@#\/%?=~_|!:,.;\*\-]*[a-z0-9+&@#\/%=~_|]/i',
@@ -280,6 +274,9 @@
 
                                         {{-- ARCHIVE & DELETE INLINE HOVER --}}
                                         <div class="hidden md:flex items-center opacity-0 group-hover/task:opacity-100 transition-opacity">
+                                            <button @click="isEditing = true; $nextTick(() => $refs.editInput.focus())" class="p-2 text-gray-500 hover:text-[var(--theme-color)] rounded-xl transition-all" title="Bearbeiten">
+                                                <x-heroicon-m-cog-6-tooth class="w-5 h-5" />
+                                            </button>
                                             <button wire:click="toggleArchiveTask('{{ $task->id }}')" class="p-2 text-gray-500 hover:text-amber-500 rounded-xl transition-all">
                                                 <x-heroicon-m-archive-box class="w-5 h-5" />
                                             </button>
@@ -297,6 +294,10 @@
                                              x-transition:enter-start="opacity-0 translate-y-2 scale-95"
                                              x-transition:enter-end="opacity-100 translate-y-0 scale-100"
                                              class="absolute right-0 top-12 w-56 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-[60] overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
+                                            <button @click="isEditing = true; showMenu = false; $nextTick(() => $refs.editInput.focus())" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
+                                                <x-heroicon-o-pencil class="w-4 h-4 text-[var(--theme-color)]" /> Bearbeiten
+                                            </button>
+
                                             <button @click="isAddingSub = true; showMenu = false; $nextTick(() => $refs.addSubInput.focus())" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
                                                 <x-heroicon-o-list-bullet class="w-4 h-4 text-[var(--theme-color)]" /> Schritt dazu
                                             </button>
@@ -325,7 +326,7 @@
                                             </button>
 
                                             <div class="flex-1 min-w-0" x-data="{ isEditingSub: false, updatedSubTitle: '{{ $sub->title }}' }">
-                                                <span x-show="!isEditingSub" @click.self="isEditingSub = true; $nextTick(() => $refs.editSubInput.focus())"
+                                                <span x-show="!isEditingSub" @click="isEditingSub = true; $nextTick(() => $refs.editSubInput.focus())"
                                                       @class(['flex-1 text-[13px] font-medium truncate cursor-text hover:text-[var(--theme-color)] transition-colors', 'line-through text-gray-600 italic' => $sub->is_completed, 'text-gray-400' => !$sub->is_completed])>
                                                         {{ $sub->title }}
                                                 </span>

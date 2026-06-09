@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
@@ -605,7 +606,7 @@ fun TasksTabContent(
             AlertDialog(
                 onDismissRequest = { listToDelete = null },
                 title = { Text(text = "Liste löschen", color = Slate50, fontWeight = FontWeight.Bold) },
-                text = { Text(text = "Möchtest du die Liste '${listToDelete?.name}' wirklich löschen? Alle darin enthaltenen Aufgaben werden ebenfalls unwiderruflich gelöscht.", color = Slate300) },
+                text = { Text(text = "Wirklich löschen?", color = Slate300) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -1982,12 +1983,6 @@ fun CalendarTabContent(
 
                             // Render 24-hour timeline
                             if (timedEvents.isNotEmpty()) {
-                                val eventsByHour = timedEvents.groupBy { ev ->
-                                    val startD = parseEventDate(ev.start) ?: Date()
-                                    val cal = Calendar.getInstance().apply { time = startD }
-                                    cal.get(Calendar.HOUR_OF_DAY)
-                                }
-
                                 Text(
                                     text = "ZEITLEISTE",
                                     fontSize = 10.sp,
@@ -1997,21 +1992,26 @@ fun CalendarTabContent(
                                     letterSpacing = 1.sp
                                 )
 
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                val hourHeight = 64.dp
+                                val timelineHeight = hourHeight * 24
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(timelineHeight),
+                                    verticalAlignment = Alignment.Top
                                 ) {
-                                    for (h in 0..23) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(64.dp),
-                                            verticalAlignment = Alignment.Top
-                                        ) {
-                                            // Hour display on the left
+                                    // 1. Hour Labels Column (left side)
+                                    Column(
+                                        modifier = Modifier
+                                            .width(55.dp)
+                                            .fillMaxHeight()
+                                    ) {
+                                        for (h in 0..23) {
                                             Box(
                                                 modifier = Modifier
-                                                    .width(55.dp)
-                                                    .fillMaxHeight(),
+                                                    .fillMaxWidth()
+                                                    .height(hourHeight),
                                                 contentAlignment = Alignment.TopEnd
                                             ) {
                                                 Text(
@@ -2022,125 +2022,154 @@ fun CalendarTabContent(
                                                     modifier = Modifier.padding(end = 8.dp, top = 6.dp)
                                                 )
                                             }
+                                        }
+                                    }
 
-                                            // Divider line and events on the right
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .fillMaxHeight()
-                                            ) {
-                                                // Grid divider at top of hour cell
+                                    // 2. Schedule Grid Lines + Events Container (right side)
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                    ) {
+                                        // Grid lines
+                                        Column(modifier = Modifier.fillMaxSize()) {
+                                            for (h in 0..23) {
                                                 Box(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
-                                                        .height(1.dp)
-                                                        .background(GlassWhite10.copy(alpha = 0.2f))
-                                                )
+                                                        .height(hourHeight)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .height(1.dp)
+                                                            .background(GlassWhite10.copy(alpha = 0.2f))
+                                                    )
+                                                }
+                                            }
+                                            // Bottom boundary line for 23:00 slot (at 24:00)
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(1.dp)
+                                                    .background(GlassWhite10.copy(alpha = 0.2f))
+                                            )
+                                        }
 
-                                                val hourEvents = eventsByHour[h] ?: emptyList()
-                                                if (hourEvents.isNotEmpty()) {
+                                        // Render timed events
+                                        val positionedEvents = remember(timedEvents, selectedDate) {
+                                            layoutTimedEvents(timedEvents, selectedDate)
+                                        }
+
+                                        positionedEvents.forEach { pEvent ->
+                                            val ev = pEvent.event
+                                            val style = getCategoryStyle(ev.category)
+
+                                            // Calculate vertical offsets
+                                            val startDp = (pEvent.startMin / 60f) * hourHeight.value
+                                            val durationDp = ((pEvent.endMin - pEvent.startMin) / 60f) * hourHeight.value
+
+                                            val colIndex = pEvent.colIndex
+                                            val totalCols = pEvent.totalCols
+
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .offset(y = startDp.dp)
+                                                    .height(durationDp.dp)
+                                                    .padding(horizontal = 2.dp),
+                                                verticalAlignment = Alignment.Top
+                                            ) {
+                                                if (colIndex > 0) {
+                                                    Spacer(modifier = Modifier.weight(colIndex.toFloat()))
+                                                }
+
+                                                Card(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .fillMaxHeight()
+                                                        .padding(horizontal = 2.dp, vertical = 1.dp)
+                                                        .clickable {
+                                                            val startD = parseEventDate(ev.start) ?: Date()
+                                                            val endD = ev.end?.let { parseEventDate(it) } ?: startD
+                                                            editingEventId = ev.id
+                                                            title = ev.title
+                                                            description = ev.description ?: ""
+                                                            selectedCategory = ev.category
+                                                            isAllDay = ev.is_all_day
+                                                            recurrence = ev.recurrence ?: "none"
+                                                            priority = ev.priority ?: "low"
+                                                            reminderMinutes = ev.reminder_minutes ?: -1
+                                                            startDateString = sdfDate.format(startD)
+                                                            endDateString = sdfDate.format(endD)
+                                                            startTimeString = SimpleDateFormat("HH:mm", Locale.US).format(startD)
+                                                            endTimeString = SimpleDateFormat("HH:mm", Locale.US).format(endD)
+                                                            showInlineCreator = true
+                                                        },
+                                                    colors = CardDefaults.cardColors(containerColor = style.bg.copy(alpha = 0.15f)),
+                                                    border = BorderStroke(1.dp, style.text.copy(alpha = 0.3f)),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxSize()
-                                                            .padding(top = 4.dp, bottom = 4.dp, end = 4.dp, start = 4.dp),
-                                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
                                                     ) {
-                                                        hourEvents.forEach { ev ->
-                                                            val style = getCategoryStyle(ev.category)
-                                                            Card(
-                                                                modifier = Modifier
-                                                                    .weight(1f)
-                                                                    .fillMaxHeight().clickable {
-                                                                        val startD = parseEventDate(ev.start) ?: Date()
-                                                                        val endD = ev.end?.let { parseEventDate(it) } ?: startD
-                                                                        editingEventId = ev.id
-                                                                        title = ev.title
-                                                                        description = ev.description ?: ""
-                                                                        selectedCategory = ev.category
-                                                                        isAllDay = ev.is_all_day
-                                                                        recurrence = ev.recurrence ?: "none"
-                                                                        priority = ev.priority ?: "low"
-                                                                        reminderMinutes = ev.reminder_minutes ?: -1
-                                                                        startDateString = sdfDate.format(startD)
-                                                                        endDateString = sdfDate.format(endD)
-                                                                        startTimeString = SimpleDateFormat("HH:mm", Locale.US).format(startD)
-                                                                        endTimeString = SimpleDateFormat("HH:mm", Locale.US).format(endD)
-                                                                        showInlineCreator = true
-                                                                    },
-                                                                colors = CardDefaults.cardColors(containerColor = style.bg.copy(alpha = 0.15f)),
-                                                                border = BorderStroke(1.dp, style.text.copy(alpha = 0.3f)),
-                                                                shape = RoundedCornerShape(6.dp)
-                                                            ) {
-                                                                Row(
-                                                                    modifier = Modifier
-                                                                        .fillMaxSize()
-                                                                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                                                                    verticalAlignment = Alignment.CenterVertically,
-                                                                    horizontalArrangement = Arrangement.SpaceBetween
-                                                                ) {
-                                                                    Column(modifier = Modifier.weight(1f)) {
-                                                                        Text(
-                                                                            text = ev.title,
-                                                                            color = style.text,
-                                                                            fontSize = 11.sp,
-                                                                            fontWeight = FontWeight.Bold,
-                                                                            maxLines = 1,
-                                                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                                        )
-                                                                        
-                                                                        val startD = parseEventDate(ev.start)
-                                                                        val endD = ev.end?.let { parseEventDate(it) }
-                                                                        val timeStr = if (startD != null) {
-                                                                            val timeFmt = SimpleDateFormat("HH:mm", Locale.GERMANY)
-                                                                            val startFmt = timeFmt.format(startD)
-                                                                            if (endD != null) {
-                                                                                "$startFmt - ${timeFmt.format(endD)}"
-                                                                            } else {
-                                                                                startFmt
-                                                                            }
-                                                                        } else {
-                                                                            ""
-                                                                        }
-                                                                        if (timeStr.isNotEmpty()) {
-                                                                            Text(
-                                                                                text = timeStr,
-                                                                                color = Slate400,
-                                                                                fontSize = 9.sp,
-                                                                                maxLines = 1
-                                                                            )
-                                                                        }
-                                                                    }
-                                                                    
-                                                                    IconButton(
-                                                                        onClick = { onDeleteEvent(ev.id) },
-                                                                        modifier = Modifier.size(22.dp)
-                                                                    ) {
-                                                                        Icon(
-                                                                            imageVector = Icons.Default.Delete,
-                                                                            contentDescription = "Termin löschen",
-                                                                            tint = Color.Red.copy(alpha = 0.7f),
-                                                                            modifier = Modifier.size(14.dp)
-                                                                        )
-                                                                    }
+                                                        Column(modifier = Modifier.weight(1f)) {
+                                                            Text(
+                                                                text = ev.title,
+                                                                color = style.text,
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                maxLines = 1,
+                                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                            )
+
+                                                            val startD = parseEventDate(ev.start)
+                                                            val endD = ev.end?.let { parseEventDate(it) }
+                                                            val timeStr = if (startD != null) {
+                                                                val timeFmt = SimpleDateFormat("HH:mm", Locale.GERMANY)
+                                                                val startFmt = timeFmt.format(startD)
+                                                                if (endD != null) {
+                                                                    "$startFmt - ${timeFmt.format(endD)}"
+                                                                } else {
+                                                                    startFmt
                                                                 }
+                                                            } else {
+                                                                ""
                                                             }
+                                                            // Hide time range if vertical space is extremely limited (e.g. less than 35dp height)
+                                                            if (timeStr.isNotEmpty() && durationDp >= 35f) {
+                                                                Text(
+                                                                    text = timeStr,
+                                                                    color = Slate400,
+                                                                    fontSize = 9.sp,
+                                                                    maxLines = 1
+                                                                )
+                                                            }
+                                                        }
+
+                                                        IconButton(
+                                                            onClick = { onDeleteEvent(ev.id) },
+                                                            modifier = Modifier.size(22.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Delete,
+                                                                contentDescription = "Termin löschen",
+                                                                tint = Color.Red.copy(alpha = 0.7f),
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
                                                         }
                                                     }
                                                 }
+
+                                                if (totalCols - colIndex - 1 > 0) {
+                                                    Spacer(modifier = Modifier.weight((totalCols - colIndex - 1).toFloat()))
+                                                }
                                             }
                                         }
-                                    }
-                                    // Final bottom border for 23:00 grid slot
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().height(1.dp)
-                                    ) {
-                                        Spacer(modifier = Modifier.width(55.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(1.dp)
-                                                .background(GlassWhite10.copy(alpha = 0.2f))
-                                        )
                                     }
                                 }
                             }
@@ -3254,3 +3283,91 @@ fun layoutWeekTracks(week: List<CalendarDay>, events: List<CalendarEvent>): List
     }
     return tracks
 }
+
+data class PositionedEvent(
+    val event: CalendarEvent,
+    val startMin: Float,
+    val endMin: Float,
+    var colIndex: Int = 0,
+    var totalCols: Int = 1
+)
+
+fun layoutTimedEvents(
+    timedEvents: List<CalendarEvent>,
+    selectedDate: Date
+): List<PositionedEvent> {
+    val sdfDateOnly = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    val selectedDateStr = sdfDateOnly.format(selectedDate)
+
+    val positioned = timedEvents.mapNotNull { ev ->
+        val startD = parseEventDate(ev.start) ?: return@mapNotNull null
+        val endD = ev.end?.let { parseEventDate(it) } ?: Date(startD.time + 60 * 60 * 1000)
+
+        val startCal = Calendar.getInstance().apply { time = startD }
+        val endCal = Calendar.getInstance().apply { time = endD }
+
+        val startMin = if (sdfDateOnly.format(startD) != selectedDateStr) {
+            0f
+        } else {
+            startCal.get(Calendar.HOUR_OF_DAY) * 60f + startCal.get(Calendar.MINUTE)
+        }
+
+        val endMin = if (sdfDateOnly.format(endD) != selectedDateStr) {
+            1440f
+        } else {
+            endCal.get(Calendar.HOUR_OF_DAY) * 60f + endCal.get(Calendar.MINUTE)
+        }
+
+        val duration = maxOf(endMin - startMin, 30f) // Clamp duration to minimum 30 minutes
+        PositionedEvent(ev, startMin, startMin + duration)
+    }.sortedBy { it.startMin }
+
+    val clusters = mutableListOf<MutableList<PositionedEvent>>()
+    var currentCluster = mutableListOf<PositionedEvent>()
+    var clusterEnd = 0f
+
+    for (pEvent in positioned) {
+        if (currentCluster.isEmpty()) {
+            currentCluster.add(pEvent)
+            clusterEnd = pEvent.endMin
+        } else if (pEvent.startMin < clusterEnd) {
+            currentCluster.add(pEvent)
+            clusterEnd = maxOf(clusterEnd, pEvent.endMin)
+        } else {
+            clusters.add(currentCluster)
+            currentCluster = mutableListOf(pEvent)
+            clusterEnd = pEvent.endMin
+        }
+    }
+    if (currentCluster.isNotEmpty()) {
+        clusters.add(currentCluster)
+    }
+
+    for (cluster in clusters) {
+        val columns = mutableListOf<MutableList<PositionedEvent>>()
+        for (pEvent in cluster) {
+            var placed = false
+            for (colIdx in columns.indices) {
+                val lastEventInCol = columns[colIdx].last()
+                if (pEvent.startMin >= lastEventInCol.endMin) {
+                    columns[colIdx].add(pEvent)
+                    pEvent.colIndex = colIdx
+                    placed = true
+                    break
+                }
+            }
+            if (!placed) {
+                val newCol = mutableListOf(pEvent)
+                columns.add(newCol)
+                pEvent.colIndex = columns.size - 1
+            }
+        }
+        val totalCols = columns.size
+        for (pEvent in cluster) {
+            pEvent.totalCols = totalCols
+        }
+    }
+
+    return positioned
+}
+

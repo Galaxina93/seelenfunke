@@ -45,6 +45,25 @@ process.on('uncaughtException', (err) => {
     }, 800);
 });
 
+process.on('unhandledRejection', (reason, promise) => {
+    const stack = (reason && reason.stack) || String(reason);
+    debugLog('Unhandled Rejection at promise:', reason);
+    sendLogToBackend('error', `Unhandled Rejection: ${reason}`, 'websocket:unhandled_rejection', { stack: stack });
+});
+
+function safeSend(ws, message) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try {
+        ws.send(message, (err) => {
+            if (err) {
+                debugLog('WebSocket safeSend callback error:', err);
+            }
+        });
+    } catch (e) {
+        debugLog('WebSocket safeSend catch error:', e);
+    }
+}
+
 function debugLog(msg, err) {
     const timestamp = new Date().toISOString();
     let formattedMsg = msg;
@@ -167,7 +186,7 @@ function initGeminiLiveProxy(clientWs, creds) {
             debugLog(`📦 Replay von ${googleQueue.length} gepufferten Client-Nachrichten an Google...`);
             while (googleQueue.length > 0) {
                 const msg = googleQueue.shift();
-                googleWs.send(msg);
+                safeSend(googleWs, msg);
             }
         }
     });
@@ -186,9 +205,7 @@ function initGeminiLiveProxy(clientWs, creds) {
             debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Google-Nachricht oder Binärdaten: ' + e.message);
         }
 
-        if (clientWs.readyState === WebSocket.OPEN) {
-            clientWs.send(message);
-        }
+        safeSend(clientWs, message);
     });
     
     googleWs.on('close', (code, reason) => {
@@ -209,18 +226,14 @@ function initGeminiLiveProxy(clientWs, creds) {
     googleWs.on('error', (err) => {
         cleanup();
         debugLog('🧠 Gemini Live Proxy: Google WebSocket Fehler', err);
-        if (clientWs.readyState === WebSocket.OPEN) {
-            clientWs.send(JSON.stringify({ error: 'Google Gemini connection error' }));
-        }
+        safeSend(clientWs, JSON.stringify({ error: 'Google Gemini connection error' }));
     });
     
     clientWs.on('message', (message) => {
         try {
             const data = JSON.parse(message.toString());
             if (data && data.type === 'ping') {
-                if (clientWs.readyState === WebSocket.OPEN) {
-                    clientWs.send(JSON.stringify({ type: 'pong' }));
-                }
+                safeSend(clientWs, JSON.stringify({ type: 'pong' }));
                 return;
             }
             if (data.setup) {
@@ -241,7 +254,7 @@ function initGeminiLiveProxy(clientWs, creds) {
         }
 
         if (googleWs.readyState === WebSocket.OPEN) {
-            googleWs.send(message);
+            safeSend(googleWs, message);
         } else {
             debugLog('🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: ' + (googleQueue.length + 1));
             googleQueue.push(message);
@@ -397,7 +410,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                     }
                 }
             };
-            geminiWs.send(JSON.stringify(setupMessage));
+            safeSend(geminiWs, JSON.stringify(setupMessage));
         });
 
         geminiWs.on('message', (data) => {
@@ -421,15 +434,15 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                                 }]
                             }
                         };
-                        geminiWs.send(JSON.stringify(toolResponse));
+                        safeSend(geminiWs, JSON.stringify(toolResponse));
                     }
                 }
             }
 
             if (response.serverContent?.turnComplete) {
-                if (shouldEndCall && ws.readyState === WebSocket.OPEN) {
+                if (shouldEndCall) {
                     console.log('☎️ KI ist fertig mit Sprechen. Sende Mark-Event an Twilio.');
-                    ws.send(JSON.stringify({
+                    safeSend(ws, JSON.stringify({
                         event: "mark",
                         streamSid: streamSid,
                         mark: {
@@ -484,7 +497,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                                 streamSid: streamSid,
                                 media: { payload: payloadBase64 }
                             };
-                            ws.send(JSON.stringify(twilioMessage));
+                            safeSend(ws, JSON.stringify(twilioMessage));
                             debugLog('Sent mu-law to Twilio. Payload length: ' + payloadBase64.length);
                             
                         } catch (e) {
@@ -495,7 +508,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                 }
             } else if (response.serverContent?.interrupted) {
                 console.log('🛑 User hat KI unterbrochen. Leere Twilio Audio-Puffer.');
-                ws.send(JSON.stringify({
+                safeSend(ws, JSON.stringify({
                     event: 'clear',
                     streamSid: streamSid
                 }));
@@ -563,7 +576,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                             }
                         }
                     };
-                    geminiWs.send(JSON.stringify(audioMessage));
+                    safeSend(geminiWs, JSON.stringify(audioMessage));
                     debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM 16kHz: ${pcmBase64.length}`);
                 } catch (e) {
                     // Audio conversion error
