@@ -106,6 +106,14 @@ Tippt der Benutzer in der Detailkarte einer Aufgabe auf "+ NEUER SCHRITT", klapp
 * **Ursache**: Die Sichtbarkeit des Zurück-Buttons hing von der Variable `selectedListName != null` ab. Bei einer Aktualisierung wird der Cache neu geladen und die Werte können kurzzeitig null sein.
 * **Lösung**: Die Sichtbarkeit wurde entkoppelt und hängt nun direkt von den Zustandsvariablen `isInsideList` oder `isEditing` ab, die während des Refreshes stabil bleiben. Der Titel greift stabil auf `(selectedListName ?: "Aufgaben").uppercase()` zurück.
 
+### 5.6 Navigation-Hänger beim Zurückkehren zur Listenübersicht (PendingIntent Caching)
+* **Problem**: Wenn der Benutzer sich in einer Aufgabenliste befindet (aber nicht im Editier-Modus einer bestimmten Aufgabe) und auf den Zurück-Button klickt, wechselt das Widget nicht zurück zur Listenübersicht.
+* **Ursache**: In `updateAppWidget` wurden je nach Zustand unterschiedliche `PendingIntent`s (mit unterschiedlichen Actions `ACTION_EXIT_EDIT_MODE` und `ACTION_BACK_TO_LISTS`) an dieselbe View-ID (`R.id.btn_tasks_back`) gebunden. Android's RemoteViews-Framework führt bei Updates partielle Merges durch und cached PendingIntents aggressiv. Dadurch wurde beim Klick auf den Zurück-Button weiterhin die alte Aktion (`ACTION_EXIT_EDIT_MODE`) gesendet, obwohl sich der interne Zustand bereits geändert hatte und der Intent eigentlich auf `ACTION_BACK_TO_LISTS` hätte wechseln müssen.
+* **Lösung**: Die Bindung der Klick-Aktionen wird vereinheitlicht. Der Zurück-Button erhält einen einzigen, statischen PendingIntent mit der Aktion `ACTION_BACK_TO_LISTS`. In der `onReceive`-Methode des Providers wird die tatsächliche Navigationsabsicht dynamisch anhand des aktuellen SharedPreferences-Zustands aufgelöst:
+  1. Ist eine `editingTaskId` vorhanden, wird der Editier-Modus verlassen (Entfernen der ID).
+  2. Ist keine `editingTaskId` vorhanden, aber eine `selectedListId`, wird die Liste verlassen (Zurückgehen zur Listenübersicht).
+  Dadurch entfallen fehleranfällige dynamische Wechsel der PendingIntent-Binds auf Betriebssystemebene.
+
 ---
 
 ## 6. Zusammenfassung der betroffenen Dateien
