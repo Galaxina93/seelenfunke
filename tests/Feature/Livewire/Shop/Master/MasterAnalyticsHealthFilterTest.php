@@ -112,29 +112,31 @@ class MasterAnalyticsHealthFilterTest extends TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
-    public function invalid_dates_trigger_validation_errors_and_do_not_crash()
+    public function invalid_dates_are_reverted_to_previous_valid_config_and_do_not_crash()
     {
         $admin = Admin::factory()->create();
 
-        // Test invalid start date
+        // Create default config first in DB
+        \App\Models\System\SystemCheckConfig::updateOrCreate(
+            ['user_id' => $admin->id],
+            [
+                'filter_type' => 'all',
+                'date_start' => '2026-01-01',
+                'date_end' => '2026-12-31',
+                'range_mode' => 'year'
+            ]
+        );
+
+        // Try setting invalid start date - it should revert to '2026-01-01' and '2026-12-31'
         Livewire::actingAs($admin, 'admin')
             ->test(MasterAnalytics::class)
-            ->set('dateStart', '')
-            ->assertHasErrors(['dateStart'])
             ->set('dateStart', 'invalid-date')
-            ->assertHasErrors(['dateStart']);
-
-        // Test invalid end date
-        Livewire::actingAs($admin, 'admin')
-            ->test(MasterAnalytics::class)
+            ->assertSet('dateStart', '2026-01-01')
+            ->assertSet('dateEnd', '2026-12-31')
+            ->assertHasNoErrors()
             ->set('dateEnd', '')
-            ->assertHasErrors(['dateEnd']);
-
-        // Test end date before start date
-        Livewire::actingAs($admin, 'admin')
-            ->test(MasterAnalytics::class)
-            ->set('dateStart', '2026-06-01')
-            ->set('dateEnd', '2026-05-31')
-            ->assertHasErrors(['dateEnd']);
+            ->assertSet('dateStart', '2026-01-01')
+            ->assertSet('dateEnd', '2026-12-31')
+            ->assertHasNoErrors();
     }
 }

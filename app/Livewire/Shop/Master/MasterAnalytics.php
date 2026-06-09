@@ -662,22 +662,33 @@ class MasterAnalytics extends Component
     public function updated($property)
     {
         if (in_array($property, ['dateStart', 'dateEnd', 'filterType'])) {
-            $this->validate([
+            $validator = \Illuminate\Support\Facades\Validator::make([
+                'dateStart' => $this->dateStart,
+                'dateEnd' => $this->dateEnd,
+            ], [
                 'dateStart' => 'required|date',
                 'dateEnd' => 'required|date|after_or_equal:dateStart',
-            ], [
-                'dateStart.required' => 'Bitte gib ein gültiges Startdatum an.',
-                'dateStart.date' => 'Das Startdatum ist ungültig.',
-                'dateEnd.required' => 'Bitte gib ein gültiges Enddatum an.',
-                'dateEnd.date' => 'Das Enddatum ist ungültig.',
-                'dateEnd.after_or_equal' => 'Das Enddatum muss nach oder gleich dem Startdatum sein.',
             ]);
 
-            // Normalisieren auf Y-m-d Format
-            $this->dateStart = \Carbon\Carbon::parse($this->dateStart)->format('Y-m-d');
-            $this->dateEnd = \Carbon\Carbon::parse($this->dateEnd)->format('Y-m-d');
+            if ($validator->fails()) {
+                // Bei Fehlern setzen wir auf den letzten gespeicherten Wert zurück (Auto-Revert)
+                $config = SystemCheckConfig::where('user_id', auth()->id())->first();
+                if ($config) {
+                    $this->dateStart = $config->date_start;
+                    $this->dateEnd = $config->date_end;
+                } else {
+                    $this->dateStart = now()->startOfYear()->format('Y-m-d');
+                    $this->dateEnd = now()->endOfYear()->format('Y-m-d');
+                }
+                $this->resetErrorBag();
+            } else {
+                // Normalisieren auf Y-m-d Format
+                $this->dateStart = \Carbon\Carbon::parse($this->dateStart)->format('Y-m-d');
+                $this->dateEnd = \Carbon\Carbon::parse($this->dateEnd)->format('Y-m-d');
 
-            $this->saveSettings('custom');
+                $this->saveSettings('custom');
+            }
+
             $this->loadStats(app(AnalyticsService::class));
         }
     }
