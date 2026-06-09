@@ -559,7 +559,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Vertrag & Lizenz',
                 'name'        => 'Gemini Ultra',
-                'amount'      => -139.99,
+                'amount'      => -219.99,
                 'interval'    => 1,
                 'start_date'  => '2026-04-01',
                 'is_business' => 1,
