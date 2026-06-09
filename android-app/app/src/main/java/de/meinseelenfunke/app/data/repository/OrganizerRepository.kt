@@ -627,9 +627,11 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 updateCachedTask(response.data)
                 Result.success(response.data)
             } else {
+                de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "uploadTaskFile failure: success=false")
                 Result.failure(Exception("Konnte Datei nicht hochladen."))
             }
         } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "uploadTaskFile exception: ${e.localizedMessage}", e)
             Result.failure(e)
         }
     }
@@ -641,9 +643,11 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 updateCachedTask(response.data)
                 Result.success(response.data)
             } else {
+                de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteTaskFile failure: success=false")
                 Result.failure(Exception("Konnte Datei nicht löschen."))
             }
         } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteTaskFile exception: ${e.localizedMessage}", e)
             Result.failure(e)
         }
     }

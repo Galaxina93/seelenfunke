@@ -29,6 +29,7 @@ data class ManagementTask(
     val is_completed: Boolean,
     val parent_title: String?,
     val relevant_from: String?,
+    val created_at: String? = null,
     val file_paths: List<String>? = null
 )
 
