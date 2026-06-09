@@ -41,12 +41,46 @@ class TasksWidgetViewsFactory(
     intent: Intent
 ) : RemoteViewsService.RemoteViewsFactory {
 
-    private val appWidgetId = intent.getIntExtra(
-        AppWidgetManager.EXTRA_APPWIDGET_ID,
-        AppWidgetManager.INVALID_APPWIDGET_ID
-    )
+    private val appWidgetId: Int = run {
+        var id = intent.getIntExtra(
+            AppWidgetManager.EXTRA_APPWIDGET_ID,
+            AppWidgetManager.INVALID_APPWIDGET_ID
+        )
+        if (id == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            val data = intent.data
+            if (data != null) {
+                try {
+                    val idParam = data.getQueryParameter("appWidgetId")
+                    if (idParam != null) {
+                        id = idParam.toInt()
+                    }
+                } catch (e: Exception) {}
+            }
+        }
+        id
+    }
 
     private var itemsList: List<TasksWidgetItem> = emptyList()
+
+    private fun getIconDrawableRes(iconName: String?): Int {
+        return when (iconName?.lowercase(Locale.ROOT)) {
+            "bookmark" -> R.drawable.ic_bookmark
+            "star" -> R.drawable.ic_star
+            "heart" -> R.drawable.ic_heart
+            "bolt" -> R.drawable.ic_bolt
+            "home" -> R.drawable.ic_home
+            "briefcase" -> R.drawable.ic_briefcase
+            "shopping-bag" -> R.drawable.ic_shopping_bag
+            "trophy" -> R.drawable.ic_trophy
+            "sun" -> R.drawable.ic_sun
+            "moon" -> R.drawable.ic_moon
+            "wrench" -> R.drawable.ic_wrench
+            "rocket-launch" -> R.drawable.ic_rocket_launch
+            "tag" -> R.drawable.ic_tag
+            "flag" -> R.drawable.ic_flag
+            else -> android.R.drawable.ic_menu_agenda
+        }
+    }
 
     override fun onCreate() {}
 
@@ -177,10 +211,8 @@ class TasksWidgetViewsFactory(
             is TasksWidgetItem.TaskList -> {
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_list_item)
                 views.setTextViewText(R.id.list_name, item.list.name)
-                views.setTextViewText(R.id.list_badge, item.openCount.toString())
-                views.setViewVisibility(R.id.list_badge, if (item.openCount > 0) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.btn_delete_list, View.VISIBLE)
-                views.setImageViewResource(R.id.list_icon, android.R.drawable.ic_menu_agenda)
+                views.setImageViewResource(R.id.list_icon, getIconDrawableRes(item.list.icon))
 
                 // Click action to open list
                 val fillInIntent = Intent().apply {
@@ -204,7 +236,6 @@ class TasksWidgetViewsFactory(
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_list_item)
                 views.setTextViewText(R.id.list_name, item.text)
                 views.setTextColor(R.id.list_name, 0xFFC5A059.toInt()) // Gold
-                views.setViewVisibility(R.id.list_badge, View.GONE)
                 views.setViewVisibility(R.id.btn_delete_list, View.GONE)
                 views.setImageViewResource(R.id.list_icon, android.R.drawable.ic_input_add)
 

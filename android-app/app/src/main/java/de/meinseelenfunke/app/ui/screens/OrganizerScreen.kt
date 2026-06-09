@@ -45,8 +45,20 @@ import androidx.compose.material.icons.filled.PlaylistAddCheck
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -758,6 +770,13 @@ fun TaskRow(
     val subtasks = allTasks.filter { it.parent_id == task.id }
     val completedSubtasksCount = subtasks.count { it.is_completed }
 
+    var isEditingTitle by remember { mutableStateOf(false) }
+    var editedTitle by remember { mutableStateOf(task.title) }
+
+    LaunchedEffect(task.title) {
+        editedTitle = task.title
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -785,35 +804,80 @@ fun TaskRow(
                         )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        LinkableText(
-                            text = task.title,
-                            baseColor = if (task.is_completed) Slate400 else Slate50,
-                            textDecoration = if (task.is_completed) TextDecoration.LineThrough else TextDecoration.None,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (!task.relevant_from.isNullOrBlank()) {
-                            val displayDate = try {
-                                val clean = task.relevant_from.take(10)
-                                val parts = clean.split("-")
-                                if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else clean
-                            } catch (e: Exception) {
-                                task.relevant_from
+                    if (isEditingTitle) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = editedTitle,
+                                onValueChange = { editedTitle = it },
+                                modifier = Modifier.weight(1f),
+                                textStyle = TextStyle(color = Slate50, fontSize = 14.sp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = listColor,
+                                    unfocusedBorderColor = Slate400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                singleLine = true
+                            )
+                            IconButton(onClick = {
+                                if (editedTitle.isNotBlank()) {
+                                    onUpdateTask(task.id, editedTitle, null, null, null)
+                                    isEditingTitle = false
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Speichern",
+                                    tint = listColor,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                            Text(
-                                text = "Relevant ab: $displayDate",
-                                fontSize = 11.sp,
-                                color = Gold,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
+                            IconButton(onClick = {
+                                editedTitle = task.title
+                                isEditingTitle = false
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Abbrechen",
+                                    tint = Slate400,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
-                        if (subtasks.isNotEmpty()) {
-                            Text(
-                                text = "$completedSubtasksCount von ${subtasks.size} Teilschritten",
-                                fontSize = 11.sp,
-                                color = Slate400,
-                                modifier = Modifier.padding(top = 2.dp)
+                    } else {
+                        Column(modifier = Modifier.weight(1f)) {
+                            LinkableText(
+                                text = task.title,
+                                baseColor = if (task.is_completed) Slate400 else Slate50,
+                                textDecoration = if (task.is_completed) TextDecoration.LineThrough else TextDecoration.None,
+                                fontWeight = FontWeight.Bold
                             )
+                            if (!task.relevant_from.isNullOrBlank()) {
+                                val displayDate = try {
+                                    val clean = task.relevant_from.take(10)
+                                    val parts = clean.split("-")
+                                    if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else clean
+                                } catch (e: Exception) {
+                                    task.relevant_from
+                                }
+                                Text(
+                                    text = "Relevant ab: $displayDate",
+                                    fontSize = 11.sp,
+                                    color = Gold,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                            if (subtasks.isNotEmpty()) {
+                                Text(
+                                    text = "$completedSubtasksCount von ${subtasks.size} Teilschritten",
+                                    fontSize = 11.sp,
+                                    color = Slate400,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -857,6 +921,17 @@ fun TaskRow(
                             imageVector = Icons.Default.CalendarToday,
                             contentDescription = "Startdatum festlegen",
                             tint = if (task.relevant_from.isNullOrBlank()) Slate400 else Gold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        isEditingTitle = true
+                        editedTitle = task.title
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Aufgabe bearbeiten",
+                            tint = Slate400,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -2913,11 +2988,24 @@ fun parseHexColor(hex: String?, fallback: Color = Gold): Color {
 
 fun mapIconStringToVector(iconName: String?): ImageVector {
     return when (iconName?.lowercase(Locale.ROOT)) {
+        "bookmark" -> Icons.Default.Bookmark
+        "star" -> Icons.Default.Star
+        "heart" -> Icons.Default.Favorite
+        "bolt" -> Icons.Default.Bolt
+        "home" -> Icons.Default.Home
+        "briefcase" -> Icons.Default.Work
+        "shopping-bag" -> Icons.Default.ShoppingBag
+        "trophy" -> Icons.Default.EmojiEvents
+        "sun" -> Icons.Default.WbSunny
+        "moon" -> Icons.Default.NightsStay
+        "wrench" -> Icons.Default.Build
+        "rocket-launch" -> Icons.Default.RocketLaunch
+        "tag" -> Icons.Default.LocalOffer
+        "flag" -> Icons.Default.Flag
+        // Keep older/fallback mappings
         "speaker-wave", "speaker", "volume-up" -> Icons.Default.Campaign
         "sparkles", "sparkle" -> Icons.Default.Star
         "cube", "box" -> Icons.Default.Bookmark
-        "flag" -> Icons.Default.Flag
-        "bookmark" -> Icons.Default.Bookmark
         "shopping-cart", "shopping" -> Icons.Default.ShoppingCart
         "calendar" -> Icons.Default.CalendarToday
         "list" -> Icons.Default.List

@@ -32,7 +32,20 @@ class TasksWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        var appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            val data = intent.data
+            if (data != null) {
+                try {
+                    val idParam = data.getQueryParameter("appWidgetId")
+                    if (idParam != null) {
+                        appWidgetId = idParam.toInt()
+                    }
+                } catch (e: Exception) {
+                    Log.e("TasksWidget", "Error parsing appWidgetId from URI: $data", e)
+                }
+            }
+        }
         Log.d("TasksWidget", "onReceive: action=${intent.action}, appWidgetId=$appWidgetId")
         super.onReceive(context, intent)
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -532,20 +545,12 @@ class TasksWidgetProvider : AppWidgetProvider() {
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_tasks_layout)
 
-            // Dummy background click listener to consume taps on the widget background
-            val dummyIntent = Intent(context, TasksWidgetProvider::class.java).apply {
-                action = ACTION_NONE
-            }
-            val pendingDummy = PendingIntent.getBroadcast(
-                context, appWidgetId * 10 + 309, dummyIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.tasks_widget_root, pendingDummy)
+            // Background click listener removed to prevent intercepting child view touches
 
             // Setup ListView Adapter
             val serviceIntent = Intent(context, TasksWidgetService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
+                data = Uri.parse("widget://tasks/service?appWidgetId=$appWidgetId")
             }
             views.setRemoteAdapter(R.id.tasks_widget_list, serviceIntent)
             views.setEmptyView(R.id.tasks_widget_list, R.id.tasks_widget_empty_view)
@@ -593,12 +598,13 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.tasks_widget_title, "SEELENFUNKE")
                 views.setTextViewText(R.id.tasks_widget_subtitle, "Aufgaben")
                 views.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
-                views.setTextViewText(R.id.tasks_widget_context, "BEARBEITEN: ${taskTitle.uppercase()}")
+                views.setTextViewText(R.id.tasks_widget_context, (selectedListName ?: "Aufgaben").uppercase())
 
                 // Back click PendingIntent (Broadcast) - exit edit mode
                 val backIntent = Intent(context, TasksWidgetProvider::class.java).apply {
                     action = ACTION_EXIT_EDIT_MODE
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    data = Uri.parse("widget://tasks/back/exit_edit?appWidgetId=$appWidgetId")
                 }
                 val pendingBack = PendingIntent.getBroadcast(
                     context, appWidgetId * 10 + 301, backIntent,
@@ -616,6 +622,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 val backIntent = Intent(context, TasksWidgetProvider::class.java).apply {
                     action = ACTION_BACK_TO_LISTS
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    data = Uri.parse("widget://tasks/back/to_lists?appWidgetId=$appWidgetId")
                 }
                 val pendingBack = PendingIntent.getBroadcast(
                     context, appWidgetId * 10 + 305, backIntent,
@@ -630,8 +637,9 @@ class TasksWidgetProvider : AppWidgetProvider() {
             }
 
             // Setup PendingIntent template for ListView item clicks (Broadcast)
+            // We omit appWidgetId extra from template to avoid merging conflicts on some versions
             val clickIntent = Intent(context, TasksWidgetProvider::class.java).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                data = Uri.parse("widget://tasks/click?appWidgetId=$appWidgetId")
             }
             val clickPendingIntent = PendingIntent.getBroadcast(
                 context, appWidgetId * 10 + 302, clickIntent,
@@ -643,6 +651,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
             val refreshIntent = Intent(context, TasksWidgetProvider::class.java).apply {
                 action = ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                data = Uri.parse("widget://tasks/refresh?appWidgetId=$appWidgetId")
             }
             val pendingRefresh = PendingIntent.getBroadcast(
                 context, appWidgetId * 10 + 303, refreshIntent,

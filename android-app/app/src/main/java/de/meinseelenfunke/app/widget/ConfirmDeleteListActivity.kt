@@ -147,19 +147,10 @@ class ConfirmDeleteListActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "LISTE LÖSCHEN?",
-                        color = Gold,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.1.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Möchtest du $listName wirklich löschen?\nAlle Aufgaben darin gehen verloren.",
+                        text = "Wirklich löschen?",
                         color = Slate50,
-                        fontSize = 13.sp,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     )

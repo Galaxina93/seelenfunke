@@ -31,21 +31,7 @@
         android:singleLine="true"
         android:ellipsize="end" />
 
-    <!-- Open Tasks Count Badge -->
-    <TextView
-        android:id="@+id/list_badge"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@android:drawable/toast_frame"
-        android:textColor="#F8FAFC"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:paddingStart="6dp"
-        android:paddingEnd="6dp"
-        android:paddingTop="2dp"
-        android:paddingBottom="2dp"
-        android:gravity="center"
-        android:text="0" />
+
 
     <ImageView
         android:id="@+id/btn_delete_list"
