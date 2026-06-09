@@ -8,18 +8,24 @@ use App\Models\Management\ManagementTask as TaskModel;
 use App\Models\Management\ManagementTaskList;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use App\Livewire\Traits\WithDepartmentTheming;
 
 #[Layout('components.layouts.backend_layout')]
 class ManagementTask extends Component
 {
     use WithDepartmentTheming;
+    use WithFileUploads;
 
     public string $themingDepartment = 'Leitung';
 
     public $search = '';
     public $selectedListId = null;
     public $showArchive = false;
+
+    // File Attachments State
+    public $taskFilesUpload;
+    public ?string $uploadingTaskId = null;
 
     // Inline Creation State
     public $isAddingList = false;
@@ -155,7 +161,54 @@ class ManagementTask extends Component
 
     public function deleteTask($id)
     {
-        TaskModel::destroy($id);
+        $task = TaskModel::find($id);
+        if ($task) {
+            if (!empty($task->file_paths)) {
+                foreach ($task->file_paths as $path) {
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                    }
+                }
+            }
+            $task->delete();
+        }
+    }
+
+    public function updatedTaskFilesUpload()
+    {
+        if ($this->uploadingTaskId && $this->taskFilesUpload) {
+            $task = TaskModel::find($this->uploadingTaskId);
+            if ($task) {
+                $files = is_array($this->taskFilesUpload) ? $this->taskFilesUpload : [$this->taskFilesUpload];
+                $existing = $task->file_paths ?? [];
+                
+                foreach ($files as $file) {
+                    $path = $file->store('leitung/tasks/attachments', 'local');
+                    $existing[] = $path;
+                }
+                
+                $task->update(['file_paths' => $existing]);
+                session()->flash('success', 'Datei hochgeladen.');
+            }
+            $this->reset(['taskFilesUpload', 'uploadingTaskId']);
+        }
+    }
+
+    public function deleteTaskFile($taskId, $fileIndex)
+    {
+        $task = TaskModel::find($taskId);
+        if ($task) {
+            $files = $task->file_paths ?? [];
+            if (isset($files[$fileIndex])) {
+                $path = $files[$fileIndex];
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                    \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                }
+                unset($files[$fileIndex]);
+                $task->update(['file_paths' => array_values($files)]);
+                session()->flash('success', 'Datei gelöscht.');
+            }
+        }
     }
 
     public function updateTaskOrder($orderedIds)

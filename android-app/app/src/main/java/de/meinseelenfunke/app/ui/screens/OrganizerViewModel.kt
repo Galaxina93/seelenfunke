@@ -151,6 +151,22 @@ class OrganizerViewModel : ViewModel() {
         }
     }
 
+    fun uploadTaskFile(id: String, fileBytes: ByteArray, fileName: String, mimeType: String) {
+        viewModelScope.launch {
+            repository.uploadTaskFile(id, fileBytes, fileName, mimeType).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+            }
+        }
+    }
+
+    fun deleteTaskFile(id: String, filePath: String) {
+        viewModelScope.launch {
+            repository.deleteTaskFile(id, filePath).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+            }
+        }
+    }
+
     fun deleteTaskList(id: String) {
         viewModelScope.launch {
             repository.deleteTaskList(id).onSuccess {

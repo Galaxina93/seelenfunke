@@ -198,6 +198,13 @@
             android:taskAffinity=""
             android:excludeFromRecents="true" />
 
+        <activity
+            android:name=".widget.DatePickerActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
         <receiver
             android:name=".receiver.CalendarAlarmReceiver"
             android:exported="false" />

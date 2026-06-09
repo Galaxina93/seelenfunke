@@ -14,6 +14,7 @@ import com.google.gson.reflect.TypeToken
 import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
+import de.meinseelenfunke.app.util.DateUtils
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -62,6 +63,8 @@ class TasksWidgetViewsFactory(
     }
 
     private var itemsList: List<TasksWidgetItem> = emptyList()
+    private var inlineEditingId: String? = null
+    private var inlineEditingField: String? = null
 
     private fun getIconDrawableRes(iconName: String?): Int {
         return when (iconName?.lowercase(Locale.ROOT)) {
@@ -89,6 +92,8 @@ class TasksWidgetViewsFactory(
         val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
         val selectedListId = sharedPrefs.getString("widget_tasks_selected_list_id_$appWidgetId", null)
         val editingTaskId = sharedPrefs.getString("widget_tasks_editing_task_id_$appWidgetId", null)
+        inlineEditingId = sharedPrefs.getString("widget_tasks_inline_editing_id_$appWidgetId", null)
+        inlineEditingField = sharedPrefs.getString("widget_tasks_inline_editing_field_$appWidgetId", null)
 
         val listsJson = sharedPrefs.getString("task_lists_cache", null)
         val tasksJson = sharedPrefs.getString("tasks_cache", null)
@@ -289,89 +294,199 @@ class TasksWidgetViewsFactory(
             is TasksWidgetItem.ParentTask -> {
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_task_item)
                 val task = item.task
+                val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
 
-                views.setViewVisibility(R.id.task_checkbox_container, View.VISIBLE)
-                views.setViewVisibility(R.id.task_meta, View.VISIBLE)
-                views.setViewVisibility(R.id.task_priority_container, View.VISIBLE)
+                val isThisTaskEditing = task.id == inlineEditingId
+                val field = if (isThisTaskEditing) inlineEditingField else null
 
-                // Set Title
-                if (task.is_completed) {
-                    val spannable = SpannableString(task.title)
-                    spannable.setSpan(StrikethroughSpan(), 0, task.title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    views.setTextViewText(R.id.task_title, spannable)
-                    views.setTextColor(R.id.task_title, 0xFF94A3B8.toInt()) // slate-400
+                if (isThisTaskEditing && field != null) {
+                    // Hide normal views, checkbox, priority, gear settings
+                    views.setViewVisibility(R.id.normal_task_details_container, View.GONE)
+                    views.setViewVisibility(R.id.task_checkbox_container, View.GONE)
+                    views.setViewVisibility(R.id.task_priority_container, View.GONE)
+                    views.setViewVisibility(R.id.task_edit_button_container, View.GONE)
+
+                    if (field == "title") {
+                        views.setViewVisibility(R.id.inline_edit_title_container, View.VISIBLE)
+                        views.setViewVisibility(R.id.inline_edit_date_container, View.GONE)
+
+                        val tempTitle = sharedPrefs.getString("widget_tasks_inline_editing_title_val_$appWidgetId", "") ?: ""
+                        val displayTitle = if (tempTitle.isEmpty()) "[Tippen zum Schreiben]" else tempTitle
+                        views.setTextViewText(R.id.task_title_edit_button, displayTitle)
+                        views.setTextColor(R.id.task_title_edit_button, if (tempTitle.isEmpty()) 0xFF94A3B8.toInt() else 0xFFF8FAFC.toInt())
+
+                        // Click to open text input
+                        val titleInputIntent = Intent().apply {
+                            action = TasksWidgetProvider.ACTION_OPEN_TEXT_INPUT
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                            putExtra("title", "Titel der Aufgabe")
+                            putExtra("pref_key", "widget_tasks_inline_editing_title_val_$appWidgetId")
+                        }
+                        views.setOnClickFillInIntent(R.id.task_title_edit_button, titleInputIntent)
+
+                        // Save button
+                        val saveIntent = Intent().apply {
+                            action = TasksWidgetProvider.ACTION_SAVE_INLINE_TITLE
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                            putExtra("task_id", task.id)
+                        }
+                        views.setOnClickFillInIntent(R.id.btn_save_inline_title, saveIntent)
+
+                        // Cancel button
+                        val cancelIntent = Intent().apply {
+                            action = TasksWidgetProvider.ACTION_CANCEL_INLINE_EDIT
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        }
+                        views.setOnClickFillInIntent(R.id.btn_cancel_inline_title, cancelIntent)
+
+                    } else if (field == "date") {
+                        views.setViewVisibility(R.id.inline_edit_title_container, View.GONE)
+                        views.setViewVisibility(R.id.inline_edit_date_container, View.VISIBLE)
+
+                        val tempDate = sharedPrefs.getString("widget_tasks_inline_editing_date_val_$appWidgetId", null)
+                        val dateText = if (!tempDate.isNullOrBlank()) {
+                            try {
+                                val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(tempDate)
+                                if (parsed != null) {
+                                    SimpleDateFormat("dd.MM.yyyy", Locale.GERMANY).format(parsed)
+                                } else {
+                                    tempDate
+                                }
+                            } catch (e: Exception) {
+                                tempDate
+                            }
+                        } else {
+                            "Kein Datum"
+                        }
+                        views.setTextViewText(R.id.task_date_edit_button, dateText)
+
+                        // Click to open date picker dialog
+                        val datePickerIntent = Intent().apply {
+                            action = TasksWidgetProvider.ACTION_OPEN_DATE_PICKER
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                            putExtra("pref_key", "widget_tasks_inline_editing_date_val_$appWidgetId")
+                            putExtra("initial_date", tempDate ?: DateUtils.parseUtcToLocalDateString(task.relevant_from))
+                        }
+                        views.setOnClickFillInIntent(R.id.task_date_edit_button, datePickerIntent)
+
+                        // Save button
+                        val saveIntent = Intent().apply {
+                            action = TasksWidgetProvider.ACTION_SAVE_INLINE_DATE
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                            putExtra("task_id", task.id)
+                        }
+                        views.setOnClickFillInIntent(R.id.btn_save_inline_date, saveIntent)
+
+                        // Cancel button
+                        val cancelIntent = Intent().apply {
+                            action = TasksWidgetProvider.ACTION_CANCEL_INLINE_EDIT
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        }
+                        views.setOnClickFillInIntent(R.id.btn_cancel_inline_date, cancelIntent)
+                    }
                 } else {
-                    views.setTextViewText(R.id.task_title, task.title)
-                    views.setTextColor(R.id.task_title, 0xFFF8FAFC.toInt()) // slate-50
-                }
+                    // Normal state rendering
+                    views.setViewVisibility(R.id.normal_task_details_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.task_checkbox_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.task_priority_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.task_edit_button_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.inline_edit_title_container, View.GONE)
+                    views.setViewVisibility(R.id.inline_edit_date_container, View.GONE)
 
-                // Set Checkbox icon
-                if (task.is_completed) {
-                    views.setImageViewResource(R.id.task_checkbox, R.drawable.ic_checkbox_checked)
-                } else {
-                    views.setImageViewResource(R.id.task_checkbox, R.drawable.ic_checkbox_unchecked)
-                }
+                    // Set Title
+                    if (task.is_completed) {
+                        val spannable = SpannableString(task.title)
+                        spannable.setSpan(StrikethroughSpan(), 0, task.title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        views.setTextViewText(R.id.task_title, spannable)
+                        views.setTextColor(R.id.task_title, 0xFF94A3B8.toInt()) // slate-400
+                    } else {
+                        views.setTextViewText(R.id.task_title, task.title)
+                        views.setTextColor(R.id.task_title, 0xFFF8FAFC.toInt()) // slate-50
+                    }
 
-                // Click pending intent on checkbox container to toggle
-                val toggleIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_TOGGLE_TASK
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("task_id", task.id)
-                }
-                views.setOnClickFillInIntent(R.id.task_checkbox_container, toggleIntent)
+                    // Tapping title opens inline title editor
+                    val inlineEditTitleIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_INLINE_EDIT_TITLE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                        putExtra("task_title", task.title)
+                    }
+                    views.setOnClickFillInIntent(R.id.task_title, inlineEditTitleIntent)
 
-                // Set Metadata text (Priority, Offen seit, Relevant ab)
-                val metaBuilder = StringBuilder()
-                val priorityLabel = when (task.priority?.lowercase(Locale.ROOT)) {
-                    "hoch" -> "HOCH"
-                    "mittel" -> "MITTEL"
-                    else -> "NIEDRIG"
-                }
-                metaBuilder.append(priorityLabel)
+                    // Set Checkbox icon
+                    if (task.is_completed) {
+                        views.setImageViewResource(R.id.task_checkbox, R.drawable.ic_checkbox_checked)
+                    } else {
+                        views.setImageViewResource(R.id.task_checkbox, R.drawable.ic_checkbox_unchecked)
+                    }
 
-                val offen = formatOffenSeit(task.created_at)
-                if (offen.isNotEmpty()) {
-                    metaBuilder.append(" • ").append(offen)
-                }
+                    // Click pending intent on checkbox container to toggle
+                    val toggleIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_TOGGLE_TASK
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.task_checkbox_container, toggleIntent)
 
-                val relevant = formatRelevantAb(task.relevant_from)
-                if (relevant.isNotEmpty()) {
-                    metaBuilder.append(" • ").append(relevant)
-                }
-                views.setTextViewText(R.id.task_meta, metaBuilder.toString())
+                    // Set Metadata text (Priority, Offen seit, Relevant ab)
+                    val metaBuilder = StringBuilder()
+                    val priorityLabel = when (task.priority?.lowercase(Locale.ROOT)) {
+                        "hoch" -> "HOCH"
+                        "mittel" -> "MITTEL"
+                        else -> "NIEDRIG"
+                    }
+                    metaBuilder.append(priorityLabel)
 
-                // Set Priority indicator bar color
-                val priorityColor = when (task.priority?.lowercase(Locale.ROOT)) {
-                    "hoch" -> 0xFFEF4444.toInt() // Red-500
-                    "mittel" -> 0xFFF97316.toInt() // Orange-500
-                    else -> 0xFF64748B.toInt() // Slate-500
-                }
-                views.setInt(R.id.task_priority_bar, "setBackgroundColor", priorityColor)
+                    val offen = formatOffenSeit(task.created_at)
+                    if (offen.isNotEmpty()) {
+                        metaBuilder.append(" • ").append(offen)
+                    }
 
-                // Tapping priority container cycles priority directly
-                val cycleIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_CYCLE_PRIORITY
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("task_id", task.id)
-                }
-                views.setOnClickFillInIntent(R.id.task_priority_container, cycleIntent)
+                    val relevant = formatRelevantAb(task.relevant_from)
+                    if (relevant.isNotEmpty()) {
+                        metaBuilder.append(" • ").append(relevant)
+                    }
+                    views.setTextViewText(R.id.task_meta, metaBuilder.toString())
 
-                // Tapping metadata cycles relevant date directly
-                val cycleDateIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_CYCLE_DATE
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("task_id", task.id)
-                }
-                views.setOnClickFillInIntent(R.id.task_meta, cycleDateIntent)
+                    // Set Priority indicator bar color
+                    val priorityColor = when (task.priority?.lowercase(Locale.ROOT)) {
+                        "hoch" -> 0xFFEF4444.toInt() // Red-500
+                        "mittel" -> 0xFFF97316.toInt() // Orange-500
+                        else -> 0xFF64748B.toInt() // Slate-500
+                    }
+                    views.setInt(R.id.task_priority_bar, "setBackgroundColor", priorityColor)
 
-                // Clicking the text/body or gear icon opens the edit dialog
-                val editIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_EDIT_TASK
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("task_id", task.id)
+                    // Tapping priority container cycles priority directly
+                    val cycleIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_CYCLE_PRIORITY
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.task_priority_container, cycleIntent)
+
+                    // Tapping metadata opens inline date editor!
+                    val inlineEditDateIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_INLINE_EDIT_DATE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                        putExtra("task_date", DateUtils.parseUtcToLocalDateString(task.relevant_from))
+                    }
+                    views.setOnClickFillInIntent(R.id.task_meta, inlineEditDateIntent)
+
+                    // Clicking the gear icon opens the full edit dialog
+                    val editIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_EDIT_TASK
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.task_edit_button_container, editIntent)
+
+                    // Root click is set to none so it does not intercept child clicks
+                    val noneIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_NONE
+                    }
+                    views.setOnClickFillInIntent(R.id.widget_tasks_item_root, noneIntent)
                 }
-                views.setOnClickFillInIntent(R.id.widget_tasks_item_root, editIntent)
-                views.setOnClickFillInIntent(R.id.task_edit_button_container, editIntent)
                 views
             }
             is TasksWidgetItem.AddNewTaskDummy -> {
@@ -516,16 +631,68 @@ class TasksWidgetViewsFactory(
             is TasksWidgetItem.Subtask -> {
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_subtask_item)
                 val subtask = item.task
+                val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
 
-                // Set Title
-                if (subtask.is_completed) {
-                    val spannable = SpannableString(subtask.title)
-                    spannable.setSpan(StrikethroughSpan(), 0, subtask.title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    views.setTextViewText(R.id.subtask_title, spannable)
-                    views.setTextColor(R.id.subtask_title, 0xFF64748B.toInt()) // slate-500
+                val isThisTaskEditing = subtask.id == inlineEditingId
+                val field = if (isThisTaskEditing) inlineEditingField else null
+
+                if (isThisTaskEditing && field == "title") {
+                    views.setViewVisibility(R.id.subtask_title, View.GONE)
+                    views.setViewVisibility(R.id.subtask_edit_button_container, View.GONE)
+                    views.setViewVisibility(R.id.subtask_inline_edit_title_container, View.VISIBLE)
+
+                    val tempTitle = sharedPrefs.getString("widget_tasks_inline_editing_title_val_$appWidgetId", "") ?: ""
+                    val displayTitle = if (tempTitle.isEmpty()) "[Tippen zum Schreiben]" else tempTitle
+                    views.setTextViewText(R.id.subtask_title_edit_button, displayTitle)
+                    views.setTextColor(R.id.subtask_title_edit_button, if (tempTitle.isEmpty()) 0xFF94A3B8.toInt() else 0xFFF8FAFC.toInt())
+
+                    // Click to open text input
+                    val titleInputIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_OPEN_TEXT_INPUT
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("title", "Titel des Unter-Schritts")
+                        putExtra("pref_key", "widget_tasks_inline_editing_title_val_$appWidgetId")
+                    }
+                    views.setOnClickFillInIntent(R.id.subtask_title_edit_button, titleInputIntent)
+
+                    // Save button
+                    val saveIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_SAVE_INLINE_TITLE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", subtask.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.btn_save_subtask_inline_title, saveIntent)
+
+                    // Cancel button
+                    val cancelIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_CANCEL_INLINE_EDIT
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    }
+                    views.setOnClickFillInIntent(R.id.btn_cancel_subtask_inline_title, cancelIntent)
                 } else {
-                    views.setTextViewText(R.id.subtask_title, subtask.title)
-                    views.setTextColor(R.id.subtask_title, 0xFFE2E8F0.toInt()) // slate-200
+                    views.setViewVisibility(R.id.subtask_title, View.VISIBLE)
+                    views.setViewVisibility(R.id.subtask_edit_button_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.subtask_inline_edit_title_container, View.GONE)
+
+                    if (subtask.is_completed) {
+                        val spannable = SpannableString(subtask.title)
+                        spannable.setSpan(StrikethroughSpan(), 0, subtask.title.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        views.setTextViewText(R.id.subtask_title, spannable)
+                        views.setTextColor(R.id.subtask_title, 0xFF64748B.toInt()) // slate-500
+                    } else {
+                        views.setTextViewText(R.id.subtask_title, subtask.title)
+                        views.setTextColor(R.id.subtask_title, 0xFFE2E8F0.toInt()) // slate-200
+                    }
+
+                    // Tapping title or gear button opens inline title editor for subtask
+                    val inlineEditTitleIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_INLINE_EDIT_TITLE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", subtask.id)
+                        putExtra("task_title", subtask.title)
+                    }
+                    views.setOnClickFillInIntent(R.id.subtask_title, inlineEditTitleIntent)
+                    views.setOnClickFillInIntent(R.id.subtask_edit_button_container, inlineEditTitleIntent)
                 }
 
                 // Set Checkbox icon
@@ -543,22 +710,77 @@ class TasksWidgetViewsFactory(
                 }
                 views.setOnClickFillInIntent(R.id.subtask_checkbox_container, toggleIntent)
 
-                // Clicking subtask row body or gear icon opens parent task's edit dialog
-                val editParentIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_EDIT_TASK
+                // Click pending intent on delete button container to delete subtask directly
+                val deleteIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_DELETE_TASK
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra("task_id", subtask.parent_id ?: subtask.id)
+                    putExtra("task_id", subtask.id)
                 }
-                views.setOnClickFillInIntent(R.id.widget_subtask_item_root, editParentIntent)
-                views.setOnClickFillInIntent(R.id.subtask_edit_button_container, editParentIntent)
+                views.setOnClickFillInIntent(R.id.subtask_delete_button_container, deleteIntent)
+
+                // Root click is set to none so it does not intercept child clicks
+                val noneIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_NONE
+                }
+                views.setOnClickFillInIntent(R.id.widget_subtask_item_root, noneIntent)
                 views
             }
             is TasksWidgetItem.EditControls -> {
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_edit_control)
                 val task = item.task
 
-                // Set Title
-                views.setTextViewText(R.id.edit_task_title, task.title)
+                // Set Title (Normal & Inline Edit state binding)
+                val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                val isThisTaskEditing = task.id == inlineEditingId
+                val field = if (isThisTaskEditing) inlineEditingField else null
+
+                if (isThisTaskEditing && field == "title") {
+                    views.setViewVisibility(R.id.edit_task_title_normal_container, View.GONE)
+                    views.setViewVisibility(R.id.edit_task_title_inline_container, View.VISIBLE)
+
+                    val tempTitle = sharedPrefs.getString("widget_tasks_inline_editing_title_val_$appWidgetId", "") ?: ""
+                    val displayTitle = if (tempTitle.isEmpty()) "[Tippen zum Schreiben]" else tempTitle
+                    views.setTextViewText(R.id.edit_task_title_edit_button, displayTitle)
+                    views.setTextColor(R.id.edit_task_title_edit_button, if (tempTitle.isEmpty()) 0xFF94A3B8.toInt() else 0xFFF8FAFC.toInt())
+
+                    // Click to open text input
+                    val titleInputIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_OPEN_TEXT_INPUT
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("title", "Titel der Aufgabe")
+                        putExtra("pref_key", "widget_tasks_inline_editing_title_val_$appWidgetId")
+                    }
+                    views.setOnClickFillInIntent(R.id.edit_task_title_edit_button, titleInputIntent)
+
+                    // Save button
+                    val saveIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_SAVE_INLINE_TITLE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                    }
+                    views.setOnClickFillInIntent(R.id.btn_save_edit_task_title, saveIntent)
+
+                    // Cancel button
+                    val cancelIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_CANCEL_INLINE_EDIT
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    }
+                    views.setOnClickFillInIntent(R.id.btn_cancel_edit_task_title, cancelIntent)
+                } else {
+                    views.setViewVisibility(R.id.edit_task_title_normal_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.edit_task_title_inline_container, View.GONE)
+
+                    views.setTextViewText(R.id.edit_task_title, task.title)
+
+                    // Tapping title opens inline title editor
+                    val inlineEditTitleIntent = Intent().apply {
+                        action = TasksWidgetProvider.ACTION_INLINE_EDIT_TITLE
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        putExtra("task_id", task.id)
+                        putExtra("task_title", task.title)
+                    }
+                    views.setOnClickFillInIntent(R.id.edit_task_title, inlineEditTitleIntent)
+                }
 
                 // Highlight Selected Priority
                 val currentPrio = task.priority?.lowercase(Locale.ROOT) ?: "niedrig"
@@ -633,15 +855,14 @@ class TasksWidgetViewsFactory(
                     putExtra("priority", "niedrig")
                 }
                 views.setOnClickFillInIntent(R.id.btn_prio_niedrig, setPrioNiedrigIntent)
-
-                // Click action for Date Cycle
-                val cycleDateIntent = Intent().apply {
-                    action = TasksWidgetProvider.ACTION_CYCLE_DATE
+                // Click action to open Date Picker dialog to configure date
+                val datePickerIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_OPEN_DATE_PICKER
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                     putExtra("task_id", task.id)
+                    putExtra("initial_date", DateUtils.parseUtcToLocalDateString(task.relevant_from))
                 }
-                views.setOnClickFillInIntent(R.id.btn_edit_date, cycleDateIntent)
-
+                views.setOnClickFillInIntent(R.id.btn_edit_date, datePickerIntent)
                 // Click action for Clear Date
                 val clearDateIntent = Intent().apply {
                     action = TasksWidgetProvider.ACTION_CLEAR_DATE
@@ -657,6 +878,22 @@ class TasksWidgetViewsFactory(
                     putExtra("task_id", task.id)
                 }
                 views.setOnClickFillInIntent(R.id.btn_add_subtask, addSubtaskIntent)
+
+                // Files attachment count & click action
+                val filePaths = task.file_paths ?: emptyList()
+                val filesCountText = if (filePaths.isEmpty()) {
+                    "Keine Dateien"
+                } else {
+                    "${filePaths.size} Datei(en) verwalten"
+                }
+                views.setTextViewText(R.id.txt_files_count, filesCountText)
+
+                val manageFilesIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_MANAGE_FILES
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra("task_id", task.id)
+                }
+                views.setOnClickFillInIntent(R.id.btn_manage_files, manageFilesIntent)
 
                 // Click action for Delete Task
                 val deleteTaskIntent = Intent().apply {

@@ -21,12 +21,14 @@ class ManagementTask extends Model
         'priority',
         'ai_plan',
         'is_archived',
-        'relevant_from'
+        'relevant_from',
+        'file_paths'
     ];
 
     protected $casts = [
         'is_completed' => 'boolean',
         'relevant_from' => 'datetime',
+        'file_paths' => 'array',
     ];
 
     /**

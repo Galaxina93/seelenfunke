@@ -68,12 +68,21 @@ Tippt der Benutzer auf "+ NEUE LISTE HINZUFÜGEN" in der Listenübersicht, öffn
 * Sie zeigt ein Grid der 14 auswählbaren Icons, bei dem das gewählte Icon gold hervorgehoben wird.
 * Beim Speichern wird die Liste über den Service erstellt und das Widget aktualisiert.
 
-### 4.4 Hinzufügen von Unteraufgaben (Subtasks)
-Tippt der Benutzer in der Detailkarte einer Aufgabe auf "+ NEUER SCHRITT", klappt das Formular **vollständig inline** direkt im Widget-Layout ([widget_tasks_add_subtask_control.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/layout/widget_tasks_add_subtask_control.xml)) auf:
-* Das Eingabefeld zeigt initial "[Tippen zum Schreiben]" an.
-* Durch Tippen auf diesen Text wird ein minimalistischer, transparenter Dialog ([TextInputActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TextInputActivity.kt)) eingeblendet, um die Tastatur zu fokussieren und den Text einzugeben.
-* Der eingegebene Titel wird direkt im Inline-Formular angezeigt.
-* Durch Tippen auf "SPEICHERN" wird der neue Unter-Schritt über die API angelegt, die Liste aktualisiert und das Inline-Erstellungs-Layout schließt sich automatisch. Tapping "ABBRECHEN" klappt das Formular ohne Speichern wieder ein.
+### 4.5 Inline-Bearbeitung des Aufgabentitels
+* **Ablauf**: Tippt der Benutzer auf den Aufgabentitel in der Hauptliste, den Titel der aktiven Aufgabe auf der Editier-Kontrollkarte oder auf den Titel bzw. das Zahnrad-Symbol einer Unteraufgabe (Subtask), wechselt das Element direkt in den Inline-Editier-Modus.
+* **Interaktion**:
+  * Anstelle des Texts wird das Inline-Eingabefeld bzw. die Bearbeitungs-Schaltfläche angezeigt.
+  * Durch Tippen auf das Eingabefeld öffnet sich das kleine, halbdurchsichtige Tastatur-Popup (`TextInputActivity`), um die Texteingabe zu erfassen (mit der Schaltfläche „Ok“ zum Bestätigen).
+  * Rechts daneben befinden sich die goldene Haken-Schaltfläche (✓) zum Speichern und die rote Kreuz-Schaltfläche (✗) zum Abbrechen.
+  * Nach der Bestätigung (✓) wird das geänderte Feld über die API persistiert, der Cache aktualisiert und die Anzeige wechselt zurück in den Normalzustand.
+
+### 4.6 Inline-Datumsauswahl (Relevant ab)
+* **Ablauf**: Tippt der Benutzer auf die Zeile mit den Metadaten ("NIEDRIG • Offen seit ...") einer Hauptaufgabe, wechselt das Element in die Inline-Datumsauswahl.
+* **Interaktion**:
+  * Der Benutzer sieht den aktuellen Fälligkeitswert als Schaltfläche neben den Haken (✓) und Kreuz (✗) Buttons.
+  * Durch Klicken auf den Fälligkeitswert öffnet sich das Compose-Overlay (`DatePickerActivity`) mit Schnellwahloptionen: **Heute, Morgen, In 3 Tagen, In 7 Tagen, Kein Datum** oder **Anderes...** (welches den nativen Android-Datumswähler öffnet).
+  * Nach Auswahl von z.B. "Morgen" und Klicken auf „Ok“ (ehemals „Übernehmen“) im Dialog ändert sich der temporäre Wert auf der Widget-Zeile.
+  * Erst durch Klick auf das Häkchen (✓) wird das Datum über die API persistiert; bei Klick auf das Kreuz (✗) wird der vorherige Zustand wiederhergestellt.
 
 ---
 
@@ -102,7 +111,7 @@ Tippt der Benutzer in der Detailkarte einer Aufgabe auf "+ NEUER SCHRITT", klapp
 * **Lösung**: Der Card-Modifier wurde in allen betroffenen Aktivitäten durch ein standardmäßiges `.clickable {}` (ohne `enabled = false`) ersetzt. Dies schluckt Klicks auf den Kartenhintergrund (sodass sie nicht den darunterliegenden Schließen-Listener der Box triggern), hält aber die inneren Elemente voll funktionsfähig.
 
 ### 5.5 Verschwinden und Flackern des Zurück-Buttons bei Aktualisierung (Refresh)
-* **Problem**: Drückte man den Aktualisieren-Button (oben rechts) im Edit-Modus oder in einer Liste, flackerte das Zurück-Icon kurz und verschwand dann dauerhaft.
+* **Problem**: Drückte man den Aktualisieren-Button (oben rechts) im Edit-Modus oder in einer Liste, flackerte das Zurök-Icon kurz und verschwand dann dauerhaft.
 * **Ursache**: Die Sichtbarkeit des Zurück-Buttons hing von der Variable `selectedListName != null` ab. Bei einer Aktualisierung wird der Cache neu geladen und die Werte können kurzzeitig null sein.
 * **Lösung**: Die Sichtbarkeit wurde entkoppelt und hängt nun direkt von den Zustandsvariablen `isInsideList` oder `isEditing` ab, die während des Refreshes stabil bleiben. Der Titel greift stabil auf `(selectedListName ?: "Aufgaben").uppercase()` zurück.
 
@@ -114,13 +123,18 @@ Tippt der Benutzer in der Detailkarte einer Aufgabe auf "+ NEUER SCHRITT", klapp
   2. Ist keine `editingTaskId` vorhanden, aber eine `selectedListId`, wird die Liste verlassen (Zurückgehen zur Listenübersicht).
   Dadurch entfallen fehleranfällige dynamische Wechsel der PendingIntent-Binds auf Betriebssystemebene.
 
+### 5.7 Cache- und Zustands-Konsolidierung für den Zurück-Button bei Inline-Editier-Modi
+* **Problem**: Im Inline-Editier-Modus für Titel oder Datum führte der Klick auf den globalen Zurück-Button des Widgets (oben links) fälschlicherweise zum Verlassen der gesamten Liste.
+* **Ursache**: Die Zustandsprüfung in `ACTION_BACK_TO_LISTS` prüfte nur `editingTaskId` (Detailkarten-Modus) und ging ansonsten davon aus, dass die Liste verlassen werden soll.
+* **Lösung**: Die `ACTION_BACK_TO_LISTS`-Behandlung in `TasksWidgetProvider.kt` wurde erweitert. Es wird nun auch geprüft, ob `inlineEditingId` in den SharedPreferences gesetzt ist. Wenn ja, werden alle inline-spezifischen Keys (`widget_tasks_inline_editing_*`) gelöscht und der Inline-Editier-Modus wird verlassen, während der Benutzer in der Aufgabenliste bleibt. Erst bei einem erneuten Klick wird die Liste verlassen.
+
 ---
 
 ## 6. Zusammenfassung der betroffenen Dateien
 
 * **Widget-Provider & Logik**:
-  * [TasksWidgetProvider.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TasksWidgetProvider.kt): Steuert Klick-Broadcasts, Cache-Updates, Navigationsübergänge und Stabilität des Zurück-Buttons.
-  * [TasksWidgetService.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TasksWidgetService.kt): Fabrikklasse zur Erstellung der scrollbaren Zeilen im Widget.
+  * [TasksWidgetProvider.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TasksWidgetProvider.kt): Steuert Klick-Broadcasts, Cache-Updates, Navigationsübergänge, Inline-Änderungsaktionen und Stabilität des Zurück-Buttons.
+  * [TasksWidgetService.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TasksWidgetService.kt): Fabrikklasse zur Erstellung der scrollbaren Zeilen im Widget und Rendering der Inline-Edit-Container.
 * **Dialog-Aktivitäten (mit Compose-Klick-Fix)**:
   * [AddShoppingItemActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/AddShoppingItemActivity.kt): Dialog zum Hinzufügen von Artikeln zur Einkaufsliste.
   * [AddSubtaskWidgetActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/AddSubtaskWidgetActivity.kt): Dialog zum Hinzufügen von Unteraufgaben.
@@ -128,10 +142,15 @@ Tippt der Benutzer in der Detailkarte einer Aufgabe auf "+ NEUER SCHRITT", klapp
   * [AddTaskWidgetActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/AddTaskWidgetActivity.kt): Dialog zum Erstellen neuer Aufgaben mit Prioritäts- und Datumsauswahl.
   * [ConfirmDeleteListActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/ConfirmDeleteListActivity.kt): Bestätigungsdialog zum Löschen einer Liste.
   * [EditTaskWidgetActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/EditTaskWidgetActivity.kt): Ausführlicher Editor für Aufgabendetails und Unteraufgaben.
-  * [TextInputActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TextInputActivity.kt): Hilfsdialog für generische Texteingaben (für Inline-Unteraufgaben).
+  * [TextInputActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/TextInputActivity.kt): Hilfsdialog für generische Texteingaben.
+  * [DatePickerActivity.kt](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/java/de/meinseelenfunke/app/widget/DatePickerActivity.kt): Neuer, transparenter Compose-Auswahldialog für Inline-Datumsauswahlen.
 * **Konfiguration & Layout**:
-  * [AndroidManifest.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/AndroidManifest.xml): Deklaration der Widgets und Isolierung der Dialog-Aktivitäten via `taskAffinity`.
+  * [AndroidManifest.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/AndroidManifest.xml): Deklaration der Widgets und Registrierung der `DatePickerActivity` via `taskAffinity`.
   * [widget_tasks_layout.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/layout/widget_tasks_layout.xml): Hauptstruktur des Aufgaben-Widgets.
   * [widget_tasks_edit_control.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/layout/widget_tasks_edit_control.xml): Detailkarten-Layout mit direkt klickbaren Buttons im Widget.
   * [widget_tasks_add_subtask_control.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/layout/widget_tasks_add_subtask_control.xml): Inline-Layout für das Erstellen von Unteraufgaben.
+  * [widget_tasks_task_item.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/layout/widget_tasks_task_item.xml): Layout einer Aufgabenzeile (erweitert um `inline_edit_title_container` und `inline_edit_date_container`).
+  * [ic_check.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/drawable/ic_check.xml): Goldener Speichern-Haken.
+  * [ic_close.xml](file:///C:/Users/konta/AndroidStudioProjects/seelenfunke-android/app/src/main/res/drawable/ic_close.xml): Rotes Abbrechen-Kreuz.
+
 

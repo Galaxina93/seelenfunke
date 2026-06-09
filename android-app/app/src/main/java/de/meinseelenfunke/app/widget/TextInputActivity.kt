@@ -194,7 +194,7 @@ class TextInputActivity : ComponentActivity() {
                             ),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Übernehmen", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("Ok", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

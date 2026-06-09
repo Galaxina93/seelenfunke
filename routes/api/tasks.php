@@ -128,9 +128,67 @@ Route::prefix('funki/tasks')->group(function () {
     Route::delete('/{id}', function($id) {
         $task = ManagementTask::findOrFail($id);
         // Also delete subtasks if any
-        ManagementTask::where('parent_id', $task->id)->delete();
+        $subtasks = ManagementTask::where('parent_id', $task->id)->get();
+        foreach ($subtasks as $sub) {
+            if (!empty($sub->file_paths)) {
+                foreach ($sub->file_paths as $path) {
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                    }
+                }
+            }
+            $sub->delete();
+        }
+        if (!empty($task->file_paths)) {
+            foreach ($task->file_paths as $path) {
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                    \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                }
+            }
+        }
         $task->delete();
         return response()->json(['success' => true]);
+    });
+
+    Route::post('/{id}/files', function (Request $request, $id) {
+        $task = ManagementTask::findOrFail($id);
+        
+        $request->validate([
+            'file' => 'required'
+        ]);
+
+        $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
+        $storedPaths = [];
+        
+        foreach ($files as $file) {
+            $path = $file->store('leitung/tasks/attachments', 'local');
+            $storedPaths[] = $path;
+        }
+
+        $existing = $task->file_paths ?? [];
+        $updated = array_merge($existing, $storedPaths);
+        $task->update(['file_paths' => $updated]);
+
+        return response()->json(['success' => true, 'data' => $task]);
+    });
+
+    Route::delete('/{id}/files', function (Request $request, $id) {
+        $task = ManagementTask::findOrFail($id);
+        $path = $request->input('path');
+        if (!$path) {
+            return response()->json(['success' => false, 'message' => 'Path missing'], 400);
+        }
+
+        $existing = $task->file_paths ?? [];
+        if (($key = array_search($path, $existing)) !== false) {
+            unset($existing[$key]);
+            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+            }
+            $task->update(['file_paths' => array_values($existing)]);
+        }
+
+        return response()->json(['success' => true, 'data' => $task]);
     });
 
 });

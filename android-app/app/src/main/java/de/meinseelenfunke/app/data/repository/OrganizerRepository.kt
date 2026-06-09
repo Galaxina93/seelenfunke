@@ -8,6 +8,9 @@ import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
 import de.meinseelenfunke.app.data.api.ManagementShoppingItem
 import de.meinseelenfunke.app.di.ServiceLocator
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class OrganizerRepository(private val serviceLocator: ServiceLocator) {
 
@@ -604,6 +607,41 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Unteraufgabe nicht hinzufügen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun uploadTaskFile(
+        id: String,
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String
+    ): Result<ManagementTask> {
+        return try {
+            val requestFile = fileBytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData("file", fileName, requestFile)
+            val response = serviceLocator.getOrganizerApi().uploadTaskFile(id, filePart)
+            if (response.success) {
+                updateCachedTask(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Konnte Datei nicht hochladen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteTaskFile(id: String, filePath: String): Result<ManagementTask> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().deleteTaskFile(id, filePath)
+            if (response.success) {
+                updateCachedTask(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Konnte Datei nicht löschen."))
             }
         } catch (e: Exception) {
             Result.failure(e)

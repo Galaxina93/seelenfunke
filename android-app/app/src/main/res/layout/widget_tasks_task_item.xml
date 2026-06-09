@@ -28,8 +28,9 @@
             android:contentDescription="Erledigen" />
     </FrameLayout>
 
-    <!-- Task Details -->
+    <!-- Normal Task Details Container -->
     <LinearLayout
+        android:id="@+id/normal_task_details_container"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
@@ -57,6 +58,92 @@
             android:layout_marginTop="2dp"
             android:singleLine="true"
             android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Inline Edit Title Container -->
+    <LinearLayout
+        android:id="@+id/inline_edit_title_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/task_title_edit_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="start|center_vertical"
+            android:text="[Tippen zum Schreiben]"
+            android:textSize="12sp"
+            android:textColor="#F8FAFC"
+            android:padding="8dp"
+            android:background="#0F172A" />
+
+        <ImageView
+            android:id="@+id/btn_save_inline_title"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_check"
+            android:layout_marginStart="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Speichern"
+            android:padding="4dp" />
+
+        <ImageView
+            android:id="@+id/btn_cancel_inline_title"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_close"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Abbrechen"
+            android:padding="4dp" />
+    </LinearLayout>
+
+    <!-- Inline Edit Date Container -->
+    <LinearLayout
+        android:id="@+id/inline_edit_date_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/task_date_edit_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="start|center_vertical"
+            android:text="Kein Datum"
+            android:textSize="12sp"
+            android:textColor="#C5A059"
+            android:padding="8dp"
+            android:background="#0F172A" />
+
+        <ImageView
+            android:id="@+id/btn_save_inline_date"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_check"
+            android:layout_marginStart="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Speichern"
+            android:padding="4dp" />
+
+        <ImageView
+            android:id="@+id/btn_cancel_inline_date"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_close"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Abbrechen"
+            android:padding="4dp" />
     </LinearLayout>
 
     <!-- Gear/Settings Button Container for editing -->

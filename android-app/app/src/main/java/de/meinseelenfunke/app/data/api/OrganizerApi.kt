@@ -1,13 +1,17 @@
 package de.meinseelenfunke.app.data.api
 
 import com.google.gson.annotations.SerializedName
+import okhttp3.MultipartBody
 import retrofit2.http.DELETE
 import retrofit2.http.Field
 import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
+import retrofit2.http.HTTP
+import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Part
 
 data class ManagementTaskList(
     val id: String,
@@ -24,7 +28,8 @@ data class ManagementTask(
     val priority: String?,
     val is_completed: Boolean,
     val parent_title: String?,
-    val relevant_from: String?
+    val relevant_from: String?,
+    val file_paths: List<String>? = null
 )
 
 data class ManagementDayRoutineStep(
@@ -230,5 +235,19 @@ interface OrganizerApi {
     suspend fun addSubtask(
         @Path("id") id: String,
         @Field("title") title: String
+    ): TaskDetailResponse
+
+    @Multipart
+    @POST("funki/tasks/{id}/files")
+    suspend fun uploadTaskFile(
+        @Path("id") id: String,
+        @Part file: MultipartBody.Part
+    ): TaskDetailResponse
+
+    @HTTP(method = "DELETE", path = "funki/tasks/{id}/files", hasBody = true)
+    @FormUrlEncoded
+    suspend fun deleteTaskFile(
+        @Path("id") id: String,
+        @Field("path") path: String
     ): TaskDetailResponse
 }

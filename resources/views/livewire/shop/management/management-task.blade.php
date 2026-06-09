@@ -257,6 +257,62 @@
                                                        class="bg-gray-950 border border-[var(--theme-color-30)] rounded px-1.5 py-0.5 text-[9px] text-white shadow-inner font-sans outline-none">
                                             </div>
                                         </div>
+
+                                        {{-- Dateianhänge --}}
+                                        @if(!$task->is_completed)
+                                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                                                @php
+                                                    $taskFiles = $task->file_paths ?? [];
+                                                @endphp
+                                                @foreach($taskFiles as $index => $path)
+                                                    @php
+                                                        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+                                                        $iconName = match($ext) {
+                                                            'pdf' => 'heroicon-o-document-duplicate',
+                                                            'doc', 'docx', 'odt', 'rtf', 'txt' => 'heroicon-o-document-text',
+                                                            'xls', 'xlsx', 'ods', 'csv' => 'heroicon-o-table-cells',
+                                                            'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg' => 'heroicon-o-photo',
+                                                            'zip', 'rar', '7z', 'tar', 'gz' => 'heroicon-o-archive-box',
+                                                            default => 'heroicon-o-document',
+                                                        };
+                                                        $iconColor = match($ext) {
+                                                            'pdf' => 'text-red-400',
+                                                            'doc', 'docx', 'odt', 'rtf', 'txt' => 'text-blue-400',
+                                                            'xls', 'xlsx', 'ods', 'csv' => 'text-emerald-400',
+                                                            'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg' => 'text-purple-400',
+                                                            'zip', 'rar', '7z', 'tar', 'gz' => 'text-amber-500',
+                                                            default => 'text-gray-400',
+                                                        };
+                                                        $filename = basename($path);
+                                                    @endphp
+                                                    <div class="flex items-center gap-1.5 px-2.5 py-1 bg-gray-950/80 border border-gray-800 rounded-lg text-[10px] text-gray-300 font-medium hover:border-gray-700 transition-all max-w-[200px] group/file-item">
+                                                        <a href="{{ route('admin.accounting.receipt.show', ['path' => $path]) }}" target="_blank" class="flex items-center gap-1.5 truncate" title="{{ $filename }}">
+                                                            <x-dynamic-component :component="$iconName" class="w-3.5 h-3.5 {{ $iconColor }} shrink-0" />
+                                                            <span class="truncate">{{ $filename }}</span>
+                                                        </a>
+                                                        <button type="button" wire:click="deleteTaskFile('{{ $task->id }}', {{ $index }})" wire:confirm="Datei wirklich löschen?" class="text-gray-500 hover:text-red-500 transition-colors p-0.5" title="Datei löschen">
+                                                            <x-heroicon-m-x-mark class="w-3 h-3 stroke-2" />
+                                                        </button>
+                                                    </div>
+                                                @endforeach
+
+                                                {{-- Inline Dateiupload mit Pinnadel-Icon --}}
+                                                <div class="relative">
+                                                    <label class="cursor-pointer flex items-center gap-1 px-2.5 py-1 bg-gray-900 border border-dashed border-gray-700 rounded-lg text-[10px] font-black uppercase tracking-wider text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] transition-all">
+                                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M12 2v8M18 10H6M8 10v6c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-6M12 18v4" />
+                                                        </svg>
+                                                        <span>Anhängen</span>
+                                                        <input type="file" class="hidden" wire:model.live="taskFilesUpload" wire:click="$set('uploadingTaskId', '{{ $task->id }}')">
+                                                    </label>
+                                                    @if($uploadingTaskId === $task->id && $taskFilesUpload)
+                                                        <div class="absolute -top-1 -right-1 bg-gray-950 rounded-full p-0.5 border border-gray-800 shadow-sm z-10">
+                                                            <svg class="animate-spin h-3.5 w-3.5 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endif
                                     </div>
 
                                     <div class="relative flex items-center gap-2 shrink-0">

@@ -11,15 +11,72 @@
     android:layout_marginStart="4dp"
     android:layout_marginEnd="4dp">
 
-    <!-- Task Title Header -->
-    <TextView
-        android:id="@+id/edit_task_title"
+    <!-- Task Title Header (Normal & Inline Edit Containers) -->
+    <LinearLayout
+        android:id="@+id/edit_task_title_normal_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="#F8FAFC"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="10dp" />
+        android:orientation="horizontal"
+        android:layout_marginBottom="10dp"
+        android:gravity="center_vertical">
+        <TextView
+            android:id="@+id/edit_task_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F8FAFC"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/edit_task_title_inline_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/edit_task_title_edit_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="start|center_vertical"
+            android:text="[Tippen zum Schreiben]"
+            android:textSize="12sp"
+            android:textColor="#F8FAFC"
+            android:padding="8dp"
+            android:background="#0F172A"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <ImageView
+            android:id="@+id/btn_save_edit_task_title"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_check"
+            android:layout_marginStart="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Speichern"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="4dp" />
+
+        <ImageView
+            android:id="@+id/btn_cancel_edit_task_title"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_close"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Abbrechen"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="4dp" />
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -133,6 +190,51 @@
             android:padding="4dp"
             android:clickable="true"
             android:focusable="true" />
+    </LinearLayout>
+
+    <!-- Dateien Row -->
+    <LinearLayout
+        android:id="@+id/btn_manage_files"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp"
+        android:clickable="true"
+        android:focusable="true">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Dateien:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="#1AC5A059"
+            android:padding="6dp">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_pin"
+                android:tint="#C5A059"
+                android:layout_marginEnd="6dp" />
+
+            <TextView
+                android:id="@+id/txt_files_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Keine Dateien"
+                android:textColor="#C5A059"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Subtask Creation Trigger Row -->

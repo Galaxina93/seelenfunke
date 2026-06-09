@@ -59,6 +59,17 @@ import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Feed
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FilePresent
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.ui.res.painterResource
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -318,7 +329,9 @@ fun OrganizerScreen(
                                         onAddSubtask = { parentId, title -> viewModel.addSubtask(parentId, title) },
                                         onDeleteTaskList = { viewModel.deleteTaskList(it) },
                                         onAddTaskList = { name -> viewModel.addTaskList(name) },
-                                        onUpdateTask = { id, title, priority, completed, relFrom -> viewModel.updateTask(id, title, priority, completed, relFrom) }
+                                        onUpdateTask = { id, title, priority, completed, relFrom -> viewModel.updateTask(id, title, priority, completed, relFrom) },
+                                        onUploadTaskFile = { id, bytes, name, mime -> viewModel.uploadTaskFile(id, bytes, name, mime) },
+                                        onDeleteTaskFile = { id, path -> viewModel.deleteTaskFile(id, path) }
                                     )
                                     Spacer(modifier = Modifier.height(80.dp))
                                 }
@@ -421,7 +434,9 @@ fun TasksTabContent(
     onAddSubtask: (String, String) -> Unit,
     onDeleteTaskList: (String) -> Unit,
     onAddTaskList: (String) -> Unit,
-    onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit
+    onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit,
+    onUploadTaskFile: (String, ByteArray, String, String) -> Unit,
+    onDeleteTaskFile: (String, String) -> Unit
 ) {
     var selectedListId by remember { mutableStateOf<String?>(null) }
     val selectedList = taskLists.find { it.id == selectedListId }
@@ -743,7 +758,9 @@ fun TasksTabContent(
                             onToggleTask = onToggleTask,
                             onDeleteTask = onDeleteTask,
                             onAddSubtask = onAddSubtask,
-                            onUpdateTask = onUpdateTask
+                            onUpdateTask = onUpdateTask,
+                            onUploadTaskFile = onUploadTaskFile,
+                            onDeleteTaskFile = onDeleteTaskFile
                         )
                     }
                 }
@@ -760,7 +777,9 @@ fun TaskRow(
     onToggleTask: (String) -> Unit,
     onDeleteTask: (String) -> Unit,
     onAddSubtask: (String, String) -> Unit,
-    onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit
+    onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit,
+    onUploadTaskFile: (String, ByteArray, String, String) -> Unit,
+    onDeleteTaskFile: (String, String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var isExpanded by remember { mutableStateOf(false) }
@@ -855,13 +874,13 @@ fun TaskRow(
                                 textDecoration = if (task.is_completed) TextDecoration.LineThrough else TextDecoration.None,
                                 fontWeight = FontWeight.Bold
                             )
-                            if (!task.relevant_from.isNullOrBlank()) {
+                            val localDateStr = de.meinseelenfunke.app.util.DateUtils.parseUtcToLocalDateString(task.relevant_from)
+                            if (!localDateStr.isNullOrBlank()) {
                                 val displayDate = try {
-                                    val clean = task.relevant_from.take(10)
-                                    val parts = clean.split("-")
-                                    if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else clean
+                                    val parts = localDateStr.split("-")
+                                    if (parts.size == 3) "${parts[2]}.${parts[1]}.${parts[0]}" else localDateStr
                                 } catch (e: Exception) {
-                                    task.relevant_from
+                                    localDateStr
                                 }
                                 Text(
                                     text = "Relevant ab: $displayDate",
@@ -891,10 +910,10 @@ fun TaskRow(
                     )
                     IconButton(onClick = {
                         val currentCal = Calendar.getInstance()
-                        if (!task.relevant_from.isNullOrBlank()) {
+                        val localDateStr = de.meinseelenfunke.app.util.DateUtils.parseUtcToLocalDateString(task.relevant_from)
+                        if (!localDateStr.isNullOrBlank()) {
                             try {
-                                val clean = task.relevant_from.take(10)
-                                val parts = clean.split("-")
+                                val parts = localDateStr.split("-")
                                 if (parts.size == 3) {
                                     currentCal.set(Calendar.YEAR, parts[0].toInt())
                                     currentCal.set(Calendar.MONTH, parts[1].toInt() - 1)
@@ -1046,6 +1065,152 @@ fun TaskRow(
                                 contentDescription = "Teilschritt hinzufügen",
                                 tint = if (newSubtaskTitle.isNotBlank()) SpaceBlack else Slate400,
                                 modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Attachments Section
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "DATEIEN",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = listColor,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    var isUploading by remember { mutableStateOf(false) }
+                    val scope = rememberCoroutineScope()
+
+                    val filePickerLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.GetContent()
+                    ) { uri: Uri? ->
+                        uri?.let {
+                            val contentResolver = context.contentResolver
+                            val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+                            val fileName = getFileName(context, uri) ?: "upload.bin"
+                            try {
+                                val inputStream = contentResolver.openInputStream(uri)
+                                val fileBytes = inputStream?.readBytes()
+                                inputStream?.close()
+                                if (fileBytes != null) {
+                                    scope.launch {
+                                        isUploading = true
+                                        onUploadTaskFile(task.id, fileBytes, fileName, mimeType)
+                                        isUploading = false
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+
+                    if (!task.file_paths.isNullOrEmpty()) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        ) {
+                            task.file_paths.forEach { path ->
+                                val fileName = path.substringAfterLast('/')
+                                val ext = fileName.substringAfterLast('.', "").lowercase()
+                                val icon = when (ext) {
+                                    "pdf" -> Icons.Default.Description
+                                    "doc", "docx", "odt", "rtf", "txt" -> Icons.Default.Feed
+                                    "xls", "xlsx", "ods", "csv" -> Icons.Default.GridOn
+                                    "png", "jpg", "jpeg", "gif", "webp", "svg" -> Icons.Default.Image
+                                    "zip", "rar", "7z", "tar", "gz" -> Icons.Default.FolderOpen
+                                    else -> Icons.Default.FilePresent
+                                }
+                                val iconColor = when (ext) {
+                                    "pdf" -> Color(0xFFEF4444) // Red
+                                    "doc", "docx", "odt", "rtf", "txt" -> Color(0xFF3B82F6) // Blue
+                                    "xls", "xlsx", "ods", "csv" -> Color(0xFF10B981) // Emerald/Green
+                                    "png", "jpg", "jpeg", "gif", "webp", "svg" -> Color(0xFFA855F7) // Purple
+                                    "zip", "rar", "7z", "tar", "gz" -> Gold
+                                    else -> Slate400
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(GlassWhite10, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f).clickable {
+                                            val token = ServiceLocator.getAuthToken() ?: ""
+                                            val baseUrl = ServiceLocator.getBaseUrl()
+                                            val url = "${baseUrl}funki/financials/receipt?path=${Uri.encode(path)}&token=${Uri.encode(token)}"
+                                            try {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = null,
+                                            tint = iconColor,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = fileName,
+                                            color = Slate50,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { onDeleteTaskFile(task.id, path) },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Datei löschen",
+                                            tint = Color.Red.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Attach button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { filePickerLauncher.launch("*/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10, contentColor = Gold),
+                            border = BorderStroke(1.dp, Gold.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PushPin,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Datei anheften", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        if (isUploading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Gold,
+                                strokeWidth = 1.5.dp
                             )
                         }
                     }
@@ -3457,5 +3622,30 @@ fun layoutTimedEvents(
     }
 
     return positioned
+}
+
+private fun getFileName(context: android.content.Context, uri: android.net.Uri): String? {
+    var result: String? = null
+    if (uri.scheme == "content") {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        try {
+            if (cursor != null && cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index != -1) {
+                    result = cursor.getString(index)
+                }
+            }
+        } finally {
+            cursor?.close()
+        }
+    }
+    if (result == null) {
+        result = uri.path
+        val cut = result?.lastIndexOf('/')
+        if (cut != null && cut != -1) {
+            result = result.substring(cut + 1)
+        }
+    }
+    return result
 }
 

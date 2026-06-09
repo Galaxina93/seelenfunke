@@ -16,6 +16,7 @@ import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
+import de.meinseelenfunke.app.util.DateUtils
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,11 +80,24 @@ class TasksWidgetProvider : AppWidgetProvider() {
             ACTION_BACK_TO_LISTS -> {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
                     val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-                    sharedPrefs.edit()
-                        .remove("widget_tasks_selected_list_id_$appWidgetId")
-                        .remove("widget_tasks_selected_list_name_$appWidgetId")
-                        .remove("widget_tasks_editing_task_id_$appWidgetId")
-                        .remove("widget_tasks_adding_list_$appWidgetId")
+                    val editingTaskId = sharedPrefs.getString("widget_tasks_editing_task_id_$appWidgetId", null)
+                    val inlineEditingId = sharedPrefs.getString("widget_tasks_inline_editing_id_$appWidgetId", null)
+
+                    val edit = sharedPrefs.edit()
+                    if (inlineEditingId != null) {
+                        edit.remove("widget_tasks_inline_editing_id_$appWidgetId")
+                            .remove("widget_tasks_inline_editing_field_$appWidgetId")
+                            .remove("widget_tasks_inline_editing_title_val_$appWidgetId")
+                            .remove("widget_tasks_inline_editing_date_val_$appWidgetId")
+                    } else if (editingTaskId != null) {
+                        edit.remove("widget_tasks_editing_task_id_$appWidgetId")
+                    } else {
+                        edit.remove("widget_tasks_selected_list_id_$appWidgetId")
+                            .remove("widget_tasks_selected_list_name_$appWidgetId")
+                    }
+                    edit.remove("widget_tasks_adding_list_$appWidgetId")
+                        .remove("widget_tasks_adding_task_$appWidgetId")
+                        .remove("widget_tasks_adding_subtask_parent_$appWidgetId")
                         .apply()
 
                     updateAppWidget(context, appWidgetManager, appWidgetId)
@@ -247,7 +261,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                                 cal.add(java.util.Calendar.DAY_OF_YEAR, 7)
                                 val in7DaysStr = sdf.format(cal.time)
 
-                                val currentVal = task.relevant_from?.substringBefore("T")
+                                val currentVal = DateUtils.parseUtcToLocalDateString(task.relevant_from)
 
                                 val nextDateStr = when (currentVal) {
                                     null, "" -> todayStr
@@ -327,7 +341,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     }
-                    context.startActivity(confirmIntent)
+                    startActivityExempted(context, confirmIntent)
                 }
             }
             ACTION_DELETE_TASK -> {
@@ -357,7 +371,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
                         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     }
-                    context.startActivity(addListIntent)
+                    startActivityExempted(context, addListIntent)
                 }
             }
             ACTION_CANCEL_ADD_LIST -> {
@@ -520,13 +534,166 @@ class TasksWidgetProvider : AppWidgetProvider() {
                         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     }
-                    context.startActivity(inputIntent)
+                    startActivityExempted(context, inputIntent)
                 }
             }
             ACTION_NONE -> {
                 // No-op to consume widget background taps
             }
+            ACTION_INLINE_EDIT_TITLE -> {
+                val taskId = intent.getStringExtra("task_id")
+                val currentTitle = intent.getStringExtra("task_title") ?: ""
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && taskId != null) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit()
+                        .putString("widget_tasks_inline_editing_id_$appWidgetId", taskId)
+                        .putString("widget_tasks_inline_editing_field_$appWidgetId", "title")
+                        .putString("widget_tasks_inline_editing_title_val_$appWidgetId", currentTitle)
+                        .apply()
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                }
+            }
+            ACTION_SAVE_INLINE_TITLE -> {
+                val taskId = intent.getStringExtra("task_id")
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && taskId != null) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    val newTitle = sharedPrefs.getString("widget_tasks_inline_editing_title_val_$appWidgetId", "") ?: ""
+                    if (newTitle.isNotBlank()) {
+                        val repository = ServiceLocator.organizerRepository
+                        
+                        // Optimistic local cache update
+                        val tasksJson = sharedPrefs.getString("tasks_cache", null)
+                        if (tasksJson != null) {
+                            try {
+                                val gson = com.google.gson.Gson()
+                                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+                                val tasks: List<ManagementTask> = gson.fromJson(tasksJson, type)
+                                val updatedTasks = tasks.map { 
+                                    if (it.id == taskId) it.copy(title = newTitle.trim()) else it 
+                                }
+                                repository.saveTasksToCache(updatedTasks)
+                            } catch (e: Exception) {}
+                        }
+                        
+                        sharedPrefs.edit()
+                            .remove("widget_tasks_inline_editing_id_$appWidgetId")
+                            .remove("widget_tasks_inline_editing_field_$appWidgetId")
+                            .remove("widget_tasks_inline_editing_title_val_$appWidgetId")
+                            .apply()
+                        
+                        updateAppWidget(context, appWidgetManager, appWidgetId)
+                        appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+
+                        CoroutineScope(Dispatchers.Main).launch {
+                            repository.updateTask(taskId, title = newTitle.trim())
+                            repository.getTasks()
+                            repository.triggerTasksWidgetUpdate(context)
+                        }
+                    }
+                }
+            }
+            ACTION_INLINE_EDIT_DATE -> {
+                val taskId = intent.getStringExtra("task_id")
+                val currentDate = intent.getStringExtra("task_date") // yyyy-MM-dd
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && taskId != null) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit()
+                        .putString("widget_tasks_inline_editing_id_$appWidgetId", taskId)
+                        .putString("widget_tasks_inline_editing_field_$appWidgetId", "date")
+                        .putString("widget_tasks_inline_editing_date_val_$appWidgetId", currentDate)
+                        .apply()
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                }
+            }
+            ACTION_SAVE_INLINE_DATE -> {
+                val taskId = intent.getStringExtra("task_id")
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && taskId != null) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    val newDate = sharedPrefs.getString("widget_tasks_inline_editing_date_val_$appWidgetId", null)
+                    val repository = ServiceLocator.organizerRepository
+                    
+                    // Optimistic local cache update
+                    val tasksJson = sharedPrefs.getString("tasks_cache", null)
+                    if (tasksJson != null) {
+                        try {
+                            val gson = com.google.gson.Gson()
+                            val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+                            val tasks: List<ManagementTask> = gson.fromJson(tasksJson, type)
+                            val updatedTasks = tasks.map { 
+                                if (it.id == taskId) it.copy(relevant_from = newDate) else it 
+                             }
+                            repository.saveTasksToCache(updatedTasks)
+                        } catch (e: Exception) {}
+                    }
+                    
+                    sharedPrefs.edit()
+                        .remove("widget_tasks_inline_editing_id_$appWidgetId")
+                        .remove("widget_tasks_inline_editing_field_$appWidgetId")
+                        .remove("widget_tasks_inline_editing_date_val_$appWidgetId")
+                        .apply()
+                    
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+
+                    CoroutineScope(Dispatchers.Main).launch {
+                        repository.updateTask(taskId, relevantFrom = newDate ?: "")
+                        repository.getTasks()
+                        repository.triggerTasksWidgetUpdate(context)
+                    }
+                }
+            }
+            ACTION_CANCEL_INLINE_EDIT -> {
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit()
+                        .remove("widget_tasks_inline_editing_id_$appWidgetId")
+                        .remove("widget_tasks_inline_editing_field_$appWidgetId")
+                        .remove("widget_tasks_inline_editing_title_val_$appWidgetId")
+                        .remove("widget_tasks_inline_editing_date_val_$appWidgetId")
+                        .apply()
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                }
+            }
+            ACTION_OPEN_DATE_PICKER -> {
+                val initialDate = intent.getStringExtra("initial_date")
+                val prefKey = intent.getStringExtra("pref_key")
+                val taskId = intent.getStringExtra("task_id")
+                if (prefKey != null || taskId != null) {
+                    val pickerIntent = Intent(context, DatePickerActivity::class.java).apply {
+                        putExtra("initial_date", initialDate)
+                        putExtra("pref_key", prefKey)
+                        putExtra("task_id", taskId)
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    startActivityExempted(context, pickerIntent)
+                }
+            }
+            ACTION_MANAGE_FILES -> {
+                val taskId = intent.getStringExtra("task_id")
+                if (taskId != null) {
+                    val editIntent = Intent(context, EditTaskWidgetActivity::class.java).apply {
+                        putExtra("task_id", taskId)
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    startActivityExempted(context, editIntent)
+                }
+            }
             // Handled by super.onReceive -> onUpdate
+        }
+    }
+
+    private fun startActivityExempted(context: Context, intent: Intent) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val options = android.app.ActivityOptions.makeBasic()
+            options.pendingIntentBackgroundActivityStartMode = android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+            context.startActivity(intent, options.toBundle())
+        } else {
+            context.startActivity(intent)
         }
     }
 
@@ -572,6 +739,14 @@ class TasksWidgetProvider : AppWidgetProvider() {
         
         const val ACTION_OPEN_TEXT_INPUT = "de.meinseelenfunke.app.widget.ACTION_TASKS_OPEN_TEXT_INPUT"
         const val ACTION_NONE = "de.meinseelenfunke.app.widget.ACTION_TASKS_NONE"
+
+        const val ACTION_INLINE_EDIT_TITLE = "de.meinseelenfunke.app.widget.ACTION_INLINE_EDIT_TITLE"
+        const val ACTION_SAVE_INLINE_TITLE = "de.meinseelenfunke.app.widget.ACTION_SAVE_INLINE_TITLE"
+        const val ACTION_INLINE_EDIT_DATE = "de.meinseelenfunke.app.widget.ACTION_INLINE_EDIT_DATE"
+        const val ACTION_SAVE_INLINE_DATE = "de.meinseelenfunke.app.widget.ACTION_SAVE_INLINE_DATE"
+        const val ACTION_CANCEL_INLINE_EDIT = "de.meinseelenfunke.app.widget.ACTION_CANCEL_INLINE_EDIT"
+        const val ACTION_OPEN_DATE_PICKER = "de.meinseelenfunke.app.widget.ACTION_OPEN_DATE_PICKER"
+        const val ACTION_MANAGE_FILES = "de.meinseelenfunke.app.widget.ACTION_MANAGE_FILES"
 
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_tasks_layout)
@@ -633,14 +808,14 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
                 views.setTextViewText(R.id.tasks_widget_context, (selectedListName ?: "Aufgaben").uppercase())
 
-                // Back click PendingIntent (Broadcast) - exit edit mode
+                // Back click PendingIntent (Broadcast) - consolidated
                 val backIntent = Intent(context, TasksWidgetProvider::class.java).apply {
-                    action = ACTION_EXIT_EDIT_MODE
+                    action = ACTION_BACK_TO_LISTS
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    data = Uri.parse("widget://tasks/back/exit_edit?appWidgetId=$appWidgetId")
+                    data = Uri.parse("widget://tasks/back?appWidgetId=$appWidgetId")
                 }
                 val pendingBack = PendingIntent.getBroadcast(
-                    context, appWidgetId * 10 + 301, backIntent,
+                    context, appWidgetId * 10 + 305, backIntent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
                 views.setOnClickPendingIntent(R.id.btn_tasks_back, pendingBack)
@@ -651,11 +826,11 @@ class TasksWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
                 views.setTextViewText(R.id.tasks_widget_context, selectedListName.uppercase())
 
-                // Back click PendingIntent (Broadcast)
+                // Back click PendingIntent (Broadcast) - consolidated
                 val backIntent = Intent(context, TasksWidgetProvider::class.java).apply {
                     action = ACTION_BACK_TO_LISTS
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    data = Uri.parse("widget://tasks/back/to_lists?appWidgetId=$appWidgetId")
+                    data = Uri.parse("widget://tasks/back?appWidgetId=$appWidgetId")
                 }
                 val pendingBack = PendingIntent.getBroadcast(
                     context, appWidgetId * 10 + 305, backIntent,
@@ -695,6 +870,26 @@ class TasksWidgetProvider : AppWidgetProvider() {
             // Plus button has been removed from the header layout.
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
+
+            // Force immediate partial update of header to bypass OS update deferrals
+            val partialViews = RemoteViews(context.packageName, R.layout.widget_tasks_layout)
+            if (isEditing) {
+                partialViews.setViewVisibility(R.id.btn_tasks_back, View.VISIBLE)
+                partialViews.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
+                partialViews.setTextViewText(R.id.tasks_widget_context, (selectedListName ?: "Aufgaben").uppercase())
+            } else if (isInsideList && selectedListName != null) {
+                partialViews.setViewVisibility(R.id.btn_tasks_back, View.VISIBLE)
+                partialViews.setViewVisibility(R.id.tasks_widget_context, View.VISIBLE)
+                partialViews.setTextViewText(R.id.tasks_widget_context, selectedListName.uppercase())
+            } else {
+                partialViews.setViewVisibility(R.id.btn_tasks_back, View.INVISIBLE)
+                partialViews.setViewVisibility(R.id.tasks_widget_context, View.GONE)
+            }
+            try {
+                appWidgetManager.partiallyUpdateAppWidget(appWidgetId, partialViews)
+            } catch (e: Exception) {
+                Log.e("TasksWidget", "Partial update failed", e)
+            }
         }
     }
 }

@@ -47,7 +47,76 @@
         android:textColorLink="#C5A059"
         android:textColorHighlight="#33C5A059"
         android:maxLines="6"
-        android:layout_gravity="center_vertical" />
+        android:layout_gravity="center_vertical"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Inline Edit Subtask Title Container -->
+    <LinearLayout
+        android:id="@+id/subtask_inline_edit_title_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/subtask_title_edit_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="start|center_vertical"
+            android:text="[Tippen zum Schreiben]"
+            android:textSize="11sp"
+            android:textColor="#F8FAFC"
+            android:padding="6dp"
+            android:background="#0F172A"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <ImageView
+            android:id="@+id/btn_save_subtask_inline_title"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_check"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Speichern"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="2dp" />
+
+        <ImageView
+            android:id="@+id/btn_cancel_subtask_inline_title"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_close"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Abbrechen"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="2dp" />
+    </LinearLayout>
+
+    <!-- Delete Button Container for subtask -->
+    <FrameLayout
+        android:id="@+id/subtask_delete_button_container"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="4dp"
+        android:layout_gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/subtask_delete_button"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_delete"
+            android:tint="#EF4444"
+            android:contentDescription="Löschen" />
+    </FrameLayout>
 
     <!-- Gear/Settings Button Container for subtask -->
     <FrameLayout
