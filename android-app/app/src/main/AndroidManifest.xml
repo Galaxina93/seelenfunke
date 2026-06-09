@@ -190,6 +190,12 @@
             android:taskAffinity=""
             android:excludeFromRecents="true" />
 
+        <activity
+            android:name=".widget.RenameTaskListWidgetActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
 
         <activity
             android:name=".widget.TextInputActivity"

@@ -225,6 +225,7 @@ class TasksWidgetViewsFactory(
                 val views = RemoteViews(context.packageName, R.layout.widget_tasks_list_item)
                 views.setTextViewText(R.id.list_name, item.list.name)
                 views.setViewVisibility(R.id.btn_delete_list, View.VISIBLE)
+                views.setViewVisibility(R.id.btn_rename_list, View.VISIBLE)
                 views.setImageViewResource(R.id.list_icon, getIconDrawableRes(item.list.icon))
 
                 // Click action to open list
@@ -235,6 +236,14 @@ class TasksWidgetViewsFactory(
                     putExtra("list_name", item.list.name)
                 }
                 views.setOnClickFillInIntent(R.id.widget_tasks_list_item_root, fillInIntent)
+
+                // Click action to rename list
+                val renameIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_RENAME_LIST
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra("list_id", item.list.id)
+                }
+                views.setOnClickFillInIntent(R.id.btn_rename_list, renameIntent)
 
                 // Click action to delete list
                 val deleteIntent = Intent().apply {
@@ -250,6 +259,7 @@ class TasksWidgetViewsFactory(
                 views.setTextViewText(R.id.list_name, item.text)
                 views.setTextColor(R.id.list_name, 0xFFC5A059.toInt()) // Gold
                 views.setViewVisibility(R.id.btn_delete_list, View.GONE)
+                views.setViewVisibility(R.id.btn_rename_list, View.GONE)
                 views.setImageViewResource(R.id.list_icon, android.R.drawable.ic_input_add)
 
                 // Click action to start inline adding lists

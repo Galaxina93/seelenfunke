@@ -130,6 +130,20 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    suspend fun updateTaskList(id: String, name: String, icon: String? = null): Result<ManagementTaskList> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().updateTaskList(id, name, icon)
+            if (response.success) {
+                updateCachedTaskList(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Konnte Aufgabenliste nicht umbenennen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun getRoutines(): Result<List<ManagementDayRoutine>> {
         return try {
             val response = serviceLocator.getOrganizerApi().getRoutines()
@@ -330,6 +344,23 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             sharedPrefs.edit().putString("task_lists_cache", json).apply()
         } catch (e: Exception) {
             de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveTaskListsToCache error", e)
+        }
+    }
+
+    private fun updateCachedTaskList(updatedList: ManagementTaskList) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("task_lists_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTaskList>>() {}.type
+                val items: List<ManagementTaskList> = com.google.gson.Gson().fromJson(json, type)
+                val updated = items.map { if (it.id == updatedList.id) updatedList else it }
+                saveTaskListsToCache(updated)
+                triggerTasksWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "updateCachedTaskList error", e)
         }
     }
 

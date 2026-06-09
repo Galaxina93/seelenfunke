@@ -34,6 +34,17 @@
 
 
     <ImageView
+        android:id="@+id/btn_rename_list"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="8dp"
+        android:src="@android:drawable/ic_menu_edit"
+        android:tint="#C5A059"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Liste umbenennen"
+        android:padding="4dp" />
+
+    <ImageView
         android:id="@+id/btn_delete_list"
         android:layout_width="28dp"
         android:layout_height="28dp"

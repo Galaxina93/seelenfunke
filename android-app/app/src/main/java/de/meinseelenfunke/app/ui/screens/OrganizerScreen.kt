@@ -329,6 +329,7 @@ fun OrganizerScreen(
                                         onAddSubtask = { parentId, title -> viewModel.addSubtask(parentId, title) },
                                         onDeleteTaskList = { viewModel.deleteTaskList(it) },
                                         onAddTaskList = { name -> viewModel.addTaskList(name) },
+                                        onUpdateTaskList = { id, name -> viewModel.updateTaskList(id, name) },
                                         onUpdateTask = { id, title, priority, completed, relFrom -> viewModel.updateTask(id, title, priority, completed, relFrom) },
                                         onUploadTaskFile = { id, bytes, name, mime -> viewModel.uploadTaskFile(id, bytes, name, mime) },
                                         onDeleteTaskFile = { id, path -> viewModel.deleteTaskFile(id, path) }
@@ -434,6 +435,7 @@ fun TasksTabContent(
     onAddSubtask: (String, String) -> Unit,
     onDeleteTaskList: (String) -> Unit,
     onAddTaskList: (String) -> Unit,
+    onUpdateTaskList: (String, String) -> Unit,
     onUpdateTask: (String, String?, String?, Boolean?, String?) -> Unit,
     onUploadTaskFile: (String, ByteArray, String, String) -> Unit,
     onDeleteTaskFile: (String, String) -> Unit
@@ -441,6 +443,8 @@ fun TasksTabContent(
     var selectedListId by remember { mutableStateOf<String?>(null) }
     val selectedList = taskLists.find { it.id == selectedListId }
     var listToDelete by remember { mutableStateOf<ManagementTaskList?>(null) }
+    var listToRename by remember { mutableStateOf<ManagementTaskList?>(null) }
+    var renameListName by remember { mutableStateOf("") }
 
     if (selectedList == null) {
         // List-first view: show all task lists
@@ -605,6 +609,21 @@ fun TasksTabContent(
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
+                                    onClick = {
+                                        listToRename = list
+                                        renameListName = list.name
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Liste umbenennen",
+                                        tint = Gold.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
                                     onClick = { listToDelete = list },
                                     modifier = Modifier.size(36.dp)
                                 ) {
@@ -654,6 +673,49 @@ fun TasksTabContent(
                 textContentColor = Slate300
             )
         }
+
+        if (listToRename != null) {
+            AlertDialog(
+                onDismissRequest = { listToRename = null },
+                title = { Text(text = "Liste umbenennen", color = Slate50, fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = renameListName,
+                        onValueChange = { renameListName = it },
+                        label = { Text("Name der Liste...") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedTextColor = Slate50,
+                            focusedLabelColor = Gold
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            listToRename?.let { list ->
+                                if (renameListName.isNotBlank()) {
+                                    onUpdateTaskList(list.id, renameListName)
+                                }
+                            }
+                            listToRename = null
+                        }
+                    ) {
+                        Text("Speichern", color = Gold, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { listToRename = null }) {
+                        Text("Abbrechen", color = Slate400)
+                    }
+                },
+                containerColor = SpaceBlack,
+                titleContentColor = Slate50,
+                textContentColor = Slate300
+            )
+        }
     } else {
         // Task list detail view (full width)
         val listColor = parseHexColor(selectedList.color)
@@ -695,6 +757,17 @@ fun TasksTabContent(
                     color = Slate50,
                     modifier = Modifier.weight(1f)
                 )
+                IconButton(onClick = {
+                    listToRename = selectedList
+                    renameListName = selectedList.name
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Liste umbenennen",
+                        tint = Gold.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
 
             // Create New Task Input Form
@@ -901,66 +974,68 @@ fun TaskRow(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = listColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    IconButton(onClick = {
-                        val currentCal = Calendar.getInstance()
-                        val localDateStr = de.meinseelenfunke.app.util.DateUtils.parseUtcToLocalDateString(task.relevant_from)
-                        if (!localDateStr.isNullOrBlank()) {
-                            try {
-                                val parts = localDateStr.split("-")
-                                if (parts.size == 3) {
-                                    currentCal.set(Calendar.YEAR, parts[0].toInt())
-                                    currentCal.set(Calendar.MONTH, parts[1].toInt() - 1)
-                                    currentCal.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
-                                }
-                            } catch (e: Exception) {}
+                if (!isEditingTitle) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = listColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        IconButton(onClick = {
+                            val currentCal = Calendar.getInstance()
+                            val localDateStr = de.meinseelenfunke.app.util.DateUtils.parseUtcToLocalDateString(task.relevant_from)
+                            if (!localDateStr.isNullOrBlank()) {
+                                try {
+                                    val parts = localDateStr.split("-")
+                                    if (parts.size == 3) {
+                                        currentCal.set(Calendar.YEAR, parts[0].toInt())
+                                        currentCal.set(Calendar.MONTH, parts[1].toInt() - 1)
+                                        currentCal.set(Calendar.DAY_OF_MONTH, parts[2].toInt())
+                                    }
+                                } catch (e: Exception) {}
+                            }
+                            val datePickerDialog = android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, dayOfMonth ->
+                                    val selectedDateStr = String.format(Locale.US, "%04d-%02d-%02d 00:00:00", year, month + 1, dayOfMonth)
+                                    onUpdateTask(task.id, null, null, null, selectedDateStr)
+                                },
+                                currentCal.get(Calendar.YEAR),
+                                currentCal.get(Calendar.MONTH),
+                                currentCal.get(Calendar.DAY_OF_MONTH)
+                            )
+                            datePickerDialog.setButton(android.app.DatePickerDialog.BUTTON_NEUTRAL, "Datum löschen") { _, _ ->
+                                onUpdateTask(task.id, null, null, null, "")
+                            }
+                            datePickerDialog.show()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = "Startdatum festlegen",
+                                tint = if (task.relevant_from.isNullOrBlank()) Slate400 else Gold,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
-                        val datePickerDialog = android.app.DatePickerDialog(
-                            context,
-                            { _, year, month, dayOfMonth ->
-                                val selectedDateStr = String.format(Locale.US, "%04d-%02d-%02d 00:00:00", year, month + 1, dayOfMonth)
-                                onUpdateTask(task.id, null, null, null, selectedDateStr)
-                            },
-                            currentCal.get(Calendar.YEAR),
-                            currentCal.get(Calendar.MONTH),
-                            currentCal.get(Calendar.DAY_OF_MONTH)
-                        )
-                        datePickerDialog.setButton(android.app.DatePickerDialog.BUTTON_NEUTRAL, "Datum löschen") { _, _ ->
-                            onUpdateTask(task.id, null, null, null, "")
+                        IconButton(onClick = {
+                            isEditingTitle = true
+                            editedTitle = task.title
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Aufgabe bearbeiten",
+                                tint = Slate400,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
-                        datePickerDialog.show()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = "Startdatum festlegen",
-                            tint = if (task.relevant_from.isNullOrBlank()) Slate400 else Gold,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    IconButton(onClick = {
-                        isEditingTitle = true
-                        editedTitle = task.title
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Aufgabe bearbeiten",
-                            tint = Slate400,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    IconButton(onClick = { showDeleteConfirm = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Aufgabe löschen",
-                            tint = Color.Red.copy(alpha = 0.7f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                        IconButton(onClick = { showDeleteConfirm = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Aufgabe löschen",
+                                tint = Color.Red.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

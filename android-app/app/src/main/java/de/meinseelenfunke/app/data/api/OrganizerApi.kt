@@ -109,6 +109,14 @@ interface OrganizerApi {
         @Field("icon") icon: String? = "bookmark"
     ): TaskListDetailResponse
 
+    @FormUrlEncoded
+    @PUT("funki/tasks/lists/{id}")
+    suspend fun updateTaskList(
+        @Path("id") id: String,
+        @Field("name") name: String,
+        @Field("icon") icon: String? = null
+    ): TaskListDetailResponse
+
     @GET("funki/tasks")
     suspend fun getTasks(): TasksResponse
 

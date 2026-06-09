@@ -344,6 +344,17 @@ class TasksWidgetProvider : AppWidgetProvider() {
                     startActivityExempted(context, confirmIntent)
                 }
             }
+            ACTION_RENAME_LIST -> {
+                val listId = intent.getStringExtra("list_id")
+                if (listId != null) {
+                    val renameIntent = Intent(context, RenameTaskListWidgetActivity::class.java).apply {
+                        putExtra("list_id", listId)
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    startActivityExempted(context, renameIntent)
+                }
+            }
             ACTION_DELETE_TASK -> {
                 val taskId = intent.getStringExtra("task_id")
                 if (taskId != null) {
@@ -724,6 +735,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
         const val ACTION_CANCEL_ADD_SUBTASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_CANCEL_ADD_SUBTASK"
         const val ACTION_SAVE_ADD_SUBTASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_SAVE_ADD_SUBTASK"
         const val ACTION_DELETE_LIST = "de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_LIST"
+        const val ACTION_RENAME_LIST = "de.meinseelenfunke.app.widget.ACTION_TASKS_RENAME_LIST"
         const val ACTION_DELETE_TASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_TASK"
         
         const val ACTION_START_ADD_LIST = "de.meinseelenfunke.app.widget.ACTION_TASKS_START_ADD_LIST"

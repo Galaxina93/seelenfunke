@@ -184,6 +184,15 @@ class OrganizerViewModel : ViewModel() {
         }
     }
 
+    fun updateTaskList(id: String, name: String, icon: String? = null) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            repository.updateTaskList(id, name, icon).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+            }
+        }
+    }
+
     // --- Shopping Actions ---
     fun toggleShoppingItem(id: String) {
         viewModelScope.launch {
