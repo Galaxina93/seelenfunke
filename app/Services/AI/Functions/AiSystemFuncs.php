@@ -307,6 +307,15 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeGetSystemHealth']
             ],
             [
+                'name' => 'system_get_current_time',
+                'description' => 'Ruft die exakte aktuelle Systemzeit und das aktuelle Datum (im Format Wochentag, DD.MM.YYYY HH:MM:SS) ab. Nutze dieses Tool immer, wenn du wissen musst, wie viel Uhr es JETZT gerade ist oder wenn seit dem Verbindungsaufbau Zeit vergangen sein könnte.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetCurrentTime']
+            ],
+            [
                 'name' => 'system_fix_errors',
                 'description' => 'Agiert als automatischer Administrator: Behebt gefundene Backend-Fehler durch Cache-Clearing, OPcache Resets, Queue Restarts, Backup-Triggers und NPM-Kompilierung. FÜHRE DIESES TOOL ZWINGEND AUS, wenn get_system_health Fehler meldet. Stichworte: Repariere das System, Behebe die Fehler, Auto-Heal starten.',
                 'parameters' => [
@@ -1731,6 +1740,16 @@ trait AiSystemFuncs
             'status' => 'success',
             'summary' => 'Folgende Protokoll-Fetzen wurden im Chat-Verlauf gefunden (neueste zuerst):',
             'logs' => $formattedLogs
+        ];
+    }
+
+    public static function executeGetCurrentTime(array $args)
+    {
+        return [
+            'status' => 'success',
+            'current_time' => now()->format('Y-m-d H:i:s'),
+            'formatted' => now()->locale('de')->isoFormat('dddd, DD.MM.YYYY HH:mm:ss') . ' Uhr',
+            'timezone' => config('app.timezone'),
         ];
     }
 

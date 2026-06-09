@@ -41,6 +41,7 @@ class AiAgentService
     public static function getAgentPayload(AiAgent $agent): array
     {
         $allowedToolIdentifiers = $agent->tools->pluck('identifier')->toArray();
+        $allowedToolIdentifiers[] = 'system_get_current_time';
 
         // Extrahiere das Schema aus der globalen Registry
         $globalSchema = class_exists('\App\Services\AI\AIFunctionsRegistry')
@@ -57,7 +58,8 @@ class AiAgentService
         $filteredSchema = array_values($filteredSchema);
 
         $timeInfo = "\n\n[SYSTEM-ZEIT & AKTUELLE MISSION]\n" .
-                    "Die aktuelle Systemzeit ist: " . now()->format('d.m.Y H:i:s') . " Uhr.\n";
+                    "Die aktuelle Systemzeit beim Verbindungsaufbau ist: " . now()->format('d.m.Y H:i:s') . " Uhr.\n" .
+                    "HINWEIS: Da diese Verbindung länger offen bleiben kann, nutze das Tool `system_get_current_time` für die exakte, minutengenaue Uhrzeit, um zu prüfen, ob sich deine Anweisungen (wie Schlafenszeit) geändert haben.\n";
         
         try {
             $botService = app(\App\Services\AI\AiSupportService::class);

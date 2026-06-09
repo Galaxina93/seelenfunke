@@ -49,7 +49,7 @@ class AiSupportService
 
         $sliderRoutines = $allRoutines->map(function ($routine) use ($now, &$currentFlow, &$options, $sleepMessage) {
             $start = \Carbon\Carbon::parse($routine->start_time);
-            $duration = $routine->type === 'sleep' ? 8 * 60 : $routine->duration_minutes;
+            $duration = $routine->duration_minutes ?: ($routine->type === 'sleep' ? 8 * 60 : 0);
             $end = $start->copy()->addMinutes($duration);
 
             // Mitternachts-Korrektur (z.B. Schlafen von 22:00 bis 06:00 Uhr)

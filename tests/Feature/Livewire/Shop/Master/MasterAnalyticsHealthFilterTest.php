@@ -139,4 +139,81 @@ class MasterAnalyticsHealthFilterTest extends TestCase
             ->assertSet('dateEnd', '2026-12-31')
             ->assertHasNoErrors();
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function revenue_does_not_include_fixed_income_and_monthly_profit_is_normalized()
+    {
+        $admin = Admin::factory()->create();
+
+        // 1. Setup Cost Items: 1000 € fixed business income, -500 € fixed business expense
+        $group = \App\Models\Accounting\AccountingGroup::create([
+            'admin_id' => $admin->id,
+            'name' => 'Test Group',
+            'type' => 'expense',
+        ]);
+
+        \App\Models\Accounting\AccountingCostItem::forceCreate([
+            'id' => \Illuminate\Support\Str::uuid(),
+            'accounting_group_id' => $group->id,
+            'name' => 'Fixed Income Test',
+            'amount' => 1000.00,
+            'interval_months' => 1,
+            'first_payment_date' => now()->format('Y-m-d'),
+            'is_business' => true,
+        ]);
+        \App\Models\Accounting\AccountingCostItem::forceCreate([
+            'id' => \Illuminate\Support\Str::uuid(),
+            'accounting_group_id' => $group->id,
+            'name' => 'Fixed Expense Test',
+            'amount' => -500.00,
+            'interval_months' => 1,
+            'first_payment_date' => now()->format('Y-m-d'),
+            'is_business' => true,
+        ]);
+
+        // 2. Setup paid OrderOrder: 29.80 € total price
+        $b2bCustomer = Customer::factory()->create();
+        CustomerProfile::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'customer_id' => $b2bCustomer->id, 'is_business' => true]);
+
+        OrderOrder::forceCreate([
+            'id' => \Illuminate\Support\Str::uuid(),
+            'order_number' => 'ORD-' . uniqid(),
+            'customer_id' => $b2bCustomer->id,
+            'email' => 'test@example.com',
+            'billing_address' => [],
+            'shipping_address' => [],
+            'subtotal_price' => 2500,
+            'tax_amount' => 480,
+            'shipping_price' => 0,
+            'total_price' => 2980,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'created_at' => now(),
+        ]);
+
+        // 3. Initialize Livewire component
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class)
+            ->set('filterType', 'business')
+            ->set('dateStart', now()->startOfMonth()->format('Y-m-d'))
+            ->set('dateEnd', now()->endOfMonth()->format('Y-m-d'));
+
+        $stats = $component->get('stats');
+
+        // Revenue should be exactly 29.80 € (not including the daily fraction of the 1000 € fixed income)
+        $this->assertEquals(29.80, $stats['total_revenue']);
+        
+        // Net profit should include the 1000 € fixed income and subtract the -500 € fixed expenses.
+        // Total profit should be around 29.80 + 1000 - 500 = 529.80 € (with slight factor variation based on month length)
+        $start = now()->startOfMonth()->startOfDay();
+        $end = now()->endOfMonth()->startOfDay();
+        $durationInDays = max(1, $start->diffInDays($end) + 1);
+        $factor = $durationInDays / 30.42;
+        $expectedProfit = 29.80 + (1000.00 * $factor) - (500.00 * $factor);
+        $this->assertEqualsWithDelta($expectedProfit, $stats['total_profit'], 0.5);
+        
+        // avg_profit is monthly profit, which should be normalized to exactly 1 month (capped at minimum of 1 month):
+        $expectedAvgProfit = $expectedProfit / max(1.0, $factor);
+        $this->assertEqualsWithDelta($expectedAvgProfit, $stats['avg_profit'], 0.5);
+    }
 }

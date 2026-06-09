@@ -236,6 +236,7 @@ class GeminiAgent implements AiProviderInterface
         }
         $globalSchema = AIFunctionsRegistry::getSchema();
         $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
+        $allowedIdentifiers[] = 'system_get_current_time';
 
         $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers) {
             return in_array($t['function']['name'] ?? '', $allowedIdentifiers);

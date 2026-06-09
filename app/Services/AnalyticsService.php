@@ -550,13 +550,13 @@ class AnalyticsService
                             ->sum('total_price') / 100;
                 }
 
-                $rev = $shopRev + $specialInc + $fixedIncomeDay;
+                $rev = $shopRev + $specialInc;
                 $exp = $specialExp + $fixedExpenseDay;
 
                 $chartData['labels'][] = $date->format('d.m.');
                 $chartData['revenue'][] = round($rev, 2);
                 $chartData['expenses'][] = round($exp, 2);
-                $chartData['profit'][] = round($rev - $exp, 2);
+                $chartData['profit'][] = round(($shopRev + $specialInc + $fixedIncomeDay) - $exp, 2);
             }
         } else {
             $currentDate = $start->copy()->startOfMonth();
@@ -590,13 +590,13 @@ class AnalyticsService
 
                 $shopRevenue = ($filterType !== 'private') ? OrderOrder::whereBetween('created_at', [$mStart, $mEnd])->where('payment_status', 'paid')->sum('total_price') / 100 : 0;
 
-                $revenue = $shopRevenue + $specialIncome + $fixedIncomeMonth;
+                $revenue = $shopRevenue + $specialIncome;
                 $expenses = $specialExpenses + $fixedExpenseMonth;
 
                 $chartData['labels'][] = $currentDate->locale('de')->shortMonthName . ' ' . $currentDate->format('y');
                 $chartData['revenue'][] = round($revenue, 2);
                 $chartData['expenses'][] = round($expenses, 2);
-                $chartData['profit'][] = round($revenue - $expenses, 2);
+                $chartData['profit'][] = round(($shopRevenue + $specialIncome + $fixedIncomeMonth) - $expenses, 2);
 
                 $currentDate->addMonth();
             }
@@ -613,19 +613,22 @@ class AnalyticsService
 
         $totalRevenuePeriod = array_sum($chartData['revenue']);
         $totalExpensesPeriod = array_sum($chartData['expenses']);
+        $totalProfitPeriod = array_sum($chartData['profit']);
 
-        $durationInDays = max(1, $start->diffInDays($end) + 1);
+        $durationInDays = max(1, $start->copy()->startOfDay()->diffInDays($end->copy()->startOfDay()) + 1);
         $prevStart = $start->copy()->subDays($durationInDays);
         $prevEnd = $start->copy()->subDay();
 
         $prevRevenue = $this->calculateRevenueForPeriod($prevStart, $prevEnd, $filterType);
         $revenueGrowth = $prevRevenue > 0 ? (($totalRevenuePeriod - $prevRevenue) / $prevRevenue) * 100 : 0;
 
-        $unitsCount = max(1, count($chartData['labels']));
-        $avgProfit = ($totalRevenuePeriod - $totalExpensesPeriod) / $unitsCount;
-        $projectedProfit = ($diffInDays <= 31) ? ($avgProfit * 365 / 30.42) : ($avgProfit * 12);
+        $monthsCount = max(1, $durationInDays / 30.42);
+        $avgProfit = $totalProfitPeriod / $monthsCount;
+        $projectedProfit = $avgProfit * 12;
 
-        $margin = $totalRevenuePeriod > 0 ? (($totalRevenuePeriod - $totalExpensesPeriod) / $totalRevenuePeriod) * 100 : 0;
+        $fixedIncomeTotal = $allCostItems->where('amount', '>', 0)->sum(fn($i) => $i->amount / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
+        $totalIncomePeriod = $totalRevenuePeriod + $fixedIncomeTotal;
+        $margin = $totalIncomePeriod > 0 ? ($totalProfitPeriod / $totalIncomePeriod) * 100 : 0;
 
         $fixGewerbe = $allCostItems->where('is_business', true)->where('amount', '<', 0)->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
         $fixPrivat = $allCostItems->where('is_business', false)->where('amount', '<', 0)->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
@@ -644,10 +647,9 @@ class AnalyticsService
         $lowRevenueProd = $productStatsQuery->clone()->orderBy('total', 'asc')->first();
 
         $breakEvenValue = ($fixGewerbe + $fixPrivat) / max(1, ($durationInDays / 30.42));
-        $qualityScore = $this->calculateShopQualityScore($margin, $revenueGrowth, $totalRevenuePeriod - $totalExpensesPeriod, $totalRevenuePeriod, $breakEvenValue * ($durationInDays / 30.42));
+        $qualityScore = $this->calculateShopQualityScore($margin, $revenueGrowth, $totalProfitPeriod, $totalRevenuePeriod, $breakEvenValue * ($durationInDays / 30.42));
 
         // Vorberechnung für Health Score & Return Array
-        $fixedIncomeTotal = $allCostItems->where('amount', '>', 0)->sum(fn($i) => $i->amount / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
         $pendingInvoicesCount = AccountingInvoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->count();
         $pendingInvoicesSum = AccountingInvoice::where('status', 'open')->whereBetween('created_at', [$start, $end])->sum('total') / 100;
 
@@ -798,7 +800,7 @@ class AnalyticsService
             // SHOP DATEN
             'chart_data' => $chartData,
             'total_revenue' => $totalRevenuePeriod,
-            'total_profit' => $totalRevenuePeriod - $totalExpensesPeriod,
+            'total_profit' => $totalProfitPeriod,
             'avg_revenue_monthly' => $totalRevenuePeriod / max(1, ($durationInDays / 30.42)),
             'revenue_growth' => round($revenueGrowth, 1),
             'avg_profit' => $avgProfit,

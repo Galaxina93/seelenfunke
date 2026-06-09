@@ -375,7 +375,8 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 'system_search_chat_history', 'system_close_ui',
                 'system_search_web', 'system_switch_agent',
                 'system_write_artifact', 'system_patch_artifact', 'system_read_clipboard', 'system_write_clipboard',
-                'communication_list_agents', 'communication_find_agent_for_tool', 'communication_ask_agent'
+                'communication_list_agents', 'communication_find_agent_for_tool', 'communication_ask_agent',
+                'system_get_current_time'
             ],
                 // Weitere Arrays bei Bedarf hier einfügen
             );
