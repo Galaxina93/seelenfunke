@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tasks_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_background_shape"
+    android:padding="12dp">
+
+    <!-- Header Row -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp">
+
+        <ImageButton
+            android:id="@+id/btn_tasks_back"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="6dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_back_arrow"
+            android:contentDescription="Zurück"
+            android:visibility="invisible" />
+
+        <LinearLayout
+            android:id="@+id/header_title_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_toEndOf="@id/btn_tasks_back"
+            android:layout_toStartOf="@+id/header_tasks_buttons_container">
+
+            <TextView
+                android:id="@+id/tasks_widget_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SEELENFUNKE"
+                android:textColor="#C5A059"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.1" />
+
+            <TextView
+                android:id="@+id/tasks_widget_subtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Aufgaben"
+                android:textColor="#94A3B8"
+                android:textSize="10sp" />
+
+            <TextView
+                android:id="@+id/tasks_widget_context"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#C5A059"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:layout_marginTop="2dp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/header_tasks_buttons_container"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true">
+
+            <ImageButton
+                android:id="@+id/btn_tasks_refresh"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@android:drawable/ic_menu_rotate"
+                android:contentDescription="Aktualisieren" />
+        </LinearLayout>
+    </RelativeLayout>
+
+    <!-- Divider Line -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1E293B"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Content (ListView / Empty state) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ListView
+            android:id="@+id/tasks_widget_list"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="#1E293B"
+            android:dividerHeight="1dp"
+            android:nestedScrollingEnabled="true" />
+
+        <TextView
+            android:id="@+id/tasks_widget_empty_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:text="Keine Aufgaben vorhanden."
+            android:textColor="#64748B"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_shopping_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="#1E293B"
+    android:padding="10dp"
+    android:layout_marginTop="2dp"
+    android:layout_marginBottom="2dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    android:gravity="center_vertical">
+
+    <!-- Checkbox Clickable Container -->
+    <FrameLayout
+        android:id="@+id/item_checkbox_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="4dp"
+        android:layout_marginEnd="8dp">
+
+        <ImageView
+            android:id="@+id/item_checkbox"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_checkbox_unchecked"
+            android:contentDescription="Abhaken" />
+    </FrameLayout>
+
+    <!-- Item Name -->
+    <TextView
+        android:id="@+id/item_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="#F8FAFC"
+        android:textSize="13sp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:layout_gravity="center_vertical" />
+
+    <!-- Category Indicator Bar -->
+    <FrameLayout
+        android:id="@+id/item_category_bar"
+        android:layout_width="4dp"
+        android:layout_height="20dp"
+        android:background="#64748B"
+        android:layout_marginStart="8dp"
+        android:layout_gravity="center_vertical" />
+</LinearLayout>

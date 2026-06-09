@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_tasks_list_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="#1E293B"
+    android:padding="10dp"
+    android:layout_marginTop="2dp"
+    android:layout_marginBottom="2dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/list_icon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="10dp"
+        android:src="@android:drawable/ic_menu_agenda"
+        android:tint="#C5A059" />
+
+    <TextView
+        android:id="@+id/list_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textColor="#F8FAFC"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:singleLine="true"
+        android:ellipsize="end" />
+
+    <!-- Open Tasks Count Badge -->
+    <TextView
+        android:id="@+id/list_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@android:drawable/toast_frame"
+        android:textColor="#F8FAFC"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:gravity="center"
+        android:text="0" />
+
+    <ImageView
+        android:id="@+id/btn_delete_list"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="8dp"
+        android:src="@android:drawable/ic_menu_delete"
+        android:tint="#EF4444"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Liste löschen"
+        android:padding="4dp" />
+</LinearLayout>

@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_tasks_add_task_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1E293B"
+    android:padding="12dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="6dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="NEUE AUFGABE ANLEGEN"
+        android:textColor="#C5A059"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#334155"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Title Input Button -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Titel:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_add_task_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="start|center_vertical"
+            android:text="[Tippen zum Schreiben]"
+            android:textSize="12sp"
+            android:textColor="#F8FAFC"
+            android:padding="8dp"
+            android:background="#0F172A" />
+    </LinearLayout>
+
+    <!-- Priority Selection Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Prio:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_add_task_prio_hoch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="HOCH"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#EF4444"
+            android:padding="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="#1AEF4444" />
+
+        <TextView
+            android:id="@+id/btn_add_task_prio_mittel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="MITTEL"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#F97316"
+            android:padding="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="#1AF97316" />
+
+        <TextView
+            android:id="@+id/btn_add_task_prio_niedrig"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="NIEDRIG"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#64748B"
+            android:padding="6dp"
+            android:background="#1A64748B" />
+    </LinearLayout>
+
+    <!-- Relevant ab Date Selection Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Relevant ab:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_add_task_date"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Kein Datum"
+            android:textSize="11sp"
+            android:textColor="#C5A059"
+            android:padding="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="#1AC5A059" />
+
+        <ImageView
+            android:id="@+id/btn_add_task_clear_date"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@android:drawable/ic_menu_delete"
+            android:tint="#EF4444"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Datum löschen"
+            android:padding="4dp" />
+    </LinearLayout>
+
+    <!-- Save & Cancel Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/btn_add_task_cancel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="ABBRECHEN"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#94A3B8"
+            android:background="#334155"
+            android:padding="8dp"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/btn_add_task_save"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="SPEICHERN"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#030712"
+            android:background="#C5A059"
+            android:padding="8dp" />
+    </LinearLayout>
+</LinearLayout>

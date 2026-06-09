@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_tasks_edit_control_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#1E293B"
+    android:padding="12dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="6dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp">
+
+    <!-- Task Title Header -->
+    <TextView
+        android:id="@+id/edit_task_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="#F8FAFC"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="10dp" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#334155"
+        android:layout_marginBottom="10dp" />
+
+    <!-- Priority Selection Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Prio:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_prio_hoch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="HOCH"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#EF4444"
+            android:padding="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="#1AEF4444" />
+
+        <TextView
+            android:id="@+id/btn_prio_mittel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="MITTEL"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#F97316"
+            android:padding="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="#1AF97316" />
+
+        <TextView
+            android:id="@+id/btn_prio_niedrig"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="NIEDRIG"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="#64748B"
+            android:padding="6dp"
+            android:background="#1A64748B" />
+    </LinearLayout>
+
+    <!-- Relevant ab Date Selection Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="8dp">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Relevant ab:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_edit_date"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="Kein Datum"
+            android:textSize="11sp"
+            android:textColor="#C5A059"
+            android:padding="6dp"
+            android:layout_marginEnd="4dp"
+            android:background="#1AC5A059" />
+
+        <ImageView
+            android:id="@+id/btn_clear_date"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@android:drawable/ic_menu_delete"
+            android:tint="#EF4444"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Datum löschen"
+            android:padding="4dp" />
+    </LinearLayout>
+
+    <!-- Subtask Creation Trigger Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Unter-Schritt:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_add_subtask"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="+ NEUER SCHRITT"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#030712"
+            android:background="#C5A059"
+            android:padding="6dp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#334155"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:layout_width="80dp"
+            android:layout_height="wrap_content"
+            android:text="Aktion:"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_delete_task"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="AUFGABE LÖSCHEN"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="#EF4444"
+            android:padding="6dp" />
+    </LinearLayout>
+
+</LinearLayout>

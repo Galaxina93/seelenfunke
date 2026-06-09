@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_tasks_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="#1E293B"
+    android:padding="10dp"
+    android:layout_marginTop="2dp"
+    android:layout_marginBottom="2dp"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    android:gravity="center_vertical">
+
+    <!-- Checkbox Clickable Container -->
+    <FrameLayout
+        android:id="@+id/task_checkbox_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="4dp"
+        android:layout_marginEnd="8dp">
+
+        <ImageView
+            android:id="@+id/task_checkbox"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_checkbox_unchecked"
+            android:contentDescription="Erledigen" />
+    </FrameLayout>
+
+    <!-- Task Details -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/task_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#F8FAFC"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:autoLink="web"
+            android:textColorLink="#C5A059"
+            android:textColorHighlight="#33C5A059"
+            android:maxLines="6" />
+
+        <TextView
+            android:id="@+id/task_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"
+            android:layout_marginTop="2dp"
+            android:singleLine="true"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- Gear/Settings Button Container for editing -->
+    <FrameLayout
+        android:id="@+id/task_edit_button_container"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="4dp"
+        android:layout_gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/task_edit_button"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_settings"
+            android:contentDescription="Bearbeiten" />
+    </FrameLayout>
+
+    <!-- Priority indicator container for larger touch target -->
+    <FrameLayout
+        android:id="@+id/task_priority_container"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginStart="4dp"
+        android:layout_gravity="center_vertical">
+
+        <FrameLayout
+            android:id="@+id/task_priority_bar"
+            android:layout_width="4dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:background="#64748B" />
+    </FrameLayout>
+</LinearLayout>
