@@ -274,12 +274,49 @@ class TasksWidgetProvider : AppWidgetProvider() {
             }
             ACTION_ADD_SUBTASK -> {
                 val taskId = intent.getStringExtra("task_id")
-                if (taskId != null) {
-                    val addSubtaskIntent = Intent(context, AddSubtaskWidgetActivity::class.java).apply {
-                        putExtra("task_id", taskId)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID && taskId != null) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit()
+                        .putString("widget_tasks_adding_subtask_parent_$appWidgetId", taskId)
+                        .remove("widget_tasks_adding_subtask_title_$appWidgetId")
+                        .apply()
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                }
+            }
+            ACTION_CANCEL_ADD_SUBTASK -> {
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit()
+                        .remove("widget_tasks_adding_subtask_parent_$appWidgetId")
+                        .remove("widget_tasks_adding_subtask_title_$appWidgetId")
+                        .apply()
+                    updateAppWidget(context, appWidgetManager, appWidgetId)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                }
+            }
+            ACTION_SAVE_ADD_SUBTASK -> {
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
+                    val parentId = sharedPrefs.getString("widget_tasks_adding_subtask_parent_$appWidgetId", null)
+                    val title = sharedPrefs.getString("widget_tasks_adding_subtask_title_$appWidgetId", "") ?: ""
+                    if (parentId != null && title.isNotBlank()) {
+                        val repository = ServiceLocator.organizerRepository
+                        CoroutineScope(Dispatchers.Main).launch {
+                            repository.addSubtask(parentId, title.trim())
+                            repository.getTasks()
+                            
+                            sharedPrefs.edit()
+                                .remove("widget_tasks_adding_subtask_parent_$appWidgetId")
+                                .remove("widget_tasks_adding_subtask_title_$appWidgetId")
+                                .apply()
+                                
+                            updateAppWidget(context, appWidgetManager, appWidgetId)
+                            appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                        }
+                    } else {
+                        Toast.makeText(context, "Bitte einen Titel eingeben.", Toast.LENGTH_SHORT).show()
                     }
-                    context.startActivity(addSubtaskIntent)
                 }
             }
             ACTION_DELETE_LIST -> {
@@ -316,13 +353,11 @@ class TasksWidgetProvider : AppWidgetProvider() {
             }
             ACTION_START_ADD_LIST -> {
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                    val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", Context.MODE_PRIVATE)
-                    sharedPrefs.edit()
-                        .putBoolean("widget_tasks_adding_list_$appWidgetId", true)
-                        .remove("widget_tasks_adding_list_name_$appWidgetId")
-                        .apply()
-                    updateAppWidget(context, appWidgetManager, appWidgetId)
-                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.tasks_widget_list)
+                    val addListIntent = Intent(context, AddTaskListWidgetActivity::class.java).apply {
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(addListIntent)
                 }
             }
             ACTION_CANCEL_ADD_LIST -> {
@@ -491,13 +526,7 @@ class TasksWidgetProvider : AppWidgetProvider() {
             ACTION_NONE -> {
                 // No-op to consume widget background taps
             }
-            AppWidgetManager.ACTION_APPWIDGET_UPDATE -> {
-                for (id in appWidgetIds) {
-                    updateAppWidget(context, appWidgetManager, id)
-                }
-                appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetIds, R.id.tasks_widget_list)
-                triggerBackgroundSync(context)
-            }
+            // Handled by super.onReceive -> onUpdate
         }
     }
 
@@ -525,6 +554,8 @@ class TasksWidgetProvider : AppWidgetProvider() {
         const val ACTION_SET_PRIORITY = "de.meinseelenfunke.app.widget.ACTION_TASKS_SET_PRIORITY"
         const val ACTION_CLEAR_DATE = "de.meinseelenfunke.app.widget.ACTION_TASKS_CLEAR_DATE"
         const val ACTION_ADD_SUBTASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_SUBTASK"
+        const val ACTION_CANCEL_ADD_SUBTASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_CANCEL_ADD_SUBTASK"
+        const val ACTION_SAVE_ADD_SUBTASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_SAVE_ADD_SUBTASK"
         const val ACTION_DELETE_LIST = "de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_LIST"
         const val ACTION_DELETE_TASK = "de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_TASK"
         
@@ -560,6 +591,8 @@ class TasksWidgetProvider : AppWidgetProvider() {
             val selectedListId = sharedPrefs.getString("widget_tasks_selected_list_id_$appWidgetId", null)
             var selectedListName = sharedPrefs.getString("widget_tasks_selected_list_name_$appWidgetId", null)
             val editingTaskId = sharedPrefs.getString("widget_tasks_editing_task_id_$appWidgetId", null)
+
+            Log.d("TasksWidget", "updateAppWidget: id=$appWidgetId, listId=$selectedListId, listName=$selectedListName, editingTaskId=$editingTaskId")
 
             // Recover name from lists cache if it was somehow lost
             if (selectedListId != null && selectedListName == null) {

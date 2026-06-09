@@ -1,13 +1,21 @@
 package de.meinseelenfunke.app.data.repository
 
+import android.content.Context
+import android.net.Uri
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import de.meinseelenfunke.app.data.api.ChatMessage
 import de.meinseelenfunke.app.data.api.ChatRequest
 import de.meinseelenfunke.app.data.api.ChatResponse
+import de.meinseelenfunke.app.data.api.CameraSnapshotResponse
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.AppLogger
+import de.meinseelenfunke.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class AiRepository(private val serviceLocator: ServiceLocator) {
 
@@ -15,7 +23,28 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
     private var localGenerativeModel: GenerativeModel? = null
     private var lastApiKey: String? = null
 
+    suspend fun uploadSnapshot(
+        context: Context,
+        uriString: String,
+        fileName: String
+    ): Result<CameraSnapshotResponse> = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val uri = Uri.parse(uriString)
+            val bytes = ImageUtils.compressImageUri(context, uri) ?: throw Exception("Bild konnte nicht komprimiert werden.")
+            val mediaType = "image/jpeg".toMediaTypeOrNull()
+            val requestFile = bytes.toRequestBody(mediaType)
+            val part = MultipartBody.Part.createFormData("image", fileName, requestFile)
+            val response = serviceLocator.getAiApi().uploadSnapshot(part)
+            Result.success(response)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "uploadSnapshot failed: uri=$uriString", e)
+            Result.failure(e)
+        }
+    }
+
     // Send a message to the Laravel backend remote agents
+
     suspend fun sendChatMessage(
         prompt: String,
         history: List<ChatMessage>,
@@ -28,6 +57,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
             Result.success(response)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "sendChatMessage failed: agentId=$agentId", e)
             Result.failure(e)
         }
     }
@@ -66,6 +96,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "generateLocalResponse failed: modelName=$modelName", e)
             Result.failure(e)
         }
     }
@@ -76,6 +107,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
             Result.success(response)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "getLiveCredentials failed: agentId=$agentId, sessionId=$chatSessionId", e)
             Result.failure(e)
         }
     }
@@ -88,6 +120,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
             Result.success(response)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "executeTool failed: functionName=$functionName, sessionId=$sessionId", e)
             Result.failure(e)
         }
     }
@@ -102,6 +135,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "getAgents failed", e)
             Result.failure(e)
         }
     }

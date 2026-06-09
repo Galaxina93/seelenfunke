@@ -1,5 +1,6 @@
 package de.meinseelenfunke.app.data.repository
 
+import android.content.Context
 import de.meinseelenfunke.app.data.api.CalendarEvent
 import de.meinseelenfunke.app.data.api.ManagementDayRoutine
 import de.meinseelenfunke.app.data.api.ManagementDayRoutineStep
@@ -14,6 +15,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().getTaskLists()
             if (response.success) {
+                saveTaskListsToCache(response.data)
+                triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Aufgabenlisten nicht laden."))
@@ -27,6 +30,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().getTasks()
             if (response.success) {
+                saveTasksToCache(response.data)
+                triggerTasksWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Aufgaben nicht laden."))
@@ -40,6 +45,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().toggleTask(id)
             if (response.success) {
+                updateCachedTask(response.data)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht umstellen."))
@@ -59,6 +65,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().updateTask(id, title, priority, isCompleted, relevantFrom)
             if (response.success) {
+                updateCachedTask(response.data)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht aktualisieren."))
@@ -212,10 +219,206 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    fun saveShoppingItemsToCache(items: List<ManagementShoppingItem>) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = com.google.gson.Gson().toJson(items)
+            sharedPrefs.edit().putString("shopping_items_cache", json).apply()
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveShoppingItemsToCache error", e)
+        }
+    }
+
+    private fun updateCachedItem(updatedItem: ManagementShoppingItem) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("shopping_items_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
+                val items: List<ManagementShoppingItem> = com.google.gson.Gson().fromJson(json, type)
+                val updatedList = items.map { if (it.id == updatedItem.id) updatedItem else it }
+                saveShoppingItemsToCache(updatedList)
+                triggerShoppingWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "updateCachedItem error", e)
+        }
+    }
+
+    private fun addCachedItem(newItem: ManagementShoppingItem) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("shopping_items_cache", null)
+            val items: List<ManagementShoppingItem> = if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
+                com.google.gson.Gson().fromJson(json, type)
+            } else {
+                emptyList()
+            }
+            val updatedList = listOf(newItem) + items
+            saveShoppingItemsToCache(updatedList)
+            triggerShoppingWidgetUpdate(context)
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "addCachedItem error", e)
+        }
+    }
+
+    private fun deleteCachedItem(id: String) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("shopping_items_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
+                val items: List<ManagementShoppingItem> = com.google.gson.Gson().fromJson(json, type)
+                val updatedList = items.filter { it.id != id }
+                saveShoppingItemsToCache(updatedList)
+                triggerShoppingWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteCachedItem error", e)
+        }
+    }
+
+    fun optimisticToggleShoppingItem(id: String) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("shopping_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("shopping_items_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementShoppingItem>>() {}.type
+                val items: List<ManagementShoppingItem> = com.google.gson.Gson().fromJson(json, type)
+                val updatedList = items.map { item ->
+                    if (item.id == id) {
+                        val newStatus = if (item.status == "needed") "stocked" else "needed"
+                        item.copy(status = newStatus)
+                    } else {
+                        item
+                    }
+                }
+                saveShoppingItemsToCache(updatedList)
+                triggerShoppingWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "optimisticToggle error", e)
+        }
+    }
+
+    fun triggerShoppingWidgetUpdate(context: Context) {
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val componentName = android.content.ComponentName(context, de.meinseelenfunke.app.widget.ShoppingListWidgetProvider::class.java)
+        val ids = appWidgetManager.getAppWidgetIds(componentName)
+        if (ids.isNotEmpty()) {
+            for (id in ids) {
+                de.meinseelenfunke.app.widget.ShoppingListWidgetProvider.updateAppWidget(context, appWidgetManager, id)
+            }
+            appWidgetManager.notifyAppWidgetViewDataChanged(ids, de.meinseelenfunke.app.R.id.shopping_widget_list)
+        }
+    }
+
+    fun saveTaskListsToCache(lists: List<ManagementTaskList>) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = com.google.gson.Gson().toJson(lists)
+            sharedPrefs.edit().putString("task_lists_cache", json).apply()
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveTaskListsToCache error", e)
+        }
+    }
+
+    fun saveTasksToCache(tasks: List<ManagementTask>) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = com.google.gson.Gson().toJson(tasks)
+            sharedPrefs.edit().putString("tasks_cache", json).apply()
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "saveTasksToCache error", e)
+        }
+    }
+
+    private fun updateCachedTask(updatedTask: ManagementTask) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("tasks_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+                val items: List<ManagementTask> = com.google.gson.Gson().fromJson(json, type)
+                val updatedList = items.map { if (it.id == updatedTask.id) updatedTask else it }
+                saveTasksToCache(updatedList)
+                triggerTasksWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "updateCachedTask error", e)
+        }
+    }
+
+    private fun addCachedTask(newTask: ManagementTask) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("tasks_cache", null)
+            val items: List<ManagementTask> = if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+                com.google.gson.Gson().fromJson(json, type)
+            } else {
+                emptyList()
+            }
+            val updatedList = items + newTask
+            saveTasksToCache(updatedList)
+            triggerTasksWidgetUpdate(context)
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "addCachedTask error", e)
+        }
+    }
+
+
+    fun optimisticToggleTask(id: String) {
+        try {
+            val context = serviceLocator.context
+            val sharedPrefs = context.getSharedPreferences("tasks_widget_prefs", android.content.Context.MODE_PRIVATE)
+            val json = sharedPrefs.getString("tasks_cache", null)
+            if (json != null) {
+                val type = object : com.google.gson.reflect.TypeToken<List<ManagementTask>>() {}.type
+                val items: List<ManagementTask> = com.google.gson.Gson().fromJson(json, type)
+                val updatedList = items.map { item ->
+                    if (item.id == id) {
+                        item.copy(is_completed = !item.is_completed)
+                    } else {
+                        item
+                    }
+                }
+                saveTasksToCache(updatedList)
+                triggerTasksWidgetUpdate(context)
+            }
+        } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "optimisticToggleTask error", e)
+        }
+    }
+
+    fun triggerTasksWidgetUpdate(context: Context) {
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val componentName = android.content.ComponentName(context, de.meinseelenfunke.app.widget.TasksWidgetProvider::class.java)
+        val ids = appWidgetManager.getAppWidgetIds(componentName)
+        if (ids.isNotEmpty()) {
+            for (id in ids) {
+                de.meinseelenfunke.app.widget.TasksWidgetProvider.updateAppWidget(context, appWidgetManager, id)
+            }
+            appWidgetManager.notifyAppWidgetViewDataChanged(ids, de.meinseelenfunke.app.R.id.tasks_widget_list)
+        }
+    }
+
     suspend fun getShoppingItems(): Result<List<ManagementShoppingItem>> {
         return try {
             val response = serviceLocator.getOrganizerApi().getShoppingItems()
             if (response.success) {
+                saveShoppingItemsToCache(response.data)
+                triggerShoppingWidgetUpdate(serviceLocator.context)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Einkaufsliste nicht laden."))
@@ -229,6 +432,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().toggleShoppingItem(id)
             if (response.success) {
+                updateCachedItem(response.data)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht umstellen."))
@@ -242,6 +446,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().addShoppingItem(name, categoryId)
             if (response.success) {
+                addCachedItem(response.data)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht hinzufügen."))
@@ -255,6 +460,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().deleteShoppingItem(id)
             if (response.success) {
+                deleteCachedItem(id)
                 Result.success(Unit)
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht löschen."))
@@ -265,16 +471,22 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     }
 
     suspend fun getCalendarEvents(): Result<List<CalendarEvent>> {
+        val context = serviceLocator.context
+        de.meinseelenfunke.app.util.AppLogger.info(context, "OrganizerRepo", "getCalendarEvents: requesting calendar events from API")
         return try {
             val response = serviceLocator.getOrganizerApi().getCalendarEvents()
             if (response.success) {
                 val events = response.data
+                de.meinseelenfunke.app.util.AppLogger.info(context, "OrganizerRepo", "getCalendarEvents: successfully loaded ${events.size} events")
                 saveCalendarEventsToCache(events)
                 Result.success(events)
             } else {
-                Result.failure(Exception("Konnte Kalendertermine nicht laden."))
+                val err = Exception("Server error response: success = false")
+                de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents failed: API success false", err)
+                Result.failure(err)
             }
         } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents exception", e)
             Result.failure(e)
         }
     }
@@ -282,12 +494,14 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
     private fun saveCalendarEventsToCache(events: List<CalendarEvent>) {
         try {
             val context = serviceLocator.context
-            val json = com.google.gson.Gson().toJson(events)
             val sharedPrefs = context.getSharedPreferences("calendar_widget_prefs", android.content.Context.MODE_PRIVATE)
-            sharedPrefs.edit().putString("calendar_events_cache", json).apply()
 
-            // Reschedule local alarms
+            // Reschedule local alarms (looks up the old cache in SharedPreferences before we write the new one)
             de.meinseelenfunke.app.util.CalendarAlarmScheduler.scheduleAlarmsForEvents(context, events)
+
+            // Save new cache
+            val json = com.google.gson.Gson().toJson(events)
+            sharedPrefs.edit().putString("calendar_events_cache", json).apply()
 
             // Trigger Widget Update
             val widgetIntent = android.content.Intent(context, de.meinseelenfunke.app.widget.CalendarAppWidgetProvider::class.java).apply {
@@ -386,6 +600,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().addSubtask(parentId, title)
             if (response.success) {
+                addCachedTask(response.data)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Unteraufgabe nicht hinzufügen."))

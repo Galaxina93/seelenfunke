@@ -112,7 +112,7 @@ class AddShoppingItemActivity : ComponentActivity() {
                 modifier = Modifier
                     .width(320.dp)
                     .padding(16.dp)
-                    .clickable(enabled = false) {}, // Consume clicks on card
+                    .clickable {}, // Consume clicks on card
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.5.dp, Gold),
                 colors = CardDefaults.cardColors(

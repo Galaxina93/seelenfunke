@@ -4,6 +4,7 @@ import de.meinseelenfunke.app.data.api.LoginRequest
 import de.meinseelenfunke.app.data.api.LoginResponse
 import de.meinseelenfunke.app.data.api.User
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.AppLogger
 
 class AuthRepository(private val serviceLocator: ServiceLocator) {
 
@@ -28,6 +29,7 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Login fehlgeschlagen: Kein Token zurückgegeben."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "AuthRepo", "login failed: email=$email", e)
             Result.failure(e)
         }
     }
@@ -37,6 +39,7 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             user.user_type?.let { serviceLocator.saveUserType(it) }
             Result.success(user)
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "AuthRepo", "getCurrentUser failed", e)
             Result.failure(e)
         }
     }
@@ -49,14 +52,20 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
     }
 
     suspend fun updateFcmToken(fcmToken: String): Result<de.meinseelenfunke.app.data.api.FcmTokenResponse> {
+        val context = serviceLocator.context
+        de.meinseelenfunke.app.util.AppLogger.info(context, "AuthRepo", "updateFcmToken: uploading FCM token to server")
         return try {
             val response = serviceLocator.getAuthApi().updateFcmToken(de.meinseelenfunke.app.data.api.FcmTokenRequest(fcmToken))
             if (response.success) {
+                de.meinseelenfunke.app.util.AppLogger.info(context, "AuthRepo", "updateFcmToken: FCM token successfully registered on server")
                 Result.success(response)
             } else {
-                Result.failure(Exception(response.message ?: "Geräteregistrierung fehlgeschlagen"))
+                val err = Exception(response.message ?: "Geräteregistrierung fehlgeschlagen")
+                de.meinseelenfunke.app.util.AppLogger.error(context, "AuthRepo", "updateFcmToken failed", err)
+                Result.failure(err)
             }
         } catch (e: Exception) {
+            de.meinseelenfunke.app.util.AppLogger.error(context, "AuthRepo", "updateFcmToken exception", e)
             Result.failure(e)
         }
     }
@@ -72,6 +81,7 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "AuthRepo", "sendPasswordResetEmail failed: email=$email", e)
             Result.failure(e)
         }
     }

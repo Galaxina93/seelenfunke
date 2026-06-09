@@ -56,6 +56,25 @@ import de.meinseelenfunke.app.ui.theme.Slate900
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.ShoppingBag
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.Flag
+
 class AddTaskListWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,6 +94,7 @@ class AddTaskListWidgetActivity : ComponentActivity() {
         val focusRequester = remember { FocusRequester() }
 
         var name by remember { mutableStateOf("") }
+        var selectedIcon by remember { mutableStateOf("bookmark") }
         var isSaving by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -90,7 +110,7 @@ class AddTaskListWidgetActivity : ComponentActivity() {
             isSaving = true
             errorMessage = null
             coroutineScope.launch {
-                ServiceLocator.organizerRepository.addTaskList(name.trim())
+                ServiceLocator.organizerRepository.addTaskList(name.trim(), selectedIcon)
                     .onSuccess {
                         // Refresh the lists cache to trigger widget updates
                         ServiceLocator.organizerRepository.getTaskLists()
@@ -117,7 +137,7 @@ class AddTaskListWidgetActivity : ComponentActivity() {
                     .width(340.dp)
                     .wrapContentHeight()
                     .padding(16.dp)
-                    .clickable(enabled = false) {}, // Consume clicks
+                    .clickable {}, // Consume clicks
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.5.dp, Gold),
                 colors = CardDefaults.cardColors(
@@ -163,6 +183,69 @@ class AddTaskListWidgetActivity : ComponentActivity() {
                         ),
                         shape = RoundedCornerShape(12.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // List Icon Selection
+                    Text("Symbol der Liste", color = Slate400, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val listIcons = listOf(
+                        "bookmark" to Icons.Default.Bookmark,
+                        "star" to Icons.Default.Star,
+                        "heart" to Icons.Default.Favorite,
+                        "bolt" to Icons.Default.Bolt,
+                        "home" to Icons.Default.Home,
+                        "briefcase" to Icons.Default.Work,
+                        "shopping-bag" to Icons.Default.ShoppingBag,
+                        "trophy" to Icons.Default.EmojiEvents,
+                        "sun" to Icons.Default.WbSunny,
+                        "moon" to Icons.Default.NightsStay,
+                        "wrench" to Icons.Default.Build,
+                        "rocket-launch" to Icons.Default.RocketLaunch,
+                        "tag" to Icons.Default.LocalOffer,
+                        "flag" to Icons.Default.Flag
+                    )
+
+                    val rows = listIcons.chunked(5)
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rows.forEach { rowItems ->
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                rowItems.forEach { (iconName, vector) ->
+                                    val isSelected = selectedIcon == iconName
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(
+                                                color = if (isSelected) Gold.copy(alpha = 0.2f) else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                width = 1.5.dp,
+                                                color = if (isSelected) Gold else Color.Transparent,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { selectedIcon = iconName }
+                                            .padding(8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = vector,
+                                            contentDescription = iconName,
+                                            tint = if (isSelected) Gold else Slate400,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     errorMessage?.let { msg ->
                         Spacer(modifier = Modifier.height(8.dp))

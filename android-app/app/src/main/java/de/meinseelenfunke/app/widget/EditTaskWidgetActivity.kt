@@ -226,7 +226,7 @@ class EditTaskWidgetActivity : ComponentActivity() {
                     .width(340.dp)
                     .wrapContentHeight()
                     .padding(16.dp)
-                    .clickable(enabled = false) {}, // Consume card body clicks
+                    .clickable {}, // Consume card body clicks
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.5.dp, Gold),
                 colors = CardDefaults.cardColors(

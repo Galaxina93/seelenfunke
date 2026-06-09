@@ -7,6 +7,7 @@ import de.meinseelenfunke.app.data.api.EmailMessage
 import de.meinseelenfunke.app.data.api.EmailAttachment
 import de.meinseelenfunke.app.data.api.SendEmailRequest
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.AppLogger
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -24,6 +25,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Konnte E-Mail-Konten nicht laden."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "getAccounts failed", e)
             Result.failure(e)
         }
     }
@@ -58,6 +60,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Konnte E-Mail-Konto nicht speichern."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "saveAccount failed: email=$email", e)
             Result.failure(e)
         }
     }
@@ -71,6 +74,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Konnte E-Mail-Konto nicht löschen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "deleteAccount failed: id=$id", e)
             Result.failure(e)
         }
     }
@@ -84,6 +88,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Konnte Kontakte nicht laden."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "getContacts failed", e)
             Result.failure(e)
         }
     }
@@ -102,6 +107,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Konnte E-Mails nicht laden."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "getMessages failed: folder=$folder, accountId=$accountId, search=$search", e)
             Result.failure(e)
         }
     }
@@ -115,6 +121,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Konnte E-Mail-Details nicht laden."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "getMessageDetails failed: id=$id", e)
             Result.failure(e)
         }
     }
@@ -143,6 +150,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Konnte E-Mail nicht senden."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "sendEmail failed: from=$from, to=$to, subject=$subject", e)
             Result.failure(e)
         }
     }
@@ -170,6 +178,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception("Upload der Datei $fileName fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "uploadAttachment failed: uri=$uri", e)
             Result.failure(e)
         }
     }
@@ -199,6 +208,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
         return try {
             context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         } catch (e: Exception) {
+            AppLogger.error(context, "EmailRepo", "readUriBytes failed: uri=$uri", e)
             null
         }
     }
@@ -212,6 +222,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Konnte E-Mail nicht verschieben."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "moveMessage failed: id=$id, folder=$folder", e)
             Result.failure(e)
         }
     }
@@ -225,6 +236,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Konnte E-Mail-Status nicht aktualisieren."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "markMessageRead failed: id=$id, isRead=$isRead", e)
             Result.failure(e)
         }
     }
@@ -238,6 +250,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Konnte E-Mail nicht löschen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "deleteMessage failed: id=$id", e)
             Result.failure(e)
         }
     }
@@ -251,6 +264,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Konnte Ordner nicht erstellen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "createFolder failed: accountId=$accountId, name=$name", e)
             Result.failure(e)
         }
     }
@@ -264,6 +278,7 @@ class EmailRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Konnte Ordner nicht löschen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "EmailRepo", "deleteFolder failed: accountId=$accountId, name=$name", e)
             Result.failure(e)
         }
     }

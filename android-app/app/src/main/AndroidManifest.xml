@@ -95,6 +95,110 @@
             android:exported="false" />
 
         <receiver
+            android:name=".widget.ShoppingListWidgetProvider"
+            android:exported="true"
+            android:label="Seelenfunke Einkaufsliste">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_REFRESH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_SHOPPING_TOGGLE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_shopping_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.ShoppingListWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <receiver
+            android:name=".widget.TasksWidgetProvider"
+            android:exported="true"
+            android:label="Seelenfunke Aufgaben">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_REFRESH" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SELECT_LIST" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_BACK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_TOGGLE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CYCLE_PRIORITY" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CYCLE_DATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_EDIT" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_EXIT_EDIT_MODE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SET_PRIORITY" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CLEAR_DATE" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_SUBTASK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_CANCEL_ADD_SUBTASK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_SAVE_ADD_SUBTASK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_LIST" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_DELETE_TASK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_LIST_CLICK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_ADD_TASK_CLICK" />
+                <action android:name="de.meinseelenfunke.app.widget.ACTION_TASKS_NONE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_tasks_info" />
+        </receiver>
+
+        <service
+            android:name=".widget.TasksWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <activity
+            android:name=".widget.AddShoppingItemActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.EditTaskWidgetActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.AddTaskWidgetActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.AddSubtaskWidgetActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.AddTaskListWidgetActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <activity
+            android:name=".widget.ConfirmDeleteListActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+
+        <activity
+            android:name=".widget.TextInputActivity"
+            android:theme="@style/Theme.TransparentDialog"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true" />
+
+        <receiver
             android:name=".receiver.CalendarAlarmReceiver"
             android:exported="false" />
 

@@ -147,7 +147,7 @@ class AddSubtaskWidgetActivity : ComponentActivity() {
                 modifier = Modifier
                     .width(320.dp)
                     .padding(16.dp)
-                    .clickable(enabled = false) {}, // Consume clicks
+                    .clickable {}, // Consume clicks
                 shape = RoundedCornerShape(16.dp),
                 border = BorderStroke(1.5.dp, Gold),
                 colors = CardDefaults.cardColors(

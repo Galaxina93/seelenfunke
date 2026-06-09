@@ -34,6 +34,7 @@ sealed class TasksWidgetItem {
     data class AddNewTaskDummy(val listId: String, val text: String = "+ NEUE AUFGABE HINZUFÜGEN") : TasksWidgetItem()
     data class AddListControls(val tempName: String) : TasksWidgetItem()
     data class AddTaskControls(val tempTitle: String, val priority: String, val relevantFrom: String?) : TasksWidgetItem()
+    data class AddSubtaskControls(val parentTaskId: String, val tempTitle: String) : TasksWidgetItem()
 }
 
 class TasksWidgetViewsFactory(
@@ -138,6 +139,13 @@ class TasksWidgetViewsFactory(
                 val flattened = mutableListOf<TasksWidgetItem>()
                 flattened.add(TasksWidgetItem.EditControls(parentTask))
                 
+                val addingSubtaskParent = sharedPrefs.getString("widget_tasks_adding_subtask_parent_$appWidgetId", null)
+                val tempSubtaskTitle = sharedPrefs.getString("widget_tasks_adding_subtask_title_$appWidgetId", "") ?: ""
+                
+                if (addingSubtaskParent == editingTaskId) {
+                    flattened.add(TasksWidgetItem.AddSubtaskControls(editingTaskId, tempSubtaskTitle))
+                }
+
                 // Find all subtasks belonging to this task
                 val children = allTasks.filter { it.parent_id == parentTask.id }
                     .sortedWith(
@@ -659,12 +667,43 @@ class TasksWidgetViewsFactory(
                 views.setOnClickFillInIntent(R.id.btn_delete_task, deleteTaskIntent)
                 views
             }
+            is TasksWidgetItem.AddSubtaskControls -> {
+                val views = RemoteViews(context.packageName, R.layout.widget_tasks_add_subtask_control)
+                
+                val displayName = if (item.tempTitle.isEmpty()) "[Tippen zum Schreiben]" else item.tempTitle
+                views.setTextViewText(R.id.btn_add_subtask_name, displayName)
+                views.setTextColor(R.id.btn_add_subtask_name, if (item.tempTitle.isEmpty()) 0xFF94A3B8.toInt() else 0xFFF8FAFC.toInt())
+
+                // Click action to open subtask title editor activity
+                val titleEditorIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_OPEN_TEXT_INPUT
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra("title", "Titel des Schritts")
+                    putExtra("pref_key", "widget_tasks_adding_subtask_title_$appWidgetId")
+                }
+                views.setOnClickFillInIntent(R.id.btn_add_subtask_name, titleEditorIntent)
+
+                // Click action for Abbrechen (Cancel)
+                val cancelIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_CANCEL_ADD_SUBTASK
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                }
+                views.setOnClickFillInIntent(R.id.btn_add_subtask_cancel, cancelIntent)
+
+                // Click action for Speichern (Save)
+                val saveIntent = Intent().apply {
+                    action = TasksWidgetProvider.ACTION_SAVE_ADD_SUBTASK
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                }
+                views.setOnClickFillInIntent(R.id.btn_add_subtask_save, saveIntent)
+                views
+            }
         }
     }
 
     override fun getLoadingView(): RemoteViews? = null
 
-    override fun getViewTypeCount(): Int = 6
+    override fun getViewTypeCount(): Int = 7
 
     override fun getItemId(position: Int): Long {
         if (position >= itemsList.size) return position.toLong()
@@ -677,6 +716,7 @@ class TasksWidgetViewsFactory(
             is TasksWidgetItem.AddNewTaskDummy -> item.listId.hashCode().toLong() + 888888L
             is TasksWidgetItem.AddListControls -> 777777L
             is TasksWidgetItem.AddTaskControls -> 666666L
+            is TasksWidgetItem.AddSubtaskControls -> 555555L
         }
     }
 

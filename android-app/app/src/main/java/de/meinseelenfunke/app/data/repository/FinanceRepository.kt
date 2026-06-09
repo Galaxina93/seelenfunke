@@ -6,6 +6,7 @@ import de.meinseelenfunke.app.data.api.FinanceSpecialIssue
 import de.meinseelenfunke.app.data.api.UpdateVariableRequest
 import de.meinseelenfunke.app.data.api.FixedItemRequest
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.util.AppLogger
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -18,6 +19,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val kpis = serviceLocator.getFinanceApi().getKpis()
             Result.success(kpis)
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "getKpis failed", e)
             Result.failure(e)
         }
     }
@@ -27,6 +29,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val categories = serviceLocator.getFinanceApi().getCategories()
             Result.success(categories)
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "getCategories failed", e)
             Result.failure(e)
         }
     }
@@ -36,6 +39,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val items = serviceLocator.getFinanceApi().getVariableItems(limit)
             Result.success(items)
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "getVariableItems failed", e)
             Result.failure(e)
         }
     }
@@ -45,6 +49,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val groups = serviceLocator.getFinanceApi().getFixedGroups()
             Result.success(groups)
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "getFixedGroups failed", e)
             Result.failure(e)
         }
     }
@@ -58,6 +63,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Löschen fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "deleteVariableItem failed: id=$id", e)
             Result.failure(e)
         }
     }
@@ -109,6 +115,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Schnelleintrag fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "quickEntry failed: title=$title, amount=$amount", e)
             Result.failure(e)
         }
     }
@@ -138,6 +145,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Update fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "updateVariableItem failed: id=$id, title=$title", e)
             Result.failure(e)
         }
     }
@@ -168,6 +176,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Speichern fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "createFixedItem failed: name=$name, amount=$amount", e)
             Result.failure(e)
         }
     }
@@ -199,6 +208,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Update fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "updateFixedItem failed: id=$id, name=$name", e)
             Result.failure(e)
         }
     }
@@ -212,6 +222,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                 Result.failure(Exception(response.message ?: "Löschen fehlgeschlagen."))
             }
         } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "deleteFixedItem failed: id=$id", e)
             Result.failure(e)
         }
     }
