@@ -17,6 +17,10 @@
     @livewireStyles
 
     <script>
+        // Fallbacks für Alpine-Variablen, die bei Page-Transitions (wire:navigate) kurzzeitig ihre Scopes verlieren können
+        window.showAllOperative = false;
+        window.tooltip = false;
+
         // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
         window.addEventListener('unhandledrejection', function(event) {
             if (event.reason && event.reason.isFromCancelledTransition === true) {

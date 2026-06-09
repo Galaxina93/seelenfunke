@@ -38,12 +38,18 @@
         <div class="flex flex-1 items-center gap-3 px-2 w-full sm:w-auto">
             <div class="relative w-full sm:w-40">
                 <label class="absolute -top-2 left-2 bg-gray-950 px-2 rounded-full text-[9px] font-bold text-gray-400 z-10">Von</label>
-                <input type="date" wire:model.live.blur="dateStart" class="w-full relative bg-gray-950 border-gray-800 rounded-lg text-xs font-bold text-white focus:ring-primary focus:border-primary py-1.5 transition-all">
+                <input type="date" wire:model.live.blur="dateStart" class="w-full relative bg-gray-950 border-gray-800 rounded-lg text-xs font-bold text-white focus:ring-primary focus:border-primary py-1.5 transition-all @error('dateStart') border-rose-500/50 focus:border-rose-500 focus:ring-rose-500/30 @enderror">
+                @error('dateStart')
+                    <span class="text-[9px] text-rose-400 block mt-1 font-bold whitespace-nowrap">{{ $message }}</span>
+                @enderror
             </div>
             <span class="text-gray-600 hidden sm:block">-</span>
             <div class="relative w-full sm:w-40">
                 <label class="absolute -top-2 left-2 bg-gray-950 px-2 rounded-full text-[9px] font-bold text-gray-400 z-10">Bis</label>
-                <input type="date" wire:model.live.blur="dateEnd" class="w-full relative bg-gray-950 border-gray-800 rounded-lg text-xs font-bold text-white focus:ring-primary focus:border-primary py-1.5 transition-all">
+                <input type="date" wire:model.live.blur="dateEnd" class="w-full relative bg-gray-950 border-gray-800 rounded-lg text-xs font-bold text-white focus:ring-primary focus:border-primary py-1.5 transition-all @error('dateEnd') border-rose-500/50 focus:border-rose-500 focus:ring-rose-500/30 @enderror">
+                @error('dateEnd')
+                    <span class="text-[9px] text-rose-400 block mt-1 font-bold whitespace-nowrap">{{ $message }}</span>
+                @enderror
             </div>
         </div>
 

@@ -634,6 +634,7 @@ class MasterAnalytics extends Component
 
     public function setCurrentMonth($save = true)
     {
+        $this->resetErrorBag();
         $this->dateStart = now()->startOfMonth()->format('Y-m-d');
         $this->dateEnd = now()->endOfMonth()->format('Y-m-d');
         if ($save) {
@@ -644,6 +645,7 @@ class MasterAnalytics extends Component
 
     public function setWholeYear($save = true)
     {
+        $this->resetErrorBag();
         $this->dateStart = now()->startOfYear()->format('Y-m-d');
         $this->dateEnd = now()->endOfYear()->format('Y-m-d');
         if ($save) {
@@ -660,6 +662,21 @@ class MasterAnalytics extends Component
     public function updated($property)
     {
         if (in_array($property, ['dateStart', 'dateEnd', 'filterType'])) {
+            $this->validate([
+                'dateStart' => 'required|date',
+                'dateEnd' => 'required|date|after_or_equal:dateStart',
+            ], [
+                'dateStart.required' => 'Ein Startdatum wird benötigt.',
+                'dateStart.date' => 'Das Startdatum ist ungültig.',
+                'dateEnd.required' => 'Ein Enddatum wird benötigt.',
+                'dateEnd.date' => 'Das Enddatum ist ungültig.',
+                'dateEnd.after_or_equal' => 'Das Enddatum muss nach oder gleich dem Startdatum sein.',
+            ]);
+
+            // Normalisieren auf Y-m-d Format
+            $this->dateStart = \Carbon\Carbon::parse($this->dateStart)->format('Y-m-d');
+            $this->dateEnd = \Carbon\Carbon::parse($this->dateEnd)->format('Y-m-d');
+
             $this->saveSettings('custom');
             $this->loadStats(app(AnalyticsService::class));
         }

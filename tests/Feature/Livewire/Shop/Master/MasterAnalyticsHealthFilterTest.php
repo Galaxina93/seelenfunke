@@ -110,4 +110,31 @@ class MasterAnalyticsHealthFilterTest extends TestCase
         $this->assertEquals(2, $filteredPrivateHealthChecks['open_orders']['count'], "Gefilterte offenen Bestellungen (Private) müssen weiterhin 2 sein (Sicherheitsmechanismus).");
         $this->assertEquals(2, $filteredPrivateHealthChecks['open_abandoned_carts']['count'], "Gefilterte Abandoned Carts (Private) müssen weiterhin 2 sein (Sicherheitsmechanismus).");
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function invalid_dates_trigger_validation_errors_and_do_not_crash()
+    {
+        $admin = Admin::factory()->create();
+
+        // Test invalid start date
+        Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class)
+            ->set('dateStart', '')
+            ->assertHasErrors(['dateStart'])
+            ->set('dateStart', 'invalid-date')
+            ->assertHasErrors(['dateStart']);
+
+        // Test invalid end date
+        Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class)
+            ->set('dateEnd', '')
+            ->assertHasErrors(['dateEnd']);
+
+        // Test end date before start date
+        Livewire::actingAs($admin, 'admin')
+            ->test(MasterAnalytics::class)
+            ->set('dateStart', '2026-06-01')
+            ->set('dateEnd', '2026-05-31')
+            ->assertHasErrors(['dateEnd']);
+    }
 }
