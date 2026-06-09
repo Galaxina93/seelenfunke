@@ -53,7 +53,7 @@
             <div class="text-[9px] font-black text-gray-600 uppercase tracking-[0.3em] px-3 mb-1 shrink-0">Deine Listen</div>
 
             @foreach($lists as $list)
-                <div class="category-item shrink-0 relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false }">
+                <div class="category-item shrink-0 relative group/list-item w-full" data-list-id="{{ $list->id }}" wire:key="list-{{ $list->id }}" x-data="{ showListMenu: false, isEditingName: false, updatedListName: '{{ addslashes($list->name) }}' }">
                     <div @contextmenu.prevent="showListMenu = true"
                          @class([
                             'flex items-center gap-2 p-2.5 md:p-3.5 rounded-xl md:rounded-2xl transition-all duration-300 w-full border',
@@ -74,11 +74,17 @@
                                 <x-dynamic-component :component="'heroicon-o-' . $list->icon" class="w-4.5 h-4.5" />
                             </div>
 
-                            <button wire:click="$set('selectedListId', '{{ $list->id }}')" class="flex-1 min-w-0 text-left">
-                                <div class="text-xs font-black truncate {{ $list->is_archived ? 'text-amber-500/70 italic' : ($selectedListId === $list->id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200') }} uppercase tracking-wider">
+                            <div class="flex-1 min-w-0 text-left">
+                                <div x-show="!isEditingName" @click="$wire.set('selectedListId', '{{ $list->id }}')" class="text-xs font-black truncate {{ $list->is_archived ? 'text-amber-500/70 italic' : ($selectedListId === $list->id ? 'text-white' : 'text-gray-400 group-hover:text-gray-200') }} uppercase tracking-wider cursor-pointer">
                                     {{ $list->name }}
                                 </div>
-                                @if($list->open_count > 0)
+                                <input x-ref="listNameInput" x-show="isEditingName" x-model="updatedListName"
+                                       @click.stop
+                                       @blur="isEditingName = false; $wire.renameList('{{ $list->id }}', updatedListName)"
+                                       @keydown.enter="$el.blur()"
+                                       class="w-full text-xs font-bold bg-gray-950 border border-gray-800 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-20)] text-white shadow-inner outline-none"
+                                       x-cloak>
+                                @if($list->open_count > 0 && !$list->is_archived)
                                     <div class="text-[9px] font-bold {{ $selectedListId === $list->id ? 'text-[var(--theme-color)]/80' : 'text-gray-600' }}">
                                         {{ $list->open_count }} OFFEN
                                     </div>
@@ -87,7 +93,7 @@
                                 @if($list->is_archived)
                                     <div class="text-[9px] font-bold text-amber-500 uppercase">Archiviert</div>
                                 @endif
-                            </button>
+                            </div>
 
                             <button @click.stop="showListMenu = true" class="md:hidden p-1.5 text-gray-600 hover:text-white transition-opacity shrink-0">
                                 <x-heroicon-m-ellipsis-vertical class="w-5 h-5" />
@@ -102,9 +108,12 @@
                          x-transition:enter-end="opacity-100 translate-y-0 scale-100"
                          class="absolute left-0 lg:left-12 top-full lg:top-3/4 mt-2 w-full lg:w-48 bg-gray-900 border border-gray-700 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.6)] z-[60] overflow-hidden py-1.5 ring-1 ring-white/5 backdrop-blur-xl">
 
-                        <div class="px-4 py-2 border-b border-gray-800 mb-1">
-                            <p class="text-[9px] font-black uppercase tracking-widest text-gray-500 truncate">{{ $list->name }}</p>
-                        </div>
+                         <div class="px-4 py-2 border-b border-gray-800 mb-1">
+                             <p class="text-[9px] font-black uppercase tracking-widest text-gray-500 truncate">{{ $list->name }}</p>
+                         </div>
+                        <button @click="isEditingName = true; showListMenu = false; $nextTick(() => $refs.listNameInput.focus())" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-gray-300 hover:bg-gray-800 hover:text-[var(--theme-color)] flex items-center gap-3 transition-colors">
+                            <x-heroicon-s-pencil class="w-4 h-4 text-[var(--theme-color)]" /> Umbenennen
+                        </button>
                         <button wire:click="toggleArchiveList('{{ $list->id }}')" @click="showListMenu = false" class="w-full text-left px-5 py-3 text-[10px] font-black uppercase tracking-widest text-amber-500 hover:bg-gray-800 flex items-center gap-3 transition-colors">
                             <x-heroicon-s-archive-box class="w-4 h-4 text-amber-500" /> {{ $list->is_archived ? 'Wiederherstellen' : 'Archivieren' }}
                         </button>

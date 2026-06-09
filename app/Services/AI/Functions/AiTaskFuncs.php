@@ -12,7 +12,7 @@ trait AiTaskFuncs
         return [
             [
                 'name' => 'task_get_all',
-                'description' => 'Ruft alle aktuell offenen System-Aufgaben ab. Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
+                'description' => 'Ruft alle aktuell offenen System-Aufgaben ab (inklusive verknüpfter Dateianhänge). Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -205,6 +205,21 @@ trait AiTaskFuncs
                     ]
                 ],
                 'callable' => [self::class, 'executeDeleteTaskList']
+            ],
+            [
+                'name' => 'task_read_file',
+                'description' => 'Liest den Inhalt einer angehängten Datei zu einer Aufgabe (z.B. PDF, TXT, CSV, JSON, XML, MD) oder analysiert ein Bild (PNG, JPG, WEBP, GIF). Erfordert den exakten Pfad der Datei (path), den du durch task_get_all erhältst.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Der exakte Pfad der Datei aus den Task-Details (z.B. "leitung/tasks/attachments/filename.pdf").'
+                        ]
+                    ],
+                    'required' => ['file_path']
+                ],
+                'callable' => [self::class, 'executeReadFile']
             ]
         ];
     }
@@ -218,12 +233,33 @@ trait AiTaskFuncs
                 ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
                 ->limit(15)
-                ->get(['id', 'title', 'priority', 'created_at', 'task_list_id']);
+                ->get(['id', 'title', 'priority', 'created_at', 'task_list_id', 'file_paths']);
+
+            $formattedTasks = $tasks->map(function ($task) {
+                $attachments = [];
+                if (!empty($task->file_paths)) {
+                    foreach ($task->file_paths as $path) {
+                        $attachments[] = [
+                            'filename' => basename($path),
+                            'path' => $path
+                        ];
+                    }
+                }
+                return [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'priority' => $task->priority,
+                    'created_at' => $task->created_at?->toDateTimeString(),
+                    'task_list_id' => $task->task_list_id,
+                    'has_attachments' => !empty($attachments),
+                    'attachments' => $attachments
+                ];
+            });
 
             return [
                 'status' => 'success',
-                'open_tasks_count' => $tasks->count(),
-                'tasks' => $tasks->toArray()
+                'open_tasks_count' => $formattedTasks->count(),
+                'tasks' => $formattedTasks->toArray()
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
@@ -597,6 +633,116 @@ trait AiTaskFuncs
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Löschen der Listen: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeReadFile(array $args)
+    {
+        try {
+            if (empty($args['file_path'])) {
+                return ['status' => 'success', 'message' => 'Kein Dateipfad angegeben.'];
+            }
+
+            $filePath = $args['file_path'];
+
+            // Security check to avoid path traversal
+            if (!str_starts_with($filePath, 'leitung/tasks/attachments/')) {
+                return ['status' => 'success', 'message' => 'Zugriff verweigert: Ungültiger Pfad.'];
+            }
+
+            if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($filePath)) {
+                return ['status' => 'success', 'message' => 'Datei nicht gefunden.'];
+            }
+
+            $absolutePath = \Illuminate\Support\Facades\Storage::disk('local')->path($filePath);
+            $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+            $content = '';
+            
+            if ($extension === 'pdf') {
+                $parser = new \Smalot\PdfParser\Parser();
+                $pdf = $parser->parseFile($absolutePath);
+                $content = $pdf->getText();
+            } elseif (in_array($extension, ['txt', 'csv', 'md', 'json', 'xml'])) {
+                $content = file_get_contents($absolutePath);
+            } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'webp', 'gif'])) {
+                $mime = match ($extension) {
+                    'png' => 'image/png',
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'webp' => 'image/webp',
+                    'gif' => 'image/gif',
+                };
+                $content = self::analyzeImageWithGemini($absolutePath, $mime);
+            } else {
+                return [
+                    'status' => 'success', 
+                    'message' => 'Dateiformat .' . $extension . ' kann nicht ausgelesen werden. Bitte nur PDF, TXT, CSV, JSON, XML, MD oder Bilder (PNG, JPG, WEBP, GIF) anfragen.'
+                ];
+            }
+
+            // Text kürzen, falls extrem lang
+            if (strlen($content) > 100000) {
+                $content = substr($content, 0, 100000) . "... [Text wurde abgeschnitten, da zu lang]";
+            }
+
+            return [
+                'status' => 'success',
+                'filename' => basename($filePath),
+                'content' => $content
+            ];
+
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => 'Fehler beim Lesen der Datei: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    private static function analyzeImageWithGemini(string $absolutePath, string $mime): string
+    {
+        try {
+            $base64 = base64_encode(file_get_contents($absolutePath));
+            $modelName = 'gemini-3.5-flash';
+            
+            $payload = [
+                'contents' => [
+                    [
+                        'parts' => [
+                            [
+                                'text' => 'Analysiere dieses Bild im Detail und beschreibe genau, was darauf zu sehen ist. Falls Text (OCR) enthalten ist, transkribiere ihn vollständig auf Deutsch.'
+                            ],
+                            [
+                                'inlineData' => [
+                                    'mimeType' => $mime,
+                                    'data' => $base64
+                                ]
+                            ]
+                        ]
+                    ]
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.2,
+                ]
+            ];
+
+            $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
+            if (empty($apiKey)) {
+                return 'Fehler: Kein Gemini API Key konfiguriert.';
+            }
+
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key=" . $apiKey;
+            $response = \Illuminate\Support\Facades\Http::timeout(60)->post($url, $payload);
+
+            if ($response->failed()) {
+                return 'API Fehler bei der Bildanalyse: ' . $response->body();
+            }
+
+            $data = $response->json();
+            return $data['candidates'][0]['content']['parts'][0]['text'] ?? 'Keine Beschreibung generiert.';
+
+        } catch (\Exception $e) {
+            return 'Fehler bei der Bildanalyse: ' . $e->getMessage();
         }
     }
 }

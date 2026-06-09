@@ -235,3 +235,7 @@
 [2026-06-09T10:21:03.861Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
 [2026-06-09T10:21:03.861Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
 [2026-06-09T10:21:03.881Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-06-09T15:44:45.169Z] --- NODE JS SERVER RESTARTED (VERSION: v1.0) ---
+[2026-06-09T15:44:45.224Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-06-09T15:44:45.242Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-06-09T15:44:45.243Z] Erfolgreich gebunden auf Port 8081

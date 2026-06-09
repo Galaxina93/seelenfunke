@@ -250,6 +250,19 @@ class ManagementTask extends Component
         }
     }
 
+    public function renameList($id, $newName)
+    {
+        $newName = trim($newName);
+        if (strlen($newName) < 2 || strlen($newName) > 30) {
+            return;
+        }
+
+        $list = ManagementTaskList::find($id);
+        if ($list) {
+            $list->update(['name' => $newName]);
+        }
+    }
+
     public function updateListOrder($orderedIds)
     {
         foreach ($orderedIds as $index => $id) {

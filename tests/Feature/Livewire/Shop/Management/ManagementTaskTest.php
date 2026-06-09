@@ -203,4 +203,27 @@ class ManagementTaskTest extends TestCase
         $this->assertCount(1, $tasks);
         $this->assertEquals('Apple', $tasks[0]->title);
     }
+
+    #[Test]
+    public function it_can_rename_lists()
+    {
+        $list = ManagementTaskList::create(['id' => (string) \Illuminate\Support\Str::uuid(), 'name' => 'Old Name', 'icon' => 'bookmark']);
+
+        Livewire::test(ManagementTask::class)
+            ->call('renameList', $list->id, 'New Name');
+
+        $this->assertDatabaseHas('management_task_lists', [
+            'id' => $list->id,
+            'name' => 'New Name'
+        ]);
+
+        // Validation constraints
+        Livewire::test(ManagementTask::class)
+            ->call('renameList', $list->id, 'A');
+
+        $this->assertDatabaseHas('management_task_lists', [
+            'id' => $list->id,
+            'name' => 'New Name' // remains unchanged
+        ]);
+    }
 }
