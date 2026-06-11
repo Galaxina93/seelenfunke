@@ -39,6 +39,7 @@ object SoundManager {
         preloadSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
         preloadSound(de.meinseelenfunke.app.R.raw.sent_message_1)
         preloadSound(de.meinseelenfunke.app.R.raw.top_secret_sound_4)
+        preloadSound(de.meinseelenfunke.app.R.raw.order_ching)
     }
 
     private fun preloadSound(resId: Int) {
@@ -92,6 +93,10 @@ object SoundManager {
 
     fun playNotificationSound() {
         playSound(de.meinseelenfunke.app.R.raw.sent_message_1)
+    }
+
+    fun playOrderChingSound() {
+        playSound(de.meinseelenfunke.app.R.raw.order_ching)
     }
 
     fun release() {

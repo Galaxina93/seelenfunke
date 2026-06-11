@@ -31,6 +31,13 @@ Dieses Dokument beschreibt die konzeptionellen und technischen Optimierungen, di
   - Dadurch erkennt Livewires Diffing-Engine beim Umschalten sofort, dass es sich um völlig neue HTML-Knoten handelt, zerstört das alte Overlay-Element und rendert die Erfolgsseite mitsamt Bild als neue Elemente sauber im DOM.
   - **Animation-Feinschliff:** Auf Wunsch wurde die hüpfende Animation (`animate-bounce`) durch ein sanfteres Auf- und Abschweben (`animate-float-gentle` via lokalem CSS-Keyframe-Block) ersetzt, damit das Bild ruhig im Fokus steht.
 
+### 1.4 Hausnummer-Validierung und Fehlermeldungen
+* **Problem:** Kunden gaben manchmal Adressen ohne Hausnummer ein, was zu Lieferverzögerungen führte. Es fehlte eine zuverlässige Validierung sowie eine prominente Fehleranzeige, wenn die Hausnummer vergessen wurde (und das Akkordeon sich fälschlicherweise schloss).
+* **Behebung:**
+  - **Server-Validierung:** In [OrderCheckout.php](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php) wurden die Regeln für `address` und `shipping_address` um eine `regex:/\d+/`-Regel erweitert. Dadurch wird sichergestellt, dass die Adresse mindestens eine Ziffer (Hausnummer) enthält. Passende Fehlermeldungen wurden in `$messages` hinterlegt.
+  - **Alpine.js-Zusammenfassungslogik:** In [left-column-payment-adress-login.blade.php](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-checkout/partials/left-column-payment-adress-login.blade.php) wurde die clientseitige Prüfung `checkCompletion()` um `isValidAddress()` erweitert, die ebenfalls per Regex prüft, ob eine Hausnummer vorhanden ist. Dies verhindert, dass sich das Akkordeon automatisch zuklappt, wenn zwar ein Straßenname, aber keine Hausnummer eingegeben wurde.
+  - **Rote Warnmeldung:** Direkt unter dem Akkordeon-Header "1. Rechnungsdetails" wurde eine rote Fehlermeldung (`@if($errors->has('address') ...)`) eingefügt. Diese zeigt die konkrete Fehlermeldung (z.B. "Bitte gib eine Hausnummer in deiner Adresse an.") prominent rot an, selbst wenn das Akkordeon geschlossen wäre, sodass der Kunde sofort sieht, wo Daten fehlen.
+
 ---
 
 ## 2. Strukturierte Optimierungen (Punkte 1–3)

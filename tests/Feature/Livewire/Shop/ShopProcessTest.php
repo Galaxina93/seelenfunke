@@ -187,4 +187,47 @@ class ShopProcessTest extends TestCase
             'email' => 'disposable@mailinator.com',
         ]);
     }
+
+    public function test_checkout_requires_house_number_in_address()
+    {
+        Queue::fake();
+        Session::start();
+
+        $product = Product::first();
+
+        // Put a product in the cart
+        Livewire::test(Configurator::class, ['product' => $product, 'context' => 'add'])
+            ->set('qty', 1)
+            ->set('config_confirmed', true)
+            ->call('save');
+
+        // 1. Billing address lacks a house number (no digits)
+        Livewire::test(Checkout::class)
+            ->set('email', 'test@kunde.de')
+            ->set('first_name', 'Max')
+            ->set('last_name', 'Mustermann')
+            ->set('address', 'Teststraße') // No digits!
+            ->set('city', 'Musterstadt')
+            ->set('postal_code', '12345')
+            ->set('country', 'DE')
+            ->set('terms_accepted', true)
+            ->set('privacy_accepted', true)
+            ->call('validateAndCreateOrder')
+            ->assertHasErrors(['address' => 'regex']);
+
+        // 2. Billing address has a house number (has digits)
+        Livewire::test(Checkout::class)
+            ->set('email', 'test@kunde.de')
+            ->set('first_name', 'Max')
+            ->set('last_name', 'Mustermann')
+            ->set('address', 'Teststraße 42b') // Has digits
+            ->set('city', 'Musterstadt')
+            ->set('postal_code', '12345')
+            ->set('country', 'DE')
+            ->set('terms_accepted', true)
+            ->set('privacy_accepted', true)
+            ->call('validateAndCreateOrder')
+            ->assertHasNoErrors();
+    }
 }
+

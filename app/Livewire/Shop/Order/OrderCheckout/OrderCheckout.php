@@ -87,7 +87,7 @@ class OrderCheckout extends Component
             'email' => 'required|email',
             'first_name' => 'required|string|min:2',
             'last_name' => 'required|string|min:2',
-            'address' => 'required|string|min:5',
+            'address' => ['required', 'string', 'min:5', 'regex:/\d+/'],
             'city' => 'required|string|min:2',
             'postal_code' => 'required|string|min:4',
             'country' => 'required|in:' . $allowedCountries,
@@ -99,7 +99,7 @@ class OrderCheckout extends Component
         if ($this->has_separate_shipping) {
             $rules['shipping_first_name'] = 'required|string|min:2';
             $rules['shipping_last_name'] = 'required|string|min:2';
-            $rules['shipping_address'] = 'required|string|min:5';
+            $rules['shipping_address'] = ['required', 'string', 'min:5', 'regex:/\d+/'];
             $rules['shipping_city'] = 'required|string|min:2';
             $rules['shipping_postal_code'] = 'required|string|min:4';
             $rules['shipping_country'] = 'required|in:' . $allowedCountries;
@@ -115,6 +115,7 @@ class OrderCheckout extends Component
         'first_name.required' => 'Dein Vorname wird für die Rechnung benötigt.',
         'last_name.required' => 'Dein Nachname wird für die Rechnung benötigt.',
         'address.required' => 'Bitte gib deine vollständige Anschrift (Straße/Nr.) an.',
+        'address.regex' => 'Bitte gib eine Hausnummer in deiner Adresse an.',
         'city.required' => 'Die Angabe deiner Stadt fehlt.',
         'postal_code.required' => 'Bitte gib deine Postleitzahl an.',
         'country.required' => 'Bitte wähle ein Land aus.',
@@ -124,6 +125,7 @@ class OrderCheckout extends Component
         'shipping_first_name.required' => 'Bitte gib den Vornamen des Empfängers an.',
         'shipping_last_name.required' => 'Bitte gib den Nachnamen des Empfängers an.',
         'shipping_address.required' => 'Die Lieferanschrift (Straße/Nr.) wird benötigt.',
+        'shipping_address.regex' => 'Bitte gib eine Hausnummer in der Lieferadresse an.',
         'shipping_city.required' => 'Die Angabe der Stadt für die Lieferung fehlt.',
         'shipping_postal_code.required' => 'Bitte gib die Postleitzahl für den Versand an.',
         'shipping_country.in' => 'Versand in dieses Land ist aktuell nicht möglich.',

@@ -38,18 +38,35 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
-        Log.d(tag, "From: ${remoteMessage.from}")
+        val context = applicationContext
+        de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "onMessageReceived from: ${remoteMessage.from}")
+
+        // Check if it's a silent sync command
+        if (remoteMessage.data["action"] == "sync_calendar") {
+            de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Received silent calendar sync push command")
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    ServiceLocator.organizerRepository.getCalendarEvents()
+                    de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Silent calendar sync completed successfully and alarms rescheduled")
+                } catch (e: Exception) {
+                    de.meinseelenfunke.app.util.AppLogger.error(context, "FCM", "Silent calendar sync failed: ${e.message}", e)
+                }
+            }
+            return
+        }
 
         // Check if message contains data payload
         if (remoteMessage.data.isNotEmpty()) {
             Log.d(tag, "Message data payload: " + remoteMessage.data)
             val title = remoteMessage.data["title"] ?: "Neue Meldung"
             val body = remoteMessage.data["body"] ?: ""
+            de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Received data push payload. Title: $title, Body: $body")
             sendNotification(title, body, remoteMessage.data)
         } else {
             // Check if message contains notification payload
             remoteMessage.notification?.let {
                 Log.d(tag, "Message Notification Body: ${it.body}")
+                de.meinseelenfunke.app.util.AppLogger.info(context, "FCM", "Received visual push notification. Title: ${it.title}, Body: ${it.body}")
                 sendNotification(it.title ?: "Neue Meldung", it.body ?: "", emptyMap())
             }
         }
@@ -71,7 +88,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val channelId = "default_notification_channel"
+        val isNewOrder = data.containsKey("order_id")
+        val channelId = if (isNewOrder) "orders_notification_channel" else "default_notification_channel"
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
@@ -80,16 +98,47 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
 
+        if (isNewOrder) {
+            val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.order_ching)
+            notificationBuilder.setSound(soundUri)
+            
+            // Also play in-app if running and preloaded
+            try {
+                de.meinseelenfunke.app.util.SoundManager.playOrderChingSound()
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to play order ching via SoundManager", e)
+            }
+        }
+
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         // Notification channel is needed on Android Oreo (API 26) and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Standard Benachrichtigungen",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
-            notificationManager.createNotificationChannel(channel)
+            if (isNewOrder) {
+                val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.order_ching)
+                val audioAttributes = android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                
+                val channel = NotificationChannel(
+                    "orders_notification_channel",
+                    "Bestellungen",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    setSound(soundUri, audioAttributes)
+                    enableLights(true)
+                    enableVibration(true)
+                }
+                notificationManager.createNotificationChannel(channel)
+            } else {
+                val channel = NotificationChannel(
+                    "default_notification_channel",
+                    "Standard Benachrichtigungen",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                )
+                notificationManager.createNotificationChannel(channel)
+            }
         }
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())

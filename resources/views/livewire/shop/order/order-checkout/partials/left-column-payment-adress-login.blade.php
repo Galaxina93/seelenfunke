@@ -80,6 +80,10 @@
                 return val !== null && val !== undefined && String(val).trim().length > 0;
             },
 
+            isValidAddress(val) {
+                return this.isValid(val) && /\d+/.test(String(val));
+            },
+
             checkCompletion() {
                 let e = $wire.email;
                 let f = $wire.first_name;
@@ -88,7 +92,7 @@
                 let p = $wire.postal_code;
                 let c = $wire.city;
 
-                this.isBillingComplete = this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValid(a) && this.isValid(p) && this.isValid(c);
+                this.isBillingComplete = this.isValid(e) && this.isValid(f) && this.isValid(l) && this.isValidAddress(a) && this.isValid(p) && this.isValid(c);
 
                 let hasShipping = $wire.has_separate_shipping;
                 let sf = $wire.shipping_first_name;
@@ -97,7 +101,7 @@
                 let sp = $wire.shipping_postal_code;
                 let sc = $wire.shipping_city;
 
-                let shippingComplete = !hasShipping || (this.isValid(sf) && this.isValid(sl) && this.isValid(sa) && this.isValid(sp) && this.isValid(sc));
+                let shippingComplete = !hasShipping || (this.isValid(sf) && this.isValid(sl) && this.isValidAddress(sa) && this.isValid(sp) && this.isValid(sc));
 
                 if (this.isBillingComplete && shippingComplete) {
                     this.isOpen = false;
@@ -136,6 +140,25 @@
                 </svg>
             </div>
         </div>
+
+        {{-- Rote Meldung falls Hausnummer in Rechnungs- oder Lieferadresse fehlt --}}
+        @if($errors->has('address') && (str_contains($errors->first('address'), 'Hausnummer') || str_contains($errors->first('address'), 'hausnummer')))
+            <div class="mx-6 sm:mx-8 mb-4 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-xs font-bold flex items-start gap-2 animate-fade-in">
+                <svg class="w-4 h-4 shrink-0 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <span>{{ $errors->first('address') }}</span>
+            </div>
+        @endif
+
+        @if($errors->has('shipping_address') && (str_contains($errors->first('shipping_address'), 'Hausnummer') || str_contains($errors->first('shipping_address'), 'hausnummer')))
+            <div class="mx-6 sm:mx-8 mb-4 bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl text-xs font-bold flex items-start gap-2 animate-fade-in">
+                <svg class="w-4 h-4 shrink-0 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <span>{{ $errors->first('shipping_address') }}</span>
+            </div>
+        @endif
 
         <div x-show="isOpen" x-collapse>
             <div class="px-6 sm:px-8 pb-8">
