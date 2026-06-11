@@ -43,23 +43,31 @@ class SeelenfunkeApp : Application() {
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             
             // 1. Create orders channel with high importance and custom sound
-            val soundUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.order_ching)
+            val soundUri = Uri.parse("android.resource://" + packageName + "/raw/order_ching")
             val audioAttributes = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
             
-            val orderChannel = NotificationChannel(
+            val orderChannelIds = listOf(
                 "orders_notification_channel",
-                "Bestellungen",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                setSound(soundUri, audioAttributes)
-                enableLights(true)
-                enableVibration(true)
-                description = "Kanal für neue Bestellungen"
+                "orders_notification_channel_v2",
+                "orders_notification_channel_v3",
+                "orders_notification_channel_v4"
+            )
+            for (channelId in orderChannelIds) {
+                val orderChannel = NotificationChannel(
+                    channelId,
+                    "Bestellungen",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    setSound(soundUri, audioAttributes)
+                    enableLights(true)
+                    enableVibration(true)
+                    description = "Kanal für neue Bestellungen"
+                }
+                notificationManager.createNotificationChannel(orderChannel)
             }
-            notificationManager.createNotificationChannel(orderChannel)
 
             // 2. Create default channel
             val defaultChannel = NotificationChannel(

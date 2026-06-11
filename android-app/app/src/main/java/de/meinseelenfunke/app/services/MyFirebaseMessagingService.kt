@@ -89,7 +89,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         )
 
         val isNewOrder = data.containsKey("order_id")
-        val channelId = if (isNewOrder) "orders_notification_channel" else "default_notification_channel"
+        val channelId = if (isNewOrder) "orders_notification_channel_v4" else "default_notification_channel"
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
@@ -99,7 +99,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
 
         if (isNewOrder) {
-            val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.order_ching)
+            val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/raw/order_ching")
             notificationBuilder.setSound(soundUri)
             
             // Also play in-app if running and preloaded
@@ -115,14 +115,14 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // Notification channel is needed on Android Oreo (API 26) and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (isNewOrder) {
-                val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/" + R.raw.order_ching)
+                val soundUri = android.net.Uri.parse("android.resource://" + packageName + "/raw/order_ching")
                 val audioAttributes = android.media.AudioAttributes.Builder()
                     .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
                 
                 val channel = NotificationChannel(
-                    "orders_notification_channel",
+                    "orders_notification_channel_v4",
                     "Bestellungen",
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {

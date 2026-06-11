@@ -68,7 +68,7 @@ class FirebaseService
             ];
             
             $isOrder = isset($data['order_id']);
-            $channelId = $isOrder ? 'orders_notification_channel' : 'default_notification_channel';
+            $channelId = $isOrder ? 'orders_notification_channel_v4' : 'default_notification_channel';
             $sound = $isOrder ? 'order_ching' : 'default';
 
             $message['android']['notification'] = [
