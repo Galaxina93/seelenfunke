@@ -35,7 +35,20 @@
             @php
                 $threshold = (int) shop_setting('shipping_free_threshold', 5000);
                 $currentValue = $totals['subtotal_gross'];
-                $hasPhysical = $cart->items->contains(fn($i) => ($i->product->type ?? 'physical') === 'physical');
+                
+                // Ein Item benötigt physischen Versand, wenn es vom Typ physical ist oder ein postalisch versendeter Gutschein
+                $hasPhysical = $cart->items->contains(function($item) {
+                    $type = $item->product->type ?? 'physical';
+                    if ($type === 'physical') {
+                        return true;
+                    }
+                    $config = $item->configuration ?? [];
+                    if (!empty($config['is_gift_voucher']) && ($config['delivery_method'] ?? 'email') === 'post') {
+                        return true;
+                    }
+                    return false;
+                });
+
                 $percent = $threshold > 0 ? min(100, ($currentValue / $threshold) * 100) : 100;
                 $missing = $totals['missing_for_free_shipping'];
                 $isFree = $totals['is_free_shipping'];
@@ -62,7 +75,7 @@
             @elseif(!$hasPhysical)
                 <div class="mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm flex gap-3 shadow-sm">
                     <svg class="w-5 h-5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    <span>Sofort-Download / Service (Versandfrei)</span>
+                    <span>Zustellung per E-Mail / Download (Versandfrei)</span>
                 </div>
             @endif
 
@@ -209,7 +222,7 @@
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>
 
-            <div class="space-y-4 bg-gray-50 p-4 rounded-xl">
+            <div class="space-y-4 bg-gray-50 p-4 rounded-xl mt-6">
                 <div class="flex items-start">
                     <div class="flex h-5 items-center">
                         <input id="terms" wire:model.live="terms_accepted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer">
