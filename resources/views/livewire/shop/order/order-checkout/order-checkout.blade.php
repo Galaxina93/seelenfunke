@@ -35,6 +35,17 @@
     @if(config('services.google.places_key'))
         <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.places_key') }}&libraries=places&language=de&loading=async&callback=initMapsCallback" async defer></script>
         <script>
+            // Unterdrücke die Google Maps Places Autocomplete Deprecation-Warnung in der Konsole
+            (function() {
+                const originalWarn = console.warn;
+                console.warn = function(...args) {
+                    if (args[0] && typeof args[0] === 'string' && (args[0].includes('google.maps.places.Autocomplete') || args[0].includes('PlaceAutocompleteElement'))) {
+                        return;
+                    }
+                    originalWarn.apply(console, args);
+                };
+            })();
+
             let livewireReady = false;
             let mapsReady = typeof google !== 'undefined' && typeof google.maps !== 'undefined' && typeof google.maps.places !== 'undefined';
 
