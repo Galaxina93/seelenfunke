@@ -4,6 +4,8 @@ namespace Tests\Feature\Livewire\Shop\Marketing;
 
 use App\Livewire\Shop\Marketing\MarketingVoucher;
 use App\Models\Marketing\MarketingVoucher as VoucherModel;
+use App\Models\Order\OrderOrder;
+use App\Models\Product\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -202,5 +204,219 @@ class MarketingVoucherTest extends TestCase
             'value' => 5,
             'usage_limit' => 20,
         ]);
+    }
+
+    #[Test]
+    public function it_can_filter_and_sort_sold_gift_vouchers_with_realtime_stats()
+    {
+        // 1. Create a dummy order and gift vouchers
+        $order1 = OrderOrder::create([
+            'order_number' => 'ORD-100',
+            'email' => 'buyer1@example.com',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'total_price' => 5000,
+            'subtotal_price' => 5000,
+            'tax_amount' => 0,
+            'shipping_price' => 0,
+            'billing_address' => [
+                'first_name' => 'Alice',
+                'last_name' => 'Buyer',
+            ]
+        ]);
+
+        $order2 = OrderOrder::create([
+            'order_number' => 'ORD-200',
+            'email' => 'buyer2@example.com',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'total_price' => 10000,
+            'subtotal_price' => 10000,
+            'tax_amount' => 0,
+            'shipping_price' => 0,
+            'billing_address' => [
+                'first_name' => 'Bob',
+                'last_name' => 'Customer',
+            ]
+        ]);
+
+        $gv1 = \App\Models\Marketing\MarketingGiftVoucher::create([
+            'code' => 'SEELENFUNKE-1111-2222',
+            'initial_value' => 5000, // 50.00 EUR
+            'current_balance' => 5000, // Full
+            'recipient_name' => 'Recipient One',
+            'recipient_email' => 'recipient1@example.com',
+            'personal_message' => 'Liebe Grüße von Alice!',
+            'delivery_method' => 'email',
+            'is_active' => true,
+            'valid_until' => now()->addYears(3),
+        ]);
+        $gv1->created_at = now()->subDays(5);
+        $gv1->save();
+
+        $gv2 = \App\Models\Marketing\MarketingGiftVoucher::create([
+            'code' => 'SEELENFUNKE-3333-4444',
+            'initial_value' => 10000, // 100.00 EUR
+            'current_balance' => 3000, // Partial (used 70 EUR)
+            'recipient_name' => 'Recipient Two',
+            'recipient_email' => 'recipient2@example.com',
+            'personal_message' => 'Für dich!',
+            'delivery_method' => 'post',
+            'is_active' => true,
+            'valid_until' => now()->subDays(1), // Expired
+        ]);
+        $gv2->created_at = now()->subDays(2);
+        $gv2->save();
+
+        // Manually link the first voucher to order1's item structure for relationship searches
+        $product = Product::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'name' => 'Gutschein',
+            'slug' => 'gutschein',
+            'price' => 5000,
+            'status' => 'active',
+            'type' => 'digital',
+        ]);
+        $item1 = $order1->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 5000,
+            'total_price' => 5000,
+        ]);
+        $gv1->update(['order_item_id' => $item1->id]);
+
+        $item2 = $order2->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 10000,
+            'total_price' => 10000,
+        ]);
+        $gv2->update(['order_item_id' => $item2->id]);
+
+        // 2. Test Livewire Search & Filtering
+        Livewire::test(MarketingVoucher::class)
+            ->set('voucherSectionMode', 'gift')
+            // Assert all default values
+            ->assertSet('searchCode', '')
+            ->assertSet('filterDelivery', 'all')
+            ->assertSet('filterBalance', 'all')
+            ->assertSet('filterStatus', 'all')
+            
+            // Check dynamic stats with all vouchers
+            ->assertViewHas('giftVoucherStats', function ($stats) {
+                return $stats['count'] === 2 
+                    && (float)$stats['sum_initial'] === 150.0
+                    && (float)$stats['sum_current'] === 80.0
+                    && (float)$stats['sum_used'] === 70.0;
+            })
+
+            // Search by Recipient Name
+            ->set('searchCode', 'Recipient One')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-1111-2222';
+            })
+            ->assertViewHas('giftVoucherStats', function ($stats) {
+                return $stats['count'] === 1 
+                    && (float)$stats['sum_initial'] === 50.0
+                    && (float)$stats['sum_current'] === 50.0;
+            })
+
+            // Search by Buyer Name
+            ->set('searchCode', 'Alice')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-1111-2222';
+            })
+
+            // Search by Personal Message
+            ->set('searchCode', 'Grüße')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-1111-2222';
+            })
+
+            // Reset search and test Delivery Filter
+            ->set('searchCode', '')
+            ->set('filterDelivery', 'post')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test Balance Filter: full
+            ->set('filterDelivery', 'all')
+            ->set('filterBalance', 'full')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-1111-2222';
+            })
+
+            // Test Balance Filter: partial
+            ->set('filterBalance', 'partial')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test Status Filter: expired
+            ->set('filterBalance', 'all')
+            ->set('filterStatus', 'expired')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test Initial Value Range
+            ->set('filterStatus', 'all')
+            ->set('filterMinInitialValue', 60)
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test Current Balance Range
+            ->set('filterMinInitialValue', '')
+            ->set('filterMaxCurrentBalance', 40)
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test Created Date Range
+            ->set('filterMaxCurrentBalance', '')
+            ->set('filterCreatedAtTo', now()->subDays(3)->format('Y-m-d'))
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-1111-2222';
+            })
+
+            // Test Expiry Date Range
+            ->set('filterCreatedAtTo', '')
+            ->set('filterValidUntilTo', now()->format('Y-m-d'))
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 1 && $vouchers->first()->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test sorting: Balance Ascending
+            ->set('filterValidUntilTo', '')
+            ->set('sortOrder', 'current_balance_asc')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                $v = $vouchers->items();
+                return count($v) === 2 
+                    && $v[0]->code === 'SEELENFUNKE-3333-4444' 
+                    && $v[1]->code === 'SEELENFUNKE-1111-2222';
+            })
+
+            // Test sorting: Balance Descending
+            ->set('sortOrder', 'current_balance_desc')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                $v = $vouchers->items();
+                return count($v) === 2 
+                    && $v[0]->code === 'SEELENFUNKE-1111-2222' 
+                    && $v[1]->code === 'SEELENFUNKE-3333-4444';
+            })
+
+            // Test reset
+            ->call('clearGiftFilters')
+            ->assertSet('filterDelivery', 'all')
+            ->assertSet('filterBalance', 'all')
+            ->assertSet('filterStatus', 'all')
+            ->assertSet('sortOrder', 'created_at_desc')
+            ->assertViewHas('giftVouchers', function ($vouchers) {
+                return $vouchers->count() === 2;
+            });
     }
 }

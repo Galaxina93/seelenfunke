@@ -74,6 +74,7 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'Web Socket Einrichten (Env Files beachten Pusher Variablen, REVERB und BROADCAST_CONNECTION)', 'priority' => 'high'],
                     ['title' => 'DB Seeder die nicht gebraucht werden deaktivieren', 'priority' => 'medium'],
                     ['title' => 'DHL API Keys auf Live anpassen', 'priority' => 'high'],
+                    ['title' => 'GOOGLE_PLACES_API_KEY in der Google Cloud Console auf den Live Server anpassen (Domain-Einschränkungen einrichten)', 'priority' => 'high'],
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'medium'],
                     ['title' => 'Final prüfen -> STEUER 0.5 Punkte von Noah auf mich übertragen', 'priority' => 'high'],
                 ]

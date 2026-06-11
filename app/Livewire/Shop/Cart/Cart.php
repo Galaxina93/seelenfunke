@@ -119,7 +119,7 @@ class Cart extends Component
                 if ($result['success']) {
                     $this->couponCodeInput = ''; // Input leeren
                     $this->dispatch('cart-updated'); // UI neu laden
-                    session()->flash('success', $result['message']);
+                    session()->flash('coupon_success', $result['message']);
                 } else {
                     $this->addError('couponCodeInput', $result['message']);
                 }
@@ -136,7 +136,7 @@ class Cart extends Component
             DB::transaction(function () {
                 $this->cartService->removeCoupon();
                 $this->dispatch('cart-updated');
-                session()->flash('success', 'Gutschein entfernt.');
+                session()->flash('coupon_success', 'Gutschein entfernt.');
             });
         } catch (\Exception $e) {
             $this->logCartError('remove_coupon', $e, []);

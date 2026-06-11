@@ -1,6 +1,9 @@
 @php
     $isAuto = $voucherSectionMode === 'auto';
-    $bgClass = $isAuto ? 'from-[var(--theme-color)] to-indigo-600' : 'from-[var(--theme-color)] to-red-600';
+    $isManual = $voucherSectionMode === 'manual';
+    $isGift = $voucherSectionMode === 'gift';
+    
+    $bgClass = $isAuto ? 'from-[var(--theme-color)] to-indigo-600' : ($isManual ? 'from-[var(--theme-color)] to-red-600' : 'from-[var(--theme-color)] to-amber-600');
     $currentMonth = now()->month; // Aktueller Monat für die Highlight-Logik
 @endphp
 
@@ -8,15 +11,31 @@
 <section class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden transition-all duration-500 w-full mt-6">
     <div class="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b {{ $bgClass }} opacity-60 transition-colors duration-500"></div>
 
+    {{-- Tabs --}}
+    <div class="flex border-b border-gray-800 mb-8 gap-2 relative z-10 overflow-x-auto no-scrollbar">
+        <button wire:click="$set('voucherSectionMode', 'auto')" 
+                class="py-4 px-6 text-xs font-black uppercase tracking-widest border-b-2 transition-all {{ $voucherSectionMode === 'auto' ? 'border-[var(--theme-color)] text-white' : 'border-transparent text-gray-500 hover:text-gray-300' }}">
+            Autopilot (Saisonal)
+        </button>
+        <button wire:click="$set('voucherSectionMode', 'manual')" 
+                class="py-4 px-6 text-xs font-black uppercase tracking-widest border-b-2 transition-all {{ $voucherSectionMode === 'manual' ? 'border-[var(--theme-color)] text-white' : 'border-transparent text-gray-500 hover:text-gray-300' }}">
+            Manuelle Codes
+        </button>
+        <button wire:click="$set('voucherSectionMode', 'gift')" 
+                class="py-4 px-6 text-xs font-black uppercase tracking-widest border-b-2 transition-all {{ $voucherSectionMode === 'gift' ? 'border-[var(--theme-color)] text-white' : 'border-transparent text-gray-500 hover:text-gray-300' }}">
+            Verkaufte Wertgutscheine
+        </button>
+    </div>
+
     <div class="flex flex-col md:flex-row justify-between items-start mb-10 gap-6 relative z-10">
         <div>
             <h3 class="text-2xl font-serif font-bold text-white tracking-tight flex items-center gap-3 transition-all duration-300">
-                <i class="{{ $isAuto ? 'solar-ticket-bold-duotone text-[var(--theme-color)]' : 'solar-tag-bold-duotone text-[var(--theme-color)]' }} text-2xl"></i>
-                {{ $isAuto ? 'Saisonale Auto-Gutscheine' : 'Manuelle Gutscheine' }}
+                <i class="{{ $isAuto ? 'solar-ticket-bold-duotone text-[var(--theme-color)]' : ($isManual ? 'solar-tag-bold-duotone text-[var(--theme-color)]' : 'solar-card-rec-bold-duotone text-amber-500') }} text-2xl"></i>
+                {{ $isAuto ? 'Saisonale Auto-Gutscheine' : ($isManual ? 'Manuelle Gutscheine' : 'Verkaufte Geschenkgutscheine') }}
             </h3>
             <div class="flex items-center gap-3 mt-2">
                 <span class="text-[10px] font-mono text-gray-500 bg-black/40 px-2 py-0.5 rounded border border-gray-800 uppercase tracking-tighter">
-                    {{ $isAuto ? 'FRONTEND SLIDER AUTOPILOT' : 'MANUELLE VERWALTUNG' }}
+                    {{ $isAuto ? 'FRONTEND SLIDER AUTOPILOT' : ($isManual ? 'MANUELLE VERWALTUNG' : 'KUNDEN WERTGUTSCHEINE') }}
                 </span>
                 @if($isAuto)
                     <span class="flex h-2 w-2 relative">
@@ -26,14 +45,6 @@
                 @endif
             </div>
         </div>
-
-        <button wire:click="toggleVoucherSectionMode" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-gray-950 text-gray-400 hover:text-white border border-gray-800 shadow-inner hover:scale-[1.02]">
-            @if($isAuto)
-                <span>Manuell verwalten</span> <x-heroicon-m-arrow-right class="w-4 h-4 text-[var(--theme-color)]" />
-            @else
-                <x-heroicon-m-arrow-left class="w-4 h-4 text-[var(--theme-color)]" /> <span>Zu Autopilot</span>
-            @endif
-        </button>
     </div>
 
     @if($isAuto)
@@ -138,7 +149,7 @@
             </div>
         </div>
 
-    @else
+    @elseif($isManual)
         <div class="animate-fade-in w-full mt-4">
             @if(!$isCreatingManual && !$isEditingManual)
                 <div class="mb-8 flex justify-end">
@@ -332,6 +343,321 @@
                     </tbody>
                 </table>
             </div>
+            
+            <div class="mt-6">
+                {{ $manualCoupons->links() }}
+            </div>
+        </div>
+
+    @elseif($isGift)
+        <div class="animate-fade-in w-full mt-4">
+            {{-- SUCHE & FILTER BEREICH --}}
+            <div class="mb-6 bg-gray-950/40 border border-gray-850 rounded-[2rem] p-6 lg:p-8 relative z-20 flex flex-col gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {{-- Suchfeld --}}
+                    <div class="relative">
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Freitextsuche</label>
+                        <div class="relative">
+                            <input type="text" 
+                                   wire:model.live.debounce.300ms="searchCode" 
+                                   class="w-full pl-10 pr-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs text-white placeholder-gray-600 transition-colors shadow-inner" 
+                                   placeholder="Code, Name, E-Mail, Nachricht, Bestell-Nr...">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                                <x-heroicon-m-magnifying-glass class="h-4 w-4" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Sortierung --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Sortierung</label>
+                        <select wire:model.live="sortOrder" 
+                                class="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs font-bold text-white outline-none cursor-pointer shadow-inner">
+                            <option value="created_at_desc">Erstellungsdatum: Neueste zuerst</option>
+                            <option value="created_at_asc">Erstellungsdatum: Älteste zuerst</option>
+                            <option value="current_balance_desc">Restguthaben: Höchstes zuerst</option>
+                            <option value="current_balance_asc">Restguthaben: Niedrigstes zuerst</option>
+                            <option value="initial_value_desc">Originalwert: Höchster zuerst</option>
+                            <option value="initial_value_asc">Originalwert: Niedrigster zuerst</option>
+                            <option value="recipient_name_asc">Empfänger: A-Z</option>
+                            <option value="recipient_name_desc">Empfänger: Z-A</option>
+                        </select>
+                    </div>
+
+                    {{-- Filter: Versandart --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Versandart</label>
+                        <select wire:model.live="filterDelivery" 
+                                class="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs font-bold text-white outline-none cursor-pointer shadow-inner">
+                            <option value="all">Alle Versandarten</option>
+                            <option value="email">E-Mail (Digital)</option>
+                            <option value="post">Post (Postalisch)</option>
+                        </select>
+                    </div>
+
+                    {{-- Filter: Guthaben-Status --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Guthaben-Status</label>
+                        <select wire:model.live="filterBalance" 
+                                class="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs font-bold text-white outline-none cursor-pointer shadow-inner">
+                            <option value="all">Alle Guthaben</option>
+                            <option value="full">Vollständig (unbenutzt)</option>
+                            <option value="partial">Teilweise genutzt</option>
+                            <option value="empty">Leer / Aufgebraucht</option>
+                        </select>
+                    </div>
+
+                    {{-- Filter: Status --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Gültigkeits-Status</label>
+                        <select wire:model.live="filterStatus" 
+                                class="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs font-bold text-white outline-none cursor-pointer shadow-inner">
+                            <option value="all">Alle Status</option>
+                            <option value="active">Aktiv & Gültig</option>
+                            <option value="inactive">Manuell Deaktiviert</option>
+                            <option value="expired">Abgelaufen</option>
+                        </select>
+                    </div>
+
+                    {{-- Originalwert Spanne --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Originalwert (€)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" step="0.01" min="0" 
+                                   wire:model.live.debounce.500ms="filterMinInitialValue" 
+                                   class="w-1/2 px-3 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs text-white placeholder-gray-700 outline-none shadow-inner" 
+                                   placeholder="Min">
+                            <span class="text-gray-600 text-xs">-</span>
+                            <input type="number" step="0.01" min="0" 
+                                   wire:model.live.debounce.500ms="filterMaxInitialValue" 
+                                   class="w-1/2 px-3 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs text-white placeholder-gray-700 outline-none shadow-inner" 
+                                   placeholder="Max">
+                        </div>
+                    </div>
+
+                    {{-- Restguthaben Spanne --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Restguthaben (€)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" step="0.01" min="0" 
+                                   wire:model.live.debounce.500ms="filterMinCurrentBalance" 
+                                   class="w-1/2 px-3 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs text-white placeholder-gray-700 outline-none shadow-inner" 
+                                   placeholder="Min">
+                            <span class="text-gray-600 text-xs">-</span>
+                            <input type="number" step="0.01" min="0" 
+                                   wire:model.live.debounce.500ms="filterMaxCurrentBalance" 
+                                   class="w-1/2 px-3 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-xs text-white placeholder-gray-700 outline-none shadow-inner" 
+                                   placeholder="Max">
+                        </div>
+                    </div>
+
+                    {{-- Erstellungsdatum Spanne --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Erstellt am</label>
+                        <div class="flex items-center gap-2">
+                            <input type="date" 
+                                   wire:model.live="filterCreatedAtFrom" 
+                                   class="w-1/2 px-2 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-[10px] text-white outline-none shadow-inner [color-scheme:dark]" 
+                                   placeholder="Von">
+                            <span class="text-gray-600 text-xs">-</span>
+                            <input type="date" 
+                                   wire:model.live="filterCreatedAtTo" 
+                                   class="w-1/2 px-2 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-[10px] text-white outline-none shadow-inner [color-scheme:dark]" 
+                                   placeholder="Bis">
+                        </div>
+                    </div>
+
+                    {{-- Ablaufdatum Spanne --}}
+                    <div>
+                        <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Gültig bis</label>
+                        <div class="flex items-center gap-2">
+                            <input type="date" 
+                                   wire:model.live="filterValidUntilFrom" 
+                                   class="w-1/2 px-2 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-[10px] text-white outline-none shadow-inner [color-scheme:dark]" 
+                                   placeholder="Von">
+                            <span class="text-gray-600 text-xs">-</span>
+                            <input type="date" 
+                                   wire:model.live="filterValidUntilTo" 
+                                   class="w-1/2 px-2 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] text-[10px] text-white outline-none shadow-inner [color-scheme:dark]" 
+                                   placeholder="Bis">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Filter zurücksetzen & Info --}}
+                @if(!empty($searchCode) || $filterDelivery !== 'all' || $filterBalance !== 'all' || $filterStatus !== 'all' || $filterMinInitialValue !== '' || $filterMaxInitialValue !== '' || $filterMinCurrentBalance !== '' || $filterMaxCurrentBalance !== '' || $filterCreatedAtFrom !== '' || $filterCreatedAtTo !== '' || $filterValidUntilFrom !== '' || $filterValidUntilTo !== '' || $sortOrder !== 'created_at_desc')
+                    <div class="flex justify-between items-center border-t border-gray-800/40 pt-4 animate-fade-in">
+                        <span class="text-[10px] font-bold text-gray-400">
+                            Gefilterte Ansicht aktiv
+                        </span>
+                        <button wire:click="clearGiftFilters" 
+                                class="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-red-400 hover:text-red-300 bg-red-500/10 border border-red-500/20 px-4 py-2 rounded-xl transition-all hover:scale-[1.02] shadow-inner">
+                            <x-heroicon-m-x-mark class="w-3.5 h-3.5" /> Filter zurücksetzen
+                        </button>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Echtzeit-Statistiken --}}
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 relative z-10 animate-fade-in">
+                <!-- Stat 1: Anzahl -->
+                <div class="bg-gray-950/40 border border-gray-850 rounded-2xl p-4 flex items-center justify-between hover:border-amber-500/30 transition-all duration-300 shadow-inner group">
+                    <div>
+                        <span class="block text-[9px] font-black text-gray-500 uppercase tracking-widest">Gutscheine (Gefiltert)</span>
+                        <span class="text-xl font-mono font-bold text-white mt-1 block">{{ $giftVoucherStats['count'] }}</span>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center text-gray-500 border border-gray-850 group-hover:bg-amber-500/10 group-hover:border-amber-500/20 group-hover:text-amber-500 transition-all">
+                        <x-heroicon-m-ticket class="w-5 h-5" />
+                    </div>
+                </div>
+                
+                <!-- Stat 2: Initialwert -->
+                <div class="bg-gray-950/40 border border-gray-850 rounded-2xl p-4 flex items-center justify-between hover:border-amber-500/30 transition-all duration-300 shadow-inner group">
+                    <div>
+                        <span class="block text-[9px] font-black text-gray-500 uppercase tracking-widest">Gesamter Nennwert</span>
+                        <span class="text-xl font-mono font-bold text-white mt-1 block">{{ number_format($giftVoucherStats['sum_initial'], 2, ',', '.') }} €</span>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center text-gray-500 border border-gray-850 group-hover:bg-amber-500/10 group-hover:border-amber-500/20 group-hover:text-amber-500 transition-all">
+                        <x-heroicon-m-banknotes class="w-5 h-5" />
+                    </div>
+                </div>
+
+                <!-- Stat 3: Restguthaben -->
+                <div class="bg-gray-950/40 border border-gray-850 rounded-2xl p-4 flex items-center justify-between hover:border-emerald-500/30 transition-all duration-300 shadow-inner group">
+                    <div>
+                        <span class="block text-[9px] font-black text-gray-500 uppercase tracking-widest">Restliches Guthaben</span>
+                        <span class="text-xl font-mono font-bold text-emerald-400 mt-1 block">{{ number_format($giftVoucherStats['sum_current'], 2, ',', '.') }} €</span>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center text-gray-500 border border-gray-850 group-hover:bg-emerald-500/10 group-hover:border-emerald-500/20 group-hover:text-emerald-400 transition-all">
+                        <x-heroicon-m-currency-euro class="w-5 h-5" />
+                    </div>
+                </div>
+
+                <!-- Stat 4: Eingelöst -->
+                <div class="bg-gray-950/40 border border-gray-850 rounded-2xl p-4 flex items-center justify-between hover:border-amber-500/30 transition-all duration-300 shadow-inner group">
+                    <div>
+                        <span class="block text-[9px] font-black text-gray-500 uppercase tracking-widest">Bereits eingelöst</span>
+                        <span class="text-xl font-mono font-bold text-amber-500 mt-1 block">{{ number_format($giftVoucherStats['sum_used'], 2, ',', '.') }} €</span>
+                    </div>
+                    <div class="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center text-gray-500 border border-gray-850 group-hover:bg-amber-500/10 group-hover:border-amber-500/20 group-hover:text-amber-500 transition-all">
+                        <x-heroicon-m-shopping-cart class="w-5 h-5" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-[2rem] border border-gray-800 shadow-2xl bg-gray-900/80 backdrop-blur-xl relative z-10 w-full no-scrollbar">
+                <table class="w-full text-left border-collapse min-w-[1000px]">
+                    <thead>
+                    <tr class="text-[9px] font-black text-gray-500 uppercase tracking-widest border-b border-gray-800 bg-gray-950/50 shadow-inner">
+                        <th class="px-6 sm:px-8 py-5">Code</th>
+                        <th class="px-6 py-5">Käufer / Bestellung</th>
+                        <th class="px-6 py-5">Empfänger</th>
+                        <th class="px-6 py-5">Versandart</th>
+                        <th class="px-6 py-5">Guthaben</th>
+                        <th class="px-6 py-5">Gültigkeit</th>
+                        <th class="px-6 py-5">Status</th>
+                        <th class="px-6 sm:px-8 py-5 text-right">Aktionen</th>
+                    </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800/50">
+                    @forelse($giftVouchers as $gv)
+                        <tr wire:key="gift-row-{{ $gv->id }}" class="hover:bg-gray-800/30 transition-colors group">
+                            <td class="px-6 sm:px-8 py-5">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 bg-gray-950 border border-gray-800 rounded-lg text-amber-500 shadow-inner">
+                                        <x-heroicon-m-gift class="w-4 h-4" />
+                                    </div>
+                                    <span class="font-mono font-bold text-white text-sm tracking-wider">{{ $gv->code }}</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5">
+                                @if($gv->orderItem && $gv->orderItem->order)
+                                    <div class="flex flex-col gap-0.5">
+                                        <span class="text-sm font-bold text-gray-200">#{{ $gv->orderItem->order->order_number }}</span>
+                                        <span class="text-[10px] text-gray-500 font-mono">{{ $gv->orderItem->order->email }}</span>
+                                    </div>
+                                @else
+                                    <span class="text-gray-500 text-xs italic">System / Manuell</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="text-sm font-bold text-white">{{ $gv->recipient_name }}</span>
+                                    @if($gv->recipient_email)
+                                        <span class="text-[10px] text-gray-400 font-mono">{{ $gv->recipient_email }}</span>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="px-6 py-5">
+                                <span @class([
+                                    'inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border',
+                                    'bg-blue-500/10 text-blue-400 border-blue-500/20' => $gv->delivery_method === 'email',
+                                    'bg-amber-500/10 text-amber-400 border-amber-500/20' => $gv->delivery_method === 'post',
+                                ])>
+                                    {{ $gv->delivery_method === 'email' ? '📧 E-Mail' : '✉️ Post' }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-5">
+                                <div class="flex flex-col gap-0.5">
+                                    <span class="text-sm font-bold text-emerald-400">{{ number_format($gv->current_balance / 100, 2, ',', '.') }} €</span>
+                                    <span class="text-[10px] text-gray-500">von {{ number_format($gv->initial_value / 100, 2, ',', '.') }} €</span>
+                                </div>
+                            </td>
+                            <td class="px-6 py-5 text-xs text-gray-300">
+                                {{ $gv->valid_until ? $gv->valid_until->format('d.m.Y') : 'Unbegrenzt' }}
+                            </td>
+                            <td class="px-6 py-5">
+                                @if($gv->isValid())
+                                    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-md text-[9px] font-black bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-widest shadow-inner">
+                                        <span class="relative flex h-1.5 w-1.5"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 shadow-[0_0_8px_currentColor]"></span></span>
+                                        Aktiv
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center gap-2 px-3 py-1 rounded-md text-[9px] font-black bg-gray-800 text-gray-500 border border-gray-700 uppercase tracking-widest shadow-inner">
+                                        <span class="h-1.5 w-1.5 rounded-full bg-gray-500"></span>
+                                        Abgelaufen / Inaktiv
+                                    </span>
+                                @endif
+                            </td>
+                            <td class="px-6 sm:px-8 py-5 text-right">
+                                <button wire:click="toggleGiftVoucherStatus('{{ $gv->id }}')" 
+                                        class="p-2.5 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 hover:bg-[var(--theme-color-10)] hover:border-[var(--theme-color-30)] hover:text-[var(--theme-color)] transition-all shadow-inner" 
+                                        title="{{ $gv->is_active ? 'Deaktivieren' : 'Aktivieren' }}">
+                                    <x-heroicon-m-power class="w-4 h-4" />
+                                </button>
+                            </td>
+                        </tr>
+                        @if($gv->logs->isNotEmpty())
+                            <tr wire:key="gift-logs-{{ $gv->id }}" class="bg-gray-950/40">
+                                <td colspan="8" class="px-8 py-4">
+                                    <div class="border-l-2 border-amber-500/40 pl-4 py-1 space-y-2">
+                                        <p class="text-[10px] font-black text-gray-500 uppercase tracking-wider">Verlauf der Einlösungen:</p>
+                                        @foreach($gv->logs as $log)
+                                            <div class="flex items-center gap-4 text-xs text-gray-400">
+                                                <span class="font-mono text-gray-500">{{ $log->created_at->format('d.m.Y H:i') }} Uhr:</span>
+                                                <span>Eingelöst bei Bestellung <strong class="text-white">#{{ $log->order ? $log->order->order_number : 'Gelöscht' }}</strong></span>
+                                                <span class="text-red-400 font-bold">- {{ number_format($log->amount / 100, 2, ',', '.') }} €</span>
+                                                <span class="text-gray-500">(Restwert nach Einlösung: {{ number_format($log->remaining_balance / 100, 2, ',', '.') }} €)</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </td>
+                            </tr>
+                        @endif
+                    @empty
+                        <tr>
+                            <td colspan="8" class="px-6 py-16 text-center text-gray-500 font-serif italic text-lg">
+                                Bisher wurden keine Geschenkgutscheine gekauft.
+                            </td>
+                        </tr>
+                    @endforelse
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-6">
+                {{ $giftVouchers->links() }}
+            </div>
         </div>
     @endif
 </section>
@@ -362,14 +688,14 @@
              }
          }" x-init="initChart()">
          
-    <h3 class="text-2xl font-serif font-bold text-white tracking-tight flex items-center gap-3 mb-8">
+     <h3 class="text-2xl font-serif font-bold text-white tracking-tight flex items-center gap-3 mb-8">
         <x-heroicon-s-chart-bar class="w-7 h-7 text-blue-400" />
         Gutschein Performance (Letzte 12 Monate)
-    </h3>
+     </h3>
     
-    <div class="w-full h-[400px]">
-        <canvas id="voucherChart"></canvas>
-    </div>
+     <div class="w-full h-[400px]" wire:ignore>
+         <canvas id="voucherChart"></canvas>
+     </div>
 </section>
 
 {{-- TIPPS, TRICKS & HINWEISE --}}
@@ -430,6 +756,30 @@
                 <p>
                     <strong class="text-gray-200 block mb-1">Fester Betrag (€)</strong>
                     Hervorragend, um Kunden zu einem Kauf zu bewegen ("Hier hast du 5€ geschenkt"). Kombiniere feste Beträge aber <strong class="text-emerald-400">immer</strong> mit einem Mindestbestellwert, ansonsten bestellt der Kunde etwas für 4,90€ komplett gratis.
+                </p>
+            </div>
+        </div>
+
+        <div class="p-6 bg-gray-950/60 border border-gray-800 rounded-3xl backdrop-blur-sm relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
+            <h3 class="text-emerald-400 font-bold mb-4 uppercase tracking-widest text-[11px] flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                Geschenkgutscheine (Wertgutscheine)
+            </h3>
+            
+            <div class="space-y-4 text-sm text-gray-400">
+                <p>
+                    <strong class="text-gray-200 block mb-1">Steuerliche Behandlung (Mehrzweck-Gutschein)</strong>
+                    Da beim Kauf des Gutscheins noch nicht feststeht, welche Steuersätze auf die damit später erworbenen Artikel anfallen (z. B. personalisiertes Glas vs. eventuelle andere Dienstleistungen), handelt es sich um einen <strong class="text-emerald-400">Mehrzweck-Gutschein</strong>. Der Kauf selbst ist umsatzsteuerfrei (0% MwSt.), die Besteuerung erfolgt erst bei der tatsächlichen Einlösung.
+                </p>
+                <div class="border-t border-gray-800/50 my-2"></div>
+                <p>
+                    <strong class="text-gray-200 block mb-1">Gültigkeit & BGB-Verjährung</strong>
+                    Laut BGB (§ 195) sind Geschenkgutscheine regulär <strong class="text-emerald-400">3 Jahre gültig</strong>, beginnend mit dem Schluss des Ausstellungsjahres. Das Ablaufdatum wird in der Tabelle und dem Kunden beim Kauf transparent angezeigt.
+                </p>
+                <div class="border-t border-gray-800/50 my-2"></div>
+                <p>
+                    <strong class="text-gray-200 block mb-1">Teileinlösung (Restwert)</strong>
+                    Kunden können Gutscheine stückweise einlösen. Der genutzte Betrag wird automatisch vom Guthaben abgezogen. Alle Abbuchungen und die zugehörigen Bestellungen werden übersichtlich im Einlösungsverlauf dokumentiert.
                 </p>
             </div>
         </div>

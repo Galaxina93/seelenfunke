@@ -26,6 +26,7 @@ trait HandlesStripePayment
         $totals = $cartService->calculateTotals($cart, $targetCountry);
 
         $amount = $totals['total']; // Betrag in Cent
+        $this->totalAmount = $amount;
 
         if ($amount > 0) {
             $stripeSecret = config('services.stripe.secret');
@@ -73,31 +74,13 @@ trait HandlesStripePayment
         if (!$order) {
             $order = OrderOrder::with('items.product')
                 ->where('stripe_payment_intent_id', $this->currentPaymentIntentId)
-                ->where('status', 'pending')
                 ->latest()
                 ->first();
         }
 
         if ($order) {
-            $newStatus = $order->isOnlyDigital() ? 'completed' : 'pending';
-            // 2. Status & Zahlung der Bestellung aktualisieren
-            $order->update([
-                'payment_status' => 'paid',
-                'status' => $newStatus
-            ]);
-
-            // --- LAGERBESTAND REDUZIEREN ---
-            foreach ($order->items as $item) {
-                if ($item->product) {
-                    $item->product->reduceStock($item->quantity);
-                }
-            }
-
-            // GUTSCHEIN VERBRAUCHEN (Counter hochzählen)
-            if ($order->coupon_code) {
-                // Wir nutzen increment(), das ist atomar und sicher bei gleichzeitigen Zugriffen
-                MarketingVoucher::where('code', $order->coupon_code)->increment('used_count');
-            }
+            // Fulfill the order using the unified, idempotent completePayment method
+            $order->completePayment($this->currentPaymentIntentId);
 
             $this->finalOrderNumber = $order->order_number;
 
@@ -117,9 +100,6 @@ trait HandlesStripePayment
                     # \Illuminate\Support\Facades\Log::info("Angebot {$quote->quote_number} wurde erfolgreich in Order {$order->order_number} umgewandelt.");
                 }
             }
-
-            // --- NEU: DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
-            ProcessOrderDocumentsAndMails::dispatch($order);
         }
 
         // 3. UI umschalten & Cleanup

@@ -77,7 +77,10 @@ trait HandlesOrderCreation
 
             // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
             if ($cart->coupon_code) {
-                $coupon = MarketingVoucher::where('code', $cart->coupon_code)->first();
+                $coupon = \App\Models\Marketing\MarketingGiftVoucher::where('code', $cart->coupon_code)->first();
+                if (!$coupon) {
+                    $coupon = MarketingVoucher::where('code', $cart->coupon_code)->first();
+                }
 
                 // Wenn Gutschein nicht existiert oder nicht mehr gültig ist (z.B. Limit erreicht)
                 if (!$coupon || !$coupon->isValid()) {
@@ -239,6 +242,10 @@ trait HandlesOrderCreation
                     'configuration' => $item->configuration,
                     'config_fingerprint' => $configFingerprint
                 ]);
+            }
+
+            if ($order->total_price == 0) {
+                $order->completePayment(null);
             }
 
             return $order->id;

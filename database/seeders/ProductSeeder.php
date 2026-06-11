@@ -367,84 +367,43 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
         $p4->categories()->sync($catIds3);
 
-/*        // --- PRODUKT 5: Persönliche Laser-Beratung (Service) ---
-        $p5 = Product::create([
-            'name' => 'Persönliche Laser-Beratung',
-            'slug' => 'laser-beratung',
-            'type' => 'service',
-            'description' => 'Planen Sie ein Großprojekt oder benötigen Sie Hilfe bei der Erstellung Ihrer Gravurdaten? Buchen Sie eine 30-minütige persönliche Beratung per Video-Call mit unseren Experten.',
-            'is_personalizable' => false,
-            'short_description' => '30 Min. Video-Consulting für Ihr Laser-Projekt.',
+        // --- PRODUKT 5: Geschenkgutschein (Digital / Konfigurierbar) ---
+        $p5 = Product::updateOrCreate(['slug' => 'geschenkgutschein'], [
+            'name' => 'Geschenkgutschein',
+            'type' => 'digital',
+            'description' => 'Verschenken Sie unvergessliche Momente mit unserem edlen Seelenfunken Geschenkgutschein. Der Gutschein kann wahlweise digital per E-Mail oder hochwertig gedruckt per Post bestellt werden. Sie können den Betrag flexibel wählen und eine persönliche Grußbotschaft hinzufügen. Der perfekte Ausdruck Ihrer Wertschätzung.',
+            'is_personalizable' => true,
+            'short_description' => 'Der flexible Seelenfunken Geschenkgutschein als E-Mail oder edle Post-Klappkarte mit Wachssiegel.',
             'status' => 'active',
-            'price' => 4900,
+            'price' => 0, // Wird dynamisch durch den Konfigurator/Warenkorb bestimmt
             'compare_at_price' => null,
-            'sku' => 'SERVICE-CONSULT-30',
+            'sku' => 'GIFT-VOUCHER',
             'barcode' => '',
             'brand' => 'Mein-Seelenfunke',
-            'track_quantity' => true,
-            'quantity' => 10,
-            'continue_selling_when_out_of_stock' => false,
+            'track_quantity' => false,
+            'quantity' => 0,
+            'continue_selling_when_out_of_stock' => true,
             'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
-            'digital_download_path' => null, 'digital_filename' => null,
-            'preview_image_path' => null,
+            'preview_image_path' => 'produkte/products/geschenkgutschein/envelope.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'system/testdata/laserberatung/laser-beratung.png', 'is_main' => true, 'alt' => 'Laser Beratungsservice']
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/envelope.png', 'is_main' => true, 'alt' => 'Geschenkgutschein Umschlag']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => false,
                 'allow_logo' => false,
             ],
             'attributes' => [
-                'Dauer' => '30 Minuten',
-                'Ort' => 'Online (Video-Call)',
-                'Sprache' => 'Deutsch',
-                'Experte' => 'Alina Steinhauer'
+                'Art' => 'Mehrzweck-Gutschein (Wertgutschein)',
+                'Auslieferung' => 'E-Mail (Sofort) oder Postversand',
+                'Gültigkeit' => '3 Jahre zum Jahresende (§ 195 BGB)'
             ],
             'tier_pricing' => [],
-            'seo_title' => 'Laser-Beratung buchen | Mein-Seelenfunke Experten',
-            'seo_description' => 'Professionelle Beratung für Ihre Lasergravur-Projekte. Jetzt Termin sichern.',
+            'seo_title' => 'Geschenkgutschein online kaufen & verschenken | Mein-Seelenfunke',
+            'seo_description' => 'Edler Geschenkgutschein von Mein-Seelenfunke. Flexibler Wert, mit persönlicher Botschaft. Digital per E-Mail oder als Postkarte mit Wachssiegel bestellen.',
             'completion_step' => 4
         ]);
 
-        $catIds4 = ProductCategory::whereIn('name', ['Beratung', 'Express-Service'])->pluck('id');
-        $p5->categories()->attach($catIds4);
-
-        // --- PRODUKT 6: Standard Deko-Holz-Zwerg (Nicht Personalisiert) ---
-        $p6 = Product::create([
-            'name' => 'Standard Deko-Holz-Zwerg',
-            'slug' => 'deko-holz-zwerg',
-            'type' => 'physical',
-            'is_personalizable' => false,
-            'description' => 'Ein witziger Deko-Zwerg aus Holz, liebevoll gefertigt und lackiert. Dieser Artikel ist ein fertiges Produkt und kann nicht personalisiert werden. Perfekt als lustiges Mitbringsel oder Dekoration für das ganze Jahr.',
-            'short_description' => 'Fertig gestalteter Holz-Zwerg zur Dekoration.',
-            'status' => 'active',
-            'price' => 1490,
-            'compare_at_price' => 1990,
-            'sku' => 'DECO-ZWERG-01',
-            'barcode' => '',
-            'brand' => 'Mein-Seelenfunke',
-            'track_quantity' => true,
-            'quantity' => 20,
-            'continue_selling_when_out_of_stock' => false,
-            'weight' => 200,
-            'height' => 150,
-            'width' => 80,
-            'length' => 40,
-            'shipping_class' => 'paket_s',
-            'media_gallery' => [],
-            'configurator_settings' => [],
-            'attributes' => [
-                'Material' => 'Holz',
-                'Höhe' => '15 cm',
-                'Eigenschaft' => 'Standard-Artikel (keine Personalisierung)'
-            ],
-            'tier_pricing' => [],
-            'seo_title' => 'Standard Deko-Holz-Zwerg | Fertiges Geschenk',
-            'seo_description' => 'Kaufen Sie unseren lustigen Deko-Zwerg für Ihr Zuhause. Direkt lieferbar ohne Konfigurator-Schleife.',
-            'completion_step' => 4
-        ]);
-
-        $catIds6 = ProductCategory::whereIn('name', ['Bestseller'])->pluck('id');
-        $p6->categories()->attach($catIds6);*/
+        $catIds5 = ProductCategory::whereIn('name', ['Geschenksets', 'Bestseller'])->pluck('id');
+        $p5->categories()->sync($catIds5);
     }
 }

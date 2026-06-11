@@ -21,6 +21,14 @@ class ShippingCalculatorService
             return false;
         }
 
+        // Check if any gift voucher needs postal delivery
+        foreach ($items as $item) {
+            $config = $item->configuration ?? [];
+            if (!empty($config['is_gift_voucher']) && ($config['delivery_method'] ?? 'email') === 'post') {
+                return true;
+            }
+        }
+
         // 2. Einstellung "Versand für Digitales überspringen" laden
         // Wir nutzen shop_setting() Helper falls vorhanden, sonst DB direkt
         $skipForNonPhysical = filter_var(shop_setting('skip_shipping_for_digital', false), FILTER_VALIDATE_BOOLEAN);
@@ -67,6 +75,32 @@ class ShippingCalculatorService
                 'is_free' => true,
                 'missing' => 0,
                 'reason' => 'non_physical_only' // Debug Info: Nur Digitales oder Services
+            ];
+        }
+
+        // Check if there are other physical products besides gift vouchers
+        $hasOtherPhysical = collect($items)->contains(function ($item) {
+            $product = $item instanceof \App\Models\Product\Product ? $item : ($item->product ?? null);
+            if (!$product) return false;
+            
+            $config = $item->configuration ?? [];
+            $isVoucher = !empty($config['is_gift_voucher']);
+            if ($isVoucher) return false;
+            
+            if (method_exists($product, 'isPhysical')) {
+                return $product->isPhysical();
+            }
+            return !$product->isDigital();
+        });
+
+        // If only gift vouchers (with post delivery) and/or digital items are in the cart, charge the voucher shipping rate
+        if (!$hasOtherPhysical) {
+            $voucherCost = (int) shop_setting('shipping_cost_voucher', 350);
+            return [
+                'cost' => $voucherCost,
+                'is_free' => ($voucherCost === 0),
+                'missing' => 0,
+                'reason' => 'gift_voucher_only'
             ];
         }
 

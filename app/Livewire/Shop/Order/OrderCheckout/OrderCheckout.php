@@ -49,6 +49,7 @@ class OrderCheckout extends Component
     public $clientSecret;
     public $stripeKey;
     public $currentPaymentIntentId;
+    public int $totalAmount = 0;
 
     // --- UI STATE ---
     public $isFinished = false;
@@ -320,6 +321,7 @@ class OrderCheckout extends Component
 
         $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
         $totals = $cartService->calculateTotals($cart, $targetCountry);
+        $this->totalAmount = $totals['total'];
 
         return view('livewire.shop.order.order-checkout.order-checkout', [
             'cart' => $cart,

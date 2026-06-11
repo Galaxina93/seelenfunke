@@ -94,6 +94,7 @@ Route::get('/manufaktur', function () {
 })->name('manufacture');
 
 Route::get('/shop', ProductFrontendFilterArea::class)->name('shop');
+Route::redirect('/gutscheine', '/produkt/geschenkgutschein', 301)->name('vouchers');
 
 // Marketing Landing Page
 Route::get('/l/{slug}', \App\Livewire\Landing\LandingPageView::class)->name('landing-page');

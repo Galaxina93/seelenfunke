@@ -22,6 +22,17 @@
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Versand Post-Gutscheine</label>
+                    @include('components.alerts.info-tooltip', ['key' => 'shipping_cost_voucher'])
+                </div>
+                <div class="relative">
+                    <input type="number" step="0.01" wire:model="settings.shipping_cost_voucher" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
+                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">€</span>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Versandkostenfrei ab</label>
                     @include('components.alerts.info-tooltip', ['key' => 'shipping_free_threshold'])
                 </div>

@@ -8,6 +8,11 @@
         const stripeKey = "{{ $stripeKey }}";
 
         async function initializeStripe() {
+            const total = await @this.get('totalAmount');
+            if (total === 0) {
+                return;
+            }
+
             const clientSecret = await @this.get('clientSecret');
             if (!stripeKey || !clientSecret) {
                 console.error("Stripe Konfiguration fehlt.");
@@ -225,6 +230,13 @@
                             setLoadingState(false);
                             window.dispatchEvent(new CustomEvent('checkout-processing-done'));
                             window.scrollTo({ top: 0, behavior: 'smooth' });
+                            return;
+                        }
+
+                        // Wenn kein clientSecret vorhanden ist (z. B. vollbezahlt mit Gutschein), direkt abschließen
+                        const currentClientSecret = await @this.get('clientSecret');
+                        if (!currentClientSecret) {
+                            await @this.handlePaymentSuccess(orderId);
                             return;
                         }
 

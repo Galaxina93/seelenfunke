@@ -114,6 +114,11 @@
         $data['tax_breakdown'] = $totals['taxes_breakdown'] ?? [];
         $data['total'] = $totals['total'] ?? 0;
     }
+
+    $isGiftVoucher = false;
+    if (!empty($data['coupon_code'])) {
+        $isGiftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $data['coupon_code'])->exists();
+    }
 @endphp
 
 <div class="{{ $containerClass }}">
@@ -148,7 +153,7 @@
             </div>
         @endif
 
-        @if($data['discount_amount'] > 0)
+        @if($data['discount_amount'] > 0 && !$isGiftVoucher)
             <div class="flex justify-between {{ $discountBoxClass }}">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 {{ $discountIconClass }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -165,11 +170,11 @@
         @endif
 
         {{-- Zwischensumme (Optional anzeigen bei Rabatten) --}}
-        @if($data['volume_discount'] > 0 || $data['discount_amount'] > 0)
+        @if($data['volume_discount'] > 0 || ($data['discount_amount'] > 0 && !$isGiftVoucher))
             <div class="border-b my-3 {{ $dividerClass }}"></div>
             <div class="flex justify-between italic text-xs mb-3 {{ $labelClass }}">
                 <span>Zwischensumme</span>
-                <span class="whitespace-nowrap">{{ number_format(($data['subtotal'] - $data['volume_discount'] - $data['discount_amount']) / 100, 2, ',', '.') }}&nbsp;€</span>
+                <span class="whitespace-nowrap">{{ number_format(($data['subtotal'] - $data['volume_discount'] - (!$isGiftVoucher ? $data['discount_amount'] : 0)) / 100, 2, ',', '.') }}&nbsp;€</span>
             </div>
         @endif
 
@@ -201,6 +206,23 @@
                 @endif
             @endif
         </div>
+
+        {{-- Wertgutschein Abzug (wird erst nach Versand & Express abgezogen) --}}
+        @if($data['discount_amount'] > 0 && $isGiftVoucher)
+            <div class="border-b my-3 {{ $dividerClass }}"></div>
+            <div class="flex justify-between {{ $discountBoxClass }}">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 {{ $discountIconClass }}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                    </svg>
+                    <span class="font-bold">Gutschein ({{ $data['coupon_code'] }})</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="whitespace-nowrap font-bold">-{{ number_format($data['discount_amount'] / 100, 2, ',', '.') }}&nbsp;€</span>
+                    {{ $slot ?? '' }}
+                </div>
+            </div>
+        @endif
 
         {{-- 5. Gesamt --}}
         <div class="border-t pt-5 mt-6 flex flex-wrap justify-between items-end gap-x-2 gap-y-1 {{ $totalDividerClass }}">

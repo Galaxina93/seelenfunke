@@ -30,8 +30,12 @@ Route::middleware(['auth:customer'])->group(function () {
 
         // NEU: Support & Tickets
         Route::get('/support', \App\Livewire\Customer\CustomerTicketsComponent::class)->name('customer.support');
+
     });
 });
+
+// NEU: Gutschein PDF Download (globaler Download, berechtigt im Controller)
+Route::get('/customer/gift-voucher/{voucher}/download', [\App\Http\Controllers\Customer\GiftVoucherDownloadController::class, 'download'])->name('customer.gift-voucher.download');
 
 Route::middleware('guest:' . implode(',', array_keys(config('auth.guards'))))->group(function () {
     Route::get('/customer/password-reset/{token}', function ($token) {

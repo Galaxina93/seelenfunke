@@ -148,9 +148,9 @@
 
                                 {{-- Type Badge auf Bild --}}
                                 @if($isService)
-                                    <div class="absolute inset-0 bg-black/70 flex items-center justify-center text-white text-[9px] font-black uppercase tracking-widest backdrop-blur-sm">Service</div>
+                                    <div class="absolute bottom-0 left-0 right-0 bg-black/85 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5 z-10">Service</div>
                                 @elseif($isDigital)
-                                    <div class="absolute inset-0 bg-blue-900/70 flex items-center justify-center text-blue-300 text-[9px] font-black uppercase tracking-widest backdrop-blur-sm">Digital</div>
+                                    <div class="absolute bottom-0 left-0 right-0 bg-blue-600/90 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5 z-10">Digital</div>
                                 @endif
                             </div>
 
@@ -277,6 +277,22 @@
                         
                         $allFiles = [];
 
+                        // Wenn Gutschein-Produkt, die generierten Gutscheine aus der DB laden
+                        if ($previewItem) {
+                            $isVoucher = ($previewItem->product->slug ?? '') === 'geschenkgutschein' || (!empty($previewItem->configuration['is_gift_voucher']));
+                            if ($isVoucher) {
+                                $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $previewItem->id)->get();
+                                foreach ($giftVouchers as $gv) {
+                                    $allFiles[] = [
+                                        'label' => 'Gutschein PDF (' . $gv->code . ')',
+                                        'download_url' => route('customer.gift-voucher.download', $gv->id),
+                                        'ext' => 'pdf',
+                                        'created_at' => $gv->created_at,
+                                    ];
+                                }
+                            }
+                        }
+
                         // Wenn Logo existiert und noch nicht in der Liste ist, hinzufügen
                         if($logoPath) {
                             $allFiles[] = [
@@ -324,11 +340,13 @@
                                 </div>
                                 <div class="min-w-0">
                                     <p class="text-sm font-bold text-white truncate">{{ $fileObj['label'] }}</p>
-                                    <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5">Hinterlegt am {{ $model->created_at->format('d.m.Y') }}</p>
+                                    <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5">
+                                        Hinterlegt am {{ isset($fileObj['created_at']) ? $fileObj['created_at']->format('d.m.Y') : $model->created_at->format('d.m.Y') }}
+                                    </p>
                                 </div>
                             </div>
-                            <a href="{{ asset('storage/'.$fileObj['path']) }}"
-                               download="{{ $fileObj['label'] . '.' . $fileObj['ext'] }}"
+                            <a href="{{ $fileObj['download_url'] ?? asset('storage/'.$fileObj['path']) }}"
+                               @if(empty($fileObj['download_url'])) download="{{ $fileObj['label'] . '.' . $fileObj['ext'] }}" @endif
                                target="_blank"
                                class="ml-4 p-3 bg-gray-800 text-gray-400 rounded-xl hover:bg-[var(--theme-color)] hover:text-gray-900 hover:shadow-[0_0_15px_var(--theme-color-40)] transition-all"
                                title="Herunterladen">

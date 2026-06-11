@@ -181,6 +181,17 @@
                             </p>
                         </div>
 
+                        {{-- §9 Geschenkgutscheine & BGB-Verjährungsfrist --}}
+                        <div id="gutscheine-verjaehrung" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">9. Geschenkgutscheine & BGB-Verjährungsfrist</h3>
+                            <p>
+                                (1) <strong>Gültigkeitsdauer:</strong> Für unsere erworbenen Geschenkgutscheine (Wertgutscheine) gilt die regelmäßige gesetzliche Verjährungsfrist gemäß § 195 BGB. Diese beträgt <strong>3 Jahre</strong>, beginnend mit dem Schluss des Jahres, in dem der Gutschein ausgestellt wurde.
+                            </p>
+                            <p class="mt-2">
+                                (2) <strong>Einlösung und Teileinlösung:</strong> Gutscheine können für alle Produkte im Online-Shop des Anbieters eingelöst werden. Reicht der Wert des Gutscheins zur Deckung der Bestellung nicht aus, kann die Differenz über eine der anderen angebotenen Zahlungsarten beglichen werden. Bei einer Teileinlösung verbleibt das Restguthaben auf dem Gutschein und kann für künftige Einkäufe innerhalb der Gültigkeitsfrist verwendet werden. Eine Barauszahlung des Gutscheinwerts oder des Restguthabens ist ausgeschlossen.
+                            </p>
+                        </div>
+
                     </div>
                 </div>
 

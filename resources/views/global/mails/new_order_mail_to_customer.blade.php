@@ -48,11 +48,11 @@
     @php
         $hasPhysicalProduct = false;
         foreach($data['items'] ?? [] as $item) {
-            $confType = $item['config']['type'] ?? 'physical';
+            $itemType = $item['type'] ?? 'physical';
             $isShippingOrExpress = str_contains(strtolower($item['name'] ?? ''), 'versand') || str_contains(strtolower($item['name'] ?? ''), 'express');
             $isPersonalizable = $item['is_personalizable'] ?? true;
             
-            if ($confType === 'physical' && !$isShippingOrExpress && $isPersonalizable) {
+            if ($itemType === 'physical' && !$isShippingOrExpress && $isPersonalizable) {
                 $hasPhysicalProduct = true;
                 break;
             }

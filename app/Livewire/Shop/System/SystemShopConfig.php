@@ -56,6 +56,7 @@ class SystemShopConfig extends Component
         'owner_iban',
         'shipping_cost',
         'shipping_free_threshold',
+        'shipping_cost_voucher',
         'express_surcharge_percent',
         'express_surcharge_min',
         'packaging_weight_grams',
@@ -111,6 +112,7 @@ class SystemShopConfig extends Component
         'owner_iban' => 'Die IBAN, auf die Kunden ihre Vorkasse-Zahlungen überweisen sollen.',
         'shipping_cost' => 'Standardversandkosten pro Bestellung (Eingabe in Euro).',
         'shipping_free_threshold' => 'Ab diesem Brutto-Warenwert entfallen die Versandkosten automatisch (Eingabe in Euro).',
+        'shipping_cost_voucher' => 'Versandkostenaufpreis für den postalischen Versand von gedruckten Gutscheinen (Eingabe in Euro).',
         'express_surcharge_percent' => 'Prozentualer Aufschlag für Express-Priorisierung (Eingabe in %, z.B. 20 für 20%).',
         'express_surcharge_min' => 'Zwingender Mindestbetrag für den Express-Aufschlag (Eingabe in Euro, z.B. 5.00).',
         'packaging_weight_grams' => 'Das standardmäßige Leergewicht (in Gramm) eines Kartons (inkl. Füllmaterial). Dient zur automatischen Berechnung des DHL-Etikettengewichts.',
@@ -151,7 +153,7 @@ class SystemShopConfig extends Component
                 $value = $this->getFallback($key);
             }
 
-            if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge_min'])) {
+            if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge_min', 'shipping_cost_voucher'])) {
                 $value = number_format((int)$value / 100, 2, '.', '');
             }
 
@@ -193,6 +195,7 @@ class SystemShopConfig extends Component
             'owner_iban'        => 'DE...',
             'shipping_cost'     => 490,
             'shipping_free_threshold' => 5000,
+            'shipping_cost_voucher' => 350,
             'express_surcharge_percent' => 20,
             'express_surcharge_min' => 500,
             'packaging_weight_grams' => 350,
@@ -225,6 +228,7 @@ class SystemShopConfig extends Component
             'settings.owner_email_backup' => 'nullable|email',
             'settings.shipping_cost' => 'required|numeric',
             'settings.shipping_free_threshold' => 'required|numeric',
+            'settings.shipping_cost_voucher' => 'required|numeric',
             'settings.express_surcharge_percent' => 'required|numeric|min:0|max:100',
             'settings.express_surcharge_min' => 'required|numeric|min:0',
             'settings.packaging_weight_grams' => 'required|integer|min:0',
@@ -252,7 +256,7 @@ class SystemShopConfig extends Component
 
             $finalValue = $value;
 
-            if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge_min'])) {
+            if (in_array($key, ['shipping_cost', 'shipping_free_threshold', 'express_surcharge_min', 'shipping_cost_voucher'])) {
                 $finalValue = (int)round((float)$value * 100);
             }
 

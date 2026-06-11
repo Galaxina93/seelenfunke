@@ -1,4 +1,13 @@
 <div class="mx-auto pt-6">
+    <style>
+        @keyframes gold-pulse {
+            0%, 100% { text-shadow: 0 0 2px rgba(251, 191, 36, 0.4); opacity: 0.95; }
+            50% { text-shadow: 0 0 8px rgba(251, 191, 36, 0.8), 0 0 15px rgba(251, 191, 36, 0.3); opacity: 1; color: #fbbf24; }
+        }
+        .animate-gold-pulse {
+            animation: gold-pulse 2.5s infinite ease-in-out;
+        }
+    </style>
     {{--
         x-data: Hier lebt der Status des Menüs.
         @click.away: Schließt das Menü, wenn man daneben klickt.
@@ -48,6 +57,12 @@
                         <a href="{{ route('contact') }}"
                            class="{{ Request::routeIs('contact') ? 'text-primary' : 'text-white' }} hover:text-primary transition-colors font-medium">
                             Kontakt
+                        </a>
+
+                        <a href="{{ route('product.show', 'geschenkgutschein') }}"
+                           class="{{ request()->is('produkt/geschenkgutschein') ? 'text-amber-400 font-bold' : 'text-amber-400/90' }} hover:text-amber-300 transition-all font-bold tracking-wider relative group whitespace-nowrap animate-gold-pulse">
+                            Gutscheine
+                            <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-amber-400 transition-all duration-300 group-hover:w-full"></span>
                         </a>
 
                         {{-- Button Angebot --}}
@@ -124,6 +139,11 @@
                 <a href="{{ route('contact') }}"
                    class="block px-3 py-2 text-lg {{ Request::routeIs('contact') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
                     Kontakt
+                </a>
+
+                <a href="{{ route('product.show', 'geschenkgutschein') }}"
+                   class="block px-3 py-2 text-lg font-bold {{ request()->is('produkt/geschenkgutschein') ? 'text-amber-300' : 'text-amber-400' }} hover:text-amber-300 animate-gold-pulse">
+                    Gutscheine kaufen
                 </a>
 
                 <a href="{{ route('calculator') }}" class="block mt-4 px-3 py-3 text-center bg-primary text-gray-900 font-bold rounded-md hover:bg-primary-light">

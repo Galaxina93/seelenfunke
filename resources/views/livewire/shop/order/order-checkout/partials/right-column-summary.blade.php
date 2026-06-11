@@ -1,4 +1,4 @@
-<div class="mt-10 lg:mt-0 lg:col-span-5 lg:sticky lg:top-24 z-20"
+<div class="mt-10 lg:mt-0 lg:sticky lg:top-24 z-20"
      x-data="{
         isProcessing: false,
         terms: @entangle('terms_accepted'),
@@ -194,8 +194,7 @@
                                                     </div>
                                                 @endif
                                             @endif
-                                        </div>
-                                    </div> </div>
+                                    </div>
                                 @endif
                             </div>
                             <div class="text-right">
@@ -251,6 +250,31 @@
                     </div>
                 </button>
                 <p class="text-xs text-gray-400 text-center mt-4">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
+
+                {{-- Trust Badges --}}
+                <div class="mt-6 pt-6 border-t border-gray-150 grid grid-cols-3 gap-2 text-center">
+                    <div class="flex flex-col items-center">
+                        <svg class="w-5 h-5 text-primary mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        <span class="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">SSL-Schutz</span>
+                        <span class="text-[9px] text-gray-400 block mt-0.5 leading-tight">256-bit Verschlüsselt</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <svg class="w-5 h-5 text-primary mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        <span class="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">Sichere Kasse</span>
+                        <span class="text-[9px] text-gray-400 block mt-0.5 leading-tight">Stripe PCI-zertifiziert</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <svg class="w-5 h-5 text-primary mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <span class="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">3 Jahre</span>
+                        <span class="text-[9px] text-gray-400 block mt-0.5 leading-tight">Gültigkeit nach BGB</span>
+                    </div>
+                </div>
             </div>
 
 

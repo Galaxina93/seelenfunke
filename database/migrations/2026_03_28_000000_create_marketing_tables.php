@@ -117,6 +117,34 @@ return new class extends Migration
             $table->softDeletes();
             $table->timestamps();
         });
+
+        // Gift Vouchers
+        Schema::create('marketing_gift_vouchers', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('code')->unique();
+            $table->uuid('order_item_id')->nullable(); // Ohne DB-Constraint wegen Migrations-Reihenfolge
+            $table->integer('initial_value'); // in Cent
+            $table->integer('current_balance'); // in Cent
+            $table->string('recipient_name');
+            $table->string('recipient_email')->nullable();
+            $table->text('personal_message')->nullable();
+            $table->string('delivery_method')->default('email'); // 'email' or 'post'
+            $table->boolean('is_active')->default(true);
+            $table->timestamp('valid_until')->nullable();
+            $table->softDeletes();
+            $table->timestamps();
+        });
+
+        // Gift Voucher Logs
+        Schema::create('marketing_gift_voucher_logs', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('gift_voucher_id')->constrained('marketing_gift_vouchers')->onDelete('cascade');
+            $table->uuid('order_id')->nullable(); // Ohne DB-Constraint wegen Migrations-Reihenfolge
+            $table->integer('amount'); // in Cent
+            $table->integer('remaining_balance'); // in Cent
+            $table->timestamps();
+        });
+
         // Instagram Posts
         Schema::create('marketing_instagram_posts', function (Blueprint $table) {
             $table->uuid('id')->primary();
@@ -208,6 +236,8 @@ return new class extends Migration
         Schema::dropIfExists('marketing_google_ads_campaigns');
         Schema::dropIfExists('marketing_landing_pages');
         Schema::dropIfExists('marketing_instagram_posts');
+        Schema::dropIfExists('marketing_gift_voucher_logs');
+        Schema::dropIfExists('marketing_gift_vouchers');
         Schema::dropIfExists('marketing_vouchers');
         Schema::dropIfExists('marketing_newsletters');
         Schema::dropIfExists('marketing_blog_posts');

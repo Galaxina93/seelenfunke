@@ -21,6 +21,48 @@ class MarketingVoucher extends Component
 
     public $voucherSectionMode = 'auto'; // 'auto' oder 'manual'
 
+    // --- SUCHE & FILTER FÜR WERTGUTSCHEINE ---
+    public $searchCode = '';
+    public $filterDelivery = 'all'; // 'all', 'email', 'post'
+    public $filterBalance = 'all'; // 'all', 'full', 'partial', 'empty'
+    public $filterStatus = 'all'; // 'all', 'active', 'inactive', 'expired'
+    public $filterMinInitialValue = '';
+    public $filterMaxInitialValue = '';
+    public $filterMinCurrentBalance = '';
+    public $filterMaxCurrentBalance = '';
+    public $filterCreatedAtFrom = '';
+    public $filterCreatedAtTo = '';
+    public $filterValidUntilFrom = '';
+    public $filterValidUntilTo = '';
+    public $sortOrder = 'created_at_desc';
+
+    public function updatingSearchCode() { $this->resetPage(); }
+    public function updatingFilterDelivery() { $this->resetPage(); }
+    public function updatingFilterBalance() { $this->resetPage(); }
+    public function updatingFilterStatus() { $this->resetPage(); }
+    public function updatingFilterMinInitialValue() { $this->resetPage(); }
+    public function updatingFilterMaxInitialValue() { $this->resetPage(); }
+    public function updatingFilterMinCurrentBalance() { $this->resetPage(); }
+    public function updatingFilterMaxCurrentBalance() { $this->resetPage(); }
+    public function updatingFilterCreatedAtFrom() { $this->resetPage(); }
+    public function updatingFilterCreatedAtTo() { $this->resetPage(); }
+    public function updatingFilterValidUntilFrom() { $this->resetPage(); }
+    public function updatingFilterValidUntilTo() { $this->resetPage(); }
+    public function updatingSortOrder() { $this->resetPage(); }
+
+    public function clearGiftFilters()
+    {
+        $this->reset([
+            'searchCode', 'filterDelivery', 'filterBalance', 'filterStatus',
+            'filterMinInitialValue', 'filterMaxInitialValue',
+            'filterMinCurrentBalance', 'filterMaxCurrentBalance',
+            'filterCreatedAtFrom', 'filterCreatedAtTo',
+            'filterValidUntilFrom', 'filterValidUntilTo',
+            'sortOrder'
+        ]);
+        $this->resetPage();
+    }
+
     // --- MANUELLE GUTSCHEINE ---
     public $isCreatingManual = false;
     public $isEditingManual = false;
@@ -132,6 +174,16 @@ class MarketingVoucher extends Component
         $this->manual_type = 'fixed';
     }
 
+    public function toggleGiftVoucherStatus($id)
+    {
+        $v = \App\Models\Marketing\MarketingGiftVoucher::find($id);
+        if ($v) {
+            $v->is_active = !$v->is_active;
+            $v->save();
+            session()->flash('success', "Wertgutschein erfolgreich " . ($v->is_active ? 'aktiviert' : 'deaktiviert') . ".");
+        }
+    }
+
     public function render()
     {
         // Hole Auto-Gutscheine und sortiere sie nach dem Gültigkeitsdatum (Jan-Dez)
@@ -142,12 +194,153 @@ class MarketingVoucher extends Component
         $manualCoupons = $this->voucherSectionMode === 'manual'
             ? VoucherModel::where('mode', 'manual')->latest()->paginate(10)
             : [];
+
+        $giftVouchers = [];
+        $giftVoucherStats = [
+            'count' => 0,
+            'sum_initial' => 0.0,
+            'sum_current' => 0.0,
+            'sum_used' => 0.0,
+        ];
+
+        if ($this->voucherSectionMode === 'gift') {
+            $giftVouchersQuery = \App\Models\Marketing\MarketingGiftVoucher::with(['logs.order', 'orderItem.order']);
+
+            // 1. Suche nach Code, Bestellung-Nr, E-Mail (Käufer & Empfänger), Name (Käufer & Empfänger), Nachricht
+            if (!empty($this->searchCode)) {
+                $search = '%' . $this->searchCode . '%';
+                $giftVouchersQuery->where(function ($q) use ($search) {
+                    $q->where('code', 'like', $search)
+                      ->orWhere('recipient_name', 'like', $search)
+                      ->orWhere('recipient_email', 'like', $search)
+                      ->orWhere('personal_message', 'like', $search)
+                      ->orWhereHas('orderItem.order', function ($oq) use ($search) {
+                          $oq->where('order_number', 'like', $search)
+                            ->orWhere('email', 'like', $search)
+                            ->orWhere('billing_address->first_name', 'like', $search)
+                            ->orWhere('billing_address->last_name', 'like', $search);
+                      });
+                });
+            }
+
+            // 2. Filter nach Versandart
+            if ($this->filterDelivery !== 'all') {
+                $giftVouchersQuery->where('delivery_method', $this->filterDelivery);
+            }
+
+            // 3. Filter nach Guthaben
+            if ($this->filterBalance !== 'all') {
+                if ($this->filterBalance === 'full') {
+                    $giftVouchersQuery->whereRaw('current_balance = initial_value');
+                } elseif ($this->filterBalance === 'partial') {
+                    $giftVouchersQuery->whereRaw('current_balance > 0 AND current_balance < initial_value');
+                } elseif ($this->filterBalance === 'empty') {
+                    $giftVouchersQuery->where('current_balance', 0);
+                }
+            }
+
+            // 4. Filter nach Status
+            if ($this->filterStatus !== 'all') {
+                $now = now();
+                if ($this->filterStatus === 'active') {
+                    $giftVouchersQuery->where('is_active', true)
+                      ->where('current_balance', '>', 0)
+                      ->where(function ($q) use ($now) {
+                          $q->whereNull('valid_until')->orWhere('valid_until', '>', $now);
+                      });
+                } elseif ($this->filterStatus === 'inactive') {
+                    $giftVouchersQuery->where('is_active', false);
+                } elseif ($this->filterStatus === 'expired') {
+                    $giftVouchersQuery->whereNotNull('valid_until')->where('valid_until', '<=', $now);
+                }
+            }
+
+            // 5. Filter nach Initialwert (in € umgerechnet in Cent)
+            if (is_numeric($this->filterMinInitialValue)) {
+                $giftVouchersQuery->where('initial_value', '>=', (int)($this->filterMinInitialValue * 100));
+            }
+            if (is_numeric($this->filterMaxInitialValue)) {
+                $giftVouchersQuery->where('initial_value', '<=', (int)($this->filterMaxInitialValue * 100));
+            }
+
+            // 6. Filter nach Restguthaben (in € umgerechnet in Cent)
+            if (is_numeric($this->filterMinCurrentBalance)) {
+                $giftVouchersQuery->where('current_balance', '>=', (int)($this->filterMinCurrentBalance * 100));
+            }
+            if (is_numeric($this->filterMaxCurrentBalance)) {
+                $giftVouchersQuery->where('current_balance', '<=', (int)($this->filterMaxCurrentBalance * 100));
+            }
+
+            // 7. Filter nach Erstellungsdatum (created_at)
+            if (!empty($this->filterCreatedAtFrom)) {
+                $giftVouchersQuery->whereDate('created_at', '>=', $this->filterCreatedAtFrom);
+            }
+            if (!empty($this->filterCreatedAtTo)) {
+                $giftVouchersQuery->whereDate('created_at', '<=', $this->filterCreatedAtTo);
+            }
+
+            // 8. Filter nach Gültigkeitsdatum (valid_until)
+            if (!empty($this->filterValidUntilFrom)) {
+                $giftVouchersQuery->whereDate('valid_until', '>=', $this->filterValidUntilFrom);
+            }
+            if (!empty($this->filterValidUntilTo)) {
+                $giftVouchersQuery->whereDate('valid_until', '<=', $this->filterValidUntilTo);
+            }
+
+            // 9. Aggregierte Kennzahlen berechnen vor Sortierung und Pagination
+            $statsQuery = clone $giftVouchersQuery;
+            $stats = $statsQuery->getQuery()->selectRaw('
+                COUNT(*) as count_total,
+                SUM(initial_value) as sum_initial,
+                SUM(current_balance) as sum_current
+            ')->first();
+
+            $giftVoucherStats = [
+                'count' => $stats->count_total ?? 0,
+                'sum_initial' => ($stats->sum_initial ?? 0) / 100,
+                'sum_current' => ($stats->sum_current ?? 0) / 100,
+                'sum_used' => (($stats->sum_initial ?? 0) - ($stats->sum_current ?? 0)) / 100,
+            ];
+
+            // 10. Sortierung
+            switch ($this->sortOrder) {
+                case 'created_at_asc':
+                    $giftVouchersQuery->orderBy('created_at', 'asc');
+                    break;
+                case 'current_balance_desc':
+                    $giftVouchersQuery->orderBy('current_balance', 'desc');
+                    break;
+                case 'current_balance_asc':
+                    $giftVouchersQuery->orderBy('current_balance', 'asc');
+                    break;
+                case 'initial_value_desc':
+                    $giftVouchersQuery->orderBy('initial_value', 'desc');
+                    break;
+                case 'initial_value_asc':
+                    $giftVouchersQuery->orderBy('initial_value', 'asc');
+                    break;
+                case 'recipient_name_asc':
+                    $giftVouchersQuery->orderBy('recipient_name', 'asc');
+                    break;
+                case 'recipient_name_desc':
+                    $giftVouchersQuery->orderBy('recipient_name', 'desc');
+                    break;
+                case 'created_at_desc':
+                default:
+                    $giftVouchersQuery->orderBy('created_at', 'desc');
+                    break;
+            }
+
+            $giftVouchers = $giftVouchersQuery->paginate(10);
+        }
             
         $chartData = $this->getChartData();
 
         return view('livewire.shop.marketing.marketing-voucher', [
             'autoVouchers' => $autoVouchers,
             'manualCoupons' => $manualCoupons,
+            'giftVouchers' => $giftVouchers,
+            'giftVoucherStats' => $giftVoucherStats,
             'chartData' => $chartData
         ]);
     }

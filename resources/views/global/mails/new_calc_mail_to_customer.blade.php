@@ -64,12 +64,28 @@
             </table>
 
             {{-- HINWEIS: ARTIKEL ANPASSEN --}}
-            <div style="margin-top: 40px; padding: 20px; background-color: #fff8e1; border: 1px solid #ffecb3; border-radius: 8px; text-align: center;">
-                <h3 style="margin-top: 0; color: #d97706; font-size: 16px;">✏️ Fehler in deiner Produktkonfiguration bemerkt?</h3>
-                <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 0;">
-                    Keine Panik! Solange deine Bestellung nach der Annahme noch <strong>nicht in Bearbeitung</strong> genommen wurde, kannst du das Design in deinem Kundenportal über die Detailansicht nachträglich jederzeit selbst anpassen.
-                </p>
-            </div>
+            @php
+                $hasPhysicalProduct = false;
+                foreach($data['items'] ?? [] as $item) {
+                    $itemType = $item['type'] ?? 'physical';
+                    $isShippingOrExpress = str_contains(strtolower($item['name'] ?? ''), 'versand') || str_contains(strtolower($item['name'] ?? ''), 'express');
+                    $isPersonalizable = $item['is_personalizable'] ?? true;
+                    
+                    if ($itemType === 'physical' && !$isShippingOrExpress && $isPersonalizable) {
+                        $hasPhysicalProduct = true;
+                        break;
+                    }
+                }
+            @endphp
+
+            @if($hasPhysicalProduct)
+                <div style="margin-top: 40px; padding: 20px; background-color: #fff8e1; border: 1px solid #ffecb3; border-radius: 8px; text-align: center;">
+                    <h3 style="margin-top: 0; color: #d97706; font-size: 16px;">✏️ Fehler in deiner Produktkonfiguration bemerkt?</h3>
+                    <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 0;">
+                        Keine Panik! Solange deine Bestellung nach der Annahme noch <strong>nicht in Bearbeitung</strong> genommen wurde, kannst du das Design in deinem Kundenportal über die Detailansicht nachträglich jederzeit selbst anpassen.
+                    </p>
+                </div>
+            @endif
 
             <p style="margin-top: 20px; font-size: 12px; color: #bbbbbb;">
                 Dieses Angebot ist unverbindlich und gültig bis zum <strong>{{ $data['quote_expiry'] }}</strong>.

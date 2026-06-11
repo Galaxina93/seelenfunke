@@ -195,7 +195,16 @@ class OrderOrder extends Model
             return false;
         }
         return $this->items->every(function ($item) {
-            return $item->product && $item->product->type === 'digital';
+            $product = $item->product;
+            if (!$product) return false;
+            
+            // Check if it is a postal gift voucher
+            $config = $item->configuration ?? [];
+            if (!empty($config['is_gift_voucher']) && ($config['delivery_method'] ?? 'email') === 'post') {
+                return false;
+            }
+            
+            return $product->type === 'digital';
         });
     }
 
@@ -253,5 +262,110 @@ class OrderOrder extends Model
         
         return max(0.01, round($weightPerPackage, 2));
     }
+
+    public function completePayment(string $stripePaymentIntentId = null): void
+    {
+        if ($this->payment_status === 'paid') {
+            return;
+        }
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($stripePaymentIntentId) {
+            // Lock the order row for update to prevent concurrent payment processing races
+            $order = self::where('id', $this->id)->lockForUpdate()->first();
+            if (!$order || $order->payment_status === 'paid') {
+                return;
+            }
+
+            $newStatus = $order->isOnlyDigital() ? 'completed' : 'pending';
+
+            $updateData = [
+                'payment_status' => 'paid',
+                'status' => $newStatus,
+            ];
+
+            if ($stripePaymentIntentId) {
+                $updateData['stripe_payment_intent_id'] = $stripePaymentIntentId;
+            }
+
+            $order->update($updateData);
+
+            // Synchronize the current instance status
+            $this->payment_status = 'paid';
+            $this->status = $newStatus;
+
+            // --- LAGERBESTAND REDUZIEREN ---
+            foreach ($order->items as $item) {
+                if ($item->product) {
+                    $item->product->reduceStock($item->quantity);
+                }
+            }
+
+            // --- GIFT VOUCHERS GENERIEREN ---
+            foreach ($order->items as $item) {
+                $config = $item->configuration ?? [];
+                if (!empty($config['is_gift_voucher'])) {
+                    // Safety check to prevent duplicate vouchers for this item
+                    $alreadyExists = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)->exists();
+                    if (!$alreadyExists) {
+                        for ($i = 0; $i < $item->quantity; $i++) {
+                            $code = \App\Models\Marketing\MarketingGiftVoucher::generateCode();
+                            $voucher = \App\Models\Marketing\MarketingGiftVoucher::create([
+                                'code' => $code,
+                                'order_item_id' => $item->id,
+                                'initial_value' => $config['amount_cents'],
+                                'current_balance' => $config['amount_cents'],
+                                'recipient_name' => $config['recipient_name'],
+                                'recipient_email' => $config['recipient_email'] ?? null,
+                                'personal_message' => isset($config['personal_message']) ? mb_substr($config['personal_message'], 0, 160) : null,
+                                'delivery_method' => $config['delivery_method'] ?? 'email',
+                                'is_active' => true,
+                                'valid_until' => now()->addYears(3)->endOfYear(),
+                            ]);
+
+                            if ($voucher->delivery_method === 'email') {
+                                try {
+                                    \Illuminate\Support\Facades\Mail::to($voucher->recipient_email ?: $order->email)
+                                        ->send(new \App\Mail\NewGiftVoucherToCustomer($voucher));
+                                } catch (\Exception $e) {
+                                    \Illuminate\Support\Facades\Log::error('Gift voucher email delivery failed: ' . $e->getMessage());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // GUTSCHEIN VERBRAUCHEN (Counter hochzählen / Wertgutschein abbuchen)
+            if ($order->coupon_code) {
+                $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $order->coupon_code)
+                    ->lockForUpdate()
+                    ->first();
+                if ($giftVoucher) {
+                    $usedAmount = $order->discount_amount;
+                    $newBalance = max(0, $giftVoucher->current_balance - $usedAmount);
+                    $giftVoucher->update([
+                        'current_balance' => $newBalance,
+                        'is_active' => $newBalance > 0
+                    ]);
+
+                    \App\Models\Marketing\MarketingGiftVoucherLog::create([
+                        'gift_voucher_id' => $giftVoucher->id,
+                        'order_id' => $order->id,
+                        'amount' => $usedAmount,
+                        'remaining_balance' => $newBalance
+                    ]);
+                } else {
+                    $mv = \App\Models\Marketing\MarketingVoucher::where('code', $order->coupon_code)->first();
+                    if ($mv) {
+                        $mv->increment('used_count');
+                    }
+                }
+            }
+
+            // --- NEU: DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
+            \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($this);
+        });
+    }
 }
+
 

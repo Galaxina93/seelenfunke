@@ -205,6 +205,10 @@ class CartService
      */
     public function calculateTierPrice(Product $product, int $qty, array $configuration = null): int
     {
+        if ($product->slug === 'geschenkgutschein' && $configuration && isset($configuration['amount_cents'])) {
+            return (int) $configuration['amount_cents'];
+        }
+
         $price = $product->price;
 
         // 1. NEU: Varianten-Preis überschreiben, falls vorhanden
@@ -238,6 +242,21 @@ class CartService
 
     public function applyCoupon(string $code): array
     {
+        // 1. Zuerst prüfen, ob es sich um einen Wertgutschein handelt
+        $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $code)->where('is_active', true)->first();
+        if ($giftVoucher) {
+            if ($giftVoucher->current_balance <= 0) {
+                return ['success' => false, 'message' => 'Dieser Gutschein ist bereits aufgebraucht.'];
+            }
+            if ($giftVoucher->valid_until && now()->gt($giftVoucher->valid_until)) {
+                return ['success' => false, 'message' => 'Dieser Gutschein ist abgelaufen.'];
+            }
+
+            $cart = $this->getCart();
+            $cart->update(['coupon_code' => $giftVoucher->code]);
+            return ['success' => true, 'message' => 'Geschenkgutschein erfolgreich angewendet!'];
+        }
+
         $coupon = MarketingVoucher::where('code', $code)->first();
 
         if (!$coupon || !$coupon->isValid()) {
@@ -245,16 +264,29 @@ class CartService
         }
 
         $cart = $this->getCart();
-        $totals = $this->getTotals(); // Rekursion vermeiden: Wir rufen Totals ohne Coupon ab
 
-        // Wir müssen hier aufpassen: getTotals ruft calculateTotals auf.
-        // Wenn wir den Coupon noch nicht gesetzt haben, ist das OK.
-        $subtotal = $totals['subtotal_gross'];
+        // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine)
+        $discountableSubtotal = 0;
+        foreach ($cart->items as $item) {
+            $product = $item->product;
+            if (!$product) continue;
+            $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
+            if (!$isGiftVoucher) {
+                $discountableSubtotal += $item->unit_price * $item->quantity;
+            }
+        }
 
-        if ($coupon->min_order_value && $subtotal < $coupon->min_order_value) {
+        if ($discountableSubtotal <= 0) {
             return [
                 'success' => false,
-                'message' => 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . '€ nicht erreicht.'
+                'message' => 'Rabattcodes können nicht auf den Kauf von Geschenkgutscheinen angewendet werden.'
+            ];
+        }
+
+        if ($coupon->min_order_value && $discountableSubtotal < $coupon->min_order_value) {
+            return [
+                'success' => false,
+                'message' => 'Mindestbestellwert von ' . number_format($coupon->min_order_value / 100, 2, ',', '.') . ' € für rabattfähige Artikel nicht erreicht.'
             ];
         }
 
@@ -370,37 +402,7 @@ class CartService
 
         $volumeDiscount = max(0, $originalSubtotal - $subtotalGross);
 
-        // 2. GUTSCHEIN
-        $discountAmount = 0;
-        $couponCode = $cart->coupon_code;
-
-        if ($couponCode) {
-            $coupon = MarketingVoucher::where('code', $couponCode)->first();
-
-            if ($coupon && $coupon->isValid()) {
-                if ($coupon->min_order_value && $subtotalGross < $coupon->min_order_value) {
-                    // Gutschein bleibt im cart hinterlegt, wird aber nicht vom Preis abgezogen
-                } else {
-                    if ($coupon->type === 'fixed') {
-                        $discountAmount = $coupon->value;
-                    } elseif ($coupon->type === 'percent') {
-                        $discountAmount = (int) round($subtotalGross * ($coupon->value / 100));
-                    }
-                    $discountAmount = min($discountAmount, $subtotalGross);
-                }
-            } else {
-                $cart->update(['coupon_code' => null]);
-                $couponCode = null;
-            }
-        }
-
-        // Zwischensumme nach Rabatten (Zahlbetrag für Produkte)
-        $totalAfterDiscount = max(0, $subtotalGross - $discountAmount);
-
-        /**
-         * 3. VERSANDKOSTEN (ZENTRALISIERT)
-         * Wir nutzen jetzt den ShippingCalculatorService
-         */
+        // 2. VERSANDKOSTEN & EXPRESS-ZUSCHLAG VORAB BERECHNEN (für Wertgutschein-Verrechnung)
         $shippingResult = $this->shippingService->calculateShippingCost(
             $cart->items,               // Die Items für die "Digital Check" Logik
             $physicalSubtotalGross,     // Warenwert VOR Rabatt für Freigrenze
@@ -412,7 +414,71 @@ class CartService
         $isFreeShipping = $shippingResult['is_free'];
         $missingForFreeShipping = $shippingResult['missing'];
 
-        // 4. STEUER KORREKTUR (Rabatte proportional auf Steuer umlegen)
+        $expressGross = 0;
+        if ($cart->is_express && $this->shippingService->needsShipping($cart->items)) {
+            $expressPercent = (float) shop_setting('express_surcharge_percent', 20.0);
+            $expressMin = (int) shop_setting('express_surcharge_min', 500);
+            $calculatedExpress = (int) round($subtotalGross * ($expressPercent / 100));
+            $expressGross = max($expressMin, $calculatedExpress);
+        }
+
+        $totalBeforeDiscount = $subtotalGross + $shippingGross + $expressGross;
+
+        // 3. GUTSCHEIN-BERECHNUNG
+        $discountAmount = 0;
+        $discountProducts = 0;
+        $discountShipping = 0;
+        $couponCode = $cart->coupon_code;
+
+        if ($couponCode) {
+            // A) Zuerst prüfen, ob es sich um einen Wertgutschein handelt
+            $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $couponCode)->where('is_active', true)->first();
+            if ($giftVoucher && $giftVoucher->isValid()) {
+                // Wertgutschein deckt das gesamte Order-Total (inklusive Versand) ab!
+                $discountAmount = min($giftVoucher->current_balance, $totalBeforeDiscount);
+                $discountProducts = min($discountAmount, $subtotalGross);
+                $discountShipping = $discountAmount - $discountProducts;
+            } else {
+                // B) Sonst normaler Marketing-Gutschein (Rabattcode)
+                $coupon = MarketingVoucher::where('code', $couponCode)->first();
+
+                if ($coupon && $coupon->isValid()) {
+                    // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine)
+                    $discountableSubtotal = 0;
+                    foreach ($cart->items as $item) {
+                        $product = $item->product;
+                        if (!$product) continue;
+                        $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
+                        if (!$isGiftVoucher) {
+                            $discountableSubtotal += $item->unit_price * $item->quantity;
+                        }
+                    }
+
+                    if ($discountableSubtotal <= 0) {
+                        $cart->update(['coupon_code' => null]);
+                        $couponCode = null;
+                    } elseif ($coupon->min_order_value && $discountableSubtotal < $coupon->min_order_value) {
+                        // Gutschein bleibt im cart hinterlegt, wird aber nicht vom Preis abgezogen
+                    } else {
+                        if ($coupon->type === 'fixed') {
+                            $discountAmount = $coupon->value;
+                        } elseif ($coupon->type === 'percent') {
+                            $discountAmount = (int) round($discountableSubtotal * ($coupon->value / 100));
+                        }
+                        $discountAmount = min($discountAmount, $discountableSubtotal);
+                        $discountProducts = $discountAmount;
+                    }
+                } else {
+                    $cart->update(['coupon_code' => null]);
+                    $couponCode = null;
+                }
+            }
+        }
+
+        // Zwischensumme nach Rabatten (Zahlbetrag für Produkte)
+        $totalAfterDiscount = max(0, $subtotalGross - $discountProducts);
+
+        // 4. STEUER KORREKTUR (Rabatte proportional auf Produktsteuer umlegen)
         $discountRatio = $subtotalGross > 0 ? ($totalAfterDiscount / $subtotalGross) : 1;
         foreach($taxesBreakdown as $key => $val) {
             $taxesBreakdown[$key] = (int) round($val * $discountRatio);
@@ -424,9 +490,13 @@ class CartService
         $isEU = in_array($countryCode, $euCountries);
 
         if ($shippingGross > 0) {
+            // Versandkosten um den darauf entfallenden Gutscheinanteil reduzieren
+            $remainingShipping = max(0, $shippingGross - $discountShipping);
             $shippingTaxRate = ($isEU && !$isSmallBusiness) ? $maxTaxRate : 0.0;
-            $shippingNet = (int) round($shippingGross / (1 + ($shippingTaxRate / 100)));
-            $shippingTaxAmount = $shippingGross - $shippingNet;
+            
+            // Steuer berechnen basierend auf den verbleibenden effektiven Versandkosten
+            $shippingNet = (int) round($remainingShipping / (1 + ($shippingTaxRate / 100)));
+            $shippingTaxAmount = $remainingShipping - $shippingNet;
 
             if ($shippingTaxRate > 0 || floatval($shippingTaxRate) == 0.0) {
                 $strShipRate = number_format($shippingTaxRate, 0);
@@ -437,21 +507,15 @@ class CartService
             }
         }
 
-        // 6. EXPRESS-LOGIK
-        $expressGross = 0;
+        // 6. EXPRESS-LOGIK (Steuerberechnung)
         $expressTaxAmount = 0;
-
-        // Express nur berechnen, wenn Versand überhaupt nötig ist!
-        if ($cart->is_express && $this->shippingService->needsShipping($cart->items)) {
-            $expressPercent = (float) shop_setting('express_surcharge_percent', 20.0);
-            $expressMin = (int) shop_setting('express_surcharge_min', 500);
-            $calculatedExpress = (int) round($subtotalGross * ($expressPercent / 100));
-            $expressGross = max($expressMin, $calculatedExpress);
-
+        if ($expressGross > 0) {
+            // Falls der Gutscheinwert sogar den Versand übersteigt, zieht er auch vom Express ab
+            $remainingExpress = max(0, $expressGross - max(0, $discountShipping - $shippingGross));
             $expressTaxRate = ($isEU && !$isSmallBusiness) ? $maxTaxRate : 0.0;
 
-            $expressNet = (int) round($expressGross / (1 + ($expressTaxRate / 100)));
-            $expressTaxAmount = $expressGross - $expressNet;
+            $expressNet = (int) round($remainingExpress / (1 + ($expressTaxRate / 100)));
+            $expressTaxAmount = $remainingExpress - $expressNet;
 
             if ($expressTaxRate > 0 || floatval($expressTaxRate) == 0.0) {
                 $strExpRate = number_format($expressTaxRate, 0);
@@ -460,7 +524,7 @@ class CartService
             }
         }
 
-        $finalTotalGross = $totalAfterDiscount + $shippingGross + $expressGross;
+        $finalTotalGross = max(0, $totalBeforeDiscount - $discountAmount);
         $finalTotalTax = array_sum($taxesBreakdown);
 
         return [

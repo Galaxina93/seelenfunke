@@ -47,55 +47,10 @@ class StripeWebhookController extends Controller
                 // (Verhindert doppelte Verarbeitung bei Retries von Stripe)
                 if ($order && $order->payment_status !== 'paid') {
 
-                    $newStatus = $order->isOnlyDigital() ? 'completed' : 'processing';
+                    // A) Bestellung abschließen (Lagerbestand reduzieren, Gutscheine generieren, Coupons entwerten, Mails versenden)
+                    $order->completePayment($session->payment_intent);
 
-                    // A) Status der BESTELLUNG aktualisieren
-                    $order->update([
-                        'payment_status' => 'paid',
-                        'status' => $newStatus,
-                        'stripe_payment_intent_id' => $session->payment_intent
-                    ]);
-
-                    Log::info("Webhook: OrderOrder {$order->order_number} wurde erfolgreich als bezahlt markiert.");
-
-                    // B) RECHNUNG aktualisieren (falls vorhanden)
-                    try {
-                        $invoice = AccountingInvoice::where('order_id', $order->id)
-                            ->where('type', 'invoice')
-                            ->first();
-
-                        if ($invoice && $invoice->status !== 'paid') {
-                            // Status in DB ändern
-                            $invoice->update([
-                                'status' => 'paid',
-                                'paid_at' => now(),
-                            ]);
-
-                            // PDF neu generieren (damit der "BEZAHLT"-Stempel drauf ist)
-                            $invoiceService = app(InvoiceService::class);
-                            $invoiceService->storePdf($invoice);
-
-                            Log::info("Webhook: Rechnung {$invoice->invoice_number} auf 'paid' gesetzt und PDF aktualisiert.");
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Webhook Rechnungs-Update Fehler: " . $e->getMessage());
-                        // Wir brechen hier nicht ab, da die Zahlung der Order wichtiger ist
-                    }
-
-                    // C) Bestätigungsmail senden
-                    try {
-                        // Daten für die Mail aufbereiten
-                        $mailData = $order->toFormattedArray();
-
-                        // Mail an Kunden senden
-                        Mail::to($order->email)->send(new PaymentReceivedMail($mailData));
-
-                        Log::info("Webhook: Mail 'Zahlung erhalten' an {$order->email} versendet.");
-                    } catch (\Exception $e) {
-                        // Wichtig: Wir fangen Mail-Fehler ab, damit der Webhook an Stripe trotzdem "200 OK" meldet.
-                        // Sonst würde Stripe denken, der Webhook ist fehlgeschlagen und sendet ihn stündlich erneut.
-                        Log::error("Webhook Mail Fehler für Order {$order->order_number}: " . $e->getMessage());
-                    }
+                    Log::info("Webhook: OrderOrder {$order->order_number} wurde erfolgreich als bezahlt markiert und verarbeitet.");
                 } else {
                     Log::info("Webhook ignoriert: OrderOrder {$orderId} nicht gefunden oder bereits bezahlt.");
                 }

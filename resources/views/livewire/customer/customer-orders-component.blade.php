@@ -362,6 +362,33 @@
                                         </div>
                                         @endif
                                     @endforeach
+
+                                    {{-- Geschenkgutscheine (PDF) als Dokumente --}}
+                                    @foreach($selectedOrder->items as $item)
+                                        @if(!empty($item->configuration['is_gift_voucher']))
+                                            @php
+                                                $vouchers = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)->get();
+                                            @endphp
+                                            @foreach($vouchers as $voucher)
+                                                <div class="group flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/50">
+                                                    <div class="flex-1 flex items-center gap-4 min-w-0">
+                                                        <div class="text-amber-500 shrink-0">
+                                                            <svg class="w-8 h-8 opacity-90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                                        </div>
+                                                        <div class="min-w-0">
+                                                            <p class="text-sm font-bold tracking-wider text-amber-400 group-hover:text-amber-300 transition-colors truncate" title="Gutschein für {{ $voucher->recipient_name }}">
+                                                                Gutschein: {{ $voucher->code }}
+                                                            </p>
+                                                            <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1 truncate">Wertgutschein PDF (für {{ $voucher->recipient_name }})</p>
+                                                        </div>
+                                                    </div>
+                                                    <a href="{{ route('customer.gift-voucher.download', $voucher->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 group-hover:text-amber-400 group-hover:border-amber-400 transition-all shadow-lg shrink-0" title="Gutschein PDF herunterladen">
+                                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                    </a>
+                                                </div>
+                                            @endforeach
+                                        @endif
+                                    @endforeach
  
                                     {{-- Configurator Snapshots als Dokumente --}}
                                     @php

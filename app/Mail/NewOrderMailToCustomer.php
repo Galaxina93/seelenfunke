@@ -82,6 +82,21 @@ class NewOrderMailToCustomer extends Mailable implements ShouldQueue
             }
         }
 
+        // 4. Gutschein-PDFs anhängen (falls Geschenkgutscheine gekauft wurden)
+        if (isset($this->data['quote_number'])) {
+            $order = \App\Models\Order\OrderOrder::where('order_number', $this->data['quote_number'])->first();
+            if ($order) {
+                $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::whereIn('order_item_id', $order->items->pluck('id'))->get();
+                foreach ($giftVouchers as $gv) {
+                    $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
+                        'voucher' => $gv,
+                    ]);
+                    $attachments[] = Attachment::fromData(fn () => $pdf->output(), 'Geschenkgutschein-' . $gv->code . '.pdf')
+                        ->withMime('application/pdf');
+                }
+            }
+        }
+
         return $attachments;
     }
 }
