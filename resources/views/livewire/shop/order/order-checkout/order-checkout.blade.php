@@ -33,12 +33,17 @@
 
     {{-- Google Places API integration --}}
     @if(config('services.google.places_key'))
-        <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.places_key') }}&libraries=places&language=de"></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.places_key') }}&libraries=places&language=de&loading=async&callback=initMapsCallback" async defer></script>
         <script>
-            document.addEventListener('livewire:initialized', () => {
-                function initAutocomplete() {
-                    const addressInput = document.getElementById('address');
-                    if (addressInput) {
+            let livewireReady = false;
+            let mapsReady = typeof google !== 'undefined' && typeof google.maps !== 'undefined' && typeof google.maps.places !== 'undefined';
+
+            function runAutocompleteInit() {
+                if (!livewireReady || !mapsReady) return;
+
+                const addressInput = document.getElementById('address');
+                if (addressInput) {
+                    try {
                         const autocomplete = new google.maps.places.Autocomplete(addressInput, {
                             types: ['address'],
                             componentRestrictions: { country: ['de', 'at', 'ch'] },
@@ -52,24 +57,26 @@
                             let city = '';
                             let country = 'DE';
 
-                            for (const component of place.address_components) {
-                                const componentType = component.types[0];
-                                switch (componentType) {
-                                    case 'street_number':
-                                        streetNumber = component.long_name;
-                                        break;
-                                    case 'route':
-                                        route = component.long_name;
-                                        break;
-                                    case 'postal_code':
-                                        postalCode = component.long_name;
-                                        break;
-                                    case 'locality':
-                                        city = component.long_name;
-                                        break;
-                                    case 'country':
-                                        country = component.short_name;
-                                        break;
+                            if (place.address_components) {
+                                for (const component of place.address_components) {
+                                    const componentType = component.types[0];
+                                    switch (componentType) {
+                                        case 'street_number':
+                                            streetNumber = component.long_name;
+                                            break;
+                                        case 'route':
+                                            route = component.long_name;
+                                            break;
+                                        case 'postal_code':
+                                            postalCode = component.long_name;
+                                            break;
+                                        case 'locality':
+                                            city = component.long_name;
+                                            break;
+                                        case 'country':
+                                            country = component.short_name;
+                                            break;
+                                    }
                                 }
                             }
 
@@ -81,10 +88,14 @@
                             @this.set('city', city);
                             @this.set('country', country);
                         });
+                    } catch (e) {
+                        console.error("Error initializing billing address autocomplete:", e);
                     }
+                }
 
-                    const shippingInput = document.getElementById('shipping_address');
-                    if (shippingInput) {
+                const shippingInput = document.getElementById('shipping_address');
+                if (shippingInput) {
+                    try {
                         const shippingAutocomplete = new google.maps.places.Autocomplete(shippingInput, {
                             types: ['address'],
                             componentRestrictions: { country: ['de', 'at', 'ch'] },
@@ -98,24 +109,26 @@
                             let city = '';
                             let country = 'DE';
 
-                            for (const component of place.address_components) {
-                                const componentType = component.types[0];
-                                switch (componentType) {
-                                    case 'street_number':
-                                        streetNumber = component.long_name;
-                                        break;
-                                    case 'route':
-                                        route = component.long_name;
-                                        break;
-                                    case 'postal_code':
-                                        postalCode = component.long_name;
-                                        break;
-                                    case 'locality':
-                                        city = component.long_name;
-                                        break;
-                                    case 'country':
-                                        country = component.short_name;
-                                        break;
+                            if (place.address_components) {
+                                for (const component of place.address_components) {
+                                    const componentType = component.types[0];
+                                    switch (componentType) {
+                                        case 'street_number':
+                                            streetNumber = component.long_name;
+                                            break;
+                                        case 'route':
+                                            route = component.long_name;
+                                            break;
+                                        case 'postal_code':
+                                            postalCode = component.long_name;
+                                            break;
+                                        case 'locality':
+                                            city = component.long_name;
+                                            break;
+                                        case 'country':
+                                            country = component.short_name;
+                                            break;
+                                    }
                                 }
                             }
 
@@ -127,13 +140,26 @@
                             @this.set('shipping_city', city);
                             @this.set('shipping_country', country);
                         });
+                    } catch (e) {
+                        console.error("Error initializing shipping address autocomplete:", e);
                     }
                 }
+            }
 
-                initAutocomplete();
+            // Callback von Google Maps (Global zugänglich machen)
+            window.initMapsCallback = function() {
+                mapsReady = true;
+                runAutocompleteInit();
+            };
 
+            // Event von Livewire
+            document.addEventListener('livewire:initialized', () => {
+                livewireReady = true;
+                runAutocompleteInit();
+
+                // Falls Livewire die Seite neu rendert (z. B. Validierungsfehler oder Adresswechsel)
                 Livewire.on('checkout-updated', () => {
-                    setTimeout(initAutocomplete, 200);
+                    setTimeout(runAutocompleteInit, 200);
                 });
             });
         </script>

@@ -85,6 +85,7 @@ class OrderCheckoutSuccess extends Component
 
     public function render()
     {
-        return view('livewire.shop.order.order-checkout.order-checkout-success');
+        return view('livewire.shop.order.order-checkout.order-checkout-success')
+            ->layout('components.layouts.frontend_layout');
     }
 }

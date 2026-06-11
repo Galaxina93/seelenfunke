@@ -1,14 +1,23 @@
-{{-- Hier wurde x-data und x-init hinzugefügt, damit er sofort hochscrollt --}}
 <div x-data
      x-init="window.scrollTo({ top: 0, behavior: 'smooth' })"
-     class="max-w-3xl mx-auto px-4 py-16 my-8 text-center animate-fade-in">
+     class="max-w-3xl mx-auto px-4 py-16 my-8 text-center animate-fade-in"
+     wire:key="checkout-success-container">
+
+    <style>
+        @keyframes floatGentle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float-gentle {
+            animation: floatGentle 4s ease-in-out infinite;
+        }
+    </style>
 
     {{-- FUNKI STATT GRÜNEM HAKEN --}}
-    <div class="mb-6 flex justify-center">
-        {{-- h-40 macht ihn schön groß und präsent --}}
-        <img src="{{ asset('shop/projekt/funki/checkout/funki_kiss.webp') }}"
+    <div class="mb-6 flex justify-center" wire:key="success-image-container">
+        <img src="/shop/projekt/funki/checkout/funki_kiss.webp"
              alt="Vielen Dank"
-             class="h-64 w-auto object-contain filter drop-shadow-sm animate-bounce-slow">
+             class="h-64 w-auto object-contain filter drop-shadow-sm animate-float-gentle">
     </div>
 
     <h1 class="text-4xl font-serif font-bold text-gray-900 mb-4">Vielen Dank!</h1>
