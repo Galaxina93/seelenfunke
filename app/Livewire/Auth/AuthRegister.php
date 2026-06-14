@@ -54,7 +54,7 @@ class AuthRegister extends Component
             'city' => 'required|string|max:255',
             'country' => 'required|string|size:2',
             'is_business' => 'required|boolean',
-            'birthday' => 'required|date',
+            'birthday' => 'nullable|date',
             'terms' => 'accepted'
         ];
     }
@@ -90,7 +90,7 @@ class AuthRegister extends Component
         $pwOk = $this->passwordRules['min'] && $this->passwordRules['number'] && $this->passwordRules['upper'] && $this->passwordRules['match'];
         $fieldsOk = !empty($this->firstname) && !empty($this->lastname) && !empty($this->email)
             && !empty($this->street) && !empty($this->house_number) && !empty($this->postal)
-            && !empty($this->city) && !empty($this->country) && !empty($this->birthday)
+            && !empty($this->city) && !empty($this->country)
             && $this->is_business !== null;
 
         return $pwOk && $fieldsOk && $this->terms;

@@ -35,8 +35,8 @@
                                     @error('is_business')<span class="text-red-500 text-xs mt-1 block">{{$message}}</span> @enderror
                                 </div>
                                 <div class="space-y-2">
-                                    <label class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Geburtsdatum *</label>
-                                    <input wire:model.blur="birthday" type="date" required class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none [color-scheme:dark]">
+                                    <label class="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Geburtsdatum (optional)</label>
+                                    <input wire:model.blur="birthday" type="date" class="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-gray-500 shadow-sm transition-all focus:border-primary focus:bg-white/10 focus:ring-1 focus:ring-primary focus:outline-none [color-scheme:dark]">
                                     @error('birthday')<span class="text-red-500 text-xs mt-1 block">{{$message}}</span> @enderror
                                 </div>
                             </div>
@@ -147,7 +147,7 @@
                                         <input wire:model.live="terms" id="terms" type="checkbox" required aria-required="true" class="w-5 h-5 rounded border-gray-600 bg-gray-800 text-primary focus:ring-primary focus:ring-offset-gray-900 cursor-pointer">
                                     </div>
                                     <label for="terms" class="text-sm text-gray-400 leading-relaxed cursor-pointer select-none">
-                                        Ich akzeptiere die <a href="{{route('agb')}}" target="_blank" class="text-primary hover:text-white transition-colors underline decoration-primary/50 underline-offset-4">AGB</a> und <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-white transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzbestimmungen</a>.
+                                        Ich akzeptiere die <a href="{{route('agb')}}" target="_blank" class="text-primary hover:text-white transition-colors underline decoration-primary/50 underline-offset-4">AGB</a> und habe die <a href="{{route('datenschutz')}}" target="_blank" class="text-primary hover:text-white transition-colors underline decoration-primary/50 underline-offset-4">Datenschutzerklärung</a> zur Kenntnis genommen.
                                     </label>
                                 </div>
                                 @error('terms')<span class="text-red-500 text-xs block mt-2">{{$message}}</span> @enderror
