@@ -403,6 +403,7 @@ class GeminiAgent implements AiProviderInterface
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
 
                 // WICHTIG: Kein Laravel Guzzle (Http::) nutzen, um cURL Timeout 28 bei großen Payloads (Code/Bilder)
                 // durch ungewollte Expect: 100-continue MTU Drops in Docker Containern zu verhindern.
@@ -950,6 +951,7 @@ class GeminiAgent implements AiProviderInterface
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'Content-Type: application/json',
                     'Authorization: Bearer ' . $apiKey,
@@ -1063,6 +1065,7 @@ class GeminiAgent implements AiProviderInterface
             $ch = curl_init($googleUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);

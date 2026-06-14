@@ -163,7 +163,12 @@ function initGeminiLiveProxy(clientWs, creds) {
     const HOST = "generativelanguage.googleapis.com";
     const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
     
-    const googleWs = new WebSocket(WS_URL);
+    const googleWs = new WebSocket(WS_URL, {
+        headers: {
+            'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
+        },
+        origin: process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
+    });
     const googleQueue = [];
 
     let isCleanedUp = false;
@@ -323,7 +328,12 @@ function handleTwilioConnection(ws) {
         const HOST = "generativelanguage.googleapis.com";
         const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
         
-        geminiWs = new WebSocket(WS_URL);
+        geminiWs = new WebSocket(WS_URL, {
+            headers: {
+                'Referer': process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
+            },
+            origin: process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
+        });
 
         geminiPingInterval = setInterval(() => {
             if (geminiWs && geminiWs.readyState === WebSocket.OPEN) {
