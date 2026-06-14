@@ -33,7 +33,7 @@
 
     {{-- Google Places API integration --}}
     @if(config('services.google.places_key'))
-        <script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.places_key') }}&libraries=places&language=de&loading=async&callback=initMapsCallback" async defer></script>
+        <script type="text/plain" data-category="analytics" src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google.places_key') }}&libraries=places&language=de&loading=async&callback=initMapsCallback" async defer></script>
         <script>
             // Unterdrücke die Google Maps Places Autocomplete Deprecation-Warnung in der Konsole
             (function() {
