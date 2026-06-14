@@ -173,6 +173,16 @@
                             </svg>
                             Zustimmen & Chat starten
                         </button>
+                        
+                        <div class="mt-2.5 text-center">
+                            <span class="text-[9px] text-gray-400 uppercase tracking-wider">oder</span>
+                            <a href="{{ route('contact') }}" target="_blank" class="mt-1.5 w-full bg-white border border-cyan-200 text-cyan-700 hover:bg-cyan-50 hover:text-cyan-800 transition-colors py-2 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider shadow-sm flex items-center justify-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                Zum Kontaktformular
+                            </a>
+                        </div>
                     </div>
                 @else
                     <form wire:submit.prevent="sendMessage" class="relative bg-gray-50 border border-gray-200 rounded-2xl focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all flex items-end">
