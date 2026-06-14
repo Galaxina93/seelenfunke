@@ -94,7 +94,6 @@
     </div>
 
     <div class="footer">
-        Diese E-Mail wurde automatisch generiert.<br>
         {{ date('d.m.Y H:i') }} Uhr
     </div>
 </div>
