@@ -9,7 +9,7 @@
     <ram:ID>RE-2026-001</ram:ID>
     <ram:TypeCode>380</ram:TypeCode>
     <ram:IssueDateTime>
-      <udt:DateTimeString format="102">20260611</udt:DateTimeString>
+      <udt:DateTimeString format="102">20260612</udt:DateTimeString>
     </ram:IssueDateTime>
   </rsm:ExchangedDocument>
   <rsm:SupplyChainTradeTransaction>
@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Yessenia Johns</ram:Name>
+        <ram:Name>Salma Mohr</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>82917-4764</ram:PostcodeCode>
-          <ram:LineOne>548 Sonia Inlet Apt. 032</ram:LineOne>
-          <ram:CityName>North Karellehaven</ram:CityName>
+          <ram:PostcodeCode>23176-5164</ram:PostcodeCode>
+          <ram:LineOne>644 Eveline Squares Apt. 765</ram:LineOne>
+          <ram:CityName>West Reina</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>
@@ -94,7 +94,7 @@
     <ram:ApplicableHeaderTradeDelivery>
       <ram:ActualDeliverySupplyChainEvent>
         <ram:OccurrenceDateTime>
-          <udt:DateTimeString format="102">20260611</udt:DateTimeString>
+          <udt:DateTimeString format="102">20260612</udt:DateTimeString>
         </ram:OccurrenceDateTime>
       </ram:ActualDeliverySupplyChainEvent>
     </ram:ApplicableHeaderTradeDelivery>
