@@ -68,8 +68,8 @@
                                 </select>
                             </div>
                             <div class="flex-1">
-                                <label class="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 mb-1">Geburtstag *</label>
-                                <input type="date" wire:model="birthday" required class="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white focus:ring-primary focus:border-primary transition-all shadow-inner [color-scheme:dark]">
+                                <label class="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 mb-1">Geburtstag (optional)</label>
+                                <input type="date" wire:model="birthday" class="w-full bg-gray-950 border border-gray-800 rounded-lg px-4 py-2 text-sm text-white focus:ring-primary focus:border-primary transition-all shadow-inner [color-scheme:dark]">
                             </div>
                         </div>
                     @endif

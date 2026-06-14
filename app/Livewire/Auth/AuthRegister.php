@@ -118,7 +118,7 @@ class AuthRegister extends Component
             'city' => $this->city,
             'country' => $this->country,
             'is_business' => $this->is_business,
-            'birthday' => $this->birthday,
+            'birthday' => $this->birthday ?: null,
         ]);
 
         // Chat Session Guest-Ascension Migration

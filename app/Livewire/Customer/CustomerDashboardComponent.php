@@ -57,7 +57,7 @@ class CustomerDashboardComponent extends Component
         $p = $user->profile;
 
         $needsProfileInfo = empty($user->first_name) || empty($user->last_name) ||
-            empty($p->street) || empty($p->city) || empty($p->house_number) || empty($p->postal) || empty($p->birthday);
+            empty($p->street) || empty($p->city) || empty($p->house_number) || empty($p->postal);
 
         if ($needsProfileInfo) {
             $this->profileSteps[] = ['label' => 'Profil Informationen', 'action' => "\$dispatch('open-profile-modal', {tab: 'profile'})"];

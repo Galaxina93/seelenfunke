@@ -81,6 +81,23 @@ class AuthProfileDropdownTest extends TestCase
         $this->assertEquals('Berlin', $this->user->profile->city);
     }
 
+    public function test_profile_birthday_can_be_set_to_null()
+    {
+        Livewire::test(AuthProfileDropdown::class)
+            ->set('firstName', 'Moritz')
+            ->set('lastName', 'Müller')
+            ->set('city', 'Berlin')
+            ->set('isBusiness', false)
+            ->set('birthday', '')
+            ->call('saveProfile')
+            ->assertDispatched('saved')
+            ->assertDispatched('profile-updated');
+
+        $this->user->refresh();
+        
+        $this->assertNull($this->user->profile->birthday);
+    }
+
     public function test_password_can_be_updated()
     {
         Livewire::test(AuthProfileDropdown::class)

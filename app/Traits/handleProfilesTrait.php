@@ -101,7 +101,7 @@ trait handleProfilesTrait
 
         if ($this->guard === 'customer') {
             $rules['isBusiness'] = 'required|boolean';
-            $rules['birthday'] = 'required|date';
+            $rules['birthday'] = 'nullable|date';
         }
 
         try {
@@ -145,7 +145,7 @@ trait handleProfilesTrait
 
         if ($this->guard === 'customer') {
             $this->user->profile->is_business = $validatedData['isBusiness'];
-            $this->user->profile->birthday = $validatedData['birthday'];
+            $this->user->profile->birthday = $validatedData['birthday'] ?: null;
         }
 
         $this->user->profile->save();

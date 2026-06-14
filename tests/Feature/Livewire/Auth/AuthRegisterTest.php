@@ -77,6 +77,40 @@ class AuthRegisterTest extends TestCase
         ]);
     }
 
+    public function test_registration_succeeds_without_birthday_and_saves_null()
+    {
+        Mail::fake();
+        $component = Livewire::test(AuthRegister::class)
+            ->set('firstname', 'John')
+            ->set('lastname', 'Doe')
+            ->set('email', 'john2@example.com')
+            ->set('password', 'Secret123')
+            ->set('password_confirmation', 'Secret123')
+            ->set('street', 'Main St')
+            ->set('house_number', '12')
+            ->set('postal', '10115')
+            ->set('city', 'Berlin')
+            ->set('country', 'DE')
+            ->set('is_business', 0)
+            ->set('birthday', '')
+            ->set('terms', true)
+            ->call('register');
+
+        $component->assertRedirect(route('login'))
+                  ->assertSessionHas('status');
+
+        $this->assertDatabaseHas('customers', [
+            'email' => 'john2@example.com',
+        ]);
+
+        $customer = Customer::where('email', 'john2@example.com')->first();
+        
+        $this->assertDatabaseHas('customer_profiles', [
+            'customer_id' => $customer->id,
+            'birthday' => null,
+        ]);
+    }
+
     public function test_guest_chat_session_is_migrated_to_customer_id_on_register()
     {
         Mail::fake();
