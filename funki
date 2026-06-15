@@ -50,7 +50,7 @@ case "$1" in
         echo -e "  \033[1;32m🔄 restart\033[0m       Startet alle Docker-Container neu."
         echo -e "  \033[1;32m🏗️ bauen\033[0m         Baut die Container (Images) komplett neu auf."
         echo -e "  \033[1;32m💥 löschen\033[0m       Löscht alle Container und Volumes (Achtung: Datenbank wird resettet!)."
-        echo -e "  \033[1;32m🗄️ migrate\033[0m       Führt Laravel Migrationen und Datenbank-Seeder aus."
+        echo -e "  \033[1;32m🗄️ migrate\033[0m       Führt inkrementelle Laravel Migrationen aus (oder 'migrate fresh' zum Zurücksetzen)."
         echo -e "  \033[1;32m🔑 key\033[0m           Generiert einen neuen Laravel Application Key."
         echo -e "  \033[1;32m🗂️ storage\033[0m       Repariert und erneuert den öffentlichen Storage-Link restlos."
         echo -e "  \033[1;32m📦 export\033[0m        Exportiert Projektdateien (z.B. 'funki export ticket, mail' oder 'funki export \"langer string\"')."
@@ -72,18 +72,36 @@ case "$1" in
         echo -e "  \033[1;32m🛠️ artisan\033[0m       Führt beliebige Artisan-Befehle aus."
         echo -e "  \033[1;32mℹ️ info\033[0m          Zeigt genau dieses schicke Hilfemenü an.\n"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki artisan make:model Product -m"
+        echo -e "💡 \033[1;33mBeispiel:\033[0m funki migrate fresh"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki export ticket, profil --short"
         echo -e "💡 \033[1;33mBeispiel:\033[0m funki test --filter ShopProcessTest\n"
         ;;
     start)
         require_local "start"
+        echo "⚠️  Prüfe auf blockierende Docker-Container..."
+        # Finde alle Container, die Port 80, 3306, 3307, 8080, 8082, 8002, 6001 oder 6002 auf dem Host belegen
+        CONFLICTS=$(docker ps --format "{{.ID}} {{.Ports}}" | grep -E ":(80|3306|3307|8080|8082|8002|6001|6002)->" | cut -d' ' -f1 | sort -u)
+        CURRENT_IDS=$(docker compose ps -q 2>/dev/null)
+        
+        STOP_LIST=""
+        for id in $CONFLICTS; do
+            if ! echo "$CURRENT_IDS" | grep -q "$id"; then
+                STOP_LIST="$STOP_LIST $id"
+            fi
+        done
+        
+        if [ ! -z "$STOP_LIST" ]; then
+            echo "🛑 Stoppe blockierende Container von anderen Projekten..."
+            docker stop $STOP_LIST
+        fi
+
         echo "🚀 Starte Funki..."
         docker compose up -d
         ;;
     stop)
         require_local "stop"
         echo "🛑 Stoppe Funki..."
-        docker compose down
+        docker compose down --remove-orphans
         ;;
     restart)
         require_local "restart"
@@ -109,8 +127,13 @@ case "$1" in
         echo "✅ Upload-Limit erfolgreich auf $LIMIT gesetzt!"
         ;;
     migrate)
-        echo "🗄️ Führe Migrationen und Seeder aus..."
-        $PREFIX_DEFAULT php artisan migrate:fresh --seed
+        if [ "$2" = "fresh" ]; then
+            echo "🗄️ Setze Datenbank komplett zurück (migrate:fresh --seed)..."
+            $PREFIX_DEFAULT php artisan migrate:fresh --seed
+        else
+            echo "🗄️ Führe inkrementelle Migrationen aus (php artisan migrate)..."
+            $PREFIX_DEFAULT php artisan migrate
+        fi
         run_rights
         ;;
     key)
