@@ -1,5 +1,8 @@
 <div class="min-h-screen bg-white" x-data="{ isProcessing: false }" @checkout-processing.window="isProcessing = true" @checkout-processing-done.window="isProcessing = false">
-    {{-- LADE-OVERLAY (Nur für Mobile) --}}
+    @if ($isFinished)
+        @include('livewire.shop.order.order-checkout.order-checkout-success')
+    @else
+        {{-- LADE-OVERLAY (Nur für Mobile) --}}
     <div x-show="isProcessing"
          x-cloak
          class="lg:hidden fixed top-0 left-0 w-screen h-screen z-[9999] flex flex-col items-center justify-center bg-white/80 backdrop-blur-md transition-all animate-fade-in">
@@ -174,5 +177,6 @@
                 });
             });
         </script>
+    @endif
     @endif
 </div>

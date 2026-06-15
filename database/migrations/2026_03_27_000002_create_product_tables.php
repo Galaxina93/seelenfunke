@@ -178,7 +178,7 @@ return new class extends Migration
         // 9. Niche Items
         Schema::create('product_niche_items', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            $table->text('title');
             $table->string('platform');
             $table->decimal('price', 10, 2)->nullable();
             $table->integer('sales_volume')->default(0)->nullable();

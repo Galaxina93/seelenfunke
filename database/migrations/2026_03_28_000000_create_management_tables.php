@@ -51,6 +51,7 @@ return new class extends Migration {
             $table->longText('ai_plan')->nullable();
             $table->boolean('is_archived')->default(false);
             $table->dateTime('relevant_from')->nullable();
+            $table->json('file_paths')->nullable();
             $table->timestamps();
         });
 

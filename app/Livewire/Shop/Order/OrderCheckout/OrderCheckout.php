@@ -314,21 +314,20 @@ class OrderCheckout extends Component
 
     public function render()
     {
-        if ($this->isFinished) {
-            return view('livewire.shop.order.order-checkout.order-checkout-success');
-        }
-
         $cartService = app(CartService::class);
-        $cart = $cartService->getCart();
+        $cart = $this->isFinished ? null : $cartService->getCart();
 
-        $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
-        $totals = $cartService->calculateTotals($cart, $targetCountry);
-        $this->totalAmount = $totals['total'];
+        $totals = ['total' => 0];
+        if (!$this->isFinished && $cart) {
+            $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
+            $totals = $cartService->calculateTotals($cart, $targetCountry);
+            $this->totalAmount = $totals['total'];
+        }
 
         return view('livewire.shop.order.order-checkout.order-checkout', [
             'cart' => $cart,
             'totals' => $totals,
-            'countries' => shop_setting('active_countries', ['DE' => 'Deutschland'])
+            'countries' => $this->isFinished ? [] : shop_setting('active_countries', ['DE' => 'Deutschland'])
         ])->layout('components.layouts.frontend_layout');
     }
 }
