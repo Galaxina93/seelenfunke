@@ -661,6 +661,14 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'    => 'Plastikboxen',
+                'location' => 'Zimmermann',
+                'amount'   => -40,31,
+                'date'     => '2026-06-15',
+                'category' => 'Arbeitsmaterial',
+                'file_paths' => ['buchhaltung/receipts/2026/06/2026-06-15_Zimmermann_Plastikboxen.pdf']
+            ],
+            [
                 'title'    => 'Laserschutzschulung',
                 'location' => 'Luminus Institut für Laserschutz und Arbeitssicherheit',
                 'amount'   => -712,81,
