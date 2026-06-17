@@ -53,6 +53,8 @@ class ProductSeeder extends Seeder
             'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in einer schützenden Premium-Geschenkbox geliefert, optimal vorbereitet für die sofortige Übergabe.',
             'short_description' => 'Hochgradig personalisierbares und exklusiv veredeltes Premium-Kristallglas. Inklusive maßgeschneiderter 3D-Innengravur und edler Geschenkpräsentation.',
             'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
             'price' => 3990,
             'compare_at_price' => null,
             'purchase_price' => 536, // EK: ~268€ (285 USD net) / 50 Stück = ~5.36€ pro Stück
@@ -139,6 +141,8 @@ class ProductSeeder extends Seeder
             'description' => 'Der Seelenanhänger verkörpert pure Emotion in einer greifbaren Form. Dieses außergewöhnlich schwere und massiv gefertigte Aluminium-Herz besticht durch eine Handschmeichler-Haptik, die beruhigend und überzeugend zugleich wirkt. Durch unsere exklusive Laser-Veredelung können Sie das Herz sowohl auf der Vorder- als auch auf der Rückseite mit feinsten Botschaften, Koordinaten oder Initialen versehen lassen. Ein idealer ständiger Begleiter, sei es am Schlüsselbund oder als stiller Glücksbringer in der Hosentasche.',
             'short_description' => 'Massives, handschmeichelndes Aluminium-Herz mit beidseitiger, hochpräziser Lasergravur. Ein fühlbarer Ausdruck wahrer Zuneigung.',
             'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
             'price' => 1699,
             'compare_at_price' => null,
             'purchase_price' => 136, // EK: 13,67€ / 10 Stück = 1,36€ pro Stück
@@ -243,6 +247,8 @@ class ProductSeeder extends Seeder
             'description' => 'Krönen Sie den wohlverdienten Feierabend mit einem Glas, das genauso einzigartig ist wie Sie! Der Feierabend-Funke is ein klassisch geformtes, hochwertiges Kristall-Weizenbierglas, das durch eine atemberaubende 360° Rundum-Gravur Ihr persönliches Highlight wird. Mittels feinster Laser-Rotationstechnik brennen wir Ihre Texte, Vereinslogos oder humorvollen Sprüche tief und abriebfest ins Material ein. Das Glas bleibt dabei zu 100% spülmaschinenfest und behält auch nach vielen Einsätzen seine vollkommene Brillanz.',
             'short_description' => 'Premium-Weizenbierglas (0,5l) versehen mit einer beeindruckenden, spülmaschinenfesten 360° Lasergravur. Perfekt als Vereins- oder Männergeschenk.',
             'status' => 'active',
+            'is_personalizable' => true,
+            'three_d_active' => true,
             'price' => 2490,
             'compare_at_price' => 2990,
             'purchase_price' => 333, // EK: 19,99€ / 6 Stück = 3,33€ pro Stück
@@ -327,6 +333,7 @@ Deine konkreten Vorteile und Umsetzungsfähigkeiten nach dem Lesen:
 
 Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzbereiten Code-Assets (Laravel-Migrations, Models, Node.js-Proxys und C++ Wrapper-Strukturen) zum direkten Kopieren und Einfügen in dein eigenes Projekt. Überspringe Monate voller Trial-and-Error!',
             'is_personalizable' => false,
+            'three_d_active' => false,
             'short_description' => 'Digitaler Praxisbericht (176 Seiten PDF) + 200 Code-Assets (ZIP) für Multi-Agenten-Systeme.',
             'status' => 'active',
             'price' => 4900,
@@ -373,6 +380,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'type' => 'digital',
             'description' => 'Verschenken Sie unvergessliche Momente mit unserem edlen Seelenfunken Geschenkgutschein. Der Gutschein kann wahlweise digital per E-Mail oder hochwertig gedruckt per Post bestellt werden. Sie können den Betrag flexibel wählen und eine persönliche Grußbotschaft hinzufügen. Der perfekte Ausdruck Ihrer Wertschätzung.',
             'is_personalizable' => true,
+            'three_d_active' => false,
             'short_description' => 'Der flexible Seelenfunken Geschenkgutschein als E-Mail oder edle Post-Klappkarte mit Wachssiegel.',
             'status' => 'active',
             'price' => 0, // Wird dynamisch durch den Konfigurator/Warenkorb bestimmt

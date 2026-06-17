@@ -20,7 +20,7 @@
         fonts: @js($fonts),
         context: '{{$context}}',
         config: {
-            modelPath: '{{$product->three_d_model_path ? asset("storage/".$product->three_d_model_path) : ""}}',
+            modelPath: '{{ ($product->three_d_active && $product->three_d_model_path) ? asset("storage/".$product->three_d_model_path) : "" }}',
             bgPath: '{{$product->three_d_background_path ? asset("storage/".$product->three_d_background_path) : ""}}',
             fallbackImg: '{{ $this->previewImage }}',
             has_back_side: {{!empty($configSettings['has_back_side']) && $configSettings['has_back_side'] ? 'true' : 'false'}},

@@ -32,6 +32,7 @@ class ProductCreate extends Component
     public $name = '';
     public $type = 'physical'; // NEU: Standardwert
     public $is_personalizable = true; // NEU
+    public $three_d_active = true;
     public $short_description = '';
     public $description = '';
 
@@ -214,6 +215,7 @@ class ProductCreate extends Component
             'status' => 'draft',
             'type' => 'physical', // Standard
             'is_personalizable' => true,
+            'three_d_active' => true,
             'price' => 0,
             'media_gallery' => [],
             'tier_pricing' => [],
@@ -233,6 +235,7 @@ class ProductCreate extends Component
         $this->name = $this->product->name;
         $this->type = $this->product->type; // NEU: Typ laden
         $this->is_personalizable = (bool) $this->product->is_personalizable;
+        $this->three_d_active = (bool) ($this->product->three_d_active ?? true);
         $this->description = $this->product->description;
         $this->short_description = $this->product->short_description;
         $this->status = $this->product->status;
@@ -469,6 +472,7 @@ class ProductCreate extends Component
         $this->product->name = $this->name;
         $this->product->type = $this->type; // Typ speichern
         $this->product->is_personalizable = (bool) $this->is_personalizable;
+        $this->product->three_d_active = (bool) $this->three_d_active;
         $this->product->description = $this->description;
         $this->product->short_description = $this->short_description;
 

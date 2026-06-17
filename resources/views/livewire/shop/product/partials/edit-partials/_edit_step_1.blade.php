@@ -87,6 +87,23 @@
                     </div>
                 </label>
             </div>
+
+            {{-- NEU: 3D Animation Toggle --}}
+            @if($is_personalizable)
+            <div class="mt-4 pt-4 border-t border-gray-800">
+                <label class="flex items-center gap-4 cursor-pointer w-max group">
+                    <div class="relative">
+                        <input type="checkbox" wire:model.live="three_d_active" class="sr-only">
+                        <div class="block w-14 h-8 {{ $three_d_active ? 'bg-[var(--theme-color)]' : 'bg-gray-800' }} rounded-full transition-colors duration-300 shadow-inner"></div>
+                        <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition transform duration-300 ease-in-out {{ $three_d_active ? 'translate-x-6 shadow-md' : '' }}"></div>
+                    </div>
+                    <div>
+                        <div class="font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors">3D Animation</div>
+                        <div class="text-[10px] text-gray-500 font-medium">Wenn deaktiviert, wird im Konfigurator nur die 2D-Ansicht geladen und keine 3D-Screenshots generiert.</div>
+                    </div>
+                </label>
+            </div>
+            @endif
         </div>
 
         {{-- Karte 1: Grunddaten --}}

@@ -38,8 +38,10 @@
                     {{-- RECHTS: Alle Regler (nimmt den restlichen Platz ein) --}}
                     <div class="lg:col-span-5 xl:col-span-4 flex flex-col gap-6">
                         @include('livewire.shop.product.partials.edit-partials.step_4_partials.working_area_config_ranges')
-                        @include('livewire.shop.product.partials.edit-partials.step_4_partials.3d_model_config_ranges')
-                        @include('livewire.shop.product.partials.edit-partials.step_4_partials.3d_overlay_config_ranges')
+                        @if($three_d_active)
+                            @include('livewire.shop.product.partials.edit-partials.step_4_partials.3d_model_config_ranges')
+                            @include('livewire.shop.product.partials.edit-partials.step_4_partials.3d_overlay_config_ranges')
+                        @endif
                     </div>
 
                 </div>

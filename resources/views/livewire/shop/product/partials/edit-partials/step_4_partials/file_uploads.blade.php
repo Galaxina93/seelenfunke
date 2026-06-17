@@ -34,6 +34,7 @@
         </div>
     </div>
 
+    @if($three_d_active)
     {{-- 3D-Modell (.glb) --}}
     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 sm:p-8 bg-blue-900/10 backdrop-blur-md rounded-[2rem] border border-blue-500/20 shadow-inner relative overflow-hidden group hover:border-blue-500/40 transition-colors">
         <div class="absolute right-0 top-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[50px] -mr-10 -mt-10 pointer-events-none"></div>
@@ -61,7 +62,7 @@
             @endif
             <div class="flex-shrink-0 relative">
                 <label class="cursor-pointer bg-blue-600/20 border border-blue-500/30 hover:bg-blue-500/30 text-blue-300 hover:text-white px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner transition-all" :class="{'opacity-50 pointer-events-none': isUploading}">
-                    {{ $product->three_d_model_path ? 'Ersetzen' : 'Hochladen' }}
+                     {{ $product->three_d_model_path ? 'Ersetzen' : 'Hochladen' }}
                     <input type="file" wire:model.live="new_3d_model" accept=".glb" class="hidden">
                 </label>
             </div>
@@ -101,6 +102,7 @@
             </div>
         </div>
     </div>
+    @endif
 
     <div x-show="isUploading" style="display: none;" class="p-6 bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-800 text-center shadow-inner">
         <svg class="animate-spin h-8 w-8 text-[var(--theme-color)] mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

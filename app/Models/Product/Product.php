@@ -23,6 +23,7 @@ class Product extends Model
         'tier_pricing' => 'array',
         'configurator_settings' => 'array',
         'is_personalizable' => 'boolean',
+        'three_d_active' => 'boolean',
         'track_quantity' => 'boolean',
         'continue_selling_when_out_of_stock' => 'boolean',
         'price' => 'integer',
