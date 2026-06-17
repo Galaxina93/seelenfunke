@@ -93,7 +93,7 @@
 
                         <div class="relative transition-all rounded-lg p-1.5" :class="selectedIndex===index && context!=='preview'?'border-[1.5px] border-primary border-dashed {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg':'border-[1.5px] border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}'">
 
-                            <template x-if="currentTexts[index] !== undefined">
+                            <template x-if="currentTexts[index] !== undefined && !isCapturing">
                                 <textarea x-model="textItem.text"
                                           :data-id="textItem.id"
                                           :rows="(textItem.text?.match(/\n/g) || []).length + 1"
@@ -116,9 +116,27 @@
                                                 color: rgba({{ $isDark ? '255,255,255' : '0,0,0' }}, 1);
                                                 filter: {{ $isDark ? 'drop-shadow(0px 0px 5px rgba(255,255,255,0.4)) grayscale(100%) brightness(1.5)' : 'drop-shadow(0px 0px 3px rgba(0,0,0,0.3)) grayscale(100%)' }};
                                                 -webkit-text-fill-color: {{ $isDark ? 'white' : 'black' }};
+                                                white-space: pre !important;
                                             `"
                                           placeholder="Text eingeben...">
                                 </textarea>
+                            </template>
+                            <template x-if="currentTexts[index] !== undefined && isCapturing">
+                                <div x-text="textItem.text"
+                                     class="bg-transparent font-bold overflow-visible block p-0 m-0 border-0 outline-none shadow-none ring-0 select-none"
+                                     :class="alignMap[textItem.align || 'center']"
+                                     :style="`
+                                           width: ${textDims[textItem.id]?.width || 'auto'};
+                                           height: auto !important;
+                                           font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
+                                           font-family: ${fontMap[textItem.font] || 'Arial'};
+                                           line-height: 1.15;
+                                           color: rgba({{ $isDark ? '255,255,255' : '0,0,0' }}, 1);
+                                           filter: {{ $isDark ? 'drop-shadow(0px 0px 5px rgba(255,255,255,0.4)) grayscale(100%) brightness(1.5)' : 'drop-shadow(0px 0px 3px rgba(0,0,0,0.3)) grayscale(100%)' }};
+                                           -webkit-text-fill-color: {{ $isDark ? 'white' : 'black' }};
+                                           white-space: pre !important;
+                                       `">
+                                </div>
                             </template>
 
                             <template x-if="selectedIndex===index && context!=='preview' && currentTexts[index] !== undefined">

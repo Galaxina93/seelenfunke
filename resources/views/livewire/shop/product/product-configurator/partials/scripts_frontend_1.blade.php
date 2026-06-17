@@ -758,7 +758,7 @@
                 const newHeight = el.scrollHeight;
 
                 const finalWidth = (newWidth + 10) + 'px';
-                const finalHeight = newHeight + 'px';
+                const finalHeight = (newHeight + 6) + 'px'; // +6px Puffer zur Vermeidung von vertikalem Abschneiden bei Sub-Pixel Rundungsfehlern
 
                 el.style.width = finalWidth;
                 el.style.height = finalHeight;
