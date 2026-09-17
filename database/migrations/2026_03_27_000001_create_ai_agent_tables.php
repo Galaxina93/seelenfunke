@@ -321,6 +321,53 @@ return new class extends Migration
                 $table->timestamps();
             });
         }
+
+        // Standard-Tools aus der Registry registrieren
+        if (class_exists(\App\Services\AI\AIFunctionsRegistry::class) && Schema::hasTable('ai_tools')) {
+            $schema = \App\Services\AI\AIFunctionsRegistry::getSchema();
+            foreach ($schema as $toolData) {
+                $identifier = $toolData['function']['name'] ?? null;
+                if (!$identifier) continue;
+                \App\Models\Ai\AiTool::firstOrCreate(
+                    ['identifier' => $identifier],
+                    [
+                        'name' => ucwords(str_replace('_', ' ', $identifier)),
+                        'description' => $toolData['function']['description'] ?? 'Keine Beschreibung'
+                    ]
+                );
+            }
+        }
+
+        // Finanzmanager-Rolle verknüpfen falls vorhanden
+        if (Schema::hasTable('ai_roles') && Schema::hasTable('ai_role_tool') && class_exists(\App\Services\AI\AIFunctionsRegistry::class)) {
+            $finanzRole = \App\Models\Ai\AiRole::where('name', 'Finanzmanager')->first();
+            if ($finanzRole) {
+                $financeToolNames = array_column(\App\Services\AI\AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name');
+                $toolIds = \App\Models\Ai\AiTool::whereIn('identifier', $financeToolNames)->pluck('id');
+                $finanzRole->tools()->syncWithoutDetaching($toolIds);
+            }
+        }
+
+        // Buchi-Prompt aktualisieren falls Agent bereits existiert
+        if (Schema::hasTable('ai_agents')) {
+            $buchi = \App\Models\Ai\AiAgent::where('name', 'Buchi')->first();
+            if ($buchi && !str_contains($buchi->system_prompt, 'finance_read_fixed_cost_contract')) {
+                $buchiInstruction = "6. FIXKOSTEN-, ARCHIV- & VERTRAGS-VERWALTUNG: Du verwaltest die regelmäßigen Fixkosten (Daueraufträge, Abonnements, wiederkehrende Ausgaben/Einnahmen).\n- Dynamische Suche: Nutze `finance_list_fixed_costs` mit `query`. Die Suche ist fehlertolerant und intelligent (z.B. 'Gründerzuschuss' findet auch 'Gründungszuschuss').\n- Verträge lesen: Nutze `finance_read_fixed_cost_contract` mit ID oder Kostenstellen-Name (z.B. 'Gründungszuschuss' oder 'Hetzner'), um das hinterlegte Dokument (PDF, Text, Beleg) vollständig auszulesen und Auskunft über Vertragsinhalte, Laufzeiten oder Konditionen zu geben.\n- Neuanlage & Tags: Beim Erstellen (`finance_create_fixed_cost`) werden Kostenstellen automatisch mit sinnvollen Tags versehen (z.B. Hosting, Software, Miete).\n- Archiv-Prüfung: Beim Erstellen wird das Archiv geprüft. Gibt es einen Treffer, biete die Wiederherstellung via `finance_restore_fixed_cost` an, anstatt neu zu erstellen (oder nutze `ignore_archived: true`).\n- Änderungen: Nutze `finance_edit_fixed_cost` zum Aktualisieren von Beträgen, Intervallen, Tags oder Gruppen (kann direkt mit ID oder Name aufgerufen werden).\n- Löschen / Archivieren: `finance_delete_fixed_cost` archiviert Einträge immer nur (Soft-Delete), damit Daten, Historie und Vertragsdateien erhalten bleiben.\n- Archiv-Verwaltung: Nutze `finance_list_archived_fixed_costs` zum Einsehen archivierter Posten, `finance_restore_fixed_cost` zur Wiederherstellung und `finance_force_delete_fixed_cost` für das endgültige Löschen.";
+
+                if (str_contains($buchi->system_prompt, '6. FIXKOSTEN- & ARCHIV-VERWALTUNG:')) {
+                    $buchi->system_prompt = preg_replace('/6\. FIXKOSTEN- & ARCHIV-VERWALTUNG:.*?(?=SPRACHMELODIE:|$)/s', $buchiInstruction . ' ', $buchi->system_prompt);
+                } elseif (str_contains($buchi->system_prompt, '6. FIXKOSTEN-VERWALTUNG:')) {
+                    $buchi->system_prompt = preg_replace('/6\. FIXKOSTEN-VERWALTUNG:.*?(?=SPRACHMELODIE:|$)/s', $buchiInstruction . ' ', $buchi->system_prompt);
+                } else {
+                    if (str_contains($buchi->system_prompt, 'SPRACHMELODIE:')) {
+                        $buchi->system_prompt = str_replace('SPRACHMELODIE:', "\n" . $buchiInstruction . ' SPRACHMELODIE:', $buchi->system_prompt);
+                    } else {
+                        $buchi->system_prompt .= "\n" . $buchiInstruction;
+                    }
+                }
+                $buchi->save();
+            }
+        }
     }
 
     /**

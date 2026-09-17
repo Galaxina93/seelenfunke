@@ -76,6 +76,7 @@ class AccountingFixCosts extends Component
     public bool $showMissingData = false;
     public bool $showTagManagement = false;
     public bool $showChart = false;
+    public bool $showArchive = false;
 
     // --- Tagging Properties ---
     public $addingTagToItemId = null;
@@ -131,6 +132,15 @@ class AccountingFixCosts extends Component
         })->where('requires_contract', true)->where(function($q) {
             $q->whereNull('provider_company')->orWhere('provider_company', '');
         })->with('group')->orderBy('name')->get();
+    }
+
+    public function getArchivedItemsProperty()
+    {
+        return AccountingCostItem::onlyTrashed()
+            ->whereHas('group', fn($q) => $q->where('admin_id', $this->getAdminId()))
+            ->with(['group', 'histories'])
+            ->orderBy('deleted_at', 'desc')
+            ->get();
     }
 
     // --- Tagging Methods ---
@@ -674,9 +684,102 @@ class AccountingFixCosts extends Component
         $item = AccountingCostItem::findOrFail($id);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
+        $adminName = Auth::guard('admin')->user()->name ?? 'Admin';
+
+        if (class_exists(AccountingCostItemHistory::class)) {
+            AccountingCostItemHistory::create([
+                'accounting_cost_item_id' => $item->id,
+                'name' => $item->name,
+                'amount' => $item->amount,
+                'interval_months' => $item->interval_months,
+                'first_payment_date' => $item->first_payment_date ? \Carbon\Carbon::parse($item->first_payment_date)->format('Y-m-d') : null,
+                'last_payment_date' => $item->last_payment_date ? \Carbon\Carbon::parse($item->last_payment_date)->format('Y-m-d') : null,
+                'is_business' => $item->is_business,
+                'requires_contract' => $item->requires_contract,
+                'tax_rate' => $item->tax_rate,
+                'contract_file_path' => $item->contract_file_path,
+                'tags' => $item->tags,
+                'accounting_group_id' => $item->accounting_group_id,
+                'description' => 'Kostenstelle ins Archiv verschoben durch ' . $adminName . '.',
+                'provider_company' => $item->provider_company,
+                'provider_street' => $item->provider_street,
+                'provider_house_number' => $item->provider_house_number,
+                'provider_zip' => $item->provider_zip,
+                'provider_city' => $item->provider_city,
+                'provider_phone' => $item->provider_phone,
+                'provider_email' => $item->provider_email,
+                'provider_website' => $item->provider_website,
+                'contract_number' => $item->contract_number,
+                'notice_period' => $item->notice_period,
+                'contract_end_date' => $item->contract_end_date ? \Carbon\Carbon::parse($item->contract_end_date)->format('Y-m-d') : null,
+            ]);
+        }
+
         $item->delete();
         $this->dispatchChartUpdate();
-        session()->flash('success', 'Kostenstelle gelöscht.');
+        session()->flash('success', 'Kostenstelle "' . $item->name . '" ins Archiv verschoben.');
+    }
+
+    public function restoreItem($id)
+    {
+        $item = AccountingCostItem::onlyTrashed()->findOrFail($id);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        $item->restore();
+
+        $adminName = Auth::guard('admin')->user()->name ?? 'Admin';
+
+        if (class_exists(AccountingCostItemHistory::class)) {
+            AccountingCostItemHistory::create([
+                'accounting_cost_item_id' => $item->id,
+                'name' => $item->name,
+                'amount' => $item->amount,
+                'interval_months' => $item->interval_months,
+                'first_payment_date' => $item->first_payment_date ? \Carbon\Carbon::parse($item->first_payment_date)->format('Y-m-d') : null,
+                'last_payment_date' => $item->last_payment_date ? \Carbon\Carbon::parse($item->last_payment_date)->format('Y-m-d') : null,
+                'is_business' => $item->is_business,
+                'requires_contract' => $item->requires_contract,
+                'tax_rate' => $item->tax_rate,
+                'contract_file_path' => $item->contract_file_path,
+                'tags' => $item->tags,
+                'accounting_group_id' => $item->accounting_group_id,
+                'description' => 'Kostenstelle aus dem Archiv wiederhergestellt durch ' . $adminName . '.',
+                'provider_company' => $item->provider_company,
+                'provider_street' => $item->provider_street,
+                'provider_house_number' => $item->provider_house_number,
+                'provider_zip' => $item->provider_zip,
+                'provider_city' => $item->provider_city,
+                'provider_phone' => $item->provider_phone,
+                'provider_email' => $item->provider_email,
+                'provider_website' => $item->provider_website,
+                'contract_number' => $item->contract_number,
+                'notice_period' => $item->notice_period,
+                'contract_end_date' => $item->contract_end_date ? \Carbon\Carbon::parse($item->contract_end_date)->format('Y-m-d') : null,
+            ]);
+        }
+
+        $this->dispatchChartUpdate();
+        session()->flash('success', 'Kostenstelle "' . $item->name . '" wiederhergestellt.');
+    }
+
+    public function forceDeleteItem($id)
+    {
+        $item = AccountingCostItem::onlyTrashed()->findOrFail($id);
+        if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        $name = $item->name;
+
+        if ($item->contract_file_path) {
+            if (Storage::disk('local')->exists($item->contract_file_path)) {
+                Storage::disk('local')->delete($item->contract_file_path);
+            } elseif (Storage::disk('private')->exists($item->contract_file_path)) {
+                Storage::disk('private')->delete($item->contract_file_path);
+            }
+        }
+
+        $item->forceDelete();
+        $this->dispatchChartUpdate();
+        session()->flash('success', 'Kostenstelle "' . $name . '" endgültig gelöscht.');
     }
 
     public function openCancellationModal($itemId)
@@ -750,7 +853,7 @@ class AccountingFixCosts extends Component
                 }
 
                 // Otherwise, filter items in the group
-                $matchingItems = $group->items->filter(function ($item) {
+                $matchingItems = $group->items->filter(function ($item) use ($search) {
                     $tagsString = is_array($item->tags) ? implode(' ', $item->tags) : '';
                     $searchTarget = implode(' ', [
                         $item->name,
@@ -758,7 +861,7 @@ class AccountingFixCosts extends Component
                         $item->description,
                         $tagsString
                     ]);
-                    return $this->fuzzyMatch($this->searchQuery, $searchTarget);
+                    return $this->fuzzyMatch($search, $searchTarget);
                 });
 
                 if ($matchingItems->isNotEmpty()) {
@@ -774,54 +877,13 @@ class AccountingFixCosts extends Component
 
     protected function fuzzyMatch(string $query, string $target): bool
     {
+        if (class_exists(\App\Services\AI\AIFunctionsRegistry::class) && method_exists(\App\Services\AI\AIFunctionsRegistry::class, 'isFuzzyMatch')) {
+            return \App\Services\AI\AIFunctionsRegistry::isFuzzyMatch($query, $target, 0.65);
+        }
+
         $query = mb_strtolower(trim($query));
         $target = mb_strtolower(trim($target));
-        
-        if ($query === '') {
-            return true;
-        }
-        
-        // Direct substring match
-        if (str_contains($target, $query)) {
-            return true;
-        }
-        
-        // Tokenize search query and target
-        $queryWords = array_filter(preg_split('/[\s,.\-\/]+/', $query));
-        $targetWords = array_filter(preg_split('/[\s,.\-\/]+/', $target));
-        
-        if (empty($queryWords)) {
-            return false;
-        }
-        
-        // Check if all query words match some target words
-        foreach ($queryWords as $qWord) {
-            $matched = false;
-            foreach ($targetWords as $tWord) {
-                if (str_contains($tWord, $qWord) || str_contains($qWord, $tWord)) {
-                    $matched = true;
-                    break;
-                }
-                
-                // Fuzzy match using levenshtein for words >= 4 characters
-                $qLen = mb_strlen($qWord);
-                $tLen = mb_strlen($tWord);
-                if ($qLen >= 4 && $tLen >= 4) {
-                    $lev = levenshtein($qWord, $tWord);
-                    $maxLen = max($qLen, $tLen);
-                    $similarity = 1 - ($lev / $maxLen);
-                    if ($similarity >= 0.75) {
-                        $matched = true;
-                        break;
-                    }
-                }
-            }
-            if (!$matched) {
-                return false;
-            }
-        }
-        
-        return true;
+        return $query === '' || str_contains($target, $query);
     }
 
     public function updatedSearchQuery()
@@ -836,7 +898,21 @@ class AccountingFixCosts extends Component
         }
     }
 
-    private function dispatchChartUpdate()
+    public function updatedShowTagManagement($value)
+    {
+        if ($value) {
+            $this->dispatchChartUpdate();
+        }
+    }
+
+    public function updatedShowArchive($value)
+    {
+        if ($value) {
+            $this->dispatchChartUpdate();
+        }
+    }
+
+    public function dispatchChartUpdate()
     {
         $groups = $this->getFilteredGroups();
         $chartLabels = [];
@@ -863,13 +939,17 @@ class AccountingFixCosts extends Component
 
     public function downloadContract($itemId)
     {
-        $item = AccountingCostItem::findOrFail($itemId);
+        $item = AccountingCostItem::withTrashed()->findOrFail($itemId);
         if ($item->group->admin_id !== $this->getAdminId()) {
             abort(403);
         }
 
-        if ($item->contract_file_path && Storage::disk('local')->exists($item->contract_file_path)) {
-            return Storage::disk('local')->download($item->contract_file_path);
+        if ($item->contract_file_path) {
+            if (Storage::disk('local')->exists($item->contract_file_path)) {
+                return Storage::disk('local')->download($item->contract_file_path);
+            } elseif (Storage::disk('private')->exists($item->contract_file_path)) {
+                return Storage::disk('private')->download($item->contract_file_path);
+            }
         }
 
         session()->flash('error', 'Vertragsdatei nicht gefunden.');

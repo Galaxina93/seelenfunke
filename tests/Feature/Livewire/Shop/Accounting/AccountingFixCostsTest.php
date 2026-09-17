@@ -184,5 +184,60 @@ class AccountingFixCostsTest extends TestCase
 
         $component->set('showChart', !$component->get('showChart'));
         $this->assertTrue($component->get('showChart'));
+
+        $this->assertFalse($component->get('showArchive'));
+        $component->set('showArchive', true);
+        $this->assertTrue($component->get('showArchive'));
+    }
+
+    #[Test]
+    public function it_soft_deletes_item_to_archive_and_allows_restore_and_force_delete()
+    {
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'IT Infrastructure',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $item = AccountingCostItem::create([
+            'accounting_group_id' => $group->id,
+            'name' => 'Server Cloud Pro',
+            'amount' => -45.00,
+            'interval_months' => 1,
+            'first_payment_date' => now(),
+            'tags' => ['Server', 'Hosting']
+        ]);
+
+        $component = Livewire::test(AccountingFixCosts::class);
+
+        // Initially archive is empty
+        $this->assertCount(0, $component->get('archivedItems'));
+
+        // Delete item -> soft-delete
+        $component->call('deleteItem', $item->id);
+
+        // Should now be in archivedItems
+        $archivedItems = $component->get('archivedItems');
+        $this->assertCount(1, $archivedItems);
+        $this->assertEquals('Server Cloud Pro', $archivedItems->first()->name);
+
+        // Not in active DB query
+        $this->assertNull(AccountingCostItem::find($item->id));
+
+        // Restore item
+        $component->call('restoreItem', $item->id);
+
+        // Archive should be empty again and active item back
+        $this->assertCount(0, $component->get('archivedItems'));
+        $this->assertNotNull(AccountingCostItem::find($item->id));
+
+        // Delete again, then force delete
+        $component->call('deleteItem', $item->id);
+        $this->assertCount(1, $component->get('archivedItems'));
+
+        $component->call('forceDeleteItem', $item->id);
+        $this->assertCount(0, $component->get('archivedItems'));
+        $this->assertNull(AccountingCostItem::onlyTrashed()->find($item->id));
     }
 }

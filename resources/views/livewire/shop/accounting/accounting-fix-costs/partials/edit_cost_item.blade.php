@@ -87,11 +87,11 @@
             <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5">
                 Vertrag / Datei
                 <div class="relative group cursor-help">
-                    <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <svg class="w-3.5 h-3.5 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 border border-gray-700 rounded-xl shadow-xl text-[10px] text-gray-300 font-medium normal-case tracking-normal opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
                         <div class="font-bold text-white mb-1">Upload-Regel (E-Commerce Standard)</div>
                         Bitte benenne die PDF-Datei vor dem Upload nach diesem Schema:<br>
-                        <span class="text-blue-400 font-mono mt-1 block">YYYY-MM-DD_Anbieter_Titel.pdf</span>
+                        <span class="text-[var(--theme-color)] font-mono mt-1 block">YYYY-MM-DD_Anbieter_Titel.pdf</span>
                         <div class="text-gray-500 mt-1">Die Datei wird automatisch in den sicheren Speicher <span class="text-gray-400 font-mono">storage/app/buchhaltung/contracts/</span> verschoben.</div>
                         <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-900 border-b border-r border-gray-700 rotate-45"></div>
                     </div>
@@ -107,7 +107,7 @@
                 
                 @if($itemExistingFile)
                     <div class="flex items-center justify-between p-2 rounded-xl border border-gray-800/50 bg-gray-950/50">
-                        <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[10px] font-bold text-blue-400 hover:text-white transition-colors truncate max-w-[80%] flex items-center gap-2">
+                        <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[10px] font-bold text-[var(--theme-color)] hover:text-white transition-colors truncate max-w-[80%] flex items-center gap-2">
                             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             Aktuelle Datei ansehen
                         </button>
@@ -229,7 +229,7 @@
                                             Löschen
                                         </button>
                                         <div class="flex-1"></div>
-                                        <button @click="expanded = !expanded" class="text-[9px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-400 transition-colors flex items-center gap-1 opacity-60 group-hover:opacity-100">
+                                        <button @click="expanded = !expanded" class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] hover:opacity-80 transition-colors flex items-center gap-1 opacity-60 group-hover:opacity-100">
                                             <svg class="w-3 h-3" :class="{'rotate-180': expanded}" class="transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                             <span x-text="expanded ? 'Schließen' : 'Details'"></span>
                                         </button>
@@ -335,7 +335,7 @@
                  }"
                  x-init="initChart()">
                 <h4 class="text-xs font-black uppercase text-gray-400 tracking-widest mb-2 flex items-center gap-2">
-                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                    <svg class="w-4 h-4 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
                     Verlauf
                 </h4>
                 <div class="relative flex-1 w-full mt-2" wire:ignore>

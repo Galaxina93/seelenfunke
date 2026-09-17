@@ -31,7 +31,7 @@
                     $mappedTxCount = $group->items->sum(fn($item) => $item->transactions->count());
                 @endphp
                 @if($mappedTxCount > 0)
-                    <span class="flex items-center gap-1.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest shadow-inner">
+                    <span class="flex items-center gap-1.5 bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest shadow-inner">
                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                         {{ $mappedTxCount }} Zahlungen
                     </span>

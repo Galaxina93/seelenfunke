@@ -13,7 +13,7 @@
                 <svg x-cloak x-show="copied" style="display: none;" class="w-4 h-4 text-emerald-400 drop-shadow-[0_0_5px_currentColor]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
             </div>
             @if($item->is_business)
-                <span class="bg-blue-500/10 text-blue-400 text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest border border-blue-500/20 shadow-inner">Gewerbe</span>
+                <span class="bg-[var(--theme-color-10)] text-[var(--theme-color)] text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest border border-[var(--theme-color-20)] shadow-inner">Gewerbe</span>
             @else
                 <span class="bg-gray-800 text-gray-400 text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest border border-gray-700 shadow-inner">Privat</span>
             @endif
@@ -48,7 +48,7 @@
         <div class="font-mono font-bold text-xl whitespace-nowrap {{ $item->amount == 0 ? 'text-gray-500' : ($group->type === 'income' ? 'text-emerald-400 drop-shadow-[0_0_8px_currentColor]' : ($group->type === 'expense' ? 'text-red-400 drop-shadow-[0_0_8px_currentColor]' : 'text-gray-500')) }}">{{ number_format($item->amount, 2, ',', '.') }}€ </div>
         <div class="flex gap-4 justify-start sm:justify-end mt-3 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             @if(isset($item->transactions) && count($item->transactions) > 0)
-                <button @click.stop="expanded = !expanded" class="text-[9px] text-blue-400 hover:text-blue-300 font-black uppercase tracking-widest border-b border-blue-500/50 hover:border-blue-400 pb-0.5 transition-colors flex items-center gap-1">
+                <button @click.stop="expanded = !expanded" class="text-[9px] text-[var(--theme-color)] hover:opacity-80 font-black uppercase tracking-widest border-b border-[var(--theme-color-50)] hover:border-[var(--theme-color)] pb-0.5 transition-colors flex items-center gap-1">
                     <span x-text="expanded ? 'Umsätze ausblenden' : '{{ count($item->transactions) }} Umsätze anzeigen'"></span>
                     <svg class="w-3 h-3 transition-transform duration-300" :class="expanded ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
@@ -64,21 +64,21 @@
 
 <div class="mt-4 pt-3 border-t border-gray-800/50 w-full">
     <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2" style="scrollbar-width: thin;">
-        <svg class="w-4 h-4 text-gray-600 shrink-0 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 text-[var(--theme-color)]/70 shrink-0 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
         </svg>
 
         @foreach($item->tags ?? [] as $tag)
-            <span class="shrink-0 bg-blue-500/10 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.3)] rounded-full pl-2.5 pr-1 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all hover:bg-blue-500/20">
+            <span class="shrink-0 bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-20)] rounded-full pl-2.5 pr-1 py-1 text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all hover:bg-[var(--theme-color-20)]">
                 {{ $tag }}
-                <button wire:click.stop="removeTagFromItem('{{ $item->id }}', '{{ $tag }}')" class="text-blue-400/70 hover:text-red-400 hover:bg-red-500/20 transition-colors rounded-full p-0.5" title="Tag entfernen">
+                <button wire:click.stop="removeTagFromItem('{{ $item->id }}', '{{ $tag }}')" class="text-[var(--theme-color)]/70 hover:text-red-400 hover:bg-red-500/20 transition-colors rounded-full p-0.5" title="Tag entfernen">
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </span>
         @endforeach
 
         @if($addingTagToItemId === $item->id)
-            <div class="shrink-0 flex items-center gap-1 bg-gray-950 border border-blue-500/50 shadow-inner rounded-full pl-3 pr-1 py-0.5" @click.stop>
+            <div class="shrink-0 flex items-center gap-1 bg-gray-950 border border-[var(--theme-color-50)] shadow-inner rounded-full pl-3 pr-1 py-0.5" @click.stop>
                 <input type="text" wire:model="newItemTag" wire:keydown.enter="saveNewItemTag" placeholder="Tag eingeben..." class="bg-transparent text-[9px] font-black uppercase tracking-widest text-white w-24 outline-none" autofocus>
                 <button wire:click.stop="saveNewItemTag" class="text-emerald-400 hover:text-emerald-300 p-0.5 transition-colors" title="Speichern">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -88,7 +88,7 @@
                 </button>
             </div>
         @else
-            <button wire:click.stop="startAddingTag('{{ $item->id }}')" class="shrink-0 bg-gray-900 border border-gray-700 hover:border-blue-500/50 text-gray-500 hover:text-blue-400 shadow-inner rounded-full p-1 transition-all" title="Tag hinzufügen">
+            <button wire:click.stop="startAddingTag('{{ $item->id }}')" class="shrink-0 bg-gray-900 border border-gray-700 hover:border-[var(--theme-color-50)] text-gray-500 hover:text-[var(--theme-color)] shadow-inner rounded-full p-1 transition-all" title="Tag hinzufügen">
                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
             </button>
         @endif
@@ -99,7 +99,7 @@
 <div x-show="expanded" x-collapse class="mt-4 border-t border-gray-800/50 pt-4 cursor-default" @dragstart.prevent.stop>
     <div class="bg-gray-950/80 rounded-2xl border border-gray-800/80 p-4 shadow-inner">
         <h4 class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 ml-1 flex items-center gap-2">
-            <svg class="w-3 h-3 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <svg class="w-3 h-3 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             Verknüpfte Bankumsätze
         </h4>
         <div class="divide-y divide-gray-800/50">

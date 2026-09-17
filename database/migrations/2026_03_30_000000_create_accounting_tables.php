@@ -118,6 +118,7 @@ return new class extends Migration
                 $table->date('contract_end_date')->nullable();
                 
                 $table->timestamps();
+                $table->softDeletes();
             });
         }
 

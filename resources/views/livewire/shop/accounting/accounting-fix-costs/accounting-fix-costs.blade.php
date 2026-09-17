@@ -27,7 +27,7 @@
         <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
             <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex justify-between items-center">
                 <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
-                    <div class="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 shadow-inner shrink-0">
+                    <div class="p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-xl text-[var(--theme-color)] shadow-inner shrink-0">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
@@ -78,7 +78,7 @@
 
                     {{-- Chart Toggle --}}
                     <button wire:click="$toggle('showChart')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showChart ? 'ring-2 ring-blue-500/50 bg-blue-500/20 text-blue-300 border-blue-500' : 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20' }}"
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showChart ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
                             title="Finanzielle Aufteilung">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z"></path>
@@ -88,11 +88,25 @@
 
                     {{-- Tag-Verwaltung Toggle --}}
                     <button wire:click="$toggle('showTagManagement')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showTagManagement ? 'ring-2 ring-blue-500/50 bg-blue-500/20 text-blue-300 border-blue-500' : 'bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20' }}"
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showTagManagement ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
                             title="Tag-Verwaltung">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
                         </svg>
+                    </button>
+
+                    {{-- Archiv Toggle --}}
+                    <button wire:click="$toggle('showArchive')" 
+                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : ($this->archivedItems->count() > 0 ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-800/40 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:bg-gray-800') }}"
+                            title="{{ $this->archivedItems->count() > 0 ? 'Archiv: ' . $this->archivedItems->count() . ' archivierte Kostenstellen' : 'Archiv: Keine archivierten Kostenstellen' }}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                        @if($this->archivedItems->count() > 0)
+                            <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                                <span class="relative inline-flex rounded-full h-4 w-4 bg-[var(--theme-color)] text-[8px] font-black text-gray-900 items-center justify-center shadow-[0_0_8px_var(--theme-color-50)]">{{ $this->archivedItems->count() }}</span>
+                            </span>
+                        @endif
                     </button>
                 </div>
             </div>
@@ -334,7 +348,7 @@
                         <div class="flex items-center justify-between cursor-pointer group" @click="expandedTags = !expandedTags">
                             <div>
                                 <h3 class="text-xl font-serif font-bold text-white mb-1 tracking-wide flex items-center gap-3">
-                                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="w-6 h-6 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                     </svg>
                                     Tag-Verwaltung
@@ -352,7 +366,7 @@
                             <div class="flex flex-wrap gap-3">
                                 @forelse($this->globalTags as $tag)
                                     @if($editingGlobalTag === $tag)
-                                        <div class="flex items-center gap-2 bg-gray-950 p-1.5 rounded-full border border-blue-500/50 shadow-inner">
+                                        <div class="flex items-center gap-2 bg-gray-950 p-1.5 rounded-full border border-[var(--theme-color-50)] shadow-inner">
                                             <input type="text" wire:model="editingGlobalTagValue" wire:keydown.enter="saveGlobalTag" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-white px-2 outline-none w-28">
                                             <button wire:click="saveGlobalTag" class="text-emerald-400 hover:text-emerald-300 transition-colors" title="Speichern">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -362,10 +376,10 @@
                                             </button>
                                         </div>
                                     @else
-                                        <div class="group/tag flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)] hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] rounded-full px-3 py-1.5 transition-all">
+                                        <div class="group/tag flex items-center gap-2 bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-20)] hover:shadow-[0_0_15px_var(--theme-color-40)] rounded-full px-3 py-1.5 transition-all">
                                             <span class="text-[10px] font-black uppercase tracking-widest">{{ $tag }}</span>
-                                            <div class="flex items-center gap-1.5 border-l border-blue-500/30 pl-2 ml-1">
-                                                <button wire:click="editGlobalTag('{{ $tag }}')" class="text-blue-400/70 hover:text-blue-400 transition-colors" title="Tag umbenennen">
+                                            <div class="flex items-center gap-1.5 border-l border-[var(--theme-color-30)] pl-2 ml-1">
+                                                <button wire:click="editGlobalTag('{{ $tag }}')" class="text-[var(--theme-color)]/70 hover:text-[var(--theme-color)] transition-colors" title="Tag umbenennen">
                                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                 </button>
                                                 <button wire:click="deleteGlobalTag('{{ $tag }}')" wire:confirm="Tag '{{ $tag }}' wirklich von allen Kostenstellen global entfernen?" class="text-red-400/70 hover:text-red-400 transition-colors" title="Tag global löschen">
@@ -378,6 +392,147 @@
                                     <span class="text-xs text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
                                 @endforelse
                             </div>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- ARCHIV SECTION --}}
+                @if($showArchive)
+                    <div x-data="{ expandedArchive: true }" class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-[var(--theme-color-20)] overflow-hidden mt-8 mb-8 animate-fade-in-down">
+                        <div class="bg-[var(--theme-color-5)] px-6 sm:px-8 py-5 border-b border-[var(--theme-color-20)] flex justify-between items-center cursor-pointer hover:bg-[var(--theme-color-10)] transition-colors shadow-inner"
+                             @click="expandedArchive = !expandedArchive">
+                            <div class="flex items-center gap-4">
+                                <div class="p-2.5 bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] rounded-xl shadow-[0_0_15px_var(--theme-color-20)] shrink-0">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-base sm:text-lg font-serif font-bold text-[var(--theme-color)] flex flex-wrap items-center gap-3 tracking-wide">
+                                        Archiv: Gelöschte Kostenstellen
+                                        <span class="bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $this->archivedItems->count() }} Archiviert</span>
+                                    </h3>
+                                    <p class="text-[10px] sm:text-xs text-gray-400 font-medium mt-1">Hier findest du alle archivierten Kostenstellen. Sie können wiederhergestellt oder endgültig gelöscht werden.</p>
+                                </div>
+                            </div>
+
+                            <div class="text-[var(--theme-color)]/50 transition-transform duration-300 shrink-0 ml-4" :class="expandedArchive ? 'rotate-180 text-[var(--theme-color)]' : ''">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div x-show="expandedArchive" x-collapse>
+                            @if($this->archivedItems->count() > 0)
+                                {{-- Mobile View --}}
+                                <div class="block md:hidden divide-y divide-gray-800/50">
+                                    @foreach($this->archivedItems as $archivedItem)
+                                        <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                            <div class="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <p class="font-bold text-white text-sm mb-1">{{ $archivedItem->name }}</p>
+                                                    <p class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)]/80">{{ $archivedItem->group?->name ?? 'Ohne Gruppe' }}</p>
+                                                </div>
+                                                <div class="text-right">
+                                                    <span class="text-sm font-bold text-white font-mono">{{ number_format($archivedItem->amount, 2, ',', '.') }} €</span>
+                                                    <span class="block text-[9px] text-gray-500 uppercase tracking-wider">alle {{ $archivedItem->interval }} Mon.</span>
+                                                </div>
+                                            </div>
+
+                                            @if(!empty($archivedItem->tags))
+                                                <div class="flex flex-wrap gap-1.5 my-2">
+                                                    @foreach($archivedItem->tags as $t)
+                                                        <span class="text-[8px] bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">{{ $t }}</span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+
+                                            <div class="text-[10px] text-gray-500 mb-3">
+                                                Archiviert am: {{ $archivedItem->deleted_at?->format('d.m.Y H:i') }}
+                                            </div>
+
+                                            <div class="flex gap-2">
+                                                <button wire:click="restoreItem('{{ $archivedItem->id }}')" class="flex-1 text-[9px] bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 px-3 py-2 rounded-xl transition-all font-black uppercase tracking-widest border border-emerald-500/20 flex items-center justify-center gap-1.5 shadow-sm">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                                    Wiederherstellen
+                                                </button>
+                                                <button wire:click="forceDeleteItem('{{ $archivedItem->id }}')" wire:confirm="Möchtest du diese Kostenstelle wirklich UNWIDERRUFLICH löschen? Dies kann nicht rückgängig gemacht werden!" class="text-[9px] bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 px-3 py-2 rounded-xl transition-all font-black uppercase tracking-widest border border-red-500/20 flex items-center justify-center gap-1.5 shadow-sm">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                    Endgültig
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                {{-- Desktop Table View --}}
+                                <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
+                                    <table class="w-full text-sm text-left min-w-[700px]">
+                                        <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                            <tr>
+                                                <th class="px-8 py-4">Kostenstelle</th>
+                                                <th class="px-4 py-4">Gruppe</th>
+                                                <th class="px-4 py-4">Betrag & Intervall</th>
+                                                <th class="px-4 py-4">Tags</th>
+                                                <th class="px-4 py-4">Archiviert am</th>
+                                                <th class="px-8 py-4 text-right">Aktionen</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                            @foreach($this->archivedItems as $archivedItem)
+                                                <tr class="hover:bg-gray-800/30 transition-colors group">
+                                                    <td class="px-8 py-5">
+                                                        <div class="font-bold text-white tracking-wide">{{ $archivedItem->name }}</div>
+                                                        @if($archivedItem->provider_company)
+                                                            <div class="text-[11px] text-gray-400">{{ $archivedItem->provider_company }}</div>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-4 py-5 text-gray-400 font-medium">
+                                                        {{ $archivedItem->group?->name ?? '—' }}
+                                                    </td>
+                                                    <td class="px-4 py-5">
+                                                        <span class="font-bold text-white font-mono">{{ number_format($archivedItem->amount, 2, ',', '.') }} €</span>
+                                                        <span class="text-[10px] text-gray-500 block">alle {{ $archivedItem->interval }} Mon.</span>
+                                                    </td>
+                                                    <td class="px-4 py-5">
+                                                        <div class="flex flex-wrap gap-1">
+                                                            @forelse($archivedItem->tags ?? [] as $t)
+                                                                <span class="text-[8px] bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">{{ $t }}</span>
+                                                            @empty
+                                                                <span class="text-[11px] text-gray-600 italic">keine</span>
+                                                            @endforelse
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-4 py-5 text-xs text-gray-400">
+                                                        {{ $archivedItem->deleted_at?->format('d.m.Y H:i') }}
+                                                    </td>
+                                                    <td class="px-8 py-5 text-right whitespace-nowrap">
+                                                        <div class="inline-flex items-center gap-2">
+                                                            <button wire:click="restoreItem('{{ $archivedItem->id }}')" class="text-[9px] bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 px-3 py-1.5 rounded-xl transition-all font-black uppercase tracking-widest border border-emerald-500/20 inline-flex items-center gap-1.5 shadow-sm">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                                                Wiederherstellen
+                                                            </button>
+                                                            <button wire:click="forceDeleteItem('{{ $archivedItem->id }}')" wire:confirm="Möchtest du diese Kostenstelle wirklich UNWIDERRUFLICH löschen? Dies kann nicht rückgängig gemacht werden!" class="text-[9px] bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 px-3 py-1.5 rounded-xl transition-all font-black uppercase tracking-widest border border-red-500/20 inline-flex items-center gap-1.5 shadow-sm">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                                Endgültig löschen
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @else
+                                <div class="p-8 text-center">
+                                    <svg class="w-10 h-10 mx-auto text-[var(--theme-color)]/40 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                    </svg>
+                                    <p class="text-sm font-semibold text-gray-300">Das Archiv ist leer</p>
+                                    <p class="text-xs text-gray-500 mt-1">Hier erscheinen Kostenstellen, sobald sie gelöscht wurden.</p>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 @endif
@@ -399,7 +554,7 @@
                 {{-- Suchleiste direkt unterhalb "Finanzielle Aufteilung" --}}
                 <div class="relative bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-800 p-4 shadow-2xl flex items-center gap-4 group/search">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-full blur-[40px] -translate-y-1/2 translate-x-1/3 pointer-events-none transition-all duration-300 group-hover/search:bg-[var(--theme-color-10)]"></div>
-                    <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-400 shadow-inner shrink-0 group-focus-within/search:bg-blue-500/20 transition-all duration-300">
+                    <div class="p-3 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-2xl text-[var(--theme-color)] shadow-inner shrink-0 group-focus-within/search:bg-[var(--theme-color-20)] transition-all duration-300">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>

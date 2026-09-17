@@ -660,9 +660,13 @@ trait AiTaskFuncs
             $content = '';
             
             if ($extension === 'pdf') {
-                $parser = new \Smalot\PdfParser\Parser();
-                $pdf = $parser->parseFile($absolutePath);
-                $content = $pdf->getText();
+                if (class_exists(\App\Services\AI\AIFunctionsRegistry::class) && method_exists(\App\Services\AI\AIFunctionsRegistry::class, 'extractPdfContent')) {
+                    $content = \App\Services\AI\AIFunctionsRegistry::extractPdfContent($absolutePath);
+                } else {
+                    $parser = new \Smalot\PdfParser\Parser();
+                    $pdf = $parser->parseFile($absolutePath);
+                    $content = $pdf->getText();
+                }
             } elseif (in_array($extension, ['txt', 'csv', 'md', 'json', 'xml'])) {
                 $content = file_get_contents($absolutePath);
             } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'webp', 'gif'])) {
