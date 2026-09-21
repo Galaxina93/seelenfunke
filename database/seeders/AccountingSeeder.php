@@ -597,7 +597,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Auto',
                 'name'        => 'Autoversicherung',
-                'amount'      => -727.58,
+                'amount'      => -387.23,
                 'interval'    => 12,
                 'start_date'  => '2023-09-25',
                 'provider_company' => 'Allianz Generalvertretung Andreas Wiegand',
