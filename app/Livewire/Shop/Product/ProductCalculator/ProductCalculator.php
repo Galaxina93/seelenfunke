@@ -383,12 +383,12 @@ class ProductCalculator extends Component
                 $this->shippingCost = 4.90;
             }
         } else {
-            $zone = \App\Models\Logistics\LogisticsShippingZone::whereHas('countries', function($q) use ($countryCode) {
+            $zone = \App\Models\Logistics\LogisticsShippingZone::where('is_active', true)->whereHas('countries', function($q) use ($countryCode) {
                 $q->where('country_code', $countryCode);
             })->with('rates')->first();
 
             if (!$zone) {
-                $zone = \App\Models\Logistics\LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
+                $zone = \App\Models\Logistics\LogisticsShippingZone::where('is_active', true)->where('name', 'Weltweit')->with('rates')->first();
             }
 
             if ($zone && count($this->cartItems) > 0) {

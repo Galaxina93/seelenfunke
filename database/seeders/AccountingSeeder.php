@@ -137,7 +137,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Einnahmen',
                 'name'        => 'Miete',
-                'amount'      => 550.00,
+                'amount'      => 595.00,
                 'interval'    => 1,
                 'start_date'  => '2025-07-22',
                 'description' => null,
@@ -152,6 +152,15 @@ class AccountingSeeder extends Seeder
                 'notice_period'    => '3 Monate',
                 'tags'        => ['Einnahme', 'Immobilie', 'Passiv', 'Mieteinnahmen'],
                 'contract_file_path' => 'buchhaltung/contracts/2025/07/2025-07-22_Vermieter_Miete.pdf'
+            ],
+            [
+                'group'       => 'Einnahmen',
+                'name'        => 'Internet Mieterin',
+                'amount'      => 25.00,
+                'interval'    => 1,
+                'start_date'  => '2025-07-22',
+                'description' => 'Monatlicher Anteil für Internet von der Mieterin.',
+                'tags'        => ['Einnahme', 'Internet', 'Mieterin', 'Nebenkosten'],
             ],
 
             // Haus (Ausgaben = Negativ)
@@ -383,24 +392,6 @@ class AccountingSeeder extends Seeder
             ],
             [
                 'group'       => 'Versicherungen',
-                'name'        => 'Rechtss. Gew. & Privat',
-                'amount'      => -317.97,
-                'interval'    => 12,
-                'start_date'  => '2021-09-14',
-                'provider_company' => 'ARAG SE',
-                'provider_street'  => 'ARAG Platz 1',
-                'provider_zip'     => '40472',
-                'provider_city'    => 'Düsseldorf',
-                'provider_phone'   => '(0211) 9890-2478',
-                'provider_email'   => 'service@ARAG.de',
-                'provider_website' => 'www.ARAG.de',
-                'contract_number'  => '11 0085 1757 8482',
-                'description' => null,
-                'tags'        => ['Versicherung', 'Recht', 'Absicherung', 'Gewerbe', 'Privat', 'ARAG'],
-                'contract_file_path' => 'buchhaltung/contracts/2021/09/2021-09-14_ARAG_Rechtsschutz-Gewerbe-Privat.pdf'
-            ],
-            [
-                'group'       => 'Versicherungen',
                 'name'        => 'Zahnzusatzversicherung',
                 'amount'      => -23.58,
                 'interval'    => 1,
@@ -543,7 +534,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Vertrag & Lizenz',
                 'name'        => 'Hosting',
-                'amount'      => -35.00,
+                'amount'      => -48,79,
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-04-15',
                 'is_business' => 1,

@@ -6,6 +6,7 @@
             <header class="mb-16 text-center md:text-left border-b pb-8">
                 <h1 class="text-3xl md:text-4xl font-serif font-bold mb-6 text-gray-900">Impressum</h1>
                 <div class="space-y-1 text-base leading-relaxed">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Angaben gemäß § 5 DDG</p>
                     <p>
                         <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong><br>
                         Inhaberin: {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
@@ -14,7 +15,7 @@
                     </p>
 
                     <div class="pt-4 space-y-2">
-                        <strong>Kontakt & Kommunikation:</strong><br>
+                        <strong>Kontakt:</strong><br>
 
                         <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
                             <span class="text-gray-500 font-medium min-w-[120px]">Telefon:</span>
@@ -22,7 +23,7 @@
                         </div>
 
                         <div class="flex flex-col sm:flex-row sm:gap-8 gap-2">
-                            <span class="text-gray-500 font-medium min-w-[120px]">Allgemein:</span>
+                            <span class="text-gray-500 font-medium min-w-[120px]">E-Mail:</span>
                             <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-primary hover:underline font-medium">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a>
                         </div>
 
@@ -49,14 +50,25 @@
                     </div>
 
                     <p class="pt-4 text-sm text-gray-600">
-                        <strong>Rechtliche Angaben:</strong><br>
+                        <strong>Umsatzsteuer-Identifikationsnummer / Steuernummer:</strong><br>
                         Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
                         @if(shop_setting('owner_ust_id'))
-                            USt-IdNr.: {{ shop_setting('owner_ust_id') }}<br>
+                            USt-IdNr. gemäß § 27 a Umsatzsteuergesetz: {{ shop_setting('owner_ust_id') }}<br>
                         @endif
-                        Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}<br>
-                        IBAN: {{ shop_setting('owner_iban', 'Wird nachgereicht') }}
+                        Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}
                     </p>
+
+                    <p class="pt-4 text-sm text-gray-600">
+                        <strong>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV:</strong><br>
+                        {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                        {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                        {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}
+                    </p>
+
+                    <div class="pt-4 text-sm text-gray-600">
+                        <strong>Verbraucherstreitbeilegung / Universalschlichtungsstelle:</strong><br>
+                        Wir sind nicht bereit oder verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen (§ 36 VSBG).
+                    </div>
                 </div>
             </header>
 
@@ -169,11 +181,10 @@
                         </div>
 
                         <div id="streitbeilegung" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Streitbeilegung</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Verbraucherstreitbeilegung</h3>
                             <p>
-                                Die Europäische Kommission hat die Online-Streitbeilegungsplattform (OS-Plattform) zum 20. Juli 2025 eingestellt. Informationen und Kontaktmöglichkeiten zu nationalen Verbraucherschlichtungsstellen finden Sie im neuen offiziellen Portal der Europäischen Kommission unter: <a href="https://consumer-redress.ec.europa.eu/dispute-resolution-bodies" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline decoration-primary underline-offset-2">https://consumer-redress.ec.europa.eu/dispute-resolution-bodies</a>.
-                                <br><br>
-                                <strong>Information gemäß § 36 VSBG:</strong> Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
+                                <strong>Information gemäß § 36 VSBG:</strong><br>
+                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
                             </p>
                         </div>
                     </div>

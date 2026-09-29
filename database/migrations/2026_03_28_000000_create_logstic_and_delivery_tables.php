@@ -12,7 +12,9 @@ return new class extends Migration
         Schema::create('logistics_shipping_zones', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('name');
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
 
         // 2. Shipping Rates

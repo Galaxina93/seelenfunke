@@ -22,7 +22,7 @@ class LogisticsShippingSeeder extends Seeder
         // =================================================================
         // ZONE 1: DEUTSCHLAND
         // =================================================================
-        $de = LogisticsShippingZone::create(['name' => 'Deutschland']);
+        $de = LogisticsShippingZone::create(['name' => 'Deutschland', 'is_active' => true]);
         $de->countries()->create(['country_code' => 'DE']);
 
         // < 50 € = 4,90 €
@@ -37,7 +37,7 @@ class LogisticsShippingSeeder extends Seeder
         // =================================================================
         // ZONE 2: EUROPÄISCHE UNION (DHL ZONE 1 Preise)
         // =================================================================
-        $eu = LogisticsShippingZone::create(['name' => 'EU - Zone 1 (DHL)']);
+        $eu = LogisticsShippingZone::create(['name' => 'EU - Zone 1 (DHL)', 'is_active' => true]);
 
         // Alle DHL Zone 1 Länder (EU)
         $euCountries = [

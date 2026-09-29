@@ -559,13 +559,14 @@ class CartService
         $globalDefaultCost = (int) shop_setting('shipping_cost', 490);
 
         // 1. Zone finden (DE oder Ausland)
-        $zone = \App\Models\Logistics\LogisticsShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
+        $zone = \App\Models\Logistics\LogisticsShippingZone::where('is_active', true)
+            ->whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
 
         // Fallback "Weltweit"
         if (!$zone) {
-            $zone = \App\Models\Logistics\LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            $zone = \App\Models\Logistics\LogisticsShippingZone::where('is_active', true)->where('name', 'Weltweit')->with('rates')->first();
         }
 
         // Initialisierung der Status-Variablen für DE (Prioritäts-Logik)

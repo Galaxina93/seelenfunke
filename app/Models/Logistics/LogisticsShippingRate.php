@@ -10,4 +10,9 @@ class LogisticsShippingRate extends Model
     use HasUuids;
 
     protected $guarded = [];
+
+    public function zone()
+    {
+        return $this->belongsTo(LogisticsShippingZone::class, 'logistics_shipping_zone_id');
+    }
 }

@@ -18,9 +18,11 @@ class SystemShipping extends Component
     // --- STATE ---
     public $view = 'list'; // 'list', 'edit', 'create'
     public $activeZoneId = null;
+    public bool $showArchived = false;
 
     // --- FORM DATA (Zone Edit) ---
     public $zoneName;
+    public bool $zoneIsActive = true;
 
     // --- FORM DATA (Rate Add) ---
     public $newRate = [
@@ -56,9 +58,10 @@ class SystemShipping extends Component
     {
         $this->resetInput();
         $this->activeZoneId = $id;
-        $zone = LogisticsShippingZone::findOrFail($id);
+        $zone = LogisticsShippingZone::withTrashed()->findOrFail($id);
 
         $this->zoneName = $zone->name;
+        $this->zoneIsActive = (bool) $zone->is_active;
         $this->view = 'edit';
     }
 
@@ -72,6 +75,7 @@ class SystemShipping extends Component
     {
         $this->activeZoneId = null;
         $this->zoneName = '';
+        $this->zoneIsActive = true;
         $this->selectedCountryToAdd = '';
         $this->newRate = [
             'name' => 'Standard',
@@ -90,25 +94,111 @@ class SystemShipping extends Component
         ]);
 
         if ($this->view === 'create') {
-            $zone = LogisticsShippingZone::create(['name' => $this->zoneName]);
+            $zone = LogisticsShippingZone::create([
+                'name' => $this->zoneName,
+                'is_active' => $this->zoneIsActive,
+            ]);
             $this->activeZoneId = $zone->id;
             session()->flash('success', 'Versandzone erstellt. Füge nun Länder hinzu.');
             $this->view = 'edit';
         } else {
-            $zone = LogisticsShippingZone::findOrFail($this->activeZoneId);
-            $zone->update(['name' => $this->zoneName]);
+            $zone = LogisticsShippingZone::withTrashed()->findOrFail($this->activeZoneId);
+            $zone->update([
+                'name' => $this->zoneName,
+                'is_active' => $this->zoneIsActive,
+            ]);
             session()->flash('success', 'Versandzone aktualisiert.');
         }
 
+        $this->syncActiveCountriesWithSettings();
         $this->dispatchMapUpdate();
+    }
+
+    public function toggleZoneActive($id)
+    {
+        $zone = LogisticsShippingZone::withTrashed()->findOrFail($id);
+        $zone->is_active = !$zone->is_active;
+        $zone->save();
+
+        $this->syncActiveCountriesWithSettings();
+        $this->dispatchMapUpdate();
+        session()->flash('success', "Zone '{$zone->name}' ist nun " . ($zone->is_active ? 'aktiv' : 'inaktiv') . '.');
+    }
+
+    public function archiveZone($id)
+    {
+        $zone = LogisticsShippingZone::findOrFail($id);
+        $name = $zone->name;
+        $zone->delete();
+
+        if ($this->activeZoneId === $id) {
+            $this->cancel();
+        }
+
+        $this->syncActiveCountriesWithSettings();
+        $this->dispatchMapUpdate();
+        session()->flash('success', "Zone '{$name}' wurde ins Archiv verschoben.");
+    }
+
+    public function restoreZone($id)
+    {
+        $zone = LogisticsShippingZone::onlyTrashed()->findOrFail($id);
+        $name = $zone->name;
+        $zone->restore();
+
+        $this->syncActiveCountriesWithSettings();
+        $this->dispatchMapUpdate();
+        session()->flash('success', "Zone '{$name}' wurde erfolgreich wiederhergestellt.");
+    }
+
+    public function forceDeleteZone($id)
+    {
+        $zone = LogisticsShippingZone::onlyTrashed()->findOrFail($id);
+        $name = $zone->name;
+
+        // Cascade delete countries and rates
+        $zone->countries()->delete();
+        $zone->rates()->delete();
+        $zone->forceDelete();
+
+        if ($this->activeZoneId === $id) {
+            $this->cancel();
+        }
+
+        $this->syncActiveCountriesWithSettings();
+        $this->dispatchMapUpdate();
+        session()->flash('success', "Zone '{$name}' wurde endgültig gelöscht.");
     }
 
     public function deleteZone($id)
     {
-        LogisticsShippingZone::destroy($id);
-        session()->flash('success', 'Zone gelöscht.');
-        $this->cancel();
-        $this->dispatchMapUpdate();
+        $this->archiveZone($id);
+    }
+
+    public function syncActiveCountriesWithSettings(): void
+    {
+        $activeCountryCodes = LogisticsShippingZoneCountry::whereHas('zone', function ($q) {
+            $q->whereNull('deleted_at')->where('is_active', true);
+        })->pluck('country_code')->map(fn($c) => strtoupper($c))->unique()->toArray();
+
+        $allCountries = $this->getAllCountries();
+        $activeCountriesMap = [];
+        foreach ($activeCountryCodes as $code) {
+            if (isset($allCountries[$code])) {
+                $activeCountriesMap[$code] = $allCountries[$code];
+            }
+        }
+
+        // Falls keine Zonen aktiv sind, mindestens DE als Standard belassen
+        if (empty($activeCountriesMap) && isset($allCountries['DE'])) {
+            $activeCountriesMap['DE'] = $allCountries['DE'];
+        }
+
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'active_countries'],
+            ['value' => json_encode($activeCountriesMap)]
+        );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
     }
 
     public function addCountry()
@@ -131,12 +221,14 @@ class SystemShipping extends Component
         $this->selectedCountryToAdd = '';
         session()->flash('success', 'Land hinzugefügt.');
 
+        $this->syncActiveCountriesWithSettings();
         $this->dispatchMapUpdate();
     }
 
     public function removeCountry($id)
     {
         LogisticsShippingZoneCountry::destroy($id);
+        $this->syncActiveCountriesWithSettings();
         $this->dispatchMapUpdate();
     }
 
@@ -194,6 +286,14 @@ class SystemShipping extends Component
         session()->flash('success', 'Tarif gelöscht.');
     }
 
+    public function toggleArchiveView($show = null)
+    {
+        $this->showArchived = is_null($show) ? !$this->showArchived : (bool) $show;
+        if ($this->view !== 'list') {
+            $this->cancel();
+        }
+    }
+
     private function dispatchMapUpdate()
     {
         $this->dispatch('map-updated', activeCodes: $this->mapVisuals['activeCodes']);
@@ -207,13 +307,16 @@ class SystemShipping extends Component
         $activeCodes = [];
 
         foreach ($zones as $index => $zone) {
-            $color = $this->zoneColors[$index % count($this->zoneColors)];
-            $legend[$zone->name] = $color;
+            $isActive = (bool) $zone->is_active;
+            $color = $isActive ? $this->zoneColors[$index % count($this->zoneColors)] : '#64748b';
+            $label = $zone->name . ($isActive ? '' : ' (Inaktiv)');
+            $legend[$label] = $color;
 
             foreach ($zone->countries as $country) {
                 $code = strtoupper($country->country_code);
-                $css .= ".jvm-region[data-code='{$code}'] { fill: {$color} !important; fill-opacity: 0.65 !important; stroke: rgba(255,255,255,0.2) !important; stroke-width: 1px !important; } ";
-                $activeCodes[$code] = $zone->name;
+                $opacity = $isActive ? '0.65' : '0.25';
+                $css .= ".jvm-region[data-code='{$code}'] { fill: {$color} !important; fill-opacity: {$opacity} !important; stroke: rgba(255,255,255,0.2) !important; stroke-width: 1px !important; } ";
+                $activeCodes[$code] = $label;
             }
         }
 
@@ -227,23 +330,26 @@ class SystemShipping extends Component
     public function render()
     {
         $stats = [
-            'zones' => LogisticsShippingZone::count(),
-            'countries_covered' => LogisticsShippingZoneCountry::count(),
-            'rates' => LogisticsShippingRate::count(),
+            'zones' => LogisticsShippingZone::where('is_active', true)->count(),
+            'inactive_zones' => LogisticsShippingZone::where('is_active', false)->count(),
+            'archived_zones' => LogisticsShippingZone::onlyTrashed()->count(),
+            'countries_covered' => LogisticsShippingZoneCountry::whereHas('zone', fn($q) => $q->whereNull('deleted_at')->where('is_active', true))->count(),
+            'rates' => LogisticsShippingRate::whereHas('zone', fn($q) => $q->whereNull('deleted_at')->where('is_active', true))->count(),
         ];
 
         $zones = LogisticsShippingZone::withCount(['countries', 'rates'])->get();
+        $archivedZones = LogisticsShippingZone::onlyTrashed()->withCount(['countries', 'rates'])->get();
 
         $activeZoneData = null;
         if ($this->activeZoneId) {
-            $activeZoneData = LogisticsShippingZone::with(['countries', 'rates' => function($q) {
+            $activeZoneData = LogisticsShippingZone::withTrashed()->with(['countries', 'rates' => function($q) {
                 $q->orderBy('min_weight', 'asc');
             }])->find($this->activeZoneId);
         }
 
         // DYNAMISCHE BERECHNUNG DER VERFÜGBAREN LÄNDER BEI JEDEM RENDER-ZYKLUS
         $allCountries = $this->getAllCountries();
-        $assignedCodes = LogisticsShippingZoneCountry::pluck('country_code')->toArray();
+        $assignedCodes = LogisticsShippingZoneCountry::whereHas('zone', fn($q) => $q->whereNull('deleted_at'))->pluck('country_code')->toArray();
 
         $availableCountries = array_filter($allCountries, function($code) use ($assignedCodes) {
             return !in_array(strtoupper($code), array_map('strtoupper', $assignedCodes));
@@ -254,11 +360,12 @@ class SystemShipping extends Component
 
         return view('livewire.shop.system.system-shipping', [
             'zones' => $zones,
+            'archivedZones' => $archivedZones,
             'stats' => $stats,
             'activeZoneModel' => $activeZoneData,
             'mapVisuals' => $this->mapVisuals,
             'allCountries' => $allCountries,
-            'availableCountries' => $availableCountries // Wird nun direkt frisch übergeben
+            'availableCountries' => $availableCountries
         ]);
     }
 }

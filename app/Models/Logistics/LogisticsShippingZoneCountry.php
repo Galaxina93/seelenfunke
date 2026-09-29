@@ -11,4 +11,9 @@ class LogisticsShippingZoneCountry extends Model
 
     protected $guarded = [];
     public $timestamps = false;
+
+    public function zone()
+    {
+        return $this->belongsTo(LogisticsShippingZone::class, 'logistics_shipping_zone_id');
+    }
 }

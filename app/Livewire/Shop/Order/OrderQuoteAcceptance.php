@@ -197,12 +197,12 @@ class OrderQuoteAcceptance extends Component
             }
         } else {
             // Ausland: Zone suchen
-            $zone = LogisticsShippingZone::whereHas('countries', function($q) use ($countryCode) {
+            $zone = LogisticsShippingZone::where('is_active', true)->whereHas('countries', function($q) use ($countryCode) {
                 $q->where('country_code', $countryCode);
             })->with('rates')->first();
 
             if (!$zone) {
-                $zone = LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
+                $zone = LogisticsShippingZone::where('is_active', true)->where('name', 'Weltweit')->with('rates')->first();
             }
 
             if ($zone && !$this->quote->items->isEmpty()) {

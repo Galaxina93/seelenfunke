@@ -151,13 +151,12 @@
                             </p>
                         </div>
 
-                        {{-- §7 Streitbeilegung (AKTUALISIERT 2026 NACH WEGFALL DER OS-PLATTFORM) --}}
+                        {{-- §7 Verbraucherstreitbeilegung --}}
                         <div id="streitbeilegung" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Streitbeilegung</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">7. Verbraucherstreitbeilegung</h3>
                             <p>
-                                Die Europäische Kommission hat die Online-Streitbeilegungsplattform (OS-Plattform) zum 20. Juli 2025 eingestellt. Informationen und Kontaktmöglichkeiten zu nationalen Verbraucherschlichtungsstellen finden Sie im neuen offiziellen Portal der Europäischen Kommission unter: <a href="https://consumer-redress.ec.europa.eu/dispute-resolution-bodies" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline decoration-primary underline-offset-2">https://consumer-redress.ec.europa.eu/dispute-resolution-bodies</a>.
-                                <br><br>
-                                <strong>Information gemäß § 36 VSBG:</strong> Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
+                                <strong>Information gemäß § 36 VSBG:</strong><br>
+                                Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit.
                             </p>
                         </div>
 

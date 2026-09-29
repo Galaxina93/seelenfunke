@@ -109,13 +109,14 @@ class ShippingCalculatorService
         $globalDefaultCost = (int) shop_setting('shipping_cost', 490);
 
         // SCHRITT 1: Zone finden
-        $zone = LogisticsShippingZone::whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
+        $zone = LogisticsShippingZone::where('is_active', true)
+            ->whereHas('countries', fn($q) => $q->where('country_code', $countryCode))
             ->with('rates')
             ->first();
 
         // Fallback "Weltweit"
         if (!$zone) {
-            $zone = LogisticsShippingZone::where('name', 'Weltweit')->with('rates')->first();
+            $zone = LogisticsShippingZone::where('is_active', true)->where('name', 'Weltweit')->with('rates')->first();
         }
 
         // Initialisierung Status für DE (Prioritäts-Logik)

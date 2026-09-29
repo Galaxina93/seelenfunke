@@ -25,62 +25,62 @@
 
         {{-- Header (Anklickbar gemacht, um die Liste auf-/zuzuklappen) --}}
         <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
-            <div class="max-w-7xl mx-auto px-4 py-4 md:py-6 flex justify-between items-center">
-                <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
-                    <div class="p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-xl text-[var(--theme-color)] shadow-inner shrink-0">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 md:py-6 flex justify-between items-center gap-2">
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white flex items-center gap-2 sm:gap-3 tracking-tight shrink min-w-0">
+                    <div class="p-1.5 sm:p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-xl text-[var(--theme-color)] shadow-inner shrink-0">
+                        <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                     </div>
-                    <span>Fixkosten</span>
+                    <span class="truncate">Fixkosten</span>
                 </h1>
 
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 sm:gap-2.5 md:gap-3 shrink-0">
                     {{-- Dokumenten-Check Toggle --}}
                     <button wire:click="$toggle('showMissingDocs')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showMissingDocs ? ($missingContracts->count() > 0 ? 'ring-2 ring-red-500/50 bg-red-500/20 text-red-300 border-red-500' : 'ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 border-emerald-500') : ($missingContracts->count() > 0 ? 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20') }}"
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showMissingDocs ? ($missingContracts->count() > 0 ? 'ring-2 ring-red-500/50 bg-red-500/20 text-red-300 border-red-500' : 'ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 border-emerald-500') : ($missingContracts->count() > 0 ? 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20') }}"
                             title="{{ $missingContracts->count() > 0 ? 'Vertrags-Check: ' . $missingContracts->count() . ' fehlende Unterlagen' : 'Vertrags-Check: Alle Unterlagen vollständig' }}">
                         @if($missingContracts->count() > 0)
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                             </svg>
-                            <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                            <span class="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
                                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[8px] font-black text-white items-center justify-center">{{ $missingContracts->count() }}</span>
+                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-red-500 text-[7px] sm:text-[8px] font-black text-white items-center justify-center">{{ $missingContracts->count() }}</span>
                             </span>
                         @else
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                             </svg>
-                            <span class="absolute top-1 right-1 flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                            <span class="absolute top-1 right-1 flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
                         @endif
                     </button>
 
                     {{-- Daten-Check Toggle --}}
                     <button wire:click="$toggle('showMissingData')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showMissingData ? ($missingDataItems->count() > 0 ? 'ring-2 ring-yellow-500/50 bg-yellow-500/20 text-yellow-300 border-yellow-500' : 'ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 border-emerald-500') : ($missingDataItems->count() > 0 ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20') }}"
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showMissingData ? ($missingDataItems->count() > 0 ? 'ring-2 ring-yellow-500/50 bg-yellow-500/20 text-yellow-300 border-yellow-500' : 'ring-2 ring-emerald-500/50 bg-emerald-500/20 text-emerald-300 border-emerald-500') : ($missingDataItems->count() > 0 ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-500/20' : 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20') }}"
                             title="{{ $missingDataItems->count() > 0 ? 'Daten-Check: ' . $missingDataItems->count() . ' fehlende Datensätze' : 'Daten-Check: Alle Datensätze vollständig' }}">
                         @if($missingDataItems->count() > 0)
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
-                            <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                            <span class="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
                                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-4 w-4 bg-yellow-500 text-[8px] font-black text-gray-900 items-center justify-center">{{ $missingDataItems->count() }}</span>
+                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-yellow-500 text-[7px] sm:text-[8px] font-black text-gray-900 items-center justify-center">{{ $missingDataItems->count() }}</span>
                             </span>
                         @else
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
                             </svg>
-                            <span class="absolute top-1 right-1 flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
+                            <span class="absolute top-1 right-1 flex h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span>
                         @endif
                     </button>
 
                     {{-- Chart Toggle --}}
                     <button wire:click="$toggle('showChart')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showChart ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showChart ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
                             title="Finanzielle Aufteilung">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.003 9.003 0 1020.945 13H11V3.055z"></path>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path>
                         </svg>
@@ -88,23 +88,23 @@
 
                     {{-- Tag-Verwaltung Toggle --}}
                     <button wire:click="$toggle('showTagManagement')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showTagManagement ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showTagManagement ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
                             title="Tag-Verwaltung">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
                         </svg>
                     </button>
 
                     {{-- Archiv Toggle --}}
                     <button wire:click="$toggle('showArchive')" 
-                            class="relative p-2.5 rounded-xl transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : ($this->archivedItems->count() > 0 ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-800/40 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:bg-gray-800') }}"
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : ($this->archivedItems->count() > 0 ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-800/40 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:bg-gray-800') }}"
                             title="{{ $this->archivedItems->count() > 0 ? 'Archiv: ' . $this->archivedItems->count() . ' archivierte Kostenstellen' : 'Archiv: Keine archivierten Kostenstellen' }}">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
                         @if($this->archivedItems->count() > 0)
-                            <span class="absolute -top-1.5 -right-1.5 flex h-4 w-4">
-                                <span class="relative inline-flex rounded-full h-4 w-4 bg-[var(--theme-color)] text-[8px] font-black text-gray-900 items-center justify-center shadow-[0_0_8px_var(--theme-color-50)]">{{ $this->archivedItems->count() }}</span>
+                            <span class="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
+                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-[var(--theme-color)] text-[7px] sm:text-[8px] font-black text-gray-900 items-center justify-center shadow-[0_0_8px_var(--theme-color-50)]">{{ $this->archivedItems->count() }}</span>
                             </span>
                         @endif
                     </button>
