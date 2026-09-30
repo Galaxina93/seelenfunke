@@ -120,42 +120,44 @@ class GeminiAgent implements AiProviderInterface
                              "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
                              "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
 
-        if (file_exists(base_path('ai_map.md'))) {
+        if ($isAdmin && file_exists(base_path('ai_map.md'))) {
             $systemPromptText .= "\n\n[ARCHITEKTUR-KARTE / INDEX]\n" .
                                  "Es existiert eine Map-Datei unter `" . base_path('ai_map.md') . "`. LIES DIESE DATEI ZUERST (als Werkzeugaufruf), wenn du Code-Strukturen, Models oder Controller suchst. Das erspart dir mühsames Suchen im Dateisystem!";
         }
 
-        $systemPromptText .= "\n\n<planning_mode>\n" .
-                             "You are an advanced agentic AI coding assistant built by Antigravity.\n" .
-                             "You are in Planning Mode. Exercise judgement on whether a user's request warrants a plan before taking action.\n\n" .
-                             "Wenn ein User tiefe Architekturänderungen, Log-Analysen oder Code-Anpassungen befiehlt, handle WIE EIN AUTONOMER AGENT:\n" .
-                             "Phase 1: Research. Nutze Tools wie system_read_code oder system_list_directory, um den Code zu analysieren.\n" .
-                             "Phase 2: Create Implementation Plan. Nutze system_write_artifact um ein 'implementation_plan' Artefakt zu generieren. Danach rufst du ZWINGEND system_request_user_approval auf, um auf die Erlaubnis des Users zu warten!\n" .
-                             "Phase 3: Execute & Track Task. Wenn der User den Plan genehmigt, dann NUTZT DU DEINE WERKZEUGE (z.B. system_multi_replace_file) UM DEN CODE SELBSTSTÄNDIG ZU ÄNDERN! Halte ein 'task' Artefakt als Todo-Liste aktuell.\n" .
-                             "Phase 4: Verify. Lies die Logs oder checke den Status, um zu testen, ob dein Code funktioniert.\n" .
-                             "WICHTIG: Erkläre dem User nicht, was er tun soll. DU BIST DER PROGRAMMIERER. ÄNDERE DIE DATEIEN SELBST!\n" .
-                             "</planning_mode>";
+        if ($isAdmin) {
+            $systemPromptText .= "\n\n<planning_mode>\n" .
+                                 "You are an advanced agentic AI coding assistant built by Antigravity.\n" .
+                                 "You are in Planning Mode. Exercise judgement on whether a user's request warrants a plan before taking action.\n\n" .
+                                 "Wenn ein User tiefe Architekturänderungen, Log-Analysen oder Code-Anpassungen befiehlt, handle WIE EIN AUTONOMER AGENT:\n" .
+                                 "Phase 1: Research. Nutze Tools wie system_read_code oder system_list_directory, um den Code zu analysieren.\n" .
+                                 "Phase 2: Create Implementation Plan. Nutze system_write_artifact um ein 'implementation_plan' Artefakt zu generieren. Danach rufst du ZWINGEND system_request_user_approval auf, um auf die Erlaubnis des Users zu warten!\n" .
+                                 "Phase 3: Execute & Track Task. Wenn der User den Plan genehmigt, dann NUTZT DU DEINE WERKZEUGE (z.B. system_multi_replace_file) UM DEN CODE SELBSTSTÄNDIG ZU ÄNDERN! Halte ein 'task' Artefakt als Todo-Liste aktuell.\n" .
+                                 "Phase 4: Verify. Lies die Logs oder checke den Status, um zu testen, ob dein Code funktioniert.\n" .
+                                 "WICHTIG: Erkläre dem User nicht, was er tun soll. DU BIST DER PROGRAMMIERER. ÄNDERE DIE DATEIEN SELBST!\n" .
+                                 "</planning_mode>";
 
-        // === ARTIFACT INJECTION (ANTIGRAVITY ARCHITECTURE) ===
-        $sessionId = config('ai.current_session_id') ?: session()->getId();
-        if (!empty($sessionId)) {
-            $artifactPath = 'agenten/ai-artifacts/' . $sessionId;
-            $artifactsPrompt = "";
-            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath)) {
-                $files = ['implementation_plan.md', 'task.md', 'walkthrough.md'];
-                foreach ($files as $file) {
-                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath . '/' . $file)) {
-                        $content = \Illuminate\Support\Facades\Storage::disk('local')->get($artifactPath . '/' . $file);
-                        $artifactsPrompt .= "\n[ARTIFACT: " . str_replace('.md', '', $file) . "]\nPath: " . storage_path('app/' . $artifactPath . '/' . $file) . "\n" . trim($content) . "\n\n";
+            // === ARTIFACT INJECTION (ANTIGRAVITY ARCHITECTURE) ===
+            $sessionId = config('ai.current_session_id') ?: session()->getId();
+            if (!empty($sessionId)) {
+                $artifactPath = 'agenten/ai-artifacts/' . $sessionId;
+                $artifactsPrompt = "";
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath)) {
+                    $files = ['implementation_plan.md', 'task.md', 'walkthrough.md'];
+                    foreach ($files as $file) {
+                        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath . '/' . $file)) {
+                            $content = \Illuminate\Support\Facades\Storage::disk('local')->get($artifactPath . '/' . $file);
+                            $artifactsPrompt .= "\n[ARTIFACT: " . str_replace('.md', '', $file) . "]\nPath: " . storage_path('app/' . $artifactPath . '/' . $file) . "\n" . trim($content) . "\n\n";
+                        }
                     }
                 }
-            }
-            if (!empty($artifactsPrompt)) {
-                $systemPromptText .= "\n\n<artifacts>\n" .
-                                     "Artifacts are special markdown documents that you created to present structured information to the user.\n" .
-                                     "The following artifacts currently exist for your session:\n" .
-                                     $artifactsPrompt .
-                                     "</artifacts>";
+                if (!empty($artifactsPrompt)) {
+                    $systemPromptText .= "\n\n<artifacts>\n" .
+                                         "Artifacts are special markdown documents that you created to present structured information to the user.\n" .
+                                         "The following artifacts currently exist for your session:\n" .
+                                         $artifactsPrompt .
+                                         "</artifacts>";
+                }
             }
         }
 

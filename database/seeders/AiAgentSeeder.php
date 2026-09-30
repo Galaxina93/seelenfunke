@@ -332,9 +332,10 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name')
                  ),
 
-                'Supporter' => array_merge(
-                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name')
-                ),
+                'Supporter' => array_values(array_filter(
+                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                    fn($name) => !str_starts_with($name, 'admin_')
+                )),
 
                 'Hausarzt' => array_merge(
                     array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
@@ -392,7 +393,10 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
             $allToolsCollection = AiTool::all();
             foreach ($domainAssignments as $roleName => $specificTools) {
                 if (isset($rolesMap[$roleName])) {
-                    $toolsForThisRole = array_merge($specificTools, $baseSystemTools);
+                    // Supporter ist ein kundenorientierter Support-Agent und darf KEINE internen System-, Brain- oder Agenten-Kommunikations-Tools erben!
+                    $toolsForThisRole = ($roleName === 'Supporter')
+                        ? array_merge($specificTools, ['system_get_current_time'])
+                        : array_merge($specificTools, $baseSystemTools);
                     $roleToolIds = $allToolsCollection->whereIn('identifier', $toolsForThisRole)->pluck('id');
                     $rolesMap[$roleName]->tools()->sync($roleToolIds);
                 }

@@ -71,13 +71,13 @@
                 <div class="flex justify-start space-x-2" style="--dept-color: {{ $this->themeColorHex }}">
                     <img src="{{ $agentImage ?: asset('shop/ai/images/funki_selfie.png') }}" alt="AI" class="w-8 h-8 rounded-full border border-gray-200 mt-1 shrink-0">
                     <div class="bg-white border border-gray-100 text-gray-700 text-sm px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm max-w-[85%] overflow-x-auto leading-relaxed prose prose-sm [&_a]:!text-[var(--dept-color)] [&_a]:!font-bold [&_a]:!underline [&_a]:hover:!opacity-80 transition-all">
-                        {!! \Illuminate\Support\Str::markdown($msg['text']) !!}
+                        {!! \Illuminate\Support\Str::markdown($msg['text'], ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
                     </div>
                 </div>
             @elseif($msg['sender'] === 'system')
                 <div class="flex justify-center my-3">
                     <span class="bg-gray-100/80 text-gray-500 text-[11px] font-bold tracking-wide uppercase px-3 py-1 rounded-full shadow-sm">
-                        {!! \Illuminate\Support\Str::markdown($msg['text']) !!}
+                        {!! \Illuminate\Support\Str::markdown($msg['text'], ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
                     </span>
                 </div>
             @endif

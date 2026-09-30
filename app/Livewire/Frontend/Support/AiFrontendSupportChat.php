@@ -9,7 +9,9 @@ use App\Models\Ai\AiAgent;
 use App\Services\AI\AIFunctionsRegistry;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Locked;
 use App\Livewire\Traits\WithDepartmentTheming;
 
 class AiFrontendSupportChat extends Component
@@ -17,6 +19,8 @@ class AiFrontendSupportChat extends Component
     use WithDepartmentTheming;
     
     protected string $themingDepartment = 'Support';
+
+    #[Locked]
     public $chatId = null;
     public $message = '';
     public $messages = [];
@@ -136,16 +140,36 @@ class AiFrontendSupportChat extends Component
         $text = trim($this->message);
         if (empty($text)) return;
 
+        // --- RATE LIMITING ---
+        $throttleKey = 'support_chat_' . (auth()->guard('customer')->id() ?? request()->ip());
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $rateLimitMsg = "Du schreibst etwas zu schnell. Bitte warte {$seconds} Sekunden, bevor du eine neue Nachricht sendest.";
+            $this->messages[] = ['sender' => 'system', 'text' => $rateLimitMsg];
+            $this->dispatch('message-received');
+            return;
+        }
+        RateLimiter::hit($throttleKey, 60);
+
         $currentCustomerId = auth()->guard('customer')->id();
+        $sessionChatId = session('current_chat_id');
         
         if ($this->chatId) {
+            // Verify component chatId against session chatId
+            if ($sessionChatId && (string)$this->chatId !== (string)$sessionChatId) {
+                Log::warning("SupportChat ID mismatch: Session {$sessionChatId} vs Component {$this->chatId}");
+                $this->chatId = $sessionChatId;
+            }
+
             $chat = SupportCustomerChat::find($this->chatId);
-            if ($chat && empty($chat->customer_id) && $currentCustomerId) {
-                $chat->update(['customer_id' => $currentCustomerId]);
-            } elseif ($chat && !empty($chat->customer_id) && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
-                // Nur zur Sicherheit nochmal das Auto-Claiming probieren, falls es ein Migrations-Problem gab
-                // Normalerweise greift hier Livewire-Session-Schutz, also leeren wir es nicht aggressiv.
-                \Illuminate\Support\Facades\Log::warning("SupportChat ID mismatch: Chat belongs to {$chat->customer_id}, but user is {$currentCustomerId}");
+            if ($chat) {
+                if (!empty($chat->customer_id) && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+                    Log::warning("SupportChat ownership violation: Chat belongs to {$chat->customer_id}, but user is {$currentCustomerId}");
+                    return;
+                }
+                if (empty($chat->customer_id) && $currentCustomerId) {
+                    $chat->update(['customer_id' => $currentCustomerId]);
+                }
             }
         }
 
@@ -215,9 +239,21 @@ class AiFrontendSupportChat extends Component
     #[On('trigger-ai-inference')]
     public function generateAiResponse()
     {
+        $sessionChatId = session('current_chat_id');
+        if ($sessionChatId && (string)$this->chatId !== (string)$sessionChatId) {
+            Log::warning("Unauthorized inference attempt: session {$sessionChatId} vs chatId {$this->chatId}");
+            return;
+        }
+
         // Hole alle bisherigen Nachrichten
         $chat = SupportCustomerChat::with('messages')->find($this->chatId);
         if (!$chat) return;
+
+        $currentCustomerId = auth()->guard('customer')->id();
+        if ($chat->customer_id && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+            Log::warning("Inference rejected: Chat customer mismatch.");
+            return;
+        }
 
         $supportAgent = \App\Models\Ai\AiAgent::whereHas('department', function ($query) {
             $query->where('name', 'Support');
@@ -377,9 +413,20 @@ class AiFrontendSupportChat extends Component
 
     public function submitRating() {
         if ($this->rating < 1 || !$this->chatId) return;
-        
+
+        $sessionChatId = session('current_chat_id');
+        if ($sessionChatId && (string)$this->chatId !== (string)$sessionChatId) {
+            Log::warning("Unauthorized rating attempt: session {$sessionChatId} vs chatId {$this->chatId}");
+            return;
+        }
+
+        $currentCustomerId = auth()->guard('customer')->id();
         $chat = SupportCustomerChat::find($this->chatId);
         if ($chat) {
+            if ($chat->customer_id && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+                Log::warning("Rating rejected: Chat customer mismatch.");
+                return;
+            }
             $chat->update([
                 'rating' => $this->rating,
                 'feedback_text' => $this->feedbackText

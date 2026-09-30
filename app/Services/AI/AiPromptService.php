@@ -78,9 +78,25 @@ class AiPromptService
                                  "- 🔧 WERKZEUG-DATEN VERARBEITEN: Wenn du ein Werkzeug wie `support_get_order_details` aufrufst, erhältst du tiefgreifende RAW JSON-Daten. Es liegt an dir, diese Daten im Chat extrem professionell und sauber als ansprechendes, strukturiertes Format (Listen oder Tabellen mit echtem Markdown) darzustellen.\n" .
                                  "- 🤖 DRAFT-APPROVAL: Bevor du destruktive Aktionen begehst (Tickets anlegen, Eskalation via `support_mark_needs_employee`), fragst du den Kunden immer um finale Erlaubnis: 'Soll ich dieses Anliegen so als offizielles Ticket einreichen?'. Erst beim 'Ja' löst du das Tool aus.\n\n";
                                  
-            // 3. RAG Knowledge Base
+            // 3. RAG Knowledge Base (Nur kundenrelevante Support-Kategorien laden, keine internen Buchhaltungs-/Technik-Dokumente)
             if (class_exists(AiKnowledgeBase::class)) {
-                $knowledge = AiKnowledgeBase::where('is_published', true)->get();
+                $allowedCategories = [
+                    'Unternehmen & Kontakt',
+                    'Konto & Datenschutz',
+                    'Bestellung & Logistik',
+                    'Zahlung & Checkout',
+                    'Rückgabe & Garantie',
+                    'Produkte & B2B',
+                    'Rechtliches & AGB',
+                    'Bestell- & Produktionsprozess',
+                    'Support & Kundenservice'
+                ];
+
+                $knowledge = AiKnowledgeBase::where('is_published', true)
+                    ->whereHas('category', function($q) use ($allowedCategories) {
+                        $q->whereIn('name', $allowedCategories);
+                    })->get();
+
                 if ($knowledge->count() > 0) {
                     $systemPromptText .= "[OFFIZIELLES SHOP-WISSEN (NUR DIESE DATEN NUTZEN)]\n";
                     foreach ($knowledge as $kb) {

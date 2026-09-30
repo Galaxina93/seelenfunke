@@ -570,7 +570,7 @@
                                                                         @endif
                                                                     </div>
                                                                 @endif
-                                                                <div class="text-sm whitespace-pre-wrap leading-relaxed [&_a]:text-[var(--theme-color)] [&_a]:font-bold [&_a]:underline [&_a]:hover:text-[var(--theme-color-80)] transition-all">{!! \Illuminate\Support\Str::markdown($msg->message) !!}</div>
+                                                                <div class="text-sm whitespace-pre-wrap leading-relaxed [&_a]:text-[var(--theme-color)] [&_a]:font-bold [&_a]:underline [&_a]:hover:text-[var(--theme-color-80)] transition-all">{!! \Illuminate\Support\Str::markdown($msg->message, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
                                                             </div>
                                                             @if($msg->sender === 'customer')
                                                                 <div class="w-7 h-7 rounded-full bg-[var(--theme-color-30)] border border-[var(--theme-color)]/30 flex items-center justify-center shrink-0 mb-1">
@@ -740,7 +740,7 @@
                                                             @endif
                                                         </div>
                                                     @endif
-                                                    <div class="text-xs whitespace-pre-wrap leading-relaxed [&_a]:text-[var(--theme-color)] [&_a]:underline">{!! \Illuminate\Support\Str::markdown($msg->message) !!}</div>
+                                                    <div class="text-xs whitespace-pre-wrap leading-relaxed [&_a]:text-[var(--theme-color)] [&_a]:underline">{!! \Illuminate\Support\Str::markdown($msg->message, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
                                                 </div>
                                             </div>
                                         @endforeach
