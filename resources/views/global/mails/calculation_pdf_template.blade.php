@@ -257,7 +257,7 @@
     <p>Hallo {{ $data['contact']['vorname'] }}, vielen Dank für deine Anfrage. Basierend auf deinen Konfigurationen unterbreiten wir dir folgendes Angebot:</p>
 
     {{-- KUNDENAUSWAHL --}}
-    @include('global.mails.partials.mail_item_list', ['data' => $data])
+    @include('global.mails.partials.mail_item_list', ['data' => $data, 'isPdf' => true])
 
     {{-- PREISAUFSTELLUNG --}}
     @include('global.mails.partials.mail_price_list', ['data' => $data])

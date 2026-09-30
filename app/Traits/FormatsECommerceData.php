@@ -18,6 +18,14 @@ trait FormatsECommerceData
         // Divisor für Netto-Rückrechnung (z.B. 1.19)
         $divisor = $isSmallBusiness ? 1.0 : (1 + ($defaultTaxRate / 100));
 
+        if (method_exists($this, 'loadMissing')) {
+            try {
+                $this->loadMissing('items.product');
+            } catch (\Throwable $e) {
+                // Relationship may not exist on all models using this trait
+            }
+        }
+
         // 2. Artikel aufbereiten & Brutto-Warenwert der Positionen berechnen
         $items = [];
         $goodsGrossCents = 0;
@@ -71,6 +79,32 @@ trait FormatsECommerceData
                 }
             }
 
+            // Hauptbild des Artikels auflösen (falls kein Snapshot vorhanden ist)
+            $mainImage = null;
+            if (is_object($item)) {
+                $mainImage = $item->main_image ?? null;
+                if (!$mainImage && isset($item->product) && $item->product) {
+                    if (!empty($item->product->media_gallery) && is_array($item->product->media_gallery)) {
+                        $mainImage = collect($item->product->media_gallery)->firstWhere('is_main', true)['path'] 
+                            ?? collect($item->product->media_gallery)->firstWhere('type', 'image')['path'] 
+                            ?? ($item->product->media_gallery[0]['path'] ?? null);
+                    }
+                    if (!$mainImage && !empty($item->product->preview_image_path)) {
+                        $mainImage = $item->product->preview_image_path;
+                    }
+                }
+            } elseif (is_array($item)) {
+                $mainImage = $item['main_image'] ?? null;
+                if (!$mainImage && !empty($item['product']['media_gallery']) && is_array($item['product']['media_gallery'])) {
+                    $mainImage = collect($item['product']['media_gallery'])->firstWhere('is_main', true)['path'] 
+                        ?? collect($item['product']['media_gallery'])->firstWhere('type', 'image')['path'] 
+                        ?? ($item['product']['media_gallery'][0]['path'] ?? null);
+                }
+                if (!$mainImage && !empty($item['product']['preview_image_path'])) {
+                    $mainImage = $item['product']['preview_image_path'];
+                }
+            }
+
             $items[] = [
                 'name'         => is_object($item) ? ($item->product_name ?? $item->name ?? 'Unbekanntes Produkt') : ($item['product_name'] ?? 'Unbekanntes Produkt'),
                 'quantity'     => is_object($item) ? $item->quantity : ($item['quantity'] ?? 1),
@@ -78,7 +112,7 @@ trait FormatsECommerceData
                 'total_price'  => number_format($lineGross / 100, 2, ',', '.'),
                 'config'       => $config,
                 'is_personalizable' => (is_object($item) && isset($item->product) && method_exists($item->product, 'isPersonalizable')) ? $item->product->isPersonalizable() : true,
-                'main_image'   => is_object($item) ? ($item->main_image ?? null) : ($item['main_image'] ?? null),
+                'main_image'   => $mainImage,
                 'type'         => $itemType,
             ];
         }

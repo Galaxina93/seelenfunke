@@ -281,4 +281,97 @@ class ProductCalculatorTest extends TestCase
             'tax_rate' => 7.00,
         ]);
     }
+
+    #[Test]
+    public function it_embeds_product_images_in_quote_calculation_pdf()
+    {
+        // 1. Create a dummy test image in public storage
+        $testImageRelPath = 'system/snapshots/test_calc_snapshot.jpg';
+        \Illuminate\Support\Facades\Storage::disk('public')->put($testImageRelPath, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+
+        $product = Product::create([
+            'name' => 'Image Test Product',
+            'slug' => 'img-test-prod',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2000,
+            'media_gallery' => [
+                ['path' => $testImageRelPath, 'type' => 'image', 'is_main' => true]
+            ]
+        ]);
+
+        // Quote with snapshot
+        $quoteWithSnapshot = OrderQuoteRequest::create([
+            'quote_number' => 'ANF-IMG-1',
+            'first_name' => 'Lisa',
+            'last_name' => 'Muster',
+            'email' => 'lisa@example.com',
+            'net_total' => 1681,
+            'tax_total' => 319,
+            'gross_total' => 2000,
+        ]);
+
+        \App\Models\Order\OrderQuoteRequestItem::create([
+            'quote_request_id' => $quoteWithSnapshot->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2000,
+            'tax_rate' => 19.0,
+            'total_price' => 2000,
+            'configuration' => [
+                'snapshot_path' => ['front' => $testImageRelPath]
+            ]
+        ]);
+
+        $mailCustomer = new NewCalcMailToCustomer($quoteWithSnapshot->toFormattedArray());
+        $attachments = $mailCustomer->attachments();
+        $this->assertCount(1, $attachments);
+
+        // Render PDF content from attachment
+        $pdfOutput = $attachments[0]->attachWith(
+            fn ($path) => file_get_contents($path),
+            fn ($data) => $data()
+        );
+
+        $this->assertNotEmpty($pdfOutput);
+        $this->assertStringContainsString('/Subtype /Image', $pdfOutput);
+
+        // Also test standard product without snapshot (uses media_gallery fallback)
+        $quoteStandard = OrderQuoteRequest::create([
+            'quote_number' => 'ANF-IMG-2',
+            'first_name' => 'Tom',
+            'last_name' => 'Muster',
+            'email' => 'tom@example.com',
+            'net_total' => 1681,
+            'tax_total' => 319,
+            'gross_total' => 2000,
+        ]);
+
+        \App\Models\Order\OrderQuoteRequestItem::create([
+            'quote_request_id' => $quoteStandard->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2000,
+            'tax_rate' => 19.0,
+            'total_price' => 2000,
+            'configuration' => []
+        ]);
+
+        $mailAdmin = new NewCalcMailToAdmin($quoteStandard->toFormattedArray());
+        $adminAttachments = $mailAdmin->attachments();
+        $this->assertCount(1, $adminAttachments);
+
+        $adminPdfOutput = $adminAttachments[0]->attachWith(
+            fn ($path) => file_get_contents($path),
+            fn ($data) => $data()
+        );
+
+        $this->assertNotEmpty($adminPdfOutput);
+        $this->assertStringContainsString('/Subtype /Image', $adminPdfOutput);
+
+        // Cleanup
+        \Illuminate\Support\Facades\Storage::disk('public')->delete($testImageRelPath);
+    }
 }

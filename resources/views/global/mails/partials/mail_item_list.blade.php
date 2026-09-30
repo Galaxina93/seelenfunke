@@ -37,11 +37,20 @@
                     } else {
                         $pathPrefix = str_starts_with($imgPath, 'storage/') ? '' : 'storage/';
                         if (isset($isPdf) && $isPdf) {
-                            $fullLocalPath = public_path($pathPrefix . $imgPath);
-                            if (file_exists($fullLocalPath)) {
-                                $mime = mime_content_type($fullLocalPath);
-                                $dataInfo = base64_encode(file_get_contents($fullLocalPath));
-                                $imgUrl = 'data:' . $mime . ';base64,' . $dataInfo;
+                            $cleanRelPath = ltrim(preg_replace('#^/?storage/#', '', $imgPath), '/');
+                            $candidates = [
+                                public_path($pathPrefix . $imgPath),
+                                storage_path('app/public/' . $cleanRelPath),
+                                public_path($cleanRelPath),
+                                base_path($cleanRelPath),
+                            ];
+                            foreach ($candidates as $cand) {
+                                if (file_exists($cand) && !is_dir($cand)) {
+                                    $mime = @mime_content_type($cand) ?: 'image/jpeg';
+                                    $dataInfo = base64_encode(file_get_contents($cand));
+                                    $imgUrl = 'data:' . $mime . ';base64,' . $dataInfo;
+                                    break;
+                                }
                             }
                         }
                         

@@ -54,7 +54,7 @@ class NewCalcMailToCustomer extends Mailable implements ShouldQueue
         $cleanName = \Illuminate\Support\Str::slug($lastName);
 
         return [
-            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data])->output(), "Angebot-MeinSeelenfunke-{$cleanName}.pdf")
+            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data, 'isPdf' => true])->output(), "Angebot-MeinSeelenfunke-{$cleanName}.pdf")
                 ->withMime('application/pdf'),
         ];
     }
