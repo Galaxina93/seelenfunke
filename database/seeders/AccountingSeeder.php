@@ -549,10 +549,10 @@ class AccountingSeeder extends Seeder
             ],
             [
                 'group'       => 'Vertrag & Lizenz',
-                'name'        => 'Gemini Ultra',
-                'amount'      => -219.99,
+                'name'        => 'Google AI Pro',
+                'amount'      => -21,99,
                 'interval'    => 1,
-                'start_date'  => '2026-04-01',
+                'start_date'  => '2026-10-25',
                 'is_business' => 1,
                 'provider_company' => 'Google Commerce Limited',
                 'provider_street'  => 'Gordon House, Barrow Street',
@@ -565,7 +565,7 @@ class AccountingSeeder extends Seeder
             ],
 
             // Auto (Ausgaben = Negativ)
-            [
+/*            [
                 'group'       => 'Auto',
                 'name'        => 'Benzin',
                 'amount'      => -100.00,
@@ -574,7 +574,7 @@ class AccountingSeeder extends Seeder
                 'description' => null,
                 'requires_contract' => false,
                 'tags'        => ['Auto', 'Mobilität', 'Verbrauch', 'Tank'],
-            ],
+            ],*/
             [
                 'group'       => 'Auto',
                 'name'        => 'Steuer',
