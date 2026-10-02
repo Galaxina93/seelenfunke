@@ -149,6 +149,59 @@
                             <p class="mt-2">
                                 (3) Bei personalisierten Produkten stellt eine subjektiv nicht gefallende Gestaltung (z.B. Schriftart, Platzierung), die jedoch den Vorgaben der Bestellung entspricht, keinen Mangel dar.
                             </p>
+                            <p class="mt-2">
+                                (4) <strong>Harmonisierte Mitteilung über die gesetzliche Gewährleistung der Vertragsmäßigkeit (EU-Recht):</strong> Für alle in unserem Online-Shop angebotenen Waren gilt die gesetzliche Gewährleistung der Vertragsmäßigkeit von mindestens <strong>zwei Jahren</strong> ab dem Zeitpunkt der Lieferung der Waren gemäß Richtlinie (EU) 2024/825 und Durchführungsverordnung (EU) 2025/1960. Verbraucherinnen und Verbraucher können ihre Rechte im Rahmen des gesetzlichen Gewährleistungsrechts geltend machen, wenn Waren nicht der Beschreibung entsprechen oder nicht ordnungsgemäß funktionieren.
+                            </p>
+
+                            {{-- Offizieller EU-Gewährleistung Hinweis --}}
+                            <div class="mt-6 bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/80 border border-blue-200 rounded-2xl p-6 shadow-sm">
+                                <div class="flex flex-col md:flex-row gap-6 items-start">
+                                    <div class="flex-shrink-0 mx-auto md:mx-0 w-36 bg-white p-2.5 rounded-xl border border-blue-200 shadow-sm text-center">
+                                        <a href="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}" target="_blank" class="block group" title="Offizielles EU-Hinweisblatt anzeigen">
+                                            <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}" 
+                                                 alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung der Vertragsmäßigkeit" 
+                                                 class="w-full h-auto rounded group-hover:scale-[1.02] transition-transform">
+                                            <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary-dark mt-2.5 group-hover:underline transition-colors">
+                                                <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                Dokument öffnen
+                                            </span>
+                                        </a>
+                                    </div>
+                                    <div class="flex-1 space-y-3">
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shadow-xs">🇪🇺</span>
+                                            <h4 class="font-bold text-blue-950 text-base">Gesetzliche Gewährleistung in der EU</h4>
+                                        </div>
+                                        <p class="text-sm text-blue-950/90 leading-relaxed">
+                                            Verkäufer haften für jede Vertragswidrigkeit, die zum Zeitpunkt der Lieferung der Waren bestand und innerhalb des gesetzlichen Gewährleistungszeitraums erkennbar wird. In solchen Fällen haben Sie Anspruch auf:
+                                        </p>
+                                        <ul class="text-xs text-blue-950 space-y-2 list-none font-medium bg-white/80 p-3.5 rounded-xl border border-blue-100 shadow-xs">
+                                            <li class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                                <span><strong>Kostenlose Nachbesserung</strong> (Reparatur) oder <strong>kostenlose Ersatzlieferung</strong></span>
+                                            </li>
+                                            <li class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                                <span>In bestimmten gesetzlichen Fällen eine <strong>Preisminderung</strong> oder <strong>vollständige Kaufpreiserstattung</strong></span>
+                                            </li>
+                                            <li class="flex items-center gap-2">
+                                                <svg class="w-4 h-4 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                <span>Dauer: <strong>Mindestens 2 Jahre</strong> ab Lieferung (in der gesamten Europäischen Union)</span>
+                                            </li>
+                                        </ul>
+                                        <div class="pt-2 flex flex-wrap items-center gap-4 text-xs font-semibold">
+                                            <a href="https://europa.eu/youreurope/garantien" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 text-primary hover:text-primary-dark underline transition-colors">
+                                                <span>Offizielle Informationen auf Your Europe (EU)</span>
+                                                <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                            </a>
+                                            <a href="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.png') }}" download="EU_Gesetzliche_Gewaehrleistung.png" class="inline-flex items-center gap-1 text-primary hover:text-primary-dark underline transition-colors">
+                                                <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                Mitteilung als Bild herunterladen (PNG)
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {{-- §7 Verbraucherstreitbeilegung --}}
@@ -239,6 +292,29 @@
                                         <li>ausdrücklich zugestimmt hat, dass der Unternehmer mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnt, und</li>
                                         <li>seine Kenntnis davon bestätigt hat, dass er durch seine Zustimmung mit Beginn der Ausführung des Vertrags sein Widerrufsrecht verliert.</li>
                                     </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Wichtige Abgrenzung: Widerruf vs. Gesetzliche Gewährleistung --}}
+                        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-6 rounded-r-xl shadow-sm">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0 mt-1 text-indigo-600">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-indigo-900 text-lg">Wichtige Abgrenzung: Widerrufsrecht vs. Gesetzliche Gewährleistung</h3>
+                                    <p class="text-indigo-900 mt-2 text-sm leading-relaxed">
+                                        Das hier geregelte <strong>14-tägige Widerrufsrecht</strong> dient der anlasslosen Rückabwicklung (und ist bei individueller Kundenanfertigung gesetzlich ausgeschlossen). Sollte ein von Ihnen bestelltes Produkt hingegen <strong>beschädigt, fehlerhaft oder vertragswidrig</strong> geliefert werden, bleibt Ihr gesetzlicher Anspruch in jedem Fall unberührt: Hierfür gilt die EU-weit harmonisierte <strong>gesetzliche Gewährleistung von mindestens 2 Jahren</strong> mit Anspruch auf kostenlose Reparatur oder Neulieferung.
+                                    </p>
+                                    <div class="mt-3 flex items-center gap-2">
+                                        <a href="#gewaehrleistung" class="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dark underline underline-offset-2 transition-colors">
+                                            <span>Mehr zur gesetzlichen Gewährleistung & EU-Hinweispflicht in Ziffer 6</span>
+                                            <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>

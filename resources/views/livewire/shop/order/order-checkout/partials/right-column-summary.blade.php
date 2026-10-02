@@ -248,6 +248,98 @@
                 @endif
             </div>
 
+            {{-- EU-Gewährleistung Hinweis (Aufklappbar vor dem Bestell-Button) --}}
+            <div x-data="{ openWarranty: false, zoomModal: false }" class="mt-4 border border-gray-200 bg-gray-50/80 rounded-xl overflow-hidden transition-all duration-200">
+                <button type="button"
+                        @click="openWarranty = !openWarranty"
+                        class="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-xs font-medium text-gray-900 hover:bg-gray-100/70 transition-colors focus:outline-none select-none">
+                    <span class="flex items-center gap-2">
+                        <span class="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-[#003399] text-white font-serif text-[11px] font-bold shadow-xs">
+                            🇪🇺
+                        </span>
+                        <span>
+                            <strong class="font-semibold text-gray-900">Gesetzliche Gewährleistung:</strong> 
+                            <span class="text-gray-600">Mind. 2 Jahre EU-Schutz</span>
+                        </span>
+                    </span>
+                    <span class="flex items-center gap-1 text-[11px] text-primary hover:text-primary-dark font-bold ml-2 flex-shrink-0 transition-colors">
+                        <span x-text="openWarranty ? 'Weniger anzeigen' : 'Hinweis anzeigen'">Hinweis anzeigen</span>
+                        <svg class="w-3.5 h-3.5 text-primary transform transition-transform duration-200" :class="{ 'rotate-180': openWarranty }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </span>
+                </button>
+
+                <div x-show="openWarranty" x-collapse x-cloak class="border-t border-gray-100 bg-white p-3.5 text-xs text-gray-700 space-y-3">
+                    <div class="flex items-start gap-3">
+                        <div class="w-16 h-22 flex-shrink-0 bg-white border border-gray-200 rounded p-1 shadow-xs cursor-pointer hover:border-primary hover:shadow-md transition-all group"
+                             @click="zoomModal = true"
+                             title="Zum Vergrößern klicken">
+                            <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}" 
+                                 alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung" 
+                                 class="w-full h-full object-contain group-hover:scale-105 transition-transform">
+                        </div>
+                        <div class="space-y-1 flex-1">
+                            <p class="font-bold text-gray-900 text-[11px] leading-tight">
+                                Harmonisierte Mitteilung über die gesetzliche Gewährleistung der Vertragsmäßigkeit
+                            </p>
+                            <p class="text-[11px] text-gray-600 leading-relaxed">
+                                Für Waren in der EU gilt eine gesetzliche Gewährleistungsfrist von mindestens <strong>zwei Jahren</strong> ab Lieferung (kostenlose Reparatur, Neulieferung oder Kaufpreiserstattung bei Mängeln).
+                            </p>
+                            <div class="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
+                                <button type="button" 
+                                        @click="zoomModal = true" 
+                                        class="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-dark underline cursor-pointer transition-colors">
+                                    <svg class="w-3 h-3 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
+                                    EU-Label vergrößern
+                                </button>
+                                <a href="https://europa.eu/youreurope/garantien" 
+                                   target="_blank" 
+                                   rel="noopener noreferrer" 
+                                   class="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-dark underline transition-colors">
+                                    <span>Offizielle EU-Infos</span>
+                                    <svg class="w-3.5 h-3.5 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Modal zur Großansicht des offiziellen EU-Hinweises --}}
+                    <div x-show="zoomModal" 
+                         x-cloak
+                         class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
+                         @click.self="zoomModal = false"
+                         @keydown.escape.window="zoomModal = false">
+                        <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden animate-fade-in"
+                             @click.stop>
+                            <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">🇪🇺</span>
+                                    <h3 class="text-sm font-bold text-gray-900">Gesetzliche Gewährleistung (EU-Mitteilung)</h3>
+                                </div>
+                                <button type="button" @click="zoomModal = false" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                            <div class="p-4 overflow-y-auto flex justify-center bg-gray-100/60 max-h-[75vh]">
+                                <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}" 
+                                     alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung" 
+                                     class="max-w-full h-auto rounded-lg shadow-sm border border-gray-200">
+                            </div>
+                            <div class="p-3 border-t border-gray-100 bg-white flex justify-between items-center text-xs">
+                                <a href="https://europa.eu/youreurope/garantien" target="_blank" rel="noopener noreferrer" class="text-primary hover:text-primary-dark hover:underline flex items-center gap-1 font-medium transition-colors">
+                                    <span>europa.eu/youreurope/garantien</span>
+                                    <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                </a>
+                                <button type="button" @click="zoomModal = false" class="px-4 py-1.5 bg-gray-900 text-white rounded-lg font-semibold hover:bg-black transition-colors">
+                                    Schließen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="mt-8">
                 <button id="submit-button"
                         type="submit"
