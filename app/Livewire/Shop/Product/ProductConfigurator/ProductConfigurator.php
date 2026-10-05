@@ -69,6 +69,10 @@ class ProductConfigurator extends Component
         $this->context = $context;
         $this->cartItem = $cartItem;
 
+        if ($this->context === 'calculator') {
+            $this->config_confirmed = true;
+        }
+
         $this->type = $this->product->type ?? 'physical';
         $this->isDigital = ($this->type !== 'physical');
 
@@ -409,7 +413,7 @@ class ProductConfigurator extends Component
     {
         if ($this->context === 'preview') return;
 
-        if (!$this->config_confirmed) {
+        if ($this->context !== 'calculator' && !$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte bestätigen Sie Ihre Angaben.');
             return;
         }

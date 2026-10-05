@@ -18,6 +18,8 @@
             showDrawingBoard: true,
             modelLoaded: false,
             loadingProgress: 0,
+            isSaving: false,
+            saved: false,
 
             activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
 
@@ -51,6 +53,11 @@
             init() {
                 window._frontendConfiguratorDataInstance = this;
                 this.isInitializing = false;
+
+                window.addEventListener('cart-updated', () => {
+                    this.saved = true;
+                    setTimeout(() => { this.saved = false; }, 15000);
+                });
 
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
@@ -250,160 +257,173 @@
                 }
             },
 
-            // NEU: Snapshot Capture vor dem Speichern in den Warenkorb
+            // NEU: Snapshot Capture vor dem Speichern in den Warenkorb mit Doppel-Klick Schutz & Mobile-Timeout
             async submitConfig() {
+                // 1. Doppel-Klick / Mehrfach-Klick Schutz!
+                if (this.isSaving) return;
                 this.isSaving = true;
-                this.selectedIndex = null;
-                this.selectedType = null;
-                this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
-                
-                // Wir speichern den Original-Zustand des DrawingBoards
-                let wasDrawingBoardVisible = this.showDrawingBoard;
-                let is2DModeOnly = !this.config.modelPath;
-
-                // UI Elemente (Guides, Box-Shadow Masken) vor dem Screenshot verstecken
-                this.isCapturing = true;
-
-                // Kurz warten, bis Alpine die UI-Overlays (Grüne Ränder) versteckt hat
-                await new Promise(r => requestAnimationFrame(r));
-                await new Promise(r => setTimeout(r, 150));
 
                 let snapshotBase64 = null;
                 let snapshotBackBase64 = null;
 
-                // 1. Snapshot erstellen
                 try {
-                    let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
-                    if (this.config.modelPath && engine) {
-                        
-                        // SICHERSTELLEN DASS DAS 3D MODEL GELADEN IST (Wichtig bei Nutzung von Vorlagen!)
-                        if (!this.modelLoaded) {
-                            if (typeof this._forceStart3D === 'function') this._forceStart3D();
-                            await new Promise(resolve => {
-                                let checkInterval = setInterval(() => {
-                                    if (this.modelLoaded) {
-                                        clearInterval(checkInterval);
-                                        resolve();
-                                    }
-                                }, 100);
-                            });
-                        }
+                    this.selectedIndex = null;
+                    this.selectedType = null;
+                    this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
+                    
+                    // UI Elemente (Guides, Box-Shadow Masken) vor dem Screenshot verstecken
+                    this.isCapturing = true;
 
-                        // TEXTUREN ERZWINGEN ZU RENDERN (Falls der User nie in der 3D Ansicht war)
-                        try {
-                            engine.renderBothCanvases(
-                                Alpine.raw(this.texts),
-                                Alpine.raw(this.logos),
-                                Alpine.raw(this.texts_back),
-                                Alpine.raw(this.logos_back),
-                                Alpine.raw(this.fontMap)
-                            );
-                        } catch (e) { console.error("Force Render failed:", e); }
-                        
-                        await new Promise(r => setTimeout(r, 150)); // Warten bis GPU die Textur hat
+                    // Kurz warten, bis Alpine die UI-Overlays (Grüne Ränder) versteckt hat
+                    await new Promise(r => requestAnimationFrame(r));
+                    await new Promise(r => setTimeout(r, 100));
 
-                        if (this.config.has_back_side) {
-                            const origPos = engine.camera.position.clone();
-                            const origTarget = engine.controls.target.clone();
+                    // Snapshot-Erstellung mit TIMEOUT (max. 3.5 Sekunden), damit es auf Mobilgeräten NIEMALS hängt!
+                    try {
+                        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3500));
 
-                            if (engine.defaultCamPos && engine.defaultCamTarget) {
-                                engine.camera.position.copy(engine.defaultCamPos);
-                                engine.controls.target.copy(engine.defaultCamTarget);
-                            } else {
-                                engine.camera.position.set(0, 0, Math.abs(engine.camera.position.z));
-                                engine.controls.target.set(0, 0, 0);
-                            }
+                        const capturePromise = (async () => {
+                            let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                            if (this.config.modelPath && engine) {
+                                
+                                // SICHERSTELLEN DASS DAS 3D MODEL GELADEN IST (mit maximal 2 Sekunden Wartezeit!)
+                                if (!this.modelLoaded) {
+                                    if (typeof this._forceStart3D === 'function') this._forceStart3D();
+                                    await new Promise(resolve => {
+                                        let elapsed = 0;
+                                        let checkInterval = setInterval(() => {
+                                            elapsed += 100;
+                                            if (this.modelLoaded || elapsed >= 2000) {
+                                                clearInterval(checkInterval);
+                                                resolve();
+                                            }
+                                        }, 100);
+                                    });
+                                }
 
-                            engine.controls.update();
-                            engine.renderer.render(engine.scene, engine.camera);
-                            snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
-
-                            // Back Snapshot
-                            if (engine.defaultCamPos) {
-                                engine.camera.position.copy(engine.defaultCamPos);
-                                engine.camera.position.z *= -1;
-                                engine.camera.position.x *= -1;
-                            } else {
-                                engine.camera.position.set(0, 0, -Math.abs(engine.camera.position.z));
-                            }
-                            
-                            engine.controls.update();
-                            engine.renderer.render(engine.scene, engine.camera);
-                            snapshotBackBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
-
-                            // Restore
-                            engine.camera.position.copy(origPos);
-                            engine.controls.target.copy(origTarget);
-                            engine.controls.update();
-                        } else {
-                            const origPos = engine.camera.position.clone();
-                            const origTarget = engine.controls.target.clone();
-
-                            if (engine.defaultCamPos && engine.defaultCamTarget) {
-                                engine.camera.position.copy(engine.defaultCamPos);
-                                engine.controls.target.copy(engine.defaultCamTarget);
-                                engine.controls.update();
-                            }
-
-                            engine.renderer.render(engine.scene, engine.camera);
-                            snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
-                            
-                            engine.camera.position.copy(origPos);
-                            engine.controls.target.copy(origTarget);
-                            engine.controls.update();
-                        }
-                    } else {
-                        // 2D-Fallback-Modus
-                        if (!window.html2canvas) {
-                            console.log("Loading html2canvas dynamically...");
-                            await new Promise((resolve) => {
-                                const script = document.createElement('script');
-                                script.src = '{{ asset('vendor/html2canvas/html2canvas.min.js') }}';
-                                script.onload = resolve;
-                                script.onerror = resolve;
-                                document.head.appendChild(script);
-                            });
-                        }
-
-                        if (window.html2canvas) {
-                            const containerToCapture = this.$refs.container || document.querySelector('.configurator-2d-preview');
-                            if (containerToCapture) {
-                                if (this.config.has_back_side) {
-                                    let origSide = this.activeSide;
+                                if (this.modelLoaded && engine.renderer && engine.scene && engine.camera) {
+                                    // TEXTUREN ERZWINGEN ZU RENDERN (Falls der User nie in der 3D Ansicht war)
+                                    try {
+                                        engine.renderBothCanvases(
+                                            Alpine.raw(this.texts),
+                                            Alpine.raw(this.logos),
+                                            Alpine.raw(this.texts_back),
+                                            Alpine.raw(this.logos_back),
+                                            Alpine.raw(this.fontMap)
+                                        );
+                                    } catch (e) { console.error("Force Render failed:", e); }
                                     
-                                    this.activeSide = 'front';
-                                    await new Promise(r => setTimeout(r, 200)); // wait for DOM
-                                    let canvasF = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 2 });
-                                    snapshotBase64 = canvasF.toDataURL('image/jpeg', 0.85);
+                                    await new Promise(r => setTimeout(r, 100)); // Warten bis GPU die Textur hat
 
-                                    this.activeSide = 'back';
-                                    await new Promise(r => setTimeout(r, 200)); // wait for DOM
-                                    let canvasB = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 2 });
-                                    snapshotBackBase64 = canvasB.toDataURL('image/jpeg', 0.85);
+                                    if (this.config.has_back_side) {
+                                        const origPos = engine.camera.position.clone();
+                                        const origTarget = engine.controls.target.clone();
 
-                                    this.activeSide = origSide;
-                                    await new Promise(r => setTimeout(r, 100)); // restore
-                                } else {
-                                    let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 2 });
-                                    snapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                                        if (engine.defaultCamPos && engine.defaultCamTarget) {
+                                            engine.camera.position.copy(engine.defaultCamPos);
+                                            engine.controls.target.copy(engine.defaultCamTarget);
+                                        } else {
+                                            engine.camera.position.set(0, 0, Math.abs(engine.camera.position.z));
+                                            engine.controls.target.set(0, 0, 0);
+                                        }
+
+                                        engine.controls.update();
+                                        engine.renderer.render(engine.scene, engine.camera);
+                                        snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+
+                                        // Back Snapshot
+                                        if (engine.defaultCamPos) {
+                                            engine.camera.position.copy(engine.defaultCamPos);
+                                            engine.camera.position.z *= -1;
+                                            engine.camera.position.x *= -1;
+                                        } else {
+                                            engine.camera.position.set(0, 0, -Math.abs(engine.camera.position.z));
+                                        }
+                                        
+                                        engine.controls.update();
+                                        engine.renderer.render(engine.scene, engine.camera);
+                                        snapshotBackBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+
+                                        // Restore
+                                        engine.camera.position.copy(origPos);
+                                        engine.controls.target.copy(origTarget);
+                                        engine.controls.update();
+                                    } else {
+                                        const origPos = engine.camera.position.clone();
+                                        const origTarget = engine.controls.target.clone();
+
+                                        if (engine.defaultCamPos && engine.defaultCamTarget) {
+                                            engine.camera.position.copy(engine.defaultCamPos);
+                                            engine.controls.target.copy(engine.defaultCamTarget);
+                                            engine.controls.update();
+                                        }
+
+                                        engine.renderer.render(engine.scene, engine.camera);
+                                        snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                        
+                                        engine.camera.position.copy(origPos);
+                                        engine.controls.target.copy(origTarget);
+                                        engine.controls.update();
+                                    }
+                                }
+                            } else {
+                                // 2D-Fallback-Modus
+                                if (!window.html2canvas) {
+                                    console.log("Loading html2canvas dynamically...");
+                                    await new Promise((resolve) => {
+                                        const script = document.createElement('script');
+                                        script.src = '{{ asset('vendor/html2canvas/html2canvas.min.js') }}';
+                                        script.onload = resolve;
+                                        script.onerror = resolve;
+                                        document.head.appendChild(script);
+                                    });
+                                }
+
+                                if (window.html2canvas) {
+                                    const containerToCapture = this.$refs.container || document.querySelector('.configurator-2d-preview');
+                                    if (containerToCapture) {
+                                        if (this.config.has_back_side) {
+                                            let origSide = this.activeSide;
+                                            
+                                            this.activeSide = 'front';
+                                            await new Promise(r => setTimeout(r, 150)); // wait for DOM
+                                            let canvasF = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
+                                            snapshotBase64 = canvasF.toDataURL('image/jpeg', 0.85);
+
+                                            this.activeSide = 'back';
+                                            await new Promise(r => setTimeout(r, 150)); // wait for DOM
+                                            let canvasB = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
+                                            snapshotBackBase64 = canvasB.toDataURL('image/jpeg', 0.85);
+
+                                            this.activeSide = origSide;
+                                            await new Promise(r => setTimeout(r, 50)); // restore
+                                        } else {
+                                            let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
+                                            snapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
+                                        }
+                                    }
                                 }
                             }
-                        }
+                        })();
+
+                        await Promise.race([capturePromise, timeoutPromise]);
+                    } catch(captureErr) {
+                        console.error("Konnte keinen Snapshot erstellen:", captureErr);
+                    } finally {
+                        this.isCapturing = false;
                     }
-                } catch(e) {
-                    console.error("Konnte keinen Snapshot erstellen:", e);
+
+                    // 2. An Livewire übergeben
+                    let payload = {};
+                    if (snapshotBase64) payload.front = snapshotBase64;
+                    if (snapshotBackBase64) payload.back = snapshotBackBase64;
+
+                    await $wire.saveWithSnapshot(payload);
+                } catch (e) {
+                    console.error("Fehler beim Speichern der Konfiguration:", e);
                 } finally {
-                    this.isCapturing = false;
-                }
-
-                // 2. An Livewire übergeben
-                let payload = {};
-                if (snapshotBase64) payload.front = snapshotBase64;
-                if (snapshotBackBase64) payload.back = snapshotBackBase64;
-
-                $wire.saveWithSnapshot(payload).finally(() => {
                     this.isSaving = false;
-                });
+                }
             },
 
             loadSavedDesign() {

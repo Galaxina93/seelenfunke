@@ -1,5 +1,5 @@
 @if($context !== 'preview')
-    <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}" x-data="{saved: false}" x-on:cart-updated.window="saved = true; setTimeout(() => saved = false, 15000)">
+    <div class="p-4 border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}">
         <div class="max-w-4xl mx-auto space-y-4">
             {{-- EXPRESS TOGGLE --}}
             @if($context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && $this->product->isPersonalizable())
@@ -60,30 +60,38 @@
                 </div>
             @endif
 
-            <div @class(['p-3 rounded-xl border transition-all duration-200',
-                ($isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200') => !$errors->has('config_confirmed'),
-                ($isDark ? 'bg-red-900/20 border-red-900/50' : 'bg-red-50 border-red-200') => $errors->has('config_confirmed')])>
-                <label class="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" wire:model.live="config_confirmed" class="mt-1 w-4 h-4 text-primary rounded focus:ring-primary {{ $isDark ? 'border-gray-700 bg-gray-950' : 'border-gray-300' }}">
-                    <span class="text-[11px] leading-relaxed transition-colors {{ $isDark ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-600 group-hover:text-gray-900' }}">
-                    @if($context === 'template_admin')
-                            Ich bestätige, dass die Vorlage korrekt konfiguriert ist und als Basis für Kunden dient.
-                        @elseif($isDigital)
-                            Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist begonnen wird. Mir ist bekannt, dass ich durch diese Zustimmung mein Widerrufsrecht verliere.
-                        @elseif(!$this->product->isPersonalizable())
-                            Ich bestätige meine Bestellung. Da dieses Produkt nicht personalisiert ist, gilt das gesetzliche 14-tägige Widerrufsrecht.
-                        @else
-                            Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
-                        @endif
-                        @if($context !== 'template_admin')
-                            <a href="/agb" target="_blank" class="text-primary underline font-bold ml-1">AGB Details</a>.
-                        @endif
-                </span>
-                </label>
-            </div>
+            @if($context !== 'calculator')
+                <div @class(['p-3 rounded-xl border transition-all duration-200',
+                    ($isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200') => !$errors->has('config_confirmed'),
+                    ($isDark ? 'bg-red-900/20 border-red-900/50' : 'bg-red-50 border-red-200') => $errors->has('config_confirmed')])>
+                    <label class="flex items-start gap-3 cursor-pointer group">
+                        <input type="checkbox" wire:model.live="config_confirmed" class="mt-1 w-4 h-4 text-primary rounded focus:ring-primary {{ $isDark ? 'border-gray-700 bg-gray-950' : 'border-gray-300' }}">
+                        <span class="text-[11px] leading-relaxed transition-colors {{ $isDark ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-600 group-hover:text-gray-900' }}">
+                        @if($context === 'template_admin')
+                                Ich bestätige, dass die Vorlage korrekt konfiguriert ist und als Basis für Kunden dient.
+                            @elseif($isDigital)
+                                Ich stimme ausdrücklich zu, dass mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist begonnen wird. Mir ist bekannt, dass ich durch diese Zustimmung mein Widerrufsrecht verliere.
+                            @elseif(!$this->product->isPersonalizable())
+                                Ich bestätige meine Bestellung. Da dieses Produkt nicht personalisiert ist, gilt das gesetzliche 14-tägige Widerrufsrecht.
+                            @else
+                                Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.
+                            @endif
+                            @if($context !== 'template_admin')
+                                <a href="/agb" target="_blank" class="text-primary underline font-bold ml-1">AGB Details</a>.
+                            @endif
+                    </span>
+                    </label>
+                    @error('config_confirmed')
+                        <p class="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1">
+                            <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>{{ $message }}</span>
+                        </p>
+                    @enderror
+                </div>
+            @endif
 
             @php
-                $buttonDisabled = !$config_confirmed;
+                $buttonDisabled = ($context !== 'calculator') && !$config_confirmed;
             @endphp
             <div class="flex flex-col sm:flex-row gap-3 h-auto sm:h-12">
                 @if($context !== 'template_admin' && $context !== 'order_edit')
@@ -103,51 +111,80 @@
                         </div>
                 @endif
 
-                <button @click.prevent="submitConfig()" wire:loading.attr="disabled" @disabled($buttonDisabled) :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : ({{$config_confirmed ? 'true' : 'false'}} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}')" class="flex-1 h-20 sm:h-12 rounded-2xl sm:rounded-xl font-black sm:font-bold text-xl sm:text-base tracking-wide sm:tracking-normal w-full transition-all duration-300 flex items-center justify-center shadow-2xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
+                <button type="button"
+                        @click.prevent="submitConfig()"
+                        :disabled="isSaving || {{ $buttonDisabled ? 'true' : 'false' }}"
+                        wire:loading.attr="disabled"
+                        :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : (isSaving ? 'opacity-80 pointer-events-none cursor-wait {{ $isDark ? 'bg-primary text-gray-900' : 'bg-gray-900 text-white' }}' : ({{ ($context === 'calculator' || $config_confirmed) ? 'true' : 'false' }} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}'))"
+                        class="flex-1 h-20 sm:h-12 rounded-2xl sm:rounded-xl font-black sm:font-bold text-xl sm:text-base tracking-wide sm:tracking-normal w-full transition-all duration-300 flex items-center justify-center shadow-2xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
                     @if($context !== 'template_admin')
-                        <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 sm:px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[100px] sm:min-w-[90px]">
-                            <span class="font-serif font-bold leading-none tracking-wide text-lg sm:text-base sm:{{$qty > 1 ? 'text-sm' : 'text-base'}}">{{number_format($totalPrice / 100, 2, ',', '.')}} €</span>
+                        <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[100px] sm:min-w-[90px] pointer-events-none">
+                            <span class="font-serif font-bold leading-none tracking-wide text-lg sm:text-base {{ $qty > 1 ? 'sm:text-sm' : 'sm:text-base' }}">{{ number_format($totalPrice / 100, 2, ',', '.') }} €</span>
                             @if($qty > 1)
-                                <span class="text-xs sm:text-[9px] opacity-80 font-normal leading-none mt-1 sm:mt-0.5">je {{number_format($currentPrice / 100, 2, ',', '.')}} €</span>
+                                <span class="text-xs sm:text-[9px] opacity-80 font-normal leading-none mt-1 sm:mt-0.5">je {{ number_format($currentPrice / 100, 2, ',', '.') }} €</span>
                             @endif
                         </div>
-                        <div class="pl-[110px] sm:pl-24 pr-4 w-full flex items-center justify-center h-14">
-                            @else
-                                <div class="w-full flex items-center justify-center">
-                                    @endif
-                                    <template x-if="saved">
-                                        <div class="flex items-center gap-2 animate-fade-in">
-                                            <svg class="w-5 h-5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            <span>{{$context === 'template_admin' ? 'Gespeichert!' : 'Hinzugefügt!'}}</span>
-                                        </div>
-                                    </template>
-                                    <template x-if="!saved">
-                                        <div class="flex items-center gap-2">
-                                            <svg wire:loading class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            <span wire:loading.remove>
-                                                @if($context === 'add')
-                                                    In den Warenkorb
-                                                @elseif($context === 'edit')
-                                                    Speichern
-                                                @elseif($context === 'order_edit')
-                                                    Änderungen speichern
-                                                @elseif($context === 'calculator')
-                                                    Übernehmen
-                                                @elseif($context === 'template_admin')
-                                                    Vorlage speichern
-                                                @endif
-                                                </span>
-                                            <span wire:loading>
-                                                    Moment...
-                                                </span>
-                                        </div>
-                                    </template>
+                        <div class="pl-[105px] sm:pl-24 pr-4 w-full flex items-center justify-center h-full">
+                    @else
+                        <div class="w-full flex items-center justify-center h-full">
+                    @endif
+
+                        {{-- STATUS: ERFOLG --}}
+                        <template x-if="saved">
+                            <div class="flex items-center gap-2 animate-fade-in text-white">
+                                <svg class="w-5 h-5 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>{{ $context === 'template_admin' ? 'Gespeichert!' : 'Hinzugefügt!' }}</span>
+                            </div>
+                        </template>
+
+                        {{-- STATUS: NORMAL ODER LADEN --}}
+                        <template x-if="!saved">
+                            <div class="flex items-center justify-center gap-2">
+                                {{-- LADE-ANIMATION (Aktiv bei isSaving [Client] oder wire:loading [Server]) --}}
+                                <div x-show="isSaving" class="flex items-center gap-2.5" style="display: none;">
+                                    <svg class="animate-spin h-5 w-5 text-current shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span class="animate-pulse font-bold text-base sm:text-sm tracking-normal">
+                                        @if($context === 'calculator')
+                                            Wird übernommen...
+                                        @elseif($context === 'add')
+                                            Wird hinzugefügt...
+                                        @elseif($context === 'template_admin')
+                                            Vorlage wird gespeichert...
+                                        @else
+                                            Wird gespeichert...
+                                        @endif
+                                    </span>
                                 </div>
+
+                                {{-- NORMALER BUTTON-TEXT (Ausgeblendet während Ladevorgang) --}}
+                                <div x-show="!isSaving" class="flex items-center gap-2">
+                                    <span>
+                                        @if($context === 'add')
+                                            In den Warenkorb
+                                        @elseif($context === 'edit')
+                                            Speichern
+                                        @elseif($context === 'order_edit')
+                                            Änderungen speichern
+                                        @elseif($context === 'calculator')
+                                            Übernehmen
+                                        @elseif($context === 'template_admin')
+                                            Vorlage speichern
+                                        @endif
+                                    </span>
+                                    @if($context === 'calculator')
+                                        <svg class="w-5 h-5 hidden sm:inline-block transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                        </svg>
+                                    @endif
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </button>
             </div>
 
