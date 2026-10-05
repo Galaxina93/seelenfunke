@@ -145,10 +145,10 @@ class ManagementDayRoutineSeeder extends Seeder
                 'title' => 'Nachtruhe & Regeneration',
                 'icon' => 'moon',
                 'type' => 'sleep',
-                'duration' => 660, // 11 Stunden (Bis 09:00 Uhr)
+                'duration' => 600, // 11 Stunden (Bis 08:00 Uhr)
                 'message' => 'Schlaf ist nicht verhandelbar! Er ist deine absolut wichtigste Regenerationsquelle. Leg das Handy sofort weit weg, mach die Augen zu. Nur wer tief schläft, kann morgen wieder auf Hochtouren performen. Gute Nacht!',
                 'steps' => [
-                    ['title' => 'Handy weg, Augen zu, Träumen', 'min' => 660],
+                    ['title' => 'Handy weg, Augen zu, Träumen', 'min' => 600],
                 ]
             ],
         ];

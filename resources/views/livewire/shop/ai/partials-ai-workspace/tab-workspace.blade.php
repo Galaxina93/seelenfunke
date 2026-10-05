@@ -1,6 +1,7 @@
                     <!-- Workspace View -->
                     <div wire:key="tab-workspace" x-show="activeTab === 'workspace'" 
                          x-ref="workspaceContainer"
+                         @if($tasks->contains('status', 'processing')) wire:poll.4s @endif
                          class="flex-1 flex flex-col gap-2 overflow-hidden h-full w-full relative">
                          
                     <!-- TOP: Workspace Kanban Canvas -->

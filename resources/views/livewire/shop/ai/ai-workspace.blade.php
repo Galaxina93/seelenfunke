@@ -71,32 +71,42 @@
     <!-- Neon Header -->
     <div x-show="!isChatFullScreen" class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
         <p class="text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
+        <button @click="activeTab = activeTab === 'workspace' ? 'chat' : 'workspace'" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
+            <span x-text="activeTab === 'workspace' ? 'Arbeitsbereich ausblenden' : 'Arbeitsbereich anzeigen'"></span>
+        </button>
+    </div>
 
-    @include('livewire.shop.ai.partials-ai-workspace.sidebar-agents')
+    <!-- Main Workspace Container -->
+    <div class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 lg:px-6 pb-4 lg:pb-6 overflow-hidden relative"
+         x-data="workspaceCanvas()">
 
-    <!-- Main Content Area -->
-    <div class="flex-1 flex flex-col min-w-0 bg-black/90">
-        <!-- Top Navigation Area -->
-        <div class="flex-1 flex flex-col overflow-hidden p-2">
+        @include('livewire.shop.ai.partials-ai-workspace.sidebar-agents')
 
-            @if($activeWorkspaceView === 'knowledge-base')
-                @include('livewire.shop.ai.partials-ai-workspace.view-knowledge-base')
-            @elseif($activeWorkspaceView === 'settings')
-                @include('livewire.shop.ai.partials-ai-workspace.view-settings')
-            @else
-                <div wire:key="workspace-main-view" class="flex-1 flex flex-col gap-4 overflow-hidden h-full w-full">
-                    @include('livewire.shop.ai.partials-ai-workspace.navigation-tabs')
-                    @include('livewire.shop.ai.partials-ai-workspace.tab-workspace')
-                    @include('livewire.shop.ai.partials-ai-workspace.tab-chat')
-                    @include('livewire.shop.ai.partials-ai-workspace.tab-files')
-                    @include('livewire.shop.ai.partials-ai-workspace.tab-health')
-                    @include('livewire.shop.ai.partials-ai-workspace.tab-workflows')
-                    <div :class="{'hidden': activeTab !== 'cronjobs'}" class="flex-1 shrink-0 h-full w-full overflow-hidden">
-                        @livewire('shop.ai.partials-ai-workspace.tab-cronjobs')
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col min-w-0 bg-black/90">
+            <!-- Top Navigation Area -->
+            <div class="flex-1 flex flex-col overflow-hidden p-2">
+
+                @if($activeWorkspaceView === 'knowledge-base')
+                    @include('livewire.shop.ai.partials-ai-workspace.view-knowledge-base')
+                @elseif($activeWorkspaceView === 'settings')
+                    @include('livewire.shop.ai.partials-ai-workspace.view-settings')
+                @else
+                    <div wire:key="workspace-main-view" class="flex-1 flex flex-col gap-4 overflow-hidden h-full w-full">
+                        @include('livewire.shop.ai.partials-ai-workspace.navigation-tabs')
+                        @include('livewire.shop.ai.partials-ai-workspace.tab-workspace')
+                        @include('livewire.shop.ai.partials-ai-workspace.tab-chat')
+                        @include('livewire.shop.ai.partials-ai-workspace.tab-files')
+                        @include('livewire.shop.ai.partials-ai-workspace.tab-health')
+                        @include('livewire.shop.ai.partials-ai-workspace.tab-workflows')
+                        <div :class="{'hidden': activeTab !== 'cronjobs'}" class="flex-1 shrink-0 h-full w-full overflow-hidden">
+                            @livewire('shop.ai.partials-ai-workspace.tab-cronjobs')
+                        </div>
                     </div>
-                </div>
-            @endif
+                @endif
+            </div>
         </div>
     </div>
     @include('livewire.shop.ai.partials-ai-workspace.modals-and-scripts')
+    </div>
 </div>

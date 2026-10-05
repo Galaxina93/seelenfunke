@@ -104,7 +104,7 @@ Beispiel falsch: Hier sind die Agenten: [...]";
                     $filteredDecoded = array_intersect($decoded, $validIds); // Ensure fake IDs aren't returned
                     
                     if (!empty($filteredDecoded)) {
-                        return array_values(array_unique(array_merge($currentlyActiveIds, $filteredDecoded)));
+                        return array_values(array_unique($filteredDecoded));
                     }
                 }
             } else {

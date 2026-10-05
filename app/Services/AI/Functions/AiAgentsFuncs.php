@@ -9,6 +9,9 @@ use App\Models\Ai\AiInteraction;
 
 trait AiAgentsFuncs
 {
+    protected static array $delegationStack = [];
+    protected static int $maxDelegationDepth = 2;
+
     public static function getAiCommunicationFuncsSchema(): array
     {
         return [
@@ -678,23 +681,47 @@ trait AiAgentsFuncs
 
     public static function executeCommunicationAskAgent(array $args)
     {
+        $targetAgentName = trim($args['agent_name'] ?? '');
+        $instruction = $args['instruction'] ?? $args['task'] ?? '';
+
+        if (empty($targetAgentName) || empty($instruction)) {
+            return ['status' => 'error', 'message' => 'Agenten-Name oder Anweisung fehlt.'];
+        }
+
+        // 1. Check max delegation depth to prevent deep call cascades
+        if (count(self::$delegationStack) >= self::$maxDelegationDepth) {
+            return [
+                'status' => 'error',
+                'message' => "Maximale Delegations-Tiefe (" . self::$maxDelegationDepth . ") erreicht. Weitere Weiterleitungen gestoppt, um Systemüberlastung und Endlosschleifen zu verhindern."
+            ];
+        }
+
+        // 2. Prevent circular delegation (A -> B -> A)
+        if (in_array(strtolower($targetAgentName), array_map('strtolower', self::$delegationStack))) {
+            return [
+                'status' => 'error',
+                'message' => "Zirkuläre Delegation verhindert: '{$targetAgentName}' ist bereits in der Delegations-Kette (" . implode(' -> ', self::$delegationStack) . "). Endlosschleife abgefangen."
+            ];
+        }
+
+        $originalAgent = \App\Models\Ai\AiAgent::where('name', $targetAgentName)->where('is_active', true)->first();
+        if (!$originalAgent) {
+            return ['status' => 'error', 'message' => "Der Agent '{$targetAgentName}' wurde nicht gefunden oder ist inaktiv. Nutze communication_list_agents, um gültige Agenten zu finden."];
+        }
+
+        // Push target agent onto delegation stack
+        self::$delegationStack[] = $originalAgent->name;
+
         try {
-            $targetAgentName = $args['agent_name'] ?? '';
-            $instruction = $args['instruction'] ?? $args['task'] ?? '';
-
-            if (empty($targetAgentName) || empty($instruction)) {
-                return ['status' => 'error', 'message' => 'Agenten-Name oder Anweisung fehlt.'];
-            }
-
-            $originalAgent = \App\Models\Ai\AiAgent::where('name', $targetAgentName)->where('is_active', true)->first();
-            if (!$originalAgent) {
-                return ['status' => 'error', 'message' => "Der Agent '{$targetAgentName}' wurde nicht gefunden oder ist inaktiv. Nutze communication_list_agents, um gültige Agenten zu finden."];
-            }
-
-            // Force use of extremely fast flash model for internal delegation
+            // Force use of extremely fast, stable 2.5 flash model for internal delegation
             $agent = clone $originalAgent;
-            if (str_contains(strtolower($agent->model), 'gemini')) {
-                $agent->model = 'gemini-1.5-flash';
+            if (str_contains(strtolower($agent->model ?? ''), 'gemini')) {
+                $agent->model = 'gemini-2.5-flash';
+            }
+
+            // Strip communication_ask_agent from the delegated agent to prevent any further sub-delegation
+            if ($agent->tools) {
+                $agent->setRelation('tools', $agent->tools->reject(fn($t) => $t->identifier === 'communication_ask_agent'));
             }
 
             // Instantiate the appropriate agent service based on the model or class
@@ -717,6 +744,8 @@ trait AiAgentsFuncs
             return $returnArray;
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei der Kommunikation mit dem Agenten: ' . $e->getMessage()];
+        } finally {
+            array_pop(self::$delegationStack);
         }
     }
 }

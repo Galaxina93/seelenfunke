@@ -1,14 +1,5 @@
-        <button @click="activeTab = activeTab === 'workspace' ? 'chat' : 'workspace'" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-gray-900 border border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl">
-            <span x-text="activeTab === 'workspace' ? 'Arbeitsbereich ausblenden' : 'Arbeitsbereich anzeigen'"></span>
-        </button>
-    </div>
-
-    <!-- Main Workspace Container -->
-    <div class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 lg:px-6 pb-4 lg:pb-6 overflow-hidden relative"
-         x-data="workspaceCanvas()">
-
-        <!-- Left Sidebar: Tools & Agents -->
-        <div x-show="!isChatFullScreen" class="w-full lg:w-72 bg-gray-950 border border-gray-800 rounded-2xl p-4 flex flex-col shrink-0 z-10 shadow-xl shadow-[var(--theme-color-10)]">
+<!-- Left Sidebar: Tools & Agents -->
+<div x-show="!isChatFullScreen" class="w-full lg:w-72 bg-gray-950 border border-gray-800 rounded-2xl p-4 flex flex-col shrink-0 z-10 shadow-xl shadow-[var(--theme-color-10)]">
             <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-2 lg:mb-4 border-b border-gray-800 pb-2 gap-2">
                 <h3 class="text-xs uppercase tracking-widest text-gray-400">Bereite Agenten <span class="hidden lg:inline">(Ziehbar)</span></h3>
                 <button wire:click="syncAll" wire:loading.attr="disabled" class="text-[10px] uppercase font-bold tracking-widest px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 transition-colors flex items-center gap-1 group">

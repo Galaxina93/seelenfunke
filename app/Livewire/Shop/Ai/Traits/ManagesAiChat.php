@@ -475,7 +475,11 @@ trait ManagesAiChat
 
         $routedIds = \App\Services\AI\AiAgentRouter::determineRequiredAgents($rawUserInput, $this->activeAgentIds);
         
-        $finalIds = array_values(array_unique(array_merge($routedIds, $this->forcedAgentIds)));
+        // Use routed agent(s) if specifically identified, otherwise fallback to current/forced
+        $finalIds = !empty($routedIds) ? $routedIds : $this->activeAgentIds;
+        if (empty($finalIds)) {
+            $finalIds = $this->forcedAgentIds;
+        }
 
         if (!empty($finalIds)) {
             $this->activeAgentIds = $finalIds;
@@ -539,6 +543,30 @@ trait ManagesAiChat
         }
     }
 
+    #[On('ai-switch-agent')]
+    public function handleAgentSwitch($agentId = null, $agent_id = null)
+    {
+        $targetId = $agentId ?? $agent_id;
+        if (!$targetId) return;
+
+        $agent = AiAgent::find($targetId);
+        if ($agent) {
+            $this->activeAgentIds = [$agent->id];
+            $this->forcedAgentIds = [$agent->id];
+            $agent->update(['is_in_chat' => true]);
+
+            $switchCtx = [
+                'name' => $agent->name,
+                'color' => $agent->color,
+                'icon' => $agent->icon,
+                'profile_picture' => $agent->profile_picture,
+            ];
+            $roleName = $agent->role?->name ?? 'Spezialist';
+            $this->saveMessageToDb('assistant', "> **{$agent->name}** ({$roleName}) hat den Chat übernommen. Wie kann ich dir helfen?", $switchCtx);
+            unset($this->messages);
+        }
+    }
+
     #[On('start-ai-inference')]
     public function handleStartAiInference($targetComponentId = null, $agentIds = [])
     {
@@ -546,8 +574,17 @@ trait ManagesAiChat
             return;
         }
 
-        foreach ($agentIds as $id) {
-            $this->processAgent($id);
+        if (empty($agentIds)) {
+            return;
+        }
+
+        // Process first agent in this request cycle to avoid blocking timeout
+        $currentId = array_shift($agentIds);
+        $this->processAgent($currentId);
+
+        // If there are more agents queued, dispatch to next cycle asynchronously
+        if (!empty($agentIds)) {
+            $this->dispatch('start-ai-inference', targetComponentId: $this->getId(), agentIds: array_values($agentIds));
         }
     }
 

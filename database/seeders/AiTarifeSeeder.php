@@ -22,7 +22,7 @@ class AiTarifeSeeder extends Seeder
                 'token_limit' => null, // unlimited/custom
                 'price_monthly' => 219.99, // EUR/Month
                 'description' => 'Maximaler Zugriff auf das Beste von Google AI und exklusive Funktionen. €219,99 EUR/Monat in den ersten 3 Monaten. (Gemini Ultra 3)',
-                'is_active' => true,
+                'is_active' => false,
                 'features' => [
                     [
                         'title' => 'Gemini',
@@ -63,6 +63,54 @@ class AiTarifeSeeder extends Seeder
                     [
                         'title' => 'Speicher',
                         'description' => '30 TB Speicherplatz für Google Fotos, Drive und Gmail.'
+                    ],
+                ],
+            ]
+        );
+
+        SystemAiHostingPlan::updateOrCreate(
+            ['name' => 'Google AI Pro (5 TB)'],
+            [
+                'token_limit' => null,
+                'price_monthly' => 21.99,
+                'description' => 'Speicherplatz mit bis zu 5 weiteren Personen nutzen. 21,99 €/Monat (Monatliche Abrechnung).',
+                'is_active' => true,
+                'features' => [
+                    [
+                        'title' => '5 TB Gesamtspeicherplatz',
+                        'description' => '5 TB Gesamtspeicherplatz für Google Fotos, Google Drive und Gmail. Speicherplatz mit bis zu 5 weiteren Personen nutzen.'
+                    ],
+                    [
+                        'title' => 'Gemini App mit Pro-Modell & Deep Research',
+                        'description' => 'Zugriff auf Gemini App mit viermal höheren Nutzungslimits als ohne Abo für Google AI sowie Zugriff auf unser Pro-Modell Deep Research und weitere Vorteile.'
+                    ],
+                    [
+                        'title' => 'Google Flow',
+                        'description' => 'Google Flow mit erweitertem Zugriff auf die kreativen Modelle von Google.'
+                    ],
+                    [
+                        'title' => 'Gemini in Google Workspace Apps',
+                        'description' => 'Gemini in Gmail, Google Docs, Google Vids und mehr.'
+                    ],
+                    [
+                        'title' => 'Gemini Notebook',
+                        'description' => 'Gemini Notebook mit erweitertem Zugriff.'
+                    ],
+                    [
+                        'title' => 'YouTube Premium Lite',
+                        'description' => 'YouTube Premium Lite · Einzelmitgliedschaft.'
+                    ],
+                    [
+                        'title' => 'Google Home Premium',
+                        'description' => 'Google Home Premium · Standard.'
+                    ],
+                    [
+                        'title' => 'Google Health Premium',
+                        'description' => 'Google Health Premium.'
+                    ],
+                    [
+                        'title' => 'Weitere Google-Vorteile',
+                        'description' => 'Weitere Vorteile in verschiedenen Google-Produkten.'
                     ],
                 ],
             ]

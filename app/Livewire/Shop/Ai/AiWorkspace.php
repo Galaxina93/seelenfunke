@@ -115,8 +115,59 @@ class AiWorkspace extends Component
     public function syncAll()
     {
         $agents = AiAgent::where('is_active', true)->get();
+        if ($agents->isEmpty()) return;
+
+        // Ping LLM once globally (shared Gemini provider infrastructure)
+        $start = microtime(true);
+        $llmUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
+        $key = config('services.gemini.key');
+        
+        $llmStatus = 'Offline';
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(3)->withToken($key)->get(rtrim($llmUrl, '/') . '/models');
+            if ($response->successful() || $response->status() === 401 || $response->status() === 404) {
+                $llmStatus = round((microtime(true) - $start) * 1000) . 'ms';
+            } else {
+                $llmStatus = 'Fehler';
+            }
+        } catch (\Exception $e) {
+            $llmStatus = 'Offline';
+        }
+
+        // Parallel pool for active TTS endpoints
+        $ttsAgents = $agents->filter(fn($a) => $a->tts_enabled && $a->tts_provider && $a->tts_provider !== 'none');
+        $ttsResponses = [];
+
+        if ($ttsAgents->isNotEmpty()) {
+            try {
+                $ttsResponses = \Illuminate\Support\Facades\Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($ttsAgents) {
+                    foreach ($ttsAgents as $a) {
+                        $ttsUrl = $a->tts_api_url ?: 'https://generativelanguage.googleapis.com';
+                        $pool->as('tts_' . $a->id)->timeout(3)->get(rtrim($ttsUrl, '/') . '/v1beta/models');
+                    }
+                });
+            } catch (\Exception $e) {
+                $ttsResponses = [];
+            }
+        }
+
         foreach ($agents as $agent) {
-            $this->pingTest($agent->id);
+            $ttsStatus = !$agent->tts_enabled ? 'Deaktiviert' : 'Inaktiv';
+            if ($agent->tts_enabled && $agent->tts_provider && $agent->tts_provider !== 'none') {
+                $resp = $ttsResponses['tts_' . $agent->id] ?? null;
+                if ($resp instanceof \Illuminate\Http\Client\Response && ($resp->successful() || in_array($resp->status(), [401, 403, 404]))) {
+                    $ttsStatus = 'OK';
+                } elseif ($resp instanceof \Exception) {
+                    $ttsStatus = 'Offline';
+                } else {
+                    $ttsStatus = 'Fehler';
+                }
+            }
+
+            $this->pingResults[$agent->id] = [
+                'llm' => $llmStatus,
+                'tts' => $ttsStatus,
+            ];
         }
     }
 

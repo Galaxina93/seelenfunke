@@ -15,7 +15,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 600; // 10 Minutes max LLM inference
-    public $tries = 2; // Allow one retry before permanent fail
+    public $tries = 1; // Prevent duplicate tool execution on retry
 
     public function __construct(
         public AiWorkspaceTask $task
@@ -293,7 +293,9 @@ class ProcessAiWorkspaceTask implements ShouldQueue
             // -------------------------------------------------------------
             // PHASE 3: FINALIZATION
             // -------------------------------------------------------------
-            if ($allCompleted && $finalSummaryNeeded) {
+            $isAllPlanStepsCompleted = !empty($plan) && count(array_filter($plan, fn($s) => $s['status'] !== 'completed')) === 0;
+
+            if ($isAllPlanStepsCompleted && $finalSummaryNeeded) {
                 $history[] = [
                     'role' => 'user',
                     'content' => "Alle Schritte sind abgeschlossen. Bitte bestätige den Abschluss der Aufgabe. WICHTIG: Halte dich extrem kurz (max. 1-2 Sätze). Beginne mit 'Verstanden, ich habe...' oder 'Erledigt'. Verzichte vollständig auf technische Details, Erklärungen oder Zusammenfassungen der einzelnen Schritte."
@@ -306,16 +308,12 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                     'response_content' => $finalResponse,
                     'completed_at' => now(),
                 ]);
-            } else {
-                // Should only be reached if $allCompleted is false and we loop again, but we just completed all in the foreach.
-                // Wait, if foreach completes them all, the loop finishes. It should always hit $allCompleted if it doesn't crash.
-                if (count(array_filter($plan, fn($s) => $s['status'] === 'pending')) === 0) {
-                     $this->task->update([
-                         'status' => 'completed',
-                         'response_content' => 'Alle definierten Schritte wurden in der Historie abgeschlossen.',
-                         'completed_at' => now(),
-                     ]);
-                }
+            } else if ($isAllPlanStepsCompleted) {
+                $this->task->update([
+                    'status' => 'completed',
+                    'response_content' => $this->task->response_content ?: 'Alle definierten Schritte wurden erfolgreich abgeschlossen.',
+                    'completed_at' => now(),
+                ]);
             }
 
         } catch (\Exception $e) {
