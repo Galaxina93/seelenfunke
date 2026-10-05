@@ -13,4 +13,6 @@
         </section>
 
     </x-sections.page-container>
+    <script src="{{ asset('vendor/html2canvas/html2canvas.min.js') }}"></script>
+    <script src="{{ asset('js/admin-bundle.js') }}"></script>
 </x-layouts.frontend_layout>

@@ -89,7 +89,8 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                     
                     if (is_array($configSnapshots)) {
                         foreach ($configSnapshots as $key => $path) {
-                            $fullPath = storage_path('app/public/' . $path);
+                            $normPath = str_starts_with($path, 'snapshots/') ? 'system/' . $path : $path;
+                            $fullPath = storage_path('app/public/' . $normPath);
                             if (file_exists($fullPath)) {
                                 $sideName = ($key === 'back') ? 'Rückseite' : 'Vorderseite';
                                 $filename = $cleanProductName . '-' . $itemIndex . '-' . $sideName . '-Sicherung.jpg';
@@ -97,7 +98,8 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                             }
                         }
                     } else {
-                        $fullPath = storage_path('app/public/' . $configSnapshots);
+                        $normPath = str_starts_with($configSnapshots, 'snapshots/') ? 'system/' . $configSnapshots : $configSnapshots;
+                        $fullPath = storage_path('app/public/' . $normPath);
                         if (file_exists($fullPath)) {
                             $filename = $cleanProductName . '-' . $itemIndex . '-Vorderseite-Sicherung.jpg';
                             $snapshotPaths[$filename] = $fullPath;

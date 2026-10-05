@@ -284,6 +284,21 @@
 
                         const capturePromise = (async () => {
                             let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                            if (this.config.modelPath && !engine) {
+                                if (typeof this._forceStart3D === 'function') this._forceStart3D();
+                                await new Promise(resolve => {
+                                    let elapsed = 0;
+                                    let checkInterval = setInterval(() => {
+                                        elapsed += 100;
+                                        engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                                        if (engine || elapsed >= 2000) {
+                                            clearInterval(checkInterval);
+                                            resolve();
+                                        }
+                                    }, 100);
+                                });
+                            }
+
                             if (this.config.modelPath && engine) {
                                 
                                 // SICHERSTELLEN DASS DAS 3D MODEL GELADEN IST (mit maximal 2 Sekunden Wartezeit!)

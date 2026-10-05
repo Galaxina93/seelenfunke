@@ -151,9 +151,76 @@ Duration: 1.64s
 
 ---
 
-## 6. Fazit & Ausblick
+## 6. Fazit & Ausblick (Konfigurator & Rechner)
 
 - Der mobile Übernehmen-Button reagiert nun unmittelbar und verhindert Doppel-Klicks zuverlässig.
 - Das Einfrieren im Schritt „Design-Vorschau“ wurde durch Behebung des Scoping-Fehlers und Absicherung gegen Timeouts dauerhaft gelöst.
 - Der Wechsel zwischen B2B-Kalkulator und Produktkonfigurator funktioniert nahtlos in beide Richtungen (Neuanlage und Bearbeitung bestehender Positionen).
-- Sämtliche Abhängigkeiten sind durch 11 automatisierte Feature-Tests mit 66 Assertions vollständig abgesichert.
+
+---
+
+## 7. Bilddarstellung im Angebots-PDF und der E-Mail (3D-Ansicht vs. Fallback)
+
+### 7.1 Problemstellung & Fehleranalyse
+Beim Erstellen von Angeboten über den Kalkulator (z. B. Anfrage `#AN-2026-SLEEJ`) wurde im generierten Angebots-PDF (`calculation_pdf_template.blade.php`) und in den Benachrichtigungs-Mails (`new_calc_mail_to_customer.blade.php`, `new_calc_mail_to_admin.blade.php`) fälschlicherweise das Standard-Katalogbild (z. B. `seelen-kristall_b.jpg` mit dem Mustertext „Sophia & Alexander“) anstelle der individuellen 3D-Vorschau (z. B. gravierter Kristall mit „Frohe Weihnachten! - Familie Mustermann -“) angezeigt.
+
+**Ursachenanalyse:**
+1. **Pfadpräfix-Mismatch (`snapshots/` vs. `system/snapshots/`):**
+   In der Datenbank (`product_templates`) und teils in Konfigurationen waren Vorlagen-Snapshots mit dem Pfad `snapshots/<uuid>_front.jpg` hinterlegt. Das physische Ablageverzeichnis lautet jedoch `storage/app/public/system/snapshots/`.
+   In `mail_item_list.blade.php` suchte die Datei-Auflösung nach `storage/snapshots/...` bzw. `app/public/snapshots/...`, schlug fehl und fiel bei der PDF-Generierung auf eine externe HTTP-URL zurück, die DomPDF im Docker-Container nicht auflösen konnte (404 / Verbindungsabbruch).
+2. **Überschreiben vorhandener Snapshots in `ProductConfigurator.php`:**
+   Wurde ein Artikel aus einer Vorlage geladen oder im Rechner übernommen, ohne dass die 3D-Engine sofort einen neuen Snapshot lieferte (z. B. wenn der Kunde keine Änderungen vornahm), wurde `snapshot_path` in `save()` mit einem leeren Array `[]` überschrieben. Dadurch griff `mail_item_list.blade.php` mangels vorhandenem Snapshot immer auf `main_image` zurück.
+3. **Fehlende Skript-Vorabladung auf `/calculator`:**
+   Auf der Rechner-Seite (`calculator.blade.php`) fehlten die Bundles `admin-bundle.js` und `html2canvas.min.js`. Beim dynamischen Livewire-Wechsel auf Schritt 2 („Design-Vorschau“) war Three.js unter Umständen noch nicht einsatzbereit, wodurch `submitConfig()` in den 2D-Fallback lief und keine Snapshots erzeugte.
+
+---
+
+### 7.2 Durchgeführte Maßnahmen & Implementierung
+
+1. **Pfad-Normalisierung & Base64-Auflösung in [`mail_item_list.blade.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/global/mails/partials/mail_item_list.blade.php):**
+   - Automatische Erkennung und Normalisierung von Snapshots: Pfade mit `snapshots/` werden transparent als `system/snapshots/` aufgelöst.
+   - DomPDF-Base64-Inlining: Liegt ein Snapshot auf der Festplatte, wird er im PDF-Modus (`isPdf = true`) direkt als Base64 Data URI (`data:image/jpeg;base64,...`) eingebunden.
+   - Mail-URL-Auflösung: In HTML-E-Mails erzeugt `asset('storage/' . $cleanRelPath)` stets die korrekte, öffentlich erreichbare URL.
+   - **Strikte Fallback-Hierarchie:** Wenn ein 3D-Snapshot existiert, wird **nur** dieser dargestellt. Das Katalog-Produktbild (`main_image`) dient als reiner Fallback und wird nur angezeigt, wenn gar kein Snapshot vorhanden ist (z. B. bei Standard-Artikeln ohne Personalisierung). Beide Bilder werden niemals gleichzeitig dargestellt.
+
+2. **Snapshot-Erhalt in [`ProductConfigurator.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php):**
+   - Eigenschaft `public $snapshot_path = [];` hinzugefügt.
+   - In `mount()` wird ein existierender Snapshot aus `$initialData['snapshot_path']` geladen.
+   - In `save()` wird `$finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;` verwendet, sodass bestehende Snapshots niemals durch ein leeres Array überschrieben werden.
+
+3. **3D-Engine Synchronisation & Preloading:**
+   - In `resources/views/frontend/pages/calculator.blade.php` wurden `admin-bundle.js` und `html2canvas.min.js` eingebunden.
+   - In `scripts_frontend_1.blade.php` wartet `submitConfig()` aktiv auf die Initialisierung der 3D-Engine (`Configurator3DEngine`), bevor Snapshots gerendert werden.
+
+4. **Datenbankbereinigung (`product_templates`):**
+   - Vorhandene Vorlagen mit fehlerhaftem Präfix wurden von `"snapshots/` auf `"system/snapshots/` migriert.
+   - In `ProcessOrderDocumentsAndMails.php` wurde dieselbe Normalisierung implementiert, um auch E-Mail-Anhänge für Bestellungen abzusichern.
+
+---
+
+### 7.3 Testabdeckung & Verifikation
+
+Ein dedizierter Test wurde implementiert:
+**Datei:** [`tests/Feature/Livewire/Shop/Product/QuoteMailPdfImageRenderingTest.php`](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Product/QuoteMailPdfImageRenderingTest.php)
+
+**Getestete Fälle:**
+1. `quote_renders_only_3d_snapshot_and_no_catalog_fallback_when_snapshot_exists`:
+   Prüft, dass bei vorhandenem Snapshot nur die 3D-Ansicht gerendert wird und das Katalog-Bild ausgeschlossen ist. Prüft zusätzlich die Base64-Codierung im PDF und den fehlerfreien PDF-Export via DomPDF.
+2. `quote_renders_snapshot_even_when_legacy_path_missing_system_prefix`:
+   Prüft die Normalisierung von Legacy-Pfaden (`snapshots/...`) zu `system/snapshots/...` in Mail und PDF.
+3. `quote_falls_back_to_product_image_only_when_no_snapshot_exists`:
+   Prüft das korrekte Fallback-Verhalten auf das Katalogbild bei nicht-personalisierten Artikeln.
+4. `configurator_preserves_initial_snapshot_when_saved_without_new_capture`:
+   Prüft, dass bestehende Snapshots bei Re-Saves ohne neue Canvas-Aufnahme nicht überschrieben werden.
+
+**Testergebnis der gesamten Produkt-Suite:**
+```text
+PASS  Tests\Feature\Livewire\Shop\Product\ProductCalculatorCapacityTest (3 Tests)
+PASS  Tests\Feature\Livewire\Shop\Product\ProductCalculatorTest (6 Tests)
+PASS  Tests\Feature\Livewire\Shop\Product\ProductConfiguratorCalculatorIntegrationTest (5 Tests)
+PASS  Tests\Feature\Livewire\Shop\Product\ProductCreateTest (9 Tests)
+PASS  Tests\Feature\Livewire\Shop\Product\QuoteMailPdfImageRenderingTest (4 Tests)
+
+Tests:    27 passed (146 assertions)
+Duration: 17.92s
+```

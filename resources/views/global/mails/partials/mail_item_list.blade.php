@@ -35,13 +35,18 @@
                     if (str_starts_with($imgPath, 'http')) {
                         $imgUrl = $imgPath;
                     } else {
-                        $pathPrefix = str_starts_with($imgPath, 'storage/') ? '' : 'storage/';
+                        $cleanRelPath = ltrim(preg_replace('#^/?storage/#', '', $imgPath), '/');
+                        // Snapshot-Pfade normalisieren falls das 'system/' Prefix fehlt
+                        if (str_starts_with($cleanRelPath, 'snapshots/')) {
+                            $cleanRelPath = 'system/' . $cleanRelPath;
+                        }
+
                         if (isset($isPdf) && $isPdf) {
-                            $cleanRelPath = ltrim(preg_replace('#^/?storage/#', '', $imgPath), '/');
                             $candidates = [
-                                public_path($pathPrefix . $imgPath),
                                 storage_path('app/public/' . $cleanRelPath),
+                                public_path('storage/' . $cleanRelPath),
                                 public_path($cleanRelPath),
+                                storage_path('app/public/' . ltrim(preg_replace('#^system/#', '', $cleanRelPath), '/')),
                                 base_path($cleanRelPath),
                             ];
                             foreach ($candidates as $cand) {
@@ -55,7 +60,7 @@
                         }
                         
                         if (!$imgUrl) {
-                            $imgUrl = asset($pathPrefix . $imgPath);
+                            $imgUrl = asset('storage/' . $cleanRelPath);
                         }
                     }
                     if ($imgUrl) {

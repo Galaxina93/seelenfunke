@@ -40,6 +40,7 @@ class ProductConfigurator extends Component
     public $totalPrice = 0;
     public $config_confirmed = false;
     public $is_express = false;
+    public $snapshot_path = [];
 
     public array $fonts = [];
     public array $vectors = [];
@@ -123,6 +124,7 @@ class ProductConfigurator extends Component
         $this->notes = $source['notes'] ?? '';
         $this->is_express = filter_var($source['is_express'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $this->uploaded_files = $source['files'] ?? [];
+        $this->snapshot_path = $source['snapshot_path'] ?? [];
 
         // ... (Der restliche bestehende Mount-Code für Texte und Logos bleibt exakt gleich)
         if (isset($source['texts']) && is_array($source['texts'])) {
@@ -427,6 +429,8 @@ class ProductConfigurator extends Component
                 $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
                 $mainText = collect($this->texts)->firstWhere('text', '!=', '')['text'] ?? '';
 
+                $finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;
+
                 $configData = [
                     'texts' => $this->texts,
                     'logos' => $this->logos,
@@ -440,7 +444,7 @@ class ProductConfigurator extends Component
                     'is_digital' => $this->isDigital,
                     'variant_id' => $this->variantId,
                     'variant_name' => $this->variantName,
-                    'snapshot_path' => $snapshotPath,
+                    'snapshot_path' => $finalSnapshotPath,
                     'is_express' => $this->is_express,
                 ];
 
