@@ -32,7 +32,7 @@ class AccountingLiquidity extends Component
 
     // -- KONFIGURATION DYNAMIK --
     public int $configStartYear = 2026;
-    public int $configStartMonth = 8;
+    public int $configStartMonth = 11;
     public float $configInterestRate = 8.0;
     public int $configRepaymentMonths = 60;
     public bool $configLoadDemoData = true;
@@ -95,7 +95,7 @@ class AccountingLiquidity extends Component
         $config = shop_setting('liquidity_planner_config');
         if (is_array($config)) {
             $this->configStartYear = (int)($config['start_year'] ?? 2026);
-            $this->configStartMonth = (int)($config['start_month'] ?? 8);
+            $this->configStartMonth = (int)($config['start_month'] ?? 11);
             $this->configInterestRate = (float)($config['interest_rate'] ?? 8.0);
             $this->configRepaymentMonths = (int)($config['repayment_months'] ?? 60);
             $this->configLoadDemoData = (bool)($config['load_demo_data'] ?? true);
