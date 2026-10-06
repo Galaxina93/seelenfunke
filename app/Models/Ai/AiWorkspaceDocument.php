@@ -44,6 +44,7 @@ class AiWorkspaceDocument extends Model
 
     /**
      * Scope a query to search documents by keyword in title, purpose, summary, or content.
+     * Supports natural language multi-topic queries (e.g. "BKK firmus und Arbeitsamt") and synonyms.
      */
     public function scopeSearch($query, string $term)
     {
@@ -52,13 +53,66 @@ class AiWorkspaceDocument extends Model
             return $query;
         }
 
-        return $query->where(function ($q) use ($term) {
-            $q->where('title', 'like', "%{$term}%")
-              ->orWhere('filename', 'like', "%{$term}%")
-              ->orWhere('purpose', 'like', "%{$term}%")
-              ->orWhere('summary', 'like', "%{$term}%")
-              ->orWhere('category', 'like', "%{$term}%")
-              ->orWhere('full_text', 'like', "%{$term}%");
+        $fillers = [
+            'dokumente von der', 'dokumente vom', 'dokumente von', 'dokumente zu',
+            'dokumente über', 'unterlagen von der', 'unterlagen vom', 'unterlagen von',
+            'dateien von der', 'dateien vom', 'dateien von', 'zeigen', 'finde', 'suche'
+        ];
+        $cleaned = $term;
+        foreach ($fillers as $filler) {
+            $cleaned = preg_replace('/\b' . preg_quote($filler, '/') . '\b/iu', ' ', $cleaned);
+        }
+        $cleaned = trim(preg_replace('/\s+/', ' ', $cleaned));
+        if (empty($cleaned)) {
+            $cleaned = $term;
+        }
+
+        $segments = preg_split('/\s*(?:\bund\b|\boder\b|\band\b|\bor\b|[,&+])\s*/iu', $cleaned, -1, PREG_SPLIT_NO_EMPTY);
+        if (empty($segments)) {
+            $segments = [$term];
+        }
+
+        return $query->where(function ($rootQ) use ($term, $segments) {
+            $rootQ->where(function ($subQ) use ($term) {
+                $subQ->where('title', 'like', "%{$term}%")
+                     ->orWhere('filename', 'like', "%{$term}%")
+                     ->orWhere('purpose', 'like', "%{$term}%")
+                     ->orWhere('summary', 'like', "%{$term}%")
+                     ->orWhere('category', 'like', "%{$term}%")
+                     ->orWhere('full_text', 'like', "%{$term}%")
+                     ->orWhere('tags', 'like', "%{$term}%");
+            });
+
+            foreach ($segments as $seg) {
+                $seg = trim($seg);
+                if (mb_strlen($seg) < 2) continue;
+
+                $synonyms = [$seg];
+                $lower = mb_strtolower($seg);
+                if (str_contains($lower, 'arbeitsamt') || str_contains($lower, 'arbeitsagentur')) {
+                    $synonyms[] = 'Agentur für Arbeit';
+                    $synonyms[] = 'Bundesagentur';
+                    $synonyms[] = 'Gründungszuschuss';
+                    $synonyms[] = 'Arbeitslosengeld';
+                } elseif (str_contains($lower, 'agentur')) {
+                    $synonyms[] = 'Arbeitsamt';
+                    $synonyms[] = 'Bundesagentur';
+                } elseif (str_contains($lower, 'bkk')) {
+                    $synonyms[] = 'firmus';
+                    $synonyms[] = 'Krankengeld';
+                }
+
+                $rootQ->orWhere(function ($segQ) use ($synonyms) {
+                    foreach ($synonyms as $syn) {
+                        $segQ->orWhere('title', 'like', "%{$syn}%")
+                             ->orWhere('filename', 'like', "%{$syn}%")
+                             ->orWhere('purpose', 'like', "%{$syn}%")
+                             ->orWhere('summary', 'like', "%{$syn}%")
+                             ->orWhere('category', 'like', "%{$syn}%")
+                             ->orWhere('tags', 'like', "%{$syn}%");
+                    }
+                });
+            }
         });
     }
 

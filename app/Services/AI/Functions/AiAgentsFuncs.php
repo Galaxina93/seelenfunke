@@ -646,7 +646,7 @@ trait AiAgentsFuncs
     {
         $query = trim($args['query'] ?? '');
         $category = trim($args['category'] ?? '');
-        $limit = min(max((int)($args['limit'] ?? 10), 1), 50);
+        $limit = min(max((int)($args['limit'] ?? 20), 1), 50);
 
         if (!class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
             return ['status' => 'error', 'message' => 'AiWorkspaceDocument Modell nicht verfügbar.'];
