@@ -236,6 +236,9 @@ class AccountingLiquidity extends Component
             $this->data[$y1][$sm]['out']['investments'] = 7815;
             $this->data[$y1][$sm]['out']['other_out'] = 600;
 
+            // Start-Darlehen / Kontokorrentlinie zur Mitfinanzierung der Maschinen (analog Referenz-Plan: 4.000 €)
+            $this->data[$y1][$sm]['adj']['loan'] = 4000;
+
             // ALG 1 Zuschüsse und dazugehörige private Entnahmen
             // werden NICHT mehr hartgecodet, sondern in injectLiveData() dynamisch
             // anhand der "ALG 1 + GZ" Kostenstelle ermittelt.
@@ -279,7 +282,7 @@ class AccountingLiquidity extends Component
 
     private function injectLiveData()
     {
-        $adminId = Auth::guard('admin')->id();
+        $adminId = Auth::guard('admin')->id() ?? \Illuminate\Support\Facades\DB::table('admins')->value('id');
         $dbData = [];
 
         $orders = OrderOrder::where('payment_status', 'paid')->get();
@@ -440,6 +443,9 @@ class AccountingLiquidity extends Component
                 if (isset($this->autoInjected[$year][$month]['out']['repayment'])) {
                     $this->data[$year][$month]['out']['repayment'] = max(0, ($this->data[$year][$month]['out']['repayment'] ?? 0) - $this->autoInjected[$year][$month]['out']['repayment']);
                 }
+                if (isset($this->autoInjected[$year][$month]['out']['private_extra'])) {
+                    $this->data[$year][$month]['out']['private'] = max(0, ($this->data[$year][$month]['out']['private'] ?? 0) - $this->autoInjected[$year][$month]['out']['private_extra']);
+                }
             }
         }
         $this->autoInjected = []; // Reset for this cycle
@@ -465,11 +471,27 @@ class AccountingLiquidity extends Component
                         $this->data[$year][$month]['out']['interest'] = ($this->data[$year][$month]['out']['interest'] ?? 0) + $autoInterest;
                         $this->data[$year][$month]['out']['repayment'] = ($this->data[$year][$month]['out']['repayment'] ?? 0) + $autoRepayment;
 
-                        $this->autoInjected[$year][$month]['out']['interest'] = $autoInterest;
-                        $this->autoInjected[$year][$month]['out']['repayment'] = $autoRepayment;
+                        $this->autoInjected[$year][$month]['out']['interest'] = ($this->autoInjected[$year][$month]['out']['interest'] ?? 0) + $autoInterest;
+                        $this->autoInjected[$year][$month]['out']['repayment'] = ($this->autoInjected[$year][$month]['out']['repayment'] ?? 0) + $autoRepayment;
 
                         $remainingAutoLoanBalance -= $autoRepayment;
                     }
+                }
+
+                // A2) Neues/Manuelles Darlehen in diesem Monat (z.B. Start-Darlehen für Maschinen)
+                $baseLoan = max(0, (float)($this->data[$year][$month]['adj']['loan'] ?? 0) - (float)($this->autoInjected[$year][$month]['adj']['loan'] ?? 0));
+                if ($baseLoan > 0) {
+                    $baseInterest = $baseLoan * (($this->configInterestRate / 100) / 12);
+                    $baseRepayment = $this->configRepaymentMonths > 0 ? $baseLoan / $this->configRepaymentMonths : 0;
+
+                    $this->data[$year][$month]['out']['interest'] = ($this->data[$year][$month]['out']['interest'] ?? 0) + $baseInterest;
+                    $this->data[$year][$month]['out']['repayment'] = ($this->data[$year][$month]['out']['repayment'] ?? 0) + $baseRepayment;
+
+                    $this->autoInjected[$year][$month]['out']['interest'] = ($this->autoInjected[$year][$month]['out']['interest'] ?? 0) + $baseInterest;
+                    $this->autoInjected[$year][$month]['out']['repayment'] = ($this->autoInjected[$year][$month]['out']['repayment'] ?? 0) + $baseRepayment;
+
+                    $remainingAutoLoanBalance += ($baseLoan - $baseRepayment);
+                    $monthlyAutoRepaymentRate += $baseRepayment;
                 }
 
                 $sumIn = 0; $sumOut = 0; $sumAdj = 0;
@@ -485,28 +507,30 @@ class AccountingLiquidity extends Component
                 $businessNet = ($sumIn - $privIn) - ($sumOut - $privOut);
                 $privateNet = $privIn - $privOut;
 
-                // LOGIK: "Für Doofe" - Einfach und Transparent
+                // LOGIK: "Für Doofe" - Einfach und Transparent (idempotent)
                 // Wir fügen eine pauschale, realistische Lebenshaltung (Essen, Auto, Freizeit) von 450€ hinzu.
-                $this->data[$year][$month]['out']['private'] = ($this->data[$year][$month]['out']['private'] ?? 0) + 450;
-                $privOut = $this->data[$year][$month]['out']['private'];
-                
+                $extraPrivate = 450;
+                $currentPrivOut = (float)($this->data[$year][$month]['out']['private'] ?? 0);
+
                 // Ab 2027/28 muss die Firma als echte Lebensgrundlage ein festes Mindestgehalt abwerfen
-                if ($year == 2027 && $privOut < 1800) {
-                    $this->data[$year][$month]['out']['private'] += (1800 - $privOut);
-                } else if ($year >= 2028 && $privOut < 2000) {
-                    $this->data[$year][$month]['out']['private'] += (2000 - $privOut);
+                if ($year == 2027 && ($currentPrivOut + $extraPrivate) < 1800) {
+                    $extraPrivate += (1800 - ($currentPrivOut + $extraPrivate));
+                } else if ($year >= 2028 && ($currentPrivOut + $extraPrivate) < 2000) {
+                    $extraPrivate += (2000 - ($currentPrivOut + $extraPrivate));
                 }
 
-                $sumIn = 0; $sumOut = 0; $sumAdj = 0;
+                $this->data[$year][$month]['out']['private'] = $currentPrivOut + $extraPrivate;
+                $this->autoInjected[$year][$month]['out']['private_extra'] = $extraPrivate;
+                $privOut = $this->data[$year][$month]['out']['private'];
 
-                foreach ($this->receiptRows as $key => $row) { $sumIn += (float) ($this->data[$year][$month]['in'][$key] ?? 0); }
+                // Re-sum out nach Berücksichtigung des privaten Mindestbedarfs
+                $sumOut = 0;
                 foreach ($this->expenseRows as $key => $row) { $sumOut += (float) ($this->data[$year][$month]['out'][$key] ?? 0); }
-                foreach ($this->adjustmentRows as $key => $row) { $sumAdj += (float) ($this->data[$year][$month]['adj'][$key] ?? 0); }
 
                 $net = $sumIn - $sumOut;
                 $preEnd = $lastEnd + $net + $sumAdj;
 
-                // B) Automatische Darlehens-Injection inkl. Iterationsschleife zur Absicherung der 1. Rate
+                // B) Automatische Darlehens-Injection inkl. Iterationsschleife zur Absicherung der 1. Rate (Notfall)
                 $addedLoanThisMonth = 0;
                 while ($preEnd < 0 && ($year > $this->configStartYear || ($year == $this->configStartYear && $month >= $this->configStartMonth))) {
                     $neededLoan = abs($preEnd);
@@ -743,7 +767,7 @@ class AccountingLiquidity extends Component
         }
     }
 
-    private function getDetailedScore()
+    public function getDetailedScore()
     {
         $avgSalesAfterSubsidy = 0;
         if (isset($this->data[2026])) {
@@ -773,7 +797,7 @@ class AccountingLiquidity extends Component
         foreach($this->years as $y) {
             for($m=1; $m<=12; $m++) {
                 if(($this->totals[$y][$m]['end'] ?? 0) < -10) { // Toleranz von 10€
-                    if ($y == 2026 && $m < 8) {
+                    if ($y == $this->configStartYear && $m < $this->configStartMonth) {
                         $preLaunchDeficit = true;
                     } else {
                         $scoreLiq = 0;
