@@ -3434,3 +3434,7 @@
 [2026-10-05T10:55:59.842Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
 [2026-10-05T10:55:59.858Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
 [2026-10-05T10:55:59.859Z] Erfolgreich gebunden auf Port 8081
+[2026-10-06T10:12:39.332Z] --- NODE JS SERVER RESTARTED (VERSION: v1.0) ---
+[2026-10-06T10:12:39.375Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-10-06T10:12:39.388Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-10-06T10:12:39.388Z] Erfolgreich gebunden auf Port 8081

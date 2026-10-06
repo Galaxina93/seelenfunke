@@ -656,21 +656,47 @@ trait AiHealthFuncs
                 return ['error' => true, 'message' => 'Es wurde kein Dateiname übergeben.'];
             }
 
-            $allFiles = \Illuminate\Support\Facades\Storage::disk('public')->allFiles('Shop/Management/Health');
             $foundPath = null;
+            $disk = 'public';
 
-            foreach ($allFiles as $file) {
-                if (strtolower(basename($file)) === strtolower($filename)) {
-                    $foundPath = $file;
-                    break;
+            // 1. Zuerst im Workspace / AiWorkspaceDocument suchen
+            if (class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
+                $wsDoc = \App\Models\Ai\AiWorkspaceDocument::findByPathOrName($filename);
+                if ($wsDoc && \Illuminate\Support\Facades\Storage::disk('workspace')->exists($wsDoc->file_path)) {
+                    $foundPath = $wsDoc->file_path;
+                    $disk = 'workspace';
+                }
+            }
+
+            // 2. Falls nicht über DB gefunden, rekursiv im Workspace-Dateisystem suchen
+            if (!$foundPath) {
+                $allWsFiles = \Illuminate\Support\Facades\Storage::disk('workspace')->allFiles('agenten/workspace');
+                foreach ($allWsFiles as $file) {
+                    if (strtolower(basename($file)) === strtolower($filename) || strtolower(pathinfo($file, PATHINFO_FILENAME)) === strtolower($filename)) {
+                        $foundPath = $file;
+                        $disk = 'workspace';
+                        break;
+                    }
+                }
+            }
+
+            // 3. Fallback auf altes Shop/Management/Health Verzeichnis
+            if (!$foundPath) {
+                $allFiles = \Illuminate\Support\Facades\Storage::disk('public')->allFiles('Shop/Management/Health');
+                foreach ($allFiles as $file) {
+                    if (strtolower(basename($file)) === strtolower($filename)) {
+                        $foundPath = $file;
+                        $disk = 'public';
+                        break;
+                    }
                 }
             }
 
             if (!$foundPath) {
-                return ['error' => true, 'message' => "Die Datei '{$filename}' wurde in der Patientenakte nicht gefunden."];
+                return ['error' => true, 'message' => "Die Datei '{$filename}' wurde weder im Workspace noch in der Patientenakte gefunden."];
             }
 
-            $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($foundPath);
+            $fullPath = \Illuminate\Support\Facades\Storage::disk($disk)->path($foundPath);
             $mime = mime_content_type($fullPath);
 
             if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {

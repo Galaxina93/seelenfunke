@@ -2,32 +2,39 @@
 
 namespace App\Livewire\Shop\Ai\Traits;
 
+use App\Models\Ai\AiWorkspaceDocument;
 use Illuminate\Support\Facades\Storage;
-use Livewire\Attributes\Computed;
 
 trait ManagesAiWorkspaceFiles
 {
-    public $currentFilePath = 'agenten/workspace';
     public $fileManagerItems = [];
-    public $newFolderName = '';
+    public $currentFilePath = 'agenten/workspace';
     public $searchFileManager = '';
+    public $newFolderName = '';
     public $fileUpload;
+    public $availableTargetFolders = [];
+
+    // Lightbox / File Preview
     public $previewContent = null;
     public $previewFilename = null;
 
-    #[Computed]
-    public function getAllWorkspaceDirectories()
+    public function getAllWorkspaceDirectories(): array
     {
-        $dirs = Storage::disk('public')->allDirectories('agenten/workspace');
+        $dirs = Storage::disk('workspace')->allDirectories('agenten/workspace');
         array_unshift($dirs, 'agenten/workspace');
         return $dirs;
     }
 
+    public function loadFileManagerAvailableFolders()
+    {
+        $this->availableTargetFolders = $this->getAllWorkspaceDirectories();
+    }
+
     public function openFilePreview($path)
     {
-        if (Storage::disk('public')->exists($path)) {
+        if (Storage::disk('workspace')->exists($path)) {
             $this->previewFilename = basename($path);
-            $this->previewContent = Storage::disk('public')->get($path);
+            $this->previewContent = Storage::disk('workspace')->get($path);
         }
     }
 
@@ -39,19 +46,22 @@ trait ManagesAiWorkspaceFiles
 
     public function loadFileManagerFiles()
     {
-        // Ensure root structure exists
-        $requiredDirs = [
+        // Sicherstellen, dass der Startordner existiert
+        $defaultFolders = [
             'agenten/workspace',
+            'agenten/workspace/md',
+            'agenten/workspace/scripts',
+            'agenten/workspace/downloads'
         ];
 
-        foreach ($requiredDirs as $dir) {
-            if (!Storage::disk('public')->exists($dir)) {
-                Storage::disk('public')->makeDirectory($dir);
+        foreach ($defaultFolders as $folder) {
+            if (!Storage::disk('workspace')->exists($folder)) {
+                Storage::disk('workspace')->makeDirectory($folder);
             }
         }
 
-        if (!Storage::disk('public')->exists($this->currentFilePath)) {
-            Storage::disk('public')->makeDirectory($this->currentFilePath);
+        if (!Storage::disk('workspace')->exists($this->currentFilePath)) {
+            Storage::disk('workspace')->makeDirectory($this->currentFilePath);
         }
 
         $items = [];
@@ -59,8 +69,8 @@ trait ManagesAiWorkspaceFiles
 
         if (!empty($searchQuery)) {
             // Recursive Search
-            $allFiles = Storage::disk('public')->allFiles('agenten/workspace');
-            $allDirs = Storage::disk('public')->allDirectories('agenten/workspace');
+            $allFiles = Storage::disk('workspace')->allFiles('agenten/workspace');
+            $allDirs = Storage::disk('workspace')->allDirectories('agenten/workspace');
 
             foreach ($allDirs as $dir) {
                 if (str_contains(strtolower(basename($dir)), $searchQuery) || str_contains(strtolower($dir), $searchQuery)) {
@@ -69,7 +79,7 @@ trait ManagesAiWorkspaceFiles
                         'name' => basename($dir),
                         'path' => $dir,
                         'size' => 0,
-                        'lastModified' => Storage::disk('public')->lastModified($dir),
+                        'lastModified' => Storage::disk('workspace')->lastModified($dir),
                         'mimeType' => 'directory',
                         'url' => null,
                     ];
@@ -82,17 +92,17 @@ trait ManagesAiWorkspaceFiles
                         'type' => 'file',
                         'name' => basename($file),
                         'path' => $file,
-                        'size' => Storage::disk('public')->size($file),
-                        'lastModified' => Storage::disk('public')->lastModified($file),
-                        'mimeType' => Storage::disk('public')->mimeType($file),
-                        'url' => Storage::url($file),
+                        'size' => Storage::disk('workspace')->size($file),
+                        'lastModified' => Storage::disk('workspace')->lastModified($file),
+                        'mimeType' => Storage::disk('workspace')->mimeType($file),
+                        'url' => route('admin.ai.workspace.file', ['path' => $file]),
                     ];
                 }
             }
         } else {
             // Normal directory listing
-            $files = Storage::disk('public')->files($this->currentFilePath);
-            $dirs = Storage::disk('public')->directories($this->currentFilePath);
+            $files = Storage::disk('workspace')->files($this->currentFilePath);
+            $dirs = Storage::disk('workspace')->directories($this->currentFilePath);
 
             foreach($dirs as $dir) {
                 $items[] = [
@@ -100,7 +110,7 @@ trait ManagesAiWorkspaceFiles
                     'name' => basename($dir),
                     'path' => $dir,
                     'size' => 0,
-                    'lastModified' => Storage::disk('public')->lastModified($dir),
+                    'lastModified' => Storage::disk('workspace')->lastModified($dir),
                     'mimeType' => 'directory',
                     'url' => null,
                 ];
@@ -111,12 +121,29 @@ trait ManagesAiWorkspaceFiles
                     'type' => 'file',
                     'name' => basename($file),
                     'path' => $file,
-                    'size' => Storage::disk('public')->size($file),
-                    'lastModified' => Storage::disk('public')->lastModified($file),
-                    'mimeType' => Storage::disk('public')->mimeType($file),
-                    'url' => Storage::url($file),
+                    'size' => Storage::disk('workspace')->size($file),
+                    'lastModified' => Storage::disk('workspace')->lastModified($file),
+                    'mimeType' => Storage::disk('workspace')->mimeType($file),
+                    'url' => route('admin.ai.workspace.file', ['path' => $file]),
                 ];
             }
+        }
+
+        // Batch-Anreicherung mit Datenbank-Dokumenten (Titel, Kategorie, Zweck "Wofür da")
+        $filePaths = array_map(fn($f) => $f['path'], array_filter($items, fn($i) => $i['type'] === 'file'));
+        if (!empty($filePaths)) {
+            $docs = AiWorkspaceDocument::whereIn('file_path', $filePaths)->get()->keyBy('file_path');
+            foreach ($items as &$item) {
+                if ($item['type'] === 'file') {
+                    $doc = $docs->get($item['path']);
+                    $item['title'] = $doc?->title ?? $item['name'];
+                    $item['category'] = $doc?->category ?? null;
+                    $item['purpose'] = $doc?->purpose ?? null;
+                    $item['summary'] = $doc?->summary ?? null;
+                    $item['date'] = $doc?->extracted_date?->format('d.m.Y') ?? null;
+                }
+            }
+            unset($item);
         }
 
         $this->fileManagerItems = $items;
@@ -152,8 +179,8 @@ trait ManagesAiWorkspaceFiles
         ]);
 
         $path = $this->currentFilePath . '/' . trim($this->newFolderName);
-        if (!Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->makeDirectory($path);
+        if (!Storage::disk('workspace')->exists($path)) {
+            Storage::disk('workspace')->makeDirectory($path);
             $this->loadFileManagerFiles();
             $this->newFolderName = '';
         }
@@ -170,18 +197,37 @@ trait ManagesAiWorkspaceFiles
             'fileUpload' => 'required|file|max:10240' // 10MB max
         ]);
 
-        $this->fileUpload->storeAs($this->currentFilePath, $this->fileUpload->getClientOriginalName(), 'public');
+        $filename = $this->fileUpload->getClientOriginalName();
+        $this->fileUpload->storeAs($this->currentFilePath, $filename, 'workspace');
+        
+        $relPath = $this->currentFilePath . '/' . $filename;
+        
+        // Auto-Registrierung in Datenbank
+        AiWorkspaceDocument::updateOrCreate(
+            ['file_path' => $relPath],
+            [
+                'filename' => $filename,
+                'file_type' => $this->fileUpload->getClientOriginalExtension(),
+                'file_size' => $this->fileUpload->getSize(),
+                'title' => pathinfo($filename, PATHINFO_FILENAME),
+                'category' => 'Manuelle Uploads',
+                'purpose' => 'Manuell im Workspace hochgeladenes Arbeitsdokument.',
+            ]
+        );
+
         $this->loadFileManagerFiles();
         $this->fileUpload = null;
     }
 
     public function deleteFileManagerItem($path)
     {
-        if (Storage::disk('public')->exists($path) || in_array($path, Storage::disk('public')->directories(dirname($path)))) {
-            if (in_array($path, Storage::disk('public')->directories(dirname($path)))) {
-                Storage::disk('public')->deleteDirectory($path);
+        if (Storage::disk('workspace')->exists($path) || in_array($path, Storage::disk('workspace')->directories(dirname($path)))) {
+            if (in_array($path, Storage::disk('workspace')->directories(dirname($path)))) {
+                Storage::disk('workspace')->deleteDirectory($path);
+                AiWorkspaceDocument::where('file_path', 'like', $path . '/%')->delete();
             } else {
-                Storage::disk('public')->delete($path);
+                Storage::disk('workspace')->delete($path);
+                AiWorkspaceDocument::where('file_path', $path)->delete();
             }
             $this->loadFileManagerFiles();
         }
@@ -193,17 +239,28 @@ trait ManagesAiWorkspaceFiles
         if (empty($newName)) return;
 
         $dir = dirname($path);
-        // If path is at root, dirname might be '.' or 'agenten/workspace', ensure we construct it properly.
         $newPath = $dir . '/' . $newName;
 
-        if ($path !== $newPath && Storage::disk('public')->exists($path)) {
-            $oldFullPath = Storage::disk('public')->path($path);
-            $newFullPath = Storage::disk('public')->path($newPath);
+        if ($path !== $newPath && Storage::disk('workspace')->exists($path)) {
+            $oldFullPath = Storage::disk('workspace')->path($path);
+            $newFullPath = Storage::disk('workspace')->path($newPath);
             
             if (is_dir($oldFullPath)) {
                 rename($oldFullPath, $newFullPath);
+                // Pfade aller Unterdokumente aktualisieren
+                $docs = AiWorkspaceDocument::where('file_path', 'like', $path . '/%')->get();
+                foreach ($docs as $doc) {
+                    $doc->file_path = $newPath . substr($doc->file_path, strlen($path));
+                    $doc->save();
+                }
             } else {
-                Storage::disk('public')->move($path, $newPath);
+                Storage::disk('workspace')->move($path, $newPath);
+                $doc = AiWorkspaceDocument::where('file_path', $path)->first();
+                if ($doc) {
+                    $doc->file_path = $newPath;
+                    $doc->filename = $newName;
+                    $doc->save();
+                }
             }
             $this->loadFileManagerFiles();
         }
@@ -213,21 +270,30 @@ trait ManagesAiWorkspaceFiles
     {
         if (empty($sourcePath) || empty($targetFolder)) return;
 
-        // Prevent moving a folder into itself
         if (str_starts_with($targetFolder, $sourcePath . '/')) return;
         if ($sourcePath === $targetFolder) return;
 
         $fileName = basename($sourcePath);
         $newPath = $targetFolder . '/' . $fileName;
 
-        if (Storage::disk('public')->exists($sourcePath) && !Storage::disk('public')->exists($newPath)) {
-            $oldFullPath = Storage::disk('public')->path($sourcePath);
-            $newFullPath = Storage::disk('public')->path($newPath);
+        if (Storage::disk('workspace')->exists($sourcePath) && !Storage::disk('workspace')->exists($newPath)) {
+            $oldFullPath = Storage::disk('workspace')->path($sourcePath);
+            $newFullPath = Storage::disk('workspace')->path($newPath);
             
             if (is_dir($oldFullPath)) {
                 rename($oldFullPath, $newFullPath);
+                $docs = AiWorkspaceDocument::where('file_path', 'like', $sourcePath . '/%')->get();
+                foreach ($docs as $doc) {
+                    $doc->file_path = $newPath . substr($doc->file_path, strlen($sourcePath));
+                    $doc->save();
+                }
             } else {
-                Storage::disk('public')->move($sourcePath, $newPath);
+                Storage::disk('workspace')->move($sourcePath, $newPath);
+                $doc = AiWorkspaceDocument::where('file_path', $sourcePath)->first();
+                if ($doc) {
+                    $doc->file_path = $newPath;
+                    $doc->save();
+                }
             }
             $this->loadFileManagerFiles();
         }
@@ -235,9 +301,9 @@ trait ManagesAiWorkspaceFiles
 
     public function archiveFileManagerItem($path)
     {
-        if (Storage::disk('public')->exists($path)) {
-            $fullPath = Storage::disk('public')->path($path);
-            $zipPath = Storage::disk('public')->path($path . '.zip');
+        if (Storage::disk('workspace')->exists($path)) {
+            $fullPath = Storage::disk('workspace')->path($path);
+            $zipPath = Storage::disk('workspace')->path($path . '.zip');
 
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {

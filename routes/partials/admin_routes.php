@@ -70,6 +70,17 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/ai/analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai.analytics');
     Route::get('/admin/ai/workspace', \App\Livewire\Shop\Ai\AiWorkspace::class)->name('admin.ai.workspace');
+    Route::get('/admin/ai/workspace/file', function (\Illuminate\Http\Request $request) {
+        $path = $request->query('path');
+        if (!$path || str_contains($path, '..') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
+            abort(404);
+        }
+        $mime = \Illuminate\Support\Facades\Storage::disk('workspace')->mimeType($path) ?: 'application/octet-stream';
+        return response()->file(\Illuminate\Support\Facades\Storage::disk('workspace')->path($path), [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, no-cache'
+        ]);
+    })->name('admin.ai.workspace.file');
     Route::get('/admin/support/telephony', \App\Livewire\Shop\Support\SupportTelephony::class)->name('admin.support.telephony');
     
     // Organigramm bleibt separat

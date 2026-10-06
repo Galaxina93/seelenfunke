@@ -23,6 +23,7 @@ class StoragePathTest extends TestCase
         'agenten',
         'system',
         'public', // system-ordner public
+        'private', // system-ordner private (Laravel 11+)
         '.gitignore', // system dateien
         'agents',
         'Mein-Seelenfunke-db-backup',

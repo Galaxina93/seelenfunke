@@ -229,6 +229,31 @@ trait AiAgentsFuncs
                     'required' => ['query']
                 ],
                 'callable' => [self::class, 'executeWorkspaceSearchFiles']
+            ],
+            [
+                'name' => 'workspace_find_documents',
+                'description' => 'Sucht in der Datenbank nach registrierten Dokumenten im privaten Workspace anhand von Suchbegriff, Kategorie oder Zweck (wofür sie da sind). Gibt Metadaten, Pfad, Zweck und Relevanz zurück.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'query' => ['type' => 'string', 'description' => 'Suchbegriff im Titel, Dateinamen, Zweck oder Inhalt.'],
+                        'category' => ['type' => 'string', 'description' => 'Optionale Kategorie (z.B. BKK firmus, Existenzgründung, Finanzen).'],
+                        'limit' => ['type' => 'integer', 'description' => 'Maximale Anzahl an Ergebnissen (Standard: 10).']
+                    ]
+                ],
+                'callable' => [self::class, 'executeWorkspaceFindDocuments']
+            ],
+            [
+                'name' => 'workspace_get_document_info',
+                'description' => 'Liefert detaillierte Informationen zu einem bestimmten Dokument im Workspace: Wo es genau liegt, wofür es da ist (Zweck), Zusammenfassung, Eckdaten und Auszug.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'identifier' => ['type' => 'string', 'description' => 'Dateiname (z.B. 9650060300010.pdf) oder Pfad (z.B. agenten/workspace/...).']
+                    ],
+                    'required' => ['identifier']
+                ],
+                'callable' => [self::class, 'executeWorkspaceGetDocumentInfo']
             ]
         ];
     }
@@ -328,10 +353,10 @@ trait AiAgentsFuncs
     public static function executeWorkspaceCreateFolder(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        if (\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner existiert bereits: $path"];
         }
-        \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($path);
+        \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($path);
         return ['status' => 'success', 'message' => "Ordner erfolgreich erstellt: $path", 'ui_action' => 'reload_filemanager'];
     }
 
@@ -343,7 +368,7 @@ trait AiAgentsFuncs
             return ['status' => 'error', 'message' => "Ungültiger neuer Name."];
         }
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Quellordner existiert nicht: $path"];
         }
 
@@ -353,17 +378,17 @@ trait AiAgentsFuncs
             $newPath = 'agenten/workspace/' . $newName;
         }
 
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($newPath)) {
+        if (\Illuminate\Support\Facades\Storage::disk('workspace')->exists($newPath)) {
             return ['status' => 'error', 'message' => "Ein Ordner oder eine Datei mit dem neuen Namen existiert bereits."];
         }
 
-        $oldFullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
-        $newFullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($newPath);
+        $oldFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path);
+        $newFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($newPath);
 
         if (is_dir($oldFullPath)) {
             rename($oldFullPath, $newFullPath);
         } else {
-            \Illuminate\Support\Facades\Storage::disk('public')->move($path, $newPath);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->move($path, $newPath);
         }
 
         return ['status' => 'success', 'message' => "Erfolgreich umbenannt von $path zu $newPath", 'ui_action' => 'reload_filemanager'];
@@ -376,14 +401,14 @@ trait AiAgentsFuncs
             return ['status' => 'error', 'message' => "Das Hauptverzeichnis darf nicht gelöscht werden."];
         }
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path) && !in_array($path, \Illuminate\Support\Facades\Storage::disk('public')->directories(dirname($path)))) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path) && !in_array($path, \Illuminate\Support\Facades\Storage::disk('workspace')->directories(dirname($path)))) {
              return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
         }
 
-        if (in_array($path, \Illuminate\Support\Facades\Storage::disk('public')->directories(dirname($path)))) {
-            \Illuminate\Support\Facades\Storage::disk('public')->deleteDirectory($path);
+        if (in_array($path, \Illuminate\Support\Facades\Storage::disk('workspace')->directories(dirname($path)))) {
+            \Illuminate\Support\Facades\Storage::disk('workspace')->deleteDirectory($path);
         } else {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->delete($path);
         }
 
         return ['status' => 'success', 'message' => "Erfolgreich gelöscht: $path", 'ui_action' => 'reload_filemanager'];
@@ -394,7 +419,7 @@ trait AiAgentsFuncs
         $sourcePath = self::secureWorkspacePath($args['source_path'] ?? '');
         $targetPath = self::secureWorkspacePath($args['target_path'] ?? '');
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($sourcePath)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($sourcePath)) {
             return ['status' => 'error', 'message' => "Quellordner nicht gefunden: $sourcePath"];
         }
 
@@ -406,21 +431,21 @@ trait AiAgentsFuncs
         $fileName = basename($sourcePath);
         $newPath = $targetPath . '/' . $fileName;
 
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($newPath)) {
+        if (\Illuminate\Support\Facades\Storage::disk('workspace')->exists($newPath)) {
             return ['status' => 'error', 'message' => "Ziel existiert bereits: $newPath"];
         }
 
-        $oldFullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($sourcePath);
-        $newFullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($newPath);
+        $oldFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($sourcePath);
+        $newFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($newPath);
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($targetPath)) {
-            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($targetPath);
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($targetPath)) {
+            \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($targetPath);
         }
 
         if (is_dir($oldFullPath)) {
             rename($oldFullPath, $newFullPath);
         } else {
-            \Illuminate\Support\Facades\Storage::disk('public')->move($sourcePath, $newPath);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->move($sourcePath, $newPath);
         }
 
         return ['status' => 'success', 'message' => "Erfolgreich verschoben nach: $newPath", 'ui_action' => 'reload_filemanager'];
@@ -429,12 +454,12 @@ trait AiAgentsFuncs
     public static function executeWorkspaceArchiveFolder(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
         }
 
-        $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
-        $zipPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path . '.zip');
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path);
+        $zipPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path . '.zip');
 
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
@@ -463,14 +488,14 @@ trait AiAgentsFuncs
     public static function executeWorkspaceGetFolderSize(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
         }
 
         $size = 0;
-        $files = \Illuminate\Support\Facades\Storage::disk('public')->allFiles($path);
+        $files = \Illuminate\Support\Facades\Storage::disk('workspace')->allFiles($path);
         foreach ($files as $file) {
-            $size += \Illuminate\Support\Facades\Storage::disk('public')->size($file);
+            $size += \Illuminate\Support\Facades\Storage::disk('workspace')->size($file);
         }
 
         return [
@@ -489,28 +514,28 @@ trait AiAgentsFuncs
         $sourcePath = self::secureWorkspacePath($args['source_path'] ?? '');
         $targetPath = self::secureWorkspacePath($args['target_path'] ?? '');
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($sourcePath)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($sourcePath)) {
             return ['status' => 'error', 'message' => "Quellordner nicht gefunden: $sourcePath"];
         }
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($targetPath)) {
-            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($targetPath);
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($targetPath)) {
+            \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($targetPath);
         }
 
-        $files = \Illuminate\Support\Facades\Storage::disk('public')->files($sourcePath);
-        $directories = \Illuminate\Support\Facades\Storage::disk('public')->directories($sourcePath);
+        $files = \Illuminate\Support\Facades\Storage::disk('workspace')->files($sourcePath);
+        $directories = \Illuminate\Support\Facades\Storage::disk('workspace')->directories($sourcePath);
 
         $moved = 0;
         foreach ($files as $file) {
             $newPath = $targetPath . '/' . basename($file);
-            \Illuminate\Support\Facades\Storage::disk('public')->move($file, $newPath);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->move($file, $newPath);
             $moved++;
         }
 
         foreach ($directories as $dir) {
             $newPath = $targetPath . '/' . basename($dir);
-            $oldFullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($dir);
-            $newFullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($newPath);
+            $oldFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($dir);
+            $newFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($newPath);
             rename($oldFullPath, $newFullPath);
             $moved++;
         }
@@ -521,21 +546,21 @@ trait AiAgentsFuncs
     public static function executeWorkspaceDeleteFolderContent(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
         }
 
-        $files = \Illuminate\Support\Facades\Storage::disk('public')->files($path);
-        $directories = \Illuminate\Support\Facades\Storage::disk('public')->directories($path);
+        $files = \Illuminate\Support\Facades\Storage::disk('workspace')->files($path);
+        $directories = \Illuminate\Support\Facades\Storage::disk('workspace')->directories($path);
 
         $deleted = 0;
         foreach ($files as $file) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($file);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->delete($file);
             $deleted++;
         }
 
         foreach ($directories as $dir) {
-            \Illuminate\Support\Facades\Storage::disk('public')->deleteDirectory($dir);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->deleteDirectory($dir);
             $deleted++;
         }
 
@@ -550,12 +575,12 @@ trait AiAgentsFuncs
             $archiveName .= '.zip';
         }
 
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
         }
 
-        $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
-        $zipPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path . '/' . $archiveName);
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path);
+        $zipPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path . '/' . $archiveName);
 
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
@@ -584,8 +609,8 @@ trait AiAgentsFuncs
             return ['status' => 'error', 'message' => "Suchbegriff darf nicht leer sein."];
         }
 
-        $allFiles = \Illuminate\Support\Facades\Storage::disk('public')->allFiles('agenten/workspace');
-        $allDirs = \Illuminate\Support\Facades\Storage::disk('public')->allDirectories('agenten/workspace');
+        $allFiles = \Illuminate\Support\Facades\Storage::disk('workspace')->allFiles('agenten/workspace');
+        $allDirs = \Illuminate\Support\Facades\Storage::disk('workspace')->allDirectories('agenten/workspace');
 
         $matches = [];
 
@@ -601,8 +626,8 @@ trait AiAgentsFuncs
                     'type' => 'file', 
                     'path' => $file, 
                     'name' => basename($file),
-                    'size' => \Illuminate\Support\Facades\Storage::disk('public')->size($file),
-                    'last_modified' => date('Y-m-d H:i:s', \Illuminate\Support\Facades\Storage::disk('public')->lastModified($file))
+                    'size' => \Illuminate\Support\Facades\Storage::disk('workspace')->size($file),
+                    'last_modified' => date('Y-m-d H:i:s', \Illuminate\Support\Facades\Storage::disk('workspace')->lastModified($file))
                 ];
             }
         }
@@ -616,6 +641,86 @@ trait AiAgentsFuncs
             ]
         ];
     }
+
+    public static function executeWorkspaceFindDocuments(array $args): array
+    {
+        $query = trim($args['query'] ?? '');
+        $category = trim($args['category'] ?? '');
+        $limit = min(max((int)($args['limit'] ?? 10), 1), 50);
+
+        if (!class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
+            return ['status' => 'error', 'message' => 'AiWorkspaceDocument Modell nicht verfügbar.'];
+        }
+
+        $q = \App\Models\Ai\AiWorkspaceDocument::query();
+
+        if (!empty($category)) {
+            $q->where('category', 'like', "%{$category}%");
+        }
+
+        if (!empty($query)) {
+            $q->search($query);
+        }
+
+        $docs = $q->orderBy('extracted_date', 'desc')
+            ->limit($limit)
+            ->get(['id', 'filename', 'file_path', 'title', 'category', 'tags', 'purpose', 'summary', 'extracted_date', 'file_size']);
+
+        return [
+            'status' => 'success',
+            'count' => $docs->count(),
+            'documents' => $docs->map(function ($doc) {
+                return [
+                    'filename' => $doc->filename,
+                    'path' => $doc->file_path,
+                    'title' => $doc->title,
+                    'category' => $doc->category,
+                    'tags' => $doc->tags,
+                    'purpose' => $doc->purpose, // Wofür das Dokument da ist
+                    'summary' => $doc->summary,
+                    'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
+                    'size' => $doc->file_size,
+                    'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
+                ];
+            })->toArray()
+        ];
+    }
+
+    public static function executeWorkspaceGetDocumentInfo(array $args): array
+    {
+        $identifier = trim($args['identifier'] ?? '');
+        if (empty($identifier)) {
+            return ['status' => 'error', 'message' => 'Es wurde kein Dateiname oder Pfad übergeben.'];
+        }
+
+        if (!class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
+            return ['status' => 'error', 'message' => 'AiWorkspaceDocument Modell nicht verfügbar.'];
+        }
+
+        $doc = \App\Models\Ai\AiWorkspaceDocument::findByPathOrName($identifier);
+        if (!$doc) {
+            return ['status' => 'error', 'message' => "Kein Dokument zu '{$identifier}' in der Workspace-Datenbank gefunden."];
+        }
+
+        return [
+            'status' => 'success',
+            'document' => [
+                'filename' => $doc->filename,
+                'path' => $doc->file_path,
+                'title' => $doc->title,
+                'category' => $doc->category,
+                'tags' => $doc->tags,
+                'purpose' => $doc->purpose, // Wofür das Dokument da ist
+                'summary' => $doc->summary,
+                'key_facts' => $doc->key_facts,
+                'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
+                'preview' => $doc->content_preview,
+                'size' => $doc->file_size,
+                'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
+            ]
+        ];
+    }
+
 
     public static function executeCommunicationListAgents(array $args)
     {

@@ -311,9 +311,17 @@
                                             <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-1 py-0.5 text-center text-white outline-none">
                                         </template>
                                         <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                            <span>{{ $file['name'] }}</span>
+                                            <span>{{ $file['title'] ?? $file['name'] }}</span>
                                         </template>
                                     </div>
+                                    @if(!empty($file['category']))
+                                        <div class="text-[9px] px-2 py-0.5 rounded bg-fuchsia-950/60 text-fuchsia-300 border border-fuchsia-800/40 font-semibold truncate max-w-full" title="{{ $file['category'] }}">{{ $file['category'] }}</div>
+                                    @endif
+                                    @if(!empty($file['purpose']))
+                                        <div class="text-[10px] text-gray-400 italic line-clamp-2 px-1 text-left w-full bg-black/40 p-1.5 rounded border border-gray-800/60" title="{{ $file['purpose'] }}">
+                                            <span class="text-amber-400 font-bold not-italic">Zweck:</span> {{ $file['purpose'] }}
+                                        </div>
+                                    @endif
                                     @if(!empty($this->searchFileManager))
                                         <div class="text-[9px] text-gray-500 truncate w-full px-2 mt-[-8px]" title="{{ dirname($file['path']) }}">{{ dirname($file['path']) }}</div>
                                     @endif
@@ -335,10 +343,11 @@
                         <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="text-xs uppercase text-gray-500 border-b border-gray-800">
-                                    <th class="py-2 pl-2">Name</th>
+                                    <th class="py-2 pl-2">Name / Titel</th>
+                                    <th class="py-2 px-2">Kategorie & Zweck (Wofür da)</th>
                                     <th class="py-2">Größe</th>
                                     <th class="py-2">Typ</th>
-                                    <th class="py-2">Zuletzt geändert</th>
+                                    <th class="py-2">Datum</th>
                                     <th class="py-2 text-right pr-2">Aktionen</th>
                                 </tr>
                             </thead>
@@ -410,6 +419,20 @@
                                                             @endif
                                                         </button>
                                                     </template>
+                                                @endif
+                                            @endif
+                                        </td>
+                                        <td class="py-3 px-2 max-w-sm">
+                                            @if($file['type'] === 'folder')
+                                                <span class="text-xs text-gray-600 italic">Verzeichnis</span>
+                                            @else
+                                                @if(!empty($file['category']))
+                                                    <span class="inline-block text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-950/60 text-fuchsia-300 border border-fuchsia-800/40 font-semibold mb-0.5">{{ $file['category'] }}</span>
+                                                @endif
+                                                @if(!empty($file['purpose']))
+                                                    <div class="text-[11px] text-gray-400 truncate max-w-xs" title="{{ $file['purpose'] }}">
+                                                        <span class="text-amber-400 font-medium">Zweck:</span> {{ $file['purpose'] }}
+                                                    </div>
                                                 @endif
                                             @endif
                                         </td>
