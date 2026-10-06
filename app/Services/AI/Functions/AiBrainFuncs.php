@@ -35,13 +35,13 @@ trait AiBrainFuncs
             ],
             [
                 'name' => 'brain_search',
-                'description' => 'Durchsucht dein allgemeines Wiki-Langzeitgedächtnis nach Wissen über die echte Welt, Fakten oder Einstellungen. Nutze für Personensuche immer contact_search! Stichworte: Wie war das Passwort, Suche im Gehirn, Brain Scan.',
+                'description' => 'Durchsucht blitzschnell das gesamte Gehirn: Die Wissensdatenbank (Dossiers, Chronologien, Leitfäden) UND den privaten Dokumenten-Workspace (alle vertraulichen Akten, Nachweise, Anträge, Verträge). Unterstützt kombinierte Themen wie "BKK firmus und Arbeitsamt", "Gründungszuschuss" oder "Krankengeld". Liefert sofort vollständige Fakten, Pfade und Zwecke.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'query' => [
                             'type' => 'string',
-                            'description' => 'Suchbegriff (z.B. "Vorlieben", "Rentenversicherungsnummer").'
+                            'description' => 'Suchbegriff oder kombiniertes Thema (z.B. "BKK firmus und Arbeitsamt", "Gründungszuschuss", "Krankengeld").'
                         ]
                     ],
                     'required' => ['query']
@@ -190,50 +190,133 @@ trait AiBrainFuncs
     public static function executeSearchBrain(array $args)
     {
         try {
-            if (empty($args['query'])) {
+            $queryStr = trim($args['query'] ?? '');
+            if (empty($queryStr)) {
                 return ['status' => 'error', 'message' => 'Es wurde kein Suchbegriff angegeben.'];
             }
 
-            $queryStr = $args['query'];
-            $results = [];
+            // 1. Clean conversational filler words
+            $fillers = [
+                'dokumente von der', 'dokumente vom', 'dokumente von', 'dokumente zu',
+                'dokumente über', 'unterlagen von der', 'unterlagen vom', 'unterlagen von',
+                'dateien von der', 'dateien vom', 'dateien von', 'zeigen', 'finde', 'suche'
+            ];
+            $cleaned = $queryStr;
+            foreach ($fillers as $filler) {
+                $cleaned = preg_replace('/\b' . preg_quote($filler, '/') . '\b/iu', ' ', $cleaned);
+            }
+            $cleaned = trim(preg_replace('/\s+/', ' ', $cleaned));
+            if (empty($cleaned)) {
+                $cleaned = $queryStr;
+            }
 
-            // Suche in der AiKnowledgeBase
-            $kbResults = AiKnowledgeBase::with(['category', 'tags'])
-                ->where('is_published', true)
-                ->where(function ($q) use ($queryStr) {
-                    $q->where('title', 'like', '%' . $queryStr . '%')
-                      ->orWhere('content', 'like', '%' . $queryStr . '%')
-                      ->orWhereHas('tags', function($t) use ($queryStr) {
-                          $t->where('name', 'like', '%' . $queryStr . '%');
-                      })
-                      ->orWhereHas('category', function($c) use ($queryStr) {
-                          $c->where('name', 'like', '%' . $queryStr . '%');
-                      });
-                })
-                ->orderBy('created_at', 'desc')
-                ->limit(5)
-                ->get();
+            // 2. Split into segments for multi-topic queries
+            $segments = preg_split('/\s*(?:\bund\b|\boder\b|\band\b|\bor\b|[,&+])\s*/iu', $cleaned, -1, PREG_SPLIT_NO_EMPTY);
+            if (empty($segments)) {
+                $segments = [$queryStr];
+            }
 
+            // 3. Search AiKnowledgeBase (Master-Dossiers, Guides, Wiki)
+            $kbResults = collect();
+            if (class_exists(AiKnowledgeBase::class)) {
+                $kbQuery = AiKnowledgeBase::with(['category', 'tags'])->where('is_published', true);
+
+                $kbQuery->where(function ($rootQ) use ($queryStr, $segments) {
+                    // Exact literal match
+                    $rootQ->where(function ($subQ) use ($queryStr) {
+                        $subQ->where('title', 'like', "%{$queryStr}%")
+                             ->orWhere('content', 'like', "%{$queryStr}%");
+                    });
+
+                    // Multi-topic & synonym segments
+                    foreach ($segments as $seg) {
+                        $seg = trim($seg);
+                        if (mb_strlen($seg) < 2) continue;
+
+                        $synonyms = [$seg];
+                        $lower = mb_strtolower($seg);
+                        if (str_contains($lower, 'arbeitsamt') || str_contains($lower, 'arbeitsagentur')) {
+                            $synonyms[] = 'Agentur für Arbeit';
+                            $synonyms[] = 'Bundesagentur';
+                            $synonyms[] = 'Gründungszuschuss';
+                            $synonyms[] = 'Existenzgründung';
+                        } elseif (str_contains($lower, 'agentur')) {
+                            $synonyms[] = 'Arbeitsamt';
+                            $synonyms[] = 'Bundesagentur';
+                            $synonyms[] = 'Gründungszuschuss';
+                        } elseif (str_contains($lower, 'bkk')) {
+                            $synonyms[] = 'firmus';
+                            $synonyms[] = 'Krankengeld';
+                            $synonyms[] = 'Sozialrecht';
+                        }
+
+                        $rootQ->orWhere(function ($segQ) use ($synonyms) {
+                            foreach ($synonyms as $syn) {
+                                $segQ->orWhere('title', 'like', "%{$syn}%")
+                                     ->orWhere('content', 'like', "%{$syn}%")
+                                     ->orWhereHas('tags', fn($t) => $t->where('name', 'like', "%{$syn}%"))
+                                     ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$syn}%"));
+                            }
+                        });
+                    }
+                });
+
+                $kbResults = $kbQuery->orderBy('created_at', 'desc')->limit(6)->get();
+            }
+
+            $kbList = [];
             foreach ($kbResults as $kb) {
-                $results[] = [
+                $kbList[] = [
                     'type' => 'knowledge_base',
                     'title' => $kb->title,
                     'category' => $kb->category ? $kb->category->name : 'Allgemein',
                     'tags' => $kb->tags->pluck('name')->implode(', '),
-                    'content' => $kb->content,
-                    'date' => $kb->created_at->format('Y-m-d')
+                    'content' => mb_substr($kb->content, 0, 1500),
+                    'date' => $kb->created_at ? $kb->created_at->format('Y-m-d') : null
                 ];
             }
 
-            if (empty($results)) {
-                 return [
-                    'status' => 'success',
-                    'message' => 'Ich habe in meinem Gehirn-Wiki zu "' . $queryStr . '" nichts gefunden.',
-                    'results' => []
+            // 4. Search AiWorkspaceDocument (all private workspace files)
+            $wsList = [];
+            if (class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
+                $wsDocs = \App\Models\Ai\AiWorkspaceDocument::search($queryStr)
+                    ->orderBy('extracted_date', 'desc')
+                    ->limit(10)
+                    ->get();
+
+                foreach ($wsDocs as $doc) {
+                    $wsList[] = [
+                        'type' => 'workspace_file',
+                        'filename' => $doc->filename,
+                        'path' => $doc->file_path,
+                        'title' => $doc->title,
+                        'category' => $doc->category,
+                        'purpose' => $doc->purpose,
+                        'summary' => $doc->summary,
+                        'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
+                        'size' => $doc->file_size,
+                    ];
+                }
+            }
+
+            $totalCount = count($kbList) + count($wsList);
+
+            if ($totalCount === 0) {
+                return [
+                    'status' => 'empty',
+                    'message' => 'Ich habe in der Wissensdatenbank und im Workspace zu "' . $queryStr . '" keine passenden Einträge gefunden.',
+                    'knowledge_base' => [],
+                    'workspace_documents' => []
                 ];
             }
 
-            return ['status' => 'success', 'results_count' => count($results), 'results' => $results];
+            return [
+                'status' => 'success',
+                'message' => "Erfolgreich gefunden: " . count($kbList) . " Dossiers in der Wissensdatenbank und " . count($wsList) . " Dokumente im privaten Workspace.",
+                'knowledge_base' => $kbList,
+                'workspace_documents' => $wsList,
+                'results' => array_merge($kbList, $wsList)
+            ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Durchsuchen des Gehirns: ' . $e->getMessage()];
         }

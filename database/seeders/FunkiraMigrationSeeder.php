@@ -241,6 +241,22 @@ MD
             $this->command->info('✓ Buchi Agenten-Prompt geschärft.');
         }
 
+        $funkira = AiAgent::where('name', 'Funkira')->first();
+        if ($funkira) {
+            $prompt = $funkira->system_prompt ?? '';
+            if (!str_contains($prompt, 'BKK FIRMUS, ARBEITSAMT & WORKSPACE')) {
+                $funkira->system_prompt = $prompt . "\n\n" .
+                    "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, ARBEITSAMT & WORKSPACE]\n" .
+                    "- Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den privaten Workspace (`storage/app/private/agenten/workspace`).\n" .
+                    "- BKK FIRMUS & VERFAHREN: Du kennst die 25-Schritte-Chronologie des BKK firmus Verfahrens (lückenlose eAU, § 44 / § 47b SGB V, GA-Großoperation, Eilantrag § 86b SGG beim Sozialgericht). Fristablauf: 08.10.2026.\n" .
+                    "- EXISTENZGRÜNDUNG & ARBEITSAMT: Gründungszuschuss (§ 93 SGB III), 150-Tage-Restanspruch auf ALG 1, Vorlage von Businessplan und Liquiditätsplan bei der Steuerberaterin für die Tragfähigkeitsbescheinigung, Antragstellung bei Frau Grandke (Agentur für Arbeit).\n" .
+                    "- WORKSPACE-DOKUMENTE: Alle 126 vertraulichen Dokumente (Atteste, Ablehnungsbescheide, Anträge, Verträge, Chronologien) liegen revisionssicher im privaten Workspace unter `storage/app/private/agenten/workspace` und sind in der Datenbank `ai_workspace_documents` registriert.\n" .
+                    "- BLITZSCHNELLE SUCHE: Nutze `brain_search` oder `workspace_find_documents`. Bei Mehrfachfragen (z.B. 'BKK firmus und Arbeitsamt') liefert `brain_search` in einem einzigen Aufruf sofort alle passenden Dossiers und Workspace-Dokumente.";
+                $funkira->save();
+            }
+            $this->command->info('✓ Funkira Agenten-Prompt geschärft.');
+        }
+
         // 7. Management-Tasks anlegen
         $taskList = ManagementTaskList::firstOrCreate(
             ['name' => 'Existenzgründung & Behörden'],
