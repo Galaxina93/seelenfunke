@@ -313,7 +313,11 @@
 
                                             {{-- NEU: RECHTLICHE PAngV ANGABE (Sehr wichtig) --}}
                                             <span class="text-[8px] text-gray-400 font-medium leading-tight mt-1">
-                                                inkl. MwSt. <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
+                                                @if(shop_setting('is_small_business', false))
+                                                    Keine MwSt. gem. § 19 UStG · <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
+                                                @else
+                                                    inkl. MwSt. <a href="{{ route('versand') }}" target="_blank" class="hover:text-gray-600 underline">zzgl. Versand</a>
+                                                @endif
                                             </span>
                                         </div>
 

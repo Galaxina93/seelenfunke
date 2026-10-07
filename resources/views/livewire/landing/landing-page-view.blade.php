@@ -88,7 +88,7 @@
                                     <div class="absolute bottom-4 right-4 bg-gray-950/90 backdrop-blur-md border border-primary/50 text-white px-4 py-3 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)] text-center">
                                         <span class="block text-2xl font-bold whitespace-nowrap">{{ $landingPage->product->formatted_price }}</span>
                                         <span class="block text-[10px] text-gray-300 font-normal mt-1 uppercase tracking-wider leading-tight">
-                                            inkl. MwSt.<br>
+                                            {{ shop_setting('is_small_business', false) ? 'gem. § 19 UStG keine MwSt.' : 'inkl. MwSt.' }}<br>
                                             <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-white transition-colors">zzgl. Versand</a>
                                         </span>
                                     </div>

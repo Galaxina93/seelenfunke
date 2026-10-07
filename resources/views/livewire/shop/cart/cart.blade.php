@@ -37,7 +37,7 @@
                             $prod = $item->product;
                             $type = $prod->type ?? 'physical';
                             $attributes = $prod->attributes ?? [];
-                            $deliveryTime = $attributes['Lieferzeit'] ?? null;
+                            $deliveryTime = \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText();
                         @endphp
 
                         <div x-data="{ showText: false, showMotiv: false }" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition hover:shadow-md w-full" wire:key="item-{{ $item->id }}">

@@ -180,7 +180,7 @@ class OrderQuoteRequests extends Component
             'discount_amount' => $quote->discount_amount ?? 0,
             'coupon_code'     => $quote->coupon_code ?? null,
 
-            'subtotal_price' => $quote->net_total,
+            'subtotal_price' => $isSmallBusiness ? max(0, $quote->gross_total - ($quote->shipping_price ?? 0) - ($quote->express_price ?? 0)) : $quote->net_total,
             'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
             'total_price' => $quote->gross_total,
             'notes' => 'Aus Angebot ' . $quote->quote_number . ' generiert. ' . $quote->admin_notes,
@@ -195,7 +195,7 @@ class OrderQuoteRequests extends Component
                 'product_name' => $qItem->product_name,
                 'quantity' => $qItem->quantity,
                 'unit_price' => $qItem->unit_price,
-                'tax_rate' => $qItem->tax_rate !== null ? $qItem->tax_rate : ($qItem->product->tax_rate ?? shop_setting('default_tax_rate', 19.0)),
+                'tax_rate' => $isSmallBusiness ? 0.0 : ($qItem->tax_rate !== null ? $qItem->tax_rate : ($qItem->product->tax_rate ?? shop_setting('default_tax_rate', 19.0))),
                 'total_price' => $qItem->total_price,
                 'configuration' => $qItem->configuration,
             ]);

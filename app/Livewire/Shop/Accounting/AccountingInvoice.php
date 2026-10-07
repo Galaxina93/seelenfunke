@@ -327,11 +327,13 @@ class AccountingInvoice extends Component
             $items = [];
 
             // --- SCHRITT 1: Positionen berechnen (Basis: Eingabe ist NETTO) ---
+            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+
             foreach ($this->manualInvoice['items'] as $item) {
                 // A. Eingabewerte normalisieren
                 $inputNetPrice = (float)($item['unit_price'] ?? 0); // Netto Einzelpreis Euro
                 $qty = (float)($item['quantity'] ?? 0);
-                $taxRate = (float)($item['tax_rate'] ?? shop_setting('default_tax_rate', 19.0));
+                $taxRate = $isSmallBusiness ? 0.0 : (float)($item['tax_rate'] ?? shop_setting('default_tax_rate', 19.0));
 
                 // B. Berechnungen in Cent durchführen (für Präzision)
                 $netUnitCent = (int)round($inputNetPrice * 100);
@@ -340,8 +342,7 @@ class AccountingInvoice extends Component
                 $lineNetTotalCent = (int)round($netUnitCent * $qty);
 
                 // Steuer für diese Zeile (Netto * Steuersatz)
-                // WICHTIG: Hier wird die Steuer AUFGESCHLAGEN
-                $lineTaxCent = (int)round($lineNetTotalCent * ($taxRate / 100));
+                $lineTaxCent = $isSmallBusiness ? 0 : (int)round($lineNetTotalCent * ($taxRate / 100));
 
                 // Zeile Brutto Gesamt
                 $lineGrossTotalCent = $lineNetTotalCent + $lineTaxCent;
@@ -351,8 +352,6 @@ class AccountingInvoice extends Component
                 $totalTaxAmount += $lineTaxCent;
 
                 // D. Item für DB Array vorbereiten
-                // Wir speichern den berechneten Brutto-Einzelpreis zurück, damit PDF-Anzeigen stimmen,
-                // die Brutto erwarten. (Falls dein PDF Netto erwartet, müsste man das hier anpassen)
                 $calculatedGrossUnitCent = $qty > 0 ? (int)round($lineGrossTotalCent / $qty) : 0;
 
                 $items[] = [
@@ -365,13 +364,13 @@ class AccountingInvoice extends Component
                 ];
             }
 
-            // --- SCHRITT 2: Versandkosten berechnen (Basis: Eingabe ist NETTO) ---
+            // --- SCHRITT 2: Versandkosten berechnen ---
             $shippingInputNet = (float)($this->manualInvoice['shipping_cost'] ?? 0);
             $shippingNetCent = (int)round($shippingInputNet * 100);
 
-            // Standard Steuer auf Versand
-            $shippingTaxRate = (float)shop_setting('default_tax_rate', 19.0) / 100;
-            $shippingTaxCent = (int)round($shippingNetCent * $shippingTaxRate);
+            // Steuer auf Versand
+            $shippingTaxRate = $isSmallBusiness ? 0.0 : ((float)shop_setting('default_tax_rate', 19.0) / 100);
+            $shippingTaxCent = $isSmallBusiness ? 0 : (int)round($shippingNetCent * $shippingTaxRate);
             $shippingGrossCent = $shippingNetCent + $shippingTaxCent;
 
             // Steuer zum Gesamt-Steuertopf hinzufügen
@@ -663,16 +662,29 @@ class AccountingInvoice extends Component
         ];
 
         if($this->isCreatingManual) {
+            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             foreach($this->manualInvoice['items'] as $item) {
                 $line = (float)($item['unit_price'] ?: 0) * (float)($item['quantity'] ?: 0);
-                $taxDiv = 1 + (($item['tax_rate'] ?: shop_setting('default_tax_rate', 19.0)) / 100);
-                $net = $line / $taxDiv;
-                $totalsPreview['net'] += $net;
-                $totalsPreview['tax'] += ($line - $net);
-                $totalsPreview['gross'] += $line;
+                if ($isSmallBusiness) {
+                    $totalsPreview['net'] += $line;
+                    $totalsPreview['tax'] += 0;
+                    $totalsPreview['gross'] += $line;
+                } else {
+                    $taxDiv = 1 + (($item['tax_rate'] ?: shop_setting('default_tax_rate', 19.0)) / 100);
+                    $net = $line / $taxDiv;
+                    $totalsPreview['net'] += $net;
+                    $totalsPreview['tax'] += ($line - $net);
+                    $totalsPreview['gross'] += $line;
+                }
             }
             $totalsPreview['gross'] += (float)$this->manualInvoice['shipping_cost'];
+            if ($isSmallBusiness) {
+                $totalsPreview['net'] += (float)$this->manualInvoice['shipping_cost'];
+            }
             $totalsPreview['gross'] -= ((float)$this->manualInvoice['discount_amount'] + (float)$this->manualInvoice['volume_discount']);
+            if ($isSmallBusiness) {
+                $totalsPreview['net'] -= ((float)$this->manualInvoice['discount_amount'] + (float)$this->manualInvoice['volume_discount']);
+            }
         }
 
         $archivedFiles = [];

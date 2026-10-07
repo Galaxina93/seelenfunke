@@ -262,7 +262,7 @@
                                     <div class="flex justify-end">
                                         <div class="w-full max-w-[280px] space-y-1.5 text-right">
                                             <div class="flex justify-between text-gray-500">
-                                                <span>Warenwert (Brutto):</span>
+                                                <span>{{ !empty($isSmallBusiness) ? 'Warenwert:' : 'Warenwert (Brutto):' }}</span>
                                                 @php
                                                     $totalGrossNum = (float)($invoice->total / 100);
                                                     $shippingGrossNum = (float)($invoice->shipping_cost / 100);
@@ -311,27 +311,28 @@
                                             </div>
 
                                             <div class="pt-2 text-[10px] text-gray-400 italic space-y-0.5">
-                                                <div class="flex justify-between">
-                                                    <span>Nettobetrag:</span>
-                                                    <span>{{ number_format(($invoice->total - $invoice->tax_amount) / 100, 2, ',', '.') }} €</span>
-                                                </div>
-                                                @if(empty($isSmallBusiness) && !empty($data['tax_breakdown']))
-                                                    @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
-                                                        <div class="flex justify-between">
-                                                            <span>inkl. MwSt. ({{ $rate }}%):</span>
-                                                            <span>{{ $taxAmountStr }} €</span>
-                                                        </div>
-                                                    @endforeach
-                                                @elseif(!empty($isSmallBusiness))
-                                                    <div class="flex justify-between">
-                                                        <span>Umsatzsteuerfrei gem. § 19 UStG.</span>
-                                                        <span>0,00 €</span>
+                                                @if(!empty($isSmallBusiness))
+                                                    <div class="text-right text-gray-500 font-medium pt-1">
+                                                        Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
                                                     </div>
                                                 @else
                                                     <div class="flex justify-between">
-                                                        <span>MwSt. ({{ shop_setting('default_tax_rate', 19) }}%):</span>
-                                                        <span>{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</span>
+                                                        <span>Nettobetrag:</span>
+                                                        <span>{{ number_format(($invoice->total - $invoice->tax_amount) / 100, 2, ',', '.') }} €</span>
                                                     </div>
+                                                    @if(!empty($data['tax_breakdown']))
+                                                        @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
+                                                            <div class="flex justify-between">
+                                                                <span>inkl. MwSt. ({{ $rate }}%):</span>
+                                                                <span>{{ $taxAmountStr }} €</span>
+                                                            </div>
+                                                        @endforeach
+                                                    @else
+                                                        <div class="flex justify-between">
+                                                            <span>MwSt. ({{ shop_setting('default_tax_rate', 19) }}%):</span>
+                                                            <span>{{ number_format($invoice->tax_amount / 100, 2, ',', '.') }} €</span>
+                                                        </div>
+                                                    @endif
                                                 @endif
                                             </div>
                                         </div>
@@ -364,7 +365,10 @@
                                             <span style="color: var(--theme-color); font-weight: bold; text-transform: uppercase; font-size: 8px; letter-spacing: 0.8px; margin-bottom: 5px; display: block;">Bankverbindung</span>
                                             IBAN: {{ $ownerIban }}<br>
                                             @if($ownerBic) BIC: {{ $ownerBic }}<br> @endif
-                                            Gerichtsstand: {{ $court }}
+                                            Gerichtsstand: {{ $court }}<br>
+                                            @if(!empty($isSmallBusiness))
+                                                <span style="font-size: 8px; font-style: italic; color: #999;">Umsatzsteuerfrei gem. § 19 UStG.</span>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>

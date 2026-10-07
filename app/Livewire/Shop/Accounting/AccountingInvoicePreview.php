@@ -72,6 +72,7 @@ class AccountingInvoicePreview extends Component
         ];
 
         if($invoice) {
+            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             // Fix: Check if item is object (getItemsAttribute map) or array (from database)
             $items = $invoice->items;
             $defaultTax = (float)shop_setting('default_tax_rate', 19.0);
@@ -80,12 +81,18 @@ class AccountingInvoicePreview extends Component
                 $taxRate = is_object($item) ? ($item->tax_rate ?? $defaultTax) : ($item['tax_rate'] ?? $defaultTax);
 
                 $line = (float)$totalPrice;
-                $taxDiv = 1 + ($taxRate / 100);
-                $net = $line / $taxDiv;
+                if ($isSmallBusiness) {
+                    $totalsPreview['net'] += $line;
+                    $totalsPreview['tax'] += 0;
+                    $totalsPreview['gross'] += $line;
+                } else {
+                    $taxDiv = 1 + ($taxRate / 100);
+                    $net = $line / $taxDiv;
 
-                $totalsPreview['net'] += $net;
-                $totalsPreview['tax'] += ($line - $net);
-                $totalsPreview['gross'] += $line;
+                    $totalsPreview['net'] += $net;
+                    $totalsPreview['tax'] += ($line - $net);
+                    $totalsPreview['gross'] += $line;
+                }
             }
         }
 

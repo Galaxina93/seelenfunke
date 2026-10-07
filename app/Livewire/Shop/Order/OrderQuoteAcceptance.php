@@ -162,9 +162,13 @@ class OrderQuoteAcceptance extends Component
             $totalWeight += ($weight * $item->quantity);
 
             $lineTotal = $item->total_price;
-            $rate = $product->tax_rate ?? $defaultTaxRate;
+            $rate = $isSmallBusiness ? 0.0 : ($product->tax_rate ?? $defaultTaxRate);
 
-            if ($product->tax_included) {
+            if ($isSmallBusiness) {
+                $lineGross = $lineTotal;
+                $lineNet = $lineTotal;
+                $lineTax = 0;
+            } elseif ($product->tax_included) {
                 // Brutto -> Netto
                 $lineGross = $lineTotal;
                 $lineNet = $lineTotal / (1 + ($rate / 100));

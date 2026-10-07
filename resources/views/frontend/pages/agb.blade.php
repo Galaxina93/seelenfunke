@@ -104,8 +104,11 @@
                         <div>
                             <h3 class="font-bold text-lg text-gray-900">3. Preise und Zahlung</h3>
                             <p class="mt-2">
-                                (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer.
-                                <br>
+                                @if(shop_setting('is_small_business', false))
+                                    (1) Die angegebenen Preise sind Endpreise zzgl. Liefer- und Versandkosten. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet und ausgewiesen.
+                                @else
+                                    (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer.
+                                @endif
                                 (2) Ihnen stehen folgende Zahlungsarten zur Verfügung:
                             </p>
                             <ul class="list-disc list-inside ml-4 mt-2 mb-2">

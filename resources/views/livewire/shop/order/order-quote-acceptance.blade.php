@@ -258,18 +258,20 @@
 
                                 {{-- 5. Steuer-Hinweis (Klein & Dezent) --}}
                                 <div class="text-right text-[11px] text-gray-400 italic leading-tight">
-                                    <div class="flex justify-between gap-4">
-                                        <span>Nettowarenwert:</span>
-                                        <span>{{ number_format($quote->net_total / 100, 2, ',', '.') }} €</span>
-                                    </div>
-                                    <div class="flex justify-between gap-4 mt-0.5">
-                                        @if(!$isSmallBusiness)
+                                    @if(!$isSmallBusiness)
+                                        <div class="flex justify-between gap-4">
+                                            <span>Nettowarenwert:</span>
+                                            <span>{{ number_format($quote->net_total / 100, 2, ',', '.') }} €</span>
+                                        </div>
+                                        <div class="flex justify-between gap-4 mt-0.5">
                                             <span>Enthaltene MwSt. ({{ number_format($taxRate, 0) }}%):</span>
                                             <span>{{ number_format($quote->tax_total / 100, 2, ',', '.') }} €</span>
-                                        @else
-                                            <span>Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.</span>
-                                        @endif
-                                    </div>
+                                        </div>
+                                    @else
+                                        <div class="mt-1 text-gray-500 font-medium">
+                                            Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>

@@ -110,7 +110,7 @@
                         <span class="block text-gray-400 text-[10px] uppercase font-bold tracking-wider">Ab</span>
                         <span class="block text-3xl font-serif font-bold text-gray-900">{{ $landingPage->product->formatted_price }}</span>
                         <span class="block text-[9px] text-gray-500 font-normal mt-1 uppercase tracking-wider leading-tight">
-                            inkl. MwSt.<br>
+                            {{ shop_setting('is_small_business', false) ? 'gem. § 19 UStG keine MwSt.' : 'inkl. MwSt.' }}<br>
                             <a href="{{ route('versand') }}" target="_blank" class="underline hover:text-gray-700">zzgl. Versand</a>
                         </span>
                     </div>

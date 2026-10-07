@@ -60,7 +60,11 @@
 
                 {{-- Zeile: MwSt (Detailliert oder Zusammengefasst) --}}
                 <div class="space-y-0.5 pt-1 text-right">
-                    @if(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
+                    @if(shop_setting('is_small_business', false))
+                        <div class="text-[10px] text-gray-400 italic">
+                            Gemäß § 19 UStG keine MwSt.
+                        </div>
+                    @elseif(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
                         @foreach($totals['taxes_breakdown'] as $rate => $amount)
                             @if($amount > 0)
                                 <div class="text-[10px] text-gray-400">

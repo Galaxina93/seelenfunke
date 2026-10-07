@@ -3,6 +3,7 @@
 namespace App\Models\System;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class SystemSetting extends Model
 {

@@ -112,16 +112,23 @@
                             {{-- Summenblock --}}
                             <div class="bg-gray-950 px-6 sm:px-8 py-6 border-t border-gray-800 shadow-inner">
                                 <div class="flex flex-col gap-2 max-w-xs ml-auto">
-                                    <div
-                                        class="flex justify-between items-center text-xs font-medium text-gray-400 uppercase tracking-widest">
-                                        <span>Zwischensumme</span>
-                                        <span class="text-white">{{ number_format($detailQuote->net_total / 100, 2, ',', '.') }} €</span>
-                                    </div>
-                                    <div
-                                        class="flex justify-between items-center text-xs font-medium text-gray-400 uppercase tracking-widest">
-                                        <span>MwSt</span>
-                                        <span class="text-white">{{ number_format($detailQuote->tax_total / 100, 2, ',', '.') }} €</span>
-                                    </div>
+                                    @if(shop_setting('is_small_business', false) || $detailQuote->tax_total == 0)
+                                        <div class="flex justify-between items-center text-xs font-medium text-gray-400 uppercase tracking-widest">
+                                            <span>Steuer</span>
+                                            <span class="text-amber-400/90 text-[10px] font-bold">§ 19 UStG (Keine MwSt)</span>
+                                        </div>
+                                    @else
+                                        <div
+                                            class="flex justify-between items-center text-xs font-medium text-gray-400 uppercase tracking-widest">
+                                            <span>Zwischensumme</span>
+                                            <span class="text-white">{{ number_format($detailQuote->net_total / 100, 2, ',', '.') }} €</span>
+                                        </div>
+                                        <div
+                                            class="flex justify-between items-center text-xs font-medium text-gray-400 uppercase tracking-widest">
+                                            <span>MwSt</span>
+                                            <span class="text-white">{{ number_format($detailQuote->tax_total / 100, 2, ',', '.') }} €</span>
+                                        </div>
+                                    @endif
                                     @if($detailQuote->shipping_price > 0)
                                         <div
                                             class="flex justify-between items-center text-xs font-medium text-gray-400 uppercase tracking-widest">

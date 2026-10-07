@@ -8,7 +8,9 @@ function allowed($key):bool
 }
 
 function shop_setting($key, $default = null) {
-    $settings = Cache::rememberForever('global_shop_settings', function() {
+    // 60 Sekunden TTL verhindert eingefrorene Caches bei Dateirechte-Problemen,
+    // vermeidet aber redundante DB-Abfragen innerhalb desselben Zeitfensters.
+    $settings = Cache::remember('global_shop_settings', 60, function() {
         return \App\Models\System\SystemSetting::pluck('value', 'key');
     });
 

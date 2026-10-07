@@ -15,28 +15,74 @@ class DeliverySetting extends Model
     ];
 
     /**
-     * Gibt den fertig berechneten Lieferzeit-Text für den Shop aus
+     * Ermittelt die vollständigen Lieferzeit- und Datumsdetails inklusive Wochentagen
      */
-    public static function getCurrentDeliveryText()
+    public static function getDeliveryDetails(): array
     {
         $setting = self::first();
         $activeTime = DeliveryTime::where('is_active', true)->first();
 
-        $min = $activeTime ? $activeTime->min_days : 3;
-        $max = $activeTime ? $activeTime->max_days : 5;
+        $min = $activeTime ? (int)$activeTime->min_days : 3;
+        $max = $activeTime ? (int)$activeTime->max_days : 5;
 
-        if ($setting && $setting->is_vacation_mode && $setting->vacation_end_date) {
-            $minDate = $setting->vacation_end_date->copy()->addDays($min)->format('d.m.Y');
-            $maxDate = $setting->vacation_end_date->copy()->addDays($max)->format('d.m.Y');
-            return "Voraussichtliche Lieferung: {$minDate} - {$maxDate}";
-        }
+        $isVacation = (bool)($setting && $setting->is_vacation_mode && $setting->vacation_end_date);
+        $isSick = (bool)($setting && $setting->is_sick_mode);
 
-        if ($setting && $setting->is_sick_mode) {
+        if ($isSick) {
             $min += 6;
             $max += 6;
-            return "Voraussichtliche Lieferzeit: {$min}-{$max} Tage (geschätzt)";
         }
 
-        return "Lieferzeit: {$min}-{$max} Tage";
+        // Basis-Startdatum: Entweder Urlaubsende oder jetzt
+        $baseDate = ($isVacation && $setting->vacation_end_date->isFuture())
+            ? $setting->vacation_end_date->copy()
+            : now();
+
+        $minDate = $baseDate->copy()->addDays($min);
+        $maxDate = $baseDate->copy()->addDays($max);
+
+        // Sonntage überspringen (keine Paketzustellung)
+        if ($minDate->isSunday()) {
+            $minDate->addDay();
+        }
+        if ($maxDate->isSunday()) {
+            $maxDate->addDay();
+        }
+
+        // Sicherheitsprüfung: Max-Datum darf nicht vor Min-Datum liegen
+        if ($maxDate->lessThan($minDate)) {
+            $maxDate = $minDate->copy()->addDay();
+        }
+
+        $startDayStr = $minDate->translatedFormat('D, d. M');
+        $endDayStr = $maxDate->translatedFormat('D, d. M');
+        $dateRange = "ca. {$startDayStr} – {$endDayStr}";
+
+        if ($isVacation) {
+            $fullText = "Voraussichtliche Lieferung: {$dateRange}";
+        } elseif ($isSick) {
+            $fullText = "Voraussichtliche Lieferzeit: {$min}-{$max} Werktage ({$dateRange})";
+        } else {
+            $fullText = "Lieferzeit: {$min}-{$max} Werktage ({$dateRange})";
+        }
+
+        return [
+            'min_days' => $min,
+            'max_days' => $max,
+            'start_date' => $minDate,
+            'end_date' => $maxDate,
+            'date_range_formatted' => $dateRange,
+            'full_text' => $fullText,
+            'is_vacation' => $isVacation,
+            'is_sick' => $isSick,
+        ];
+    }
+
+    /**
+     * Gibt den fertig berechneten Lieferzeit-Text für den Shop aus
+     */
+    public static function getCurrentDeliveryText(): string
+    {
+        return self::getDeliveryDetails()['full_text'];
     }
 }

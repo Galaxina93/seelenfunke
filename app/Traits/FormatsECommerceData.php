@@ -131,16 +131,21 @@ trait FormatsECommerceData
         // Wir suchen das Brutto-Feld: OrderOrder (total_price), Quote (gross_total), Invoice (total)
         $grossTotalCents = $this->total_price ?? $this->gross_total ?? $this->total ?? 0;
 
-        // Wir suchen das Steuer-Feld: OrderOrder (tax_amount), Quote (tax_total), Invoice (tax_amount)
-        $taxAmountCents = $this->tax_amount ?? $this->tax_total ?? 0;
+        if ($isSmallBusiness) {
+            $taxAmountCents = 0;
+            $totalNettoCents = $grossTotalCents;
+        } else {
+            // Wir suchen das Steuer-Feld: OrderOrder (tax_amount), Quote (tax_total), Invoice (tax_amount)
+            $taxAmountCents = $this->tax_amount ?? $this->tax_total ?? 0;
 
-        // Falls tax_amount 0 ist (z.B. bei Invoices nicht explizit gespeichert), rückrechnen
-        if ($taxAmountCents === 0 && !$isSmallBusiness && $grossTotalCents > 0) {
-            $taxAmountCents = (int)($grossTotalCents - round($grossTotalCents / $divisor));
+            // Falls tax_amount 0 ist (z.B. bei Invoices nicht explizit gespeichert), rückrechnen
+            if ($taxAmountCents === 0 && $grossTotalCents > 0) {
+                $taxAmountCents = (int)($grossTotalCents - round($grossTotalCents / $divisor));
+            }
+
+            // Gesamt-Netto
+            $totalNettoCents = $grossTotalCents - $taxAmountCents;
         }
-
-        // Gesamt-Netto
-        $totalNettoCents = $grossTotalCents - $taxAmountCents;
 
         // 4. MAXIMALER STEUERSATZ (Für Versand & Express relevant in EU)
         // Find the maximum tax rate used by any item in this specific order/invoice
@@ -210,9 +215,9 @@ trait FormatsECommerceData
             // Identifikatoren
             'quote_number' => $this->invoice_number ?? $this->order_number ?? $this->quote_number ?? 'N/A',
             'quote_token'  => $this->token ?? '',
-            'quote_expiry' => $this->expires_at
+            'quote_expiry' => !empty($this->expires_at)
                 ? $this->expires_at->format('d.m.Y')
-                : ($this->due_date ? $this->due_date->format('d.m.Y') : now()->addDays($validityDays)->format('d.m.Y')),
+                : (!empty($this->due_date) ? $this->due_date->format('d.m.Y') : now()->addDays($validityDays)->format('d.m.Y')),
 
             'express'  => (bool)$this->is_express,
 

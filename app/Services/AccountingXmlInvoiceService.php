@@ -121,12 +121,15 @@ class AccountingXmlInvoiceService
             if ($isSmallBusiness) {
                 $netPrice = $grossCents / 100;
                 $taxCode = 'E'; // Exempt
+                $itemTaxRate = 0.0;
             } elseif ($taxRate == 0) {
                 $netPrice = $grossCents / 100;
                 $taxCode = 'Z'; // Zero
+                $itemTaxRate = 0.0;
             } else {
                 $netPrice = ($grossCents / 100) / (1 + ($taxRate / 100));
                 $taxCode = 'S'; // Standard
+                $itemTaxRate = $taxRate;
             }
 
             // Net Price
@@ -145,7 +148,7 @@ class AccountingXmlInvoiceService
             $tax = $this->addElement($settlement, 'ram:ApplicableTradeTax');
             $this->addElement($tax, 'ram:TypeCode', 'VAT');
             $this->addElement($tax, 'ram:CategoryCode', $taxCode);
-            $this->addElement($tax, 'ram:RateApplicablePercent', number_format($taxRate, 2, '.', ''));
+            $this->addElement($tax, 'ram:RateApplicablePercent', number_format($itemTaxRate, 2, '.', ''));
 
             // Zeilensumme (Netto * Menge)
             $lineSum = $this->addElement($settlement, 'ram:SpecifiedTradeSettlementLineMonetarySummation');
@@ -214,6 +217,9 @@ class AccountingXmlInvoiceService
         $tax = $this->addElement($settlement, 'ram:ApplicableTradeTax');
         $this->addElement($tax, 'ram:CalculatedAmount', number_format($taxTotalAmount, 2, '.', ''));
         $this->addElement($tax, 'ram:TypeCode', 'VAT');
+        if ($isSmallBusiness) {
+            $this->addElement($tax, 'ram:ExemptionReason', 'Umsatzsteuerfrei aufgrund der Kleinunternehmerregelung gemäß § 19 UStG');
+        }
         $this->addElement($tax, 'ram:BasisAmount', number_format($netTotal, 2, '.', ''));
 
         // Kategorie (Hauptsteuersatz der Rechnung raten)
@@ -222,6 +228,9 @@ class AccountingXmlInvoiceService
         if ($taxTotalAmount == 0 && !$isSmallBusiness) $catCode = 'Z';
 
         $this->addElement($tax, 'ram:CategoryCode', $catCode);
+        if ($isSmallBusiness) {
+            $this->addElement($tax, 'ram:ExemptionReasonCode', 'VATEX-EU-19');
+        }
         $this->addElement($tax, 'ram:RateApplicablePercent', $isSmallBusiness ? '0.00' : number_format((float)shop_setting('default_tax_rate', 19.0), 2, '.', ''));
 
         // Gesamtsummen

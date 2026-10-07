@@ -41,7 +41,7 @@
                     {{-- Steuerhinweis --}}
                     <span class="text-xs text-gray-500">
                         @if($isSmallBusiness)
-                            inkl. MwSt. <span class="italic">(Steuerbefreit gem. § 19 UStG)</span>
+                            <span class="italic">Gemäß § 19 UStG wird keine Umsatzsteuer berechnet</span>
                         @else
                             @if($this->product->tax_included) inkl. MwSt. @else zzgl. MwSt. @endif
                         @endif

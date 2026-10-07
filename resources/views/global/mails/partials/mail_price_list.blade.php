@@ -102,43 +102,42 @@
         </tr>
 
         {{-- Steuerrechtliche Aufschlüsselung --}}
-        <tr>
-            <td class="text-right" style="padding-top: 15px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                Nettobetrag:
-            </td>
-            <td class="text-right" style="padding-top: 15px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                {{ $data['total_netto'] }} €
-            </td>
-        </tr>
-        @if(empty($data['is_small_business']) && !empty($data['tax_breakdown']))
-            @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
+        @if(!empty($data['is_small_business']))
             <tr>
-                <td class="text-right" style="padding-bottom: 5px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                    inkl. MwSt. ({{ $rate }}%):
-                </td>
-                <td class="text-right" style="padding-bottom: 5px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                    {{ $taxAmountStr }} €
-                </td>
-            </tr>
-            @endforeach
-        @elseif(!empty($data['is_small_business']))
-            <tr>
-                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                    {{ $data['tax_note'] ?? 'Enthaltene MwSt.:' }}
-                </td>
-                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                    0,00 €
+                <td colspan="2" class="text-right" style="padding-top: 10px; padding-bottom: 10px; color: #6b7280; font-size: 11px; font-style: italic; text-align: right;">
+                    Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
                 </td>
             </tr>
         @else
             <tr>
-                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                    {{ $data['tax_note'] ?? 'Enthaltene MwSt.:' }}
+                <td class="text-right" style="padding-top: 15px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    Nettobetrag:
                 </td>
-                <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
-                    {{ $data['total_vat'] }} €
+                <td class="text-right" style="padding-top: 15px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                    {{ $data['total_netto'] }} €
                 </td>
             </tr>
+            @if(!empty($data['tax_breakdown']))
+                @foreach($data['tax_breakdown'] as $rate => $taxAmountStr)
+                <tr>
+                    <td class="text-right" style="padding-bottom: 5px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                        inkl. MwSt. ({{ $rate }}%):
+                    </td>
+                    <td class="text-right" style="padding-bottom: 5px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                        {{ $taxAmountStr }} €
+                    </td>
+                </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                        {{ $data['tax_note'] ?? 'Enthaltene MwSt.:' }}
+                    </td>
+                    <td class="text-right" style="padding-bottom: 10px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: right;">
+                        {{ $data['total_vat'] }} €
+                    </td>
+                </tr>
+            @endif
         @endif
     </table>
 

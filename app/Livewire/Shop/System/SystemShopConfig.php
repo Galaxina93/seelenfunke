@@ -269,6 +269,12 @@ class SystemShopConfig extends Component
         Cache::forget('global_shop_settings');
         Cache::forget('shop_setting_inventory_threshold');
 
+        // Cache sofort mit den frischen Werten neu befüllen, damit Änderungen augenblicklich aktiv sind
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {}
+
         $this->saved = true;
     }
 

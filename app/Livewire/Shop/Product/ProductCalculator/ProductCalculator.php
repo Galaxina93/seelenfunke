@@ -119,8 +119,9 @@ class ProductCalculator extends Component
                 }
             }
 
+            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             $rawPrice = $p->price / 100;
-            $rate = $p->tax_rate ? (float)$p->tax_rate : (float)shop_setting('default_tax_rate', 19.0);
+            $rate = $isSmallBusiness ? 0.0 : ($p->tax_rate !== null ? (float)$p->tax_rate : (float)shop_setting('default_tax_rate', 19.0));
             $isGross = (bool)$p->tax_included;
 
             return [
@@ -331,13 +332,20 @@ class ProductCalculator extends Component
             $unitPriceCents = $this->getTierPriceCents($product, $totalQty);
             $basePriceCents = $product['price_cents']; // NEU: Originalpreis
 
-            $rate = $product['tax_rate'];
+            $rate = $isSmallBusiness ? 0.0 : (float)$product['tax_rate'];
             $isGross = $product['tax_included'];
 
             $lineTotalCents = $unitPriceCents * $item['qty'];
             $lineOriginalCents = $basePriceCents * $item['qty']; // NEU: Original Zeilenwert
 
-            if ($isGross) {
+            if ($isSmallBusiness) {
+                $lineGross = $lineTotalCents;
+                $lineNet = $lineGross;
+                $lineTax = 0;
+
+                $cartSubtotalGross += ($lineGross / 100);
+                $originalSubtotalGross += ($lineOriginalCents / 100);
+            } elseif ($isGross) {
                 $lineGross = $lineTotalCents;
                 $lineNet  = $lineGross / (1 + ($rate / 100));
                 $lineTax  = $lineGross - $lineNet;
@@ -470,9 +478,15 @@ class ProductCalculator extends Component
             $sumMwst += $expressTax;
         }
 
-        $this->totalNetto = round($sumNetto) / 100;
-        $this->totalMwst = round($sumMwst) / 100;
-        $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
+        if ($isSmallBusiness) {
+            $this->totalMwst = 0.0;
+            $this->totalBrutto = round($cartSubtotalGross + $this->shippingCost + ($this->expressCost / 100), 2);
+            $this->totalNetto = $this->totalBrutto;
+        } else {
+            $this->totalNetto = round($sumNetto) / 100;
+            $this->totalMwst = round($sumMwst) / 100;
+            $this->totalBrutto = round($sumNetto + $sumMwst) / 100;
+        }
         $this->gesamtKosten = $this->totalBrutto;
 
         $this->taxBreakdown = [];
@@ -565,7 +579,7 @@ class ProductCalculator extends Component
                         'product_name' => $item['name'],
                         'quantity' => $item['qty'],
                         'unit_price' => (int) round($item['calculated_single_price'] * 100),
-                        'tax_rate' => $this->dbProducts[$item['product_id']]['tax_rate'] ?? shop_setting('default_tax_rate', 19.0),
+                        'tax_rate' => ((bool)shop_setting('is_small_business', false)) ? 0.0 : ($this->dbProducts[$item['product_id']]['tax_rate'] ?? shop_setting('default_tax_rate', 19.0)),
                         'total_price' => (int) round($item['calculated_total'] * 100),
                         'configuration' => $conf,
                     ]);

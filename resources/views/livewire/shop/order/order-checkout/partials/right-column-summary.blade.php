@@ -218,6 +218,20 @@
                 </ul>
             </div>
 
+            @php
+                $hasPhysicalItems = collect($cart->items ?? [])->contains(function($ci) {
+                    return ($ci->product->type ?? 'physical') === 'physical';
+                });
+            @endphp
+            @if($hasPhysicalItems)
+                <div class="mt-4 p-3 bg-emerald-50/70 border border-emerald-100 rounded-xl flex items-center gap-3 text-xs text-emerald-900">
+                    <span class="text-base shrink-0">🚚</span>
+                    <div class="min-w-0">
+                        <span class="font-bold block text-emerald-950">{{ \App\Models\Delivery\DeliverySetting::getCurrentDeliveryText() }}</span>
+                    </div>
+                </div>
+            @endif
+
             <div class="mt-6 pt-6 border-t border-gray-100">
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>

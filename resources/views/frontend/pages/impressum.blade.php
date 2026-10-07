@@ -50,10 +50,17 @@
                     </div>
 
                     <p class="pt-4 text-sm text-gray-600">
-                        <strong>Umsatzsteuer-Identifikationsnummer / Steuernummer:</strong><br>
-                        Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
+                        <strong>Steuerangaben & Gerichtsstand:</strong><br>
+                        @if(shop_setting('owner_tax_id'))
+                            Steuernummer: {{ shop_setting('owner_tax_id') }}<br>
+                        @endif
                         @if(shop_setting('owner_ust_id'))
-                            USt-IdNr. gemäß § 27 a Umsatzsteuergesetz: {{ shop_setting('owner_ust_id') }}<br>
+                            USt-IdNr. gemäß § 27 a UStG: {{ shop_setting('owner_ust_id') }}<br>
+                        @endif
+                        @if(shop_setting('is_small_business', false))
+                            <span class="text-xs text-gray-500 italic block my-1">
+                                Umsatzsteuer: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
+                            </span>
                         @endif
                         Gerichtsstand: {{ shop_setting('owner_court', 'Gifhorn') }}
                     </p>
@@ -137,7 +144,11 @@
                         <div>
                             <h3 class="font-bold text-lg text-gray-900">3. Preise und Zahlung</h3>
                             <p class="mt-2">
-                                (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer. <br>
+                                @if(shop_setting('is_small_business', false))
+                                    (1) Die angegebenen Preise sind Endpreise zzgl. Versandkosten. Gemäß § 19 UStG wird keine Umsatzsteuer erhoben. <br>
+                                @else
+                                    (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer. <br>
+                                @endif
                                 (2) Ihnen stehen folgende Zahlungsarten zur Verfügung:
                             </p>
                             <ul class="list-disc list-inside ml-4 mt-2 mb-2">

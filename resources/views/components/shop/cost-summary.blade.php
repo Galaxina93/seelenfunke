@@ -250,7 +250,7 @@
                     </div>
                 @endif
             @else
-                <div class="text-[10px] uppercase tracking-widest font-black {{ $taxTextClass }}">Steuerfrei gemäß § 19 UStG</div>
+                <div class="text-[10px] uppercase tracking-widest font-black {{ $taxTextClass }}">Gemäß § 19 UStG wird keine MwSt. berechnet</div>
             @endif
         </div>
 

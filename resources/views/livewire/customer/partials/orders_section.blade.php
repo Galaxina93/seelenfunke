@@ -180,10 +180,16 @@
                                 @endif
                             </div>
 
-                            <div class="flex justify-between text-xs text-gray-600 mb-6 font-medium">
-                                <span>Enthaltene MwSt.</span>
-                                <span>{{ number_format($selectedOrder->tax_amount / 100, 2, ',', '.') }} €</span>
-                            </div>
+                            @if(shop_setting('is_small_business', false) || $selectedOrder->tax_amount == 0)
+                                <div class="text-[11px] text-gray-500 mb-6 font-medium italic text-right">
+                                    Gemäß § 19 UStG wird keine MwSt. berechnet.
+                                </div>
+                            @else
+                                <div class="flex justify-between text-xs text-gray-600 mb-6 font-medium">
+                                    <span>Enthaltene MwSt.</span>
+                                    <span>{{ number_format($selectedOrder->tax_amount / 100, 2, ',', '.') }} €</span>
+                                </div>
+                            @endif
 
                             <div class="border-t border-gray-800 pt-6 flex justify-between items-center">
                                 <span class="font-bold text-white text-xl uppercase tracking-widest">Gesamtsumme</span>

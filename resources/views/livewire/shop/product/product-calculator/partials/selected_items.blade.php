@@ -266,17 +266,19 @@
                     <div class="text-2xl font-bold text-primary">Gesamtbetrag: {{ number_format($totalBrutto, 2, ',', '.') }}&nbsp;€</div>
 
                     <div class="text-[10px] text-gray-400 italic mt-1">
-                        Darin enthalten:<br>
-                        Nettobetrag: {{ number_format($totalNetto, 2, ',', '.') }}&nbsp;€ |
                         @if(shop_setting('is_small_business', false))
-                            Umsatzsteuerfrei gemäß § 19 UStG.
-                        @elseif(!empty($taxBreakdown))
-                            @foreach($taxBreakdown as $rate => $amount)
-                                MwSt. ({{ floatval($rate) }}%): {{ number_format($amount, 2, ',', '.') }}&nbsp;€
-                                @if(!$loop->last) | @endif
-                            @endforeach
+                            Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
                         @else
-                            MwSt. ({{ (float)shop_setting('default_tax_rate', 19) }}%): {{ number_format($totalMwst, 2, ',', '.') }}&nbsp;€
+                            Darin enthalten:<br>
+                            Nettobetrag: {{ number_format($totalNetto, 2, ',', '.') }}&nbsp;€ |
+                            @if(!empty($taxBreakdown))
+                                @foreach($taxBreakdown as $rate => $amount)
+                                    MwSt. ({{ floatval($rate) }}%): {{ number_format($amount, 2, ',', '.') }}&nbsp;€
+                                    @if(!$loop->last) | @endif
+                                @endforeach
+                            @else
+                                MwSt. ({{ (float)shop_setting('default_tax_rate', 19) }}%): {{ number_format($totalMwst, 2, ',', '.') }}&nbsp;€
+                            @endif
                         @endif
                     </div>
                 </div>

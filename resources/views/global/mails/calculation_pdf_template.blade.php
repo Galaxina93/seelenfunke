@@ -266,11 +266,6 @@
 
     {{-- ADDITIONAL INFO --}}
     <div style="margin-top: 30px; font-size: 11px; color: #555;">
-        @if($isSmallBusiness)
-            <p style="font-size: 10px; color: #888; font-style: italic; margin-bottom: 10px;">
-                Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
-            </p>
-        @endif
 
         <table width="100%" style="border-collapse: collapse;">
             <tr>
