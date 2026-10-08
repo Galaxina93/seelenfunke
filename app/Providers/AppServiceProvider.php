@@ -73,7 +73,7 @@ class AppServiceProvider extends ServiceProvider
         if (!app()->runningInConsole()) {
             try {
                 // Prüfen, ob die Tabelle existiert, sonst crashen Migrations beim Deployment
-                if (Schema::hasTable('shop-settings')) {
+                if (Schema::hasTable('shop_settings') || Schema::hasTable('shop-settings')) {
 
                     // Settings aus dem Cache laden (oder aus DB holen und cachen)
                     $settings = Cache::rememberForever('global_shop_settings', function () {

@@ -8,11 +8,18 @@ function allowed($key):bool
 }
 
 function shop_setting($key, $default = null) {
-    // 60 Sekunden TTL verhindert eingefrorene Caches bei Dateirechte-Problemen,
-    // vermeidet aber redundante DB-Abfragen innerhalb desselben Zeitfensters.
-    $settings = Cache::remember('global_shop_settings', 60, function() {
-        return \App\Models\System\SystemSetting::pluck('value', 'key');
-    });
+    try {
+        // 60 Sekunden TTL verhindert eingefrorene Caches bei Dateirechte-Problemen,
+        // vermeidet aber redundante DB-Abfragen innerhalb desselben Zeitfensters.
+        $settings = Cache::remember('global_shop_settings', 60, function() {
+            if (!\Illuminate\Support\Facades\Schema::hasTable('shop_settings') && !\Illuminate\Support\Facades\Schema::hasTable('shop-settings')) {
+                return [];
+            }
+            return \App\Models\System\SystemSetting::pluck('value', 'key');
+        });
+    } catch (\Throwable $e) {
+        $settings = [];
+    }
 
     $value = $settings[$key] ?? $default;
 

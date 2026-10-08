@@ -97,6 +97,57 @@ case "$1" in
 
         echo "🚀 Starte Funki..."
         docker compose up -d
+
+        echo "⏳ Warte auf Datenbank..."
+        MAX_TRIES=45
+        COUNT=0
+        until docker compose exec -T db mysql -uroot -proot -e "SELECT 1;" &>/dev/null; do
+            sleep 1
+            COUNT=$((COUNT+1))
+            if [ $COUNT -ge $MAX_TRIES ]; then
+                echo "⚠️ Datenbank braucht ungewöhnlich lange zum Starten. Fahre fort..."
+                break
+            fi
+        done
+        sleep 2
+
+        # Prüfen ob Testdatenbank existiert, falls nicht erstellen
+        docker compose exec -T db mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS seelenfunke_testing;" &>/dev/null || true
+
+        # Intelligente automatische DB-Initialisierung falls Tabellen fehlen
+        TABLE_COUNT=$(docker compose exec -T db mysql -uroot -proot -N -s -e "SELECT count(*) FROM information_schema.tables WHERE table_schema='seelenfunke';" 2>/dev/null || echo "0")
+        
+        if [ "$TABLE_COUNT" = "0" ] || [ -z "$TABLE_COUNT" ]; then
+            echo "🌱 Leere Datenbank erkannt! Initialisiere Tabellen & Daten..."
+            SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            if [ -f "$SCRIPT_DIR/init_db_backup.sql" ]; then
+                echo "📥 Spiele bestehendes Datenbank-Backup ein..."
+                docker compose exec -T db mysql -uroot -proot seelenfunke < "$SCRIPT_DIR/init_db_backup.sql"
+                $PREFIX_DEFAULT php artisan migrate --force
+            else
+                $PREFIX_DEFAULT php artisan migrate --force --seed
+            fi
+            echo "✅ Datenbank erfolgreich initialisiert!"
+        else
+            # Prüfen ob ausstehende Migrationen existieren
+            if $PREFIX_DEFAULT php artisan migrate:status 2>/dev/null | grep -q "Pending"; then
+                echo "🗄️ Neue ausstehende Migration(en) gefunden. Führe php artisan migrate aus..."
+                $PREFIX_DEFAULT php artisan migrate --force
+            fi
+        fi
+
+        # Storage-Link sicherstellen
+        if [ ! -L "public/storage" ]; then
+            echo "🔗 Erstelle Storage-Link..."
+            $PREFIX_DEFAULT php artisan storage:link &>/dev/null || true
+        fi
+
+        # Rechte und Caches aktualisieren
+        run_rights
+
+        echo -e "\n\033[1;32m🎉 Funki ist einsatzbereit!\033[0m"
+        echo -e "👉 Shop & Web:    \033[1;34mhttp://127.0.0.1/\033[0m"
+        echo -e "👉 phpMyAdmin:    \033[1;34mhttp://127.0.0.1:8080/\033[0m\n"
         ;;
     stop)
         require_local "stop"
