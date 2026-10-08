@@ -2,7 +2,7 @@
   {
     "sha256": "7ef80ba00b9711834d564660f4cea9b1d4a89e2908896e98ace3f6663a356d37",
     "filename": "alina.jpg",
-    "file_path": "agenten/workspace/Allgemein/2026/alina.jpg",
+    "file_path": "agenten/workspace/Dokumente/Allgemein/alina.jpg",
     "file_type": "jpg",
     "file_size": 547804,
     "title": "Alina",
@@ -20,7 +20,7 @@
   {
     "sha256": "74160ec39035acd20661e375eaffe72be37d65558b01b63fc9be596d96517f51",
     "filename": "Erinnerung.jpeg",
-    "file_path": "agenten/workspace/Allgemein/2026/Erinnerung.jpeg",
+    "file_path": "agenten/workspace/Dokumente/Allgemein/Erinnerung.jpeg",
     "file_type": "jpeg",
     "file_size": 155853,
     "title": "Whatsapp Image 2026-09-17 At 12.38.59",
@@ -38,7 +38,7 @@
   {
     "sha256": "a4d6545ea5c9b1493df4da7ad2214e4d4c2861f284149d578f7c3c3953090c88",
     "filename": "Projekt_Notizen_KI_Assistent.md",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/2026/Projekt_Notizen_KI_Assistent.md",
+    "file_path": "agenten/workspace/Berufsleben/Projekte/Projekt_Notizen_KI_Assistent.md",
     "file_type": "md",
     "file_size": 154,
     "title": "Projekt Notizen Ki Assistent",
@@ -56,7 +56,7 @@
   {
     "sha256": "726a3ac92deb4c1f6798836ba7f469b469b3e16cedc3b6da19e47950879d713f",
     "filename": "Alina_Steinhauer_Gruenderin_Profilbild.png",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/Alina_Steinhauer_Gruenderin_Profilbild.png",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/Alina_Steinhauer_Gruenderin_Profilbild.png",
     "file_type": "png",
     "file_size": 2264166,
     "title": "Offizielles Profilbild / Bewerbungsfoto: Alina Steinhauer",
@@ -78,7 +78,7 @@
   {
     "sha256": "7ba54390a2257d95ff7de3cde5ca694e12635ac615ebdeb9ef42c4a385302548",
     "filename": "BA_Formular_Stellungnahme_fachkundige_Stelle_Gruendungszuschuss.pdf",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/BA_Formular_Stellungnahme_fachkundige_Stelle_Gruendungszuschuss.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/BA_Formular_Stellungnahme_fachkundige_Stelle_Gruendungszuschuss.pdf",
     "file_type": "pdf",
     "file_size": 159533,
     "title": "BA-Vordruck: Stellungnahme der fachkundigen Stelle zur Tragfähigkeit der Existenzgründung",
@@ -101,7 +101,7 @@
   {
     "sha256": "7d451371b12ab44b38e3b0cc3a7694fc4ab4da9529ff6045ddbe7d5164668c9a",
     "filename": "Businessplan_Mein_Seelenfunke_15-08-2026.md",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/Businessplan_Mein_Seelenfunke_15-08-2026.md",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/Businessplan_Mein_Seelenfunke_15-08-2026.md",
     "file_type": "md",
     "file_size": 20662,
     "title": "Businessplan: Mein Seelenfunke (E-Commerce Manufaktur & Laserveredelung)",
@@ -128,7 +128,7 @@
   {
     "sha256": "07ed387a891bc95e04dd59339d5bedf7517d0c68ba352824a7e2466859474f5c",
     "filename": "Businessplan_Mein_Seelenfunke_15-08-2026.pdf",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/Businessplan_Mein_Seelenfunke_15-08-2026.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/Businessplan_Mein_Seelenfunke_15-08-2026.pdf",
     "file_type": "pdf",
     "file_size": 997659,
     "title": "Businessplan PDF: Mein Seelenfunke (Druckfassung)",
@@ -152,7 +152,7 @@
   {
     "sha256": "6e22938c9c8549adec18f71a78195ac24f3f5ef7e470174c90f06c840407103a",
     "filename": "Dokumentation_Gruendungszuschuss_Onlineantrag.md",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/Dokumentation_Gruendungszuschuss_Onlineantrag.md",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/Dokumentation_Gruendungszuschuss_Onlineantrag.md",
     "file_type": "md",
     "file_size": 8193,
     "title": "Dokumentation: Online-Antrag Gründungszuschuss § 93 SGB III (Status & Stammdaten)",
@@ -175,7 +175,7 @@
   {
     "sha256": "731c4ec48f737f5e12d651dfb3f9b4e2fa6618a603175d823d2d6d551c6cb344",
     "filename": "Lebenslauf_Alina_Steinhauer_Gruenderprofil.pdf",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/Lebenslauf_Alina_Steinhauer_Gruenderprofil.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/Lebenslauf_Alina_Steinhauer_Gruenderprofil.pdf",
     "file_type": "pdf",
     "file_size": 2993365,
     "title": "Ausführlicher Lebenslauf & Gründerprofil: Alina Steinhauer",
@@ -199,7 +199,7 @@
   {
     "sha256": "b3c37aea9fd724117b0caa6be8e16398ff35002eb9e753c4af7dbae0ac8599b9",
     "filename": "Zusammenfassung_Gruendungszuschuss_Antragsstand.pdf",
-    "file_path": "agenten/workspace/Arbeit_und_Projekte/Existenzgruendung_Mein_Seelenfunke/Zusammenfassung_Gruendungszuschuss_Antragsstand.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Existenzgruendung/Zusammenfassung_Gruendungszuschuss_Antragsstand.pdf",
     "file_type": "pdf",
     "file_size": 36963,
     "title": "Zusammenfassung: Gründungszuschuss Antragsstand & Checkliste",
@@ -221,7 +221,7 @@
   {
     "sha256": "3e0f88b0411385d139eb60a57aebf0596a447e6d860460b49c14c85eb46d377f",
     "filename": "2026-09-17_Automatische_Antwort___EXTERN__Gewerbesteuer_f_r_2.md",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/2026-09-17_Automatische_Antwort___EXTERN__Gewerbesteuer_f_r_2.md",
+    "file_path": "agenten/workspace/Dokumente/Steuern/2026-09-17_Automatische_Antwort___EXTERN__Gewerbesteuer_f_r_2.md",
     "file_type": "md",
     "file_size": 2131,
     "title": "2026 09 17 Automatische Antwort   Extern  Gewerbesteuer F R 2",
@@ -237,7 +237,7 @@
   {
     "sha256": "772a359cfacf63cf3db2b8a96a3f29d33156d75aa0f0d0bb00652e94af66ab1f",
     "filename": "2026-09-22_Neue_Mitteilungen_Ihrer_Bundesagentur_f_r_Arbeit.md",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/2026-09-22_Neue_Mitteilungen_Ihrer_Bundesagentur_f_r_Arbeit.md",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-09-22_Neue_Mitteilungen_Ihrer_Bundesagentur_f_r_Arbeit.md",
     "file_type": "md",
     "file_size": 2306,
     "title": "2026 09 22 Neue Mitteilungen Ihrer Bundesagentur F R Arbeit",
@@ -253,7 +253,7 @@
   {
     "sha256": "7601017ba3976830418de3f491091ddaf0019b475d7c501ea7eb0f64e0cf18ed",
     "filename": "2021-04-15_BA_Automatische_Erinnerung_Antrag_2021.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2021-04-15_BA_Automatische_Erinnerung_Antrag_2021.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2021-04-15_BA_Automatische_Erinnerung_Antrag_2021.pdf",
     "file_type": "pdf",
     "file_size": 76259,
     "title": "BA-Nachricht: Automatische Erinnerung zu Online-Antrag 2021",
@@ -272,7 +272,7 @@
   {
     "sha256": "2b064c8c0d78b78f2c5ae0b57ef801b25b202ae2be8e9ce693f85581eb4b4955",
     "filename": "2024-09-30_BA_Nachricht_Fehlendes_Geld_August_September_2024.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2024-09-30_BA_Nachricht_Fehlendes_Geld_August_September_2024.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2024-09-30_BA_Nachricht_Fehlendes_Geld_August_September_2024.pdf",
     "file_type": "pdf",
     "file_size": 85956,
     "title": "BA-Nachricht: Dringende Reklamation fehlendes Krankengeld August/September 2024",
@@ -295,7 +295,7 @@
   {
     "sha256": "2a3436c60e9a69eabb3ab93416a787ed719f2d2ec531283a31c650611471ddad",
     "filename": "2024-10-03_BA_Nachricht_Aufstellung_fehlende_Gelder_Krankengeld.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2024-10-03_BA_Nachricht_Aufstellung_fehlende_Gelder_Krankengeld.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2024-10-03_BA_Nachricht_Aufstellung_fehlende_Gelder_Krankengeld.pdf",
     "file_type": "pdf",
     "file_size": 76562,
     "title": "BA-Nachricht: Aufstellung fehlendes Geld (31.07.–22.08.2024) Zwischen BKK und BA",
@@ -317,7 +317,7 @@
   {
     "sha256": "958dc80982a557de15b02877e7a5345f22f99dca6bf7a94818a98744f63acb33",
     "filename": "2024-10-14_BA_Antwort_Ende_Leistungsfortzahlung_30-07-2024.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2024-10-14_BA_Antwort_Ende_Leistungsfortzahlung_30-07-2024.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2024-10-14_BA_Antwort_Ende_Leistungsfortzahlung_30-07-2024.pdf",
     "file_type": "pdf",
     "file_size": 82104,
     "title": "BA-Antwortschreiben: Bestätigung Ende der Leistungsfortzahlung zum 30.07.2024",
@@ -339,7 +339,7 @@
   {
     "sha256": "002de5c09c95d985ccce8ab6ccc5257a67250936cf21d3f6957533b84a342497",
     "filename": "2024-10-14_BA_Nachricht_Mahnung_Geldluecke.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2024-10-14_BA_Nachricht_Mahnung_Geldluecke.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2024-10-14_BA_Nachricht_Mahnung_Geldluecke.pdf",
     "file_type": "pdf",
     "file_size": 77247,
     "title": "BA-Nachricht: Nachdrückliche Mahnung wegen Zahlungsrückstand 31.07.–22.08.2024",
@@ -359,7 +359,7 @@
   {
     "sha256": "f0f2008e46881e45635c8c06fe910d79bfd8f61adc1bb9ecaabc7bcab924e4bc",
     "filename": "2026-09-02_BA_Nachricht_Antrag_rueckwirkende_Leistungskorrektur_24-29_Januar.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2026-09-02_BA_Nachricht_Antrag_rueckwirkende_Leistungskorrektur_24-29_Januar.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-09-02_BA_Nachricht_Antrag_rueckwirkende_Leistungskorrektur_24-29_Januar.pdf",
     "file_type": "pdf",
     "file_size": 79246,
     "title": "BA-Nachricht: Antrag auf rückwirkende Leistungskorrektur (24.01.–29.01.2026 Nahtlosigkeit)",
@@ -383,7 +383,7 @@
   {
     "sha256": "1065c08f95b805a7a40bcfb90c2d5236236faccaf465569bca6f41fdd38b3e45",
     "filename": "2026-09-22_BA_Nachricht_Nachreichung_Aussteuerungsbescheid_Frau_Schinke.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2026-09-22_BA_Nachricht_Nachreichung_Aussteuerungsbescheid_Frau_Schinke.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-09-22_BA_Nachricht_Nachreichung_Aussteuerungsbescheid_Frau_Schinke.pdf",
     "file_type": "pdf",
     "file_size": 75991,
     "title": "BA-Nachricht: Nachreichung Aussteuerungsbescheid der Krankenkasse an Frau Schinke",
@@ -405,7 +405,7 @@
   {
     "sha256": "75cf7746ff5f9f1ce06af302fc200f545c2d9dfa82659561d97d1814489dd05f",
     "filename": "2026-10-05_BA_Onlineportal_Export_Bescheide_und_Nachweise.csv",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2026-10-05_BA_Onlineportal_Export_Bescheide_und_Nachweise.csv",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-10-05_BA_Onlineportal_Export_Bescheide_und_Nachweise.csv",
     "file_type": "csv",
     "file_size": 5810,
     "title": "BA-Onlineportal Transaktionsverlauf: Bescheide & Nachweise (Export 05.10.2026)",
@@ -428,7 +428,7 @@
   {
     "sha256": "aa125a71a6041311e11a0bd505c3069acff44745b633464b84efc5b247f7e148",
     "filename": "2026-10-05_BA_Onlineportal_Export_Gruendungszuschuss.csv",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2026-10-05_BA_Onlineportal_Export_Gruendungszuschuss.csv",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-10-05_BA_Onlineportal_Export_Gruendungszuschuss.csv",
     "file_type": "csv",
     "file_size": 295,
     "title": "BA-Onlineportal Transaktionsverlauf: Gründungszuschuss",
@@ -449,7 +449,7 @@
   {
     "sha256": "c2318357357468712e769304d28b8841b8dbadfa51c1af77c9bca1c498833cd1",
     "filename": "2026-10-05_BA_Onlineportal_Export_Veraenderungsmitteilungen_AU.csv",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2026-10-05_BA_Onlineportal_Export_Veraenderungsmitteilungen_AU.csv",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-10-05_BA_Onlineportal_Export_Veraenderungsmitteilungen_AU.csv",
     "file_type": "csv",
     "file_size": 845,
     "title": "BA-Onlineportal Transaktionsverlauf: Veränderungsmitteilungen Arbeitsunfähigkeit",
@@ -471,7 +471,7 @@
   {
     "sha256": "d8b70309d9e5ba4d1a808c0485abdb8485b563c4462bb64255a8ed16d28547d5",
     "filename": "2026-10-06_Chat_Alina_Status_Arbeitsamt_Gruendungszuschuss.txt",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/2026-10-06_Chat_Alina_Status_Arbeitsamt_Gruendungszuschuss.txt",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/2026-10-06_Chat_Alina_Status_Arbeitsamt_Gruendungszuschuss.txt",
     "file_type": "txt",
     "file_size": 725,
     "title": "2026 10 06 Chat Alina Status Arbeitsamt Gruendungszuschuss",
@@ -487,7 +487,7 @@
   {
     "sha256": "93bba363af191e991f7cd63b0cb905918edb23ccf4e0d8f9de4fb0eb8fe750d4",
     "filename": "Antrag_Arbeitsagentur_Vorlaeufige_Leistung_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/Antrag_Arbeitsagentur_Vorlaeufige_Leistung_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/Antrag_Arbeitsagentur_Vorlaeufige_Leistung_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 3896,
     "title": "Antrag auf vorläufige Weiterleistung von Arbeitslosengeld (§ 43 SGB I / § 328 SGB III)",
@@ -512,7 +512,7 @@
   {
     "sha256": "21d24ed3d94b6bd9acfcb548ac64cfb4490baef8827f68bf679a17d3a363cbd2",
     "filename": "Kurzantrag_Arbeitsagentur_Gifhorn_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Behoerden_und_Aemter/Agentur für Arbeit/Kurzantrag_Arbeitsagentur_Gifhorn_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Berufsleben/Arbeitsamt/Kurzantrag_Arbeitsagentur_Gifhorn_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 91005,
     "title": "Kurzantrag auf vorläufige Weiterzahlung von Arbeitslosengeld (Agentur für Arbeit Gifhorn)",
@@ -537,7 +537,7 @@
   {
     "sha256": "f2a6a120d9fca63e76281244d9d8ddb3ddd108f1163a371db53464704849efd2",
     "filename": "2026-09-02_AW__Mahnung_-_Konto__17020_09.md",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/2026-09-02_AW__Mahnung_-_Konto__17020_09.md",
+    "file_path": "agenten/workspace/Dokumente/Finanzen/2026-09-02_AW__Mahnung_-_Konto__17020_09.md",
     "file_type": "md",
     "file_size": 2543,
     "title": "2026 09 02 Aw  Mahnung   Konto  17020 09",
@@ -553,7 +553,7 @@
   {
     "sha256": "6d50bc0eb9cf264167d6da4e93f77529794ca5b1b25973a636f0e66faf0874e0",
     "filename": "2026-09-21_Finanzbericht_2026_9.zip",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/2026-09-21_Finanzbericht_2026_9.zip",
+    "file_path": "agenten/workspace/Dokumente/Finanzen/2026-09-21_Finanzbericht_2026_9.zip",
     "file_type": "zip",
     "file_size": 14214,
     "title": "2026 09 21 Finanzbericht 2026 9",
@@ -569,7 +569,7 @@
   {
     "sha256": "b539ac707eefccb37da3f5c9bbed702d3f529b982224a415bfa8117fed5579c7",
     "filename": "2026-09-21_Finanzbericht_9_2026.md",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/2026-09-21_Finanzbericht_9_2026.md",
+    "file_path": "agenten/workspace/Dokumente/Finanzen/2026-09-21_Finanzbericht_9_2026.md",
     "file_type": "md",
     "file_size": 3182,
     "title": "2026 09 21 Finanzbericht 9 2026",
@@ -585,7 +585,7 @@
   {
     "sha256": "e73f3955b417c0dcfda5d49e566c5d34a151bbdbb49350961f389c90b9d16ccc",
     "filename": "2026-09-30_Rechnung_2026-987_F_lligkeit_15.10.2026.md",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/2026-09-30_Rechnung_2026-987_F_lligkeit_15.10.2026.md",
+    "file_path": "agenten/workspace/Dokumente/Finanzen/2026-09-30_Rechnung_2026-987_F_lligkeit_15.10.2026.md",
     "file_type": "md",
     "file_size": 508,
     "title": "2026 09 30 Rechnung 2026 987 F Lligkeit 15.10.2026",
@@ -601,7 +601,7 @@
   {
     "sha256": "26b42297c83c32609576c79f88791bc4cbaf669fa239d0fd284a47aa363203da",
     "filename": "Steuererklärung für 2025.pdf",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/2025/Steuererklärung für 2025.pdf",
+    "file_path": "agenten/workspace/Dokumente/Steuern/Steuererklärung für 2025.pdf",
     "file_type": "pdf",
     "file_size": 115196,
     "title": "Steuererklärung Für 2025",
@@ -622,7 +622,7 @@
   {
     "sha256": "ef0e6c04fb7da41641744ab488e4840c5f15dc42182c9f7a6e161dafe373453f",
     "filename": "Umsaetze_DE85269910668583196000_02-09-2026_10-29.pdf",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/Bankauszüge/Umsaetze_DE85269910668583196000_02-09-2026_10-29.pdf",
+    "file_path": "agenten/workspace/Dokumente/Bank/Umsaetze_DE85269910668583196000_02-09-2026_10-29.pdf",
     "file_type": "pdf",
     "file_size": 2490779,
     "title": "Kontoauszug Girokonto (Umsaetze_DE85269910668583196000_02-09-2026_10-29.pdf)",
@@ -643,7 +643,7 @@
   {
     "sha256": "77c5c6494fe2ab82a2f75a94fb4bf486cfcf36734e9b22478abcb40ca53a57cd",
     "filename": "Umsaetze_DE85269910668583196000_2026.09.02.csv",
-    "file_path": "agenten/workspace/Finanzen_und_Vertraege/Bankauszüge/Umsaetze_DE85269910668583196000_2026.09.02.csv",
+    "file_path": "agenten/workspace/Dokumente/Bank/Umsaetze_DE85269910668583196000_2026.09.02.csv",
     "file_type": "csv",
     "file_size": 251030,
     "title": "Kontoauszug Girokonto (Umsaetze_DE85269910668583196000_2026.09.02.csv)",
@@ -664,7 +664,7 @@
   {
     "sha256": "0f7cb72d29cb0564366d40e6d75ef0b298015d3ce1ca92a94c6e5082b53365c2",
     "filename": "Arbeitsunfähigkeit.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Arbeitsunfähigkeit.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Arbeitsunfähigkeit.txt",
     "file_type": "txt",
     "file_size": 14958,
     "title": "Vollständiges Chatprotokoll: Arbeitsunfähigkeit",
@@ -689,7 +689,7 @@
   {
     "sha256": "423305094405e58fe55881e1d2ac476156a83d2ed0fc3aadae497181a9e20934",
     "filename": "Familienversicherung.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Familienversicherung.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Familienversicherung.txt",
     "file_type": "txt",
     "file_size": 727,
     "title": "Vollständiges Chatprotokoll: Familienversicherung",
@@ -711,7 +711,7 @@
   {
     "sha256": "8fd1e8d1d291ee7392a442e1e7a888f6d0fa517423ec960fd8efc81d35b618b1",
     "filename": "Krankengeld.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Krankengeld.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Krankengeld.txt",
     "file_type": "txt",
     "file_size": 16687,
     "title": "Vollständiges Chatprotokoll: Krankengeld",
@@ -737,7 +737,7 @@
   {
     "sha256": "7d9fff1f3810c69baeac140c04844e749280ee3f75242bb870fad19969cbfb9b",
     "filename": "Krankenhaus.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Krankenhaus.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Krankenhaus.txt",
     "file_type": "txt",
     "file_size": 7951,
     "title": "Vollständiges Chatprotokoll: Krankenhaus",
@@ -766,7 +766,7 @@
   {
     "sha256": "9d1810c901047a58a61f19ab2640e3afdc11ad755ac81c0a073c7be01195fe55",
     "filename": "9650060300010.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650060300010.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650060300010.pdf",
     "file_type": "pdf",
     "file_size": 229244,
     "title": "Eingangsbestätigung: Antrag auf Kostenübernahme Barthaarentfernung mit Laser",
@@ -794,7 +794,7 @@
   {
     "sha256": "1d713e935e2e2c2dfca06e3ae1894622c1b5a4de5c802dddc0aaee1005eb7cdb",
     "filename": "9650061225545.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650061225545.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650061225545.pdf",
     "file_type": "pdf",
     "file_size": 417321,
     "title": "Zwischennachricht: Hormonersatztherapie (HRT) Begutachtung beim MD",
@@ -822,7 +822,7 @@
   {
     "sha256": "db2690c9c7b26276c84cfa0e3b8759caf2f126296b93fff850872c245955f318",
     "filename": "9650062101659.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650062101659.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650062101659.pdf",
     "file_type": "pdf",
     "file_size": 229229,
     "title": "Eingangsbestätigung: Unterlagen zur Haarentfernung an den MD gesandt",
@@ -850,7 +850,7 @@
   {
     "sha256": "2b3e230ebb3518a8e0f207bd6379a3a43283fa48ea42c30aebeefbfd7d5cbf49",
     "filename": "9650062820219.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650062820219.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650062820219.pdf",
     "file_type": "pdf",
     "file_size": 229025,
     "title": "Zwischenbescheid: Antrag auf Kostenübernahme in Prüfung beim MD",
@@ -877,7 +877,7 @@
   {
     "sha256": "57fce8698d7ad3bf55e3658e9340d16c2553b027dca03d8d509d2731d0817dfc",
     "filename": "9650064287652.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650064287652.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650064287652.pdf",
     "file_type": "pdf",
     "file_size": 421189,
     "title": "Prüfmitteilung: Kostenübernahme Barthaarentfernung mit Laser",
@@ -905,7 +905,7 @@
   {
     "sha256": "5be0d6fec7b5ae36738ba1ae642a62d7420e4a5d38c23770f2aab456b5b16523",
     "filename": "9650067808155.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650067808155.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650067808155.pdf",
     "file_type": "pdf",
     "file_size": 228474,
     "title": "Eingangsbestätigung: Antrag auf Stimmanpassung (Logopädie)",
@@ -933,7 +933,7 @@
   {
     "sha256": "eec4add63eea36942d9980a8dbc927d5ccfc17113e7a4bead7f50ca9b0681565",
     "filename": "9650071371588.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650071371588.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650071371588.pdf",
     "file_type": "pdf",
     "file_size": 176451,
     "title": "Aufforderung: Erklärung des Mitglieds zur Erlangung von Entgeltersatzleistungen (AU ab 12.07.2024)",
@@ -962,7 +962,7 @@
   {
     "sha256": "f64b4526fbbe60980174f46944ed34b6dadd72e527de48738dc937ee751a46df",
     "filename": "9650071568085.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650071568085.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650071568085.pdf",
     "file_type": "pdf",
     "file_size": 242824,
     "title": "Bescheid: Erstattung von Arzneimitteln Hylo Dual, Cationorm und Blephademodex",
@@ -996,7 +996,7 @@
   {
     "sha256": "2952e34f262407fea2ab448eda0fcdfbe76dbbad22e3c324c4b39938f64c159b",
     "filename": "9650072456583.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650072456583.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650072456583.pdf",
     "file_type": "pdf",
     "file_size": 176359,
     "title": "Erneute Aufforderung: Erklärung des Mitglieds für Entgeltersatzleistungen (AU ab 06.08.2024)",
@@ -1024,7 +1024,7 @@
   {
     "sha256": "e01b67b0c4af252a4ccdac20f9580e8c147c78d01507a9b6a00fed37406be22b",
     "filename": "9650072673267.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650072673267.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650072673267.pdf",
     "file_type": "pdf",
     "file_size": 239461,
     "title": "BEWILLIGUNG: Wir übernehmen die Kosten für Ihre Psychotherapie (Kostenzusage)",
@@ -1053,7 +1053,7 @@
   {
     "sha256": "99612ac1d6a0dd8d69be1b283867c957a0b2bb9f4cab99c016c149da1d1eb493",
     "filename": "9650073846318.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650073846318.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650073846318.pdf",
     "file_type": "pdf",
     "file_size": 284436,
     "title": "HAUPTBESCHEID KRANKENGELD: Ihr Krankengeldbezug ab dem 23.08.2024 (Tagessatz: 65,90 €)",
@@ -1086,7 +1086,7 @@
   {
     "sha256": "8880e285e4887f0545d144f96befdf1dcd94c2e49a5bc110ee675297a1659fd5",
     "filename": "9650075219970.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650075219970.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650075219970.pdf",
     "file_type": "pdf",
     "file_size": 236210,
     "title": "Aufforderung zur schriftlichen Widerspruchseinreichung",
@@ -1114,7 +1114,7 @@
   {
     "sha256": "4f21a022fc0211e842898e807aef5b05c907177215d1696fff76a2560595a012",
     "filename": "9650075540649.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650075540649.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650075540649.pdf",
     "file_type": "pdf",
     "file_size": 238025,
     "title": "Eingangsbestätigung: Ihr Widerspruch vom 21.10.2024",
@@ -1142,7 +1142,7 @@
   {
     "sha256": "75857574fa658a2263e2fcaaafbaca2697b069cdb449634f314c432edf49a941",
     "filename": "9650076822528.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650076822528.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650076822528.pdf",
     "file_type": "pdf",
     "file_size": 240733,
     "title": "ABHILFEBESCHEID: Krankengeld - Ihr Widerspruch vom 25.10.2024 (Volle Stattgabe)",
@@ -1171,7 +1171,7 @@
   {
     "sha256": "98c33c3dbb674f729288dd2bb1ed92a0f334b8944c5cea382f4025de6f7c63ef",
     "filename": "9650078218824.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650078218824.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650078218824.pdf",
     "file_type": "pdf",
     "file_size": 251913,
     "title": "Bescheid: Ablehnung der Haarentfernung mittels INOS-Technologie (Hairfree)",
@@ -1201,7 +1201,7 @@
   {
     "sha256": "8b25d8419bc5286020eaa4d7f5c85e1d4c31bc1cc4a13149616ded09044be959",
     "filename": "9650078585061.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650078585061.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650078585061.pdf",
     "file_type": "pdf",
     "file_size": 239862,
     "title": "BEWILLIGUNG: Kostenübernahme für Psychotherapie (Fortführung)",
@@ -1229,7 +1229,7 @@
   {
     "sha256": "4898ffa94c53f50406c8170a4e3be730134e678b6ea482640d422a7a98173c5f",
     "filename": "9650078742642.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650078742642.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650078742642.pdf",
     "file_type": "pdf",
     "file_size": 417554,
     "title": "Unterlagenanforderung: Geschlechtsangleichende Operation (Vorbereitung MD)",
@@ -1257,7 +1257,7 @@
   {
     "sha256": "589259c41833484073b1189c2a80a3e073a5793ae46e5800539c56280a0dc431",
     "filename": "9650079272706.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650079272706.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650079272706.pdf",
     "file_type": "pdf",
     "file_size": 247467,
     "title": "Bescheinigung über den Bezug von Krankengeld (Jahresende 2024)",
@@ -1285,7 +1285,7 @@
   {
     "sha256": "0de7755ebd4a9f1c334f2fddd36f5c9845cee4e0e9df51dbadbacbf86e897538",
     "filename": "9650083792245.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650083792245.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650083792245.pdf",
     "file_type": "pdf",
     "file_size": 237135,
     "title": "Bestätigung AU-Bescheinigung ab 28.01.2025 (Hinweis auf Lücke 27.01.2025)",
@@ -1314,7 +1314,7 @@
   {
     "sha256": "d22f9402dec4a2e04f6385ffd188216997179d97406aee5880996378ab312903",
     "filename": "9650090394429.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650090394429.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650090394429.pdf",
     "file_type": "pdf",
     "file_size": 414441,
     "title": "Antwort der BKK firmus zur geplanten stationären Behandlung",
@@ -1341,7 +1341,7 @@
   {
     "sha256": "ffdb3f4d9bb3f70a26cdc5b057f80b650334357cdd67d7ef083a250c6e69d605",
     "filename": "9650090870349.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650090870349.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650090870349.pdf",
     "file_type": "pdf",
     "file_size": 244422,
     "title": "Versicherungsbescheinigung für ärztliche Behandlung (Alina Steinhauer)",
@@ -1369,7 +1369,7 @@
   {
     "sha256": "26daeee38930dcdfcec785baa801838e47be4a9fa661dc00e4b3f1dd0ae3ad1c",
     "filename": "9650097392433.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650097392433.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650097392433.pdf",
     "file_type": "pdf",
     "file_size": 247599,
     "title": "Bescheinigung über den Bezug von Krankengeld (März 2025)",
@@ -1397,7 +1397,7 @@
   {
     "sha256": "f6113bb3c4902f7771d65bbae4cb3c2e7b381477bf0f9aa7f179a1590b3762ef",
     "filename": "9650100261190.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650100261190.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650100261190.pdf",
     "file_type": "pdf",
     "file_size": 250520,
     "title": "Detaillierte Bescheinigung der Krankengeld-Auszahlungszeiträume",
@@ -1425,7 +1425,7 @@
   {
     "sha256": "d8db046af8dc8ca7f17c9a972dcb89731b803d1d39a51523a098c5d2ed13e001",
     "filename": "9650107004279.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650107004279.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650107004279.pdf",
     "file_type": "pdf",
     "file_size": 239869,
     "title": "BEWILLIGUNG: Kostenübernahme Psychotherapie (Bewilligungsbescheid Mai 2025)",
@@ -1453,7 +1453,7 @@
   {
     "sha256": "77142e0d1ae3115cee59d6ae30431c65f60258b46e776a58279a260daaed0192",
     "filename": "9650111610893.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650111610893.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650111610893.pdf",
     "file_type": "pdf",
     "file_size": 238928,
     "title": "Zwischenbescheid: Antrag auf geschlechtsangleichende Operation beim MD",
@@ -1482,7 +1482,7 @@
   {
     "sha256": "75eb7075c25e37c7b81b99d292d542a6fb55195c8aeafc783109b68da22f495d",
     "filename": "9650114201740.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650114201740.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650114201740.pdf",
     "file_type": "pdf",
     "file_size": 237477,
     "title": "Stellungnahme der BKK firmus zum Bescheid vom 07.07.2025 (OP-Antrag)",
@@ -1509,7 +1509,7 @@
   {
     "sha256": "bde08e860628f035548baf3467f98f61985394eefdc3f683a6a38444d2c98eb2",
     "filename": "9650114306636.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650114306636.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650114306636.pdf",
     "file_type": "pdf",
     "file_size": 420983,
     "title": "ABHILFEBESCHEID: Bewilligung der geschlechtsangleichenden Operation bis 15.01.2026",
@@ -1542,7 +1542,7 @@
   {
     "sha256": "8fa16cde9df89ba1a724fa9a446a7312df2f6a0228f6b358af718be2237d3529",
     "filename": "9650117915024.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650117915024.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650117915024.pdf",
     "file_type": "pdf",
     "file_size": 238166,
     "title": "Unterlagenprüfung: Antrag Haarentfernung (Bart komplett) INOS",
@@ -1569,7 +1569,7 @@
   {
     "sha256": "7faadb88dd9fb91ad90ea18eba81abdc02e963c55c63fa2d44622d0b9347871f",
     "filename": "9650119701902.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650119701902.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650119701902.pdf",
     "file_type": "pdf",
     "file_size": 240400,
     "title": "Zwischenmitteilung: Verlängerung der Kostenübernahme für die geschlechtsangleichende OP",
@@ -1596,7 +1596,7 @@
   {
     "sha256": "f97e2e4a097b4fbf9608477b923850a549a5982694acac207e887c7a67b39dba",
     "filename": "9650122075850.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650122075850.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650122075850.pdf",
     "file_type": "pdf",
     "file_size": 240761,
     "title": "BEWILLIGUNG DER VERLÄNGERUNG: Geschlechtsangleichende OP verlängert bis 30.06.2026",
@@ -1626,7 +1626,7 @@
   {
     "sha256": "4ff5322a5c8f29eccd93d74da83245ef355a05f8289118f5626e6ee97fec79db",
     "filename": "9650122855980.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650122855980.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650122855980.pdf",
     "file_type": "pdf",
     "file_size": 242845,
     "title": "Ablehnungsbescheid: Kostenübernahme Barthaarentfernung (Widerspruchsbelehrung)",
@@ -1655,7 +1655,7 @@
   {
     "sha256": "490231a88df050a73b92dcc9d62e051d3c76b30c00555acb542a227c680a4a64",
     "filename": "9650124914937.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650124914937.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650124914937.pdf",
     "file_type": "pdf",
     "file_size": 240739,
     "title": "Eingangsbestätigung: Ihr Widerspruch vom 19.10.2025 (Barthaarentfernung)",
@@ -1684,7 +1684,7 @@
   {
     "sha256": "81c2a124fc490f2c02e345eed581ad48cd8b10765151a8fdfa73af29fab5b22e",
     "filename": "9650125178105.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650125178105.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650125178105.pdf",
     "file_type": "pdf",
     "file_size": 242079,
     "title": "ZENTRALER BESCHEID: Ende des Anspruchs auf Krankengeld (Aussteuerung zum 29.01.2026)",
@@ -1719,7 +1719,7 @@
   {
     "sha256": "4599fd54e7648c1255f5a9790e76f9bb08f2ab17c32dcaa44c0386633243c164",
     "filename": "9650128163289.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650128163289.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650128163289.pdf",
     "file_type": "pdf",
     "file_size": 238751,
     "title": "Unterlagenprüfung: Antrag auf Haarentfernung nach Widerspruch",
@@ -1746,7 +1746,7 @@
   {
     "sha256": "8c4b234e6ad141f900d1f3368854c8b7a94e0eac1d4be807299a54abd78e8eee",
     "filename": "9650135013368.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650135013368.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650135013368.pdf",
     "file_type": "pdf",
     "file_size": 218458,
     "title": "Zwischenbescheid: Barthaarentfernung Begutachtung beim MD",
@@ -1773,7 +1773,7 @@
   {
     "sha256": "d498155c943c6a4905467ff1377770e42d648df96b63dcc7dc83992792d25f12",
     "filename": "9650136945228.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650136945228.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650136945228.pdf",
     "file_type": "pdf",
     "file_size": 237498,
     "title": "Bestätigung: Aufrechterhaltung des Widerspruches vom 22.01.2026 (Vorlage Widerspruchsausschuss)",
@@ -1801,7 +1801,7 @@
   {
     "sha256": "8856a709f3bd2dfc36cee2ab3792d5e59e8bcc9f210ebdc2c2906c221bfe453b",
     "filename": "9650150500199.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650150500199.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650150500199.pdf",
     "file_type": "pdf",
     "file_size": 238072,
     "title": "Eingangsbestätigung: Unterlagen zum Widerspruchsausschuss (Schreiben vom 01.04.2026)",
@@ -1828,7 +1828,7 @@
   {
     "sha256": "671824937e2af3eee4ba0ee12f2bad037173c24c9b7a4ff3175fee61cba0c0a1",
     "filename": "9650160857472.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650160857472.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650160857472.pdf",
     "file_type": "pdf",
     "file_size": 176300,
     "title": "Erklärung Entgeltersatzleistungen bei neuer Arbeitsunfähigkeit ab 22.06.2026",
@@ -1856,7 +1856,7 @@
   {
     "sha256": "732d75dd36ada9185faf8e15ab56cef1d1909e8b47635a3838ccbe6722f1bf19",
     "filename": "9650193779680.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650193779680.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650193779680.pdf",
     "file_type": "pdf",
     "file_size": 241762,
     "title": "RÜCKFORDERUNGSBESCHEID: Rückforderung Krankengeld 2.306,50 € (Zeitraum 19.12.2025 – 23.01.2026)",
@@ -1890,7 +1890,7 @@
   {
     "sha256": "2b3622857bb8f330b1ad2e4a62c81c9ee825ed36627fdbd3b934531e7c5ff16a",
     "filename": "9650219328069.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650219328069.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650219328069.pdf",
     "file_type": "pdf",
     "file_size": 236634,
     "title": "Eingangsbestätigung: Widerspruch vom 06.08.2026 gegen die Krankengeld-Rückforderung",
@@ -1921,7 +1921,7 @@
   {
     "sha256": "45757ea1a356c0530a924f048b18a4cc5574371004505e750a19fa11672a634a",
     "filename": "9650222505257.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/9650222505257.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/9650222505257.pdf",
     "file_type": "pdf",
     "file_size": 245859,
     "title": "ABHILFEBESCHEID: Barthaarentfernung - Ihr Widerspruch vom 19.10.2025 (Volle Bewilligung bis 31.08.2026)",
@@ -1953,7 +1953,7 @@
   {
     "sha256": "78b83ead0034e1012b074757c0741b40d40db9a45f0e1d19e1dbf382c106cfa3",
     "filename": "Digitaler Briefkasten Chatverlauf.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Digitaler Briefkasten/Digitaler Briefkasten Chatverlauf.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Digitaler Briefkasten Chatverlauf.txt",
     "file_type": "txt",
     "file_size": 3550,
     "title": "Vollständiges Chatprotokoll: Digitaler Briefkasten Chatverlauf",
@@ -1977,7 +1977,7 @@
   {
     "sha256": "150a1e54eabc15a41ecf6dd02b3d4367842004afee4ad3d262f874dc723d256e",
     "filename": "1723563105659.jpg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/1723563105659.jpg",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/1723563105659.jpg",
     "file_type": "jpg",
     "file_size": 1645277,
     "title": "Zahlungsbeleg / Überweisungsnachweis",
@@ -1998,7 +1998,7 @@
   {
     "sha256": "1725adab4f21300135011b3967ae48fe9392755db4d224829a74ac24c9b4d4c4",
     "filename": "AErztlicheWiderspruchsbegruendung_Arzt.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/AErztlicheWiderspruchsbegruendung_Arzt.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/AErztlicheWiderspruchsbegruendung_Arzt.pdf",
     "file_type": "pdf",
     "file_size": 139935,
     "title": "Ärztliche Widerspruchsbegründung zur Kostenübernahme der Barthaarentfernung",
@@ -2024,7 +2024,7 @@
   {
     "sha256": "bc8813b54a6d4235cd9b6654da8994cb29e148cc92e51962ef1131452fefb40a",
     "filename": "AErztlicheWiderspruchsbegruendung_Therapeutin.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/AErztlicheWiderspruchsbegruendung_Therapeutin.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/AErztlicheWiderspruchsbegruendung_Therapeutin.pdf",
     "file_type": "pdf",
     "file_size": 127340,
     "title": "ÄRZTLICHE WIDERSPRUCHSBEGRÜNDUNG",
@@ -2048,7 +2048,7 @@
   {
     "sha256": "129b429a66064b6aec7ba3edd71b3580b9db5dea3808c9b74afbd28e5ed2b1c4",
     "filename": "AlleBelege.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/AlleBelege.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/AlleBelege.pdf",
     "file_type": "pdf",
     "file_size": 345579,
     "title": "Zusammenstellung aller Rechnungsbelege und Quittungen für Kostenerstattung",
@@ -2072,7 +2072,7 @@
   {
     "sha256": "6f6df899afc4c0ded0aef701d8297bf302d91c327e0a0e9ec073ff6f6ad0f137",
     "filename": "Allianz_Zusage.jpg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Allianz_Zusage.jpg",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Allianz_Zusage.jpg",
     "file_type": "jpg",
     "file_size": 360332,
     "title": "Allianz Private Krankenversicherung Kostenübernahmezusage",
@@ -2094,7 +2094,7 @@
   {
     "sha256": "bb9a2364d016f1184d1d1493ce78207599aa47352e77bfd4154ab542b322ac0f",
     "filename": "AOK_Zusage.jpg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/AOK_Zusage.jpg",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/AOK_Zusage.jpg",
     "file_type": "jpg",
     "file_size": 427137,
     "title": "AOK Vergleichsbescheid / Zusage Kostenübernahme Barthaarentfernung",
@@ -2118,7 +2118,7 @@
   {
     "sha256": "93a3549897a656ab85784102ae0cd6314a7a124688023866c0bc3d44b4ef4600",
     "filename": "AufrechterhaltungmeinesWiderspruchsundNachforderung.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/AufrechterhaltungmeinesWiderspruchsundNachforderung.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/AufrechterhaltungmeinesWiderspruchsundNachforderung.pdf",
     "file_type": "pdf",
     "file_size": 113892,
     "title": "Ihr Schreiben vom 19.11.2025 – Aktenzeichen 0603571189 1. Aufrechterhaltung mein",
@@ -2145,7 +2145,7 @@
   {
     "sha256": "6c2c327de475baf77ddb8fad2ee25fc70893423679337c49238039425febb7ae",
     "filename": "Barthaarentfernung_Verlauf.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Barthaarentfernung_Verlauf.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Barthaarentfernung_Verlauf.pdf",
     "file_type": "pdf",
     "file_size": 156519,
     "title": "Barthaarentferung – Alina Steinhauer",
@@ -2168,7 +2168,7 @@
   {
     "sha256": "d87d6479c93a52336b1d4e169169ca7376dfd7c17803c68c81bc8baf93bda8dd",
     "filename": "BKKGesundheit_Zusage.jpg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/BKKGesundheit_Zusage.jpg",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/BKKGesundheit_Zusage.jpg",
     "file_type": "jpg",
     "file_size": 421829,
     "title": "BKK Gesundheit Bewilligung Kostenübernahme",
@@ -2190,7 +2190,7 @@
   {
     "sha256": "6aa45e20f7fd1aa0caf1e9d456d877b6bd59062559809ffb284929331bb434ee",
     "filename": "DermatologischerBefundbericht_Dr.P.Sander.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/DermatologischerBefundbericht_Dr.P.Sander.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/DermatologischerBefundbericht_Dr.P.Sander.pdf",
     "file_type": "pdf",
     "file_size": 109293,
     "title": "Dr. med Patrick Sander",
@@ -2213,7 +2213,7 @@
   {
     "sha256": "c3ed8e5d7614e5d0a9bdaa2f48a3aa3dd44f9f835eff86b6cd8d92c669e77087",
     "filename": "Endokrinologikum_Laborbefunde.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Endokrinologikum_Laborbefunde.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Endokrinologikum_Laborbefunde.pdf",
     "file_type": "pdf",
     "file_size": 6210818,
     "title": "Laborbefunde Endokrinologie (Blutwerte, Hormonspiegel)",
@@ -2239,7 +2239,7 @@
   {
     "sha256": "8fcb9cf7727a35f96ccd60eaeddda74f1187cd7526dd93bc88884e953bfa67e8",
     "filename": "Endo_Befund_Bericht.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Endo_Befund_Bericht.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Endo_Befund_Bericht.pdf",
     "file_type": "pdf",
     "file_size": 849600,
     "title": "Endokrinologischer Befundbericht zur Hormonsubstitution",
@@ -2263,7 +2263,7 @@
   {
     "sha256": "a51b8f348a216aa7844b69305197b6f5c98bf114e031ac4e6873886a20830444",
     "filename": "Erstattungen Chatverlauf.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Erstattungen Chatverlauf.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Erstattungen Chatverlauf.txt",
     "file_type": "txt",
     "file_size": 20943,
     "title": "Vollständiges Chatprotokoll: Erstattungen Chatverlauf",
@@ -2292,7 +2292,7 @@
   {
     "sha256": "a5b6f5ef6a9e431187cc8df01d52ae20cd46a46fdac41533ff38b8d704c4e380",
     "filename": "FotodokumentationBart.png",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/FotodokumentationBart.png",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/FotodokumentationBart.png",
     "file_type": "png",
     "file_size": 343848,
     "title": "Fotodokumentation Barthaarwuchs / Epilationsbefund",
@@ -2315,7 +2315,7 @@
   {
     "sha256": "831ad85e58fbd2849c6bb122ec9f62db06b78c33e1c32c73913aeac743a36553",
     "filename": "GEK_Zusage.jpg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/GEK_Zusage.jpg",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/GEK_Zusage.jpg",
     "file_type": "jpg",
     "file_size": 401679,
     "title": "GEK / Barmer Zusage Kostenübernahme",
@@ -2336,7 +2336,7 @@
   {
     "sha256": "25d7ee2d7032596f494d09134cbe6536d6d95e58d500036caf5a2102cbba1699",
     "filename": "Hausarzt_Anfrage_an_KK_Kostenuebernahme.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Hausarzt_Anfrage_an_KK_Kostenuebernahme.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Hausarzt_Anfrage_an_KK_Kostenuebernahme.pdf",
     "file_type": "pdf",
     "file_size": 1318018,
     "title": "Hausärztliche Anfrage und Begründung zur Kostenübernahme",
@@ -2359,7 +2359,7 @@
   {
     "sha256": "9abb9fd0a348cba4ee4a169ae14ebea43512c408d2748d528ebdb3460b28c2b4",
     "filename": "Impfkosten.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Impfkosten.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Impfkosten.pdf",
     "file_type": "pdf",
     "file_size": 88171,
     "title": "Antrag auf Erstattung von Impfkosten",
@@ -2381,7 +2381,7 @@
   {
     "sha256": "9a44cc42f6046f98af346cfc58472256719e72cdf90ed4b0eb4c14353f6c8165",
     "filename": "Indikationsschreiben_Psychotherapeutin.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Indikationsschreiben_Psychotherapeutin.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Indikationsschreiben_Psychotherapeutin.pdf",
     "file_type": "pdf",
     "file_size": 74402,
     "title": "08.01.2024",
@@ -2404,7 +2404,7 @@
   {
     "sha256": "e03930289daeff4ce1f949b36fa1a36ca991716dff0356ade46ca2e40c1c79fb",
     "filename": "Kostenvoranschlag28052024.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Kostenvoranschlag28052024.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Kostenvoranschlag28052024.pdf",
     "file_type": "pdf",
     "file_size": 18830,
     "title": "Logopädische Praxis",
@@ -2427,7 +2427,7 @@
   {
     "sha256": "0775283bc6873a968db2a69ab951eb946b794ade239fd878d0a140b98777ef97",
     "filename": "Lebenslauf (1).pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Lebenslauf (1).pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Lebenslauf (1).pdf",
     "file_type": "pdf",
     "file_size": 168371,
     "title": "Lebenslauf - Nick",
@@ -2451,7 +2451,7 @@
   {
     "sha256": "3c794aacb3a71c699582a20b35c15c848d51e0252029dbaf70d9d38e393ab2bf",
     "filename": "Lebenslauf.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Lebenslauf.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Lebenslauf.pdf",
     "file_type": "pdf",
     "file_size": 186642,
     "title": "Lebenslauf – Alina Steinhauer",
@@ -2475,7 +2475,7 @@
   {
     "sha256": "4aaf1355f371b7cb5b22f195121d83af42036f9931a096e936dac98ad2c47797",
     "filename": "MD_Begutachtung_Transsexualitaet.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/MD_Begutachtung_Transsexualitaet.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/MD_Begutachtung_Transsexualitaet.pdf",
     "file_type": "pdf",
     "file_size": 3724209,
     "title": "Sozialmedizinische Begutachtung durch den Medizinischen Dienst (MD Niedersachsen",
@@ -2502,7 +2502,7 @@
   {
     "sha256": "bdcee533f74732e60b084659d602d62bb254edbc8da25342713ea15fbded09c9",
     "filename": "NachrichtAnhang1.jpg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/NachrichtAnhang1.jpg",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/NachrichtAnhang1.jpg",
     "file_type": "jpg",
     "file_size": 906407,
     "title": "Kassenbon / Apothekenbeleg Arzneimittel Lefax",
@@ -2524,7 +2524,7 @@
   {
     "sha256": "8ea7b3088e8ad2a8243e434150338c65a6801e4c515811a0413adbdcf37a5c1a",
     "filename": "Vertrag_Hairfreevom14.01.2024.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Vertrag_Hairfreevom14.01.2024.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Vertrag_Hairfreevom14.01.2024.pdf",
     "file_type": "pdf",
     "file_size": 298512,
     "title": "Behandlungsvertrag Hairfree Institut für dauerhafte Haarentfernung",
@@ -2551,7 +2551,7 @@
   {
     "sha256": "556843b3ee049a621b1724b96ddec46d9a5bea2a4c9af8d68062ff4c5c4406b9",
     "filename": "Widerspruch.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Widerspruch.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Widerspruch.pdf",
     "file_type": "pdf",
     "file_size": 72896,
     "title": "Alina Steinhauer",
@@ -2577,7 +2577,7 @@
   {
     "sha256": "51d4e10bff324f320d54dcea0083299482ebc5d75ad275721fd945e5e5b6c9da",
     "filename": "WiderspruchgegendieAblehnungvom09.10.2025.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/WiderspruchgegendieAblehnungvom09.10.2025.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/WiderspruchgegendieAblehnungvom09.10.2025.pdf",
     "file_type": "pdf",
     "file_size": 73561,
     "title": "Widerspruch gegen Ihren Bescheid vom 09.10.2025 Antrag auf Kostenübernahme der",
@@ -2603,7 +2603,7 @@
   {
     "sha256": "6013ff950d0ac56b5e904a2ca73f32a3ecf8ad597b0d09d12314720a181a3a89",
     "filename": "Widerspruchsauschuss.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Widerspruchsauschuss.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Widerspruchsauschuss.pdf",
     "file_type": "pdf",
     "file_size": 134588,
     "title": "Vorladung / Information zur Sitzung des Widerspruchsausschusses",
@@ -2629,7 +2629,7 @@
   {
     "sha256": "7b253aa395370e8a0818c3ca172e0f9c07521d4c5e3c58aeea76d001f1a3398d",
     "filename": "WiderspruchsauschussApril (1).pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/WiderspruchsauschussApril (1).pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/WiderspruchsauschussApril (1).pdf",
     "file_type": "pdf",
     "file_size": 133808,
     "title": "Entscheidung / Protokollauszug des Widerspruchsausschusses April",
@@ -2655,7 +2655,7 @@
   {
     "sha256": "7b253aa395370e8a0818c3ca172e0f9c07521d4c5e3c58aeea76d001f1a3398d",
     "filename": "WiderspruchsauschussApril.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/WiderspruchsauschussApril.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/WiderspruchsauschussApril.pdf",
     "file_type": "pdf",
     "file_size": 133808,
     "title": "Entscheidung / Protokollauszug des Widerspruchsausschusses April",
@@ -2681,7 +2681,7 @@
   {
     "sha256": "ee31ed7b937f3b705411c9edc6a136ce6a2b9778f613c9c15f5fa97163671001",
     "filename": "Widerspruch_LetzteAufforderungd.Restzahlung.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Chats/Erstattungen/Widerspruch_LetzteAufforderungd.Restzahlung.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankenkasse/Widerspruch_LetzteAufforderungd.Restzahlung.pdf",
     "file_type": "pdf",
     "file_size": 261531,
     "title": "Letzte Zahlungsaufforderung und Fristsetzung zur Restzahlung",
@@ -2708,7 +2708,7 @@
   {
     "sha256": "0fc6593f56d36c936beac21bab4056776499788a04fbeb590c2fab368435c4d6",
     "filename": "01_Lieferschein_BKK_firmus_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/01_Lieferschein_BKK_firmus_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/01_Lieferschein_BKK_firmus_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 4394,
     "title": "Dokumenten-Begleitschein / Lieferschein für Postsendung an BKK firmus (Einschreiben)",
@@ -2733,7 +2733,7 @@
   {
     "sha256": "826cd382a005b98ffae968ec1e6990306b9b9113a5907e41aa513461fe08ae4d",
     "filename": "02_Widerspruch_Krankengeld_OP_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/02_Widerspruch_Krankengeld_OP_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/02_Widerspruch_Krankengeld_OP_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 97507,
     "title": "Formeller Widerspruch gegen Ablehnungsbescheid Krankengeld (Ref: 9650226941682)",
@@ -2760,7 +2760,7 @@
   {
     "sha256": "b5d50b08a44db5ec64f9f9346dfd4987bc51badaab98d1a849bfd21e71650826",
     "filename": "03_Anlage_Klaerung_Versicherungsverhaeltnis_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/03_Anlage_Klaerung_Versicherungsverhaeltnis_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/03_Anlage_Klaerung_Versicherungsverhaeltnis_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 91763,
     "title": "Anlage & Ergänzende Erläuterungen zum Formular Klärung Versicherungsverhältnis (BKK firmus)",
@@ -2784,7 +2784,7 @@
   {
     "sha256": "e3b7d648e01f3dc10950b821d04cf354553840bbb1d1b9f0c2f0dba855632951",
     "filename": "04_Aerztliches_Attest_Frau_Jung_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/04_Aerztliches_Attest_Frau_Jung_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/04_Aerztliches_Attest_Frau_Jung_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 5203,
     "title": "Ärztliches Attest & sozialmedizinische Stellungnahme (Hausarztpraxis Dorothea Jung, Leiferde)",
@@ -2812,7 +2812,7 @@
   {
     "sha256": "68903033a9d04f990d98e35f021177658ea67eb5e2a868c0fb1620231de2c907",
     "filename": "05_Bescheid_BKK_firmus_Krankengeld_01-10-2026.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/05_Bescheid_BKK_firmus_Krankengeld_01-10-2026.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/05_Bescheid_BKK_firmus_Krankengeld_01-10-2026.pdf",
     "file_type": "pdf",
     "file_size": 247825,
     "title": "Ablehnungsbescheid Krankengeld BKK firmus vom 01.10.2026 (Ref: 9650226941682)",
@@ -2836,7 +2836,7 @@
   {
     "sha256": "68903033a9d04f990d98e35f021177658ea67eb5e2a868c0fb1620231de2c907",
     "filename": "9650226941682.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/9650226941682.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/9650226941682.pdf",
     "file_type": "pdf",
     "file_size": 247825,
     "title": "Ablehnungsbescheid Krankengeld BKK firmus vom 01.10.2026 (Ref: 9650226941682)",
@@ -2860,7 +2860,7 @@
   {
     "sha256": "e3b7d648e01f3dc10950b821d04cf354553840bbb1d1b9f0c2f0dba855632951",
     "filename": "Aerztliches_Attest_Frau_Jung_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Aerztliches_Attest_Frau_Jung_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Aerztliches_Attest_Frau_Jung_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 5203,
     "title": "Ärztliches Attest & sozialmedizinische Stellungnahme (Hausarztpraxis Dorothea Jung, Leiferde)",
@@ -2888,7 +2888,7 @@
   {
     "sha256": "7ca3217f585facde4d4d4d10c0781e262276f838cae7f8c1047d5b5d2c00323a",
     "filename": "Anlage_Klaerung_Versicherungsverhaeltnis_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Anlage_Klaerung_Versicherungsverhaeltnis_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Anlage_Klaerung_Versicherungsverhaeltnis_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 91767,
     "title": "Anlage & Ergänzende Erläuterungen zum Formular Klärung Versicherungsverhältnis (BKK firmus)",
@@ -2912,7 +2912,7 @@
   {
     "sha256": "a9b7c20d7efca84861d9787c461db46d49a18ab06563b09c722838b304efe7c9",
     "filename": "Chronologische_Timeline_OP_Krankengeld_Alina_Steinhauer.md",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Chronologische_Timeline_OP_Krankengeld_Alina_Steinhauer.md",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Chronologische_Timeline_OP_Krankengeld_Alina_Steinhauer.md",
     "file_type": "md",
     "file_size": 6275,
     "title": "Chronologische Gesamttimeline: OP-Verzögerung, Aussteuerung & Krankengeldstreit (Alina Steinhauer)",
@@ -2938,7 +2938,7 @@
   {
     "sha256": "625b50d76ccc864deb9c4128dee224b41ee556290e711f8aab813090d4d0f42e",
     "filename": "Klaerung_Versicherungsverhaeltnis_BKK_firmus_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Klaerung_Versicherungsverhaeltnis_BKK_firmus_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Klaerung_Versicherungsverhaeltnis_BKK_firmus_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 4605,
     "title": "Fragebogen Klärung Versicherungsverhältnis BKK firmus (Ref: -6279143758668390890) – Rechtssicher ausgefüllt",
@@ -2961,7 +2961,7 @@
   {
     "sha256": "544d770db8926b08ecba56a51ea647e7edb7200a963e14ddaef05b6884369745",
     "filename": "Lieferschein_BKK_firmus_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Lieferschein_BKK_firmus_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Lieferschein_BKK_firmus_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 3993,
     "title": "Dokumenten-Begleitschein / Inhaltsverzeichnis Postsendung BKK firmus Widerspruch Krankengeld",
@@ -2985,7 +2985,7 @@
   {
     "sha256": "a499fe58161cf8a28ae10137d12632fd8932601035cc91ec0ee2786937689252",
     "filename": "Lieferschein_Widerspruch_BKK_firmus_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Lieferschein_Widerspruch_BKK_firmus_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Lieferschein_Widerspruch_BKK_firmus_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 4379,
     "title": "Dokumenten-Begleitschein / Lieferschein für Postsendung Widerspruch BKK firmus (nur Widerspruch)",
@@ -3009,7 +3009,7 @@
   {
     "sha256": "feb497e6590283e9e8b9fc98e8293e71c523319d300dda2cda9f5be6a50839d5",
     "filename": "Widerspruch_BKK_firmus_Krankengeld_Alina_Steinhauer.txt",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Widerspruch_BKK_firmus_Krankengeld_Alina_Steinhauer.txt",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Widerspruch_BKK_firmus_Krankengeld_Alina_Steinhauer.txt",
     "file_type": "txt",
     "file_size": 10530,
     "title": "Textfassung Widerspruch: Krankengeld für GA-OP ab 22.06.2026",
@@ -3031,7 +3031,7 @@
   {
     "sha256": "720216961659fbc8f6ad52b18c72cb8ec8e57eade6a16881b5051e14c5a45158",
     "filename": "Widerspruch_Krankengeld_OP_Alina_Steinhauer.pdf",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Widerspruch_Krankengeld_OP_Alina_Steinhauer.pdf",
+    "file_path": "agenten/workspace/Gesundheit/Krankengeld/Widerspruch_Krankengeld_OP_Alina_Steinhauer.pdf",
     "file_type": "pdf",
     "file_size": 97538,
     "title": "Widerspruch: Krankengeld für geschlechtsangleichende Operation ab 22.06.2026",
@@ -3057,7 +3057,7 @@
   {
     "sha256": "b3d45d3793bdd2eaa27d3719e168eb279f3c96cfeed9530c1497160b9aebfc88",
     "filename": "06_Nachweis_Foto_Briefinhalt_1_Lieferschein_Widerspruch.jpeg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Nachweise/06_Nachweis_Foto_Briefinhalt_1_Lieferschein_Widerspruch.jpeg",
+    "file_path": "agenten/workspace/Gesundheit/Nachweise/06_Nachweis_Foto_Briefinhalt_1_Lieferschein_Widerspruch.jpeg",
     "file_type": "jpeg",
     "file_size": 229931,
     "title": "Nachweisfoto Briefinhalt 1: Lieferschein und Widerspruch (unterzeichnet)",
@@ -3082,7 +3082,7 @@
   {
     "sha256": "2a5c79cb3d1a5eb50b7474c22a44be76e7eadc10a570216ef03cd1f2dcd706f7",
     "filename": "07_Nachweis_Foto_Briefinhalt_2_Formular_Anlage.jpeg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Nachweise/07_Nachweis_Foto_Briefinhalt_2_Formular_Anlage.jpeg",
+    "file_path": "agenten/workspace/Gesundheit/Nachweise/07_Nachweis_Foto_Briefinhalt_2_Formular_Anlage.jpeg",
     "file_type": "jpeg",
     "file_size": 212377,
     "title": "Nachweisfoto Briefinhalt 2: BKK-Originalformular und Anlage (unterzeichnet)",
@@ -3107,7 +3107,7 @@
   {
     "sha256": "34bcf7fae90d620a4dbdd43b07a17a9cf2b74cba170643a9079cc4e58821bb55",
     "filename": "08_Nachweis_Foto_Einlieferungsbeleg_Einschreiben_RT613794858DE.jpeg",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Nachweise/08_Nachweis_Foto_Einlieferungsbeleg_Einschreiben_RT613794858DE.jpeg",
+    "file_path": "agenten/workspace/Gesundheit/Nachweise/08_Nachweis_Foto_Einlieferungsbeleg_Einschreiben_RT613794858DE.jpeg",
     "file_type": "jpeg",
     "file_size": 190809,
     "title": "Deutsche Post Einlieferungsbeleg Einschreiben Einwurf BKK firmus (Sendungsnummer RT 6137 9485 8DE)",
@@ -3134,7 +3134,7 @@
   {
     "sha256": "d809b586a41e3b6e0c6db9bbea3417a4f5bf0ee309f0b2b09605c7573f88d3c0",
     "filename": "09_Nachweis_Aerztliche_Stellungnahme_Dr_Schmidt_Arztanfrage.png",
-    "file_path": "agenten/workspace/Gesundheit_und_Medizin/BKK Firmus/Krankengeld/Nachweise/09_Nachweis_Aerztliche_Stellungnahme_Dr_Schmidt_Arztanfrage.png",
+    "file_path": "agenten/workspace/Gesundheit/Nachweise/09_Nachweis_Aerztliche_Stellungnahme_Dr_Schmidt_Arztanfrage.png",
     "file_type": "png",
     "file_size": 1011946,
     "title": "Schriftliche Stellungnahme Dr. med. Christian Schmidt: Verweis auf Krankenkassen-Arztanfrage",

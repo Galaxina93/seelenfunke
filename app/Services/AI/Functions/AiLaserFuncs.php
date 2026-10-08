@@ -84,10 +84,13 @@ trait AiLaserFuncs
                 'agentName' => $agentName
             ]);
 
-            // Create target folder in workspace
-            $folderPath = 'agenten/workspace/Laserschutz';
+            // Create target folder in workspace (Berufsleben/Projekte)
+            $folderPath = 'agenten/workspace/Berufsleben/Projekte';
             if (!Storage::disk('public')->exists($folderPath)) {
                 Storage::disk('public')->makeDirectory($folderPath);
+            }
+            if (!Storage::disk('workspace')->exists($folderPath)) {
+                Storage::disk('workspace')->makeDirectory($folderPath);
             }
 
             // Generate File Name
@@ -98,6 +101,7 @@ trait AiLaserFuncs
 
             // Save PDF
             $pdf->save($absolutePath);
+            Storage::disk('workspace')->put($filePath, file_get_contents($absolutePath));
             
             $downloadUrl = url('storage/' . $filePath);
 

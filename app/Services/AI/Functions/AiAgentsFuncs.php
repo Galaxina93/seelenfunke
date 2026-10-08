@@ -353,6 +353,32 @@ trait AiAgentsFuncs
     public static function executeWorkspaceCreateFolder(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
+        $sub = ltrim(substr($path, strlen('agenten/workspace')), '/');
+        $parts = explode('/', $sub);
+        
+        if (empty($parts[0])) {
+            return ['status' => 'error', 'message' => 'Ungültiger Pfad.'];
+        }
+
+        // 1. Root check: Must be inside Berufsleben, Dokumente, or Gesundheit
+        $allowedRoots = ['Berufsleben', 'Dokumente', 'Gesundheit'];
+        if (!in_array($parts[0], $allowedRoots)) {
+            return [
+                'status' => 'error',
+                'message' => "Fehler: Neue Ordner müssen zwingend innerhalb eines der 3 Hauptbereiche angelegt werden: 'Berufsleben', 'Dokumente' oder 'Gesundheit'. Gegebener Pfad: {$path}"
+            ];
+        }
+
+        // 2. Single-word check for all folder names in the path
+        foreach ($parts as $part) {
+            if (preg_match('/[\s_\-]+/u', $part)) {
+                return [
+                    'status' => 'error',
+                    'message' => "Fehler: Ordnernamen dürfen nur aus einem einzelnen Wort bestehen (keine Leerzeichen oder Unterstriche). Ungültiger Teil: '{$part}'"
+                ];
+            }
+        }
+
         if (\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner existiert bereits: $path"];
         }
@@ -366,6 +392,22 @@ trait AiAgentsFuncs
         $newName = trim($args['new_name'] ?? '');
         if (empty($newName) || str_contains($newName, '/')) {
             return ['status' => 'error', 'message' => "Ungültiger neuer Name."];
+        }
+
+        // Single-word check
+        if (preg_match('/[\s_\-]+/u', $newName)) {
+            return ['status' => 'error', 'message' => "Fehler: Ordnernamen dürfen nur aus einem einzelnen Wort bestehen (keine Leerzeichen oder Unterstriche)."];
+        }
+
+        // Protected folders check
+        $protected = [
+            'agenten/workspace',
+            'agenten/workspace/Berufsleben',
+            'agenten/workspace/Dokumente',
+            'agenten/workspace/Gesundheit',
+        ];
+        if (in_array(rtrim($path, '/'), $protected)) {
+            return ['status' => 'error', 'message' => "Die 3 Hauptbereiche (Berufsleben, Dokumente, Gesundheit) und das Hauptverzeichnis dürfen nicht umbenannt werden."];
         }
 
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
@@ -387,8 +429,17 @@ trait AiAgentsFuncs
 
         if (is_dir($oldFullPath)) {
             rename($oldFullPath, $newFullPath);
+            // Sync database paths for documents inside renamed folder
+            $docs = \App\Models\Ai\AiWorkspaceDocument::where('file_path', 'LIKE', $path . '/%')->get();
+            foreach ($docs as $doc) {
+                $updatedPath = $newPath . substr($doc->file_path, strlen($path));
+                $doc->update(['file_path' => $updatedPath]);
+            }
         } else {
             \Illuminate\Support\Facades\Storage::disk('workspace')->move($path, $newPath);
+            \App\Models\Ai\AiWorkspaceDocument::where('file_path', $path)
+                ->orWhere('file_path', 'agenten/workspace/' . ltrim($path, 'agenten/workspace/'))
+                ->update(['file_path' => $newPath]);
         }
 
         return ['status' => 'success', 'message' => "Erfolgreich umbenannt von $path zu $newPath", 'ui_action' => 'reload_filemanager'];
@@ -397,8 +448,14 @@ trait AiAgentsFuncs
     public static function executeWorkspaceDeleteFolder(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
-        if ($path === 'agenten/workspace') {
-            return ['status' => 'error', 'message' => "Das Hauptverzeichnis darf nicht gelöscht werden."];
+        $protected = [
+            'agenten/workspace',
+            'agenten/workspace/Berufsleben',
+            'agenten/workspace/Dokumente',
+            'agenten/workspace/Gesundheit',
+        ];
+        if (in_array(rtrim($path, '/'), $protected)) {
+            return ['status' => 'error', 'message' => "Die 3 Hauptbereiche (Berufsleben, Dokumente, Gesundheit) und das Hauptverzeichnis dürfen nicht gelöscht werden."];
         }
 
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path) && !in_array($path, \Illuminate\Support\Facades\Storage::disk('workspace')->directories(dirname($path)))) {
@@ -444,8 +501,16 @@ trait AiAgentsFuncs
 
         if (is_dir($oldFullPath)) {
             rename($oldFullPath, $newFullPath);
+            $docs = \App\Models\Ai\AiWorkspaceDocument::where('file_path', 'LIKE', $sourcePath . '/%')->get();
+            foreach ($docs as $doc) {
+                $updatedPath = $newPath . substr($doc->file_path, strlen($sourcePath));
+                $doc->update(['file_path' => $updatedPath]);
+            }
         } else {
             \Illuminate\Support\Facades\Storage::disk('workspace')->move($sourcePath, $newPath);
+            \App\Models\Ai\AiWorkspaceDocument::where('file_path', $sourcePath)
+                ->orWhere('file_path', 'agenten/workspace/' . ltrim($sourcePath, 'agenten/workspace/'))
+                ->update(['file_path' => $newPath]);
         }
 
         return ['status' => 'success', 'message' => "Erfolgreich verschoben nach: $newPath", 'ui_action' => 'reload_filemanager'];

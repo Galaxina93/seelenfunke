@@ -924,8 +924,9 @@ trait AiSystemFuncs
 
             $reportName = 'NeuralAnalysis_' . basename($filePath) . '_' . time() . '.md';
 
-            // Save report to the public workspace so it's visible in the UI
-            \Illuminate\Support\Facades\Storage::disk('public')->put('agenten/workspace/md/' . $reportName, $reportContent);
+            // Save report to workspace (Dokumente/Berichte)
+            \Illuminate\Support\Facades\Storage::disk('public')->put('agenten/workspace/Dokumente/Berichte/' . $reportName, $reportContent);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->put('agenten/workspace/Dokumente/Berichte/' . $reportName, $reportContent);
 
             return [
                 'status' => 'success',
@@ -1044,7 +1045,10 @@ trait AiSystemFuncs
             $indexer->createMarkdown($node);
             
             $safeName = str_replace(['/', '\\'], '_', $node->file_path);
-            $fullPath = storage_path("app/public/agenten/workspace/md/Struktur_" . $safeName . ".md");
+            $fullPath = storage_path("app/public/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
+            if (!\Illuminate\Support\Facades\File::exists($fullPath)) {
+                $fullPath = storage_path("app/private/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
+            }
 
             if (!\Illuminate\Support\Facades\File::exists($fullPath)) {
                 return ['status' => 'error', 'message' => 'Die Struktur-Datei konnte nicht generiert werden.'];
@@ -1123,7 +1127,13 @@ trait AiSystemFuncs
                 return ['status' => 'error', 'message' => 'Kein report_file angegeben.'];
             }
 
-            $path = storage_path('app/public/agenten/workspace/md/' . $reportFile);
+            $path = storage_path('app/public/agenten/workspace/Dokumente/Berichte/' . $reportFile);
+            if (!\Illuminate\Support\Facades\File::exists($path)) {
+                $path = storage_path('app/private/agenten/workspace/Dokumente/Berichte/' . $reportFile);
+            }
+            if (!\Illuminate\Support\Facades\File::exists($path)) {
+                $path = storage_path('app/public/agenten/workspace/md/' . $reportFile);
+            }
             if (!\Illuminate\Support\Facades\File::exists($path)) {
                 return ['status' => 'error', 'message' => 'Bericht-Datei nicht gefunden: ' . $reportFile];
             }
@@ -1199,7 +1209,8 @@ trait AiSystemFuncs
             }
 
             $reportName = 'SecurityThreatReport_' . time() . '.md';
-            \Illuminate\Support\Facades\Storage::disk('public')->put('agenten/workspace/md/' . $reportName, $reportContent);
+            \Illuminate\Support\Facades\Storage::disk('public')->put('agenten/workspace/Dokumente/Berichte/' . $reportName, $reportContent);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->put('agenten/workspace/Dokumente/Berichte/' . $reportName, $reportContent);
 
             $message = "Security Analyse abgeschlossen. Bericht wurde als {$reportName} generiert.";
 
@@ -3020,11 +3031,15 @@ trait AiSystemFuncs
         );
 
         // ZUSÄTZLICH: Datei physisch im Workspace speichern, damit der User sie im Dateimanager (Tab 'Dateien') bearbeiten kann.
-        $workspacePath = 'agenten/workspace/pläne/' . $filename;
-        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists('agenten/workspace/pläne')) {
-            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory('agenten/workspace/pläne');
+        $workspacePath = 'agenten/workspace/Berufsleben/Projekte/' . $filename;
+        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists('agenten/workspace/Berufsleben/Projekte')) {
+            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory('agenten/workspace/Berufsleben/Projekte');
         }
         \Illuminate\Support\Facades\Storage::disk('public')->put($workspacePath, $content);
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists('agenten/workspace/Berufsleben/Projekte')) {
+            \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory('agenten/workspace/Berufsleben/Projekte');
+        }
+        \Illuminate\Support\Facades\Storage::disk('workspace')->put($workspacePath, $content);
 
         if (str_contains(strtolower($name), 'implementation_plan') || str_contains(strtolower($name), 'plan')) {
             session()->put('has_ai_implementation_plan', true);

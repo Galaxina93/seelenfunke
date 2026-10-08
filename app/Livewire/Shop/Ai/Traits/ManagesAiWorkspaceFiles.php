@@ -18,6 +18,8 @@ trait ManagesAiWorkspaceFiles
     public $previewContent = null;
     public $previewFilename = null;
 
+    public ?string $dateitrichterMessage = null;
+
     public function getAllWorkspaceDirectories(): array
     {
         $dirs = Storage::disk('workspace')->allDirectories('agenten/workspace');
@@ -46,12 +48,12 @@ trait ManagesAiWorkspaceFiles
 
     public function loadFileManagerFiles()
     {
-        // Sicherstellen, dass der Startordner existiert
+        // Sicherstellen, dass ausschließlich die 3 Hauptordner existieren
         $defaultFolders = [
             'agenten/workspace',
-            'agenten/workspace/md',
-            'agenten/workspace/scripts',
-            'agenten/workspace/downloads'
+            'agenten/workspace/Berufsleben',
+            'agenten/workspace/Dokumente',
+            'agenten/workspace/Gesundheit'
         ];
 
         foreach ($defaultFolders as $folder) {
@@ -172,17 +174,60 @@ trait ManagesAiWorkspaceFiles
         }
     }
 
+    public function runDateitrichter()
+    {
+        try {
+            $service = app(\App\Services\AI\Workspace\DateitrichterService::class);
+            // Wenn man im Root ist, sortiere alle Root-Dateien ein. Ansonsten verarbeite neu
+            $isRoot = ($this->currentFilePath === 'agenten/workspace');
+            $result = $service->processAll(!$isRoot);
+
+            $this->loadFileManagerFiles();
+            $this->loadFileManagerAvailableFolders();
+
+            $msg = $result['message'] ?? 'Dateitrichter erfolgreich ausgeführt.';
+            $this->dateitrichterMessage = $msg;
+            $this->dispatch('dateitrichter-completed', message: $msg);
+        } catch (\Exception $e) {
+            $this->dateitrichterMessage = 'Fehler im Dateitrichter: ' . $e->getMessage();
+            $this->dispatch('dateitrichter-completed', message: $this->dateitrichterMessage);
+        }
+    }
+
+    public function clearDateitrichterMessage()
+    {
+        $this->dateitrichterMessage = null;
+    }
+
     public function createFileManagerFolder()
     {
         $this->validate([
             'newFolderName' => 'required|string|max:255'
         ]);
 
-        $path = $this->currentFilePath . '/' . trim($this->newFolderName);
+        $folderName = trim($this->newFolderName);
+
+        // Regel: Keine Ordner mit mehr als einem Namen (nur ein einzelnes Wort, keine Leerzeichen, keine Unterstriche)
+        if (preg_match('/[\s_\-]+/u', $folderName)) {
+            $this->dateitrichterMessage = 'Ordnernamen dürfen nur aus einem einzelnen Wort bestehen (z.B. Projekte, Finanzen, Nachweise).';
+            return;
+        }
+
+        // Regel: Auf Root-Ebene dürfen ausschließlich die 3 Hauptordner existieren
+        if ($this->currentFilePath === 'agenten/workspace') {
+            if (!in_array($folderName, ['Berufsleben', 'Dokumente', 'Gesundheit'])) {
+                $this->dateitrichterMessage = 'Auf der obersten Ebene sind ausschließlich die 3 Hauptordner "Berufsleben", "Dokumente" und "Gesundheit" zulässig.';
+                return;
+            }
+        }
+
+        $path = $this->currentFilePath . '/' . $folderName;
         if (!Storage::disk('workspace')->exists($path)) {
             Storage::disk('workspace')->makeDirectory($path);
             $this->loadFileManagerFiles();
+            $this->loadFileManagerAvailableFolders();
             $this->newFolderName = '';
+            $this->dateitrichterMessage = "Ordner '{$folderName}' erfolgreich angelegt.";
         }
     }
 
@@ -237,6 +282,14 @@ trait ManagesAiWorkspaceFiles
     {
         $newName = trim($newName);
         if (empty($newName)) return;
+
+        // Wenn es sich um einen Ordner handelt: Regel für einteilige Namen durchsetzen
+        if (Storage::disk('workspace')->exists($path) && is_dir(Storage::disk('workspace')->path($path))) {
+            if (preg_match('/[\s_\-]+/u', $newName)) {
+                $this->dateitrichterMessage = 'Ordnernamen dürfen nur aus einem einzelnen Wort bestehen.';
+                return;
+            }
+        }
 
         $dir = dirname($path);
         $newPath = $dir . '/' . $newName;

@@ -121,7 +121,28 @@ MD
                 'content' => <<<MD
 # Master-Dokumentenkatalog des privaten Workspaces
 
-Alle Dokumente sind revisionssicher unter `storage/app/private/agenten/workspace/` abgelegt und in der Datenbanktabelle `ai_workspace_documents` registriert.
+Alle Dokumente sind revisionssicher unter `storage/app/private/agenten/workspace/` in einer strengen 3-Säulen-Struktur mit rein einteiligen Ordnernamen strukturiert:
+
+1. `Berufsleben/`
+   - `Existenzgruendung/` (Businessplan, Liquiditätsplan, Lebenslauf, Tragfähigkeit, Seelenfunke)
+   - `Arbeitsamt/` (Bescheide, Anträge, Briefe, Onlineportal-Exporte)
+   - `Projekte/` (Projektnotizen und Dokumentation)
+
+2. `Dokumente/`
+   - `Bank/` (Bankauszüge, Kontoumsätze)
+   - `Steuern/` (Finanzamt, Steuererklärung, Gewerbesteuer)
+   - `Finanzen/` (Rechnungen, Mahnungen, Verträge)
+   - `Berichte/` (Systemanalysen und Berichte)
+   - `Allgemein/` (Allgemeine Dokumente, Erinnerungen)
+
+3. `Gesundheit/`
+   - `Krankenkasse/` (BKK firmus Briefe, Digitaler Briefkasten, Chats)
+   - `Krankengeld/` (Widersprüche, Berechnungen, Bescheide)
+   - `Klinik/` (Dr. Lubos Kliniken, Operationsberichte, Liegebescheinigungen)
+   - `Atteste/` (Hausarzt-Atteste, Befunde, MDK-Gutachten)
+   - `Nachweise/` (Einlieferungsbelege, Einschreiben, Fotodokumentation)
+
+Alle Dokumente sind in der Datenbanktabelle `ai_workspace_documents` registriert.
 KI-Agenten können diese per `workspace_find_documents` und `workspace_get_document_info` direkt abrufen.
 MD
             ]
@@ -152,6 +173,7 @@ MD
         if (file_exists($jsonPath)) {
             $docData = json_decode(file_get_contents($jsonPath), true);
             if (is_array($docData)) {
+                AiWorkspaceDocument::query()->delete();
                 $imported = 0;
                 foreach ($docData as $item) {
                     $extractedDate = !empty($item['extracted_date']) ? substr($item['extracted_date'], 0, 10) : null;
@@ -210,50 +232,48 @@ MD
         }
         $this->command->info('✓ AI-Tools registriert und Rollen zugewiesen.');
 
-        // 6. Agenten-Prompts schärfen (Dr. Funki & Buchi)
+        // 6. Agenten-Prompts schärfen (Dr. Funki, Buchi, Funkira)
         $drFunki = AiAgent::where('name', 'Dr. Funki')->first();
         if ($drFunki) {
-            $prompt = $drFunki->system_prompt ?? '';
-            if (!str_contains($prompt, 'BKK firmus 25-Schritte')) {
-                $drFunki->system_prompt = $prompt . "\n\n" .
-                    "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS VERFAHREN & SOZIALRECHT]\n" .
-                    "- Du bist Alinas führender Spezial-Agent für das BKK firmus Verfahren und medizinisches Sozialrecht.\n" .
-                    "- Du kennst die vollständige 25-Schritte-Chronologie des BKK firmus Verfahrens (MD-Gutachten nach Aktenlage, GA-Großoperation, lückenlose eAU, § 44 / § 47b SGB V, Eilantrag § 86b SGG).\n" .
-                    "- Wichtigste Frist: 08.10.2026 für den BKK firmus Krankengeld-Widerspruchsbescheid.\n" .
-                    "- Nutze 'workspace_find_documents' und 'health_read_document', um Atteste, Gutachten und Widersprüche im privaten Workspace (`storage/app/private/agenten/workspace`) jederzeit im Volltext zu analysieren.";
-                $drFunki->save();
-            }
+            $drFunki->system_prompt = 
+                "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS VERFAHREN & SOZIALRECHT]\n" .
+                "- Du bist Alinas führender Spezial-Agent für das BKK firmus Verfahren und medizinisches Sozialrecht.\n" .
+                "- Du kennst die vollständige 25-Schritte-Chronologie des BKK firmus Verfahrens (MD-Gutachten nach Aktenlage, GA-Großoperation, lückenlose eAU, § 44 / § 47b SGB V, Eilantrag § 86b SGG).\n" .
+                "- Wichtigste Frist: 08.10.2026 für den BKK firmus Krankengeld-Widerspruchsbescheid.\n" .
+                "- Akuter Verfahrensstand: BKK firmus hat die Akte an den Medizinischen Dienst (MD) weitergeleitet.\n" .
+                "- Alle Gesundheitsdokumente liegen im Workspace geordnet unter `agenten/workspace/Gesundheit/` (Krankenkasse, Krankengeld, Klinik, Atteste, Nachweise).\n" .
+                "- Nutze 'workspace_find_documents' und 'health_read_document', um Atteste, Gutachten und Widersprüche im privaten Workspace jederzeit im Volltext zu analysieren.";
+            $drFunki->save();
             $this->command->info('✓ Dr. Funki Agenten-Prompt geschärft.');
         }
 
         $buchi = AiAgent::where('name', 'Buchi')->first();
         if ($buchi) {
-            $prompt = $buchi->system_prompt ?? '';
-            if (!str_contains($prompt, 'Finanz-Audit')) {
-                $buchi->system_prompt = $prompt . "\n\n" .
-                    "[OFFIZIELLES EXPERTEN-WISSEN: FINANZ-AUDIT & GRÜNDUNGSZUSCHUSS]\n" .
-                    "- Du bist Alinas Finanz- und Buchhaltungs-Agent für das Finanz-Audit und die Existenzgründung.\n" .
-                    "- Du kennst die exakte finanzielle Lücke von 2.601,86 € aus der unberechtigten Krankengeldeinstellung August/September 2024 (Regelentgelt 65,90 € vs. ALG 1 60,21 €).\n" .
-                    "- Du unterstützt die Liquiditätsplanung für den Gründungszuschuss (§ 93 SGB III) zur Vorlage bei der Steuerberaterin (Tragfähigkeitsbescheinigung) und bei Frau Grandke (Arbeitsamt).\n" .
-                    "- Nutze 'workspace_find_documents', um Verträge, BWA und Liquiditätspläne im privaten Workspace (`storage/app/private/agenten/workspace`) jederzeit abzurufen.";
-                $buchi->save();
-            }
+            $buchi->system_prompt = 
+                "[OFFIZIELLES EXPERTEN-WISSEN: FINANZ-AUDIT & GRÜNDUNGSZUSCHUSS]\n" .
+                "- Du bist Alinas Finanz- und Buchhaltungs-Agent für das Finanz-Audit und die Existenzgründung.\n" .
+                "- Du kennst die exakte finanzielle Lücke von 2.601,86 € aus der unberechtigten Krankengeldeinstellung August/September 2024.\n" .
+                "- Du unterstützt die Liquiditätsplanung für den Gründungszuschuss (§ 93 SGB III) zur Vorlage bei der Steuerberaterin (Tragfähigkeitsbescheinigung) und bei Frau Grandke (Arbeitsamt).\n" .
+                "- Alle Berufs- und Finanzdokumente liegen im Workspace geordnet unter `agenten/workspace/Berufsleben/` (Existenzgruendung, Arbeitsamt, Projekte) sowie `agenten/workspace/Dokumente/` (Bank, Steuern, Finanzen).\n" .
+                "- Nutze 'workspace_find_documents', um Verträge, BWA und Liquiditätspläne jederzeit abzurufen.";
+            $buchi->save();
             $this->command->info('✓ Buchi Agenten-Prompt geschärft.');
         }
 
         $funkira = AiAgent::where('name', 'Funkira')->first();
         if ($funkira) {
-            $prompt = $funkira->system_prompt ?? '';
-            if (!str_contains($prompt, 'BKK FIRMUS, ARBEITSAMT & WORKSPACE')) {
-                $funkira->system_prompt = $prompt . "\n\n" .
-                    "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, ARBEITSAMT & WORKSPACE]\n" .
-                    "- Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den privaten Workspace (`storage/app/private/agenten/workspace`).\n" .
-                    "- BKK FIRMUS & VERFAHREN: Du kennst die 25-Schritte-Chronologie des BKK firmus Verfahrens (lückenlose eAU, § 44 / § 47b SGB V, GA-Großoperation, Eilantrag § 86b SGG beim Sozialgericht). Fristablauf: 08.10.2026.\n" .
-                    "- EXISTENZGRÜNDUNG & ARBEITSAMT: Gründungszuschuss (§ 93 SGB III), 150-Tage-Restanspruch auf ALG 1, Vorlage von Businessplan und Liquiditätsplan bei der Steuerberaterin für die Tragfähigkeitsbescheinigung, Antragstellung bei Frau Grandke (Agentur für Arbeit).\n" .
-                    "- WORKSPACE-DOKUMENTE: Alle 126 vertraulichen Dokumente (Atteste, Ablehnungsbescheide, Anträge, Verträge, Chronologien) liegen revisionssicher im privaten Workspace unter `storage/app/private/agenten/workspace` und sind in der Datenbank `ai_workspace_documents` registriert.\n" .
-                    "- BLITZSCHNELLE SUCHE: Nutze `brain_search` oder `workspace_find_documents`. Bei Mehrfachfragen (z.B. 'BKK firmus und Arbeitsamt') liefert `brain_search` in einem einzigen Aufruf sofort alle passenden Dossiers und Workspace-Dokumente.";
-                $funkira->save();
-            }
+            $funkira->system_prompt = 
+                "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, ARBEITSAMT & WORKSPACE]\n" .
+                "- Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den privaten Workspace (`storage/app/private/agenten/workspace`).\n" .
+                "- DER WORKSPACE IST IN 3 KLARE HAUPTORDNER MIT EINZEILIGEN UNTERORDNERN STRUKTURIERT:\n" .
+                "  1. `Berufsleben/` (Existenzgruendung, Arbeitsamt, Projekte)\n" .
+                "  2. `Dokumente/` (Bank, Steuern, Finanzen, Berichte, Allgemein)\n" .
+                "  3. `Gesundheit/` (Krankenkasse, Krankengeld, Klinik, Atteste, Nachweise)\n" .
+                "- BKK FIRMUS & VERFAHREN: Du kennst die 25-Schritte-Chronologie des BKK firmus Verfahrens (lückenlose eAU, § 44 / § 47b SGB V, GA-Großoperation, Eilantrag § 86b SGG beim Sozialgericht). Fristablauf: 08.10.2026. BKK hat Unterlagen an den Medizinischen Dienst (MD) weitergeleitet.\n" .
+                "- EXISTENZGRÜNDUNG & ARBEITSAMT: Gründungszuschuss (§ 93 SGB III), 150-Tage-Restanspruch auf ALG 1, Vorlage von Businessplan und Liquiditätsplan bei der Steuerberaterin für die Tragfähigkeitsbescheinigung, Antragstellung bei Frau Grandke (Agentur für Arbeit).\n" .
+                "- DATEITRICHTER: Neue Dateien im Workspace werden über den Dateitrichter automatisch analysiert, einsortiert und in der Knowledge Base verankert.\n" .
+                "- BLITZSCHNELLE SUCHE: Nutze `brain_search` oder `workspace_find_documents`. Bei Mehrfachfragen liefert `brain_search` sofort alle passenden Dossiers und Workspace-Dokumente.";
+            $funkira->save();
             $this->command->info('✓ Funkira Agenten-Prompt geschärft.');
         }
 

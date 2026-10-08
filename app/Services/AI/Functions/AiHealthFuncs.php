@@ -738,10 +738,13 @@ trait AiHealthFuncs
 
             $plan = AiHealthTreatmentPlan::with('items', 'user', 'agent')->findOrFail($args['plan_id']);
             
-            // Create target folder
-            $folderPath = 'agenten/workspace/Gesundheit';
+            // Create target folder (Gesundheit/Nachweise)
+            $folderPath = 'agenten/workspace/Gesundheit/Nachweise';
             if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($folderPath)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($folderPath);
+            }
+            if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($folderPath)) {
+                \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($folderPath);
             }
 
             // Generate File Name
@@ -755,6 +758,7 @@ trait AiHealthFuncs
                 'plan' => $plan
             ]);
             $pdf->save($absolutePath);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->put($filePath, file_get_contents($absolutePath));
 
             // Send Email if requested
             if (isset($args['send_email']) && $args['send_email']) {
@@ -794,10 +798,13 @@ trait AiHealthFuncs
 
             $protocol = AiHealthProtocol::with('user', 'agent')->findOrFail($args['protocol_id']);
             
-            // Create target folder
-            $folderPath = 'agenten/workspace/Gesundheit';
+            // Create target folder (Gesundheit/Nachweise)
+            $folderPath = 'agenten/workspace/Gesundheit/Nachweise';
             if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($folderPath)) {
                 \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($folderPath);
+            }
+            if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($folderPath)) {
+                \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($folderPath);
             }
 
             // Generate File Name
@@ -810,6 +817,7 @@ trait AiHealthFuncs
                 'protocol' => $protocol
             ]);
             $pdf->save($absolutePath);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->put($filePath, file_get_contents($absolutePath));
 
             // Send Email if requested
             if (isset($args['send_email']) && $args['send_email']) {

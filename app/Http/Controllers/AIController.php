@@ -362,13 +362,17 @@ class AIController extends Controller
 
         $file = $request->file('image');
 
-        $dir = 'agenten/workspace/Kamera-Snapshots';
+        $dir = 'agenten/workspace/Dokumente/Snapshots';
         if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($dir)) {
             \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($dir);
+        }
+        if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($dir)) {
+            \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($dir);
         }
 
         $filename = 'snapshot_' . date('Y-m-d_H-i-s') . '.jpg';
         $path = $file->storeAs($dir, $filename, 'public');
+        \Illuminate\Support\Facades\Storage::disk('workspace')->put($path, file_get_contents($file->getRealPath()));
         
         return response()->json([
             'status' => 'success',

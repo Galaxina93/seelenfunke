@@ -143,3 +143,11 @@ try {
     }
 }
 
+Artisan::command('workspace:dateitrichter {--all : Verarbeitet alle Dokumente im gesamten Workspace}', function () {
+    $this->info('=== STARTE WORKSPACE DATEITRICHTER ===');
+    $service = app(\App\Services\AI\Workspace\DateitrichterService::class);
+    $all = (bool) $this->option('all');
+    $result = $service->processAll($all);
+    $this->info($result['message']);
+    $this->info("Gefunden: {$result['total_files_found']} | Verarbeitet: {$result['processed_count']} | Verschoben: {$result['moved_count']} | Indiziert: {$result['indexed_count']}");
+})->purpose('Analysiert und sortiert Workspace-Dokumente in Berufsleben, Dokumente und Gesundheit ein');

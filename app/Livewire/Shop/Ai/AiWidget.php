@@ -144,7 +144,7 @@ class AiWidget extends Component
                 $this->dispatch('neural-structure-success', path: "Download gestartet");
                 
                 $safeName = str_replace(['/', '\\'], '_', $filePathStr);
-                $url = asset("storage/agenten/workspace/md/Struktur_" . $safeName . ".md");
+                $url = asset("storage/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
                 $filename = 'Struktur_' . basename($filePathStr) . '.md';
                 
                 $this->dispatch('trigger-download', url: $url, filename: $filename);

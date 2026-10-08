@@ -107,7 +107,7 @@ class SystemNeuralAnalysisIndex extends Component
             }
         }
 
-        $dir = storage_path('app/public/agenten/workspace/md');
+        $dir = storage_path('app/public/agenten/workspace/Dokumente/Berichte');
         if (!File::exists($dir)) {
             File::makeDirectory($dir, 0755, true);
         }
@@ -116,6 +116,13 @@ class SystemNeuralAnalysisIndex extends Component
         $filePath = $dir . '/Struktur_' . $safeName . '.md';
 
         File::put($filePath, $content);
+
+        // Auch im privaten Workspace-Tresor sichern
+        $privDir = storage_path('app/private/agenten/workspace/Dokumente/Berichte');
+        if (!File::exists($privDir)) {
+            File::makeDirectory($privDir, 0755, true);
+        }
+        File::put($privDir . '/Struktur_' . $safeName . '.md', $content);
 
         return $filePath;
     }

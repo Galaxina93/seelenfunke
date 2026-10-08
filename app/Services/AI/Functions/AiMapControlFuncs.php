@@ -320,7 +320,7 @@ trait AiMapControlFuncs
                     'properties' => [
                         'file_path' => [
                             'type' => 'string',
-                            'description' => 'Der Dateipfad des Bildes, den du in der vorherigen [SYSTEM_INFO] erhalten hast (z.B. agenten/workspace/Kamera-Snapshots/snapshot_...).'
+                            'description' => 'Der Dateipfad des Bildes, den du in der vorherigen [SYSTEM_INFO] erhalten hast (z.B. agenten/workspace/Dokumente/Snapshots/snapshot_...).'
                         ],
                         'action' => [
                             'type' => 'string',
@@ -874,9 +874,10 @@ trait AiMapControlFuncs
                 ]);
 
                 $pdfFilename = 'snapshot_' . \Illuminate\Support\Str::slug($title) . '_' . time() . '.pdf';
-                $pdfPath = 'agenten/workspace/Kamera-Snapshots/' . $pdfFilename;
+                $pdfPath = 'agenten/workspace/Dokumente/Snapshots/' . $pdfFilename;
                 
                 \Illuminate\Support\Facades\Storage::disk('public')->put($pdfPath, $pdf->output());
+                \Illuminate\Support\Facades\Storage::disk('workspace')->put($pdfPath, $pdf->output());
                 
                 // Wir nutzen ab jetzt den PDF Pfad
                 $filePath = $pdfPath;

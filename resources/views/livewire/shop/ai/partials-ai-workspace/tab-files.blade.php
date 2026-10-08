@@ -95,6 +95,20 @@
                         <div wire:loading wire:target="fileUpload" class="text-xs text-[var(--theme-color)] font-mono animate-pulse">Lädt hoch...</div>
                     </form>
 
+                    <!-- DATEITRICHTER (Intelligente Sortierung & Knowledge Base) -->
+                    <div class="flex items-center gap-1.5 border-l border-gray-800 pl-3">
+                        <button type="button" 
+                                wire:click="runDateitrichter" 
+                                wire:loading.attr="disabled"
+                                class="bg-amber-950/40 hover:bg-amber-900/60 border border-amber-600/50 text-amber-400 hover:text-amber-300 p-1.5 rounded transition-all shadow-md flex items-center justify-center group" 
+                                title="Dateitrichter: Unsortierte Dateien analysieren, intelligent einsortieren & Knowledge Base aktualisieren">
+                            <x-heroicon-o-funnel class="w-5 h-5" />
+                        </button>
+                        <div wire:loading wire:target="runDateitrichter" class="text-xs text-amber-400 font-mono animate-pulse flex items-center gap-1">
+                            <x-heroicon-o-arrow-path class="w-3.5 h-3.5 animate-spin" /> Trichter aktiv...
+                        </div>
+                    </div>
+
                     <div class="flex bg-black/50 rounded-lg border border-gray-800 p-1 ml-1 sm:ml-2">
                         <button type="button" @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'" class="p-1.5 rounded transition-colors">
                             <x-heroicon-o-squares-2x2 class="w-5 h-5" />
@@ -105,6 +119,19 @@
                     </div>
                 </div>
             </div>
+
+            <!-- DATEITRICHTER FEEDBACK BANNER -->
+            @if(!empty($dateitrichterMessage))
+                <div class="mb-4 p-3 rounded-lg bg-amber-950/40 border border-amber-500/40 flex items-center justify-between text-xs text-amber-200 shadow-lg animate-fadeIn">
+                    <div class="flex items-center gap-2">
+                        <x-heroicon-o-sparkles class="w-5 h-5 text-amber-400 flex-shrink-0" />
+                        <span>{{ $dateitrichterMessage }}</span>
+                    </div>
+                    <button type="button" wire:click="clearDateitrichterMessage" class="text-amber-400 hover:text-white p-1">
+                        <x-heroicon-o-x-mark class="w-4 h-4" />
+                    </button>
+                </div>
+            @endif
 
             <!-- GENERIC MEDIA LIGHTBOX OVERLAY -->
             <div x-show="previewUrl" x-cloak class="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm shadow-2xl">
