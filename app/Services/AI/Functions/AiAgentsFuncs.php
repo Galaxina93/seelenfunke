@@ -254,6 +254,21 @@ trait AiAgentsFuncs
                     'required' => ['identifier']
                 ],
                 'callable' => [self::class, 'executeWorkspaceGetDocumentInfo']
+            ],
+            [
+                'name' => 'workspace_run_dateitrichter',
+                'description' => 'Aktiviert den intelligenten Dateitrichter im KI-Workspace. Analysiert alle unorganisierten oder neu hochgeladenen Dateien (z.B. per Drag & Drop in den Workspace geworfen), sortiert sie vollautomatisch nach der strikten 3-Ordner-Logik (Berufsleben, Dokumente, Gesundheit mit einteiligen Unterordnern) ein, aktualisiert die Metadaten in der Datenbank und verankert den Inhalt sofort in der Knowledge Base.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'process_all' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, wird der gesamte Workspace rekursiv geprüft und indiziert. Wenn false (Standard), werden lose Dateien im Eingang/Root des Workspaces einsortiert.'
+                        ]
+                    ],
+                    'required' => []
+                ],
+                'callable' => [self::class, 'executeWorkspaceRunDateitrichter']
             ]
         ];
     }
@@ -704,6 +719,22 @@ trait AiAgentsFuncs
                 'matches_count' => count($matches),
                 'matches' => $matches
             ]
+        ];
+    }
+
+    public static function executeWorkspaceRunDateitrichter(array $args): array
+    {
+        $processAll = (bool)($args['process_all'] ?? false);
+        $service = new \App\Services\AI\Workspace\DateitrichterService();
+        $result = $service->processAll($processAll);
+
+        return [
+            'status' => 'success',
+            'message' => $result['message'],
+            'processed_count' => $result['processed_count'],
+            'moved_count' => $result['moved_count'],
+            'indexed_count' => $result['indexed_count'],
+            'ui_action' => 'reload_filemanager'
         ];
     }
 

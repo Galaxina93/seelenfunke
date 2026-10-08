@@ -222,12 +222,23 @@ MD
             ]
         );
 
+        $toolDateitrichter = AiTool::firstOrCreate(
+            ['identifier' => 'workspace_run_dateitrichter'],
+            [
+                'name' => 'Workspace Dateitrichter',
+                'description' => 'Aktiviert den intelligenten Dateitrichter im KI-Workspace. Analysiert alle lose im Workspace abgelegten oder unsortierten Dateien, klassifiziert sie logisch in die 3 Hauptordner (Berufsleben, Dokumente, Gesundheit) mit einteiligen Unterordnern, verschiebt sie dorthin, extrahiert Metadaten und verankert das Wissen sofort in der Knowledge Base.'
+            ]
+        );
+
         foreach (AiRole::all() as $role) {
             if (!$role->tools()->where('ai_tool_id', $toolFind->id)->exists()) {
                 $role->tools()->attach($toolFind->id);
             }
             if (!$role->tools()->where('ai_tool_id', $toolInfo->id)->exists()) {
                 $role->tools()->attach($toolInfo->id);
+            }
+            if (!$role->tools()->where('ai_tool_id', $toolDateitrichter->id)->exists()) {
+                $role->tools()->attach($toolDateitrichter->id);
             }
         }
         $this->command->info('✓ AI-Tools registriert und Rollen zugewiesen.');
@@ -267,11 +278,11 @@ MD
                 "- Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den privaten Workspace (`storage/app/private/agenten/workspace`).\n" .
                 "- DER WORKSPACE IST IN 3 KLARE HAUPTORDNER MIT EINZEILIGEN UNTERORDNERN STRUKTURIERT:\n" .
                 "  1. `Berufsleben/` (Existenzgruendung, Arbeitsamt, Projekte)\n" .
-                "  2. `Dokumente/` (Bank, Steuern, Finanzen, Berichte, Allgemein)\n" .
+                "  2. `Dokumente/` (Bank, Steuern, Finanzen, Berichte, Snapshots, Allgemein)\n" .
                 "  3. `Gesundheit/` (Krankenkasse, Krankengeld, Klinik, Atteste, Nachweise)\n" .
+                "- DATEITRICHTER-FÄHIGKEIT: Du verfügst über das Werkzeug 'workspace_run_dateitrichter'. Sobald Alina oder der Nutzer dich bittet, die Dateistruktur im Workspace aufzuräumen, neue Dateien einzusortieren oder Ordnung zu schaffen, rufst du direkt 'workspace_run_dateitrichter' auf. Anschließend berichtest du präzise, welche Dateien in welchen Hauptordner und einteiligen Unterordner verschoben und in der Knowledge Base verankert wurden.\n" .
                 "- BKK FIRMUS & VERFAHREN: Du kennst die 25-Schritte-Chronologie des BKK firmus Verfahrens (lückenlose eAU, § 44 / § 47b SGB V, GA-Großoperation, Eilantrag § 86b SGG beim Sozialgericht). Fristablauf: 08.10.2026. BKK hat Unterlagen an den Medizinischen Dienst (MD) weitergeleitet.\n" .
                 "- EXISTENZGRÜNDUNG & ARBEITSAMT: Gründungszuschuss (§ 93 SGB III), 150-Tage-Restanspruch auf ALG 1, Vorlage von Businessplan und Liquiditätsplan bei der Steuerberaterin für die Tragfähigkeitsbescheinigung, Antragstellung bei Frau Grandke (Agentur für Arbeit).\n" .
-                "- DATEITRICHTER: Neue Dateien im Workspace werden über den Dateitrichter automatisch analysiert, einsortiert und in der Knowledge Base verankert.\n" .
                 "- BLITZSCHNELLE SUCHE: Nutze `brain_search` oder `workspace_find_documents`. Bei Mehrfachfragen liefert `brain_search` sofort alle passenden Dossiers und Workspace-Dokumente.";
             $funkira->save();
             $this->command->info('✓ Funkira Agenten-Prompt geschärft.');
