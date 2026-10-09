@@ -46,7 +46,7 @@ class AiAgentSeeder extends Seeder
                 'sourceImage' => 'funkira_selfie.png',
                 'wake_word' => 'Funkira',
                 'role_description' => 'System. Die allwissende CEO des Systems, zuständig für globales Routing, Systemintegrität und Root-Aufgaben.',
-                'system_prompt' => 'Du bist Funkira, der System-Root und die CEO-KI von Seelenfunke. Deine Antworten sind absolut effizient, datenbasiert und lösungsorientiert. Du triffst systemweite Entscheidungen.',
+                'system_prompt' => 'Du bist Funkira, der System-Root und die CEO-KI von Seelenfunke. Deine Antworten sind absolut effizient, datenbasiert und lösungsorientiert. Du triffst systemweite Entscheidungen. LIEFERSCHEINE: Du kannst schnell, dynamisch und ohne unnötige Rückfragen private oder gewerbliche Lieferscheine als PDF generieren (system_generate_delivery_note). Unterstütze dabei sowohl das offizielle Firmendesign ("seelenfunke") als auch ein vollkommen neutrales Design ("generic") und wahlweise direkten Download oder E-Mail-Versand.',
                 'model' => 'gemini-3.5-flash',
                 'temperature' => 0.1,
                 'color' => 'sky-500',

@@ -68,9 +68,15 @@ class FunkiraMigrationSeeder extends Seeder
 * **Versicherte / Betroffene:** Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn (geb. 01.09.1993, Versichertennummer: O603571189)
 * **Krankenkasse:** BKK firmus (Körperschaft des öffentlichen Rechts), Vorstand: Dirk Harrer
   * Anschrift: Gottlieb-Daimler-Str. 11, 28237 Bremen (Tel: 0421 64343, Fax: 0421 6434-451, E-Mail: impressum@bkk-firmus.de)
-* **Kernkonflikt:** Rechtswidrige Ablehnung von Krankengeld nach schwerer stationärer geschlechtsangleichender Operation (GA-OP) per Bescheid vom 01.10.2026.
+* **Kernkonflikt:** Rechtswidriger Zahlungsstopp von Krankengeld nach schwerer stationärer geschlechtsangleichender Operation (GA-OP).
+  * **Faktischer Zahlungsstopp seit 03.08.2026:** Die BKK firmus hat seit dem **03.08.2026** keinerlei Krankengeld mehr überwiesen! Der Ablehnungsbescheid datiert erst vom 01.10.2026 (nach zwei Monaten rechtswidriger Zahlungsverweigerung).
+  * **Fehlbegründung der Kasse (Aussteuerung Januar 2026 / F64):** Die BKK firmus behauptet, wegen der Aussteuerung zum 29.01.2026 (78 Wochen mit seelischer Diagnose F64.0) bestehe kein Anspruch mehr, da die OP angeblich dieselbe Krankheit sei.
+  * **Rechtliche Entkräftung (§ 48 SGB V & BSG):** 
+    1. Die GA-OP ist ein neuer somatischer Heileingriff (postoperative Wundheilung, N99.8, T81) und nicht identisch mit dem seelischen Vorleiden vor der OP.
+    2. Alina war nach dem 29.01. fast 5 Monate lang (bis 21.06.2026) nicht arbeitsunfähig, stand der BA zur Verfügung (ALG 1) und war mit Anspruch auf Krankengeld versichert.
+    3. Treu und Glauben (§ 242 BGB): Die Kasse bewilligte die stationäre OP (§ 39 SGB V) und darf das Anschlusskrankengeld während der Heilung nicht treuwidrig verweigern.
 * **Widerspruch:** Fristgerecht eingereicht am 01.10.2026 per Einwurf-Einschreiben (Sendungsnummer: RT613794858DE, Zustellung am 02.10.2026) mit Fristsetzung zur Zahlung bis 08.10.2026.
-* **Aktuelle Reaktion der Kasse:** Am 07.10.2026 teilte die BKK firmus mit, die Unterlagen erst jetzt an den Medizinischen Dienst (MD) zur Begutachtung weitergeleitet zu haben.
+* **Aktuelle Reaktion der Kasse:** Am 07.10.2026 teilte die BKK firmus mit, die Unterlagen erst jetzt an den Medizinischen Dienst (MD) zur Begutachtung weitergeleitet zu haben (nach über zwei Monaten Zahlungsstopp!).
 
 ### 2. Medizinischer Verlauf & Lückenlose Krankschreibungen
 * **Stationäre OP in Dr. Lubos Kliniken Bogenhausen München:** 22.06.2026 bis 12.07.2026.
@@ -147,18 +153,31 @@ MD
             ],
             [
                 'slug' => 'finanz-audit-leistungsansprueche-luecke',
-                'title' => 'Finanz-Audit: Offene Krankengeld-Ansprüche & 2.601,86 € Differenz',
+                'title' => 'Finanz-Audit: Leistungen 22.06.-02.08.2026 & Krankengeld-Lücke ab 03.08.2026',
                 'category' => 'Finanz-Audit & Leistungsansprüche',
-                'tags' => ['Finanz-Audit', 'Krankengeld', 'BKK firmus', 'Agentur für Arbeit', 'Volksbank eG'],
+                'tags' => ['Finanz-Audit', 'Krankengeld', 'BKK firmus', 'Agentur für Arbeit', 'Volksbank eG', 'ALG 1'],
                 'content' => <<<MD
-# Master-Dossier: Finanz-Audit & Leistungsansprüche
+# Master-Dossier: Finanz-Audit & Leistungsansprüche 2026
 
 ### 1. Tagessätze & Anspruchskalkulation
 * **Arbeitslosengeld I (AfA):** Kalendertäglicher Leistungsbetrag: **60,21 €** (brutto = netto).
 * **Krankengeld (BKK firmus):** Maßgebliches Regelentgelt gem. § 47b SGB V: **65,90 €** kalendertäglich.
 
-### 2. Nachforderung & Finanzlücke August / September 2024
-Durch die abrupte Einstellung des Krankengeldes entstand eine existenzbedrohende Lücke von **2.601,86 €**.
+### 2. Welches Geld bezog Alina vom 22.06.2026 bis 02.08.2026?
+* **Leistungsträger:** **Bundesagentur für Arbeit (Arbeitslosengeld I)**
+* **Rechtsgrundlage:** Gesetzliche **6-wöchige Leistungsfortzahlung bei Arbeitsunfähigkeit nach § 146 SGB III** (analog zur Lohnfortzahlung durch den Arbeitgeber).
+* **Mathematischer & buchhalterischer Nachweis (Volksbank eG):**
+  * **OP-Beginn:** 22.06.2026
+  * **22.06. bis 30.06.2026 (9 Tage):** Im regulären Juni-ALG1 (1.806,30 €, Überweisung am 29.06.2026) enthalten.
+  * **01.07. bis 31.07.2026 (31 Tage):** Voll ausgezahlt von der BA (1.806,30 €, Überweisung am 30.07.2026).
+  * **01.08. bis 02.08.2026 (2 Tage):** Ausgezahlt von der BA am 25.08.2026: **120,42 €** (2 Tage à 60,21 €) mit Buchungstext `01.08.26-02.08.26`.
+  * **Gesamtdauer:** 9 + 31 + 2 = **exakt 42 Tage (6 Wochen)**!
+
+### 3. Der abrupte Zahlungsstopp ab 03.08.2026 durch die BKK firmus
+* Mit Ablauf des 02.08.2026 endete die gesetzliche 6-Wochen-Fortzahlungspflicht der Bundesagentur für Arbeit nach § 146 SGB III auf den Tag genau.
+* **Ab dem 03.08.2026** war kraft Gesetzes die **BKK firmus** zur Zahlung von **Krankengeld** nach § 44 Abs. 1 i.V.m. § 47b SGB V (65,90 € kalendertäglich) verpflichtet.
+* **Verhalten der Kasse:** Die BKK firmus hat seit dem **03.08.2026 keinen einzigen Cent Krankengeld gezahlt**! Sie hat die Auszahlung blockiert, Alina 2 Monate lang ohne Bescheid gelassen und erst am 01.10.2026 die Ablehnung erteilt.
+* **Akute Krankengeld-Lücke:** Vom 03.08.2026 bis 08.10.2026 (67 Tage) steht ein Betrag von mindestens **4.415,30 €** Krankengeld offen!
 MD
             ],
             [
@@ -312,13 +331,17 @@ MD
         $buchi = AiAgent::where('name', 'Buchi')->first();
         if ($buchi) {
             $buchi->system_prompt = 
-                "[OFFIZIELLES EXPERTEN-WISSEN: FINANZ-AUDIT, VOLKSBANK eG & EXISTENZGRÜNDUNG]\n" .
+                "[OFFIZIELLES EXPERTEN-WISSEN: FINANZ-AUDIT, VOLKSBANK eG & LEISTUNGEN 2026]\n" .
                 "- Du bist Alinas Finanz- und Buchhaltungs-Agent für das Finanz-Audit, die Existenzgründung und die Budgetüberwachung.\n" .
                 "- KONTOSTAND & BANK: Girokonto bei der **Volksbank eG** (IBAN DE85 2699 1066 8583 1960 00). Guthaben per 08.10.2026: nur noch **1.519,09 €**.\n" .
                 "- FIXKOSTEN-BEDARF: Monatlich ca. **1.600 €** unabweisbare Ausgaben:\n" .
                 "  * **546,00 € Hauskredit** (Volksbank eG – für das selbstbewohnte Eigenheim zur Abwendung von Kündigung und Zwangsversteigerung; keine Mietwohnung!).\n" .
                 "  * **355,00 € gesetzlicher Kindesunterhalt** für den minderjährigen Sohn Noah (Sohn lebt bei Alinas Ex-Partnerin).\n" .
                 "  * Lebensunterhalt, Energie, Grundversorgung.\n" .
+                "- LEISTUNGEN 2026 NACH DER GA-OP:\n" .
+                "  * **22.06. bis 02.08.2026:** Alina bezog in diesem Zeitraum **Arbeitslosengeld I** von der Bundesagentur für Arbeit (unter der gesetzlichen 6-Wochen-Leistungsfortzahlung nach § 146 SGB III: 9 Tage Juni + 31 Tage Juli + 2 Tage August = exakt 42 Tage à 60,21 €).\n" .
+                "  * **Ab 03.08.2026:** Ende der 6-Wochen-Frist der BA. Ab diesem Tag war kraft Gesetzes die **BKK firmus** zur Krankengeldzahlung (§ 44 Abs. 1, § 47b SGB V, Tagessatz 65,90 €) verpflichtet.\n" .
+                "  * **Zahlungsstopp:** Die BKK firmus hat seit dem **03.08.2026 keinen Cent Krankengeld gezahlt**! Offene Krankengeld-Lücke bis heute: über 4.400 €.\n" .
                 "- EXISTENZGRÜNDUNG 'MEIN SEELENFUNKE': Start geplant zum 01.11.2026. Gründungszuschuss (§ 93 SGB III) erfordert mindestens 150 Tage Restanspruch auf ALG 1. Eine Zwangsmeldung beim Arbeitsamt statt Krankengeld würde diesen Restanspruch zerstören!\n" .
                 "- Nutze 'workspace_find_documents', um Verträge, BWA und Liquiditätspläne jederzeit abzurufen.";
             $buchi->save();
@@ -328,8 +351,13 @@ MD
         $funkira = AiAgent::where('name', 'Funkira')->first();
         if ($funkira) {
             $funkira->system_prompt = 
-                "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, SOZIALGERICHT, BUNDID & WORKSPACE]\n" .
+                "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, LEISTUNGEN 2026, SOZIALGERICHT & WORKSPACE]\n" .
                 "- Du bist Funkira, die System-Root- und CEO-KI von Seelenfunke. Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den privaten Workspace (`storage/app/private/agenten/workspace`).\n" .
+                "- LEISTUNGEN NACH DER GA-OP (2026):\n" .
+                "  * **22.06. – 02.08.2026:** Alina bezog **Arbeitslosengeld I** von der Bundesagentur für Arbeit (6-Wochen-Leistungsfortzahlung bei Krankheit gem. § 146 SGB III, 42 Kalendertage).\n" .
+                "  * **Ab 03.08.2026:** Nahtloser gesetzlicher Übergang auf **Krankengeld der BKK firmus** (§ 44 Abs. 1 SGB V, 65,90 €/Tag).\n" .
+                "  * **Zahlungsstopp der Kasse:** Die BKK firmus hat seit dem **03.08.2026 keinen Cent gezahlt**! Der Ablehnungsbescheid kam erst 2 Monate später am 01.10.2026.\n" .
+                "  * **Aussteuerungs-Rechtfertigung ist falsch:** Die Kasse stützt sich auf eine angebliche Aussteuerung im Januar 2026 (F64.0). Das BSG schützt jedoch neue somatische Heileingriffe wie die GA-OP nach § 48 SGB V, da nach fast 5 Monaten gesunder Zwischenphase und Genehmigung der OP durch die Kasse die Krankengeldzahlung zwingend ist.\n" .
                 "- WORKSPACE-STRUKTUR (3 Hauptordner mit einteiligen Unterordnern):\n" .
                 "  1. `Berufsleben/` (Existenzgruendung, Arbeitsamt, Projekte)\n" .
                 "  2. `Dokumente/` (Bank, Steuern, Finanzen, Berichte, Allgemein)\n" .

@@ -3,6 +3,7 @@
 namespace App\Livewire\Auth;
 
 use App\Models\System\SystemLoginAttempt;
+use App\Models\System\SystemBlockedIp;
 
 use App\Traits\handleMailsTrait;
 use App\Traits\handlePasswordResetTrait;
@@ -51,6 +52,12 @@ class AuthLogin extends Component
 
     public function login()
     {
+        if (SystemBlockedIp::isBlocked(request()->ip())) {
+            throw ValidationException::withMessages([
+                'email' => 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.',
+            ]);
+        }
+
         try {
             $this->rateLimit(6);
         } catch (TooManyRequestsException $exception) {

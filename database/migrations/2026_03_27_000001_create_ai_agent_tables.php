@@ -348,6 +348,26 @@ return new class extends Migration
             }
         }
 
+        // Teamleiter-Rolle mit System-Tools verknüpfen falls vorhanden
+        if (Schema::hasTable('ai_roles') && Schema::hasTable('ai_role_tool') && class_exists(\App\Services\AI\AIFunctionsRegistry::class)) {
+            $teamleiterRole = \App\Models\Ai\AiRole::where('name', 'Teamleiter')->first();
+            if ($teamleiterRole) {
+                $systemToolNames = array_column(\App\Services\AI\AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name');
+                $toolIds = \App\Models\Ai\AiTool::whereIn('identifier', $systemToolNames)->pluck('id');
+                $teamleiterRole->tools()->syncWithoutDetaching($toolIds);
+            }
+        }
+
+        // Funkira-Prompt aktualisieren falls Agent bereits existiert
+        if (Schema::hasTable('ai_agents')) {
+            $funkira = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+            if ($funkira && !str_contains($funkira->system_prompt, 'system_generate_delivery_note')) {
+                $deliveryInstruction = " LIEFERSCHEINE: Du kannst schnell, dynamisch und ohne unnötige Rückfragen private oder gewerbliche Lieferscheine als PDF generieren (system_generate_delivery_note). Unterstütze dabei sowohl das offizielle Firmendesign ('seelenfunke') als auch ein vollkommen neutrales Design ('generic') und wahlweise direkten Download oder E-Mail-Versand.";
+                $funkira->system_prompt .= $deliveryInstruction;
+                $funkira->save();
+            }
+        }
+
         // Buchi-Prompt aktualisieren falls Agent bereits existiert
         if (Schema::hasTable('ai_agents')) {
             $buchi = \App\Models\Ai\AiAgent::where('name', 'Buchi')->first();

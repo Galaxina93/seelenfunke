@@ -259,6 +259,93 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeExportSystemReport']
             ],
             [
+                'name' => 'system_generate_delivery_note',
+                'description' => 'Generiert einen professionellen, unabhängigen Lieferschein als PDF (wahlweise im Firmendesign "seelenfunke" oder als neutrales Dokument "generic") für private oder gewerbliche Sendungen. Unabhängig vom Onlineshop. Bietet den Lieferschein direkt als Browser-Download an oder verschickt ihn per E-Mail. Nutze dies IMMER, wenn der Nutzer fragt: "Erstelle mir einen Lieferschein", "Generiere einen Lieferschein für ...", "Schick mir einen neutralen Lieferschein per Mail" o.ä.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'recipient_name' => [
+                            'type' => 'string',
+                            'description' => 'Name des Empfängers oder der Empfängerfirma (z.B. "Max Mustermann" oder "Muster GmbH").'
+                        ],
+                        'recipient_address' => [
+                            'type' => 'string',
+                            'description' => 'Vollständige Anschrift des Empfängers (Straße, Hausnummer, PLZ, Ort, ggf. Land).'
+                        ],
+                        'items' => [
+                            'type' => 'array',
+                            'description' => 'Liste aller gelieferten Artikel bzw. Positionen.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'pos' => [
+                                        'type' => 'integer',
+                                        'description' => 'Positionsnummer (1, 2, ...).'
+                                    ],
+                                    'name' => [
+                                        'type' => 'string',
+                                        'description' => 'Name oder Bezeichnung des Artikels.'
+                                    ],
+                                    'quantity' => [
+                                        'type' => 'number',
+                                        'description' => 'Gelieferte Menge (z.B. 1, 2, 5.5).'
+                                    ],
+                                    'unit' => [
+                                        'type' => 'string',
+                                        'description' => 'Mengeneinheit (z.B. "Stk.", "Paket", "kg", "Set", "m").'
+                                    ],
+                                    'notes' => [
+                                        'type' => 'string',
+                                        'description' => 'Optionale Notiz zur Position (z.B. Farbe, Seriennummer, Abmessung).'
+                                    ]
+                                ],
+                                'required' => ['name', 'quantity']
+                            ]
+                        ],
+                        'delivery_note_number' => [
+                            'type' => 'string',
+                            'description' => 'Optionale eigene Lieferscheinnummer (z.B. "LS-2026-0042"). Wenn leer, wird automatisch eine eindeutige Nummer generiert.'
+                        ],
+                        'delivery_date' => [
+                            'type' => 'string',
+                            'description' => 'Lieferdatum im Format TT.MM.JJJJ (Standard: heutiges Datum).'
+                        ],
+                        'order_reference' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Auftragsreferenz, Kunden-Bestellnummer oder Anlass (z.B. "eBay Kleinanzeigen", "Bestellung #1042", "Musterlieferung").'
+                        ],
+                        'sender_info' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Absenderinformationen (insb. im neutralen Design nützlich, z.B. eigene Privatadresse oder abweichende Absenderadresse).'
+                        ],
+                        'shipping_method' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Angabe der Versandart (z.B. "DHL Paket", "Hermes", "Selbstabholung", "Spedition").'
+                        ],
+                        'notes' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Hinweise, Anmerkungen oder Grußformeln zur Sendung (z.B. "Vielen Dank für Ihren Auftrag", "Ware vorsichtig öffnen").'
+                        ],
+                        'design' => [
+                            'type' => 'string',
+                            'description' => 'Das visuelle Design der PDF. "seelenfunke" (mit Logo, CI-Farben und Firmen-Footer) oder "generic" (neutrales, firmenunabhängiges Design für private oder neutrale Zwecke). Standard: "seelenfunke".',
+                            'enum' => ['seelenfunke', 'generic']
+                        ],
+                        'target_action' => [
+                            'type' => 'string',
+                            'description' => 'Aktion mit der PDF: "download" (öffnet Download-Dialog im Browser) oder "email" (versendet die PDF als Mail-Anhang).',
+                            'enum' => ['download', 'email']
+                        ],
+                        'recipient_email' => [
+                            'type' => 'string',
+                            'description' => 'E-Mail-Adresse für den Mailversand (wenn target_action = "email"). Wenn der Nutzer keine E-Mail nennt, lasse dieses Feld leer (null). Das System nutzt dann automatisch die Standard-Admin-E-Mail.'
+                        ]
+                    ],
+                    'required' => ['recipient_name', 'items']
+                ],
+                'callable' => [self::class, 'executeGenerateDeliveryNote']
+            ],
+            [
                 'name' => 'system_open_zentrum',
                 'description' => 'Öffnet das visuelle 3D Zentrum (Funkira Widget) in der Front-Ansicht. Stichworte: Öffne das Zentrum, Zeig dich zentrum, Mach das Widget auf, Komm her Funkira.',
                 'parameters' => [
@@ -2471,6 +2558,147 @@ trait AiSystemFuncs
 
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler bei der Word-Dokument-Generierung: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeGenerateDeliveryNote(array $args, $agent = null)
+    {
+        try {
+            $recipientName = trim($args['recipient_name'] ?? '');
+            if (empty($recipientName)) {
+                return ['status' => 'error', 'message' => 'Der Empfängername (recipient_name) muss angegeben werden.'];
+            }
+
+            $rawItems = $args['items'] ?? [];
+            if (!is_array($rawItems) || empty($rawItems)) {
+                return ['status' => 'error', 'message' => 'Es muss mindestens eine Position (items) auf dem Lieferschein angegeben werden.'];
+            }
+
+            $items = [];
+            $posCounter = 1;
+            foreach ($rawItems as $idx => $item) {
+                if (is_string($item)) {
+                    $items[] = [
+                        'pos' => $posCounter++,
+                        'name' => $item,
+                        'description' => '',
+                        'quantity' => 1,
+                        'unit' => 'Stk.',
+                        'notes' => ''
+                    ];
+                } elseif (is_array($item)) {
+                    $items[] = [
+                        'pos' => $item['pos'] ?? ($posCounter++),
+                        'name' => $item['name'] ?? ($item['title'] ?? 'Artikel'),
+                        'description' => $item['description'] ?? '',
+                        'quantity' => isset($item['quantity']) && is_numeric($item['quantity']) ? $item['quantity'] : 1,
+                        'unit' => $item['unit'] ?? 'Stk.',
+                        'notes' => $item['notes'] ?? ($item['note'] ?? '')
+                    ];
+                }
+            }
+
+            $recipientAddress = trim($args['recipient_address'] ?? '');
+            $deliveryDate = trim($args['delivery_date'] ?? '');
+            if (empty($deliveryDate)) {
+                $deliveryDate = date('d.m.Y');
+            }
+
+            $deliveryNoteNumber = trim($args['delivery_note_number'] ?? '');
+            if (empty($deliveryNoteNumber)) {
+                $deliveryNoteNumber = 'LS-' . date('Ymd') . '-' . strtoupper(\Illuminate\Support\Str::random(4));
+            }
+
+            $orderReference = trim($args['order_reference'] ?? '');
+            $senderInfo = trim($args['sender_info'] ?? '');
+            $shippingMethod = trim($args['shipping_method'] ?? '');
+            $notes = trim($args['notes'] ?? '');
+
+            $rawDesign = strtolower(trim($args['design'] ?? 'seelenfunke'));
+            $design = in_array($rawDesign, ['generic', 'neutral', 'privat']) ? 'generic' : 'seelenfunke';
+
+            $action = strtolower(trim($args['target_action'] ?? 'download'));
+            $recipientEmail = $args['recipient_email'] ?? null;
+            if (is_string($recipientEmail) && (strtolower(trim($recipientEmail)) === 'null' || trim($recipientEmail) === '')) {
+                $recipientEmail = null;
+            }
+
+            $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'Funkira');
+
+            // Select View
+            $viewName = $design === 'generic' ? 'global.pdf.delivery-note-generic' : 'global.pdf.delivery-note-seelenfunke';
+
+            // Generate PDF via DomPDF
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView($viewName, [
+                'recipientName' => $recipientName,
+                'recipientAddress' => $recipientAddress,
+                'items' => $items,
+                'deliveryDate' => $deliveryDate,
+                'deliveryNoteNumber' => $deliveryNoteNumber,
+                'orderReference' => $orderReference,
+                'senderInfo' => $senderInfo,
+                'shippingMethod' => $shippingMethod,
+                'notes' => $notes,
+                'agentName' => $agentName,
+                'design' => $design,
+            ]);
+
+            $prefix = $design === 'generic' ? 'lieferschein-neutral' : 'lieferschein-seelenfunke';
+            $slugNum = \Illuminate\Support\Str::slug($deliveryNoteNumber) ?: time();
+            $fileName = $prefix . '-' . $slugNum . '-' . time() . '.pdf';
+            $filePath = 'public/reports/' . $fileName;
+
+            \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
+
+            $downloadUrl = \Illuminate\Support\Facades\Storage::url($filePath);
+            $absolutePath = storage_path('app/' . $filePath);
+
+            if ($action === 'email') {
+                if (empty($recipientEmail)) {
+                    $recipientEmail = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+                if (empty($recipientEmail)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
+                }
+
+                $designLabel = $design === 'generic' ? 'neutralen ' : '';
+                $emailSubject = "Lieferschein {$deliveryNoteNumber}" . (!empty($orderReference) ? " ({$orderReference})" : '');
+                $emailBody = "Guten Tag,\n\nanbei erhalten Sie den gewünschten {$designLabel}Lieferschein {$deliveryNoteNumber} als PDF im Anhang.\n\nEmpfänger: {$recipientName}\nPositionen: " . count($items) . "\n\nMit freundlichen Grüßen,\n{$agentName}";
+
+                \Illuminate\Support\Facades\Mail::to($recipientEmail)->send(new \App\Services\AI\Mails\AiAgentMessageMail(
+                    $emailSubject,
+                    $emailBody,
+                    $agentName,
+                    [$absolutePath],
+                    $design
+                ));
+
+                return [
+                    'status' => 'success',
+                    'message' => "Der Lieferschein '{$deliveryNoteNumber}' ({$design}) für '{$recipientName}' wurde erfolgreich generiert und per E-Mail an '{$recipientEmail}' gesendet.",
+                    'delivery_note_number' => $deliveryNoteNumber,
+                    'download_url' => $downloadUrl,
+                    'recipient' => $recipientEmail
+                ];
+            } else {
+                return [
+                    'status' => 'success',
+                    'message' => "Der Lieferschein '{$deliveryNoteNumber}' ({$design}) für '{$recipientName}' mit " . count($items) . " Position(en) wurde erfolgreich erstellt. Ein Download-Dialog öffnet sich nun.",
+                    'delivery_note_number' => $deliveryNoteNumber,
+                    'download_url' => $downloadUrl,
+                    '_event' => [
+                        'type' => 'dispatch',
+                        'name' => 'download-file',
+                        'detail' => [
+                            'url' => $downloadUrl,
+                            'filename' => $fileName
+                        ]
+                    ]
+                ];
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Fehler bei executeGenerateDeliveryNote: " . $e->getMessage());
+            return ['status' => 'error', 'message' => 'Fehler bei der Lieferschein-Generierung: ' . $e->getMessage()];
         }
     }
 

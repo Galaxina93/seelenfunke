@@ -214,9 +214,22 @@ return new class extends Migration
             Schema::create('system_login_attempts', function (Blueprint $table) {
                 $table->id();
                 $table->string('email')->nullable();
-                $table->ipAddress('ip_address')->nullable();
+                $table->ipAddress('ip_address')->nullable()->index('idx_sla_ip_address');
                 $table->boolean('success')->default(false);
                 $table->timestamp('attempted_at')->useCurrent();
+                $table->timestamps();
+
+                $table->index(['success', 'attempted_at'], 'idx_sla_success_attempted');
+            });
+        }
+
+        if (!Schema::hasTable('system_blocked_ips')) {
+            Schema::create('system_blocked_ips', function (Blueprint $table) {
+                $table->id();
+                $table->string('ip_address', 45)->index();
+                $table->string('reason')->nullable();
+                $table->timestamp('blocked_until')->nullable()->index();
+                $table->string('blocked_by')->nullable();
                 $table->timestamps();
             });
         }
@@ -256,6 +269,8 @@ return new class extends Migration
                 $table->timestamp('started_at')->useCurrent();
                 $table->timestamp('finished_at')->nullable();
                 $table->timestamps();
+
+                $table->index(['type', 'status', 'started_at'], 'idx_sl_type_status_started');
             });
         }
 
@@ -397,6 +412,7 @@ return new class extends Migration
         Schema::dropIfExists('system_logs');
         Schema::dropIfExists('shop_settings');
         Schema::dropIfExists('system_directories');
+        Schema::dropIfExists('system_blocked_ips');
         Schema::dropIfExists('system_login_attempts');
         Schema::dropIfExists('sessions');
 

@@ -8,6 +8,7 @@ use App\Models\System\SystemLoginAttempt;
 use App\Models\Product\Product;
 use App\Models\System\SystemCheckConfig;
 use App\Models\System\SystemLog;
+use App\Models\System\SystemBlockedIp;
 use App\Services\AnalyticsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,9 @@ class MasterAnalytics extends Component
     public array $repairLogs = [];
 
     public $showAbandonedCarts = false;
+    public ?string $latestSecurityReport = null;
+    public ?string $securityReportContent = null;
+    public bool $showSecurityReportModal = false;
 
     // AI Agent Properties
     public $availableAgents = [];
@@ -847,16 +851,212 @@ class MasterAnalytics extends Component
         return $logs->sortByDesc('timestamp')->values()->take(30);
     }
 
+    public function getFailedLogins24hProperty(): int
+    {
+        return class_exists(SystemLoginAttempt::class)
+            ? SystemLoginAttempt::where('success', false)
+                ->where('attempted_at', '>=', now()->subHours(24))
+                ->count()
+            : 0;
+    }
+
+    public function getSecurityWarnings24hProperty(): int
+    {
+        return class_exists(SystemLog::class)
+            ? SystemLog::where('type', 'security')
+                ->where('status', 'error')
+                ->where('started_at', '>=', now()->subHours(24))
+                ->count()
+            : 0;
+    }
+
+    public function getBlockedIpsCountProperty(): int
+    {
+        return class_exists(SystemBlockedIp::class)
+            ? SystemBlockedIp::where(function($q) {
+                $q->whereNull('blocked_until')->orWhere('blocked_until', '>', now());
+            })->count()
+            : 0;
+    }
+
+    public function getSecurityScoreProperty(): int
+    {
+        $failedLogins = $this->failedLogins24h;
+        $warnings = $this->securityWarnings24h;
+
+        // Brute-force Indikator: mehrere Fehlversuche von derselben IP
+        $distinctAttackingIps = class_exists(SystemLoginAttempt::class)
+            ? SystemLoginAttempt::where('success', false)
+                ->where('attempted_at', '>=', now()->subHours(24))
+                ->select('ip_address')
+                ->groupBy('ip_address')
+                ->havingRaw('count(*) >= 3')
+                ->count()
+            : 0;
+
+        // Intelligente Punkte-Formel:
+        // - Angreifende IP mit gehäuften Fehlversuchen: -15 Punkte pro IP
+        // - Einzelne Vertipper (capped auf 20): -1 Punkt
+        // - Tatsächliche Security-Warnungen: -10 Punkte
+        $penalty = ($distinctAttackingIps * 15) + min(20, $failedLogins) + ($warnings * 10);
+        return (int) max(0, min(100, 100 - $penalty));
+    }
+
+    public function getSecurityScoreDetailsProperty(): array
+    {
+        $score = $this->securityScore;
+        $circumference = 2 * pi() * 40;
+        $offset = $circumference - ($score / 100) * $circumference;
+        $colorClass = $score >= 80 ? 'text-purple-400' : ($score >= 50 ? 'text-amber-400' : 'text-red-400');
+        $strokeColor = $score >= 80 ? '#c084fc' : ($score >= 50 ? '#fbbf24' : '#f87171');
+
+        $text = 'System gesichert';
+        if ($score < 50) {
+            $text = 'Kritische Bedrohungen!';
+        } elseif ($score < 80) {
+            $text = 'Erhöhte Aktivität';
+        }
+
+        return [
+            'score' => $score,
+            'offset' => $offset,
+            'colorClass' => $colorClass,
+            'strokeColor' => $strokeColor,
+            'text' => $text,
+            'circumference' => $circumference,
+            'failedLogins24h' => $this->failedLogins24h,
+            'securityWarnings24h' => $this->securityWarnings24h,
+            'blockedIpsCount' => $this->blockedIpsCount,
+        ];
+    }
+
+    public function getAggregatedThreatLogsProperty()
+    {
+        $items = collect();
+
+        // 1. Gruppierte Fehl-Logins nach IP (verhindert Log-Spam und hebt Brute-Force hervor)
+        if (class_exists(SystemLoginAttempt::class)) {
+            $blockedIps = class_exists(SystemBlockedIp::class)
+                ? SystemBlockedIp::where(function($q) {
+                    $q->whereNull('blocked_until')->orWhere('blocked_until', '>', now());
+                })->pluck('ip_address')->toArray()
+                : [];
+
+            $failedGroups = SystemLoginAttempt::where('success', false)
+                ->where('attempted_at', '>=', now()->subHours(48))
+                ->select(
+                    'ip_address',
+                    DB::raw('count(*) as attempts'),
+                    DB::raw('MAX(attempted_at) as last_attempt'),
+                    DB::raw('GROUP_CONCAT(DISTINCT email SEPARATOR ", ") as target_emails')
+                )
+                ->groupBy('ip_address')
+                ->orderByDesc('last_attempt')
+                ->limit(20)
+                ->get()
+                ->map(function($row) use ($blockedIps) {
+                    $isBlocked = in_array($row->ip_address, $blockedIps);
+                    return [
+                        'id' => 'fail_ip_' . md5($row->ip_address ?? 'unknown'),
+                        'type' => 'security',
+                        'category' => 'login_attempt',
+                        'ip_address' => $row->ip_address,
+                        'is_blocked' => $isBlocked,
+                        'attempts' => $row->attempts,
+                        'title' => $row->attempts > 1
+                            ? "Wiederholte Fehl-Logins ({$row->attempts}x)"
+                            : "Fehlgeschlagener Login",
+                        'message' => "IP: " . ($row->ip_address ?: 'Unbekannt') . " (Ziel: " . ($row->target_emails ?: 'Unbekannt') . ")",
+                        'status' => 'error',
+                        'timestamp' => $row->last_attempt,
+                    ];
+                });
+
+            $items = $items->concat($failedGroups);
+        }
+
+        // 2. Gezielte Security-Logs (nur status = error & type = security)
+        if (class_exists(SystemLog::class)) {
+            $secLogs = SystemLog::where('type', 'security')
+                ->where('status', 'error')
+                ->where('started_at', '>=', now()->subHours(48))
+                ->orderByDesc('started_at')
+                ->limit(20)
+                ->get()
+                ->map(function($log) {
+                    return [
+                        'id' => 'sec_log_' . $log->id,
+                        'type' => 'security',
+                        'category' => 'system_log',
+                        'ip_address' => null,
+                        'is_blocked' => false,
+                        'attempts' => 1,
+                        'title' => $log->title,
+                        'message' => $log->message,
+                        'status' => 'error',
+                        'timestamp' => $log->started_at,
+                    ];
+                });
+
+            $items = $items->concat($secLogs);
+        }
+
+        return $items->sortByDesc('timestamp')->values()->take(25);
+    }
+
     public function clearSecurityLogs()
     {
         $service = app(AnalyticsService::class);
         if (class_exists(\App\Models\System\SystemLog::class)) {
-            \App\Models\System\SystemLog::query()->delete();
+            // SICHERHEIT: Nur Security-Logs löschen, NIEMALS alle SystemLog-Datensätze!
+            \App\Models\System\SystemLog::where('type', 'security')->delete();
         }
         if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
             \App\Models\System\SystemLoginAttempt::where('success', false)->delete();
         }
         $this->loadStats($service);
+        session()->flash('success', 'Sicherheits-Logs und Fehlversuche wurden erfolgreich bereinigt.');
+    }
+
+    public function blockIpAddress(string $ip, int $hours = 24)
+    {
+        if (empty($ip)) return;
+        SystemBlockedIp::blockIp($ip, 'Über Threat Monitor gesperrt', $hours, auth()->user()?->email ?? 'Admin');
+        session()->flash('success', "IP-Adresse {$ip} wurde für {$hours} Stunden gesperrt.");
+    }
+
+    public function unblockIpAddress(string $ip)
+    {
+        if (empty($ip)) return;
+        SystemBlockedIp::unblockIp($ip);
+        session()->flash('success', "IP-Adresse {$ip} wurde entsperrt.");
+    }
+
+    public function triggerAiSecurityThreatAudit()
+    {
+        try {
+            $result = \App\Services\AI\Functions\AiSystemFuncs::executeAnalyzeSecurityThreats(['send_email' => false]);
+            if (($result['status'] ?? '') === 'success') {
+                $this->latestSecurityReport = $result['report_file'] ?? null;
+                $filePath = 'agenten/workspace/Dokumente/Berichte/' . $this->latestSecurityReport;
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
+                    $this->securityReportContent = \Illuminate\Support\Facades\Storage::disk('public')->get($filePath);
+                } elseif (\Illuminate\Support\Facades\Storage::disk('workspace')->exists($filePath)) {
+                    $this->securityReportContent = \Illuminate\Support\Facades\Storage::disk('workspace')->get($filePath);
+                }
+                $this->showSecurityReportModal = true;
+                session()->flash('success', 'KI-Sicherheitsanalyse abgeschlossen!');
+            } else {
+                session()->flash('error', 'KI-Analyse: ' . ($result['message'] ?? 'Fehler aufgetreten'));
+            }
+        } catch (\Exception $e) {
+            session()->flash('error', 'Fehler bei der KI-Analyse: ' . $e->getMessage());
+        }
+    }
+
+    public function closeSecurityReportModal()
+    {
+        $this->showSecurityReportModal = false;
     }
 
     public function flushFailedJobs()

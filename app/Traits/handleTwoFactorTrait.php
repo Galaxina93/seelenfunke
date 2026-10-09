@@ -67,6 +67,15 @@ trait handleTwoFactorTrait
             return redirect(route($guard . '.dashboard'));
         }
 
+        if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
+            \App\Models\System\SystemLoginAttempt::create([
+                'email' => $user->email,
+                'ip_address' => request()->ip(),
+                'success' => false,
+                'attempted_at' => now(),
+            ]);
+        }
+
         session()->flash('error', 'Der eingegebene Code ist ungültig. Bitte versuchen Sie es erneut.');
     }
     public function twoFactorCheckCode($secretKey, $code): bool|int

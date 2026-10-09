@@ -109,23 +109,16 @@
             $sysText = 'System-Warnungen';
         }
 
-        // --- 4. SECURITY SCORE ---
-        $failedLogins24h = class_exists(\App\Models\System\SystemLoginAttempt::class) ? \App\Models\System\SystemLoginAttempt::where('success', false)->where('attempted_at', '>=', now()->subHours(24))->count() : 0;
-        $securityWarnings24h = class_exists(\App\Models\System\SystemLog::class) ? \App\Models\System\SystemLog::whereIn('type', ['security', 'system'])->where('status', 'error')->where('started_at', '>=', now()->subHours(24))->count() : 0;
-        
-        $securityScore = 100 - ($failedLogins24h * 5) - ($securityWarnings24h * 10);
-        $securityScore = max(0, min(100, $securityScore));
-
-        $secColorClass = $securityScore >= 80 ? 'text-purple-400' : ($securityScore >= 50 ? 'text-amber-400' : 'text-red-400');
-        $secStrokeColor = $securityScore >= 80 ? '#c084fc' : ($securityScore >= 50 ? '#fbbf24' : '#f87171');
-        $secOffset = $circumference - ($securityScore / 100) * $circumference;
-
-        $secText = 'System gesichert';
-        if ($securityScore < 50) {
-            $secText = 'Kritische Angriffe!';
-        } elseif ($securityScore < 80) {
-            $secText = 'Erhöhte Aktivität';
-        }
+        // --- 4. SECURITY SCORE (Gecacht / Berechnet in MasterAnalytics) ---
+        $secDetails = $this->securityScoreDetails;
+        $failedLogins24h = $secDetails['failedLogins24h'];
+        $securityWarnings24h = $secDetails['securityWarnings24h'];
+        $securityScore = $secDetails['score'];
+        $secColorClass = $secDetails['colorClass'];
+        $secStrokeColor = $secDetails['strokeColor'];
+        $secOffset = $secDetails['offset'];
+        $secText = $secDetails['text'];
+        $blockedIpsCount = $secDetails['blockedIpsCount'];
     @endphp
 
     <!-- TOP ROW: THE 4 SCORES -->
@@ -266,8 +259,9 @@
                     <div class="text-xs text-gray-300 space-y-2">
                         <p class="text-gray-400 text-[10px] leading-tight mb-2">Startwert: <span class="text-white">100 Punkte</span></p>
                         <ul class="space-y-1.5">
-                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro fehlgeschlagenem Login:</span> <span class="text-red-400">-5</span></li>
-                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro System-Fehler/Angriff:</span> <span class="text-red-400">-10</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro Brute-Force IP (&ge;3 Versuche):</span> <span class="text-red-400">-15</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Pro Sicherheits-Alarm:</span> <span class="text-red-400">-10</span></li>
+                            <li class="flex justify-between items-center"><span class="text-gray-400">Isolierte Fehl-Logins (max -20):</span> <span class="text-red-400">-1</span></li>
                         </ul>
                     </div>
                 </div>
@@ -1097,7 +1091,7 @@
                     <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
                         <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
                             <x-heroicon-o-shield-exclamation class="w-5 h-5 text-red-500" />
-                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">System Alarme</h3>
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Sicherheits-Alarme</h3>
                         </div>
                         <div class="flex justify-between items-center mt-2">
                             <span class="text-3xl font-black {{ $securityWarnings24h > 0 ? 'text-red-500' : 'text-emerald-500' }}">{{ $securityWarnings24h }}</span>
@@ -1105,60 +1099,89 @@
                         </div>
                     </div>
 
-                    <!-- Stat 3: WAF / Rate Limit Status -->
+                    <!-- Stat 3: WAF / Rate Limit Status & IP Firewall -->
                     <div class="bg-gray-950 border border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
                         <div class="flex items-center gap-3 border-b border-gray-800/80 pb-3">
                             <x-heroicon-o-lock-closed class="w-5 h-5 text-emerald-500" />
-                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Rate Limiter</h3>
+                            <h3 class="text-sm font-semibold text-white uppercase tracking-widest">Rate Limiter & Abwehr</h3>
                         </div>
                         <div class="flex justify-between items-center mt-2">
-                            <span class="text-3xl font-black text-emerald-500">Aktiv</span>
-                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">DDoS Schutz<br>Routing</span>
+                            <div>
+                                <span class="text-3xl font-black text-emerald-500">Aktiv</span>
+                                @if($blockedIpsCount > 0)
+                                    <span class="block text-[10px] font-bold text-amber-400 mt-0.5">{{ $blockedIpsCount }} IP(s) gesperrt</span>
+                                @endif
+                            </div>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">DDoS Schutz<br>IP-Firewall</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- THREAT MONITOR -->
                 <div class="bg-gray-950/40 rounded-[2rem] border border-gray-800 p-6 shadow-inner">
-                    <div class="flex items-center justify-between mb-6">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                         <h3 class="text-sm font-black text-white uppercase tracking-widest flex items-center gap-2">
                             <x-heroicon-s-eye class="w-5 h-5 text-purple-500" />
-                            Threat Monitor (Letzte Ereignisse)
+                            Threat Monitor (Aktuelle Bedrohungen)
                         </h3>
-                        <button x-data="{ success: false }" 
-                                x-on:click="$wire.clearSecurityLogs().then(() => { success = true; setTimeout(() => success = false, 3000) })" 
-                                :class="success ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'text-gray-400 hover:text-white border-gray-800 hover:border-gray-600 bg-gray-900'" 
-                                class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-2">
-                            <x-heroicon-o-trash x-show="!success" class="w-3.5 h-3.5" />
-                            <x-heroicon-o-check x-show="success" class="w-3.5 h-3.5" x-cloak />
-                            <span x-text="success ? 'Erfolgreich' : 'Alle leeren'"></span>
-                        </button>
+                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <button wire:click="triggerAiSecurityThreatAudit" 
+                                    wire:loading.attr="disabled"
+                                    class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border border-purple-500/40 text-purple-300 hover:text-white hover:bg-purple-900/30 bg-purple-950/40 transition-colors flex items-center gap-2">
+                                <x-heroicon-o-sparkles class="w-3.5 h-3.5 text-purple-400" />
+                                <span wire:loading.remove wire:target="triggerAiSecurityThreatAudit">KI-Threat-Scan</span>
+                                <span wire:loading wire:target="triggerAiSecurityThreatAudit">Analysiere...</span>
+                            </button>
+
+                            <button x-data="{ success: false }" 
+                                    x-on:click="$wire.clearSecurityLogs().then(() => { success = true; setTimeout(() => success = false, 3000) })" 
+                                    :class="success ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'text-gray-400 hover:text-white border-gray-800 hover:border-gray-600 bg-gray-900'" 
+                                    class="text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-2">
+                                <x-heroicon-o-trash x-show="!success" class="w-3.5 h-3.5" />
+                                <x-heroicon-o-check x-show="success" class="w-3.5 h-3.5" x-cloak />
+                                <span x-text="success ? 'Erfolgreich' : 'Alle leeren'"></span>
+                            </button>
+                        </div>
                     </div>
                     
-                    <div class="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                        @php
-                            $recentSecurityLogs = $this->systemLogs->filter(function($log) {
-                                // Nur Logs anzeigen, die den Status 'error' haben (also ungelöst sind)
-                                return ($log['status'] ?? '') === 'error' && in_array(($log['type'] ?? ''), ['system', 'security']);
-                            })->take(20);
-                        @endphp
-
-                        @forelse($recentSecurityLogs as $log)
-                            <div class="bg-gray-900 rounded-xl p-4 border border-gray-800/80 hover:border-gray-700 transition-colors flex gap-4 items-start">
-                                <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center {{ ($log['type'] ?? '') === 'security' ? 'bg-purple-500/10 border-purple-500/20 text-purple-500' : 'bg-red-500/10 border-red-500/20 text-red-500' }} border">
-                                    @if(($log['type'] ?? '') === 'security')
-                                        <x-heroicon-o-finger-print class="w-5 h-5" />
-                                    @else
-                                        <x-heroicon-o-exclamation-circle class="w-5 h-5" />
-                                    @endif
-                                </div>
-                                <div class="flex-1 min-w-0 pt-0.5">
-                                    <div class="flex justify-between items-start gap-4">
-                                        <h4 class="text-sm font-bold text-gray-200 truncate">{{ $log['title'] ?? 'Unbekanntes Ereignis' }}</h4>
-                                        <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log['timestamp'])->format('d.m.Y H:i:s') }}</span>
+                    <div class="space-y-3 max-h-[420px] overflow-y-auto custom-scrollbar pr-2">
+                        @forelse($this->aggregatedThreatLogs as $log)
+                            <div class="bg-gray-900 rounded-xl p-4 border border-gray-800/80 hover:border-gray-700 transition-colors flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                                <div class="flex gap-4 items-start flex-1 min-w-0">
+                                    <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center {{ ($log['type'] ?? '') === 'security' ? 'bg-purple-500/10 border-purple-500/20 text-purple-500' : 'bg-red-500/10 border-red-500/20 text-red-500' }} border">
+                                        @if(($log['type'] ?? '') === 'security')
+                                            <x-heroicon-o-finger-print class="w-5 h-5" />
+                                        @else
+                                            <x-heroicon-o-exclamation-circle class="w-5 h-5" />
+                                        @endif
                                     </div>
-                                    <p class="text-xs text-gray-400 mt-1.5 leading-relaxed">{{ $log['message'] ?? '' }}</p>
+                                    <div class="flex-1 min-w-0 pt-0.5">
+                                        <div class="flex flex-wrap justify-between items-start gap-2">
+                                            <div class="flex items-center gap-2">
+                                                <h4 class="text-sm font-bold text-gray-200 truncate">{{ $log['title'] ?? 'Unbekanntes Ereignis' }}</h4>
+                                                @if($log['is_blocked'] ?? false)
+                                                    <span class="bg-rose-500/20 border border-rose-500/50 text-rose-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">Gesperrt</span>
+                                                @endif
+                                            </div>
+                                            <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log['timestamp'])->format('d.m.Y H:i:s') }}</span>
+                                        </div>
+                                        <p class="text-xs text-gray-400 mt-1 leading-relaxed">{{ $log['message'] ?? '' }}</p>
+                                    </div>
                                 </div>
+
+                                @if(!empty($log['ip_address']))
+                                    <div class="shrink-0 pt-1 sm:pt-0 self-end sm:self-center">
+                                        @if($log['is_blocked'] ?? false)
+                                            <button wire:click="unblockIpAddress('{{ $log['ip_address'] }}')" class="text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-emerald-900/50 text-emerald-400 border border-gray-700 hover:border-emerald-500/50 transition-colors">
+                                                Entsperren
+                                            </button>
+                                        @else
+                                            <button wire:click="blockIpAddress('{{ $log['ip_address'] }}', 24)" class="text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 border border-rose-800/50 hover:border-rose-500 transition-colors">
+                                                IP sperren
+                                            </button>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                         @empty
                             <div class="py-12 flex flex-col items-center justify-center text-gray-500 text-center">
@@ -1169,6 +1192,36 @@
                         @endforelse
                     </div>
                 </div>
+
+                {{-- AI SECURITY REPORT MODAL --}}
+                @if($showSecurityReportModal)
+                    <div class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 xl:p-10" x-data @keydown.escape.window="$wire.closeSecurityReportModal()">
+                        <div class="bg-gray-900 border border-purple-500/40 rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden relative shadow-[0_0_50px_rgba(168,85,247,0.2)] flex flex-col">
+                            <div class="p-6 border-b border-gray-800 flex justify-between items-center bg-gray-950/80">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                                        <x-heroicon-o-shield-check class="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h3 class="text-white font-bold font-serif text-xl">KI-Sicherheitsanalyse (Threat Report)</h3>
+                                        <p class="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-0.5">{{ $latestSecurityReport }}</p>
+                                    </div>
+                                </div>
+                                <button wire:click="closeSecurityReportModal" class="text-gray-500 bg-gray-800/50 p-2 rounded-full hover:bg-gray-700 hover:text-white transition-colors">
+                                    <x-heroicon-o-x-mark class="w-6 h-6" />
+                                </button>
+                            </div>
+                            <div class="p-6 overflow-y-auto flex-1 custom-scrollbar text-xs sm:text-sm text-gray-300">
+                                <div class="whitespace-pre-wrap font-mono text-xs bg-gray-950 p-4 rounded-xl border border-gray-800 text-gray-300 leading-relaxed">{{ $securityReportContent }}</div>
+                            </div>
+                            <div class="p-4 border-t border-gray-800 bg-gray-950 flex justify-end gap-3">
+                                <button wire:click="closeSecurityReportModal" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition-colors">
+                                    Schließen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             <!-- 4. CAPACITIES (SPEICHER & PRODUKTION) -->
