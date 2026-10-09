@@ -48,25 +48,60 @@ trait ManagesAiChat
     #[Computed]
     public function chatSessions()
     {
-        return \App\Models\Ai\AiChatSession::where('user_id', auth()->id())
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        $userId = auth()->id();
+        $query = \App\Models\Ai\AiChatSession::where('is_archived', false);
+        if ($userId) {
+            $query->where('user_id', $userId);
+        }
+        return $query->orderBy('updated_at', 'desc')->get();
     }
 
     public function createNewChat()
     {
+        $userId = auth()->id();
         $session = \App\Models\Ai\AiChatSession::create([
-            'user_id' => auth()->id(),
+            'user_id' => $userId,
             'title' => 'Neuer Chat',
         ]);
         $this->currentChatSessionId = $session->id;
-        $this->messages; // trigger re-render
+        
+        $sessions = $this->chatSessions();
+        $formattedSessions = $sessions->map(fn($s) => [
+            'id' => (string) $s->id,
+            'title' => (string) ($s->title ?? 'Neuer Chat')
+        ])->values()->toArray();
+
+        $payload = [
+            'sessionId' => (string) $session->id,
+            'sessionTitle' => (string) $session->title,
+            'sessions' => $formattedSessions
+        ];
+
+        $this->dispatch('chat-session-created', $payload);
+
+        return $payload;
     }
 
     public function switchChat($id)
     {
         $this->currentChatSessionId = $id;
-        $this->messages; // trigger re-render
+        $messages = $this->messages();
+        
+        $payload = [
+            'sessionId' => (string) $id,
+            'messages' => $messages
+        ];
+
+        $this->dispatch('chat-session-switched', $payload);
+
+        return $payload;
+    }
+
+    public function updatedCurrentChatSessionId($value)
+    {
+        if (!empty($value)) {
+            $this->switchChat($value);
+        }
     }
 
     public function deleteChats(array $ids)

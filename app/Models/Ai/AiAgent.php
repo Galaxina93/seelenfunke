@@ -50,6 +50,24 @@ class AiAgent extends Model
         return $this->belongsTo(AiRole::class, 'ai_role_id');
     }
 
+    protected $appends = [
+        'profile_picture_url',
+    ];
+
+    public function getProfilePictureUrlAttribute()
+    {
+        if (!$this->profile_picture) {
+            return null;
+        }
+        if (\Illuminate\Support\Str::startsWith($this->profile_picture, 'http://') || \Illuminate\Support\Str::startsWith($this->profile_picture, 'https://')) {
+            return $this->profile_picture;
+        }
+        if (\Illuminate\Support\Str::startsWith($this->profile_picture, 'shop/') || \Illuminate\Support\Str::startsWith($this->profile_picture, 'shopverwaltung/images/') || \Illuminate\Support\Str::startsWith($this->profile_picture, '/')) {
+            return asset($this->profile_picture);
+        }
+        return \Illuminate\Support\Facades\Storage::url($this->profile_picture);
+    }
+
     // Accessor for backward compatibility and role inheritance
     public function getToolsAttribute()
     {

@@ -48,8 +48,9 @@
             heartbeatAudio: null,
         };
 
-        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialAgentName = 'System', initialAllowInterruption = false) => ({
+        Alpine.data('funkiView', (initialAgentColor = 'emerald-500', initialAgentId = null, initialState = 'good', initialSparks = 42, avgProfit = 0, totalOrders = 0, lastSync = '', initialVolume = 15, initialAgentName = 'System', initialAllowInterruption = false, initialProfilePicture = '') => ({
             activeAgentName: initialAgentName,
+            activeAgentProfilePicture: initialProfilePicture || '{{ $agentProfilePicture ?? ($widgetAgent ? $widgetAgent->profile_picture_url : "") }}',
             // State
             agentColor: initialAgentColor,
             activeAgentId: initialAgentId,
@@ -70,7 +71,9 @@
             isBrainMode: false,
             isFlightDataActive: false,
             isSecretMode: false,
-            currentChatSessionId: null,
+            currentChatSessionId: '{{ $currentChatSessionId ?? $this->currentChatSessionId }}',
+            chatSessions: @js($this->chatSessions()->map(fn($s) => ['id' => (string)$s->id, 'title' => (string)($s->title ?? 'Neuer Chat')])->values()->toArray()),
+            agentsMap: @js(collect($availableAgents ?? \App\Models\Ai\AiAgent::where('is_active', true)->get())->keyBy('id')->map(fn($a) => ['id' => (string)$a->id, 'name' => (string)$a->name, 'color' => (string)$a->color, 'profile_picture_url' => (string)($a->profile_picture_url ?? '')])->toArray()),
             isJarvis: false,
             jarvisMinimized: false,
             showJarvisFlash: false,
@@ -235,13 +238,18 @@
                 return msg.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '');
             },
 
-            updateAgentConfig(color, name, wakeWord, agentId) {
+            updateAgentConfig(color, name, wakeWord, agentId, profilePicture) {
                 this.sessionResumptionHandle = null;
                 this.reconnectAttempts = 0;
                 this.agentColor = color || 'emerald-500';
                 if (name) this.activeAgentName = name;
                 if (wakeWord) this.agentWakeWord = wakeWord.toLowerCase();
                 if (agentId) this.activeAgentId = agentId;
+                if (profilePicture !== undefined && profilePicture !== null && profilePicture !== '') {
+                    this.activeAgentProfilePicture = profilePicture;
+                } else if (this.agentsMap && this.agentsMap[agentId] && this.agentsMap[agentId].profile_picture_url) {
+                    this.activeAgentProfilePicture = this.agentsMap[agentId].profile_picture_url;
+                }
                 this.updateCoreColor(true);
 
                 if (this.isLiveMode) {
@@ -249,6 +257,88 @@
                     setTimeout(() => {
                         this.toggleLiveMode(); // Gracefully turn it back on after cleanup
                     }, 1200); // 1.2s gives the old AudioContext and WebSocket enough time to fully close
+                }
+            },
+
+            onAgentSelectChange(newId) {
+                if (this.agentsMap && this.agentsMap[newId]) {
+                    const ag = this.agentsMap[newId];
+                    this.activeAgentName = ag.name;
+                    this.agentColor = ag.color;
+                    this.activeAgentProfilePicture = ag.profile_picture_url;
+                    this.activeAgentId = newId;
+                    this.updateCoreColor(true);
+                }
+            },
+
+            handleChatSessionCreated(detail) {
+                if (Array.isArray(detail)) detail = detail[0];
+                if (detail && detail.payload) detail = detail.payload;
+                if (!detail) return;
+
+                if (detail.sessionId) {
+                    this.currentChatSessionId = detail.sessionId;
+                }
+                if (detail.sessions && Array.isArray(detail.sessions)) {
+                    this.chatSessions = detail.sessions;
+                } else if (detail.sessionId) {
+                    if (!this.chatSessions.some(s => s.id === detail.sessionId)) {
+                        this.chatSessions.unshift({ id: detail.sessionId, title: detail.sessionTitle || 'Neuer Chat' });
+                    }
+                }
+                this.chatHistory = [];
+                this.currentLiveTranscript = "";
+                this.currentUserLiveTranscript = "";
+                this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: 'Neuer Chat gestartet' });
+            },
+
+            handleChatSessionSwitched(detail) {
+                if (Array.isArray(detail)) detail = detail[0];
+                if (detail && detail.payload) detail = detail.payload;
+                if (!detail) return;
+
+                if (detail.sessionId) {
+                    this.currentChatSessionId = detail.sessionId;
+                }
+                if (detail.messages && Array.isArray(detail.messages)) {
+                    this.chatHistory = detail.messages;
+                }
+                this.currentLiveTranscript = "";
+                this.currentUserLiveTranscript = "";
+                this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: 'Chat gewechselt' });
+            },
+
+            async createNewChatSession() {
+                this.chatHistory = [];
+                this.currentLiveTranscript = "";
+                this.currentUserLiveTranscript = "";
+                this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: 'Erstelle neuen Chat...' });
+
+                try {
+                    if (this.$wire && typeof this.$wire.createNewChat === 'function') {
+                        const res = await this.$wire.createNewChat();
+                        if (res && res.sessionId) {
+                            this.handleChatSessionCreated(res);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Erstellen des Chats:', e);
+                }
+            },
+
+            async switchChatSession(sessionId) {
+                if (!sessionId) return;
+                this.currentChatSessionId = sessionId;
+
+                try {
+                    if (this.$wire && typeof this.$wire.switchChat === 'function') {
+                        const res = await this.$wire.switchChat(sessionId);
+                        if (res && res.messages) {
+                            this.handleChatSessionSwitched(res);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Fehler beim Wechseln des Chats:', e);
                 }
             },
 
@@ -1792,6 +1882,7 @@
                     try { this.liveRecognition.abort(); } catch(e) {}
                     try { this.liveRecognition.stop(); } catch(e) {}
                     this.liveRecognition = null;
+                }
                 if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
                     let remainingAiTxt = this.currentLiveTranscript.trim();
                     let agentName = this.activeAgentName || 'Funkira';

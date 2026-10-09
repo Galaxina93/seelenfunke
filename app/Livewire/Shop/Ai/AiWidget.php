@@ -114,7 +114,8 @@ class AiWidget extends Component
                 color: $agent->color,
                 name: $agent->name,
                 wakeWord: strtolower($agent->wake_word ?? $agent->name),
-                agentId: $agent->id
+                agentId: $agent->id,
+                profilePicture: $agent->profile_picture_url
             );
         }
     }

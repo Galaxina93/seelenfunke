@@ -1,4 +1,4 @@
-<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}', {{ ($widgetConfig && !is_null($widgetConfig->allow_voice_interruption)) ? ($widgetConfig->allow_voice_interruption ? 'true' : 'false') : 'false' }})"
+<div x-data="funkiView('{{ $agentColor ?? 'emerald-500' }}', '{{ $agentId }}', 'good', 42, 0, 0, '', {{ $widgetConfig ? $widgetConfig->volume : 15 }}, '{{ addslashes($agentName ?? "System") }}', {{ ($widgetConfig && !is_null($widgetConfig->allow_voice_interruption)) ? ($widgetConfig->allow_voice_interruption ? 'true' : 'false') : 'false' }}, '{{ $agentProfilePicture ?? ($widgetAgent ? $widgetAgent->profile_picture_url : '') }}')"
      wire:ignore
      @open-funkira.window="openFunkiView()"
      @close-funkira.window="closeFunkiView()"
@@ -7,7 +7,9 @@
      @ai-speech-feedback.window="speakFeedback($event.detail.text)"
      @request-clipboard.window="readClipboard()"
      @write-clipboard.window="writeClipboard($event.detail.text)"
-     @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId)"
+     @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId, $event.detail.profilePicture)"
+     @chat-session-created.window="handleChatSessionCreated($event.detail)"
+     @chat-session-switched.window="handleChatSessionSwitched($event.detail)"
      @ai-switch-agent.window="handleAgentSwitch($event.detail.agent_id)"
      @toggle-mapfocus.window="console.log('toggle-mapfocus', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isMapFocus = (d && (d.active === true || d.active === 'true' || d.active === 1)); if(isMapFocus) { isMapMode = true; }"
      @map-fly-to.window="console.log('map-fly-to', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.flyToLocation === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.flyToLocation(p.lng, p.lat, p.zoom, p.pitch, p.markerText); }"
@@ -116,27 +118,81 @@
     </div>
 
     <!-- DAS HAUPT-DOCK -->
-    <div x-show="!(isMobile && isMapFocus)" class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-24 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-4">
+    <div x-show="!(isMobile && isMapFocus)" class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-28 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-3">
         <div class="flex flex-col gap-3">
-            <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-3">
-                <div class="flex flex-col gap-3">
+            <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/50 border-b border-emerald-900/30 pb-3 mb-1 flex flex-col gap-2.5">
+                <div class="flex flex-col gap-2.5">
                     <div class="leading-tight break-words break-all hyphens-auto flex flex-col gap-2 w-full">
                         <div class="flex items-center justify-between">
-                            <span>Live-AI</span>
-                            <button wire:click.stop="createNewChat" class="text-[var(--theme-color)] hover:text-white" title="Neuen Chat erstellen">
-                                <x-heroicon-o-plus class="w-3 h-3" />
+                            <span class="text-[10px] font-black tracking-widest text-emerald-400">Live-AI</span>
+                            <button type="button"
+                                    @click.stop="createNewChatSession()" 
+                                    class="text-emerald-400 hover:text-white p-1 rounded hover:bg-emerald-950/60 transition-colors flex items-center justify-center cursor-pointer" 
+                                    title="Neuen Chat erstellen">
+                                <x-heroicon-o-plus class="w-3.5 h-3.5" />
                             </button>
                         </div>
-                        <select wire:model.live="agentId" class="w-full bg-black/50 border border-emerald-900/50 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none">
-                            @foreach($availableAgents as $agent)
-                                <option value="{{ $agent->id }}">{{ $agent->name }}</option>
-                            @endforeach
-                        </select>
-                        <select wire:model.live="currentChatSessionId" class="w-full bg-black/50 border border-emerald-900/50 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none" title="Chat Referenz">
-                            @foreach($this->chatSessions() as $chat)
-                                <option value="{{ $chat->id }}">{{ Str::limit($chat->title, 15) }}</option>
-                            @endforeach
-                        </select>
+
+                        <!-- AGENT PROFILBILD RUND & SCHICK -->
+                        <div class="flex flex-col items-center justify-center my-0.5">
+                            <div class="relative group/avatar cursor-pointer" 
+                                 @click="$dispatch('open-funkira')" 
+                                 :title="'Aktiver Agent: ' + (activeAgentName || 'Funkira')">
+                                <div class="absolute -inset-1 rounded-full blur-sm opacity-60 transition-all duration-300 group-hover/avatar:opacity-100 animate-pulse"
+                                     :style="'background: ' + getHexColorStr(agentColor)"></div>
+                                <div class="relative w-10 h-10 rounded-full overflow-hidden border-2 bg-gray-900 flex items-center justify-center transition-all duration-300 group-hover/avatar:scale-105 shadow-[0_0_12px_rgba(0,0,0,0.8)]"
+                                     :style="'border-color: ' + getHexColorStr(agentColor)">
+                                    <template x-if="activeAgentProfilePicture">
+                                        <img :src="activeAgentProfilePicture" 
+                                             :alt="activeAgentName" 
+                                             class="w-full h-full object-cover">
+                                    </template>
+                                    <template x-if="!activeAgentProfilePicture">
+                                        <div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-black text-white font-bold text-[10px]">
+                                            <span x-text="activeAgentName ? activeAgentName.substring(0, 2).toUpperCase() : 'AI'"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black bg-emerald-400 shadow-[0_0_6px_#34d399]"></div>
+                            </div>
+                        </div>
+
+                        <!-- AGENT DROPDOWN -->
+                        <div class="relative w-full">
+                            <select wire:model.live="agentId" 
+                                    @change="onAgentSelectChange($event.target.value)"
+                                    class="w-full bg-black/60 border border-emerald-900/60 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate"
+                                    title="Agent auswählen">
+                                @foreach($availableAgents as $agent)
+                                    <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-emerald-600">
+                                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- CHAT SESSIONS DROPDOWN -->
+                        <div class="relative w-full">
+                            <select x-model="currentChatSessionId" 
+                                    @change="switchChatSession($event.target.value)"
+                                    class="w-full bg-black/60 border border-emerald-900/60 rounded text-[9px] text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate" 
+                                    title="Chat Referenz">
+                                <template x-for="chat in chatSessions" :key="chat.id">
+                                    <option :value="chat.id" :selected="chat.id === currentChatSessionId" x-text="chat.title && chat.title.length > 14 ? chat.title.substring(0, 14) + '...' : (chat.title || 'Chat')"></option>
+                                </template>
+                                @if(empty($this->chatSessions()))
+                                    <option value="">(Kein Chat)</option>
+                                @endif
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-emerald-600">
+                                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
 
                     <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-500 hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">
@@ -908,7 +964,7 @@
                 <div class="text-[10px] font-black uppercase tracking-widest text-emerald-500/80 border-b border-emerald-900/30 pb-2 mb-1 shrink-0 flex justify-between items-center">
                     <span>Chat Verlauf</span>
                     <div class="flex items-center gap-1">
-                        <button @click="chatHistory = []; currentChatSessionId = null; $wire.createNewChat()" class="text-emerald-500 hover:text-emerald-400 p-1 transition-colors" title="Neuen Chat starten">
+                        <button @click="createNewChatSession()" class="text-emerald-500 hover:text-emerald-400 p-1 transition-colors" title="Neuen Chat starten">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                         </button>
                         <button @click="showWorkspaceModal = false" class="text-rose-500 hover:text-rose-400 p-1 transition-colors" title="Schließen">
