@@ -507,6 +507,8 @@ class AIController extends Controller
             'ws_url' => config('services.gemini.proxy_ws_url') ?: 'ws://' . request()->getHost() . ':8089/gemini-live',
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
+            'agent_id' => $aiAgent ? $aiAgent->id : null,
+            'agent_name' => $agentName,
             'tools' => [['functionDeclarations' => $functionDeclarations]],
         ]);
     }

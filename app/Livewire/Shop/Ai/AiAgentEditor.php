@@ -25,7 +25,7 @@ class AiAgentEditor extends Component
     public $wake_word = '';
     public $role_description = '';
     public $system_prompt = '';
-    public $model = 'gemini-2.5-flash';
+    public $model = 'gemini-3.8-flash';
     public $temperature = 0.4;
     public $activePreset = null; // Tracks the currently clicked preset button
     public $is_active = true;
@@ -43,6 +43,7 @@ class AiAgentEditor extends Component
     public $existing_profile_picture = null;
     public $profile_picture;
     public $inheritedDept = null;
+    public $savedMessage = null;
 
     // Validierte Paletten
     public $availableColors = [
@@ -53,10 +54,11 @@ class AiAgentEditor extends Component
     ];
 
     public $availableModels = [
-        'gemini-3.5-flash' => 'Google Gemini 3.5 Flash',
-        'gemini-2.5-pro' => 'Google Gemini 2.5 Pro (Standard)',
-        'gemini-2.5-flash' => 'Google Gemini 2.5 Flash',
-        'gemini-3.1-pro-preview' => 'Google Gemini 3.1 Pro Preview'
+        'gemini-3.8-flash' => 'Google Gemini 3.8 Flash (Flaggschiff / Empfohlen)',
+        'gemini-3.1-pro' => 'Google Gemini 3.1 Pro (Deep Reasoning, Code & Audit)',
+        'gemini-3.5-flash-lite' => 'Google Gemini 3.5 Flash-Lite (Ultra-Speed)',
+        'gemini-3.5-flash' => 'Google Gemini 3.5 Flash (Standard)',
+        'gemini-2.5-flash' => 'Google Gemini 2.5 Flash (Legacy)'
     ];
 
     public $ttsProviders = [
@@ -67,42 +69,73 @@ class AiAgentEditor extends Component
 
     public $ttsVoices = [
         'gemini_native' => [
-            'Puck' => 'Puck (Neutral)',
-            'Charon' => 'Charon (Tief)',
-            'Kore' => 'Kore (Sanft)',
-            'Fenrir' => 'Fenrir (Energetisch)',
-            'Aoede' => 'Aoede (Ruhig)',
+            // Weibliche Stimmen
+            'Aoede' => 'Aoede (Weiblich: Natürlich, Entspannt)',
+            'Kore' => 'Kore (Weiblich: Bestimmt, Autoritär, CEO)',
+            'Zephyr' => 'Zephyr (Weiblich: Frisch, Freundlich, Strahlend)',
+            'Callirrhoe' => 'Callirrhoe (Weiblich: Sanft, Empathisch, Deeskalierend)',
+            'Autonoe' => 'Autonoe (Weiblich: Klar, Hell, Strukturiert)',
+            'Laomedeia' => 'Laomedeia (Weiblich: Lebhaft, Mitreißend, Werblich)',
+            'Despina' => 'Despina (Weiblich: Melodisch, Geschmeidig)',
+            'Erinome' => 'Erinome (Weiblich: Eloquent, Artikuliert, Klar)',
+            'Leda' => 'Leda (Weiblich: Jugendlich, Energisch)',
+            'Achernar' => 'Achernar (Weiblich: Weich, Warmherzig)',
+            'Gacrux' => 'Gacrux (Weiblich: Beruhigend, Vertrauensvoll)',
+            'Pulcherrima' => 'Pulcherrima (Weiblich: Elegant, Vornehm)',
+
+            // Männliche Stimmen
+            'Puck' => 'Puck (Männlich: Optimistisch, Agil, Direkt)',
+            'Charon' => 'Charon (Männlich: Tief, Sonor, Intellektuell-Ruhig)',
+            'Fenrir' => 'Fenrir (Männlich: Kraftvoll, Leidenschaftlich, Energetisch)',
+            'Orus' => 'Orus (Männlich: Streng, Akkurat, Geschäftsmäßig Fest)',
+            'Algieba' => 'Algieba (Männlich: Charismatisch, Geschmeidig, Überzeugend)',
+            'Iapetus' => 'Iapetus (Männlich: Klar, Resonant, Vertrauenswürdig)',
+            'Sadachbia' => 'Sadachbia (Männlich: Technisch, Streng Monoton, Digital)',
+            'Umbriel' => 'Umbriel (Männlich: Lässig, Weltgewandt, Entspannt)',
+            'Alnilam' => 'Alnilam (Männlich: Fokussiert, Sicherheitsbewusst, Fest)',
+            'Schedar' => 'Schedar (Männlich: Sachlich, Gleichmäßig, Unaufgeregt)',
+            'Enceladus' => 'Enceladus (Männlich: Sanft, Hauchig, Bedächtig)',
+            'Algenib' => 'Algenib (Männlich: Reif, Rau, Lebenserfahren)',
+            'Rasalgethi' => 'Rasalgethi (Männlich: Analytisch, Detailfokussiert)',
+            'Zubenelgenubi' => 'Zubenelgenubi (Männlich: Sehr Tief, Gravitätisch)'
         ]
     ];
 
     public $modelDetails = [
+        'gemini-3.8-flash' => [
+            'type' => 'Chat + Vision + Reasoning (Flaggschiff)', 
+            'capabilities' => 'Text, Bild, Audio, Video, Tool-Calling', 
+            'context' => '1.000.000 Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Neueste State-of-the-Art Flash Architektur', 'Blitzschnelle Tool-Ausführung & Reaktionszeiten', 'Multimodale Alltags- und Führungsaufgaben']
+        ],
+        'gemini-3.1-pro' => [
+            'type' => 'Chat + Deep Reasoning + Code (Pro Grade)', 
+            'capabilities' => 'Text, Bild, Video, Advanced Tool-Calling', 
+            'context' => '2.000.000+ Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Tiefe Finanz-, Steuer- und Rechtsanalysen', 'Komplexeste System-Architektur & Programmierung', 'Fehlerfreie mathematische und logische Deduktion']
+        ],
+        'gemini-3.5-flash-lite' => [
+            'type' => 'Chat + Vision (Ultra-High Throughput)', 
+            'capabilities' => 'Text, Bild, Tool-Calling', 
+            'context' => '1.000.000 Token', 
+            'license' => 'Google Proprietary',
+            'use_cases' => ['Extrem geringe Latenz', 'Sehr hohe Taktung & Vorratsprüfung', 'Kosteneffiziente Standardabfragen']
+        ],
         'gemini-3.5-flash' => [
             'type' => 'Chat + Vision (Next-Gen GA)', 
             'capabilities' => 'Text, Bild, Video, Tool-Calling', 
             'context' => '1.000.000 Token', 
             'license' => 'Google Proprietary',
-            'use_cases' => ['Extreme Geschwindigkeit & Effizienz', 'Signifikant verbessertes Reasoning', 'Alltags-Begleiter mit State-of-the-Art Performance']
-        ],
-        'gemini-2.5-pro' => [
-            'type' => 'Chat + Reasoning + Vision', 
-            'capabilities' => 'Text, Bild, Tool-Calling', 
-            'context' => '2.000.000 Token', 
-            'license' => 'Google Proprietary',
-            'use_cases' => ['Extreme Datenanalysen', 'Sehr tiefe Code-Erstellung', 'Auswertung gigantischer Kontextmengen']
+            'use_cases' => ['Sehr gute Allround-Performance', 'Schnelle Tool-Ausführung', 'Zuverlässiger Standard-Betrieb']
         ],
         'gemini-2.5-flash' => [
-            'type' => 'Chat + Vision', 
+            'type' => 'Chat + Vision (Legacy)', 
             'capabilities' => 'Text, Bild, Tool-Calling', 
             'context' => '1.000.000 Token', 
             'license' => 'Google Proprietary',
-            'use_cases' => ['Blitzschneller Kundenchat', 'Hohe Frequenz, geringe Kosten', 'Alltags-Begleiter']
-        ],
-        'gemini-3.1-pro-preview' => [
-            'type' => 'Chat + Reasoning + Vision (State of the Art)', 
-            'capabilities' => 'Text, Bild, Video, Tool-Calling', 
-            'context' => '2.000.000+ Token', 
-            'license' => 'Google Proprietary',
-            'use_cases' => ['Komplexeste Analysen', 'Erstellung von Architektur-Code', 'Aufwendiges Multi-Agent reasoning']
+            'use_cases' => ['Rückwärtskompatibilität']
         ]
     ];
 
@@ -216,6 +249,90 @@ class AiAgentEditor extends Component
         $this->updateContextLoad();
     }
 
+    public function updatedModel($value)
+    {
+        $this->model = $value;
+        $this->updateContextLoad();
+        $this->autoSaveModelOrVoice();
+    }
+
+    public function updatedTtsVoice($value)
+    {
+        $this->tts_voice = $value;
+        $this->autoSaveModelOrVoice();
+
+        if ($this->tts_enabled && $this->tts_provider !== 'none') {
+            $this->playVoiceSample($value);
+        }
+    }
+
+    public function playVoiceSample($voice = null)
+    {
+        $voice = $voice ?: $this->tts_voice;
+        if (empty($voice)) {
+            $voice = 'Aoede';
+        }
+
+        $sampleText = "Guten Tag! Dies ist eine Hörprobe meiner Stimme für deinen KI-Agenten.";
+
+        if ($this->tts_provider === 'gemini_native') {
+            $wavBase64 = \App\Services\AI\GeminiTtsService::synthesizeWav($sampleText, $voice);
+            if ($wavBase64) {
+                $this->dispatch('play-voice-sample', audio: 'data:audio/wav;base64,' . $wavBase64, voice: $voice);
+                return;
+            }
+        }
+
+        // Browser fallback
+        $this->dispatch('play-browser-voice-sample', text: $sampleText, speed: $this->tts_speed ?: 1.0, voice: $voice);
+    }
+
+    public function updatedTtsProvider($value)
+    {
+        $this->tts_provider = $value;
+        $availableVoices = array_keys($this->ttsVoices[$value] ?? []);
+        if (!empty($availableVoices) && !in_array($this->tts_voice, $availableVoices)) {
+            $this->tts_voice = $availableVoices[0];
+        }
+        $this->autoSaveModelOrVoice();
+    }
+
+    public function updatedTtsEnabled($value)
+    {
+        $this->tts_enabled = (bool) $value;
+        $this->autoSaveModelOrVoice();
+    }
+
+    public function autoSaveModelOrVoice()
+    {
+        $voiceLabel = $this->getActiveVoiceLabel();
+
+        if ($this->agentId && $this->agentId !== 'new') {
+            $agent = AiAgent::find($this->agentId);
+            if ($agent) {
+                $agent->model = $this->model;
+                $agent->tts_enabled = (bool) $this->tts_enabled;
+                $agent->tts_provider = $this->tts_provider;
+                $agent->tts_voice = empty($this->tts_voice) ? null : $this->tts_voice;
+                $agent->save();
+            }
+        }
+
+        $this->savedMessage = "Gespeichert • Aktive Stimme: {$voiceLabel}";
+        $this->dispatch('agent-saved', message: $this->savedMessage);
+    }
+
+    public function getActiveVoiceLabel(): string
+    {
+        if (!$this->tts_enabled || $this->tts_provider === 'none') {
+            return 'Deaktiviert';
+        }
+        if (!empty($this->tts_voice)) {
+            return $this->ttsVoices[$this->tts_provider][$this->tts_voice] ?? $this->tts_voice;
+        }
+        return 'Standard';
+    }
+
     public function updated($propertyName)
     {
         if (in_array($propertyName, ['model', 'system_prompt', 'ai_role_id'])) {
@@ -324,13 +441,18 @@ class AiAgentEditor extends Component
             
             $path = $this->profile_picture->store('agenten/avatars', 'public');
             $agent->profile_picture = $path;
+            $this->existing_profile_picture = $path;
+            $this->profile_picture = null;
         }
 
         $agent->save();
 
-        session()->flash('message', 'Agent Profil erfolgreich gespeichert.');
+        if ($this->agentId === 'new') {
+            $this->agentId = $agent->id;
+        }
 
-        return redirect()->route('admin.ai-company-structure');
+        $this->savedMessage = 'Gespeichert';
+        $this->dispatch('agent-saved', message: 'Gespeichert');
     }
 
     public function deleteProfilePicture()

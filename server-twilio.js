@@ -296,6 +296,8 @@ function handleTwilioConnection(ws) {
     let geminiPingInterval = null;
     let callContext = {};
     let callTranscript = [];
+    let currentAiTurn = "";
+    let currentUserTurn = "";
     let callStartTime = null;
     let callLogged = false;
     let shouldEndCall = false;
@@ -305,6 +307,15 @@ function handleTwilioConnection(ws) {
         callLogged = true;
         console.log('⏹️ Call beendet. Sende Log an Backend...');
         
+        if (currentUserTurn.trim()) {
+            callTranscript.push(`Anrufer: ${currentUserTurn.trim()}`);
+            currentUserTurn = "";
+        }
+        if (currentAiTurn.trim()) {
+            callTranscript.push(`KI: ${currentAiTurn.trim()}`);
+            currentAiTurn = "";
+        }
+
         const duration = callStartTime ? Math.floor((Date.now() - callStartTime) / 1000) : 0;
         const payload = JSON.stringify({
             twilio_sid: streamSid,
@@ -417,7 +428,9 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                                 }
                             }
                         }
-                    }
+                    },
+                    inputAudioTranscription: {},
+                    outputAudioTranscription: {}
                 }
             };
             safeSend(geminiWs, JSON.stringify(setupMessage));
@@ -449,7 +462,28 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                 }
             }
 
+            if (response.serverContent?.outputTranscription?.text) {
+                const aiDelta = response.serverContent.outputTranscription.text;
+                debugLog('Gemini output transcription delta: ' + aiDelta);
+                currentAiTurn += aiDelta;
+            }
+
+            if (response.serverContent?.inputTranscription?.text) {
+                const userDelta = response.serverContent.inputTranscription.text;
+                debugLog('User audio text delta: ' + userDelta);
+                currentUserTurn += userDelta;
+            }
+
             if (response.serverContent?.turnComplete) {
+                if (currentUserTurn.trim()) {
+                    callTranscript.push(`Anrufer: ${currentUserTurn.trim()}`);
+                    currentUserTurn = "";
+                }
+                if (currentAiTurn.trim()) {
+                    callTranscript.push(`KI: ${currentAiTurn.trim()}`);
+                    currentAiTurn = "";
+                }
+
                 if (shouldEndCall) {
                     console.log('☎️ KI ist fertig mit Sprechen. Sende Mark-Event an Twilio.');
                     safeSend(ws, JSON.stringify({
@@ -462,19 +496,13 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                 }
             }
 
-            if (response.serverContent?.inputTranscription?.text) {
-                const userText = response.serverContent.inputTranscription.text;
-                debugLog('User audio text: ' + userText);
-                callTranscript.push(`Anrufer: ${userText}`);
-            }
-
             // Wenn Gemini Text zurückgibt (als Transcript), speichern wir ihn
             if (response.serverContent?.modelTurn?.parts) {
                 const parts = response.serverContent.modelTurn.parts;
                 for (const part of parts) {
                     if (part.text) {
                         debugLog('Gemini text response: ' + part.text);
-                        callTranscript.push(`KI: ${part.text}`);
+                        currentAiTurn += part.text;
                     }
                     if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
                         debugLog('Gemini sent audio chunk. Base64 length: ' + part.inlineData.data.length);
@@ -522,6 +550,10 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                     event: 'clear',
                     streamSid: streamSid
                 }));
+                if (currentAiTurn.trim()) {
+                    callTranscript.push(`KI: ${currentAiTurn.trim()} (unterbrochen)`);
+                    currentAiTurn = "";
+                }
             } else if (response.setupComplete) {
                 debugLog("Gemini Setup erfolgreich bestätigt!");
                 // KI wartet nun durch den System-Prompt nativ auf die Audio-Eingabe (Hallo) des Angerufenen.

@@ -13,6 +13,32 @@
             </div>
         </div>
 
+        <!-- Live Notification Banner (Top) -->
+        <div x-data="{ show: false, message: '', timeout: null }"
+             x-on:agent-saved.window="
+                 message = $event.detail.message;
+                 show = true;
+                 clearTimeout(timeout);
+                 timeout = setTimeout(() => { show = false; }, 4000);
+             "
+             x-show="show"
+             x-transition:enter="transition ease-out duration-300 transform"
+             x-transition:enter-start="opacity-0 -translate-y-2"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-300 transform"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 -translate-y-2"
+             class="bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-5 py-3.5 rounded-2xl mb-6 font-mono text-sm shadow-[0_0_20px_rgba(16,185,129,0.25)] backdrop-blur-md flex items-center justify-between"
+             style="display: none;">
+            <div class="flex items-center gap-3">
+                <div class="h-6 w-6 rounded-lg bg-emerald-500/30 border border-emerald-500/50 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-emerald-300"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
+                </div>
+                <span class="font-bold" x-text="message"></span>
+            </div>
+            <span class="text-[10px] text-emerald-400/70 uppercase tracking-widest font-mono hidden sm:inline-block">Auto-Save aktiv (4s)</span>
+        </div>
+
         @if (session()->has('message'))
             <div class="bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-4 py-3 rounded-lg mb-6 font-mono text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center gap-3">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
@@ -365,9 +391,23 @@
 
                 <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <!-- Modell Select -->
-                    <div x-data="{ selectedModel: $wire.entangle('model'), details: @js($modelDetails) }">
+                    <div x-data="{ selectedModel: $wire.entangle('model').live, details: @js($modelDetails) }">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                            Künstliches Intelligenz Modell <span class="text-red-500">*</span>
+                            <span>Künstliches Intelligenz Modell <span class="text-red-500">*</span></span>
+                            <span x-data="{ show: false, msg: '', timeout: null }"
+                                  x-on:agent-saved.window="
+                                      msg = $event.detail.message;
+                                      show = true;
+                                      clearTimeout(timeout);
+                                      timeout = setTimeout(() => { show = false; }, 4000);
+                                  "
+                                  x-show="show"
+                                  x-transition
+                                  class="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                                  style="display: none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-emerald-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
+                                <span x-text="msg"></span>
+                            </span>
                         </label>
                         <div class="relative">
                             <select x-model="selectedModel" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
@@ -384,8 +424,8 @@
                         <div x-show="details[selectedModel]" x-transition class="mt-4 p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.05)] text-xs font-mono" style="display: none;">
                             <div class="grid grid-cols-1 gap-3">
                                 <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-1">Typische Anwendungsbeispiele</span> 
-                                    <ul class="text-indigo-200 list-disc list-inside space-y-1" x-html="(details[selectedModel]?.use_cases || []).map(u => `<li>${u}</li>`).join('')">
-                                    </ul>
+                                     <ul class="text-indigo-200 list-disc list-inside space-y-1" x-html="(details[selectedModel]?.use_cases || []).map(u => `<li>${u}</li>`).join('')">
+                                     </ul>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 border-t border-indigo-500/20 pt-3 mt-1">
                                     <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-0.5">Kontextgröße</span> <span x-text="details[selectedModel]?.context" class="text-indigo-200"></span></div>
@@ -397,10 +437,47 @@
 
                     <!-- Voice Select -->
                     <div x-data="{ 
-                        provider: $wire.entangle('tts_provider'), 
-                        voice: $wire.entangle('tts_voice'),
-                        voicesMap: @js($ttsVoices) 
-                    }">
+                        audioPlayer: null,
+                        isPlaying: false,
+                        playAudio(src) {
+                            if (this.audioPlayer) {
+                                this.audioPlayer.pause();
+                                this.audioPlayer.currentTime = 0;
+                            }
+                            this.audioPlayer = new Audio(src);
+                            this.isPlaying = true;
+                            this.audioPlayer.onended = () => { this.isPlaying = false; };
+                            this.audioPlayer.onerror = () => { this.isPlaying = false; };
+                            this.audioPlayer.play().catch(e => {
+                                console.warn('Audio play error:', e);
+                                this.isPlaying = false;
+                            });
+                        },
+                        playBrowser(text, speed) {
+                            if ('speechSynthesis' in window) {
+                                window.speechSynthesis.cancel();
+                                const utter = new SpeechSynthesisUtterance(text);
+                                utter.lang = 'de-DE';
+                                utter.rate = parseFloat(speed) || 1.0;
+                                this.isPlaying = true;
+                                utter.onend = () => { this.isPlaying = false; };
+                                utter.onerror = () => { this.isPlaying = false; };
+                                window.speechSynthesis.speak(utter);
+                            }
+                        },
+                        stopAudio() {
+                            if (this.audioPlayer) {
+                                this.audioPlayer.pause();
+                                this.audioPlayer.currentTime = 0;
+                            }
+                            if ('speechSynthesis' in window) {
+                                window.speechSynthesis.cancel();
+                            }
+                            this.isPlaying = false;
+                        }
+                    }"
+                    x-on:play-voice-sample.window="playAudio($event.detail.audio)"
+                    x-on:play-browser-voice-sample.window="playBrowser($event.detail.text, $event.detail.speed)">
                         <div class="flex items-center justify-between mb-4">
                             <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest">
                                 Sprachmodell (TTS) Konfiguration
@@ -419,7 +496,7 @@
                         <div class="space-y-4 transition-all duration-300" x-show="$wire.tts_enabled" x-collapse x-cloak>
                             <!-- Provider -->
                             <div class="relative">
-                                <select x-model="provider" @change="voice = Object.keys(voicesMap[provider] || {})[0] || ''" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
+                                <select wire:model.live="tts_provider" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
                                     @foreach($ttsProviders as $key => $label)
                                         <option value="{{ $key }}" class="bg-gray-900 text-gray-300">{{ $label }}</option>
                                     @endforeach
@@ -429,27 +506,70 @@
                                 </div>
                             </div>
 
-                            <!-- Voice (Select for predefined, Text for Toni) -->
-                            <div wire:ignore class="relative" x-show="provider !== 'none'">
-                                    <select x-show="provider !== 'toni_xttsv2'" x-model="voice" 
-                                            x-html="`<option value='' disabled>-- Stimme wählen --</option>` + Object.entries(voicesMap[provider] || {}).map(([k, v]) => `<option value='${k}' class='bg-gray-900 text-gray-300'>${v}</option>`).join('')"
-                                            class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
-                                    </select>
-                                
-                                <template x-if="provider === 'toni_xttsv2'">
-                                    <input type="text" x-model="voice" placeholder="Voice Key (z.B. voice_bab36a97)" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all">
-                                </template>
+                            @if($tts_provider !== 'none')
+                                <!-- Header with Voice Label and Play Preview Button -->
+                                <div class="flex items-center justify-between pt-1">
+                                    <label class="block text-[11px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                        <span>Aktive Stimme</span>
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <!-- Stop button if playing -->
+                                        <button x-show="isPlaying" 
+                                                @click="stopAudio()" 
+                                                type="button" 
+                                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-[11px] font-mono transition-all animate-pulse cursor-pointer"
+                                                style="display: none;">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-rose-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
+                                            </svg>
+                                            Stoppen
+                                        </button>
 
-                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 11-1.06-1.06 8.25 8.25 0 000-11.668.75.75 0 010-1.06z" /><path d="M15.932 7.757a.75.75 0 011.061 0 6 6 0 010 8.486.75.75 0 01-1.06-1.061 4.5 4.5 0 000-6.364.75.75 0 010-1.06z" /></svg>
-                                </div>
-                                
-                                <template x-if="provider !== 'toni_xttsv2'">
-                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        <!-- Play preview button -->
+                                        <button type="button" 
+                                                wire:click="playVoiceSample" 
+                                                wire:loading.attr="disabled"
+                                                wire:target="playVoiceSample"
+                                                title="Ausgewählte Stimme als Hörprobe abspielen"
+                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[11px] font-mono transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 shadow-[0_0_10px_rgba(99,102,241,0.2)]">
+                                            <span wire:loading.remove wire:target="playVoiceSample" class="flex items-center gap-1.5">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
+                                                </svg>
+                                                Hörprobe
+                                            </span>
+                                            <span wire:loading wire:target="playVoiceSample" class="flex items-center gap-1.5 text-indigo-400">
+                                                <svg class="animate-spin h-3.5 w-3.5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                Laden...
+                                            </span>
+                                        </button>
                                     </div>
-                                </template>
-                            </div>
+                                </div>
+
+                                <!-- Voice (Select for predefined, Text for Toni) -->
+                                <div class="relative">
+                                    @if($tts_provider === 'toni_xttsv2')
+                                        <input type="text" wire:model.live.debounce.500ms="tts_voice" placeholder="Voice Key (z.B. voice_bab36a97)" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all">
+                                    @else
+                                        <select wire:model.live="tts_voice" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
+                                            <option value="" disabled>-- Stimme wählen --</option>
+                                            @foreach($ttsVoices[$tts_provider] ?? [] as $key => $label)
+                                                <option value="{{ $key }}" class="bg-gray-900 text-gray-300">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
+
+                                    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 11-1.06-1.06 8.25 8.25 0 000-11.668.75.75 0 010-1.06z" /><path d="M15.932 7.757a.75.75 0 011.061 0 6 6 0 010 8.486.75.75 0 01-1.06-1.061 4.5 4.5 0 000-6.364.75.75 0 010-1.06z" /></svg>
+                                    </div>
+                                    
+                                    @if($tts_provider !== 'toni_xttsv2')
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
                             
                             <!-- Custom URL and Speed (Only for Local/XTTS) -->
                             <div x-show="provider === 'toni_xttsv2'" class="space-y-4 pt-2 border-t border-gray-800/80 mt-2" x-cloak>
@@ -482,14 +602,59 @@
 
             <div class="flex justify-between pt-6 border-t border-gray-800/80 items-center">
                 <button type="button" wire:click="cancel" class="text-gray-400 hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-900">Abbrechen</button>
-                <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
-                    <svg wire:loading.remove wire:target="save" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" /></svg>
-                    <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    Agent Speichern
-                </button>
+                <div class="flex items-center gap-4">
+                    <span x-data="{ show: false, timeout: null }"
+                          x-on:agent-saved.window="
+                              show = true;
+                              clearTimeout(timeout);
+                              timeout = setTimeout(() => { show = false; }, 4000);
+                          "
+                          x-show="show"
+                          x-transition
+                          class="text-emerald-400 font-mono text-sm font-bold flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                          style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+                        </svg>
+                        Gespeichert
+                    </span>
+                    <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
+                        <svg wire:loading.remove wire:target="save" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" /></svg>
+                        <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        Agent Speichern
+                    </button>
+                </div>
             </div>
         </form>
     </div>
 </div>
+
+    <!-- Global Floating Auto-Save Notification (4s Auto-Dismiss) -->
+    <div x-data="{ show: false, message: '', timeout: null }"
+         x-on:agent-saved.window="
+             message = $event.detail.message;
+             show = true;
+             clearTimeout(timeout);
+             timeout = setTimeout(() => { show = false; }, 4000);
+         "
+         x-show="show"
+         x-transition:enter="transition ease-out duration-300 transform"
+         x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200 transform"
+         x-transition:leave-start="opacity-100 scale-100"
+         x-transition:leave-end="opacity-0 scale-95"
+         class="fixed bottom-6 right-6 z-50 max-w-md bg-gray-900/95 border border-emerald-500/50 text-white px-5 py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(16,185,129,0.3)] backdrop-blur-xl flex items-center gap-3 font-mono text-sm pointer-events-none"
+         style="display: none;">
+        <div class="h-8 w-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+            </svg>
+        </div>
+        <div class="leading-tight">
+            <span class="text-emerald-400 font-bold block" x-text="message"></span>
+            <span class="text-[10px] text-gray-400">Automatisch synchronisiert</span>
+        </div>
+    </div>
 
 </div>

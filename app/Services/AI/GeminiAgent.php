@@ -324,18 +324,17 @@ class GeminiAgent implements AiProviderInterface
             'stream_options' => ['include_usage' => true]
         ];
 
-        // Use the configured model or default to stable gemini-2.5-flash
-        $modelName = strtolower($this->agent->model ?? 'gemini-2.5-flash');
+        // Use the configured model or default to stable flagship gemini-3.8-flash
+        $modelName = strtolower($this->agent->model ?? 'gemini-3.8-flash');
 
         // AUTOMATIC MODEL UPGRADE / DOWNGRADE:
-        // 1.x models are deprecated. 3.x models (except GA 3.5+) are too unstable and cause 150s timeouts.
-        // Force redirect to stable 2.5 architecture to ensure instant replies.
-        if (str_starts_with($modelName, 'gemini-1.') || (str_starts_with($modelName, 'gemini-3.') && !str_starts_with($modelName, 'gemini-3.5')) || str_contains($modelName, 'oss') || str_contains($modelName, 'stral')) {
+        // Automatically upgrade deprecated 1.x / 2.0 models to modern Gemini 3.x architecture.
+        if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-2.0') || str_contains($modelName, 'oss') || str_contains($modelName, 'stral')) {
             $isPro = str_contains($modelName, 'pro');
-            $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
-            $payload['model'] = $modelName;
-            #\Illuminate\Support\Facades\Log::info("Auto-mapped unstable model to: " . $modelName);
+            $modelName = $isPro ? 'gemini-3.1-pro' : 'gemini-3.8-flash';
         }
+
+        $payload['model'] = $modelName;
 
         if (!empty($filteredSchema)) {
             // BUGFIX: Google's OpenAI API wrapper silently dies with HTTP 503 Service Unavailable
@@ -580,8 +579,8 @@ class GeminiAgent implements AiProviderInterface
                 } else if ($retryCount == $maxRetries + 1 && (in_array($httpCode, [0, 429, 503]) || $curlError)) {
                     if (str_contains($payload['model'] ?? '', 'pro')) {
                         // SILENT FALLBACK AUF FLASH WENN PRO DAUERHAFT ÜBERLASTET ODER GETIMEOUTED (HTTP 0) IST
-                        Log::warning("Gemini Pro API completely overloaded or timed out. Executing silent fallback to Gemini Flash.", ['payload_size' => strlen(json_encode($payload))]);
-                        $payload['model'] = 'gemini-2.5-flash'; // Safe static fallback guaranteed to exist
+                        Log::warning("Gemini Pro API overloaded or timed out. Executing silent fallback to Gemini 3.8 Flash.", ['payload_size' => strlen(json_encode($payload))]);
+                        $payload['model'] = 'gemini-3.8-flash'; // Modern fast fallback
                         $retryCount = 0;
                         $maxRetries = 1; // Flash bekommt zügig noch maximal eine 2te Chance
 
@@ -593,10 +592,10 @@ class GeminiAgent implements AiProviderInterface
                             ], 60);
                         } catch (\Exception $e) {}
                         // Kein Sleep, da sofortiger Modell-Wechsel oft das Problem löst
-                    } else if (($payload['model'] ?? '') === 'gemini-2.5-flash') {
-                        // TOTAL OUTAGE OF 2.5 INFRASTRUCTURE! Fallback to 1.5 Flash.
-                        Log::warning("Gemini 2.5 Flash API overloaded. Executing final fallback to legacy Gemini 1.5 Flash.", ['payload_size' => strlen(json_encode($payload))]);
-                        $payload['model'] = 'gemini-1.5-flash';
+                    } else if (($payload['model'] ?? '') === 'gemini-3.8-flash' || ($payload['model'] ?? '') === 'gemini-2.5-flash') {
+                        // High load on 3.8 Flash: fallback to ultra-lightweight Flash Lite
+                        Log::warning("Gemini 3.8 Flash API overloaded. Executing fallback to Gemini 3.5 Flash Lite.", ['payload_size' => strlen(json_encode($payload))]);
+                        $payload['model'] = 'gemini-3.5-flash-lite';
                         $retryCount = 0;
                         $maxRetries = 1;
                     }
@@ -930,12 +929,12 @@ class GeminiAgent implements AiProviderInterface
 
             $url = rtrim($baseUrl, '/') . '/chat/completions';
 
-            $modelName = strtolower($payload['model'] ?? 'gemini-1.5-flash');
-            if (str_starts_with($modelName, 'gemini-1.') || (str_starts_with($modelName, 'gemini-3.') && !str_starts_with($modelName, 'gemini-3.5'))) {
+            $modelName = strtolower($payload['model'] ?? 'gemini-3.8-flash');
+            if (str_starts_with($modelName, 'gemini-1.') || str_starts_with($modelName, 'gemini-2.0') || str_contains($modelName, 'oss') || str_contains($modelName, 'stral')) {
                 $isPro = str_contains($modelName, 'pro');
-                $modelName = $isPro ? 'gemini-2.5-pro' : 'gemini-2.5-flash';
-                $payload['model'] = $modelName;
+                $modelName = $isPro ? 'gemini-3.1-pro' : 'gemini-3.8-flash';
             }
+            $payload['model'] = $modelName;
 
             $requestPayload = [
                 'model' => $payload['model'],
@@ -997,14 +996,14 @@ class GeminiAgent implements AiProviderInterface
 
                 if (in_array($httpCode, [0, 429, 503]) && $retryCount === 0) {
                     if (str_contains($payload['model'] ?? '', 'pro')) {
-                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: API Overloaded ($httpCode). Falling back to 2.5 flash.");
-                        $requestPayload['model'] = 'gemini-2.5-flash';
-                        $payload['model'] = 'gemini-2.5-flash';
+                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: API Overloaded ($httpCode). Falling back to 3.8 flash.");
+                        $requestPayload['model'] = 'gemini-3.8-flash';
+                        $payload['model'] = 'gemini-3.8-flash';
                         continue;
-                    } else if (($payload['model'] ?? '') === 'gemini-2.5-flash') {
-                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: 2.5 flash Overloaded ($httpCode). Falling back to 1.5 flash.");
-                        $requestPayload['model'] = 'gemini-1.5-flash';
-                        $payload['model'] = 'gemini-1.5-flash';
+                    } else if (($payload['model'] ?? '') === 'gemini-3.8-flash' || ($payload['model'] ?? '') === 'gemini-2.5-flash') {
+                        \Illuminate\Support\Facades\Log::warning("processDirectPrompt: 3.8 flash Overloaded ($httpCode). Falling back to 3.5 flash lite.");
+                        $requestPayload['model'] = 'gemini-3.5-flash-lite';
+                        $payload['model'] = 'gemini-3.5-flash-lite';
                         continue;
                     }
                 }

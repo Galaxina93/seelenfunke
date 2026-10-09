@@ -1220,6 +1220,9 @@
 
                     if (!creds.token) throw new Error('Token fehlt.');
 
+                    if (creds.agent_id) this.activeAgentId = creds.agent_id;
+                    if (creds.agent_name) this.activeAgentName = creds.agent_name;
+
                     // 2. Setup WebSocket
                     let wsUrl = creds.ws_url;
                     if (window.location.protocol === 'https:' && wsUrl.startsWith('ws://')) {
@@ -1251,7 +1254,9 @@
                                         }
                                     }
                                 },
-                                tools: creds.tools || []
+                                tools: creds.tools || [],
+                                inputAudioTranscription: {},
+                                outputAudioTranscription: {}
                             }
                         };
                         this.liveWs.send(JSON.stringify(setupMsg));
@@ -1520,6 +1525,35 @@
                 if (!this.hasOwnProperty('currentLiveTranscript')) {
                     this.currentLiveTranscript = "";
                 }
+                if (!this.hasOwnProperty('currentUserLiveTranscript')) {
+                    this.currentUserLiveTranscript = "";
+                }
+
+                // 1. Google Gemini Audio-Transkription für die gesprochene KI-Antwort erfassen
+                if (data.serverContent && data.serverContent.outputTranscription && data.serverContent.outputTranscription.text) {
+                    this.currentLiveTranscript += data.serverContent.outputTranscription.text;
+                }
+
+                // 2. Google Gemini Audio-Transkription für das gesprochene Wort des Benutzers erfassen
+                // (wichtig für mobile Endgeräte / Browser ohne parallele SpeechRecognition)
+                if (data.serverContent && data.serverContent.inputTranscription && data.serverContent.inputTranscription.text) {
+                    if (this.isMobile || !this.recognition) {
+                        this.currentUserLiveTranscript += data.serverContent.inputTranscription.text;
+                    }
+                }
+
+                // Sobald die KI zu sprechen beginnt, flushen wir den akkumulierten User-Text (falls per Gemini inputTranscription empfangen)
+                if (data.serverContent && (data.serverContent.modelTurn || data.serverContent.outputTranscription)) {
+                    if (this.currentUserLiveTranscript && this.currentUserLiveTranscript.trim() !== '') {
+                        let userText = this.currentUserLiveTranscript.trim();
+                        this.currentUserLiveTranscript = "";
+                        this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: userText });
+                        this.chatHistory.push({ role: 'user', content: userText });
+                        if (this.$wire) {
+                            this.$wire.saveUserLiveMessage(userText);
+                        }
+                    }
+                }
 
                 if (data.serverContent && data.serverContent.modelTurn) {
                     const parts = data.serverContent.modelTurn.parts;
@@ -1542,15 +1576,41 @@
                 if (data.serverContent && data.serverContent.turnComplete) {
                     if (this.currentLiveTranscript.trim() !== '') {
                         let finalTxt = this.currentLiveTranscript.trim();
-                        let agentName = data.agent_name || this.activeAgentName;
+                        let agentName = this.activeAgentName || data.agent_name || 'Funkira';
                         this.chatHistory.push({ role: 'assistant', content: finalTxt, name: agentName });
                         this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: finalTxt.replace(/\[.*?\]/s, '') });
+                        
+                        // Persistieren der gesprochenen KI-Antwort in der Datenbank
+                        if (this.$wire) {
+                            if (typeof this.$wire.saveAssistantLiveMessage === 'function') {
+                                this.$wire.saveAssistantLiveMessage(finalTxt, this.activeAgentId);
+                            } else if (typeof this.$wire.appendLiveChatMemory === 'function') {
+                                this.$wire.appendLiveChatMemory('assistant', finalTxt, this.activeAgentId);
+                            }
+                        }
+
                         this.currentLiveTranscript = ""; // Reset for next turn
                     }
                 }
 
                 if (data.serverContent && data.serverContent.interrupted) {
                     this.stopCurrentAudioPlayback();
+                    if (this.currentLiveTranscript.trim() !== '') {
+                        let interruptedTxt = this.currentLiveTranscript.trim();
+                        let agentName = this.activeAgentName || data.agent_name || 'Funkira';
+                        this.chatHistory.push({ role: 'assistant', content: interruptedTxt, name: agentName });
+                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: interruptedTxt.replace(/\[.*?\]/s, '') });
+                        
+                        if (this.$wire) {
+                            if (typeof this.$wire.saveAssistantLiveMessage === 'function') {
+                                this.$wire.saveAssistantLiveMessage(interruptedTxt, this.activeAgentId);
+                            } else if (typeof this.$wire.appendLiveChatMemory === 'function') {
+                                this.$wire.appendLiveChatMemory('assistant', interruptedTxt, this.activeAgentId);
+                            }
+                        }
+
+                        this.currentLiveTranscript = "";
+                    }
                 }
 
                 // Handle Tool Calls from WebSocket
@@ -1732,6 +1792,28 @@
                     try { this.liveRecognition.abort(); } catch(e) {}
                     try { this.liveRecognition.stop(); } catch(e) {}
                     this.liveRecognition = null;
+                if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
+                    let remainingAiTxt = this.currentLiveTranscript.trim();
+                    let agentName = this.activeAgentName || 'Funkira';
+                    this.chatHistory.push({ role: 'assistant', content: remainingAiTxt, name: agentName });
+                    this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: remainingAiTxt.replace(/\[.*?\]/s, '') });
+                    if (this.$wire) {
+                        if (typeof this.$wire.saveAssistantLiveMessage === 'function') {
+                            this.$wire.saveAssistantLiveMessage(remainingAiTxt, this.activeAgentId);
+                        } else if (typeof this.$wire.appendLiveChatMemory === 'function') {
+                            this.$wire.appendLiveChatMemory('assistant', remainingAiTxt, this.activeAgentId);
+                        }
+                    }
+                    this.currentLiveTranscript = "";
+                }
+                if (this.currentUserLiveTranscript && this.currentUserLiveTranscript.trim() !== '') {
+                    let remainingUserTxt = this.currentUserLiveTranscript.trim();
+                    this.currentUserLiveTranscript = "";
+                    this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: remainingUserTxt });
+                    this.chatHistory.push({ role: 'user', content: remainingUserTxt });
+                    if (this.$wire) {
+                        this.$wire.saveUserLiveMessage(remainingUserTxt);
+                    }
                 }
                 this.nextPlayTime = 0;
                 this.isSpeaking = false;
