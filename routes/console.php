@@ -71,18 +71,33 @@ try {
                     continue;
                 }
 
+                // Sub-Minuten Intervalle in Cronjob-Umgebungen auf jede Minute normalisieren,
+                // da sub-minütliche Wiederholungen (repeatEvery) ScheduleRunCommand in eine
+                // blockierende 60-Sekunden sleep()-Schleife zwingen und Mittwald Cronjobs überlappen/abbrechen lassen.
+                $schedule = $job->schedule;
+                $subMinuteSchedules = ['everySecond', 'everyTwoSeconds', 'everyFiveSeconds', 'everyTenSeconds', 'everyFifteenSeconds', 'everyTwentySeconds', 'everyThirtySeconds'];
+                if (in_array($schedule, $subMinuteSchedules)) {
+                    $schedule = 'everyMinute';
+                }
+
                 $event = Schedule::command($commandClean, $job->parameters ? explode(' ', $job->parameters) : []);
 
-                if (method_exists($event, $job->schedule)) {
-                    $event->{$job->schedule}();
+                if (method_exists($event, $schedule)) {
+                    $event->{$schedule}();
                 } else {
-                    $event->cron($job->schedule);
+                    $event->cron($schedule);
                 }
                 
-                // Verhindert Überschneidungen bei normalen Jobs
-                $event->withoutOverlapping();
-                if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
-                    $event->runInBackground();
+                // System Herzschlag (Heartbeat): MUSS synchron im selben PHP-Prozess laufen (KEIN runInBackground)
+                // und OHNE Mutex-Sperre (KEIN withoutOverlapping), damit er verlässlich in < 1ms ausgeführt wird
+                // und niemals durch verwaiste Mutex-Locks blockiert werden kann!
+                if ($commandClean === 'system:heartbeat') {
+                    $heartbeatRegistered = true;
+                } else {
+                    $event->withoutOverlapping();
+                    if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
+                        $event->runInBackground();
+                    }
                 }
 
                 $event->onSuccess(function () use ($job) {
@@ -141,6 +156,12 @@ try {
     } catch (\Throwable $innerEx) {
         // Falls DB/Cache blockiert
     }
+}
+
+// Ausfallsicherer Heartbeat-Fallback für das Health-Dashboard:
+// Stellt sicher, dass das Lebenszeichen immer geschrieben wird, falls in der DB noch kein Job angelegt oder aktiv ist
+if (!isset($heartbeatRegistered) || !$heartbeatRegistered) {
+    Schedule::command('system:heartbeat')->everyMinute();
 }
 
 Artisan::command('workspace:dateitrichter {--all : Verarbeitet alle Dokumente im gesamten Workspace}', function () {

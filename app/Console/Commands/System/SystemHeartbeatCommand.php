@@ -26,8 +26,9 @@ class SystemHeartbeatCommand extends Command
     public function handle()
     {
         try {
-            \Illuminate\Support\Facades\Cache::put('scheduler_last_run', now());
-            $this->info('Heartbeat recorded.');
+            \Illuminate\Support\Facades\Cache::put('scheduler_last_run', now()->timestamp);
+            \Illuminate\Support\Facades\Cache::put('scheduler_last_run_iso', now()->toIso8601String());
+            $this->info('Heartbeat recorded: ' . now()->toIso8601String());
         } catch (\Exception $e) {
             // Lokal per CLI können Berechtigungsfehler auf Cache-Dateien von www-data auftreten.
             // Diese werden hier stumm geschaltet, um ein "FAIL" im Ausgabefenster zu verhindern.

@@ -311,13 +311,27 @@ class MasterAnalytics extends Component
                 }
             }
 
-            // Hängende Sperren zählen
+            // Hängende Sperren zählen (mit exaktem Laravel-Mutex-Namen)
             $lockedCount = 0;
             if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
                 $cronjobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
                 foreach ($cronjobs as $job) {
-                    $mutexKey = 'framework/schedule-' . sha1($job->command);
-                    if (\Illuminate\Support\Facades\Cache::has($mutexKey)) {
+                    $cmdClean = trim(preg_replace('/^(?:(?:\/usr\/bin\/)?php(?:[0-9.]+)?\s+)?(?:(?:\S+)?artisan\s+)?/', '', $job->command));
+                    if ($cmdClean === 'system:heartbeat') {
+                        continue;
+                    }
+                    $schedule = $job->schedule;
+                    if (in_array($schedule, ['everySecond', 'everyTwoSeconds', 'everyFiveSeconds', 'everyTenSeconds', 'everyFifteenSeconds', 'everyTwentySeconds', 'everyThirtySeconds'])) {
+                        $schedule = 'everyMinute';
+                    }
+                    $event = \Illuminate\Support\Facades\Schedule::command($cmdClean, $job->parameters ? explode(' ', $job->parameters) : []);
+                    if (method_exists($event, $schedule)) {
+                        $event->{$schedule}();
+                    } else {
+                        $event->cron($schedule);
+                    }
+                    
+                    if (\Illuminate\Support\Facades\Cache::has($event->mutexName()) || \Illuminate\Support\Facades\Cache::has('framework/schedule-' . sha1($job->command))) {
                         $lockedCount++;
                     }
                 }
@@ -1134,9 +1148,27 @@ class MasterAnalytics extends Component
                             if (\Illuminate\Support\Facades\Schema::hasTable('system_cronjobs')) {
                                 $cronjobs = \Illuminate\Support\Facades\DB::table('system_cronjobs')->get();
                                 foreach ($cronjobs as $job) {
-                                    $mutexKey = 'framework/schedule-' . sha1($job->command);
+                                    $cmdClean = trim(preg_replace('/^(?:(?:\/usr\/bin\/)?php(?:[0-9.]+)?\s+)?(?:(?:\S+)?artisan\s+)?/', '', $job->command));
+                                    $schedule = $job->schedule;
+                                    if (in_array($schedule, ['everySecond', 'everyTwoSeconds', 'everyFiveSeconds', 'everyTenSeconds', 'everyFifteenSeconds', 'everyTwentySeconds', 'everyThirtySeconds'])) {
+                                        $schedule = 'everyMinute';
+                                    }
+                                    $event = \Illuminate\Support\Facades\Schedule::command($cmdClean, $job->parameters ? explode(' ', $job->parameters) : []);
+                                    if (method_exists($event, $schedule)) {
+                                        $event->{$schedule}();
+                                    } else {
+                                        $event->cron($schedule);
+                                    }
+                                    
+                                    $mutexKey = $event->mutexName();
                                     if (\Illuminate\Support\Facades\Cache::has($mutexKey)) {
                                         \Illuminate\Support\Facades\Cache::forget($mutexKey);
+                                        $clearedLocks++;
+                                    }
+                                    // Auch legacy-Key entfernen
+                                    $legacyKey = 'framework/schedule-' . sha1($job->command);
+                                    if (\Illuminate\Support\Facades\Cache::has($legacyKey)) {
+                                        \Illuminate\Support\Facades\Cache::forget($legacyKey);
                                         $clearedLocks++;
                                     }
                                 }
@@ -1193,6 +1225,23 @@ class MasterAnalytics extends Component
                                         ->update(['is_active' => true]);
                                     $this->addRepairLog("✓ 'System Herzschlag' Cronjob in Datenbank aktiviert.", 'success');
                                 }
+
+                                // Sub-Minute Frequenzen in der DB normalisieren, um 60-Sekunden-Hänger im Cronjob zu verhindern
+                                $subMinuteUpdated = \Illuminate\Support\Facades\DB::table('system_cronjobs')
+                                    ->where('command', 'crm:fetch-mails')
+                                    ->where('schedule', 'everyFifteenSeconds')
+                                    ->update(['schedule' => '* * * * *']);
+                                if ($subMinuteUpdated > 0) {
+                                    $this->addRepairLog("✓ IMAP E-Mail Fetch von 'everyFifteenSeconds' auf '* * * * *' normalisiert.", 'success');
+                                }
+                            }
+
+                            // System-Herzschlag direkt ausführen & Lebenszeichen-Cache schreiben
+                            try {
+                                \Illuminate\Support\Facades\Artisan::call('system:heartbeat');
+                                $this->addRepairLog("✓ System-Herzschlag direkt ausgeführt und Cache aktualisiert.", 'success');
+                            } catch (\Throwable $hbErr) {
+                                $this->addRepairLog("! Herzschlag-Trigger-Hinweis: " . $hbErr->getMessage(), 'warning');
                             }
 
                             $bestInterpreter = null;

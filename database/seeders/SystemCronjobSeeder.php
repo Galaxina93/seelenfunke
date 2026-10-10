@@ -24,7 +24,7 @@ class SystemCronjobSeeder extends Seeder
                 'name' => 'IMAP E-Mail Fetch',
                 'description' => 'E-Mails via IMAP asynchron vom Server abrufen (Posteingang sync)',
                 'command' => 'crm:fetch-mails',
-                'schedule' => 'everyFifteenSeconds',
+                'schedule' => '* * * * *',
                 'is_active' => true,
             ],
             [
