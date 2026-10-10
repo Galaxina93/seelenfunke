@@ -13309,3 +13309,57 @@ Inva
 [2026-10-10T10:03:45.405Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
 [2026-10-10T10:03:45.405Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
 [2026-10-10T10:03:45.432Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-10-10T10:37:22.586Z] 🔌 Neue WebSocket-Verbindung auf Pfad: /gemini-live
+[2026-10-10T10:37:22.592Z] 🔑 Verifiziere Token gegen Backend: http://seelenfunke.test/api/ai/verify-token
+[2026-10-10T10:37:22.694Z] 🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...
+[2026-10-10T10:37:22.704Z] 📦 Replay von 1 zwischengespeicherten Client-Nachrichten...
+[2026-10-10T10:37:22.705Z] 🧠 Gemini Live Proxy: Client sendet Setup: {"model":"models/gemini-3.1-flash-live-preview","systemInstruction":{"parts":[{"text":"System-Prompt:\n[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, LEIST
+[2026-10-10T10:37:22.705Z] 🧠 Gemini Live Proxy: Google WS noch nicht bereit für Nutzdaten (SetupComplete=false). Nachricht gepuffert. Queue: 1
+[2026-10-10T10:37:22.791Z] 🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.
+[2026-10-10T10:37:22.792Z] 🧠 Gemini Live Proxy: Sende Setup an Google...
+[2026-10-10T10:37:23.079Z] 🧠 Gemini Live Proxy: Setup Complete von Google empfangen.
+[2026-10-10T10:37:23.304Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #1, Base64-Länge: 10924)
+[2026-10-10T10:37:23.548Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #2, Base64-Länge: 10924)
+[2026-10-10T10:37:23.799Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #3, Base64-Länge: 10924)
+[2026-10-10T10:37:24.045Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #4, Base64-Länge: 10924)
+[2026-10-10T10:37:24.296Z] 🧠 Gemini Live Proxy: Client sendet Audio (Paket #5, Base64-Länge: 10924)
+[2026-10-10T10:37:24.364Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-10-10T10:37:25.066Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"e854a6ec-f416-4a7b-8081-f0dd01c4a9a3","resumable":true}}
+[2026-10-10T10:37:26.293Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [IT: "Fungiera bist du da?"]
+[2026-10-10T10:37:26.293Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-10-10T10:37:26.294Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: {}
+[2026-10-10T10:37:26.294Z] 💾 Sende Live-Transkript (user) an Backend: "Fungiera bist du da?..." (Session: 01a12563-5d6d-737e-902f-4f7fcb0897ac)
+[2026-10-10T10:37:26.295Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: "Ja, ich"] [AudioParts: 1]
+[2026-10-10T10:37:26.297Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.298Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.304Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.306Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.310Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " bin hier."] [AudioParts: 1]
+[2026-10-10T10:37:26.313Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.341Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.394Z] ✅ Live-Transkript (user) im Backend gespeichert: status=created, id=01a12563-97c9-708b-8a62-d44048ba9f64
+[2026-10-10T10:37:26.453Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " Gibt"] [AudioParts: 1]
+[2026-10-10T10:37:26.479Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.545Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " es etwas,"] [AudioParts: 1]
+[2026-10-10T10:37:26.585Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.680Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " das"] [AudioParts: 1]
+[2026-10-10T10:37:26.700Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " ich für"] [AudioParts: 1]
+[2026-10-10T10:37:26.789Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " dich tun"] [AudioParts: 1]
+[2026-10-10T10:37:26.789Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.934Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [OT: " kann?"] [AudioParts: 1]
+[2026-10-10T10:37:26.935Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [AudioParts: 1]
+[2026-10-10T10:37:26.977Z] 💾 Sende Live-Transkript (assistant) an Backend: "Ja, ich bin hier. Gibt es etwas, das ich für dich tun kann?..." (Session: 01a12563-5d6d-737e-902f-4f7fcb0897ac)
+[2026-10-10T10:37:26.978Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [GEN_COMPLETE]
+[2026-10-10T10:37:27.031Z] ✅ Live-Transkript (assistant) im Backend gespeichert: status=created, id=01a12563-9a5a-717c-958c-635417f66f3a
+[2026-10-10T10:37:27.136Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"02aef77f-cacc-441a-bdf4-f1b533023fec","resumable":true}}
+[2026-10-10T10:37:29.377Z] 🧠 Gemini Live Proxy: Server Content von Google empfangen: [TURN_COMPLETE]
+[2026-10-10T10:37:30.209Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"3200e0bb-e317-42aa-832e-515224f9babb","resumable":true}}
+[2026-10-10T10:37:31.169Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"9301a7e4-b627-449b-964c-3044ae648067","resumable":true}}
+[2026-10-10T10:37:32.052Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"82d7e2b5-ddff-4e58-b496-8dfead17fbec","resumable":true}}
+[2026-10-10T10:37:32.919Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"cd16d49e-3165-4e99-82f8-de1e97ed490c","resumable":true}}
+[2026-10-10T10:37:33.727Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"2f99db5e-4c3a-46c4-8375-f18de5504fee","resumable":true}}
+[2026-10-10T10:37:34.481Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"fe3f046f-5f20-40f6-b6d7-10fba6dba6a0","resumable":true}}
+[2026-10-10T10:37:35.360Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"5b991c31-538b-43e7-98e1-5e0f21a6e3d8","resumable":true}}
+[2026-10-10T10:37:35.839Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
+[2026-10-10T10:37:35.839Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
+[2026-10-10T10:37:35.866Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
