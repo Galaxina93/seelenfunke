@@ -51,7 +51,7 @@ class AiAgentSeeder extends Seeder
                 'temperature' => 0.1,
                 'color' => 'sky-500',
                 'icon' => 'sparkles',
-                'tts_voice' => 'Kore',
+                'tts_voice' => 'Aoede',
                 'role' => 'Teamleiter',
                 'telegram_bot_token' => '' // Hier Token eintragen
             ],
