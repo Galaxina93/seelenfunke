@@ -42,6 +42,10 @@ class TaskUpdated implements ShouldBroadcast
         return [
             'task_id' => $this->task->id,
             'status' => $this->task->status,
+            'prompt' => $this->task->prompt,
+            'response_content' => $this->task->response_content,
+            'completed_at' => $this->task->completed_at?->toIso8601String(),
+            'assigned_agent_id' => $this->task->assigned_agent_id,
         ];
     }
 }

@@ -34,4 +34,7 @@ Route::prefix('ai')->group(function () {
 
     // Endpunkt zur Verifizierung von WebSockets-Tokens (nur für internen Node-Server)
     Route::post('/verify-token', [AIController::class, 'verifyToken']);
+
+    // Endpunkt zum Persistieren von Live-Transkripten (für internen Node-Server)
+    Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript']);
 });

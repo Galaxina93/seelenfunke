@@ -42,6 +42,8 @@ class AiAgentService
     {
         $allowedToolIdentifiers = $agent->tools->pluck('identifier')->toArray();
         $allowedToolIdentifiers[] = 'system_get_current_time';
+        $allowedToolIdentifiers[] = 'system_dispatch_background_task';
+        $allowedToolIdentifiers[] = 'system_get_task_status';
 
         // Extrahiere das Schema aus der globalen Registry
         $globalSchema = class_exists('\App\Services\AI\AIFunctionsRegistry')

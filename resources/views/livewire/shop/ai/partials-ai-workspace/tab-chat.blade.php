@@ -27,6 +27,7 @@
                 
                 <!-- Chat Log Area -->
                 <div id="chat-scroll-container" class="flex-1 overflow-y-auto p-4 lg:p-6 pt-16 lg:pt-6 space-y-6 custom-scrollbar scroll-smooth"
+                     @chat-memory-updated.window="setTimeout(() => scrollToBottom(), 100)"
                      x-data="{
                          scrollToBottom() { this.$el.scrollTop = this.$el.scrollHeight; },
                          observeScroll() {
@@ -55,7 +56,12 @@
                                         <x-dynamic-component :component="'heroicon-o-' . str_replace(['bi-stars', 'bi-'], ['sparkles', ''], ($msg['icon'] ?: 'cpu-chip'))" class="w-6 h-6" />
                                     @endif
                                 </div>
-                                <span class="text-xs font-bold {{ $msg['color'] ? 'text-'.$msg['color'] : 'text-[var(--theme-color)]' }} tracking-widest uppercase truncate max-w-[200px]">{{ $msg['name'] }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold {{ $msg['color'] ? 'text-'.$msg['color'] : 'text-[var(--theme-color)]' }} tracking-widest uppercase truncate max-w-[200px]">{{ $msg['name'] }}</span>
+                                    @if(!empty($msg['time']) || !empty($msg['created_at']))
+                                        <span class="text-[10px] font-mono text-gray-500 whitespace-nowrap">{{ $msg['time'] ?? $msg['created_at'] }}</span>
+                                    @endif
+                                </div>
                             </div>
                             <div class="max-w-[90%] lg:max-w-[85%] min-w-0 text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-950 border border-gray-700 text-gray-300 rounded-tr-none shadow-md' : 'bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]' }}">
                                 @if($msg['role'] === 'user')

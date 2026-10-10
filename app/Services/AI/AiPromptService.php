@@ -21,7 +21,7 @@ class AiPromptService
         $isAdmin = ($user instanceof Admin) || Auth::guard('admin')->check();
         $isCustomer = ($user instanceof Customer) || Auth::guard('customer')->check();
         
-        $systemPromptText = $agent->system_prompt;
+        $systemPromptText = $agent->system_prompt ?? '';
         
         // Add Role info
         if ($agent->role) {

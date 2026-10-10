@@ -159,6 +159,10 @@ function safeClose(ws, code, reason) {
 function initGeminiLiveProxy(clientWs, creds) {
     debugLog('🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...');
     let clientAudioPacketsReceived = 0;
+    let currentSessionId = creds.chat_session_id;
+    let aiTurnTranscript = "";
+    let userTurnTranscript = "";
+    let lastPersistedAiText = "";
     
     const HOST = "generativelanguage.googleapis.com";
     const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${creds.api_key}`;
@@ -170,6 +174,7 @@ function initGeminiLiveProxy(clientWs, creds) {
         origin: process.env.APP_URL || 'https://stage.mein-seelenfunke.de'
     });
     const googleQueue = [];
+    let isGoogleSetupComplete = false;
 
     let isCleanedUp = false;
     const googlePingInterval = setInterval(() => {
@@ -184,15 +189,77 @@ function initGeminiLiveProxy(clientWs, creds) {
         clearInterval(googlePingInterval);
         debugLog('🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.');
     }
+
+    const persistTranscript = (role, text) => {
+        const cleanText = (text || "").trim();
+        if (!cleanText) return;
+        if (role === 'assistant' && cleanText === lastPersistedAiText) return;
+
+        const targetSessionId = currentSessionId || creds.chat_session_id;
+        if (!targetSessionId) {
+            debugLog(`⚠️ Kann Live-Transkript (${role}) nicht speichern: Keine chat_session_id vorhanden.`);
+            return;
+        }
+
+        const backendUrl = process.env.APP_URL || 'http://localhost';
+        const payload = {
+            session_id: targetSessionId,
+            role: role,
+            content: cleanText,
+            agent_id: creds.agent_id || null,
+            agent_name: creds.agent_name || 'Funkira',
+            user_id: creds.user_id || null
+        };
+
+        debugLog(`💾 Sende Live-Transkript (${role}) an Backend: "${cleanText.substring(0, 60)}..." (Session: ${targetSessionId})`);
+
+        fetch(`${backendUrl}/api/ai/save-live-transcript`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(async res => {
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`HTTP ${res.status}: ${errText.substring(0, 100)}`);
+            }
+            return res.json();
+        })
+        .then(resData => {
+            debugLog(`✅ Live-Transkript (${role}) im Backend gespeichert: status=${resData.status}, id=${resData.id}`);
+            if (role === 'assistant') {
+                lastPersistedAiText = cleanText;
+            }
+            safeSend(clientWs, JSON.stringify({
+                type: 'liveTranscriptPersisted',
+                role: role,
+                content: cleanText,
+                status: resData.status,
+                id: resData.id
+            }));
+        })
+        .catch(err => {
+            debugLog(`❌ Fehler beim Speichern des Live-Transkripts (${role}): ` + err.message);
+        });
+    };
     
     googleWs.on('open', () => {
         debugLog('🧠 Gemini Live Proxy: Verbindung zu Google hergestellt.');
-        if (googleQueue.length > 0) {
-            debugLog(`📦 Replay von ${googleQueue.length} gepufferten Client-Nachrichten an Google...`);
-            while (googleQueue.length > 0) {
-                const msg = googleQueue.shift();
-                safeSend(googleWs, msg);
-            }
+        // Nur das Setup senden! Alle anderen Nachrichten müssen warten, bis setupComplete da ist.
+        for (let i = 0; i < googleQueue.length; i++) {
+            const rawMsg = googleQueue[i];
+            try {
+                const parsed = JSON.parse(rawMsg.toString());
+                if (parsed.setup) {
+                    debugLog('🧠 Gemini Live Proxy: Sende Setup an Google...');
+                    safeSend(googleWs, rawMsg);
+                    googleQueue.splice(i, 1);
+                    break;
+                }
+            } catch(e) {}
         }
     });
     
@@ -200,9 +267,62 @@ function initGeminiLiveProxy(clientWs, creds) {
         try {
             const data = JSON.parse(message.toString());
             if (data.setupComplete) {
+                isGoogleSetupComplete = true;
                 debugLog('🧠 Gemini Live Proxy: Setup Complete von Google empfangen.');
+                if (googleQueue.length > 0) {
+                    debugLog(`📦 Sende ${googleQueue.length} nach Setup gepufferte Client-Nachrichten an Google...`);
+                    while (googleQueue.length > 0) {
+                        const msg = googleQueue.shift();
+                        safeSend(googleWs, msg);
+                    }
+                }
             } else if (data.serverContent) {
-                debugLog('🧠 Gemini Live Proxy: Server Content von Google empfangen: ' + JSON.stringify(data.serverContent).substring(0, 150));
+                let scLog = '';
+                if (data.serverContent.outputTranscription && data.serverContent.outputTranscription.text) {
+                    scLog += ' [OT: "' + data.serverContent.outputTranscription.text + '"]';
+                    aiTurnTranscript += data.serverContent.outputTranscription.text;
+                } else if (data.serverContent.outputAudioTranscription && data.serverContent.outputAudioTranscription.text) {
+                    scLog += ' [OAT: "' + data.serverContent.outputAudioTranscription.text + '"]';
+                    aiTurnTranscript += data.serverContent.outputAudioTranscription.text;
+                }
+
+                if (data.serverContent.inputTranscription && data.serverContent.inputTranscription.text) {
+                    scLog += ' [IT: "' + data.serverContent.inputTranscription.text + '"]';
+                    userTurnTranscript += data.serverContent.inputTranscription.text;
+                }
+
+                // Sobald die KI antwortet, sichern wir eventuell per Google empfangenes User-Audio
+                if ((data.serverContent.modelTurn || data.serverContent.outputTranscription) && userTurnTranscript.trim()) {
+                    persistTranscript('user', userTurnTranscript.trim());
+                    userTurnTranscript = "";
+                }
+
+                if (data.serverContent.interrupted) {
+                    scLog += ' [INTERRUPTED]';
+                    if (aiTurnTranscript.trim()) {
+                        persistTranscript('assistant', aiTurnTranscript.trim());
+                        aiTurnTranscript = "";
+                    }
+                }
+                if (data.serverContent.generationComplete) {
+                    scLog += ' [GEN_COMPLETE]';
+                    if (aiTurnTranscript.trim()) {
+                        persistTranscript('assistant', aiTurnTranscript.trim());
+                        aiTurnTranscript = "";
+                    }
+                }
+                if (data.serverContent.turnComplete) {
+                    scLog += ' [TURN_COMPLETE]';
+                    if (aiTurnTranscript.trim()) {
+                        persistTranscript('assistant', aiTurnTranscript.trim());
+                        aiTurnTranscript = "";
+                    }
+                }
+                if (data.serverContent.modelTurn) {
+                    const audioParts = (data.serverContent.modelTurn.parts || []).filter(p => p.inlineData).length;
+                    scLog += ' [AudioParts: ' + audioParts + ']';
+                }
+                debugLog('🧠 Gemini Live Proxy: Server Content von Google empfangen:' + (scLog || (' ' + JSON.stringify(data.serverContent).substring(0, 150))));
             } else {
                 debugLog('🧠 Gemini Live Proxy: Sonstige Nachricht von Google: ' + JSON.stringify(data).substring(0, 150));
             }
@@ -215,6 +335,15 @@ function initGeminiLiveProxy(clientWs, creds) {
     
     googleWs.on('close', (code, reason) => {
         cleanup();
+        if (aiTurnTranscript.trim()) {
+            debugLog('🧠 Gemini Live Proxy: Google Verbindung getrennt mit verbleibendem KI-Text. Persistiere...');
+            persistTranscript('assistant', aiTurnTranscript.trim());
+            aiTurnTranscript = "";
+        }
+        if (userTurnTranscript.trim()) {
+            persistTranscript('user', userTurnTranscript.trim());
+            userTurnTranscript = "";
+        }
         debugLog(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${reason}`);
         
         // Log an Laravel senden
@@ -230,20 +359,30 @@ function initGeminiLiveProxy(clientWs, creds) {
     
     googleWs.on('error', (err) => {
         cleanup();
+        if (aiTurnTranscript.trim()) {
+            persistTranscript('assistant', aiTurnTranscript.trim());
+            aiTurnTranscript = "";
+        }
         debugLog('🧠 Gemini Live Proxy: Google WebSocket Fehler', err);
         safeSend(clientWs, JSON.stringify({ error: 'Google Gemini connection error' }));
     });
     
     clientWs.on('message', (message) => {
+        let data = null;
         try {
-            const data = JSON.parse(message.toString());
+            data = JSON.parse(message.toString());
             if (data && data.type === 'ping') {
                 safeSend(clientWs, JSON.stringify({ type: 'pong' }));
                 return;
             }
-            if (data.setup) {
+            if (data && data.type === 'setSessionId' && data.session_id) {
+                currentSessionId = data.session_id;
+                debugLog('🧠 Gemini Live Proxy: Client aktualisiert chat_session_id auf: ' + currentSessionId);
+                return;
+            }
+            if (data && data.setup) {
                 debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
-            } else if (data.realtimeInput) {
+            } else if (data && data.realtimeInput) {
                 clientAudioPacketsReceived++;
                 if (clientAudioPacketsReceived <= 5 || clientAudioPacketsReceived % 100 === 0) {
                     const audioLength = data.realtimeInput.audio?.data?.length 
@@ -258,16 +397,25 @@ function initGeminiLiveProxy(clientWs, creds) {
             debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Client-Nachricht: ' + e.message);
         }
 
-        if (googleWs.readyState === WebSocket.OPEN) {
+        if (googleWs.readyState === WebSocket.OPEN && (isGoogleSetupComplete || (data && data.setup))) {
             safeSend(googleWs, message);
         } else {
-            debugLog('🧠 Gemini Live Proxy: Google WS nicht offen. Nachricht wird in Outbound-Queue gepuffert. Aktuelle Queue-Länge: ' + (googleQueue.length + 1));
+            debugLog('🧠 Gemini Live Proxy: Google WS noch nicht bereit für Nutzdaten (SetupComplete=' + isGoogleSetupComplete + '). Nachricht gepuffert. Queue: ' + (googleQueue.length + 1));
             googleQueue.push(message);
         }
     });
     
     clientWs.on('close', (code, reason) => {
         cleanup();
+        if (aiTurnTranscript.trim()) {
+            debugLog('🧠 Gemini Live Proxy: Client Verbindung getrennt mit verbleibendem KI-Text. Persistiere...');
+            persistTranscript('assistant', aiTurnTranscript.trim());
+            aiTurnTranscript = "";
+        }
+        if (userTurnTranscript.trim()) {
+            persistTranscript('user', userTurnTranscript.trim());
+            userTurnTranscript = "";
+        }
         debugLog(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
         
         // Log an Laravel senden
@@ -283,6 +431,10 @@ function initGeminiLiveProxy(clientWs, creds) {
     
     clientWs.on('error', (err) => {
         cleanup();
+        if (aiTurnTranscript.trim()) {
+            persistTranscript('assistant', aiTurnTranscript.trim());
+            aiTurnTranscript = "";
+        }
         debugLog('🧠 Gemini Live Proxy: Client WebSocket Fehler', err);
         safeClose(googleWs, 1011, 'Client error');
     });

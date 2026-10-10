@@ -42,9 +42,9 @@ class AiWidget extends Component
             }
         }
 
-        if (auth()->check()) {
+        if (\App\Services\AI\AiAuthHelper::check()) {
             $this->widgetConfig = \App\Models\Ai\AiWidgetConfig::firstOrCreate(
-                ['user_id' => auth()->id()],
+                ['user_id' => \App\Services\AI\AiAuthHelper::getUserId()],
                 [
                     'ai_agent_id' => $this->agentId ?? (isset($this->activeAgentIds[0]) ? $this->activeAgentIds[0] : null),
                     'volume' => 15,
@@ -73,6 +73,12 @@ class AiWidget extends Component
         }
     }
 
+    #[On('chat-memory-updated')]
+    public function handleChatMemoryUpdated()
+    {
+        unset($this->messages);
+    }
+
     public function getListeners()
     {
         return [
@@ -80,6 +86,8 @@ class AiWidget extends Component
             "echo:workspace,.App\\Events\\AiWidgetSpeechEvent" => 'handleSpeechEvent',
             "echo:workspace,AiFrontendEvent" => 'handleFrontendEvent',
             "echo:workspace,.App\\Events\\AiFrontendEvent" => 'handleFrontendEvent',
+            "echo:workspace,TaskUpdated" => 'handleTaskUpdated',
+            "echo:workspace,.App\\Events\\TaskUpdated" => 'handleTaskUpdated',
         ];
     }
 
@@ -94,6 +102,22 @@ class AiWidget extends Component
     {
         if (isset($payload['name'])) {
             $this->dispatch($payload['name'], payload: $payload['detail'] ?? []);
+        }
+    }
+
+    public function handleTaskUpdated($payload)
+    {
+        if (isset($payload['task_id'])) {
+            $status = $payload['status'] ?? '';
+            if (in_array($status, ['completed', 'failed'])) {
+                $this->dispatch('ai-task-completed', task: [
+                    'id' => $payload['task_id'],
+                    'prompt' => $payload['prompt'] ?? 'Hintergrund-Aufgabe',
+                    'status' => $status,
+                    'response' => $payload['response_content'] ?? '',
+                    'agent_id' => $payload['assigned_agent_id'] ?? null,
+                ]);
+            }
         }
     }
 

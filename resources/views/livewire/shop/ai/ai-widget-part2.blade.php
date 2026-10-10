@@ -72,6 +72,7 @@
             isFlightDataActive: false,
             isSecretMode: false,
             currentChatSessionId: '{{ $currentChatSessionId ?? $this->currentChatSessionId }}',
+            lastInformedLiveSessionId: null,
             chatSessions: @js($this->chatSessions()->map(fn($s) => ['id' => (string)$s->id, 'title' => (string)($s->title ?? 'Neuer Chat')])->values()->toArray()),
             agentsMap: @js(collect($availableAgents ?? \App\Models\Ai\AiAgent::where('is_active', true)->get())->keyBy('id')->map(fn($a) => ['id' => (string)$a->id, 'name' => (string)$a->name, 'color' => (string)$a->color, 'profile_picture_url' => (string)($a->profile_picture_url ?? '')])->toArray()),
             isJarvis: false,
@@ -117,6 +118,12 @@
             restartCount: 0,
             lastRestartTime: 0,
             isSpeaking: false,
+            isAiSpeakingTurn: false,
+            lastSpeechEndTime: 0,
+            lastSpeechStartTime: 0,
+            lastAiPacketTime: 0,
+            generationCompleteReceived: false,
+            turnStartTime: null,
             activeAgentName: initialAgentName, // Neu: Speichert den Namen des antwortenden Agenten
             agentTtsEnabled: false, // Prevents calling TTS apis
 
@@ -134,6 +141,10 @@
             sessionResumptionHandle: null,
             reconnectAttempts: 0,
             maxReconnectAttempts: 5,
+            currentLiveTranscript: '',
+            currentUserLiveTranscript: '',
+            hasSpokenInTurn: false,
+            lastVoiceDetectedTime: 0,
 
             async readClipboard(isDirectClick = false) {
                 try {
@@ -188,8 +199,9 @@
                             this.liveWs.send(JSON.stringify(clipMsg));
                             console.log("Clipboard Text sent to Live WS.");
                         } else {
-                            this.chatHistory.push({ role: 'user', content: "*(Text aus Zwischenspeicher eingefügt)*\n\n" + text });
-                            this.$wire.call('saveUserLiveMessage', "*(Text aus Zwischenspeicher eingefügt)*\n\n" + text);
+                            const timeStr = this.getCurrentFormattedDateTime();
+                            this.chatHistory.push({ role: 'user', content: "*(Text aus Zwischenspeicher eingefügt)*\n\n" + text, time: timeStr, created_at: timeStr });
+                            this.$wire.call('saveUserLiveMessage', "*(Text aus Zwischenspeicher eingefügt)*\n\n" + text, this.currentChatSessionId || null);
                             setTimeout(() => {
                                 this.$wire.call('processAutoRouting');
                             }, 200);
@@ -217,8 +229,9 @@
                     };
                     this.liveWs.send(JSON.stringify(clipMsg));
                 } else {
-                    this.chatHistory.push({ role: 'user', content: `*(${msg})*` });
-                    this.$wire.call('saveUserLiveMessage', `*(${msg})*`);
+                    const timeStr = this.getCurrentFormattedDateTime();
+                    this.chatHistory.push({ role: 'user', content: `*(${msg})*`, time: timeStr, created_at: timeStr });
+                    this.$wire.call('saveUserLiveMessage', `*(${msg})*`, this.currentChatSessionId || null);
                     setTimeout(() => { this.$wire.call('processAutoRouting'); }, 200);
                 }
             },
@@ -236,6 +249,29 @@
             stripSpeak(msg) {
                 if (!msg) return '';
                 return msg.replace(/<speak>/gi, '').replace(/<\/speak>/gi, '');
+            },
+
+            getCurrentFormattedDateTime() {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                const timeStr = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                return `${dateStr}, ${timeStr} Uhr`;
+            },
+
+            formatMessageTime(msg) {
+                if (!msg) return '';
+                if (msg.time && typeof msg.time === 'string' && msg.time.includes('Uhr')) return msg.time;
+                const raw = msg.time || msg.created_at;
+                if (!raw) return '';
+                try {
+                    const d = new Date(raw);
+                    if (!isNaN(d.getTime())) {
+                        const dateStr = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const timeStr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                        return `${dateStr}, ${timeStr} Uhr`;
+                    }
+                } catch(e) {}
+                return raw;
             },
 
             updateAgentConfig(color, name, wakeWord, agentId, profilePicture) {
@@ -290,6 +326,22 @@
                 this.currentLiveTranscript = "";
                 this.currentUserLiveTranscript = "";
                 this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: 'Neuer Chat gestartet' });
+
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete && this.lastInformedLiveSessionId !== detail.sessionId) {
+                    this.lastInformedLiveSessionId = detail.sessionId;
+                    const newChatMsg = {
+                        clientContent: {
+                            turns: [{
+                                role: 'user',
+                                parts: [{
+                                    text: `*(System-Kontext: Der Benutzer hat soeben einen neuen, leeren Chat gestartet [Session-ID: ${detail.sessionId}]. Der vorherige Chat-Verlauf ist abgeschlossen.)*`
+                                }]
+                            }],
+                            turnComplete: false
+                        }
+                    };
+                    this.liveWs.send(JSON.stringify(newChatMsg));
+                }
             },
 
             handleChatSessionSwitched(detail) {
@@ -306,6 +358,31 @@
                 this.currentLiveTranscript = "";
                 this.currentUserLiveTranscript = "";
                 this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: 'Chat gewechselt' });
+
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN && this.isSetupComplete && this.lastInformedLiveSessionId !== detail.sessionId) {
+                    this.lastInformedLiveSessionId = detail.sessionId;
+                    let recentSummary = "";
+                    if (detail.messages && Array.isArray(detail.messages) && detail.messages.length > 0) {
+                        const lastMsgs = detail.messages.slice(-20);
+                        recentSummary = "\n--- AKTUELL AUSGEWÄHLTER CHAT-VERLAUF ---\n" +
+                            lastMsgs.map(m => `[${(m.name || m.role || 'User').toUpperCase()}]: ${m.content}`).join("\n") +
+                            "\n--- ENDE CHAT-VERLAUF ---";
+                    } else {
+                        recentSummary = "\n(Dieser Chat hat noch keine bisherigen Nachrichten.)";
+                    }
+                    const switchContextMsg = {
+                        clientContent: {
+                            turns: [{
+                                role: 'user',
+                                parts: [{
+                                    text: `*(System-Kontext: Der Benutzer hat soeben im UI den Chat-Verlauf gewechselt [Session-ID: ${detail.sessionId}].${recentSummary}\nDu hast jetzt vollen Einblick in diese aktuell ausgewählten Nachrichten. Beziehe dich bei Fragen zum Chat ab jetzt direkt auf diesen Verlauf.)*`
+                                }]
+                            }],
+                            turnComplete: false
+                        }
+                    };
+                    this.liveWs.send(JSON.stringify(switchContextMsg));
+                }
             },
 
             async createNewChatSession() {
@@ -583,6 +660,51 @@
                 }, 1000);
             },
 
+            onBackgroundTaskCompleted(task) {
+                if (!task) return;
+                console.log('AI Background Task Completed:', task);
+
+                const taskPrompt = task.prompt || task.title || 'Hintergrund-Aufgabe';
+                const taskStatus = task.status || 'completed';
+                const taskResponse = task.response || task.response_content || (taskStatus === 'completed' ? 'Erfolgreich abgeschlossen.' : 'Fehler bei der Ausführung.');
+                const taskId = task.id || task.task_id || '';
+
+                // 1. Wenn aktuell im Gemini Live Audio WebSocket Modus:
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    const promptMsg = {
+                        clientContent: {
+                            turns: [{
+                                role: 'user',
+                                parts: [{
+                                    text: `*(System-Hinweis: Die Hintergrund-Aufgabe "${taskPrompt}" [ID: ${taskId}] wurde soeben abgeschlossen! Status: ${taskStatus}. Ergebnis: ${taskResponse}. Informiere den Nutzer kurz, sympathisch und natürlich darüber, sobald es ins Gespräch passt.)*`
+                                }]
+                            }],
+                            turnComplete: true
+                        }
+                    };
+                    this.liveWs.send(JSON.stringify(promptMsg));
+                }
+
+                // 2. Chat-Verlauf visuell aktualisieren
+                const statusBadge = taskStatus === 'completed' ? '✨' : '⚠️';
+                const notificationContent = `${statusBadge} **Hintergrund-Aufgabe abgeschlossen:** ${taskPrompt}\n\n${taskResponse}`;
+                if (Array.isArray(this.chatHistory)) {
+                    const timeStr = this.getCurrentFormattedDateTime();
+                    this.chatHistory.push({
+                        role: 'assistant',
+                        content: notificationContent,
+                        time: timeStr,
+                        created_at: timeStr,
+                        isBackgroundTask: true
+                    });
+                }
+
+                // 3. Wenn im normalen Modus mit aktiviertem TTS (nicht Live-Audio):
+                if (!this.isLiveMode && this.agentTtsEnabled && typeof this.speakFeedback === 'function') {
+                    this.speakFeedback(`Die Hintergrund-Aufgabe "${taskPrompt}" wurde soeben abgeschlossen.`);
+                }
+            },
+
             getColorHex(colorStr) {
                 const map = {
                     'red': 0xef4444,
@@ -617,7 +739,11 @@
             },
 
             isOutputActive() {
-                return this.isSpeaking || this.thinking;
+                const now = Date.now();
+                const hasActiveSources = Array.isArray(this.activeAudioSources) && this.activeAudioSources.length > 0;
+                // Nur kleiner 120ms Raumhall-Puffer nach aktiver Sprachausgabe (Acoustic Echo Cushion)
+                const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 120;
+                return hasActiveSources || roomEchoCushion;
             },
 
             setMainScreenWidget(type, index) {
@@ -744,10 +870,11 @@
                     this.liveWs.send(JSON.stringify(msg));
                     
                     if (!isSpontaneous) {
-                        this.chatHistory.push({ role: 'user', content: promptText });
+                        const timeStr = this.getCurrentFormattedDateTime();
+                        this.chatHistory.push({ role: 'user', content: promptText, time: timeStr, created_at: timeStr });
                         this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: promptText });
                         if (this.$wire) {
-                            this.$wire.saveUserLiveMessage(promptText);
+                            this.$wire.saveUserLiveMessage(promptText, this.currentChatSessionId || null);
                         }
                     } else {
                         this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: 'Spontane Analyse in Live API gesendet.' });
@@ -768,11 +895,12 @@
                 }
 
                 try {
+                    const timeStr = this.getCurrentFormattedDateTime();
                     if (!isSpontaneous) {
-                        this.chatHistory.push({ role: 'user', content: promptText });
+                        this.chatHistory.push({ role: 'user', content: promptText, time: timeStr, created_at: timeStr });
                         this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: promptText });
                     } else {
-                        this.chatHistory.push({ role: 'system', content: 'SYSTEM-BEFEHL (Verdeckt): ' + promptText });
+                        this.chatHistory.push({ role: 'system', content: 'SYSTEM-BEFEHL (Verdeckt): ' + promptText, time: timeStr, created_at: timeStr });
                         this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: 'Spontane Analyse ausgelöst.' });
                     }
 
@@ -783,9 +911,9 @@
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
                         },
                         body: JSON.stringify({
-                            history: this.chatHistory,
+                            history: this.chatHistory.slice(-20),
                             agent_id: this.activeAgentId || {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!},
-                            chat_session_id: this.$wire.currentChatSessionId
+                            chat_session_id: this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : null)
                         }),
                         signal: this.chatAbortController.signal
                     });
@@ -853,8 +981,9 @@
                         }
 
                         if (data.response) {
+                            const timeStr = this.getCurrentFormattedDateTime();
                             this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: data.response.replace(/\[.*?\]/s, '') });
-                            this.chatHistory.push({ role: 'assistant', content: data.response, name: data.agent_name || this.activeAgentName });
+                            this.chatHistory.push({ role: 'assistant', content: data.response, name: data.agent_name || this.activeAgentName, time: timeStr, created_at: timeStr });
                         }
 
                         if (this.funkiLogs.length > 15) this.funkiLogs = this.funkiLogs.slice(-15);
@@ -1294,7 +1423,7 @@
                     this.updateCoreColor(true);
                     this.isSetupComplete = false;
 
-                    let activeChatId = this.$wire.currentChatSessionId || '';
+                    let activeChatId = this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : '') || '';
 
                     // 1. Fetch Credentials securely
                     const response = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&chat_session_id=' + activeChatId + '&session_id={{ session()->getId() }}&t=' + Date.now(), {
@@ -1312,6 +1441,10 @@
 
                     if (creds.agent_id) this.activeAgentId = creds.agent_id;
                     if (creds.agent_name) this.activeAgentName = creds.agent_name;
+                    if (creds.chat_session_id) {
+                        this.currentChatSessionId = creds.chat_session_id;
+                        this.lastInformedLiveSessionId = creds.chat_session_id;
+                    }
 
                     // 2. Setup WebSocket
                     let wsUrl = creds.ws_url;
@@ -1328,9 +1461,6 @@
                         const setupMsg = {
                             setup: {
                                 model: "models/gemini-3.1-flash-live-preview",
-                                sessionResumption: this.sessionResumptionHandle ? {
-                                    handle: this.sessionResumptionHandle
-                                } : {},
                                 systemInstruction: {
                                     parts: [{ text: creds.system_instruction }]
                                 },
@@ -1383,6 +1513,7 @@
 
                     this.liveWs.onclose = (event) => {
                         console.log('WebSocket Closed', event);
+                        this.sessionResumptionHandle = null;
                         if (event.code !== 1000 && event.code !== 1005) {
                             console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
                         }
@@ -1480,18 +1611,45 @@
                     this.audioWorklet = processor;
 
                     processor.onaudioprocess = (e) => {
+                        // Mute WebAudio pass-through output so mic doesn't loop into speakers
+                        if (e.outputBuffer) {
+                            for (let ch = 0; ch < e.outputBuffer.numberOfChannels; ch++) {
+                                e.outputBuffer.getChannelData(ch).fill(0);
+                            }
+                        }
+
                         if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) return;
 
                         // We only send audio when the mic is not explicitly muted
                         if (this.isMicMuted) return;
 
-                        // Prevent AI from hearing itself and interrupting (echo cancellation workaround)
-                        if (this.isOutputActive() && !this.allowVoiceInterruption) return;
+                        // Prevent AI from hearing itself and interrupting (echo cancellation / barge-in suppression)
+                        if (this.isOutputActive()) return;
 
                         // Do not send audio data before setup is completed and acknowledged
                         if (!this.isSetupComplete) return;
 
                         let inputData = e.inputBuffer.getChannelData(0);
+
+                        // Client-side Voice Activity Gate:
+                        // Measure RMS energy to assist Gemini's VAD in detecting end-of-turn promptly
+                        let sumSq = 0;
+                        for (let i = 0; i < inputData.length; i++) {
+                            sumSq += inputData[i] * inputData[i];
+                        }
+                        const rms = Math.sqrt(sumSq / inputData.length);
+
+                        if (rms > 0.012) {
+                            this.lastVoiceDetectedTime = Date.now();
+                            this.hasSpokenInTurn = true;
+                        } else if (this.hasSpokenInTurn) {
+                            const silenceDuration = Date.now() - (this.lastVoiceDetectedTime || 0);
+                            // If user stopped speaking between 250ms and 1200ms ago, zero out buffer (digital silence)
+                            // so Google's server-side VAD immediately triggers end-of-turn instead of waiting through mic hiss
+                            if (silenceDuration > 250 && silenceDuration < 1200) {
+                                inputData = new Float32Array(inputData.length);
+                            }
+                        }
                         
                         // Downsample to 16000Hz if the AudioContext is not running at 16000Hz
                         if (this.audioContext.sampleRate !== 16000) {
@@ -1539,10 +1697,8 @@
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
 
-                    // Parallele Spracherkennung auf Mobilgeräten deaktivieren, um Hardware-Konflikte & 'Dudumm'-Geräusche zu vermeiden
-                    if (!this.isMobile) {
-                        this.startSpeechRecognition();
-                    }
+                    // Real-time speech recognition für unmittelbares Feedback wie in der Gemini-Handy-App
+                    this.startSpeechRecognition();
 
                 } catch (err) {
                     console.error('Mikrofon Fehler:', err);
@@ -1552,44 +1708,69 @@
             },
 
             startSpeechRecognition() {
-                if (this.isLiveMode && this.isMobile) {
-                    console.log('🎤 Mobile Live Mode: Überspringe parallele webkitSpeechRecognition zur Vermeidung von Hardware-Konflikten.');
-                    return;
-                }
                 if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
+                if (this.recognition) return;
 
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                this.recognition = new SpeechRecognition();
-                this.recognition.continuous = true;
-                this.recognition.interimResults = false;
-                this.recognition.lang = 'de-DE';
+                try {
+                    this.recognition = new SpeechRecognition();
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = true;
+                    this.recognition.lang = 'de-DE';
 
-                this.recognition.onresult = (event) => {
-                    for (let i = event.resultIndex; i < event.results.length; ++i) {
-                        if (event.results[i].isFinal) {
-                            const transcript = event.results[i][0].transcript.trim();
-                            if (transcript) {
-                                this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
-                                this.chatHistory.push({ role: 'user', content: transcript });
-                                if (this.$wire) {
-                                    this.$wire.saveUserLiveMessage(transcript);
+                    this.recognition.onresult = (event) => {
+                        // Echo-Schutz: Ignoriere Eingabe während aktiver Sprachausgabe
+                        if (this.isSpeaking || this.isOutputActive()) return;
+
+                        let interim = '';
+                        let final = '';
+                        for (let i = 0; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+                                final += event.results[i][0].transcript;
+                            } else {
+                                interim += event.results[i][0].transcript;
+                            }
+                        }
+                        const text = (final || interim).trim();
+                        if (text) {
+                            this.currentUserLiveTranscript = text;
+                        }
+
+                        if (!this.isLiveMode) {
+                            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                                if (event.results[i].isFinal) {
+                                    const transcript = event.results[i][0].transcript.trim();
+                                    if (transcript) {
+                                        const timeStr = this.getCurrentFormattedDateTime();
+                                        this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: transcript });
+                                        this.chatHistory.push({ role: 'user', content: transcript, time: timeStr, created_at: timeStr });
+                                        if (this.$wire) {
+                                            this.$wire.call('saveUserLiveMessage', transcript, this.currentChatSessionId || null);
+                                        }
+                                        this.currentUserLiveTranscript = '';
+                                    }
                                 }
                             }
                         }
-                    }
-                };
+                    };
 
-                this.recognition.onerror = (e) => {
-                    /*console.log('Speech recognition error', e);*/
-                };
+                    this.recognition.onerror = (e) => {
+                        if (e.error !== 'no-speech') {
+                            console.warn('Speech recognition warning:', e.error);
+                        }
+                    };
 
-                this.recognition.onend = () => {
-                    if (this.isLiveMode && !this.isMicMuted) {
-                        try { this.recognition.start(); } catch(e) {}
-                    }
-                };
+                    this.recognition.onend = () => {
+                        if ((this.isLiveMode || this.listening) && !this.isMicMuted && this.recognition) {
+                            try { this.recognition.start(); } catch(e) {}
+                        }
+                    };
 
-                try { this.recognition.start(); } catch(e) {}
+                    this.recognition.start();
+                    console.log('🎤 Real-time SpeechRecognition gestartet (Sub-50ms User-Transkription).');
+                } catch (e) {
+                    console.warn('Konnte SpeechRecognition nicht starten:', e);
+                }
             },
 
             stopSpeechRecognition() {
@@ -1601,6 +1782,25 @@
             },
 
             async handleWsMessage(data) {
+                if (data.type === 'liveTranscriptPersisted') {
+                    console.log('Gemini Live: Server bestätigte Persistierung:', data);
+                    if (data.content) {
+                        const cleanContent = data.content.trim();
+                        const role = data.role || 'assistant';
+                        const alreadyInHistory = this.chatHistory.some(m => m.role === role && (m.content.trim() === cleanContent || m.content.trim().includes(cleanContent) || cleanContent.includes(m.content.trim())));
+                        if (!alreadyInHistory) {
+                            const timeStr = this.getCurrentFormattedDateTime();
+                            this.chatHistory.push({
+                                role: role,
+                                content: cleanContent,
+                                name: role === 'assistant' ? (this.activeAgentName || 'Funkira') : 'Du',
+                                time: timeStr,
+                                created_at: timeStr
+                            });
+                        }
+                    }
+                    return;
+                }
                 if (data.sessionResumptionUpdate) {
                     console.log('Gemini Live: Session Resumption Update received', data.sessionResumptionUpdate);
                     this.sessionResumptionHandle = data.sessionResumptionUpdate.newHandle;
@@ -1620,32 +1820,58 @@
                 }
 
                 // 1. Google Gemini Audio-Transkription für die gesprochene KI-Antwort erfassen
-                if (data.serverContent && data.serverContent.outputTranscription && data.serverContent.outputTranscription.text) {
-                    this.currentLiveTranscript += data.serverContent.outputTranscription.text;
+                let aiTranscriptChunk = "";
+                if (data.serverContent) {
+                    if (data.serverContent.outputTranscription && data.serverContent.outputTranscription.text) {
+                        aiTranscriptChunk = data.serverContent.outputTranscription.text;
+                    } else if (data.serverContent.outputAudioTranscription && data.serverContent.outputAudioTranscription.text) {
+                        aiTranscriptChunk = data.serverContent.outputAudioTranscription.text;
+                    }
+                }
+                if (aiTranscriptChunk) {
+                    this.currentLiveTranscript += aiTranscriptChunk;
+                    this.lastAiPacketTime = Date.now();
+                    this.isSpeaking = true;
+                    this.isAiSpeakingTurn = true;
+                    if (!this.turnStartTime) this.turnStartTime = Date.now();
+                    this.updateCoreColor(true);
                 }
 
                 // 2. Google Gemini Audio-Transkription für das gesprochene Wort des Benutzers erfassen
-                // (wichtig für mobile Endgeräte / Browser ohne parallele SpeechRecognition)
-                if (data.serverContent && data.serverContent.inputTranscription && data.serverContent.inputTranscription.text) {
-                    if (this.isMobile || !this.recognition) {
-                        this.currentUserLiveTranscript += data.serverContent.inputTranscription.text;
+                const userChunk = data.serverContent?.inputTranscription?.text || data.serverContent?.inputAudioTranscription?.text;
+                if (userChunk) {
+                    if (!this.currentUserLiveTranscript) {
+                        this.currentUserLiveTranscript = userChunk;
+                    } else if (!this.currentUserLiveTranscript.includes(userChunk)) {
+                        this.currentUserLiveTranscript += ' ' + userChunk;
                     }
                 }
 
-                // Sobald die KI zu sprechen beginnt, flushen wir den akkumulierten User-Text (falls per Gemini inputTranscription empfangen)
+                // Sobald die KI zu sprechen beginnt, flushen wir den akkumulierten User-Text in die dauerhafte Historie
                 if (data.serverContent && (data.serverContent.modelTurn || data.serverContent.outputTranscription)) {
+                    this.hasSpokenInTurn = false;
+                    this.lastVoiceDetectedTime = 0;
                     if (this.currentUserLiveTranscript && this.currentUserLiveTranscript.trim() !== '') {
                         let userText = this.currentUserLiveTranscript.trim();
                         this.currentUserLiveTranscript = "";
-                        this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: userText });
-                        this.chatHistory.push({ role: 'user', content: userText });
-                        if (this.$wire) {
-                            this.$wire.saveUserLiveMessage(userText);
+                        const timeStr = this.getCurrentFormattedDateTime();
+                        const alreadyInHistory = this.chatHistory.some(m => m.role === 'user' && (m.content.trim() === userText || m.content.trim().includes(userText)));
+                        if (!alreadyInHistory) {
+                            this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: userText });
+                            this.chatHistory.push({ role: 'user', content: userText, time: timeStr, created_at: timeStr });
+                            if (this.$wire) {
+                                this.$wire.call('saveUserLiveMessage', userText, this.currentChatSessionId || null);
+                            }
                         }
                     }
                 }
 
                 if (data.serverContent && data.serverContent.modelTurn) {
+                    this.lastAiPacketTime = Date.now();
+                    this.isSpeaking = true;
+                    this.isAiSpeakingTurn = true;
+                    if (!this.turnStartTime) this.turnStartTime = Date.now();
+
                     const parts = data.serverContent.modelTurn.parts;
                     let chunkText = "";
                     parts.forEach(part => {
@@ -1662,44 +1888,50 @@
                     }
                 }
 
-                // Wait until the AI is completely done speaking to save the block
-                if (data.serverContent && data.serverContent.turnComplete) {
-                    if (this.currentLiveTranscript.trim() !== '') {
+                // Sobald die KI fertig generiert hat, wandeln wir das Transkript sofort in eine permanente Chatnachricht um
+                if (data.serverContent && (data.serverContent.turnComplete || data.serverContent.generationComplete)) {
+                    this.generationCompleteReceived = true;
+                    this.turnStartTime = null;
+                    if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
                         let finalTxt = this.currentLiveTranscript.trim();
+                        this.currentLiveTranscript = ""; // Reset sofort für nächsten Turn
                         let agentName = this.activeAgentName || data.agent_name || 'Funkira';
-                        this.chatHistory.push({ role: 'assistant', content: finalTxt, name: agentName });
-                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: finalTxt.replace(/\[.*?\]/s, '') });
-                        
-                        // Persistieren der gesprochenen KI-Antwort in der Datenbank
-                        if (this.$wire) {
-                            if (typeof this.$wire.saveAssistantLiveMessage === 'function') {
-                                this.$wire.saveAssistantLiveMessage(finalTxt, this.activeAgentId);
-                            } else if (typeof this.$wire.appendLiveChatMemory === 'function') {
-                                this.$wire.appendLiveChatMemory('assistant', finalTxt, this.activeAgentId);
+                        const timeStr = this.getCurrentFormattedDateTime();
+                        const alreadyInHistory = this.chatHistory.some(m => m.role === 'assistant' && (m.content.trim() === finalTxt || m.content.trim().includes(finalTxt)));
+                        if (!alreadyInHistory) {
+                            this.chatHistory.push({ role: 'assistant', content: finalTxt, name: agentName, time: timeStr, created_at: timeStr });
+                            this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: finalTxt.replace(/\[.*?\]/s, '') });
+                            
+                            // Persistieren der gesprochenen KI-Antwort in der Datenbank
+                            if (this.$wire) {
+                                this.$wire.call('saveAssistantLiveMessage', finalTxt, this.activeAgentId || null, this.currentChatSessionId || null);
                             }
                         }
-
-                        this.currentLiveTranscript = ""; // Reset for next turn
                     }
                 }
 
                 if (data.serverContent && data.serverContent.interrupted) {
-                    this.stopCurrentAudioPlayback();
-                    if (this.currentLiveTranscript.trim() !== '') {
-                        let interruptedTxt = this.currentLiveTranscript.trim();
-                        let agentName = this.activeAgentName || data.agent_name || 'Funkira';
-                        this.chatHistory.push({ role: 'assistant', content: interruptedTxt, name: agentName });
-                        this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: interruptedTxt.replace(/\[.*?\]/s, '') });
-                        
-                        if (this.$wire) {
-                            if (typeof this.$wire.saveAssistantLiveMessage === 'function') {
-                                this.$wire.saveAssistantLiveMessage(interruptedTxt, this.activeAgentId);
-                            } else if (typeof this.$wire.appendLiveChatMemory === 'function') {
-                                this.$wire.appendLiveChatMemory('assistant', interruptedTxt, this.activeAgentId);
+                    const elapsedSinceTurnStart = Date.now() - (this.turnStartTime || 0);
+                    // Echo/Barge-in Schutz: Ignoriere spurious interrupt innerhalb der ersten 1500ms, wenn noch Audio abgespielt wird
+                    if (this.turnStartTime && elapsedSinceTurnStart < 1500 && this.activeAudioSources && this.activeAudioSources.length > 0) {
+                        console.warn('⚠️ Ignoriere frühen Google-Interrupted Event (Echo/Barge-in Schutz):', elapsedSinceTurnStart, 'ms');
+                    } else {
+                        this.stopCurrentAudioPlayback();
+                        this.turnStartTime = null;
+                        this.generationCompleteReceived = false;
+                        if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
+                            let interruptedTxt = this.currentLiveTranscript.trim();
+                            let agentName = this.activeAgentName || data.agent_name || 'Funkira';
+                            const timeStr = this.getCurrentFormattedDateTime();
+                            this.chatHistory.push({ role: 'assistant', content: interruptedTxt, name: agentName, time: timeStr, created_at: timeStr });
+                            this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: interruptedTxt.replace(/\[.*?\]/s, '') });
+                            
+                            if (this.$wire) {
+                                this.$wire.call('saveAssistantLiveMessage', interruptedTxt, this.activeAgentId || null, this.currentChatSessionId || null);
                             }
-                        }
 
-                        this.currentLiveTranscript = "";
+                            this.currentLiveTranscript = "";
+                        }
                     }
                 }
 
@@ -1718,14 +1950,16 @@
                                 body: JSON.stringify({
                                     function: call.name,
                                     args: call.args,
-                                    chat_session_id: this.$wire.currentChatSessionId,
-                                    session_id: '{{ session()->getId() }}'
+                                    chat_session_id: this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : null),
+                                    session_id: '{{ session()->getId() }}',
+                                    agent_id: this.activeAgentId || (this.$wire ? this.$wire.agentId : null)
                                 })
                             });
                             const resultData = await res.json();
 
                             // Visualize
                             this.renderAnalytics([resultData]);
+                            this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug ausgeführt: ${call.name}` });
 
                             // MAGIC: Synchronize frontend UI if the agent decided to switch itself!
                             if (call.name === 'system_switch_agent' && resultData.result && resultData.result.status === 'success') {
@@ -1788,6 +2022,9 @@
                 }
                 this.nextPlayTime = 0;
                 this.isSpeaking = false;
+                this.isAiSpeakingTurn = false;
+                this.generationCompleteReceived = false;
+                this.turnStartTime = null;
                 this.updateCoreColor(true);
 
                 if (this.audioContext) {
@@ -1802,6 +2039,8 @@
 
                 this.thinking = false;
                 this.isSpeaking = true;
+                this.isAiSpeakingTurn = true;
+                this.lastAiPacketTime = Date.now();
                 this.updateCoreColor(true);
 
                 const binaryString = window.atob(base64Data);
@@ -1837,9 +2076,13 @@
                 this.nextPlayTime += audioBuffer.duration;
 
                 source.onended = () => {
-                    this.activeAudioSources = this.activeAudioSources.filter(s => s !== source);
-                    if (this.audioContext && this.audioContext.currentTime >= this.nextPlayTime - 0.1) {
+                    this.activeAudioSources = (this.activeAudioSources || []).filter(s => s !== source);
+                    this.lastSpeechEndTime = Date.now();
+                    if (this.activeAudioSources.length === 0) {
+                        this.nextPlayTime = 0;
                         this.isSpeaking = false;
+                        this.isAiSpeakingTurn = false;
+                        this.generationCompleteReceived = false;
                         this.updateCoreColor(true);
                     }
                 };
@@ -1886,28 +2129,29 @@
                 if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
                     let remainingAiTxt = this.currentLiveTranscript.trim();
                     let agentName = this.activeAgentName || 'Funkira';
-                    this.chatHistory.push({ role: 'assistant', content: remainingAiTxt, name: agentName });
+                    const timeStr = this.getCurrentFormattedDateTime();
+                    this.chatHistory.push({ role: 'assistant', content: remainingAiTxt, name: agentName, time: timeStr, created_at: timeStr });
                     this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: remainingAiTxt.replace(/\[.*?\]/s, '') });
                     if (this.$wire) {
-                        if (typeof this.$wire.saveAssistantLiveMessage === 'function') {
-                            this.$wire.saveAssistantLiveMessage(remainingAiTxt, this.activeAgentId);
-                        } else if (typeof this.$wire.appendLiveChatMemory === 'function') {
-                            this.$wire.appendLiveChatMemory('assistant', remainingAiTxt, this.activeAgentId);
-                        }
+                        this.$wire.call('saveAssistantLiveMessage', remainingAiTxt, this.activeAgentId || null, this.currentChatSessionId || null);
                     }
                     this.currentLiveTranscript = "";
                 }
                 if (this.currentUserLiveTranscript && this.currentUserLiveTranscript.trim() !== '') {
                     let remainingUserTxt = this.currentUserLiveTranscript.trim();
                     this.currentUserLiveTranscript = "";
+                    const timeStr = this.getCurrentFormattedDateTime();
                     this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: remainingUserTxt });
-                    this.chatHistory.push({ role: 'user', content: remainingUserTxt });
+                    this.chatHistory.push({ role: 'user', content: remainingUserTxt, time: timeStr, created_at: timeStr });
                     if (this.$wire) {
-                        this.$wire.saveUserLiveMessage(remainingUserTxt);
+                        this.$wire.call('saveUserLiveMessage', remainingUserTxt, this.currentChatSessionId || null);
                     }
                 }
                 this.nextPlayTime = 0;
                 this.isSpeaking = false;
+                this.isAiSpeakingTurn = false;
+                this.generationCompleteReceived = false;
+                this.turnStartTime = null;
                 this.thinking = false;
                 this.updateCoreColor(true);
             },

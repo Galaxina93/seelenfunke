@@ -5,6 +5,8 @@
      @funki-event.window="updateFunkiStatus($event.detail.state)"
      @funki-force-stop.window="stopSpeech()"
      @ai-speech-feedback.window="speakFeedback($event.detail.text)"
+     @ai-task-completed.window="onBackgroundTaskCompleted($event.detail.task || $event.detail)"
+     @ai-background-task-completed.window="onBackgroundTaskCompleted($event.detail.task || $event.detail)"
      @request-clipboard.window="readClipboard()"
      @write-clipboard.window="writeClipboard($event.detail.text)"
      @agent-changed.window="updateAgentConfig($event.detail.color, $event.detail.name, $event.detail.wakeWord, $event.detail.agentId, $event.detail.profilePicture)"
@@ -972,17 +974,45 @@
                         </button>
                     </div>
                 </div>
-                <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1" x-effect="if (chatHistory.length || thinking) { $nextTick(() => { $el.scrollTop = $el.scrollHeight; }); }">
+                <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1" x-effect="if (chatHistory.length || thinking || currentLiveTranscript || currentUserLiveTranscript) { $nextTick(() => { $el.scrollTop = $el.scrollHeight; }); }">
                     <template x-for="(msg, i) in chatHistory" :key="i">
                         <div class="flex flex-col gap-1 w-full" :class="msg.role === 'user' ? 'items-end' : 'items-start'">
-                            <span class="text-[8px] font-black uppercase tracking-widest text-gray-500" x-text="msg.role === 'user' ? 'Du' : (msg.name || activeAgentName)"></span>
+                            <div class="flex items-center gap-1.5" :class="msg.role === 'user' ? 'flex-row-reverse' : ''">
+                                <span class="text-[8px] font-black uppercase tracking-widest text-gray-400" x-text="msg.role === 'user' ? 'Du' : (msg.name || activeAgentName)"></span>
+                                <span class="text-[8px] font-mono text-gray-500" x-text="formatMessageTime(msg)"></span>
+                            </div>
                             <div class="p-2 rounded-lg text-xs leading-relaxed max-w-[85%] break-words"
                                  :class="msg.role === 'user' ? 'bg-emerald-900/40 border border-emerald-500/30 text-emerald-100' : 'bg-gray-800/60 border border-gray-600/50 text-gray-200'">
                                  <span x-html="stripSpeak(msg.content).replace(/\n/g, '<br>')"></span>
                             </div>
                         </div>
                     </template>
-                    <div x-show="thinking" class="flex flex-col gap-1 w-full items-start">
+
+                    <!-- Live-Streaming Speech Bubble für User (falls Spracheingabe aktiv) -->
+                    <div x-show="currentUserLiveTranscript && currentUserLiveTranscript.trim() !== ''" class="flex flex-col gap-1 w-full items-end">
+                        <div class="flex items-center gap-1.5 flex-row-reverse">
+                            <span class="text-[8px] font-black uppercase tracking-widest text-emerald-400">Du</span>
+                            <span class="text-[8px] font-mono text-emerald-500/70 animate-pulse">Spracheingabe...</span>
+                        </div>
+                        <div class="p-2 rounded-lg text-xs leading-relaxed max-w-[85%] break-words bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 italic shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                            <span x-text="currentUserLiveTranscript"></span>
+                            <span class="inline-block w-1.5 h-3 ml-0.5 bg-emerald-400 animate-pulse align-middle"></span>
+                        </div>
+                    </div>
+
+                    <!-- Live-Streaming Speech Bubble für KI-Agenten während des Sprechens -->
+                    <div x-show="currentLiveTranscript && currentLiveTranscript.trim() !== ''" class="flex flex-col gap-1 w-full items-start">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-[8px] font-black uppercase tracking-widest text-purple-400" x-text="activeAgentName || 'Funkira'"></span>
+                            <span class="text-[8px] font-mono text-purple-400/80 animate-pulse">spricht gerade...</span>
+                        </div>
+                        <div class="p-2 rounded-lg text-xs leading-relaxed max-w-[85%] break-words bg-purple-950/40 border border-purple-500/40 text-purple-100 shadow-[0_0_10px_rgba(168,85,247,0.2)]">
+                            <span x-html="stripSpeak(currentLiveTranscript).replace(/\n/g, '<br>')"></span>
+                            <span class="inline-block w-1.5 h-3 ml-0.5 bg-purple-400 animate-pulse align-middle"></span>
+                        </div>
+                    </div>
+
+                    <div x-show="thinking && (!currentLiveTranscript || currentLiveTranscript.trim() === '')" class="flex flex-col gap-1 w-full items-start">
                         <span class="text-[8px] font-black uppercase tracking-widest text-gray-500" x-text="activeAgentName"></span>
                         <div class="p-2 rounded-lg text-xs leading-relaxed bg-gray-800/60 border border-gray-600/50 text-emerald-400 animate-pulse">
                             Nachricht wird generiert...

@@ -2,7 +2,7 @@
 
 **Datum**: 09. Oktober 2026  
 **Status**: Erfolgreich behoben & verifiziert  
-**Betroffene Konversationen**: `572cb8cf-64ea-4ad7-99f5-3b2d4bdd81b6`, `e6650ae5-a284-4d19-8bb8-750aef17d12c`  
+**Betroffene Konversationen**: `572cb8cf-64ea-4ad7-99f5-3b2d4bdd81b6`, `e6650ae5-a284-4d19-8bb8-750aef17d12c`, `d14ac8d3-bf9d-4041-b8dc-cc0c92c18e9f`  
 **Systemkomponenten**: Antigravity IDE (Electron / Chromium / React 18 / TanStack Router), VSCode URI Parser (`Pca`/`Qe`), SQLite Chat Storage (`conversations.db` / Protobuf)
 
 ---
@@ -98,6 +98,18 @@ Um sicherzustellen, dass die Chats in der laufenden Antigravity Electron-Applika
    - `badUrisCount: 0` (Keine fehlerhaften `file:////`-URIs mehr im gerenderten DOM auffindbar).
    - Die React-Fehlergrenze löste nicht aus.
    - Beide Chats lassen sich nun wieder vollständig, flüssig und ohne Datenverlust öffnen.
+
+### 4.2 Nachfolge-Vorfall & Wiederherstellung von `d14ac8d3-bf9d-4041-b8dc-cc0c92c18e9f`
+Am späten Nachmittag des 09. Oktobers 2026 stürzte eine weitere Sitzung (`d14ac8d3-bf9d-4041-b8dc-cc0c92c18e9f`) mit dem identischen Black-Screen-Muster ab:
+- **Ursache**: Ein KI-Assistent hatte bei den Schritten 3062–3082 Werkzeugaufrufe (`view_file`, `replace_file_content`) mit Vorwärtsslashes auf WSL (`//wsl.localhost/Ubuntu/...`) abgesetzt, was 310 Schritte mit dem ungültigen URI-Präfix `file:////` kontaminierte.
+- **Durchgeführte Reparatur**:
+  - Vollständige Sicherungskopien von `d14ac8d3-bf9d-4041-b8dc-cc0c92c18e9f.db`, `transcript.jsonl` und `transcript_full.jsonl` angelegt.
+  - Protobuf-Wire-Format-Sanitization mit Längen-Korrektur (`varint`) via `strict_proto.py` und `sanitize_d14.py` über alle 310 betroffenen Schritte ausgeführt.
+  - Zeilenweise Bereinigung von `transcript.jsonl` und `transcript_full.jsonl`.
+- **Verifikation**:
+  - Prüfung über die interne Antigravity Trajectory-API (`GetCascadeTrajectory`):
+    - `d14ac8d3`: 3.083 Schritte vollständig geladen, **0 fehlerhafte URIs** (`file:////`).
+    - Der Chat ist vollständig repariert, absturzsicher und kann in der Benutzeroberfläche wieder geöffnet werden.
 
 ---
 

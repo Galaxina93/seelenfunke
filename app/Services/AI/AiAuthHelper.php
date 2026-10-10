@@ -37,4 +37,31 @@ class AiAuthHelper
         }
         return Auth::guard('customer')->id();
     }
+
+    public static function check(): bool
+    {
+        return self::isAdmin() || self::isCustomer() || Auth::check();
+    }
+
+    public static function getUserId()
+    {
+        if (self::isAdmin()) {
+            return self::getAdminId();
+        }
+        if (self::isCustomer()) {
+            return self::getCustomerId();
+        }
+        return Auth::id();
+    }
+
+    public static function getUser()
+    {
+        if (self::isAdmin()) {
+            return (Auth::user() instanceof Admin) ? Auth::user() : Auth::guard('admin')->user();
+        }
+        if (self::isCustomer()) {
+            return (Auth::user() instanceof Customer) ? Auth::user() : Auth::guard('customer')->user();
+        }
+        return Auth::user();
+    }
 }

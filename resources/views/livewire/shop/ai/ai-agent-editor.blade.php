@@ -572,7 +572,7 @@
                             @endif
                             
                             <!-- Custom URL and Speed (Only for Local/XTTS) -->
-                            <div x-show="provider === 'toni_xttsv2'" class="space-y-4 pt-2 border-t border-gray-800/80 mt-2" x-cloak>
+                            <div x-show="$wire.tts_provider === 'toni_xttsv2'" class="space-y-4 pt-2 border-t border-gray-800/80 mt-2" x-cloak>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-400 mb-1">API Endpoint URL (Optional)</label>
                                     <input type="url" wire:model.defer="tts_api_url" placeholder="http://192.168.188.32:8000" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all">

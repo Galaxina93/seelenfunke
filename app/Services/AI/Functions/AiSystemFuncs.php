@@ -478,6 +478,15 @@ trait AiSystemFuncs
                             'type' => 'string',
                             'description' => 'WICHTIG: Bestimmt ob "all" (alle Treffer) oder "latest" (nur der absolut letzte Treffer) behandelt werden soll. Wenn der User sagt "alle" oder "mehrere", MUSST du diesen Wert zwingend auf "all" setzen! Standard ist "latest".',
                             'enum' => ['all', 'latest']
+                        ],
+                        'status' => [
+                            'type' => 'string',
+                            'description' => 'Filtert Logs nach aktuellem Status, z. B. "error" oder "success". Wenn der User sagt "setze alle Fehler auf gelöst", dann status="error".',
+                            'enum' => ['error', 'success']
+                        ],
+                        'run_in_background' => [
+                            'type' => 'boolean',
+                            'description' => 'Erzwingt die Ausführung im Hintergrund. Bei Massenaktionen (target_scope="all") geschieht dies automatisch, damit das Gespräch sofort ohne Pause weitergeführt werden kann.'
                         ]
                     ],
                     'required' => ['action']
@@ -951,6 +960,51 @@ trait AiSystemFuncs
                     'required' => ['filename_query']
                 ],
                 'callable' => [self::class, 'executeEmailNeuralStructure']
+            ],
+            [
+                'name' => 'system_dispatch_background_task',
+                'description' => 'Lagert eine zeitaufwändige Aufgabe, Massen-Operation oder einen komplexen Arbeitsauftrag in den Hintergrund aus, damit das Gespräch mit dem Nutzer OHNE Verzögerung oder Stille sofort weitergeführt werden kann. Der Nutzer wird sofort informiert und der Agent erhält automatisch Bescheid, sobald die Aufgabe erledigt ist. Stichworte: Hintergrundaufgabe, Aufgabe auslagern, im Hintergrund bearbeiten, async task, langsame Aufgabe.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'task_description' => [
+                            'type' => 'string',
+                            'description' => 'Aussagekräftige Beschreibung der Hintergrundaufgabe (z. B. "164 Logs auf gelöst setzen", "Shop-Bestellungen der letzten Woche analysieren").'
+                        ],
+                        'tool_to_execute' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Der Name eines konkreten Werkzeugs, das im Hintergrund ausgeführt werden soll (z. B. "system_manage_logs").'
+                        ],
+                        'tool_arguments' => [
+                            'type' => 'object',
+                            'description' => 'Optional: Die Parameter für das im Hintergrund auszuführende Werkzeug als Objekt/Dictionary.'
+                        ],
+                        'assigned_agent' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Der Name des Agenten, der die Aufgabe ausführen soll (z. B. "Funkira", "Systemi").'
+                        ]
+                    ],
+                    'required' => ['task_description']
+                ],
+                'callable' => [self::class, 'executeDispatchBackgroundTask']
+            ],
+            [
+                'name' => 'system_get_task_status',
+                'description' => 'Prüft den aktuellen Status von laufenden oder kürzlich abgeschlossenen Hintergrund-Aufgaben. Nutze dieses Tool, wenn der Nutzer fragt "Wie weit bist du mit...?", "Ist die Aufgabe schon fertig?" oder "Was läuft gerade im Hintergrund?". Stichworte: Task Status, Hintergrund Aufgaben prüfen, wie weit ist die Aufgabe, ist es schon fertig.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'task_id' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Die exakte UUID der Hintergrund-Aufgabe. Falls nicht angegeben, werden die letzten Aufgaben aufgelistet.'
+                        ],
+                        'limit' => [
+                            'type' => 'integer',
+                            'description' => 'Optional: Maximale Anzahl der zurückgegebenen Aufgaben (Standard: 5).'
+                        ]
+                    ]
+                ],
+                'callable' => [self::class, 'executeGetTaskStatus']
             ]
         ];
 
@@ -1802,36 +1856,81 @@ trait AiSystemFuncs
         $timeFilter = $args['time_filter'] ?? 'all';
         $keyword = $args['keyword'] ?? null;
 
-        $query = \App\Models\Ai\AiChatMemory::where('session_id', session()->getId())
-                                            ->orderBy('created_at', 'desc');
+        $targetSessionId = $args['chat_session_id'] 
+            ?? $args['session_id'] 
+            ?? config('ai.current_session_id') 
+            ?? request()->input('chat_session_id')
+            ?? request()->input('session_id');
 
-        switch ($timeFilter) {
-            case 'today':
-                $query->whereDate('created_at', \Carbon\Carbon::today());
-                break;
-            case 'yesterday':
-                $query->whereDate('created_at', \Carbon\Carbon::yesterday());
-                break;
-            case 'last_week':
-                $query->where('created_at', '>=', \Carbon\Carbon::now()->subDays(7));
-                break;
+        $userId = \App\Services\AI\AiAuthHelper::getUserId();
+        $userSessionIds = [];
+        if ($userId) {
+            $userSessionIds = \App\Models\Ai\AiChatSession::where('user_id', $userId)
+                ->orderBy('updated_at', 'desc')
+                ->pluck('id')
+                ->toArray();
         }
 
-        if ($keyword) {
-            $query->where('content', 'like', '%' . $keyword . '%');
+        // If targetSessionId was empty, try to resolve the most recent session
+        if (empty($targetSessionId) && !empty($userSessionIds)) {
+            $targetSessionId = $userSessionIds[0] ?? null;
         }
 
-        $memories = $query->limit(50)->get();
+        $applyFilters = function ($q) use ($timeFilter, $keyword) {
+            switch ($timeFilter) {
+                case 'today':
+                    $q->whereDate('created_at', \Carbon\Carbon::today());
+                    break;
+                case 'yesterday':
+                    $q->whereDate('created_at', \Carbon\Carbon::yesterday());
+                    break;
+                case 'last_week':
+                    $q->where('created_at', '>=', \Carbon\Carbon::now()->subDays(7));
+                    break;
+            }
+
+            if ($keyword) {
+                $q->where('content', 'like', '%' . $keyword . '%');
+            }
+        };
+
+        // 1. First attempt: search in current session (if available)
+        $memories = collect();
+        if (!empty($targetSessionId)) {
+            $query = \App\Models\Ai\AiChatMemory::where('session_id', $targetSessionId)
+                ->orderBy('created_at', 'desc');
+            $applyFilters($query);
+            $memories = $query->limit(50)->get();
+        }
+
+        // 2. If nothing found in current session or if timeFilter asks for past sessions (yesterday/last_week/all),
+        // and we have user sessions, search across all user sessions
+        if ($memories->isEmpty() && !empty($userSessionIds)) {
+            $query = \App\Models\Ai\AiChatMemory::whereIn('session_id', $userSessionIds)
+                ->orderBy('created_at', 'desc');
+            $applyFilters($query);
+            $memories = $query->limit(50)->get();
+        }
+
+        // 3. Fallback for guests using PHP session
+        if ($memories->isEmpty() && empty($targetSessionId) && empty($userSessionIds)) {
+            $query = \App\Models\Ai\AiChatMemory::where('session_id', session()->getId())
+                ->orderBy('created_at', 'desc');
+            $applyFilters($query);
+            $memories = $query->limit(50)->get();
+        }
 
         if ($memories->isEmpty()) {
             return [
                 'status' => 'empty',
-                'message' => 'Es wurden keine passenden Erinnerungen oder Logs zu dieser Suchanfrage in deiner aktuellen Session gefunden.'
+                'message' => 'Es wurden keine passenden Erinnerungen oder Logs zu dieser Suchanfrage im Chat-Verlauf gefunden.'
             ];
         }
 
         $formattedLogs = $memories->map(function ($m) {
-            return "[{$m->created_at->format('d.m. H:i')}] - Rolle: {$m->role} - Inhalt: {$m->content}";
+            $date = $m->created_at ? $m->created_at->format('d.m. H:i') : '--.-- --:--';
+            $authorName = $m->context_data['name'] ?? ucfirst($m->role);
+            return "[{$date}] - {$authorName} ({$m->role}): {$m->content}";
         })->implode("\n");
 
         return [
@@ -1951,7 +2050,7 @@ trait AiSystemFuncs
         }
     }
 
-    public static function executeManageSystemLogs(array $args)
+    public static function executeManageSystemLogs(array $args, $agent = null)
     {
         $action = $args['action'] ?? 'resolve';
 
@@ -2007,8 +2106,51 @@ trait AiSystemFuncs
         $searchType = $args['search_type'] ?? null;
         $searchActionId = $args['search_action_id'] ?? null;
         
-        // Defaults to 'latest' if any search parameter is used without log_id to prevent bulk disaster
         $targetScope = $args['target_scope'] ?? 'latest';
+        $runInBackground = $args['run_in_background'] ?? false;
+        $isBackgroundJob = !empty($args['__is_background_job']);
+
+        // Mass actions should be dispatched to the background worker to avoid dead silence
+        $isBulkOperation = ($targetScope === 'all') || $manageAllSimilar || $runInBackground;
+
+        if ($isBulkOperation && !$isBackgroundJob && empty($logId)) {
+            $actionGer = match($action) {
+                'delete' => 'gelöscht',
+                'set_error' => 'als Fehler markiert',
+                'clear_files' => 'Dateien geleert',
+                default => 'auf gelöst gesetzt',
+            };
+            $promptDesc = "System-Logs verwalten: Alle zutreffenden Logs {$actionGer}";
+
+            $task = \App\Models\Ai\AiWorkspaceTask::create([
+                'prompt' => $promptDesc,
+                'status' => 'pending',
+                'assigned_agent_id' => $agent?->id,
+                'ui_metadata' => [
+                    'tool' => 'system_manage_logs',
+                    'action' => $action,
+                    'target_scope' => $targetScope,
+                    'session_id' => config('ai.current_session_id') ?: session()->getId(),
+                ]
+            ]);
+
+            \App\Events\TaskUpdated::dispatch($task);
+
+            $jobArgs = array_merge($args, ['__is_background_job' => true]);
+            \App\Jobs\ExecuteAiBackgroundToolJob::dispatch(
+                $task->id,
+                'system_manage_logs',
+                $jobArgs,
+                $agent?->id,
+                config('ai.current_session_id') ?: session()->getId()
+            );
+
+            return [
+                'status' => 'queued',
+                'task_id' => $task->id,
+                'message' => "Die Bereinigung der System-Logs ({$actionGer}) wurde erfolgreich im Hintergrund gestartet (Task-ID: {$task->id}). Die Bearbeitung läuft bereits. Du kannst mit dem Nutzer ganz normal weiter sprechen. Sobald die Aufgabe fertig ist, erhältst du automatisch Bescheid."
+            ];
+        }
 
         $processedCount = 0;
 
@@ -2052,7 +2194,7 @@ trait AiSystemFuncs
             } else {
                 $processLog($log);
             }
-        } elseif ($errorContains || $searchTime || $searchAgent || $searchType || $searchActionId) {
+        } elseif ($errorContains || $searchTime || $searchAgent || $searchType || $searchActionId || $targetScope === 'all' || !empty($args['status'])) {
             $query = \App\Models\System\SystemLog::query();
             
             if ($errorContains) {
@@ -2073,11 +2215,18 @@ trait AiSystemFuncs
                     });
                 }
             }
-            if ($searchType) {
+            if ($searchType && $searchType !== 'all') {
                 $query->where('type', 'like', '%' . $searchType . '%');
             }
             if ($searchActionId) {
                 $query->where('action_id', 'like', '%' . $searchActionId . '%');
+            }
+            
+            $searchStatus = $args['status'] ?? ($args['search_status'] ?? null);
+            if ($searchStatus) {
+                $query->where('status', $searchStatus);
+            } elseif ($action === 'resolve') {
+                $query->where('status', 'error');
             }
             
             if ($targetScope === 'latest') {
@@ -2086,19 +2235,176 @@ trait AiSystemFuncs
                     $processLog($log);
                 }
             } else {
-                $logs = $query->get();
-                foreach ($logs as $log) {
-                    $processLog($log);
+                if ($action === 'delete') {
+                    $count = (clone $query)->count();
+                    (clone $query)->delete();
+                    $processedCount = $count;
+                } elseif ($action === 'resolve') {
+                    $errorQuery = (clone $query)->where('status', 'error');
+                    $count = $errorQuery->count();
+                    if ($count > 0) {
+                        $ids = $errorQuery->pluck('id');
+                        \App\Models\System\SystemLog::whereIn('id', $ids)->update(['status' => 'success']);
+                        \Illuminate\Support\Facades\DB::update(
+                            "UPDATE system_logs SET title = CONCAT('[GELÖST] ', title) WHERE id IN (" . $ids->implode(',') . ") AND title NOT LIKE '[GELÖST]%'"
+                        );
+                    }
+                    $processedCount = $count;
+                } else {
+                    $query->chunkById(100, function($logs) use ($processLog) {
+                        foreach ($logs as $log) {
+                            $processLog($log);
+                        }
+                    });
                 }
             }
         } else {
-            return ['status' => 'error', 'message' => 'Bitte log_id oder Suchparameter (z.B. search_time, error_message_contains) angeben.'];
+            return ['status' => 'error', 'message' => 'Bitte log_id oder Suchparameter (z.B. search_time, error_message_contains, status) angeben.'];
         }
 
         $actionText = $action === 'delete' ? 'GELÖSCHT' : ($action === 'set_error' ? 'als FEHLER markiert' : 'als GELÖST markiert');
         return [
             'status' => 'success',
             'message' => "Erfolgreich! Es wurden {$processedCount} System-Logs {$actionText}."
+        ];
+    }
+
+    public static function executeDispatchBackgroundTask(array $args, $agent = null)
+    {
+        $taskDescription = trim($args['task_description'] ?? '');
+        if (empty($taskDescription)) {
+            return [
+                'status' => 'error',
+                'message' => 'Bitte gib eine aussagekräftige Beschreibung der Hintergrundaufgabe an (Parameter: task_description).'
+            ];
+        }
+
+        $toolToExecute = $args['tool_to_execute'] ?? null;
+        $toolArgs = $args['tool_arguments'] ?? [];
+        $assignedAgentName = $args['assigned_agent'] ?? null;
+
+        $targetAgent = $agent;
+        if ($assignedAgentName) {
+            $found = \App\Models\Ai\AiAgent::where('name', $assignedAgentName)->first();
+            if ($found) {
+                $targetAgent = $found;
+            }
+        }
+        if (!$targetAgent) {
+            $targetAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
+            if (!$targetAgent) {
+                $targetAgent = \App\Models\Ai\AiAgent::create([
+                    'name' => 'Funkira',
+                    'role_description' => 'Standard KI-Assistentin',
+                    'is_active' => true,
+                ]);
+            }
+        }
+
+        $task = \App\Models\Ai\AiWorkspaceTask::create([
+            'prompt' => $taskDescription,
+            'status' => 'pending',
+            'assigned_agent_id' => $targetAgent?->id,
+            'ui_metadata' => [
+                'auto_approve' => true,
+                'tool_to_execute' => $toolToExecute,
+                'tool_arguments' => $toolArgs,
+                'session_id' => config('ai.current_session_id') ?: session()->getId(),
+                'dispatched_by' => $agent?->name ?? 'User',
+            ]
+        ]);
+
+        \App\Events\TaskUpdated::dispatch($task);
+
+        if (!empty($toolToExecute)) {
+            \App\Jobs\ExecuteAiBackgroundToolJob::dispatch(
+                $task->id,
+                $toolToExecute,
+                $toolArgs,
+                $targetAgent?->id,
+                config('ai.current_session_id') ?: session()->getId()
+            );
+        } else {
+            \App\Jobs\ProcessAiWorkspaceTask::dispatch($task);
+        }
+
+        return [
+            'status' => 'queued',
+            'task_id' => $task->id,
+            'task_description' => $taskDescription,
+            'tool_to_execute' => $toolToExecute,
+            'message' => "Die Aufgabe '{$taskDescription}' wurde erfolgreich im Hintergrund gestartet (Task-ID: {$task->id}). Du kannst dem Nutzer mitteilen, dass die Aufgabe im Hintergrund läuft und ihr ganz normal weiterreden könnt. Du wirst automatisch benachrichtigt, sobald sie erledigt ist."
+        ];
+    }
+
+    public static function executeGetTaskStatus(array $args, $agent = null)
+    {
+        $taskId = $args['task_id'] ?? null;
+        $limit = min(max((int)($args['limit'] ?? 5), 1), 20);
+
+        if (!empty($taskId)) {
+            $task = \App\Models\Ai\AiWorkspaceTask::with('agent')->find($taskId);
+            if (!$task) {
+                return [
+                    'status' => 'error',
+                    'message' => "Hintergrund-Aufgabe mit ID '{$taskId}' wurde nicht gefunden."
+                ];
+            }
+
+            $meta = $task->ui_metadata ?? [];
+            $plan = $meta['execution_plan'] ?? [];
+            $totalSteps = count($plan);
+            $completedSteps = count(array_filter($plan, fn($s) => ($s['status'] ?? '') === 'completed'));
+            $progressPercent = $totalSteps > 0 ? round(($completedSteps / $totalSteps) * 100) : ($task->status === 'completed' ? 100 : 0);
+
+            return [
+                'status' => 'success',
+                'task' => [
+                    'id' => $task->id,
+                    'prompt' => $task->prompt,
+                    'status' => $task->status,
+                    'assigned_agent' => $task->agent?->name,
+                    'progress_percent' => $progressPercent,
+                    'completed_steps' => $completedSteps,
+                    'total_steps' => $totalSteps,
+                    'response_content' => $task->response_content,
+                    'created_at' => $task->created_at?->format('H:i:s d.m.Y'),
+                    'completed_at' => $task->completed_at?->format('H:i:s d.m.Y'),
+                ],
+                'summary' => "Aufgabe '{$task->prompt}' hat den Status '{$task->status}'." . ($task->response_content ? " Ergebnis: {$task->response_content}" : "")
+            ];
+        }
+
+        $tasks = \App\Models\Ai\AiWorkspaceTask::with('agent')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
+
+        if ($tasks->isEmpty()) {
+            return [
+                'status' => 'success',
+                'tasks' => [],
+                'message' => 'Es wurden keine Hintergrund-Aufgaben gefunden.'
+            ];
+        }
+
+        $formatted = $tasks->map(function ($t) {
+            return [
+                'id' => $t->id,
+                'prompt' => $t->prompt,
+                'status' => $t->status,
+                'assigned_agent' => $t->agent?->name,
+                'created_at' => $t->created_at?->format('H:i:s'),
+                'completed_at' => $t->completed_at?->format('H:i:s'),
+                'response' => $t->response_content ? substr($t->response_content, 0, 100) . '...' : null,
+            ];
+        })->toArray();
+
+        return [
+            'status' => 'success',
+            'tasks_count' => count($formatted),
+            'tasks' => $formatted,
+            'message' => "Es wurden " . count($formatted) . " Hintergrund-Aufgaben abgerufen."
         ];
     }
 

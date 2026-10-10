@@ -131,9 +131,9 @@ class TelegramAgentController extends Controller
                 })
                 ->toArray();
 
-            // Limit history to last 50 messages to prevent token limits
-            if (count($history) > 50) {
-                $history = array_slice($history, -50);
+            // Limit history to last 20 messages to prevent token limits
+            if (count($history) > 20) {
+                $history = array_slice($history, -20);
             }
 
             // 4. Initialize the Agent Brain

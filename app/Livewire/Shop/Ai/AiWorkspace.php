@@ -49,8 +49,8 @@ class AiWorkspace extends Component
 
     public function mount()
     {
-        if (auth()->check()) {
-            $setting = \App\Models\Ai\AiUserWorkspaceSetting::where('user_id', auth()->id())->first();
+        if (\App\Services\AI\AiAuthHelper::check()) {
+            $setting = \App\Models\Ai\AiUserWorkspaceSetting::where('user_id', \App\Services\AI\AiAuthHelper::getUserId())->first();
             if ($setting) {
                 $this->chatHeightPercent = $setting->chat_height_percent;
                 $this->autoApprovePlan = (bool) $setting->auto_approve_execution_plan;
@@ -102,11 +102,17 @@ class AiWorkspace extends Component
         // Just refresh the component
     }
 
+    #[On('chat-memory-updated')]
+    public function handleChatMemoryUpdated()
+    {
+        unset($this->messages);
+    }
+
     public function updatedActiveTab($value)
     {
-        if (auth()->check()) {
+        if (\App\Services\AI\AiAuthHelper::check()) {
             \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
-                ['user_id' => auth()->id()],
+                ['user_id' => \App\Services\AI\AiAuthHelper::getUserId()],
                 ['active_tab' => $value]
             );
         }
@@ -236,23 +242,23 @@ class AiWorkspace extends Component
 
     public function saveLayoutPercent($percent)
     {
-        if (!auth()->check()) return;
+        if (!\App\Services\AI\AiAuthHelper::check()) return;
         
         $percent = max(10, min(90, (int) $percent));
         $this->chatHeightPercent = $percent;
         
         \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
-            ['user_id' => auth()->id()],
+            ['user_id' => \App\Services\AI\AiAuthHelper::getUserId()],
             ['chat_height_percent' => $percent]
         );
     }
 
     public function updatedAutoApprovePlan($value)
     {
-        if (!auth()->check()) return;
+        if (!\App\Services\AI\AiAuthHelper::check()) return;
         
         \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
-            ['user_id' => auth()->id()],
+            ['user_id' => \App\Services\AI\AiAuthHelper::getUserId()],
             ['auto_approve_execution_plan' => $value]
         );
     }

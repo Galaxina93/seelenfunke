@@ -30,6 +30,19 @@ class ProcessAiWorkspaceTask implements ShouldQueue
 
         $agent = $this->task->agent;
         if (!$agent) {
+            $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
+            if (!$agent) {
+                $agent = \App\Models\Ai\AiAgent::create([
+                    'name' => 'Funkira',
+                    'role_description' => 'Standard KI-Assistentin',
+                    'is_active' => true,
+                ]);
+            }
+            if ($agent) {
+                $this->task->update(['assigned_agent_id' => $agent->id]);
+            }
+        }
+        if (!$agent) {
              Log::error("No agent assigned to Workspace Task: {$this->task->id}");
              $this->task->update(['status' => 'failed', 'response_content' => 'Error: No agent assigned.']);
              \App\Events\TaskUpdated::dispatch($this->task);
@@ -133,7 +146,7 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 \App\Events\TaskUpdated::dispatch($this->task);
 
                 $settings = \App\Models\Ai\AiUserWorkspaceSetting::first();
-                $autoApprove = $settings->auto_approve_execution_plan ?? false;
+                $autoApprove = ($metadata['auto_approve'] ?? false) || ($settings->auto_approve_execution_plan ?? false);
                 if (!$autoApprove) {
                     $this->task->update(['status' => 'awaiting_approval']);
                     \App\Events\TaskUpdated::dispatch($this->task);
@@ -321,5 +334,16 @@ class ProcessAiWorkspaceTask implements ShouldQueue
         }
 
         \App\Events\TaskUpdated::dispatch($this->task);
+
+        if (class_exists(\App\Events\AiFrontendEvent::class) && in_array($this->task->status, ['completed', 'failed'])) {
+            broadcast(new \App\Events\AiFrontendEvent('ai-background-task-completed', [
+                'task_id' => $this->task->id,
+                'prompt' => $this->task->prompt,
+                'status' => $this->task->status,
+                'response' => $this->task->response_content,
+                'agent_id' => $agent?->id,
+                'agent_name' => $agent?->name ?? 'System',
+            ]));
+        }
     }
 }

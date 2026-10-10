@@ -40,6 +40,16 @@ class AIController extends Controller
         $args = $request->input('args', []);
 
         $sessionId = $request->input('chat_session_id') ?: $request->input('session_id');
+        if (!$sessionId && \App\Services\AI\AiAuthHelper::check()) {
+            $userId = \App\Services\AI\AiAuthHelper::getUserId();
+            $latestSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)
+                ->where('is_archived', false)
+                ->orderBy('updated_at', 'desc')
+                ->first();
+            if ($latestSession) {
+                $sessionId = $latestSession->id;
+            }
+        }
         if ($sessionId) {
             config(['ai.current_session_id' => $sessionId]);
             // Only set PHP session ID if it's not a database UUID/ID to avoid corrupting native sessions
@@ -49,9 +59,41 @@ class AIController extends Controller
             }
         }
 
+        $agentId = $request->input('agent_id');
+        $agent = null;
+        if ($agentId) {
+            $agent = \App\Models\Ai\AiAgent::find($agentId);
+        }
+        if (!$agent && \App\Services\AI\AiAuthHelper::check()) {
+            $user = \App\Services\AI\AiAuthHelper::getUser();
+            $agent = $user?->ai_agent;
+        }
+        if (!$agent) {
+            $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
+        }
+
         try {
             // Forward execution to the registry
-            $result = AIFunctionsRegistry::execute($functionName, $args);
+            $result = AIFunctionsRegistry::execute($functionName, $args, $agent);
+
+            // Persist tool execution into chat memory if session is active
+            if ($sessionId && class_exists(\App\Models\Ai\AiChatMemory::class)) {
+                try {
+                    \App\Models\Ai\AiChatMemory::create([
+                        'session_id' => $sessionId,
+                        'role' => 'tool',
+                        'content' => 'Werkzeug: ' . $functionName,
+                        'context_data' => [
+                            'name' => 'System Execution',
+                            'tool_name' => $functionName,
+                            'args' => $args,
+                            'result' => $result
+                        ]
+                    ]);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning("Could not persist tool memory in live execution: " . $e->getMessage());
+                }
+            }
 
             return response()->json([
                 'status' => 'success',
@@ -86,6 +128,9 @@ class AIController extends Controller
         ]);
 
         $history = $request->input('history', []);
+        if (count($history) > 20) {
+            $history = array_slice($history, -20);
+        }
 
         // Clean history from frontend specific keys (name, color, icon, etc.) to prevent API schema validation errors
         $cleanHistory = [];
@@ -422,25 +467,42 @@ class AIController extends Controller
             $navMap .= "- " . $name . " => " . $path . "\n";
         }
 
-        $systemInstruction = "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ". " .
-            "Nutze die Tools, um Daten abzufragen oder Aktionen auszuführen. " .
+        $systemInstruction = "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
+            "WICHTIG FÜR DEN ECHTZEIT-SPRACHMODUS (wie in der mobilen Google Gemini App):\n" .
+            "- Du führst ein flüssiges, direktes Sprachgespräch in Echtzeit.\n" .
+            "- Antworte extrem schnell, direkt und prägnant (meist 1 bis 3 kurze Sätze auf den Punkt).\n" .
+            "- Verwende in deiner Sprachantwort NIEMALS Markdown, Sternchen, Tabellen oder Listenpunkte.\n" .
+            "- Rufe Werkzeuge nur auf, wenn der Benutzer dich explizit um eine konkrete Aktion bittet.\n\n" .
+            "WICHTIG ZU HINTERGRUND-AUFGABEN & MASSEN-AKTIONEN:\n" .
+            "- Wenn der Benutzer dir zeitaufwändige Aufgaben, Massen-Operationen oder Hintergrundjobs erteilt, bestätige dem Nutzer SOFORT in 1 kurzen Satz, dass die Aufgabe im Hintergrund läuft.\n\n" .
             "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap;
 
         // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert
         $sessionId = $request->input('chat_session_id');
+        if (!$sessionId && \App\Services\AI\AiAuthHelper::check()) {
+            $userId = \App\Services\AI\AiAuthHelper::getUserId();
+            $latestSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)
+                ->where('is_archived', false)
+                ->orderBy('updated_at', 'desc')
+                ->first();
+            if ($latestSession) {
+                $sessionId = $latestSession->id;
+            }
+        }
         if (!$sessionId) {
-            $sessionId = auth()->check() ? 'user_' . auth()->id() : session()->getId();
+            $sessionId = session()->getId();
         }
         
         if ($sessionId) {
-            $history = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)->orderBy('created_at', 'desc')->take(15)->get()->reverse();
+            $history = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)->orderBy('created_at', 'desc')->take(20)->get()->reverse();
             if ($history->count() > 0) {
                 $historyText = "\n\n--- BISHERIGER CHAT-VERLAUF DIESER SESSION (ZUR ERINNERUNG) ---\n";
                 foreach ($history as $msg) {
                     $roleName = strtoupper($msg->role);
-                    $historyText .= "[{$roleName}]: " . $msg->content . "\n";
+                    $authorName = $msg->context_data['name'] ?? ucfirst($msg->role);
+                    $historyText .= "[{$roleName} / {$authorName}]: " . $msg->content . "\n";
                 }
-                $systemInstruction .= $historyText . "\n--- ENDE CHAT-VERLAUF ---\nSetze das Gespräch natürlich fort.";
+                $systemInstruction .= $historyText . "\n--- ENDE CHAT-VERLAUF ---\nSetze das Gespräch natürlich fort. Beziehe dich bei Fragen zum Chatverlauf auf diese Einträge.";
             }
         }
 
@@ -492,7 +554,31 @@ class AIController extends Controller
             }
         }
 
+        // Für den Echtzeit-Sprachmodus (Gemini Live) optimieren wir die Tools auf die hochrelevanten Sprach- und Interaktions-Funktionen,
+        // um Token-Overhead und Inferenz-Latenzen auf TPU-Seite minimal zu halten (Reaktionszeit wie in der mobilen Gemini-App).
+        $voiceAllowedTools = [
+            'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui', 
+            'system_trigger_ui_element', 'system_switch_agent', 'system_search_web', 'system_read_web_url',
+            'task_get_all', 'task_get_lists', 'task_create', 'task_update', 'task_complete',
+            'calendar_get_events', 'calendar_create_event', 'routine_get_day_routines',
+            'email_send_message', 'mail_list_pending', 'mail_read',
+            'contact_search', 'contact_get_all', 'system_get_health'
+        ];
+        $filteredDeclarations = [];
+        foreach ($functionDeclarations as $decl) {
+            if (in_array($decl->name, $voiceAllowedTools, true)) {
+                $filteredDeclarations[] = $decl;
+            }
+        }
+        if (!empty($filteredDeclarations)) {
+            $functionDeclarations = $filteredDeclarations;
+        } else {
+            $functionDeclarations = array_slice($functionDeclarations, 0, 20);
+        }
+
         $token = \Illuminate\Support\Str::random(40);
+        
+        $user = auth()->user() ?: auth('admin')->user() ?: \App\Services\AI\AiAuthHelper::getUser();
         
         // Cache credentials for 5 minutes
         \Illuminate\Support\Facades\Cache::put('gemini_live_token_' . $token, [
@@ -500,10 +586,17 @@ class AIController extends Controller
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
             'tools' => [['functionDeclarations' => $functionDeclarations]],
+            'chat_session_id' => $sessionId,
+            'agent_id' => $aiAgent ? $aiAgent->id : null,
+            'agent_name' => $agentName,
+            'user_id' => $user ? $user->id : null,
+            'user_name' => $user ? $user->first_name : 'User',
+            'user_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
         ], now()->addMinutes(5));
 
         return response()->json([
             'token' => $token,
+            'chat_session_id' => $sessionId,
             'ws_url' => config('services.gemini.proxy_ws_url') ?: 'ws://' . request()->getHost() . ':8089/gemini-live',
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
@@ -532,5 +625,139 @@ class AIController extends Controller
         }
 
         return response()->json($data);
+    }
+
+    /**
+     * Persists a live transcript (assistant or user) directly from the WebSocket bridge
+     * with smart deduplication and extension updates.
+     */
+    public function saveLiveTranscript(Request $request)
+    {
+        $sessionId = $request->input('session_id');
+        $role = $request->input('role', 'assistant');
+        $content = trim($request->input('content', ''));
+        $agentId = $request->input('agent_id');
+        $agentName = $request->input('agent_name');
+        $userId = $request->input('user_id');
+
+        if (empty($content) || empty($sessionId)) {
+            return response()->json(['error' => 'Missing session_id or content'], 400);
+        }
+
+        // Deduplication check: inspect recent messages for this session
+        $recent = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
+            ->where('role', $role)
+            ->where('created_at', '>=', now()->subSeconds(20))
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($recent) {
+            $existingText = trim($recent->content);
+
+            // Case 1: Exact duplicate within 20s -> skip
+            if ($existingText === $content) {
+                return response()->json([
+                    'status' => 'skipped_duplicate',
+                    'id' => $recent->id,
+                    'content' => $recent->content
+                ]);
+            }
+
+            // Case 2: New text extends the existing text (e.g. earlier partial chunk) -> update to complete
+            if (str_starts_with($content, $existingText) && strlen($content) > strlen($existingText)) {
+                $recent->update(['content' => $content]);
+                \App\Models\Ai\AiChatSession::where('id', $sessionId)->update(['updated_at' => now()]);
+                try {
+                    broadcast(new \App\Events\AiFrontendEvent('chat-memory-updated', [
+                        'session_id' => $sessionId,
+                        'message_id' => $recent->id,
+                        'role' => $role,
+                        'content' => $content
+                    ]));
+                } catch (\Throwable $e) {
+                    // Silently continue if pusher/echo server is offline
+                }
+                return response()->json([
+                    'status' => 'updated_extended',
+                    'id' => $recent->id,
+                    'content' => $recent->content
+                ]);
+            }
+
+            // Case 3: Existing text already includes the new text (late partial) -> skip
+            if (str_starts_with($existingText, $content) && strlen($existingText) >= strlen($content)) {
+                return response()->json([
+                    'status' => 'skipped_partial',
+                    'id' => $recent->id,
+                    'content' => $recent->content
+                ]);
+            }
+        }
+
+        // Build context data
+        $contextData = [];
+        if ($role === 'user') {
+            $user = null;
+            if (!empty($userId)) {
+                $user = \App\Models\Customer\Customer::find($userId)
+                    ?? \App\Models\Admin\Admin::find($userId)
+                    ?? \App\Models\System\SystemUser::find($userId);
+            }
+            if (!$user) {
+                $user = \App\Services\AI\AiAuthHelper::getUser();
+            }
+            $contextData = [
+                'name' => $user ? ($user->first_name ?? $user->name ?? 'User') : 'User',
+                'color' => 'gray-400',
+                'icon' => 'user',
+                'is_live_mode' => true,
+                'is_live_audio' => true,
+                'profile_picture' => ($user && isset($user->profile) && $user->profile) ? ($user->profile->photo_path ?? null) : null
+            ];
+        } else {
+            $agent = null;
+            if (!empty($agentId)) {
+                $agent = \App\Models\Ai\AiAgent::find($agentId);
+            }
+            if (!$agent && !empty($agentName)) {
+                $agent = \App\Models\Ai\AiAgent::where('name', $agentName)->first();
+            }
+            if (!$agent) {
+                $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->first();
+            }
+            $contextData = [
+                'name' => $agent ? $agent->name : ($agentName ?: 'Funkira'),
+                'color' => $agent ? $agent->color : 'purple-500',
+                'icon' => 'robot',
+                'is_live_audio' => true,
+                'profile_picture' => $agent ? $agent->profile_picture : null
+            ];
+        }
+
+        $memory = \App\Models\Ai\AiChatMemory::create([
+            'session_id' => $sessionId,
+            'role' => $role,
+            'content' => $content,
+            'context_data' => $contextData,
+        ]);
+
+        \App\Models\Ai\AiChatSession::where('id', $sessionId)->update(['updated_at' => now()]);
+
+        try {
+            broadcast(new \App\Events\AiFrontendEvent('chat-memory-updated', [
+                'session_id' => $sessionId,
+                'message_id' => $memory->id,
+                'role' => $role,
+                'content' => $memory->content
+            ]));
+        } catch (\Throwable $e) {
+            // Silently continue if pusher/echo server is offline
+        }
+
+        return response()->json([
+            'status' => 'created',
+            'id' => $memory->id,
+            'content' => $memory->content
+        ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiChatMemory;
 use App\Models\Ai\AiWorkspaceTask;
 use App\Jobs\ProcessAiWorkspaceTask;
+use App\Services\AI\AiAuthHelper;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
@@ -24,12 +25,12 @@ trait ManagesAiChat
 
     public function loadDefaultChatSession()
     {
-        if (!auth()->check()) {
+        if (!AiAuthHelper::check()) {
             $this->currentChatSessionId = session()->getId();
             return;
         }
 
-        $userId = auth()->id();
+        $userId = AiAuthHelper::getUserId();
         $session = \App\Models\Ai\AiChatSession::where('user_id', $userId)
             ->where('is_archived', false)
             ->orderBy('updated_at', 'desc')
@@ -48,7 +49,7 @@ trait ManagesAiChat
     #[Computed]
     public function chatSessions()
     {
-        $userId = auth()->id();
+        $userId = AiAuthHelper::getUserId();
         $query = \App\Models\Ai\AiChatSession::where('is_archived', false);
         if ($userId) {
             $query->where('user_id', $userId);
@@ -58,7 +59,7 @@ trait ManagesAiChat
 
     public function createNewChat()
     {
-        $userId = auth()->id();
+        $userId = AiAuthHelper::getUserId();
         $session = \App\Models\Ai\AiChatSession::create([
             'user_id' => $userId,
             'title' => 'Neuer Chat',
@@ -106,14 +107,14 @@ trait ManagesAiChat
 
     public function deleteChats(array $ids)
     {
-        \App\Models\Ai\AiChatSession::whereIn('id', $ids)->where('user_id', auth()->id())->delete();
+        \App\Models\Ai\AiChatSession::whereIn('id', $ids)->where('user_id', AiAuthHelper::getUserId())->delete();
         $this->currentChatSessionId = null;
         $this->loadDefaultChatSession();
     }
 
     public function archiveChat($id)
     {
-        $chat = \App\Models\Ai\AiChatSession::where('id', $id)->where('user_id', auth()->id())->first();
+        $chat = \App\Models\Ai\AiChatSession::where('id', $id)->where('user_id', AiAuthHelper::getUserId())->first();
         if ($chat) {
             $chat->update(['is_archived' => true]);
         }
@@ -121,11 +122,11 @@ trait ManagesAiChat
 
     public function updateChatTitle($title, $id = null)
     {
-        if (!auth()->check()) return;
+        if (!AiAuthHelper::check()) return;
         $chatId = $id ?: $this->currentChatSessionId;
         if (!$chatId) return;
         
-        $chat = \App\Models\Ai\AiChatSession::where('id', $chatId)->where('user_id', auth()->id())->first();
+        $chat = \App\Models\Ai\AiChatSession::where('id', $chatId)->where('user_id', AiAuthHelper::getUserId())->first();
         if ($chat) {
             $chat->update(['title' => $title]);
         }
@@ -179,6 +180,7 @@ trait ManagesAiChat
                         $markdown .= "<details><summary class='cursor-pointer text-emerald-400'>System-Antwort (Auszug)</summary>\n\n```json\n" . mb_substr($resStr, 0, 2000) . "...\n```\n\n</details>";
                     }
 
+                    $formattedTime = $mem->created_at ? $mem->created_at->format('d.m.Y, H:i \U\h\r') : now()->format('d.m.Y, H:i \U\h\r');
                     $messages[] = [
                         'role' => 'assistant',
                         'name' => 'System Execution',
@@ -188,11 +190,14 @@ trait ManagesAiChat
                         'profile_picture' => null,
                         'attachments' => [],
                         'local_uploads' => [],
+                        'time' => $formattedTime,
+                        'created_at' => $formattedTime,
                     ];
                     continue;
                 }
 
                 $ctx = $mem->context_data ?? [];
+                $formattedTime = $mem->created_at ? $mem->created_at->format('d.m.Y, H:i \U\h\r') : now()->format('d.m.Y, H:i \U\h\r');
                 $messages[] = [
                     'role' => $mem->role,
                     'name' => $ctx['name'] ?? ucfirst($mem->role),
@@ -202,6 +207,8 @@ trait ManagesAiChat
                     'profile_picture' => $ctx['profile_picture'] ?? null,
                     'attachments' => $ctx['attachments'] ?? [],
                     'local_uploads' => $ctx['local_uploads'] ?? [],
+                    'time' => $formattedTime,
+                    'created_at' => $formattedTime,
                 ];
             }
         }
@@ -297,21 +304,63 @@ trait ManagesAiChat
         ]);
     }
 
-    public function appendLiveChatMemory($role, $text, $frontendAgentId = null)
+    public function appendLiveChatMemory($role, $text, $frontendAgentId = null, $sessionId = null)
     {
+        $trimmed = trim($text);
+        if (empty($trimmed)) return;
+
+        if (!empty($sessionId)) {
+            $this->currentChatSessionId = $sessionId;
+        }
+
+        $activeSessionId = $this->getAiSessionId();
+
+        // Deduplication check: inspect recent messages for this session
+        $recent = AiChatMemory::where('session_id', $activeSessionId)
+            ->where('role', $role)
+            ->where('created_at', '>=', now()->subSeconds(20))
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($recent) {
+            $existingText = trim($recent->content);
+
+            // Case 1: Exact duplicate -> skip
+            if ($existingText === $trimmed) {
+                return;
+            }
+
+            // Case 2: New text extends existing text -> update to full
+            if (str_starts_with($trimmed, $existingText) && strlen($trimmed) > strlen($existingText)) {
+                $recent->update(['content' => $trimmed]);
+                unset($this->messages);
+                $this->dispatch('chat-memory-updated');
+                return;
+            }
+
+            // Case 3: Existing text already includes the new text -> skip
+            if (str_starts_with($existingText, $trimmed) && strlen($existingText) >= strlen($trimmed)) {
+                return;
+            }
+        }
+
         $contextData = [];
         if ($role === 'user') {
-            $user = auth()->check() ? auth()->user() : null;
+            $user = AiAuthHelper::getUser();
             $contextData = [
                 'name' => $user ? $user->first_name : 'User',
                 'color' => 'gray-400',
                 'icon' => 'user',
                 'is_live_audio' => true,
+                'is_live_mode' => true,
                 'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null
             ];
         } else {
-            $agentId = $frontendAgentId ?? $this->agentId ?? ($this->activeAgentIds[0] ?? null);
-            $agent = \App\Models\Ai\AiAgent::find($agentId);
+            $agentId = (!empty($frontendAgentId)) ? $frontendAgentId : ($this->agentId ?? ($this->activeAgentIds[0] ?? null));
+            $agent = null;
+            if ($agentId) {
+                $agent = \App\Models\Ai\AiAgent::find($agentId);
+            }
             if (!$agent) {
                 $agent = \App\Models\Ai\AiAgent::where('is_in_chat', true)->first();
             }
@@ -324,8 +373,9 @@ trait ManagesAiChat
             ];
         }
 
-        $this->saveMessageToDb($role, $text, $contextData);
+        $this->saveMessageToDb($role, $trimmed, $contextData);
         unset($this->messages);
+        $this->dispatch('chat-memory-updated');
     }
 
     public function searchFilesForMention($query)
@@ -408,11 +458,12 @@ trait ManagesAiChat
             }
         }
 
+        $user = AiAuthHelper::getUser();
         $userCtx = [
-            'name' => auth()->user()->first_name ?? 'User',
+            'name' => $user ? $user->first_name : 'User',
             'color' => 'gray-400',
             'icon' => 'user',
-            'profile_picture' => (auth()->check() && auth()->user()->profile) ? auth()->user()->profile->photo_path : null,
+            'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
         ];
         
         if (!empty($localUploads)) {
@@ -436,27 +487,19 @@ trait ManagesAiChat
         $this->dispatch('start-auto-routing', targetComponentId: $this->getId());
     }
 
-    public function saveUserLiveMessage($text)
+    public function saveUserLiveMessage($text, $sessionId = null)
     {
         if (empty(trim($text))) return;
-
-        $userCtx = [
-            'name' => auth()->user()->first_name ?? 'User',
-            'color' => 'gray-400',
-            'icon' => 'user',
-            'profile_picture' => (auth()->check() && auth()->user()->profile) ? auth()->user()->profile->photo_path : null,
-            'is_live_mode' => true,
-            'is_live_audio' => true
-        ];
-
-        $this->saveMessageToDb('user', $text, $userCtx);
-        unset($this->messages); // Trigger re-render
+        $this->appendLiveChatMemory('user', $text, null, $sessionId);
     }
 
-    public function saveAssistantLiveMessage($text, $agentId = null)
+    public function saveAssistantLiveMessage($text, $agentId = null, $sessionId = null)
     {
         if (empty(trim($text))) return;
-        $this->appendLiveChatMemory('assistant', $text, $agentId);
+        if (!empty($sessionId)) {
+            $this->currentChatSessionId = $sessionId;
+        }
+        $this->appendLiveChatMemory('assistant', $text, $agentId, $sessionId);
     }
 
     public function submitClipboardImage($base64Data, $filename, $mimeType)
@@ -479,11 +522,12 @@ trait ManagesAiChat
             ]
         ];
 
+        $user = AiAuthHelper::getUser();
         $userCtx = [
-            'name' => auth()->check() ? (auth()->user()->first_name ?? 'User') : 'User',
+            'name' => $user ? $user->first_name : 'User',
             'color' => 'gray-400',
             'icon' => 'user',
-            'profile_picture' => (auth()->check() && auth()->user()->profile) ? auth()->user()->profile->photo_path : null,
+            'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
             'local_uploads' => $localUploads
         ];
 
@@ -657,7 +701,7 @@ trait ManagesAiChat
 
         $fullDbHistory = AiChatMemory::where('session_id', $this->getAiSessionId())
             ->orderBy('created_at', 'desc')
-            ->take(5)
+            ->take(20)
             ->get()
             ->reverse();
 
@@ -890,7 +934,7 @@ trait ManagesAiChat
     public function artifacts()
     {
         $sessionId = $this->getAiSessionId();
-        $userId = auth()->id();
+        $userId = AiAuthHelper::getUserId();
 
         $query = \App\Models\Ai\AiArtifact::query();
 
