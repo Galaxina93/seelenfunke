@@ -13,10 +13,12 @@ use App\Services\ConfiguratorService;
 use Livewire\Attributes\Computed; // <-- NEU
 use Illuminate\Support\Facades\DB;
 use App\Models\System\SystemLog;
+use DanHarrin\LivewireRateLimiting\WithRateLimiting;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 
 class ProductConfigurator extends Component
 {
-    use WithFileUploads, HandlesConfiguratorLogic;
+    use WithFileUploads, HandlesConfiguratorLogic, WithRateLimiting;
 
     public $product;
     public $cartItem = null;
@@ -240,8 +242,16 @@ class ProductConfigurator extends Component
 
         // ... (Restlicher File-Upload Code bleibt gleich)
         if ($propertyName === 'new_files') {
+            try {
+                $this->rateLimit(20, 60);
+            } catch (TooManyRequestsException $e) {
+                $this->addError('new_files', "Zu viele Anfragen. Bitte warten Sie {$e->secondsUntilAvailable} Sekunden.");
+                $this->reset('new_files');
+                return;
+            }
+
             $currentCount = count($this->uploaded_files);
-            $newCount = count($this->new_files);
+            $newCount = is_array($this->new_files) ? count($this->new_files) : 0;
 
             if (($currentCount + $newCount) > 10) {
                 $this->addError('new_files', 'Limit erreicht: Maximal 10 Dateien erlaubt.');
@@ -250,48 +260,113 @@ class ProductConfigurator extends Component
             }
 
             $this->validate([
-                'new_files.*' => 'required|max:20480',
+                'new_files' => 'required|array|max:10',
+                'new_files.*' => 'required|file|max:20480|mimes:jpg,jpeg,png,webp,svg,pdf',
             ]);
 
             $newPaths = [];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'pdf'];
+            $allowedMimesByExt = [
+                'jpg'  => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'png'  => ['image/png'],
+                'webp' => ['image/webp'],
+                'svg'  => ['image/svg+xml', 'text/xml', 'application/xml', 'text/plain'],
+                'pdf'  => ['application/pdf', 'application/x-pdf'],
+            ];
 
             foreach ($this->new_files as $key => $file) {
-                $filename = $file->getClientOriginalName();
-                $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-                $mime = $file->getMimeType();
+                $clientFilename = $file->getClientOriginalName();
 
-                $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'pdf'];
-                $allowedMimes = ['application/pdf', 'application/x-pdf', 'application/acrobat', 'applications/vnd.pdf', 'text/pdf', 'text/x-pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+                // 1. Strict filename check: no null bytes, path traversal, or forbidden dangerous extensions
+                if (str_contains($clientFilename, "\0") || str_contains($clientFilename, '..') || str_contains($clientFilename, '/') || str_contains($clientFilename, '\\')) {
+                    $this->addError('new_files.' . $key, "Ungültiger Dateiname.");
+                    continue;
+                }
 
-                $isValid = in_array($extension, $allowedExtensions) || in_array($mime, $allowedMimes);
+                if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|exe|html|htm|js|cgi|pl|py|asp|aspx|jsp|shtml|svgz)(\.|$)/i', $clientFilename)) {
+                    $this->addError('new_files.' . $key, "Potenziell unsichere Dateiendung erkannt.");
+                    continue;
+                }
 
-                if (!$isValid) {
+                $extension = strtolower(pathinfo($clientFilename, PATHINFO_EXTENSION));
+                if (!in_array($extension, $allowedExtensions, true)) {
                     $this->addError('new_files.' . $key, "Typ nicht erlaubt ($extension). Nur Bilder & PDF.");
                     continue;
                 }
 
-                $path = $file->store('bestellungen/cart-uploads', 'public');
+                // 2. Inspect real server-side MIME type via finfo
+                $realPath = $file->getRealPath();
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $detectedMime = $finfo ? finfo_file($finfo, $realPath) : $file->getMimeType();
+                if ($finfo) finfo_close($finfo);
 
-                if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp'])) {
-                    $newFileName = $this->applyLaserEffect(Storage::disk('public')->path($path), $extension);
-                    if ($newFileName) {
-                        $path = dirname($path) . '/' . $newFileName;
+                $allowedMimes = $allowedMimesByExt[$extension] ?? [];
+                if (!in_array($detectedMime, $allowedMimes, true)) {
+                    $this->addError('new_files.' . $key, "MIME-Typ ($detectedMime) stimmt nicht mit der Dateiendung ($extension) überein.");
+                    continue;
+                }
+
+                // 3. Deep content verification & safe storage with UUID
+                $safeUuid = (string) Str::uuid();
+
+                if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                    $imageInfo = @getimagesize($realPath);
+                    if (!$imageInfo || $imageInfo[0] <= 0 || $imageInfo[1] <= 0) {
+                        $this->addError('new_files.' . $key, "Die Bilddatei ist beschädigt oder kein gültiges Bild.");
+                        continue;
                     }
-                } elseif ($extension === 'svg' || $mime === 'image/svg+xml') {
-                    $fullPath = Storage::disk('public')->path($path);
-                    $this->sanitizeSvg($fullPath);
-                    if (!file_exists($fullPath)) {
+
+                    if ($imageInfo[0] > 10000 || $imageInfo[1] > 10000) {
+                        $this->addError('new_files.' . $key, "Die Bildabmessungen überschreiten das zulässige Maximum (10.000x10.000 px).");
+                        continue;
+                    }
+
+                    $tempStoredPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.' . $extension, 'public');
+                    $fullTempPath = Storage::disk('public')->path($tempStoredPath);
+
+                    $newFileName = $this->applyLaserEffect($fullTempPath, $extension);
+                    if (!$newFileName) {
+                        if (Storage::disk('public')->exists($tempStoredPath)) {
+                            Storage::disk('public')->delete($tempStoredPath);
+                        }
+                        $this->addError('new_files.' . $key, "Die Bilddatei konnte nicht verarbeitet werden.");
+                        continue;
+                    }
+
+                    $finalPath = 'bestellungen/cart-uploads/' . $newFileName;
+                    $this->uploaded_files[] = $finalPath;
+                    $newPaths[] = $finalPath;
+                } elseif ($extension === 'svg') {
+                    $tempStoredPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.svg', 'public');
+                    $fullTempPath = Storage::disk('public')->path($tempStoredPath);
+
+                    if (!$this->sanitizeSvg($fullTempPath)) {
+                        if (Storage::disk('public')->exists($tempStoredPath)) {
+                            Storage::disk('public')->delete($tempStoredPath);
+                        }
                         $this->addError('new_files.' . $key, "Die SVG-Datei ist ungültig oder enthält potenziell schädlichen Code.");
                         continue;
                     }
-                }
 
-                $this->uploaded_files[] = $path;
-                $newPaths[] = $path;
+                    $this->uploaded_files[] = $tempStoredPath;
+                    $newPaths[] = $tempStoredPath;
+                } elseif ($extension === 'pdf') {
+                    if (!$this->validatePdfFile($realPath)) {
+                        $this->addError('new_files.' . $key, "Die PDF-Datei ist ungültig oder enthält unzulässige eingebettete Skripte/Aktionen.");
+                        continue;
+                    }
+
+                    $storedPdfPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.pdf', 'public');
+                    $this->uploaded_files[] = $storedPdfPath;
+                    $newPaths[] = $storedPdfPath;
+                }
             }
 
             $this->reset('new_files');
-            $this->addFilesToStage($newPaths);
+            if (!empty($newPaths)) {
+                $this->addFilesToStage($newPaths);
+            }
         }
     }
 
@@ -364,9 +439,15 @@ class ProductConfigurator extends Component
             }
         }
 
-        unlink($filePath);
-        $newPath = preg_replace('/\.(jpg|jpeg|webp)$/i', '.png', $filePath);
+        $newPath = preg_replace('/\.(jpg|jpeg|webp|png)$/i', '.png', $filePath);
+        if ($newPath === $filePath) {
+            $newPath = dirname($filePath) . '/' . pathinfo($filePath, PATHINFO_FILENAME) . '_proc.png';
+        }
         imagepng($laserImage, $newPath, 9);
+
+        if (file_exists($filePath) && $filePath !== $newPath) {
+            @unlink($filePath);
+        }
 
         imagedestroy($image);
         imagedestroy($laserImage);
@@ -374,34 +455,77 @@ class ProductConfigurator extends Component
         return basename($newPath);
     }
 
+    protected function validatePdfFile(string $filePath): bool
+    {
+        if (!file_exists($filePath) || filesize($filePath) === 0) {
+            return false;
+        }
+
+        // 1. Magic bytes check (%PDF-)
+        $handle = @fopen($filePath, 'rb');
+        if (!$handle) {
+            return false;
+        }
+        $header = fread($handle, 1024);
+        fclose($handle);
+
+        if (!str_contains($header, '%PDF-')) {
+            return false;
+        }
+
+        // 2. Scan for malicious PDF action tags
+        $content = @file_get_contents($filePath);
+        if ($content === false) {
+            return false;
+        }
+
+        $dangerousTokens = ['/JavaScript', '/JS', '/Launch', '/EmbeddedFiles'];
+        foreach ($dangerousTokens as $token) {
+            if (stripos($content, $token) !== false) {
+                return false;
+            }
+        }
+
+        // 3. Try parsing with Smalot\PdfParser to ensure well-formedness
+        try {
+            $parser = new \Smalot\PdfParser\Parser();
+            $parser->parseFile($filePath);
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function saveWithSnapshot($snapshotData, CartService $cartService)
     {
         $snapshotPaths = [];
 
-        /*\Illuminate\Support\Facades\Log::info("saveWithSnapshot called. Data empty: " . (empty($snapshotData) ? 'YES' : 'NO'));*/
-
         if (!empty($snapshotData)) {
-            if (is_array($snapshotData)) {
-                foreach ($snapshotData as $side => $base64) {
-                    $parts = explode(',', $base64);
-                    if (count($parts) === 2) {
-                        $decoded = base64_decode($parts[1]);
-                        if ($decoded !== false) {
-                            $filename = 'system/snapshots/' . Str::uuid() . '_' . $side . '.jpg';
-                            Storage::disk('public')->put($filename, $decoded);
-                            $snapshotPaths[$side] = $filename;
-                        }
-                    }
+            $dataArray = is_array($snapshotData) ? $snapshotData : ['front' => $snapshotData];
+
+            foreach ($dataArray as $side => $base64) {
+                if (!is_string($base64) || !is_string($side)) {
+                    continue;
                 }
-            } elseif (is_string($snapshotData)) {
-                // Fallback für alte Aufrufe mit einzelnem String
-                $parts = explode(',', $snapshotData);
+
+                // Sanitize side name to prevent path traversal
+                $cleanSide = preg_replace('/[^a-zA-Z0-9_-]/', '', $side);
+                if (empty($cleanSide) || strlen($cleanSide) > 20) {
+                    continue;
+                }
+
+                $parts = explode(',', $base64);
                 if (count($parts) === 2) {
-                    $decoded = base64_decode($parts[1]);
-                    if ($decoded !== false) {
-                        $filename = 'system/snapshots/' . Str::uuid() . '.jpg';
-                        Storage::disk('public')->put($filename, $decoded);
-                        $snapshotPaths['front'] = $filename;
+                    $decoded = base64_decode($parts[1], true);
+                    if ($decoded !== false && strlen($decoded) > 0) {
+                        // Verify it is actually an image (PNG or JPEG)
+                        $imageInfo = @getimagesizefromstring($decoded);
+                        if ($imageInfo && in_array($imageInfo[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP])) {
+                            $filename = 'system/snapshots/' . Str::uuid() . '_' . $cleanSide . '.jpg';
+                            Storage::disk('public')->put($filename, $decoded);
+                            $snapshotPaths[$cleanSide] = $filename;
+                        }
                     }
                 }
             }
@@ -532,85 +656,124 @@ class ProductConfigurator extends Component
         return $path ? asset('storage/' . $path) : null;
     }
 
-    protected function sanitizeSvg($filePath)
+    protected function sanitizeSvg(string $filePath): bool
     {
-        if (!file_exists($filePath)) {
-            return;
+        if (!file_exists($filePath) || filesize($filePath) === 0) {
+            return false;
         }
 
         $content = file_get_contents($filePath);
+        if ($content === false) {
+            return false;
+        }
 
-        // Prevent XXE: remove DOCTYPE declarations entirely
+        // Must contain an <svg tag
+        if (!preg_match('/<svg[\s>]/i', $content)) {
+            if (file_exists($filePath)) unlink($filePath);
+            return false;
+        }
+
+        // Strip DOCTYPE and ENTITY declarations to prevent XXE
         $content = preg_replace('/<!DOCTYPE[^>]*>/i', '', $content);
         $content = preg_replace('/<!ENTITY[^>]*>/i', '', $content);
 
-        // Parse XML safely
         $dom = new \DOMDocument();
-        
-        // Prevent loading of external entities
         $libxml_flags = LIBXML_NONET | LIBXML_NOENT | LIBXML_NOXMLDECL;
-        
-        // Suppress warnings/errors from malformed XML
         libxml_use_internal_errors(true);
-        if ($dom->loadXML($content, $libxml_flags)) {
+
+        if (!$dom->loadXML($content, $libxml_flags)) {
             libxml_clear_errors();
-
-            // 1. Remove script elements
-            $scripts = $dom->getElementsByTagName('script');
-            while ($scripts->length > 0) {
-                $script = $scripts->item(0);
-                $script->parentNode->removeChild($script);
-            }
-
-            // 2. Remove iframe, object, embed, meta elements
-            $badElements = ['iframe', 'object', 'embed', 'meta'];
-            foreach ($badElements as $tagName) {
-                $elements = $dom->getElementsByTagName($tagName);
-                while ($elements->length > 0) {
-                    $element = $elements->item(0);
-                    $element->parentNode->removeChild($element);
-                }
-            }
-
-            // 3. Remove event handler attributes (any attribute starting with 'on')
-            // and remove href attributes starting with 'javascript:' or 'data:'
-            $xpath = new \DOMXPath($dom);
-            
-            // Find all elements with any attribute
-            $elements = $xpath->query('//*');
-            foreach ($elements as $element) {
-                $attributesToRemove = [];
-                foreach ($element->attributes as $attrName => $attrNode) {
-                    $lowerName = strtolower($attrNode->localName);
-                    $lowerNodeName = strtolower($attrNode->nodeName);
-                    // Check for inline event handler (starts with 'on')
-                    if (str_starts_with($lowerName, 'on') || str_starts_with($lowerNodeName, 'on')) {
-                        $attributesToRemove[] = $attrNode;
-                    }
-                    // Check for javascript:/data: URI in href/xlink:href
-                    if ($lowerName === 'href' || $lowerNodeName === 'href' || str_ends_with($lowerName, ':href') || str_ends_with($lowerNodeName, ':href')) {
-                        $val = strtolower(trim($attrNode->value));
-                        // Remove spaces, tabs, and newlines from the URI to avoid bypasses like j a v a s c r i p t :
-                        $sanitizedVal = preg_replace('/[\s\x00-\x1F\x7F-\x9F]/u', '', $val);
-                        if (str_starts_with($sanitizedVal, 'javascript:') || str_starts_with($sanitizedVal, 'data:')) {
-                            $attributesToRemove[] = $attrNode;
-                        }
-                    }
-                }
-                
-                foreach ($attributesToRemove as $attrNode) {
-                    $element->removeAttributeNode($attrNode);
-                }
-            }
-
-            // Save the sanitized XML
-            $sanitizedContent = $dom->saveXML();
-            file_put_contents($filePath, $sanitizedContent);
-        } else {
-            libxml_clear_errors();
-            // If the XML is so malformed it cannot be loaded, delete it as a fallback/precaution
-            unlink($filePath);
+            if (file_exists($filePath)) unlink($filePath);
+            return false;
         }
+        libxml_clear_errors();
+
+        // Root element MUST be svg
+        if (!$dom->documentElement || strtolower($dom->documentElement->tagName) !== 'svg') {
+            if (file_exists($filePath)) unlink($filePath);
+            return false;
+        }
+
+        // 1. Remove dangerous elements (case-insensitive)
+        $badElements = [
+            'script', 'foreignobject', 'iframe', 'object', 'embed', 'meta', 'link',
+            'style', 'handler', 'listener', 'applet', 'form', 'input', 'button',
+            'textarea', 'select', 'isindex', 'audio', 'video', 'canvas', 'portal',
+            'feimage', 'animate', 'set', 'animatetransform', 'animatemotion', 'base'
+        ];
+
+        $xpath = new \DOMXPath($dom);
+        $nodesToRemove = [];
+        foreach ($xpath->query('//*') as $node) {
+            $lowerTag = strtolower($node->localName);
+            if (in_array($lowerTag, $badElements, true)) {
+                $nodesToRemove[] = $node;
+            }
+        }
+        foreach ($nodesToRemove as $node) {
+            if ($node->parentNode) {
+                $node->parentNode->removeChild($node);
+            }
+        }
+
+        // 2. Remove dangerous attributes across all remaining elements
+        $allElements = $xpath->query('//*');
+
+        foreach ($allElements as $element) {
+            $attrsToRemove = [];
+            foreach ($element->attributes as $attrName => $attrNode) {
+                $lowerName = strtolower($attrNode->localName);
+                $nodeName = strtolower($attrNode->nodeName);
+                $val = trim($attrNode->value);
+                $cleanVal = preg_replace('/[\s\x00-\x1F\x7F-\x9F]/u', '', strtolower($val));
+
+                // 2a. Any event handler (on*)
+                if (str_starts_with($lowerName, 'on') || str_starts_with($nodeName, 'on')) {
+                    $attrsToRemove[] = $attrNode;
+                    continue;
+                }
+
+                // 2b. Dangerous URI schemes or external references in href/xlink:href/src/action/data
+                $isUriAttr = in_array($lowerName, ['href', 'src', 'action', 'formaction', 'data'], true)
+                    || str_ends_with($lowerName, ':href')
+                    || str_ends_with($nodeName, ':href');
+
+                if ($isUriAttr) {
+                    // Only allow local anchor references (e.g. #myGradient, #clipPath)
+                    if (str_starts_with($val, '#')) {
+                        // Safe local ID reference
+                    } elseif (str_starts_with($cleanVal, 'javascript:') || str_starts_with($cleanVal, 'data:') || str_starts_with($cleanVal, 'vbscript:')) {
+                        $attrsToRemove[] = $attrNode;
+                        continue;
+                    } elseif (str_starts_with($cleanVal, 'http:') || str_starts_with($cleanVal, 'https:') || str_starts_with($cleanVal, '//')) {
+                        // External links/resources not allowed in engraving vectors
+                        $attrsToRemove[] = $attrNode;
+                        continue;
+                    }
+                }
+
+                // 2c. Dangerous style attributes
+                if ($lowerName === 'style') {
+                    if (preg_match('/(expression|behavior|javascript|vbscript|-moz-binding|@import|url\s*\()/i', $val)) {
+                        $attrsToRemove[] = $attrNode;
+                        continue;
+                    }
+                }
+            }
+
+            foreach ($attrsToRemove as $node) {
+                $element->removeAttributeNode($node);
+            }
+        }
+
+        $sanitizedXml = $dom->saveXML();
+        if (empty($sanitizedXml) || !str_contains($sanitizedXml, '<svg')) {
+            if (file_exists($filePath)) unlink($filePath);
+            return false;
+        }
+
+        file_put_contents($filePath, $sanitizedXml);
+        return true;
     }
 
     public function render()

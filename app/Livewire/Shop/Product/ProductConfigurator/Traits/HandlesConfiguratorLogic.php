@@ -218,8 +218,11 @@ trait HandlesConfiguratorLogic
         unset($this->uploaded_files[$index]);
         $this->uploaded_files = array_values($this->uploaded_files);
 
-        if (Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->delete($path);
+        // WICHTIG: Pfad validieren, um Path Traversal oder unbefugtes Löschen zu verhindern
+        if (is_string($path) && str_starts_with($path, 'bestellungen/cart-uploads/') && !str_contains($path, '..')) {
+            if (Storage::disk('public')->exists($path)) {
+                Storage::disk('public')->delete($path);
+            }
         }
     }
 

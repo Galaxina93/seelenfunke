@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\ProductCategory;
 use App\Models\Product\Product;
+use App\Models\Product\ProductTemplate;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -67,10 +68,68 @@ class ProductFrontendFilterArea extends Component
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }
 
-        // Dynamisches Laden der Kategorien, die auch Produkte enthalten
-        $categories = ProductCategory::whereHas('products', function ($query) {
+        // Dynamisch ermitteln, welche Produkttypen tatsächlich in aktiven Produkten vorhanden sind
+        $availableTypes = Product::where('status', 'active')
+            ->distinct()
+            ->pluck('type')
+            ->toArray();
+
+        // Falls filterType gesetzt ist, dieser Typ aber gar nicht mehr existiert, zurücksetzen
+        if ($this->filterType !== 'all' && !in_array($this->filterType, $availableTypes, true)) {
+            $this->filterType = 'all';
+        }
+
+        // Dynamisches Laden der Kategorien, die auch aktive Produkte enthalten
+        $categoryQuery = ProductCategory::whereHas('products', function ($query) {
             $query->where('status', 'active');
-        })->orderBy('name')->get();
+        })->orderBy('name');
+        $categories = $categoryQuery->get();
+
+        if (!empty($this->filterCategory) && !$categories->contains('id', (int)$this->filterCategory)) {
+            $this->filterCategory = '';
+        }
+
+        // Dynamisches Laden der Anlässe (Holidays), die tatsächlich bei aktiven Vorlagen aktiver Produkte existieren
+        $rawHolidays = ProductTemplate::where('is_active', true)
+            ->whereNotNull('holiday')
+            ->whereNotIn('holiday', ['', 'kein feiertag', 'Kein Feiertag', 'kein_feiertag', 'none', 'null'])
+            ->whereHas('product', function ($q) {
+                $q->where('status', 'active');
+            })
+            ->distinct()
+            ->pluck('holiday')
+            ->toArray();
+
+        $holidayLabels = [
+            'muttertag' => 'Muttertag',
+            'valentinstag' => 'Valentinstag',
+            'weihnachten' => 'Weihnachten',
+            'vatertag' => 'Vatertag',
+            'ostern' => 'Ostern',
+            'geburtstag' => 'Geburtstag',
+            'hochzeit' => 'Hochzeit',
+            'taufe' => 'Taufe',
+            'einschulung' => 'Einschulung',
+            'jubilaeum' => 'Jubiläum',
+            'trauer' => 'Trauer',
+        ];
+
+        $availableHolidays = [];
+        foreach ($rawHolidays as $h) {
+            $trimmed = trim($h);
+            $lower = strtolower($trimmed);
+            $label = $holidayLabels[$lower] ?? ucfirst($trimmed);
+            $availableHolidays[$trimmed] = $label;
+        }
+
+        if (!empty($this->filterHoliday)) {
+            $holidayExists = collect($availableHolidays)->contains(function ($label, $val) {
+                return strtolower($val) === strtolower($this->filterHoliday);
+            });
+            if (!$holidayExists) {
+                $this->filterHoliday = '';
+            }
+        }
 
         // Haupt-Query aufbauen
         $query = Product::where('status', 'active');
@@ -105,11 +164,19 @@ class ProductFrontendFilterArea extends Component
         // 4. Filter nach Anlass / Feiertag (Template Projection Feature)
         if (!empty($this->filterHoliday)) {
             $query->whereHas('templates', function($q) {
-                $q->where('holiday', $this->filterHoliday)->where('is_active', true);
+                $q->where(function($sub) {
+                    $sub->where('holiday', $this->filterHoliday)
+                        ->orWhere('holiday', strtolower($this->filterHoliday))
+                        ->orWhere('holiday', ucfirst($this->filterHoliday));
+                })->where('is_active', true);
             });
             // Eager Load Templates for the thumbnail swap in blade view
             $query->with(['templates' => function($q) {
-                $q->where('holiday', $this->filterHoliday)->where('is_active', true);
+                $q->where(function($sub) {
+                    $sub->where('holiday', $this->filterHoliday)
+                        ->orWhere('holiday', strtolower($this->filterHoliday))
+                        ->orWhere('holiday', ucfirst($this->filterHoliday));
+                })->where('is_active', true);
             }]);
         }
 
@@ -118,6 +185,8 @@ class ProductFrontendFilterArea extends Component
         return view('livewire.shop.product.product-frontend-filter-area', [
             'products' => $products,
             'categories' => $categories,
+            'availableTypes' => $availableTypes,
+            'availableHolidays' => $availableHolidays,
         ])->layout('components.layouts.frontend_layout');
     }
 }

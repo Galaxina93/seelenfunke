@@ -13363,3 +13363,7 @@ Inva
 [2026-10-10T10:37:35.839Z] 🧠 Gemini Live Proxy: Keep-Alive/Ping Intervall gestoppt.
 [2026-10-10T10:37:35.839Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
 [2026-10-10T10:37:35.866Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-10-11T20:15:26.623Z] --- NODE JS SERVER RESTARTED (VERSION: v1.0) ---
+[2026-10-11T20:15:26.665Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-10-11T20:15:26.677Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-10-11T20:15:26.677Z] Erfolgreich gebunden auf Port 8081
