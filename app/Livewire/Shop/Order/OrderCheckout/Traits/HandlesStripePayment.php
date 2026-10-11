@@ -48,9 +48,23 @@ trait HandlesStripePayment
                     'metadata' => $metadata
                 ];
 
-                // OPTIONAL: Wenn wir schon einen Intent haben, könnten wir ihn updaten.
-                // Der Einfachheit halber erstellen wir hier einen neuen.
-                $intent = PaymentIntent::create($intentData);
+                // Falls bereits ein Intent für diesen Checkout existiert, aktualisieren wir ihn, um verwaiste Intents zu vermeiden
+                $intent = null;
+                if (!empty($this->currentPaymentIntentId)) {
+                    try {
+                        $intent = PaymentIntent::update($this->currentPaymentIntentId, [
+                            'amount' => $amount,
+                            'metadata' => $metadata
+                        ]);
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::info('Konnte bestehenden Stripe PaymentIntent nicht aktualisieren, erstelle neuen: ' . $e->getMessage());
+                        $intent = null;
+                    }
+                }
+
+                if (!$intent) {
+                    $intent = PaymentIntent::create($intentData);
+                }
 
                 $this->clientSecret = $intent->client_secret;
 

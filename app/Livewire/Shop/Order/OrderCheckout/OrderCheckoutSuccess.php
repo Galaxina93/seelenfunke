@@ -45,22 +45,7 @@ class OrderCheckoutSuccess extends Component
 
                 // Falls die Order noch nicht als bezahlt markiert wurde (Redirect-Fall)
                 if ($order->payment_status !== 'paid') {
-                    $newStatus = $order->isOnlyDigital() ? 'completed' : 'pending';
-                    $order->update(['payment_status' => 'paid', 'status' => $newStatus]);
-
-                    // Rechnung erstellen (Falls noch nicht geschehen)
-                    try {
-                        $invoiceService = new InvoiceService();
-                        if ($order->invoices()->count() === 0) {
-                            $invoiceService->createFromOrder($order);
-                        }
-                    } catch (\Exception $e) {
-                        Log::error('Invoice Error: ' . $e->getMessage());
-                    }
-
-                    // HINWEIS: Mail-Versand hier entfernen wir bewusst,
-                    // da handlePaymentSuccess in Checkout.php das bereits erledigt hat
-                    // oder wir es dort zentral steuern.
+                    $order->completePayment($intentId);
                 }
 
                 // Clean Up (Falls via Redirect zurückgekommen)

@@ -90,8 +90,9 @@ class AppServiceProvider extends ServiceProvider
                     }
 
                     if (!empty($settings['stripe_webhook_secret'])) {
-                        // Hier wird der verschachtelte Pfad gesetzt: services -> stripe -> webhook -> secret
+                        // Beide Keys unterstützen (verschachtelt und flach)
                         Config::set('services.stripe.webhook.secret', $settings['stripe_webhook_secret']);
+                        Config::set('services.stripe.webhook_secret', $settings['stripe_webhook_secret']);
                     }
                 }
             } catch (\Exception $e) {
