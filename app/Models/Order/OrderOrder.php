@@ -115,10 +115,10 @@ class OrderOrder extends Model
         return $shipment ? $shipment->shipping_label_path : null;
     }
 
-    // GEÄNDERT: Zeigt nun auf Customer::class
+    // Zeigt nun auf Customer::class (inkl. SoftDeletes/archivierte Accounts für GoBD-Konformität)
     public function customer()
     {
-        return $this->belongsTo(Customer::class, 'customer_id');
+        return $this->belongsTo(Customer::class, 'customer_id')->withTrashed();
     }
 
     public function getStatusColorAttribute()

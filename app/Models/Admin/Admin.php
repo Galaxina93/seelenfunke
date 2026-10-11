@@ -42,7 +42,16 @@ class Admin extends Model implements Authenticatable
 
         // Event-Listener für das Löschen eines Admins Profiles
         static::deleting(function (Admin $admin) {
-            $admin->profile()->delete();
+            if ($admin->isForceDeleting()) {
+                $admin->profile()->withTrashed()->forceDelete();
+            } elseif ($admin->profile) {
+                $admin->profile()->delete();
+            }
+        });
+
+        // Event-Listener für das Wiederherstellen eines Admin Profiles
+        static::restoring(function (Admin $admin) {
+            $admin->profile()->withTrashed()->restore();
         });
     }
 

@@ -166,11 +166,34 @@
 
             <div class="p-3 md:p-6 border-b border-gray-800 bg-gray-900/40 backdrop-blur-sm z-10 shadow-sm relative shrink-0">
                 <form wire:submit.prevent="createTask" class="relative group max-w-4xl mx-auto">
-                    <div class="absolute inset-0 bg-[var(--theme-color-10)] rounded-xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                    <input wire:model="newTask_title" type="text"
-                           placeholder="{{ $selectedListId ? 'Was gibt es zu tun?' : 'Wähle links eine Liste...' }}"
-                           @disabled(!$selectedListId)
-                           class="relative w-full pl-4 md:pl-8 pr-4 md:pr-8 py-3.5 md:py-6 bg-gray-950 border-2 border-gray-800 rounded-xl md:rounded-3xl focus:ring-4 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-base md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none">
+                    <div class="absolute inset-0 bg-[var(--theme-color-10)] rounded-xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+
+                    {{-- Sticky Icon Links & Input --}}
+                    <div class="relative flex items-center">
+                        {{-- Sticky Hinzufügen-Icon links --}}
+                        <div class="absolute left-3.5 md:left-5 z-20 flex items-center pointer-events-none">
+                            <div class="w-8 h-8 md:w-11 md:h-11 rounded-lg md:rounded-2xl bg-[var(--theme-color-15)] border border-[var(--theme-color-40)] flex items-center justify-center text-[var(--theme-color)] shadow-sm group-focus-within:bg-[var(--theme-color)] group-focus-within:text-gray-950 group-focus-within:scale-105 transition-all duration-300">
+                                <x-heroicon-m-plus class="w-5 h-5 md:w-6 md:h-6 transition-transform duration-300 group-focus-within:rotate-90" />
+                            </div>
+                        </div>
+
+                        {{-- Inputfeld --}}
+                        <input wire:model="newTask_title" type="text"
+                               placeholder="{{ $selectedListId ? 'Aufgabe hinzufügen...' : 'Wähle links eine Liste...' }}"
+                               @disabled(!$selectedListId)
+                               class="relative w-full pl-14 md:pl-20 pr-28 md:pr-40 py-3.5 md:py-5 bg-gray-950 border-2 border-gray-800 rounded-xl md:rounded-3xl focus:ring-4 focus:ring-[var(--theme-color-20)] focus:border-[var(--theme-color)] transition-all text-base md:text-xl font-bold text-white placeholder:text-gray-600 shadow-inner outline-none disabled:opacity-50 disabled:cursor-not-allowed">
+
+                        {{-- Eindeutiger Hinzufügen-Button rechts --}}
+                        <div class="absolute right-3 md:right-5 z-20 flex items-center">
+                            <button type="submit" @disabled(!$selectedListId) class="hidden sm:inline-flex items-center gap-2 px-4 md:px-5 py-2 md:py-2.5 rounded-lg md:rounded-xl bg-[var(--theme-color)] text-gray-950 text-xs md:text-sm font-black uppercase tracking-wider hover:brightness-110 active:scale-95 disabled:opacity-30 disabled:pointer-events-none transition-all shadow-[0_0_15px_var(--theme-color-30)]">
+                                <span>Hinzufügen</span>
+                                <kbd class="text-[10px] bg-black/20 px-1.5 py-0.5 rounded font-mono font-normal">↵</kbd>
+                            </button>
+                            <button type="submit" @disabled(!$selectedListId) class="sm:hidden p-2 rounded-lg bg-[var(--theme-color)] text-gray-950 font-bold active:scale-95 disabled:opacity-30 transition-all">
+                                <x-heroicon-m-plus class="w-5 h-5" />
+                            </button>
+                        </div>
+                    </div>
                 </form>
             </div>
 

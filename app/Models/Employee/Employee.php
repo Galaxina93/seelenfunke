@@ -42,7 +42,16 @@ class Employee extends Model implements Authenticatable
 
         // Event-Listener für das Löschen eines Employee Profiles
         static::deleting(function (Employee $employee) {
-            $employee->profile()->delete();
+            if ($employee->isForceDeleting()) {
+                $employee->profile()->withTrashed()->forceDelete();
+            } elseif ($employee->profile) {
+                $employee->profile()->delete();
+            }
+        });
+
+        // Event-Listener für das Wiederherstellen eines Employee Profiles
+        static::restoring(function (Employee $employee) {
+            $employee->profile()->withTrashed()->restore();
         });
     }
 

@@ -214,4 +214,42 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
         $this->assertCount(1, $cartItems);
         $this->assertEquals($nonPersonalizable->id, $cartItems[0]['product_id']);
     }
+
+    #[Test]
+    public function configurator_renders_3d_expert_notice_when_product_has_3d_model()
+    {
+        $product3d = Product::create([
+            'name' => 'Glasquader 3D Test',
+            'slug' => 'glasquader-3d-test-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 3000,
+            'is_personalizable' => true,
+            'three_d_active' => true,
+            'three_d_model_path' => 'models/test.glb',
+        ]);
+
+        Livewire::test(ProductConfigurator::class, ['product' => $product3d])
+            ->assertSee('Hinweis zur 3D-Vorschau')
+            ->assertSee('Positionierung und Ausrichtung im Detail und optimieren diese bei Bedarf');
+    }
+
+    #[Test]
+    public function configurator_renders_2d_expert_notice()
+    {
+        Livewire::test(ProductConfigurator::class, ['product' => $this->product])
+            ->assertSee('Hinweis zur 2D-Gestaltung')
+            ->assertSee('Wunschtext, gewünschte Motive/Icons sowie eigene Bilder frei auf der Gestaltungsfläche');
+    }
+
+    #[Test]
+    public function configurator_renders_three_main_buttons_and_preserves_notes_section()
+    {
+        Livewire::test(ProductConfigurator::class, ['product' => $this->product])
+            ->assertSee('Symbole')
+            ->assertSee('Eigene Dateien')
+            ->assertSee('Design Sichern')
+            ->assertSee('Besondere Wünsche an die Manufaktur');
+    }
 }
+

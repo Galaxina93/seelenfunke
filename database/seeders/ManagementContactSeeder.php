@@ -127,24 +127,6 @@ class ManagementContactSeeder extends Seeder
                 'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."
             ],
             [
-                'first_name' => 'Gloria',
-                'last_name' => 'Rolinska',
-                'is_favorite' => true,
-                'nickname' => 'Prinzessin ❤️❤️❤️ oder Glorchik 💋💕',
-                'relation_type' => 'Mitbewohnerin / Prinzessin',
-                'avatar_path' => 'leitung/person_profiles/gloria_rolinska.jpg',
-                'birthday' => '2005-02-09',
-                'email' => null,
-                'phone' => '+4916098327512',
-                'system_instructions' => <<<EOT
-                WICHTIGE FAKTEN ZU GLORCHIK ROLINSKA:
-                - Rolle: Alina's Mitbewohnerin, Prinzessin ❤️❤️❤️
-                - Zukunft: Sie muss dringend den B2 Deutschkurs machen, aber leider scheitert es an der deutschen Bürokratie
-                - Beruf: Sie möchte aktuell gerne Köchin werden
-                EOT,
-                'ai_learned_facts' => "\n[13.03.2026] Initiale Synchronisation der Profil-Daten."
-            ],
-            [
                 'first_name' => 'Philip',
                 'last_name' => 'Goik',
                 'is_favorite' => true,

@@ -31,9 +31,9 @@ class Cart extends Model
         return $this->hasMany(CartItem::class);
     }
 
-    // GEÄNDERT: Heißt jetzt customer() und referenziert den Customer
+    // GEÄNDERT: Heißt jetzt customer() und referenziert den Customer (inkl. SoftDeletes)
     public function customer(): BelongsTo
     {
-        return $this->belongsTo(Customer::class, 'customer_id');
+        return $this->belongsTo(Customer::class, 'customer_id')->withTrashed();
     }
 }

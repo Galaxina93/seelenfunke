@@ -50,9 +50,16 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
 
         // Event-Listener für das Löschen eines Customer Profiles
         static::deleting(function (Customer $customer) {
-            if ($customer->profile) {
+            if ($customer->isForceDeleting()) {
+                $customer->profile()->withTrashed()->forceDelete();
+            } elseif ($customer->profile) {
                 $customer->profile()->delete();
             }
+        });
+
+        // Event-Listener für das Wiederherstellen eines Customer Profiles
+        static::restoring(function (Customer $customer) {
+            $customer->profile()->withTrashed()->restore();
         });
     }
 

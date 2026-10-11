@@ -273,8 +273,37 @@ trait handleProfilesTrait
         $user = Auth::guard($this->guard)->user();
         if (!$user) return;
 
-        if ($user->email) {
-            MarketingNewsletterSubscriber::where('email', $user->email)->delete();
+        $userEmail = $user->email;
+        $userId = $user->id;
+
+        // Newsletter austragen
+        if ($userEmail) {
+            MarketingNewsletterSubscriber::where('email', $userEmail)->delete();
+        }
+
+        // Aktive Warenkörbe vom gelöschten Kunden trennen
+        if ($this->guard === 'customer') {
+            \App\Models\Cart\Cart::where('customer_id', $userId)->update(['customer_id' => null]);
+        }
+
+        // Audit-Log für Nachvollziehbarkeit & GoBD/DSGVO
+        if (class_exists(\App\Models\System\SystemLog::class)) {
+            \App\Models\System\SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'user:account_deleted',
+                'title' => 'Account gelöscht (archiviert)',
+                'message' => "Der Nutzer '{$userEmail}' ({$this->guard}) hat seinen Account selbstständig gelöscht. Der Account wurde archiviert (SoftDelete).",
+                'status' => 'warning',
+                'payload' => [
+                    'actor' => 'Kunde (im Frontend)',
+                    'user_id' => $userId,
+                    'email' => $userEmail,
+                    'guard' => $this->guard,
+                    'ip' => request()->ip()
+                ],
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
         }
 
         $user->delete();

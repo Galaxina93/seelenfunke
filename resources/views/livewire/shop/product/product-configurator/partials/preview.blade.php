@@ -2,9 +2,48 @@
 <div class="flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $context === 'edit' ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}" x-ref="stage">
 
     {{-- KUNDEN TOGGLE 2D / 3D --}}
-    <div x-show="config.modelPath" class="mb-6 mt-4 p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
+    <div x-show="config.modelPath" class="mt-4 mb-3 sm:mb-4 p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
         <button @click="showDrawingBoard = true" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
         <button @click="showDrawingBoard = false" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
+    </div>
+
+    {{-- BLAUER HINWEIS (2D / 3D WECHSEL IN EINEM EINZIGEN CONTAINER) --}}
+    <div class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4"
+         :class="!config.modelPath ? 'mt-4' : ''">
+        <div class="flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm transition-all duration-300 {{ $isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-blue-50/90 border-blue-200 text-blue-900' }}">
+            {{-- ICON (SOFORTIGER WECHSEL OHNE VERZÖGERUNG) --}}
+            <div class="shrink-0 mt-0.5">
+                <span x-show="config.modelPath && !showDrawingBoard" x-cloak>
+                    <x-heroicon-s-exclamation-circle class="w-5 h-5 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
+                </span>
+                <span x-show="showDrawingBoard || !config.modelPath">
+                    <x-heroicon-s-information-circle class="w-5 h-5 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
+                </span>
+            </div>
+
+            {{-- TEXT-INHALT --}}
+            <div class="text-xs sm:text-[13px] leading-relaxed flex-1">
+                {{-- 3D EXPERTEN-HINWEIS --}}
+                <div x-show="config.modelPath && !showDrawingBoard" x-cloak>
+                    <p class="font-bold uppercase tracking-wider text-[10px] sm:text-xs mb-1 flex items-center gap-1.5 {{ $isDark ? 'text-blue-300' : 'text-blue-700' }}">
+                        Hinweis zur 3D-Vorschau
+                    </p>
+                    <p class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
+                        Die 3D-Ansicht dient der räumlichen Orientierung und Visualisierung Ihres Designs. Vor der finalen Fertigung überprüfen unsere Experten die Positionierung und Ausrichtung im Detail und optimieren diese bei Bedarf für ein perfektes Gravurergebnis. Fertigungstechnisch bedingt können minimale Abweichungen auftreten.
+                    </p>
+                </div>
+
+                {{-- 2D GESTALTUNGS-HINWEIS --}}
+                <div x-show="showDrawingBoard || !config.modelPath">
+                    <p class="font-bold uppercase tracking-wider text-[10px] sm:text-xs mb-1 flex items-center gap-1.5 {{ $isDark ? 'text-blue-300' : 'text-blue-700' }}">
+                        Hinweis zur 2D-Gestaltung
+                    </p>
+                    <p class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
+                        Platzieren und arrangieren Sie Ihren persönlichen Wunschtext, gewünschte Motive/Icons sowie eigene Bilder frei auf der Gestaltungsfläche. Nutzen Sie die Werkzeuge zum Verschieben, Drehen und Skalieren, um Ihr individuelles Design optimal zu positionieren.
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- BÜHNE --}}
@@ -184,28 +223,32 @@
             {{-- KOMPAKTE SCHWEBENDE WERKZEUGLEISTE ALS FALLBACK FÜR ABGESCHNITTENE ICONS --}}
             <div x-show="selectedIndex !== null && showDrawingBoard && context !== 'preview'"
                  x-transition
-                 class="absolute bottom-6 left-1/2 -translate-x-1/2 backdrop-blur-xl shadow-2xl border rounded-full px-4 py-2 flex items-center gap-3 sm:gap-4 z-[200] pointer-events-auto schwebender-werkzeugkasten {{ $isDark ? 'bg-gray-950/90 border-gray-700' : 'bg-gray-900/90 border-gray-700' }}">
+                 class="absolute bottom-6 left-1/2 -translate-x-1/2 backdrop-blur-xl shadow-2xl border rounded-2xl sm:rounded-full px-3 sm:px-4 py-1.5 sm:py-2 flex items-center gap-1 sm:gap-2 z-[200] pointer-events-auto schwebender-werkzeugkasten {{ $isDark ? 'bg-gray-950/90 border-gray-700' : 'bg-gray-900/90 border-gray-700' }}">
 
                 <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'drag')" @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'drag')"
-                     class="cursor-move text-gray-400 hover:text-white hover:bg-gray-800 transition-colors p-2 rounded-full" title="Verschieben">
-                    <x-heroicon-m-arrows-pointing-out class="w-5 h-5" />
+                     class="flex flex-col items-center justify-center cursor-move text-gray-300 hover:text-white hover:bg-gray-800/70 transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none" title="Verschieben">
+                    <x-heroicon-m-arrows-pointing-out class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                    <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-white pointer-events-none">Verschieben</span>
                 </div>
 
                 <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'rotate')" @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'rotate')"
-                     class="cursor-alias text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors p-2 rounded-full" title="Rotieren">
-                    <x-heroicon-m-arrow-path class="w-5 h-5" />
+                     class="flex flex-col items-center justify-center cursor-alias text-gray-300 hover:text-primary hover:bg-primary/10 transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none" title="Drehen">
+                    <x-heroicon-m-arrow-path class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                    <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-primary pointer-events-none">Drehen</span>
                 </div>
 
                 <div @mousedown.stop="startAction($event, selectedType, selectedIndex, 'resize')" @touchstart.stop.prevent="startAction($event, selectedType, selectedIndex, 'resize')"
-                     class="cursor-se-resize text-gray-400 hover:text-primary hover:bg-primary/10 transition-colors p-2 rounded-full" title="Skalieren">
-                    <svg class="w-5 h-5 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                     class="flex flex-col items-center justify-center cursor-se-resize text-gray-300 hover:text-primary hover:bg-primary/10 transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none" title="Skalieren">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 rotate-90 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 20L20 4M20 4H14M20 4V10M4 20H10M4 20V14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-primary pointer-events-none">Skalieren</span>
                 </div>
 
-                <div class="w-px h-6 bg-gray-700 mx-1"></div>
+                <div class="w-px h-7 bg-gray-700 mx-0.5 sm:mx-1 self-center"></div>
 
                 <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()"
-                     class="cursor-pointer text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors p-2 rounded-full" title="Löschen">
-                    <x-heroicon-m-trash class="w-5 h-5" />
+                     class="flex flex-col items-center justify-center cursor-pointer text-gray-300 hover:text-red-400 hover:bg-red-500/10 transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none" title="Löschen">
+                    <x-heroicon-m-trash class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                    <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-red-400 pointer-events-none">Löschen</span>
                 </div>
             </div>
         </div>

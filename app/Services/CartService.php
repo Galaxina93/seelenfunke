@@ -162,6 +162,14 @@ class CartService
         $item = CartItem::find($itemId);
         if ($item) {
             $cart = $item->cart;
+
+            // Sofortiges Bereinigen verknüpfter Uploads und Snapshots (Lösung B)
+            try {
+                app(CartFileCleanupService::class)->cleanupCartItemFiles($item);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Fehler beim Bereinigen von Cart-Dateien für Item {$itemId}: " . $e->getMessage());
+            }
+
             $item->delete();
             $this->refreshTotals($cart);
         }
@@ -170,7 +178,15 @@ class CartService
     public function emptyCart(): void
     {
         $cart = $this->getCart();
-        $cart->items()->delete();
+        $cleanupService = app(CartFileCleanupService::class);
+        foreach ($cart->items as $item) {
+            try {
+                $cleanupService->cleanupCartItemFiles($item);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Fehler beim Bereinigen von Cart-Dateien beim Leeren des Warenkorbs: " . $e->getMessage());
+            }
+            $item->delete();
+        }
         $cart->update(['coupon_code' => null, 'is_express' => false]);
         $this->refreshTotals($cart);
     }

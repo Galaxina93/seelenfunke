@@ -91,6 +91,13 @@ class SystemCronjobSeeder extends Seeder
                 'schedule' => '*/5 * * * *',
                 'is_active' => true,
             ],
+            [
+                'name' => 'Verwaiste Uploads & Warenkörbe bereinigen',
+                'description' => 'Bereinigt nächtlich unbestellte temporäre Dateien, Snapshots und veraltete Warenkörbe',
+                'command' => 'shop:cleanup-orphaned-uploads',
+                'schedule' => '0 4 * * *',
+                'is_active' => true,
+            ],
         ];
 
         foreach ($jobs as $job) {
