@@ -135,6 +135,9 @@ Route::get('/widerruf', function () {
     return view('frontend.pages.widerruf');
 })->name('widerruf');
 
+Route::get('/widerruf/pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])->name('widerruf.pdf');
+Route::get('/widerrufsformular.pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])->name('widerrufsformular.pdf');
+
 Route::get('/verhaltenskodex', function () {
     return view('frontend.pages.verhaltenskodex');
 })->name('verhaltenskodex');

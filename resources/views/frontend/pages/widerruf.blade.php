@@ -43,10 +43,18 @@
                 </div>
             </div>
 
-            <div class="text-center pb-24">
-                <a href="{{ route('agb') }}#widerrufsbelehrung" class="text-sm text-gray-500 hover:text-primary underline underline-offset-4 transition-colors">
-                    Zur vollständigen Widerrufsbelehrung & AGB
-                </a>
+            <div class="text-center pb-24 space-y-3">
+                <div>
+                    <a href="{{ route('widerruf.pdf') }}" class="inline-flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-primary transition-colors">
+                        <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        <span>Lieber per Post? Muster-Widerrufsformular als PDF herunterladen</span>
+                    </a>
+                </div>
+                <div>
+                    <a href="{{ route('agb') }}#widerrufsbelehrung" class="text-xs text-gray-400 hover:text-primary underline underline-offset-4 transition-colors">
+                        Zur vollständigen Widerrufsbelehrung & AGB
+                    </a>
+                </div>
             </div>
 
         </div>

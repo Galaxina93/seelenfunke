@@ -371,7 +371,7 @@
                     <div class="mb-8">
                         <p class="text-gray-600 mb-4">Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.</p>
 
-                        <a href="{{ asset('shop/frontend/downloads/Widerrufsformular.pdf') }}" target="_blank" download="Widerrufsformular_MeinSeelenfunke.pdf"
+                        <a href="{{ route('widerruf.pdf') }}"
                            class="inline-flex items-center gap-3 bg-gray-900 text-white px-6 py-4 rounded-lg font-bold hover:bg-gray-800 transition-all shadow-md group hover:-translate-y-0.5">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 group-hover:scale-110 transition-transform">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 12 12 16.5m0 0 4.5-4.5M12 16.5V3.75" />
@@ -383,11 +383,11 @@
                     <div class="border border-gray-200 p-8 rounded-xl bg-white shadow-sm text-gray-800 font-mono text-sm leading-relaxed">
                         <p class="mb-6 font-bold">
                             An:<br>
-                            {{ shop_setting('owner_name', 'Mein Seelenfunke') }}<br>
+                            {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}<br>
                             {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
-                            {{ shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}<br>
-                            {{ shop_setting('owner_city', '38518 Gifhorn') }}<br>
-                            E-Mail: {{ shop_setting('owner_email', 'kontakt@mein-seelenfunke.de') }}
+                            {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
+                            {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', 'Gifhorn') }}<br>
+                            E-Mail: {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                         </p>
 
                         <p class="mb-6">
