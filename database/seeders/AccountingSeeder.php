@@ -47,7 +47,8 @@ class AccountingSeeder extends Seeder
             'Rohmaterial',
             'Verpackungen',
             'Software & Lizenzen',
-            'Werbung & Marketing'
+            'Werbung & Marketing',
+            'Beratung & Gründung'
         ];
 
         $businessNames = [
@@ -56,7 +57,8 @@ class AccountingSeeder extends Seeder
             'Rohmaterial',
             'Verpackungen',
             'Software & Lizenzen',
-            'Werbung & Marketing'
+            'Werbung & Marketing',
+            'Beratung & Gründung'
         ];
 
         foreach ($categories as $catName) {
@@ -652,9 +654,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => 'Tragfähigkeitsprüfung für ALG 1 Gründungszuschuss & Erstellung der fachkundigen Stellungnahme',
+                'location'       => 'CopeCart GmbH',
+                'amount'         => -94.01,
+                'date'           => '2026-10-12',
+                'category'       => 'Beratung & Gründung',
+                'tax_rate'       => 19,
+                'invoice_number' => '7078405',
+                'file_paths'     => ['buchhaltung/receipts/2026/10/2026-10-12_CopeCart_Tragfaehigkeitspruefung-Gruendungszuschuss.pdf']
+            ],
+            [
                 'title'    => 'Plastikboxen',
                 'location' => 'Zimmermann',
-                'amount'   => -40,31,
+                'amount'   => -40.31,
                 'date'     => '2026-06-15',
                 'category' => 'Arbeitsmaterial',
                 'file_paths' => ['buchhaltung/receipts/2026/06/2026-06-15_Zimmermann_Plastikboxen.pdf']
@@ -662,7 +674,7 @@ class AccountingSeeder extends Seeder
             [
                 'title'    => 'Laserschutzschulung',
                 'location' => 'Luminus Institut für Laserschutz und Arbeitssicherheit',
-                'amount'   => -712,81,
+                'amount'   => -712.81,
                 'date'     => '2026-04-23',
                 'category' => 'Software & Lizenzen',
                 'file_paths' => ['buchhaltung/receipts/2026/04/2026-04-23_Luminus-Institut_Laserschutzschulung.pdf']
@@ -670,7 +682,7 @@ class AccountingSeeder extends Seeder
             [
                 'title'    => 'Lenovo Docking Station',
                 'location' => 'AFB Social & Green IT',
-                'amount'   => -84,90,
+                'amount'   => -84.90,
                 'date'     => '2026-02-27',
                 'category' => 'Arbeitsmaterial',
                 'file_paths' => ['buchhaltung/receipts/2026/02/2026-02-27_AFB-Social-Green-IT_Lenovo-Docking-Station.pdf']
@@ -858,6 +870,8 @@ class AccountingSeeder extends Seeder
                 'amount'         => $issue['amount'],
                 'execution_date' => $issue['date'],
                 'is_business'    => true,
+                'tax_rate'       => $issue['tax_rate'] ?? 19,
+                'invoice_number' => $issue['invoice_number'] ?? null,
                 'file_paths'     => $issue['file_paths'] ?? null,
             ]);
         }

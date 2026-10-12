@@ -222,4 +222,204 @@ class OrderDHLTest extends TestCase
         $this->assertEquals('delivered', $shipment2->status);
         $this->assertEquals('completed', $order->status); // Order status is now completed
     }
+
+    public function test_dhl_modal_calculates_weight_with_products_tara_and_safety_buffer()
+    {
+        $order = $this->createDummyOrder();
+
+        $productA = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Acryl Trophäe',
+            'slug' => 'acryl-trophae-' . uniqid(),
+            'sku' => 'TRP-' . uniqid(),
+            'price' => 4500,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 850, // 850g
+        ]);
+
+        $productB = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Holz Anhänger',
+            'slug' => 'holz-anhaenger-' . uniqid(),
+            'sku' => 'ANH-' . uniqid(),
+            'price' => 1200,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 30, // 30g
+        ]);
+
+        $order->items()->create([
+            'product_id' => $productA->id,
+            'product_name' => $productA->name,
+            'quantity' => 2, // 1700g
+            'unit_price' => 4500,
+            'total_price' => 9000,
+        ]);
+
+        $order->items()->create([
+            'product_id' => $productB->id,
+            'product_name' => $productB->name,
+            'quantity' => 5, // 150g
+            'unit_price' => 1200,
+            'total_price' => 6000,
+        ]);
+
+        // Net goods: 1700 + 150 = 1850g
+        // Tara default: 350g
+        // Safety buffer: 50g
+        // Total: 2250g = 2.25 kg
+        Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->assertSet('dhlModalOrderId', $order->id)
+            ->assertSet('dhlPackageCount', 1)
+            ->assertSet('dhlWeightPerPackage', 2.25)
+            ->assertSet('dhlRecommendedWeight', 2.25)
+            ->assertSee('Acryl Trophäe')
+            ->assertSee('Holz Anhänger')
+            ->assertSee('Paket bis 5 kg')
+            ->assertSee('1.850 g')
+            ->assertSee('2,25 kg');
+    }
+
+    public function test_admin_can_apply_dhl_recommendation_after_manual_change()
+    {
+        $order = $this->createDummyOrder();
+
+        $product = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Glas Trophäe',
+            'slug' => 'glas-trophae-' . uniqid(),
+            'sku' => 'GLAS-' . uniqid(),
+            'price' => 6000,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 600, // 600g + 350g tara + 50g buffer = 1000g = 1.00 kg
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 6000,
+            'total_price' => 6000,
+        ]);
+
+        Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->assertSet('dhlWeightPerPackage', 1.00)
+            ->assertSet('dhlRecommendedWeight', 1.00)
+            // Manual adjustment by admin
+            ->set('dhlWeightPerPackage', 3.50)
+            ->assertSet('dhlWeightPerPackage', 3.50)
+            // Click "Empfehlung übernehmen"
+            ->call('applyDhlRecommendation')
+            ->assertSet('dhlWeightPerPackage', 1.00);
+    }
+
+    public function test_dhl_modal_shows_fallback_warning_when_product_has_no_weight()
+    {
+        $order = $this->createDummyOrder();
+
+        $product = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Unbekanntes Teil',
+            'slug' => 'unbekannt-' . uniqid(),
+            'sku' => 'UNB-' . uniqid(),
+            'price' => 2000,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 0, // No weight!
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2000,
+            'total_price' => 2000,
+        ]);
+
+        Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->assertSee('Kein Artikelgewicht gepflegt')
+            ->assertSee('100 g Schätzwert');
+    }
+
+    public function test_dhl_modal_auto_suggests_envelope_for_lightweight_jewelry()
+    {
+        $order = $this->createDummyOrder();
+
+        $product = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Der Seelenanhänger',
+            'slug' => 'seelenanhaenger-' . uniqid(),
+            'sku' => 'ANH-' . uniqid(),
+            'price' => 2900,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 19, // 19g
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 5, // 95g total
+            'unit_price' => 2900,
+            'total_price' => 14500,
+        ]);
+
+        // 95g Ware + 30g Umschlag-Tara + 10g Puffer = 135g = 0.14 kg
+        Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->assertSet('dhlPackagingType', 'envelope')
+            ->assertSet('dhlRecommendedWeight', 0.14)
+            ->assertSet('dhlWeightPerPackage', 0.14)
+            ->assertSee('Luftpolstertasche')
+            ->assertSee('Für Luftpolstertasche geeignet')
+            ->assertSee('0,14 kg')
+            ->assertSee('135 g');
+    }
+
+    public function test_admin_can_toggle_between_box_and_envelope()
+    {
+        $order = $this->createDummyOrder();
+
+        $product = \App\Models\Product\Product::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'name' => 'Der Seelenanhänger',
+            'slug' => 'seelenanhaenger-' . uniqid(),
+            'sku' => 'ANH-' . uniqid(),
+            'price' => 2900,
+            'status' => 'active',
+            'type' => 'physical',
+            'weight' => 19,
+        ]);
+
+        $order->items()->create([
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 5,
+            'unit_price' => 2900,
+            'total_price' => 14500,
+        ]);
+
+        $component = Livewire::test(OrderOverview::class)
+            ->call('openDhlModal', $order->id)
+            ->assertSet('dhlPackagingType', 'envelope')
+            ->assertSet('dhlWeightPerPackage', 0.14);
+
+        // Umschalten auf Karton: 95g Ware + 350g Karton + 50g Puffer = 495g = 0.50 kg
+        $component->call('setPackagingType', 'box')
+            ->assertSet('dhlPackagingType', 'box')
+            ->assertSet('dhlRecommendedWeight', 0.50)
+            ->assertSet('dhlWeightPerPackage', 0.50);
+
+        // Zurückschalten auf Umschlag: wieder 0.14 kg
+        $component->call('setPackagingType', 'envelope')
+            ->assertSet('dhlPackagingType', 'envelope')
+            ->assertSet('dhlRecommendedWeight', 0.14)
+            ->assertSet('dhlWeightPerPackage', 0.14);
+    }
 }
+

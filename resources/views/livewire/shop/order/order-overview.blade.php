@@ -312,38 +312,222 @@
 
     {{-- DHL MEHRPAKET MODAL --}}
     @if($dhlModalOrderId)
-        <div class="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[15vh] sm:pt-4 animate-fade-in">
-            <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 animate-slide-up relative overflow-hidden">
-                <div class="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-bl-full pointer-events-none"></div>
-                <div class="flex items-start gap-4 mb-6">
-                    <div class="w-12 h-12 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center shrink-0">
-                        <svg class="w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+        <div class="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4 pt-[8vh] sm:pt-4 overflow-y-auto animate-fade-in">
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-w-xl sm:max-w-2xl w-full p-6 sm:p-7 animate-slide-up relative overflow-hidden my-auto">
+                <div class="absolute top-0 right-0 w-36 h-36 bg-yellow-500/10 rounded-bl-full pointer-events-none"></div>
+
+                {{-- Header --}}
+                <div class="flex items-start justify-between gap-4 mb-5 pb-4 border-b border-gray-800/80">
+                    <div class="flex items-center gap-3.5">
+                        <div class="w-11 h-11 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center shrink-0">
+                            <svg class="w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-lg font-serif text-white font-bold">DHL Label Erstellung</h3>
+                                @if(!empty($dhlWeightDetails['dhl_class']))
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm
+                                        @if(($dhlWeightDetails['dhl_badge_color'] ?? '') === 'emerald') bg-emerald-500/10 text-emerald-400 border-emerald-500/20
+                                        @elseif(($dhlWeightDetails['dhl_badge_color'] ?? '') === 'yellow') bg-yellow-500/10 text-yellow-400 border-yellow-500/20
+                                        @elseif(($dhlWeightDetails['dhl_badge_color'] ?? '') === 'amber') bg-amber-500/10 text-amber-400 border-amber-500/20
+                                        @elseif(($dhlWeightDetails['dhl_badge_color'] ?? '') === 'orange') bg-orange-500/10 text-orange-400 border-orange-500/20
+                                        @else bg-red-500/10 text-red-400 border-red-500/20 @endif">
+                                        {{ $dhlWeightDetails['dhl_class'] }}
+                                    </span>
+                                @endif
+                            </div>
+                            <p class="text-xs text-gray-400 font-medium mt-0.5">Packtisch-Assistent für automatische Gewichts- & Tarifermittlung</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 class="text-xl font-serif text-white font-bold mb-1">DHL Label Erstellung</h3>
-                        <p class="text-sm text-gray-400 leading-relaxed font-medium">Besteht diese Bestellung aus mehreren Teilsendungen?</p>
+                    <button wire:click="closeDhlModal" class="text-gray-500 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-gray-800">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                {{-- Artikelliste mit Einzel- und Positionsgewichten --}}
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-400">Enthaltene Artikel (Packliste)</span>
+                        <span class="text-[10px] text-gray-500">{{ count($dhlWeightDetails['items'] ?? []) }} physische Position(en)</span>
+                    </div>
+
+                    <div class="bg-gray-950/70 border border-gray-800/80 rounded-xl overflow-hidden shadow-inner max-h-48 overflow-y-auto custom-scrollbar">
+                        @if(!empty($dhlWeightDetails['items']))
+                            <div class="divide-y divide-gray-800/60">
+                                @foreach($dhlWeightDetails['items'] as $item)
+                                    <div class="px-3.5 py-2.5 flex items-center justify-between text-xs gap-3 hover:bg-gray-900/40 transition-colors">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="font-medium text-white truncate">{{ $item['name'] }}</div>
+                                            @if($item['is_fallback'])
+                                                <div class="text-[10px] text-amber-400/90 flex items-center gap-1 mt-0.5">
+                                                    <span>⚠️ Kein Artikelgewicht gepflegt (100 g Schätzwert)</span>
+                                                </div>
+                                            @endif
+                                        </div>
+                                        <div class="flex items-center gap-4 text-right shrink-0">
+                                            <div class="text-[11px] text-gray-400">
+                                                <span class="text-gray-300 font-semibold">{{ $item['quantity'] }}×</span>
+                                                <span>{{ number_format($item['single_weight_grams'], 0, ',', '.') }} g</span>
+                                            </div>
+                                            <div class="text-xs font-mono font-bold text-gray-200 min-w-[65px]">
+                                                {{ number_format($item['total_weight_grams'], 0, ',', '.') }} g
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="p-4 text-center text-xs text-gray-500">
+                                Keine physischen Artikel in der Bestellung gefunden.
+                            </div>
+                        @endif
                     </div>
                 </div>
 
-                <div class="space-y-4 mb-8">
+                {{-- Verpackungsart Schnellauswahl --}}
+                <div class="mb-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400">Verpackungsart</label>
+                        @if(!empty($dhlWeightDetails['can_fit_in_envelope']))
+                            <span class="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                Für Luftpolstertasche geeignet (Schmuck/Leichtware)
+                            </span>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button type="button" 
+                                wire:click="setPackagingType('box')" 
+                                class="flex items-center justify-between p-3 rounded-xl border text-left transition-all {{ $dhlPackagingType === 'box' ? 'bg-yellow-400/10 border-yellow-400 text-white shadow-sm ring-1 ring-yellow-400/30' : 'bg-gray-950/70 border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-700' }}">
+                            <div class="flex items-center gap-2.5">
+                                <span class="text-lg">📦</span>
+                                <div>
+                                    <div class="text-xs font-bold {{ $dhlPackagingType === 'box' ? 'text-yellow-300' : 'text-gray-300' }}">Kartonage / Paket</div>
+                                    <div class="text-[10px] text-gray-500">Standard (+350 g Tara)</div>
+                                </div>
+                            </div>
+                            @if($dhlPackagingType === 'box')
+                                <div class="w-4 h-4 rounded-full bg-yellow-400 text-gray-950 flex items-center justify-center shrink-0">
+                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                </div>
+                            @endif
+                        </button>
+
+                        <button type="button" 
+                                wire:click="setPackagingType('envelope')" 
+                                class="flex items-center justify-between p-3 rounded-xl border text-left transition-all {{ $dhlPackagingType === 'envelope' ? 'bg-yellow-400/10 border-yellow-400 text-white shadow-sm ring-1 ring-yellow-400/30' : 'bg-gray-950/70 border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-700' }}">
+                            <div class="flex items-center gap-2.5">
+                                <span class="text-lg">✉️</span>
+                                <div>
+                                    <div class="text-xs font-bold {{ $dhlPackagingType === 'envelope' ? 'text-yellow-300' : 'text-gray-300' }}">Luftpolstertasche</div>
+                                    <div class="text-[10px] text-gray-500">Umschlag (+30 g Tara)</div>
+                                </div>
+                            </div>
+                            @if($dhlPackagingType === 'envelope')
+                                <div class="w-4 h-4 rounded-full bg-yellow-400 text-gray-950 flex items-center justify-center shrink-0">
+                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                </div>
+                            @endif
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Kalkulations-Aufschlüsselung (Ware + Tara + Puffer) --}}
+                @if(!empty($dhlWeightDetails))
+                    <div class="bg-gray-950/40 border border-gray-800/70 rounded-xl p-3.5 mb-5 space-y-2 text-xs shadow-inner">
+                        <div class="flex justify-between items-center text-gray-400">
+                            <span>Reines Warengewicht:</span>
+                            <span class="font-mono text-gray-300 font-semibold">{{ number_format($dhlWeightDetails['product_weight_grams'] ?? 0, 0, ',', '.') }} g ({{ number_format(($dhlWeightDetails['product_weight_grams'] ?? 0) / 1000, 2, ',', '.') }} kg)</span>
+                        </div>
+                        <div class="flex justify-between items-center text-gray-400">
+                            <span>Verpackung ({{ $dhlWeightDetails['packaging_name'] ?? 'Tara' }}):</span>
+                            <span class="font-mono text-gray-300 font-semibold">+ {{ number_format($dhlWeightDetails['packaging_weight_grams'] ?? 0, 0, ',', '.') }} g</span>
+                        </div>
+                        @if(($dhlWeightDetails['buffer_grams'] ?? 0) > 0)
+                            <div class="flex justify-between items-center text-gray-400">
+                                <span>Sicherheits-Puffer ({{ ($dhlWeightDetails['packaging_type'] ?? '') === 'envelope' ? 'Label & Schutz' : 'Klebeband, Polster, Papiere' }}):</span>
+                                <span class="font-mono text-gray-300 font-semibold">+ {{ number_format($dhlWeightDetails['buffer_grams'] ?? 0, 0, ',', '.') }} g</span>
+                            </div>
+                        @endif
+                        <div class="pt-2 border-t border-gray-800 flex justify-between items-center font-bold">
+                            <span class="text-white">Berechnetes Gesamtgewicht (Empfehlung):</span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-yellow-400 text-sm">
+                                    {{ number_format($dhlRecommendedWeight ?? ($dhlWeightDetails['recommended_weight_per_package'] ?? 0), 2, ',', '.') }} kg
+                                    @if(($dhlPackageCount ?: 1) > 1)
+                                        <span class="text-[10px] text-gray-400 font-normal">/ Paket</span>
+                                    @endif
+                                </span>
+                                <span class="font-mono text-gray-300 text-xs font-bold bg-gray-900 border border-gray-800 px-2 py-0.5 rounded-lg shadow-inner">
+                                    {{ number_format((int) round(($dhlWeightDetails['total_grams'] ?? 0) / ($dhlPackageCount ?: 1)), 0, ',', '.') }} g
+                                </span>
+                            </div>
+                        </div>
+                        @if(($dhlPackageCount ?: 1) > 1)
+                            <div class="text-[10px] text-gray-500 font-mono text-right mt-0.5">
+                                Gesamtsendung aller {{ $dhlPackageCount }} Pakete: {{ number_format($dhlWeightDetails['total_grams'] ?? 0, 0, ',', '.') }} g ({{ number_format(($dhlWeightDetails['total_grams'] ?? 0) / 1000, 2, ',', '.') }} kg)
+                            </div>
+                        @endif
+
+                        {{-- Schwellenwert-Warnung --}}
+                        @if(!empty($dhlWeightDetails['is_near_limit']))
+                            <div class="mt-2.5 pt-2 border-t border-amber-500/20 flex items-center gap-2 text-[11px] text-amber-300/90 bg-amber-500/10 px-2.5 py-1.5 rounded-lg">
+                                <svg class="w-4 h-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <span><strong>Achtung:</strong> Liegt knapp unter der DHL-Tarifgrenze. Bitte vor Versand zur Sicherheit mit der Paketwaage prüfen.</span>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
+                {{-- Formular-Felder & Empfehlungs-Button --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Anzahl der Pakete</label>
-                        <input type="number" wire:model.live="dhlPackageCount" min="1" max="30" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
-                        @error('dhlPackageCount') <span class="text-red-400 text-[10px] mt-1">{{ $message }}</span> @enderror
+                        <input type="number" wire:model.live="dhlPackageCount" min="1" max="30" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        @error('dhlPackageCount') <span class="text-red-400 text-[10px] mt-1 block">{{ $message }}</span> @enderror
                     </div>
+
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Gewicht pro Paket (in kg)</label>
-                        <input type="number" step="0.01" wire:model.live="dhlWeightPerPackage" min="0.01" max="31.5" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-3 text-white text-sm focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
-                        @error('dhlWeightPerPackage') <span class="text-red-400 text-[10px] mt-1">{{ $message }}</span> @enderror
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400">Gewicht pro Paket (in kg)</label>
+                        </div>
+                        <input type="number" step="0.01" wire:model.live="dhlWeightPerPackage" min="0.01" max="31.5" class="w-full bg-gray-950 border border-gray-800 rounded-xl px-4 py-2.5 text-white text-sm font-mono focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none transition-all shadow-inner">
+                        @error('dhlWeightPerPackage') <span class="text-red-400 text-[10px] mt-1 block">{{ $message }}</span> @enderror
+
+                        {{-- Empfehlung übernehmen Button --}}
+                        @if($dhlRecommendedWeight !== null)
+                            <div class="mt-2 flex items-center justify-end">
+                                @if(abs((float)$dhlWeightPerPackage - (float)$dhlRecommendedWeight) > 0.001)
+                                    <button type="button" wire:click="applyDhlRecommendation" class="text-[11px] font-bold text-yellow-400 hover:text-yellow-300 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                        Empfehlung übernehmen ({{ number_format($dhlRecommendedWeight, 2, ',', '.') }} kg)
+                                    </button>
+                                @else
+                                    <span class="text-[10px] font-medium text-emerald-400/90 flex items-center gap-1">
+                                        <svg class="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Entspricht errechneter Empfehlung
+                                    </span>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 </div>
 
-                <div class="flex justify-end gap-3">
-                    <button wire:click="closeDhlModal" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gray-800 text-white hover:bg-gray-700 transition-colors shadow-inner">Abbrechen</button>
-                    <button wire:click="generateDhlLabels" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-yellow-400 text-yellow-900 hover:bg-yellow-300 transition-colors shadow-inner flex items-center gap-2" wire:loading.attr="disabled">
-                        <div wire:loading wire:target="generateDhlLabels" class="animate-spin w-3 h-3 border-2 border-yellow-900/30 border-t-yellow-900 rounded-full"></div>
-                        <span wire:loading.remove wire:target="generateDhlLabels">Labels Generieren</span>
-                        <span wire:loading wire:target="generateDhlLabels">Generiert...</span>
+                {{-- Footer Aktionen --}}
+                <div class="flex items-center justify-between pt-4 border-t border-gray-800/80">
+                    <button wire:click="closeDhlModal" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors shadow-inner">
+                        Abbrechen
+                    </button>
+                    <button wire:click="generateDhlLabels" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-yellow-400 text-yellow-900 hover:bg-yellow-300 transition-all shadow-lg flex items-center gap-2" wire:loading.attr="disabled">
+                        <div wire:loading wire:target="generateDhlLabels" class="animate-spin w-3.5 h-3.5 border-2 border-yellow-900/30 border-t-yellow-900 rounded-full"></div>
+                        <span wire:loading.remove wire:target="generateDhlLabels">
+                            @if(($dhlPackageCount ?: 1) > 1)
+                                {{ $dhlPackageCount }} DHL Labels generieren
+                            @else
+                                DHL Label generieren
+                            @endif
+                        </span>
+                        <span wire:loading wire:target="generateDhlLabels">Wird erstellt...</span>
                     </button>
                 </div>
             </div>

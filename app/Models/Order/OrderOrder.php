@@ -209,28 +209,60 @@ class OrderOrder extends Model
     }
 
     /**
-     * Get DHL weight details for the order.
+     * Get DHL weight details for the order including item breakdown and recommendation.
      */
-    public function getDhlWeightDetails(): array
+    public function getDhlWeightDetails(int $packageCount = 1, string $packagingType = 'box'): array
     {
+        $packageCount = max(1, $packageCount);
+        $itemsList = [];
         $totalProductWeightGrams = 0;
         $remainingProductWeightGrams = 0;
         $maxTaraWeight = 0;
+        $maxSingleItemWeight = 0;
         $totalItemsCount = 0;
+        $hasFallbackWeight = false;
 
         foreach ($this->items as $item) {
-            if ($item->product) {
-                $itemWeight = $item->product->weight > 0 ? $item->product->weight : 100;
-                $totalProductWeightGrams += ($itemWeight * $item->quantity);
-                
-                $remainingQty = max(0, $item->quantity - $item->completed_quantity);
-                $remainingProductWeightGrams += ($itemWeight * $remainingQty);
-                
-                if ($item->product->packaging_weight && $item->product->packaging_weight > $maxTaraWeight) {
-                    $maxTaraWeight = $item->product->packaging_weight;
+            $product = $item->product;
+            // Digital-Prüfung: rein digitale Produkte nicht physisch ins Paket wiegen
+            $isDigital = $product && $product->type === 'digital';
+            $config = $item->configuration ?? [];
+            if (!empty($config['is_gift_voucher']) && ($config['delivery_method'] ?? 'email') === 'email') {
+                $isDigital = true;
+            }
+
+            if ($product && !$isDigital) {
+                $isFallback = empty($product->weight) || $product->weight <= 0;
+                if ($isFallback) {
+                    $hasFallbackWeight = true;
                 }
-                
+                $itemWeight = !$isFallback ? (int) $product->weight : 100;
+                $lineTotalWeight = $itemWeight * $item->quantity;
+                $totalProductWeightGrams += $lineTotalWeight;
+
+                if ($itemWeight > $maxSingleItemWeight) {
+                    $maxSingleItemWeight = $itemWeight;
+                }
+
+                $remainingQty = max(0, $item->quantity - ($item->completed_quantity ?? 0));
+                $remainingProductWeightGrams += ($itemWeight * $remainingQty);
+
+                if ($product->packaging_weight && $product->packaging_weight > $maxTaraWeight) {
+                    $maxTaraWeight = (int) $product->packaging_weight;
+                }
+
                 $totalItemsCount += $item->quantity;
+
+                $itemsList[] = [
+                    'id'                  => $item->id,
+                    'product_id'          => $item->product_id,
+                    'name'                => $item->product_name ?: ($product->name ?? 'Unbekanntes Produkt'),
+                    'quantity'            => $item->quantity,
+                    'remaining_quantity'  => $remainingQty,
+                    'single_weight_grams' => $itemWeight,
+                    'total_weight_grams'  => $lineTotalWeight,
+                    'is_fallback'         => $isFallback,
+                ];
             }
         }
 
@@ -240,27 +272,92 @@ class OrderOrder extends Model
             $weightToUse = $totalItemsCount * 100;
         }
 
-        $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);  
+        // Automatische Eignungsprüfung für Luftpolsterumschlag:
+        // Physische Artikel vorhanden, Gesamtreingewicht <= 250g, Einzelschwerstes Teil <= 100g, keine schwere Sonderverpackung
+        $canFitInEnvelope = $totalItemsCount > 0 
+            && $weightToUse <= 250 
+            && $maxSingleItemWeight <= 100 
+            && $maxTaraWeight <= 50;
+
+        $suggestedPackagingType = $canFitInEnvelope ? 'envelope' : 'box';
+
+        // Tara & Puffer je nach gewählter Verpackungsart
+        if ($packagingType === 'envelope') {
+            $packagingName = 'Luftpolsterumschlag';
+            $packagingWeightGrams = (int)shop_setting('packaging_weight_envelope_grams', 30);
+            $bufferGrams = $weightToUse > 0 ? (int)shop_setting('shipping_buffer_envelope_grams', 10) : 0;
+        } else {
+            $packagingName = 'Karton';
+            $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);
+            $bufferGrams = $weightToUse > 0 ? (int)shop_setting('shipping_buffer_grams', 50) : 0;
+        }
+
+        $totalGrams = $weightToUse + ($packageCount * $packagingWeightGrams) + ($packageCount * $bufferGrams);
+        $weightPerPackageKg = round(($totalGrams / 1000) / $packageCount, 2);
+        $weightPerPackageKg = max(0.01, $weightPerPackageKg);
+
+        // DHL Tarifklasse & Schwellenwert-Prüfung
+        $dhlClass = 'Paket bis 2 kg';
+        $dhlBadgeColor = 'emerald';
+        $isNearLimit = false;
+
+        if ($weightPerPackageKg <= 2.00) {
+            $dhlClass = 'Paket bis 2 kg';
+            $dhlBadgeColor = 'emerald';
+            if ($weightPerPackageKg >= 1.85) {
+                $isNearLimit = true;
+            }
+        } elseif ($weightPerPackageKg <= 5.00) {
+            $dhlClass = 'Paket bis 5 kg';
+            $dhlBadgeColor = 'yellow';
+            if ($weightPerPackageKg >= 4.80) {
+                $isNearLimit = true;
+            }
+        } elseif ($weightPerPackageKg <= 10.00) {
+            $dhlClass = 'Paket bis 10 kg';
+            $dhlBadgeColor = 'amber';
+            if ($weightPerPackageKg >= 9.70) {
+                $isNearLimit = true;
+            }
+        } elseif ($weightPerPackageKg <= 31.50) {
+            $dhlClass = 'Paket bis 31,5 kg';
+            $dhlBadgeColor = 'orange';
+            if ($weightPerPackageKg >= 31.00) {
+                $isNearLimit = true;
+            }
+        } else {
+            $dhlClass = 'Übergewicht (> 31,5 kg)';
+            $dhlBadgeColor = 'red';
+            $isNearLimit = true;
+        }
 
         return [
-            'product_weight_grams' => $weightToUse,
-            'packaging_weight_grams' => $packagingWeightGrams
+            'items'                          => $itemsList,
+            'total_items_count'              => $totalItemsCount,
+            'product_weight_grams'           => $weightToUse,
+            'packaging_type'                 => $packagingType,
+            'packaging_name'                 => $packagingName,
+            'packaging_weight_grams'         => $packagingWeightGrams,
+            'buffer_grams'                   => $bufferGrams,
+            'total_grams'                    => $totalGrams,
+            'total_weight_kg'                => round($totalGrams / 1000, 2),
+            'recommended_weight_per_package' => $weightPerPackageKg,
+            'dhl_class'                      => $dhlClass,
+            'dhl_badge_color'                => $dhlBadgeColor,
+            'is_near_limit'                  => $isNearLimit,
+            'has_fallback_weight'            => $hasFallbackWeight,
+            'can_fit_in_envelope'            => $canFitInEnvelope,
+            'suggested_packaging_type'       => $suggestedPackagingType,
         ];
     }
 
     /**
      * Calculate DHL shipping weight for the order.
      */
-    public function calculateDhlWeight(int $packageCount = 1): float
+    public function calculateDhlWeight(int $packageCount = 1, string $packagingType = 'box'): float
     {
-        $details = $this->getDhlWeightDetails();
-        $weightToUse = $details['product_weight_grams'];
-        $packagingWeightGrams = $details['packaging_weight_grams'];
-
-        $totalGrams = $weightToUse + ($packageCount * $packagingWeightGrams);
-        $weightPerPackage = ($totalGrams / 1000) / max(1, $packageCount);
-        
-        return max(0.01, round($weightPerPackage, 2));
+        $details = $this->getDhlWeightDetails($packageCount, $packagingType);
+        return $details['recommended_weight_per_package'];
     }
 
     public function completePayment(string $stripePaymentIntentId = null): void

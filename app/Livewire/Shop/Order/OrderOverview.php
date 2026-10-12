@@ -53,6 +53,9 @@ class OrderOverview extends Component
     public $dhlPackageCount = 1;
     public $dhlWeightPerPackage = 1.0;
     public $dhlError = null;
+    public array $dhlWeightDetails = [];
+    public ?float $dhlRecommendedWeight = null;
+    public string $dhlPackagingType = 'box';
 
     protected $queryString = [
         'search' => ['except' => ''],
@@ -428,12 +431,32 @@ class OrderOverview extends Component
         $this->dhlModalOrderId = $orderId;
         $this->dhlPackageCount = 1;
         $this->dhlError = null;
+
+        // Verpackungsart smart vorwählen: Falls es sich um kleine, leichte Schmuckstücke handelt -> envelope, sonst box
+        $order = OrderOrder::with('items.product')->find($orderId);
+        if ($order) {
+            $initialDetails = $order->getDhlWeightDetails(1, 'box');
+            $this->dhlPackagingType = $initialDetails['suggested_packaging_type'] ?? 'box';
+        } else {
+            $this->dhlPackagingType = 'box';
+        }
         
         $this->calculateDhlWeight();
     }
 
     public function updatedDhlPackageCount()
     {
+        $this->calculateDhlWeight();
+    }
+
+    public function updatedDhlPackagingType()
+    {
+        $this->calculateDhlWeight();
+    }
+
+    public function setPackagingType(string $type)
+    {
+        $this->dhlPackagingType = in_array($type, ['box', 'envelope']) ? $type : 'box';
         $this->calculateDhlWeight();
     }
 
@@ -444,12 +467,27 @@ class OrderOverview extends Component
         $order = OrderOrder::with('items.product')->find($this->dhlModalOrderId);
         if (!$order) return;
 
-        $this->dhlWeightPerPackage = $order->calculateDhlWeight((int) $this->dhlPackageCount ?: 1);
+        $packageCount = (int) $this->dhlPackageCount ?: 1;
+        $packagingType = in_array($this->dhlPackagingType, ['box', 'envelope']) ? $this->dhlPackagingType : 'box';
+
+        $this->dhlWeightDetails = $order->getDhlWeightDetails($packageCount, $packagingType);
+        $this->dhlRecommendedWeight = $this->dhlWeightDetails['recommended_weight_per_package'];
+        $this->dhlWeightPerPackage = $this->dhlRecommendedWeight;
+    }
+
+    public function applyDhlRecommendation()
+    {
+        if ($this->dhlRecommendedWeight !== null) {
+            $this->dhlWeightPerPackage = $this->dhlRecommendedWeight;
+        }
     }
 
     public function closeDhlModal()
     {
         $this->dhlModalOrderId = null;
+        $this->dhlWeightDetails = [];
+        $this->dhlRecommendedWeight = null;
+        $this->dhlPackagingType = 'box';
     }
 
     public function generateDhlLabels()
