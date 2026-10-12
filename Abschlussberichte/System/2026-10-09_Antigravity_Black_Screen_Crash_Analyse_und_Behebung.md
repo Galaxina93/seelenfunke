@@ -2,7 +2,7 @@
 
 **Datum**: 09. Oktober 2026  
 **Status**: Erfolgreich behoben & verifiziert  
-**Betroffene Konversationen**: `572cb8cf-64ea-4ad7-99f5-3b2d4bdd81b6`, `e6650ae5-a284-4d19-8bb8-750aef17d12c`, `d14ac8d3-bf9d-4041-b8dc-cc0c92c18e9f`  
+**Betroffene Konversationen**: `572cb8cf-64ea-4ad7-99f5-3b2d4bdd81b6`, `e6650ae5-a284-4d19-8bb8-750aef17d12c`, `d14ac8d3-bf9d-4041-b8dc-cc0c92c18e9f`, `bcb3d256-e735-46a9-ac3e-ebbe883c50dc`  
 **Systemkomponenten**: Antigravity IDE (Electron / Chromium / React 18 / TanStack Router), VSCode URI Parser (`Pca`/`Qe`), SQLite Chat Storage (`conversations.db` / Protobuf)
 
 ---
@@ -110,6 +110,24 @@ Am späten Nachmittag des 09. Oktobers 2026 stürzte eine weitere Sitzung (`d14a
   - Prüfung über die interne Antigravity Trajectory-API (`GetCascadeTrajectory`):
     - `d14ac8d3`: 3.083 Schritte vollständig geladen, **0 fehlerhafte URIs** (`file:////`).
     - Der Chat ist vollständig repariert, absturzsicher und kann in der Benutzeroberfläche wieder geöffnet werden.
+ 
+### 4.3 Nachfolge-Vorfall & Wiederherstellung von `bcb3d256-e735-46a9-ac3e-ebbe883c50dc` (12. Oktober 2026)
+Am 12. Oktober 2026 gegen 13:55 Uhr stürzte die aktive Sitzung `bcb3d256-e735-46a9-ac3e-ebbe883c50dc` mit dem identischen Black-Screen-Fehler ab:
+- **Ursache**:
+  1. Ab Schritt 1362 rief der Assistent Werkzeuge (`view_file`, `replace_file_content`) mit Forward-Slash-Pfaden auf (`//wsl.localhost/Ubuntu/...`). Antigravity normalisierte diese in der UI mit `file:////wsl.localhost/...`, wodurch der React-Tree ungemountet wurde.
+  2. Durch den plötzlichen Client-Absturz verblieb Schritt 1394 mit dem unvollständigen Status `8` (RUNNING) in der Datenbank.
+- **Durchgeführte Reparatur**:
+  - Vollständiges Backup von `bcb3d256-e735-46a9-ac3e-ebbe883c50dc.db` und `.system_generated\logs` angelegt.
+  - Protobuf-Wire-Format-Sanitization mit `strict_proto`:
+    - 69 Schritte in `steps` bereinigt.
+    - Schritt 1394 auf Status `3` (DONE) in SQLite-Spalte und Protobuf-Payload korrigiert.
+    - `gen_metadata` (Zeile 684) bereinigt.
+    - `PRAGMA wal_checkpoint(TRUNCATE)` und `VACUUM` ausgeführt.
+  - Transkripte (`transcript.jsonl`, `transcript_full.jsonl`, alle 28 Chunk-Dateien sowie `output.txt` aus Schritt 914) zeilenweise bereinigt und Schritt 1394 sauber angehängt.
+- **Verifikation**:
+  - 1.395 Schritte in SQLite vollständig validiert (0 Protobuf-Parse-Fehler, 0 verbleibende ungültige URIs).
+  - Transkripte fehlerfrei (0 ungültige URIs, 0 JSON-Fehler).
+  - Chat `bcb3d256-e735-46a9-ac3e-ebbe883c50dc` ist verlustfrei gerettet und kann in Antigravity wieder geöffnet werden.
 
 ---
 
