@@ -103,7 +103,7 @@ class AccountingLiquidity extends Component
 
         // Geschäftsstart basiert nun dynamisch auf der User-Konfiguration
         $currentYear = $this->configStartYear;
-        $this->years = [$currentYear, $currentYear + 1, $currentYear + 2];
+        $this->years = [$currentYear, $currentYear + 1, $currentYear + 2, $currentYear + 3];
         $this->activeYear = $currentYear;
 
         $this->initEmptyData();
@@ -130,7 +130,7 @@ class AccountingLiquidity extends Component
         \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
         
         // Vollständigen Re-Init durchführen, da Startjahr oder Demo-Daten geändert worden sein können
-        $this->years = [$this->configStartYear, $this->configStartYear + 1, $this->configStartYear + 2];
+        $this->years = [$this->configStartYear, $this->configStartYear + 1, $this->configStartYear + 2, $this->configStartYear + 3];
         $this->activeYear = $this->configStartYear;
         
         $this->initEmptyData();
@@ -226,55 +226,95 @@ class AccountingLiquidity extends Component
             return; // Komplette Demo-Daten abschalten, wenn der User "Blanko" planen möchte
         }
 
-        $y1 = $this->configStartYear;
-        $y2 = $y1 + 1;
-        $y3 = $y1 + 2;
-        $sm = $this->configStartMonth;
+        $y1 = $this->configStartYear;     // 2026
+        $y2 = $y1 + 1;                    // 2027
+        $y3 = $y1 + 2;                    // 2028
+        $y4 = $y1 + 3;                    // 2029
+        $sm = $this->configStartMonth;    // 11 (November)
 
-        // Jahr 1 - Start im festgelegten $sm
+        // Jahr 1 (2026) - Start im festgelegten $sm (November)
         if (in_array($y1, $this->years)) {
-            $this->data[$y1][$sm]['out']['investments'] = 7815;
-            $this->data[$y1][$sm]['out']['other_out'] = 600;
+            // Investitionen Start: Maschinen 5.000 € (Laser 4.550 + Lüfter 200 + Labeldrucker 250) + Einrichtung 665 € (Arbeitsplatz 450 + Schutzbrille 65 + Dachboden 150) = 5.665 €
+            $this->data[$y1][$sm]['out']['investments'] = 5665;
+            $this->data[$y1][$sm]['out']['goods'] = 1000; // Warenerstbestand / Muster-Rohlinge
+            $this->data[$y1][$sm]['out']['other_out'] = 600; // Schulung Laserschutzbeauftragter nach OStrV
+            // Sicherheitsreserve 550 € verbleibt im Kassenbestand
 
-            // Start-Darlehen / Kontokorrentlinie zur Mitfinanzierung der Maschinen (analog Referenz-Plan: 4.000 €)
-            $this->data[$y1][$sm]['adj']['loan'] = 4000;
+            // 100% Eigenmittelfinanzierung aus vorhandenen Rücklagen (0 € Bankdarlehen)
+            $this->data[$y1][$sm]['adj']['loan'] = 0;
 
-            // ALG 1 Zuschüsse und dazugehörige private Entnahmen
-            // werden NICHT mehr hartgecodet, sondern in injectLiveData() dynamisch
-            // anhand der "ALG 1 + GZ" Kostenstelle ermittelt.
-
-            // Basis-Privatentnahme für Monate nach ALG 1 (falls ALG 1 schon im y1 endet)
-            for ($m = $sm; $m <= 12; $m++) {
-                $this->data[$y1][$m]['out']['private'] = 1600;
+            // Soft-Launch / Weihnachtsgeschäft im November und Dezember 2026
+            if ($sm <= 11) {
+                $this->data[$y1][11]['in']['sales'] = 2000;
+                $this->data[$y1][11]['out']['goods'] = ($this->data[$y1][11]['out']['goods'] ?? 0) + 600; // 30% Material & Versand
+                $this->data[$y1][11]['out']['marketing/marketing/marketing'] = 100;
+                $this->data[$y1][11]['out']['room_extra'] = 20;
+                $this->data[$y1][11]['out']['office'] = 45;
+                $this->data[$y1][11]['out']['insurance'] = 45;
+                $this->data[$y1][11]['out']['other_out'] = ($this->data[$y1][11]['out']['other_out'] ?? 0) + 150; // StB 120 + Instandhaltung 30
+            }
+            if ($sm <= 12) {
+                $this->data[$y1][12]['in']['sales'] = 2500;
+                $this->data[$y1][12]['out']['goods'] = 750; // 30% Material & Versand
+                $this->data[$y1][12]['out']['marketing/marketing/marketing'] = 100;
+                $this->data[$y1][12]['out']['room_extra'] = 20;
+                $this->data[$y1][12]['out']['office'] = 45;
+                $this->data[$y1][12]['out']['insurance'] = 45;
+                $this->data[$y1][12]['out']['other_out'] = 150;
             }
 
-            // Start Sales im $sm
-            if ($sm <= 8) { $this->data[$y1][8]['in']['sales'] = 800;  $this->data[$y1][8]['out']['goods'] = 120; }
-            if ($sm <= 9) { $this->data[$y1][9]['in']['sales'] = 1200; $this->data[$y1][9]['out']['goods'] = 180; }
-            if ($sm <= 10) { $this->data[$y1][10]['in']['sales'] = 1800; $this->data[$y1][10]['out']['goods'] = 270; }
-            if ($sm <= 11) { $this->data[$y1][11]['in']['sales'] = 2000; $this->data[$y1][11]['out']['goods'] = 300; }
-            if ($sm <= 12) { $this->data[$y1][12]['in']['sales'] = 2500; $this->data[$y1][12]['out']['goods'] = 375; }
+            // Private Entnahmen im Nov/Dez 2026: 0 € nötig, da Gründungszuschuss (2.106,30 €) + Mieteinnahmen (595 €) den privaten Bedarf (ca. 1.850 €) voll decken
+            for ($m = $sm; $m <= 12; $m++) {
+                $this->data[$y1][$m]['out']['private'] = 0;
+            }
         }
 
-        // Jahr 2
+        // Jahr 2 (2027) - 1. volles Geschäftsjahr (Etablierung & Kundenstamm) - 41.100 €
         if (in_array($y2, $this->years)) {
             $salesY2 = [1=>3200, 2=>3800, 3=>2800, 4=>3200, 5=>4200, 6=>2500, 7=>2400, 8=>2500, 9=>3000, 10=>3500, 11=>5200, 12=>5800];
             foreach($salesY2 as $m => $val) {
                 $this->data[$y2][$m]['in']['sales'] = $val;
-                $this->data[$y2][$m]['out']['goods'] = $val * 0.15;
-                $this->data[$y2][$m]['out']['marketing/marketing/marketing'] = 150;
-                $this->data[$y2][$m]['out']['private'] = 1800;
+                // Wareneinsatz & Verpackung (15%) + Versandlogistik (15%) = 30%
+                $this->data[$y2][$m]['out']['goods'] = round($val * 0.30, 2);
+                $this->data[$y2][$m]['out']['marketing/marketing/marketing'] = 100;
+                $this->data[$y2][$m]['out']['room_extra'] = 20;
+                $this->data[$y2][$m]['out']['office'] = 45;
+                $this->data[$y2][$m]['out']['insurance'] = 45;
+                $this->data[$y2][$m]['out']['other_out'] = 150; // Instandhaltung 30 € + StB 120 €
+                // Bis April 2027 läuft Gründungszuschuss Phase 1 (2.106,30 €) -> keine Entnahme nötig. Ab Mai 2027: 1.600 € Entnahme.
+                $this->data[$y2][$m]['out']['private'] = ($m <= 4) ? 0 : 1600;
             }
         }
 
-        // Jahr 3
+        // Jahr 3 (2028) - 2. Geschäftsjahr (Skalierung & Stammkunden) - 48.300 €
         if (in_array($y3, $this->years)) {
             $salesY3 = [1=>2800, 2=>4500, 3=>3200, 4=>3800, 5=>5000, 6=>3000, 7=>2800, 8=>3000, 9=>3500, 10=>4200, 11=>6000, 12=>6500];
             foreach($salesY3 as $m => $val) {
                 $this->data[$y3][$m]['in']['sales'] = $val;
-                $this->data[$y3][$m]['out']['goods'] = $val * 0.15;
-                $this->data[$y3][$m]['out']['marketing/marketing/marketing'] = 200;
-                $this->data[$y3][$m]['out']['private'] = 2000;
+                $this->data[$y3][$m]['out']['goods'] = round($val * 0.30, 2);
+                $this->data[$y3][$m]['out']['marketing/marketing/marketing'] = 150;
+                $this->data[$y3][$m]['out']['room_extra'] = 20;
+                $this->data[$y3][$m]['out']['office'] = 45;
+                $this->data[$y3][$m]['out']['insurance'] = 45;
+                $this->data[$y3][$m]['out']['other_out'] = 150;
+                $this->data[$y3][$m]['out']['private'] = 1800;
+            }
+        }
+
+        // Jahr 4 (2029) - 3. Geschäftsjahr (Optimierung, B2B & Personalvariante) - 53.600 €
+        if (in_array($y4, $this->years)) {
+            $salesY4 = [1=>3200, 2=>4900, 3=>3600, 4=>4100, 5=>5400, 6=>3500, 7=>3100, 8=>3200, 9=>3900, 10=>4800, 11=>6800, 12=>7100];
+            foreach($salesY4 as $m => $val) {
+                $this->data[$y4][$m]['in']['sales'] = $val;
+                $this->data[$y4][$m]['out']['goods'] = round($val * 0.30, 2);
+                // Personalvariante: 520 € Minijobber / Aushilfe für Packstraße & Versand
+                $this->data[$y4][$m]['out']['personnel'] = 520;
+                $this->data[$y4][$m]['out']['marketing/marketing/marketing'] = 200;
+                $this->data[$y4][$m]['out']['room_extra'] = 25;
+                $this->data[$y4][$m]['out']['office'] = 55;
+                $this->data[$y4][$m]['out']['insurance'] = 45;
+                $this->data[$y4][$m]['out']['other_out'] = 160;
+                $this->data[$y4][$m]['out']['private'] = 2000;
             }
         }
 
@@ -363,7 +403,11 @@ class AccountingLiquidity extends Component
                 }
                 foreach ($this->expenseRows as $key => $row) {
                     if (isset($dbData[$y][$m]['out'][$key])) {
-                        if (in_array($key, ['goods', 'marketing/marketing/marketing', 'investments', 'other_out']) && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
+                        if ($key === 'goods' && ($y > $this->configStartYear || ($y == $this->configStartYear && $m >= $this->configStartMonth))) {
+                            // Behalte berechneten Wareneinsatz des Businessplans
+                            continue;
+                        }
+                        if (in_array($key, ['goods', 'marketing/marketing/marketing', 'investments', 'other_out', 'office', 'room_extra', 'insurance']) && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
                             // Behalte Businessplan
                         } elseif ($key === 'private' && $isFuture && $dbData[$y][$m]['out'][$key] == 0) {
                             // Behalte Businessplan Entnahmen, wenn keine Livedaten vorhanden sind
@@ -409,6 +453,10 @@ class AccountingLiquidity extends Component
             if (Str::contains($text, ['zuschuss', 'alg', 'amt', 'gründer'])) return ['type' => 'in', 'key' => 'subsidy'];
             if (Str::contains($text, ['vorsteuer', 'erstattung'])) return ['type' => 'in', 'key' => 'tax_refund'];
             return ['type' => 'in', 'key' => 'other_in'];
+        }
+
+        if (Str::contains($text, ['verpackungslizenz', 'lizenzero', 'lucid'])) {
+            return ['type' => 'out', 'key' => 'insurance'];
         }
 
         if (Str::contains($tagsString, ['versicherung', 'versicherungen']) || Str::contains($text, ['versicherung', 'beitrag', 'haftpflicht', 'arbeitslos'])) {
@@ -507,16 +555,29 @@ class AccountingLiquidity extends Component
                 $businessNet = ($sumIn - $privIn) - ($sumOut - $privOut);
                 $privateNet = $privIn - $privOut;
 
-                // LOGIK: "Für Doofe" - Einfach und Transparent (idempotent)
-                // Wir fügen eine pauschale, realistische Lebenshaltung (Essen, Auto, Freizeit) von 450€ hinzu.
-                $extraPrivate = 450;
+                // LOGIK: Lebenshaltungskosten
+                // Während der 6-monatigen Gründungszuschuss-Phase (11/2026 bis 04/2027) deckt der Zuschuss (2.106,30 €) + Mieteinnahmen (595 €) den privaten Lebensunterhalt (ca. 1.850 €) zu 100% ab.
+                // Ab Mai 2027 (Auslauf Phase 1) erwirtschaftet die Firma die Lebenshaltung der Gründerin (mind. 1.600 € in 2027, 1.800 € in 2028, 2.000 € in 2029).
+                $isSubsidyPhase = ($year == 2026 && $month >= 11) || ($year == 2027 && $month <= 4);
+                $extraPrivate = 0;
                 $currentPrivOut = (float)($this->data[$year][$month]['out']['private'] ?? 0);
 
-                // Ab 2027/28 muss die Firma als echte Lebensgrundlage ein festes Mindestgehalt abwerfen
-                if ($year == 2027 && ($currentPrivOut + $extraPrivate) < 1800) {
-                    $extraPrivate += (1800 - ($currentPrivOut + $extraPrivate));
-                } else if ($year >= 2028 && ($currentPrivOut + $extraPrivate) < 2000) {
-                    $extraPrivate += (2000 - ($currentPrivOut + $extraPrivate));
+                if ($isSubsidyPhase) {
+                    $extraPrivate = 0;
+                } elseif ($year == 2026 && $month < 11) {
+                    $extraPrivate = 450; // Vorgründungsphase Pauschale
+                } elseif ($year == 2027) {
+                    if ($currentPrivOut < 1600) {
+                        $extraPrivate = 1600 - $currentPrivOut;
+                    }
+                } elseif ($year == 2028) {
+                    if ($currentPrivOut < 1800) {
+                        $extraPrivate = 1800 - $currentPrivOut;
+                    }
+                } elseif ($year >= 2029) {
+                    if ($currentPrivOut < 2000) {
+                        $extraPrivate = 2000 - $currentPrivOut;
+                    }
                 }
 
                 $this->data[$year][$month]['out']['private'] = $currentPrivOut + $extraPrivate;
@@ -616,7 +677,12 @@ class AccountingLiquidity extends Component
                     }
                 }
             }
-            $abschreibung = $totalInvestments / 3;
+            // Pro-rata AfA: Im Gründungsjahr 2026 für 2 Monate (Nov/Dez = 2/12), in den Folgejahren 12/12
+            if ($year == $this->configStartYear) {
+                $abschreibung = round(($totalInvestments / 3) * (2 / 12), 2);
+            } else {
+                $abschreibung = round($totalInvestments / 3, 2);
+            }
 
             $rohertrag = $umsatz - $material;
             $summe_kosten = $personal + $raum + $raumneben + $fahrzeug + $buero + $werbung + $versicherung + $abschreibung + $sonstige;
@@ -641,38 +707,31 @@ class AccountingLiquidity extends Component
     {
         $this->kapitalbedarf = [
             'investitionen' => [
-                'grundstueck' => 0, 'gebaeude' => 0, 'umbau' => 0, 'einrichtung' => 0,
-                'maschinen' => 0, 'waren' => 0, 'fahrzeuge' => 0, 'unternehmenswert' => 0, 'sonstiges' => 0,
+                'grundstueck' => 0.00,
+                'gebaeude' => 0.00,
+                'umbau' => 150.00, // Dachboden-Anpassung
+                'einrichtung' => 515.00, // Profi-Arbeitsplatz (450 €) + Laserschutzbrille (65 €)
+                'maschinen' => 5000.00, // xTool Laser (4.550 €) + Ventilator (200 €) + Labeldrucker (250 €)
+                'waren' => 1000.00, // Warenerstbestand & Muster-Rohlinge
+                'fahrzeuge' => 0.00,
+                'unternehmenswert' => 0.00,
+                'sonstiges' => 0.00,
             ],
             'gruendung' => [
-                'werbung' => 0, 'beratung' => 0, 'anmeldungen' => 0, 'handelsregister' => 0, 'notar' => 0, 'sonstiges' => 0,
+                'werbung' => 0.00,
+                'beratung' => 600.00, // Schulung Laserschutzbeauftragter nach OStrV
+                'anmeldungen' => 0.00,
+                'handelsregister' => 0.00,
+                'notar' => 0.00,
+                'sonstiges' => 550.00, // Eiserne Sicherheitsreserve / Liquiditätspuffer
             ],
             'finanzierung' => [
-                'eigenmittel' => $this->startBalance,
-                'kontokorrent' => 0, 'darlehen' => 0, 'puffer' => 0,
+                'eigenmittel' => 7815.00, // 100 % aus vorhandenen privaten Ersparnissen / Rücklagen
+                'kontokorrent' => 0.00,
+                'darlehen' => 0.00,
+                'puffer' => 0.00,
             ]
         ];
-
-        if (count($this->years) > 0) {
-            $firstY = $this->years[0];
-            $sm = $this->configStartMonth;
-            
-            $this->kapitalbedarf['investitionen']['maschinen'] = (float) ($this->data[$firstY][$sm]['out']['investments'] ?? 0);
-            $nextMonth = $sm < 12 ? $sm + 1 : 12;
-            $this->kapitalbedarf['investitionen']['waren'] = (float) ($this->data[$firstY][$sm]['out']['goods'] ?? 0) + (float) ($this->data[$firstY][$nextMonth]['out']['goods'] ?? 0);
-            $this->kapitalbedarf['gruendung']['werbung'] = (float) ($this->data[$firstY][$sm]['out']['marketing/marketing/marketing'] ?? 0);
-            $this->kapitalbedarf['gruendung']['beratung'] = (float) ($this->data[$firstY][$sm]['out']['other_out'] ?? 0);
-            
-            $totalPrivateIn = 0;
-            $totalLoan = 0;
-            for ($m = 1; $m <= 12; $m++) {
-                $totalPrivateIn += (float) ($this->data[$firstY][$m]['in']['private_in'] ?? 0);
-                $totalLoan += (float) ($this->data[$firstY][$m]['adj']['loan'] ?? 0);
-            }
-            
-            $this->kapitalbedarf['finanzierung']['eigenmittel'] += $totalPrivateIn;
-            $this->kapitalbedarf['finanzierung']['darlehen'] = $totalLoan;
-        }
     }
 
     private function calculateTaxes()
@@ -770,15 +829,26 @@ class AccountingLiquidity extends Component
     public function getDetailedScore()
     {
         $avgSalesAfterSubsidy = 0;
-        if (isset($this->data[2026])) {
-            $q4Sales = ($this->data[2026][10]['in']['sales'] ?? 0) + ($this->data[2026][11]['in']['sales'] ?? 0) + ($this->data[2026][12]['in']['sales'] ?? 0);
-            $avgSalesAfterSubsidy = $q4Sales / 3;
-            $q4Costs = ($this->data[2026][10]['out']['goods'] ?? 0) + ($this->data[2026][10]['out']['marketing/marketing/marketing'] ?? 0) + ($this->data[2026][10]['out']['private'] ?? 0) +
-                ($this->data[2026][11]['out']['goods'] ?? 0) + ($this->data[2026][11]['out']['marketing/marketing/marketing'] ?? 0) + ($this->data[2026][11]['out']['private'] ?? 0) +
-                ($this->data[2026][12]['out']['goods'] ?? 0) + ($this->data[2026][12]['out']['marketing/marketing/marketing'] ?? 0) + ($this->data[2026][12]['out']['private'] ?? 0);
-            $avgCostsAfterSubsidy = $q4Costs / 3;
-        } else {
-            $avgCostsAfterSubsidy = 0;
+        $avgCostsAfterSubsidy = 0;
+        if (isset($this->data[2027])) {
+            $yearSales = 0;
+            $yearCosts = 0;
+            for ($m = 1; $m <= 12; $m++) {
+                $yearSales += $this->data[2027][$m]['in']['sales'] ?? 0;
+                $yearCosts += ($this->data[2027][$m]['out']['goods'] ?? 0) + 
+                              ($this->data[2027][$m]['out']['marketing/marketing/marketing'] ?? 0) + 
+                              ($this->data[2027][$m]['out']['office'] ?? 0) + 
+                              ($this->data[2027][$m]['out']['insurance'] ?? 0) + 
+                              ($this->data[2027][$m]['out']['other_out'] ?? 0) + 
+                              ($this->data[2027][$m]['out']['private'] ?? 0);
+            }
+            $avgSalesAfterSubsidy = round($yearSales / 12, 2);
+            $avgCostsAfterSubsidy = round($yearCosts / 12, 2);
+        } elseif (isset($this->data[2026])) {
+            $q4Sales = ($this->data[2026][11]['in']['sales'] ?? 0) + ($this->data[2026][12]['in']['sales'] ?? 0);
+            $avgSalesAfterSubsidy = $q4Sales / 2;
+            $q4Costs = ($this->data[2026][11]['out']['goods'] ?? 0) + ($this->data[2026][12]['out']['goods'] ?? 0);
+            $avgCostsAfterSubsidy = $q4Costs / 2;
         }
 
         $scoreRent = 0;

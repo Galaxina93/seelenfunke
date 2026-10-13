@@ -532,11 +532,14 @@
     foreach($years as $y) {
         $yearPrivate = 0;
         for($m=1; $m<=12; $m++) {
-            $endBal = $totals[$y][$m]['end'] ?? 0;
-            if($endBal < $minBalance) {
-                $minBalance = $endBal;
-                $minMonth = sprintf('%02d', $m);
-                $minYear = $y;
+            // Evaluierung des Liquiditätstiefpunkts ab offiziellem Gründungsbeginn (11/2026)
+            if ($y > 2026 || ($y == 2026 && $m >= 11)) {
+                $endBal = $totals[$y][$m]['end'] ?? 0;
+                if($endBal < $minBalance) {
+                    $minBalance = $endBal;
+                    $minMonth = sprintf('%02d', $m);
+                    $minYear = $y;
+                }
             }
             
             $sales = $data[$y][$m]['in']['sales'] ?? 0;
@@ -548,8 +551,8 @@
             $totalInsurance += $data[$y][$m]['out']['insurance'] ?? 0;
             $yearPrivate += $data[$y][$m]['out']['private'] ?? 0;
         }
-        if($y == $firstYear) {
-            $avgMonthlyPrivateBaseYear = $yearPrivate / 12;
+        if($y == ($years[1] ?? 2027)) {
+            $avgMonthlyPrivateBaseYear = 1600.00;
         }
     }
     

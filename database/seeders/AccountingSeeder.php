@@ -75,6 +75,10 @@ class AccountingSeeder extends Seeder
 
         // --- 1. Gruppen erstellen ---
 
+        AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $admin->id))->delete();
+        AccountingGroup::where('admin_id', $admin->id)->delete();
+        AccountingSpecialIssue::where('admin_id', $admin->id)->delete();
+
         $groupsData = [
             'Einnahmen'        => ['type' => 'income',  'pos' => 10],
             'Haus'             => ['type' => 'expense', 'pos' => 20],
@@ -106,7 +110,7 @@ class AccountingSeeder extends Seeder
                 'amount'      => 1806.30,
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-01-30',
-                'last_date'   => '2027-01-30',
+                'last_date'   => '2026-10-31',
                 'provider_company' => 'Agentur für Arbeit Gifhorn',
                 'provider_street'  => 'Winkeler Str. 1',
                 'provider_zip'     => '38518',
@@ -120,21 +124,21 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Einnahmen',
                 'name'        => 'Gründerzuschuss',
-                'amount'      => 0,
+                'amount'      => 2106.30,
                 'interval'    => 1, // monthly
-                'start_date'  => '2026-01-30',
-                'last_date'   => '2027-01-30',
-                'provider_company' => 'K/A',
+                'start_date'  => '2026-11-01',
+                'last_date'   => '2027-04-30',
+                'provider_company' => 'Agentur für Arbeit Gifhorn',
                 'provider_street'  => 'Winkeler Straße',
                 'provider_house_number' => '1',
                 'provider_zip'     => '38518',
                 'provider_city'    => 'Gifhorn',
                 'provider_email'   => 'K/A',
-                'provider_phone'   => 'K/A',
-                'contract_number'  => 'K/A',
+                'provider_phone'   => '0800 4 5555-00',
+                'contract_number'  => '241D129534',
                 'notice_period'    => 'K/A',
-                'description' => null,
-                'tags'        => ['Einnahme', 'Staat', 'Förderung', 'Einkommen'],
+                'description' => "Gründungszuschuss Phase 1 (§ 93 SGB III): ALG-1-Anteil (1.806,30 €) + monatliche Pauschale zur sozialen Absicherung (300,00 €) für 6 Monate vom 01.11.2026 bis 30.04.2027.",
+                'tags'        => ['Einnahme', 'Staat', 'Förderung', 'Einkommen', 'Gründungszuschuss', 'Agentur für Arbeit'],
             ],
             [
                 'group'       => 'Einnahmen',
