@@ -10,7 +10,7 @@
 
     {{-- Meta Description: Max. 160 Zeichen, inkl. Keywords und Handlungsaufforderung --}}
     <meta name="description"
-          content="Verwandle Momente in Ewigkeit ✨ Hochwertige Unikate aus Glas, Schiefer & Metall. Handveredelt in Deutschland. Jetzt dein persönliches Geschenk gestalten!">
+          content="@yield('meta_description', 'Verwandle Momente in Ewigkeit ✨ Hochwertige Unikate aus Glas, Schiefer & Metall. Handveredelt in Deutschland. Jetzt dein persönliches Geschenk gestalten!')">
 
     {{-- Keywords: Fokus auf deine Produkte + Region (für lokales SEO) --}}
     <meta name="keywords"
@@ -21,13 +21,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     {{-- Open Graph / Social Media (Wichtig, damit Links in WhatsApp/Insta gut aussehen) --}}
-    <meta property="og:title" content="Mein Seelenfunke – Geschenke, die bleiben.">
+    <meta property="og:title" content="@yield('og_title', 'Mein Seelenfunke – Geschenke, die bleiben.')">
     <meta property="og:description"
-          content="Entdecke handveredelte Unikate aus Glas und Schiefer. Perfekt für Geburtstage, Hochzeiten & besondere Momente.">
+          content="@yield('og_description', 'Entdecke handveredelte Unikate aus Glas und Schiefer. Perfekt für Geburtstage, Hochzeiten & besondere Momente.')">
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta property="og:image"
-          content="{{ asset('shopverwaltung/images/logo/mein-projekt-logo.jpg') }}"> {{-- Pfad zu einem schönen Produktbild anpassen --}}
+          content="@yield('og_image', asset('shopverwaltung/images/logo/mein-projekt-logo.jpg'))"> {{-- Pfad zu einem schönen Produktbild anpassen --}}
 
     <!-- Canonical -->
     <link rel="canonical" href="{{ url()->current() }}">

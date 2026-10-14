@@ -236,6 +236,22 @@
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>
 
+            {{-- HERZENSPROJEKT: REGIONALER SPENDEN-HINWEIS --}}
+            <div class="mt-5 p-3.5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-xl flex items-center gap-3.5 shadow-xs">
+                <div class="w-9 h-9 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 text-base shadow-inner">
+                    ❤️
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-gray-900">Ein Funke, der Gutes tut</span>
+                        <span class="text-[9px] font-mono font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">Für Kinder vor Ort</span>
+                    </div>
+                    <p class="text-[11px] text-gray-600 leading-snug mt-0.5">
+                        Mit dieser Bestellung fließt automatisch ein fester Betrag in unseren Spenden-Topf für regionale Kindergärten & Kinder-Projekte.
+                    </p>
+                </div>
+            </div>
+
             <div class="space-y-4 bg-gray-50 p-4 rounded-xl mt-6">
                 <div class="flex items-start">
                     <div class="flex h-5 items-center">

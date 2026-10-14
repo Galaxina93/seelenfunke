@@ -84,9 +84,7 @@ class BackendNavigationService
                         'children' => [
                             ['id' => 'marketing-analytics', 'title' => 'Analyse', 'route' => '/admin/marketing/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'marketing-landing-pages', 'title' => 'Landing Pages', 'route' => '/admin/marketing/landing-pages', 'icon' => 'document-text'],
-                            ['id' => 'marketing-instagram', 'title' => 'Instagram', 'route' => '/admin/marketing/instagram', 'icon' => 'camera'],
-                            ['id' => 'marketing-google-ads', 'title' => 'Google Ads', 'route' => '/admin/marketing/google-ads', 'icon' => 'currency-dollar'],
-                            ['id' => 'marketing-videos', 'title' => 'Videos', 'route' => '/admin/marketing/videos', 'icon' => 'video-camera'],
+                            ['id' => 'marketing-herzensprojekte', 'title' => 'Herzensprojekte', 'route' => '/admin/marketing/herzensprojekte', 'icon' => 'heart'],
                             ['id' => 'newsletter', 'title' => 'Newsletter', 'route' => '/admin/newsletter', 'icon' => 'newspaper'],
                             ['id' => 'voucher', 'title' => 'Gutscheine', 'route' => '/admin/voucher', 'icon' => 'gift'],
                             ['id' => 'blog', 'title' => 'Blogeinträge', 'route' => '/admin/blog', 'icon' => 'document-text'],

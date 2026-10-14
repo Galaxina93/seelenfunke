@@ -3,7 +3,7 @@
     Fokus: Viel Weißraum, edle Typografie, großes Produktbild.
 --}}
 <section class="relative bg-white pt-32 pb-16 lg:pt-40 lg:pb-32 overflow-hidden" aria-label="Produktvorstellung">
-    {{-- Dezentster Hintergrund-Verlauf (kaum wahrnehmbar für Tiefe) --}}
+    {{-- Dezentster Hintergrund-Verlauf --}}
     <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-gray-50/50 to-white pointer-events-none" aria-hidden="true"></div>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -17,16 +17,13 @@
                 </div>
 
                 {{-- Headline --}}
-                <h1 class="text-5xl sm:text-6xl lg:text-7xl font-serif font-bold text-gray-900 leading-[1.1] mb-6">
-                    {{ $landingPage->product->name }}
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-gray-900 leading-[1.1] mb-6">
+                    {{ $landingPage->title ?: $landingPage->product->name }}
                 </h1>
 
-                {{-- Subline --}}
+                {{-- Subline / Headline --}}
                 <p class="text-lg sm:text-xl text-gray-500 mb-10 leading-relaxed font-light max-w-lg mx-auto lg:mx-0">
-                    {{ $landingPage->product->short_description ?? 'Das perfekte Geschenk.' }}
-                    <span class="block mt-2 text-gray-900 font-medium">
-                        {!! str_replace($landingPage->product->name, '<span class="text-primary italic font-serif">' . $landingPage->product->name . '</span>', $landingPage->headline) !!}
-                    </span>
+                    {{ $landingPage->headline ?: ($landingPage->product->short_description ?? 'Das perfekte persönliche Geschenk.') }}
                 </p>
 
                 {{-- Buttons --}}
@@ -34,15 +31,15 @@
                     <a href="{{ route('product.show', $landingPage->product->slug) }}"
                        title="{{ $landingPage->product->name }} ansehen"
                        class="group inline-flex justify-center items-center px-8 py-4 bg-primary text-white text-lg font-bold rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dark hover:shadow-primary/40 hover:-translate-y-1 transition-all duration-300">
-                        {{ $landingPage->cta_text }}
+                        {{ $landingPage->cta_text ?: 'Jetzt dein Unikat gestalten' }}
                         <svg class="ml-2 w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                         </svg>
                     </a>
-                    <a href="#details"
-                       title="Details zum Produkt ansehen"
-                       class="inline-flex justify-center items-center px-8 py-4 bg-white border border-gray-200 text-lg font-bold rounded-xl text-gray-600 hover:text-primary hover:border-primary/50 transition-colors shadow-sm">
-                        Details ansehen
+                    <a href="#herzensprojekt"
+                       title="Mehr über unser Herzensprojekt erfahren"
+                       class="inline-flex justify-center items-center px-8 py-4 bg-white border border-gray-200 text-lg font-bold rounded-xl text-gray-600 hover:text-primary hover:border-primary/50 transition-colors shadow-sm gap-2">
+                        <span>❤️</span> Unser Herzensprojekt
                     </a>
                 </div>
 
@@ -59,18 +56,17 @@
                     </li>
                     <li class="flex items-center">
                         <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">✓</span>
-                        Ab 1 Stück
+                        Ab 1 Stück personalisierbar
                     </li>
                     <li class="flex items-center">
                         <span class="w-5 h-5 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-2 text-xs" aria-hidden="true">★</span>
-                        Premium Qualität
+                        Unterstützt lokale Kindergärten
                     </li>
                 </ul>
             </div>
 
             {{-- Rechte Seite: Großes Produktbild --}}
             <div class="order-1 lg:order-2 relative group perspective-1000">
-                {{-- Dekorativer Hintergrundkreis (Subtil) --}}
                 <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-radial-gradient from-gray-100 to-transparent opacity-60 blur-3xl -z-10" aria-hidden="true"></div>
 
                 <div class="relative w-full aspect-square md:aspect-auto md:h-full rounded-3xl overflow-hidden shadow-2xl shadow-gray-200/50 border border-gray-100 bg-white p-2 md:p-4 transform transition-transform duration-700 hover:scale-[1.02]">
@@ -92,7 +88,7 @@
                         @if($landingPage->product->compare_at_price > $landingPage->product->price)
                             <span class="bg-red-500 text-white text-[10px] font-black px-4 py-2 rounded-full shadow-lg uppercase tracking-wider">Sale</span>
                         @endif
-                        @if($landingPage->product->created_at->diffInDays() < 21)
+                        @if($landingPage->product->created_at && $landingPage->product->created_at->diffInDays() < 21)
                             <span class="bg-white/95 backdrop-blur text-gray-900 text-[10px] font-black px-4 py-2 rounded-full shadow-lg uppercase tracking-wider border border-gray-100">Neu</span>
                         @endif
                     </div>
@@ -102,10 +98,10 @@
                              loading="eager"
                              class="w-full h-auto rounded-2xl object-cover">
                     @else
-                        <div class="w-full h-64 bg-gray-100 flex items-center justify-center rounded-2xl">Kein Bild vorhanden</div>
+                        <div class="w-full h-64 bg-gray-100 flex items-center justify-center rounded-2xl text-gray-400">Kein Bild vorhanden</div>
                     @endif
 
-                    {{-- Floating Badge --}}
+                    {{-- Floating Price Badge --}}
                     <div class="absolute top-8 right-8 bg-white/90 backdrop-blur-md shadow-xl rounded-2xl p-4 text-center border border-white/50">
                         <span class="block text-gray-400 text-[10px] uppercase font-bold tracking-wider">Ab</span>
                         <span class="block text-3xl font-serif font-bold text-gray-900">{{ $landingPage->product->formatted_price }}</span>
@@ -121,8 +117,7 @@
 </section>
 
 {{--
-    SECTION 2: HIGHLIGHTS (Icons)
-    Clean, Gray Background zur Abgrenzung
+    SECTION 2: HIGHLIGHTS
 --}}
 <section id="details" class="py-24 bg-gray-50 border-y border-gray-100/50" aria-labelledby="details-heading">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -132,7 +127,6 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {{-- Feature 1 --}}
             <article class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
                 <div class="w-14 h-14 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 text-2xl mb-6 group-hover:scale-110 transition-transform" aria-hidden="true">
                     💎
@@ -141,7 +135,6 @@
                 <p class="text-gray-500 leading-relaxed text-sm">Unsere Roh-Produkte werden sorgfältig ausgewählt und geprüft, um dir lange Freude an deinem persönlichen Geschenk zu ermöglichen.</p>
             </article>
 
-            {{-- Feature 2 --}}
             <article class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
                 <div class="w-14 h-14 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 text-2xl mb-6 group-hover:scale-110 transition-transform" aria-hidden="true">
                     ✨
@@ -150,7 +143,6 @@
                 <p class="text-gray-500 leading-relaxed text-sm">Dein Wunschmotiv wird in unserer Manufaktur durch absolut präzise Lasertechnik dauerhaft und gestochen scharf verewigt.</p>
             </article>
 
-            {{-- Feature 3 --}}
             <article class="bg-white p-10 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all duration-300 group">
                 <div class="w-14 h-14 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600 text-2xl mb-6 group-hover:scale-110 transition-transform" aria-hidden="true">
                     🎁
@@ -164,7 +156,6 @@
 
 {{--
     SECTION 3: DETAILS & EMOTION
-    Weißer Hintergrund
 --}}
 <section class="py-24 bg-white overflow-hidden" aria-labelledby="specs-heading">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -184,22 +175,21 @@
                          loading="lazy"
                          class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
                 @else
-                    <div class="rounded-3xl shadow-2xl w-full h-[500px] bg-gray-100 border border-gray-100 flex items-center justify-center">Detailbild</div>
+                    <div class="rounded-3xl shadow-2xl w-full h-[500px] bg-gray-100 border border-gray-100 flex items-center justify-center text-gray-400">Detailbild</div>
                 @endif
 
-                {{-- Kleines Detailbild Overlay --}}
                 <div class="absolute -bottom-8 -right-8 w-40 h-40 bg-white p-3 rounded-2xl shadow-xl hidden md:block border border-gray-100 animate-float" aria-hidden="true">
                     <img src="{{ asset('shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="w-full h-full object-contain rounded-lg" alt="">
                 </div>
             </div>
 
-            {{-- Rechte Seite: Tabelle --}}
+            {{-- Rechte Seite: Text & Attribute --}}
             <div>
                 <h2 id="specs-heading" class="text-4xl font-serif font-bold text-gray-900 mb-6">
                     Details, die überzeugen.
                 </h2>
                 <div class="text-gray-600 mb-10 text-lg font-light leading-relaxed prose prose-p:leading-relaxed">
-                    {!! nl2br($landingPage->sales_copy) !!}
+                    {!! nl2br($landingPage->sales_copy ?: $landingPage->product->description) !!}
                 </div>
 
                 @if($landingPage->product->attributes && count($landingPage->product->attributes) > 0)
@@ -220,7 +210,7 @@
                 <div class="mt-8 flex items-start gap-3">
                     <svg class="w-5 h-5 text-gray-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <p class="text-xs text-gray-400 italic">
-                        Hinweis: Da die finale Gravur und Veredelung für jedes Produkt ganz individuell durchgeführt wird, gleicht kein Stück exakt dem anderen. Du erhältst ein absolutes Unikat.
+                        Hinweis: Da die finale Gravur und Veredelung für jedes Produkt ganz individuell durchgeführt wird, gleicht kein Stück exakt dem anderen. Du erhältst ein echtes Unikat.
                     </p>
                 </div>
             </div>
@@ -229,25 +219,81 @@
     </div>
 </section>
 
+{{--
+    SECTION 4: DAS HERZENSPROJEKT / SOZIALER BEITRAG
+    Authentisches Engagement für Kinder vor Ort
+--}}
+<section id="herzensprojekt" class="py-24 bg-gradient-to-br from-amber-50/60 via-white to-orange-50/40 relative overflow-hidden border-y border-amber-100/60" aria-labelledby="herzensprojekt-heading">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div class="max-w-3xl mx-auto text-center mb-16">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs font-bold uppercase tracking-widest mb-4">
+                <span>❤️</span> Ein Funke, der Gutes tut
+            </div>
+            <h2 id="herzensprojekt-heading" class="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-gray-900 mb-6 leading-tight">
+                Freude schenken. <br><span class="text-primary italic font-serif">Gutes bewirken.</span>
+            </h2>
+            <p class="text-lg text-gray-600 font-light leading-relaxed">
+                Wir bei Seelenfunke glauben daran, dass wahre Freude wächst, wenn man sie teilt. Mit jedem Kauf dieses Unikats fließt ein fester Beitrag in unseren regionalen Herzens-Topf für Kindergärten und Aktionen für Kinder vor Ort.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl border border-amber-200/50 shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl mb-4">
+                    🧸
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Spielgeräte & Bastelbedarf</h3>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                    Wir statten Kindergärten in unserer Region mit langlebigen Spiel- und Lernmaterialien sowie kreativen Bastelsets aus.
+                </p>
+            </div>
+
+            <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl border border-amber-200/50 shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl mb-4">
+                    📍
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">100% Greifbar & Regional</h3>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                    Keine anonymen weltweiten Fonds: Die Unterstützung landet direkt bei Kindern und Kitas vor unserer eigenen Haustür.
+                </p>
+            </div>
+
+            <div class="bg-white/80 backdrop-blur-sm p-8 rounded-2xl border border-amber-200/50 shadow-sm hover:shadow-md transition-all duration-300">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl mb-4">
+                    ✨
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Transparente Aktionen</h3>
+                <p class="text-sm text-gray-600 leading-relaxed">
+                    Jedes Projekt wird mit echten Übergaben, Fotos und Berichten dokumentiert, damit du genau siehst, wo die Unterstützung ankommt.
+                </p>
+            </div>
+        </div>
+
+        <div class="text-center">
+            <span class="inline-flex items-center gap-2 text-sm text-amber-900 font-medium bg-amber-100/60 px-5 py-2.5 rounded-full border border-amber-200/60">
+                <span>🌟</span> Mit deiner Bestellung wird dieser Funke Wirklichkeit.
+            </span>
+        </div>
+    </div>
+</section>
+
 @php
     $gallery = is_array($landingPage->product->media_gallery) ? collect($landingPage->product->media_gallery) : collect();
     $videoMedia = $gallery->firstWhere('type', 'video');
     $images = $gallery->filter(fn($m) => !isset($m['type']) || $m['type'] === 'image')->values();
-    // Index 0 and 1 represent Hero and Detail images, so we skip them for the gallery
     $extraImages = $images->skip(2);
 @endphp
 
 @if($videoMedia)
 {{--
-    SECTION: VIDEO HERO
-    Cinematic dark section to showcase the product video
+    SECTION 5: VIDEO HERO
 --}}
 <section class="bg-gray-950 py-24 relative overflow-hidden" aria-labelledby="video-heading">
     <div class="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/30 via-gray-900 to-gray-950"></div>
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="text-center mb-16">
             <h2 id="video-heading" class="text-3xl sm:text-4xl font-serif font-bold text-white mb-4">Live in Action</h2>
-            <p class="text-gray-400 text-lg font-light">Erleben Sie die Faszination von {{ $landingPage->product->name }} aus jeder Perspektive.</p>
+            <p class="text-gray-400 text-lg font-light">Erlebe die Faszination von {{ $landingPage->product->name }} aus jeder Perspektive.</p>
         </div>
         <div class="relative w-full aspect-video rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.6)] border border-gray-800">
             <video 
@@ -268,13 +314,13 @@
 
 @if($extraImages->count() > 0)
 {{--
-    SECTION: EXTRA IMAGES GALLERY
+    SECTION 6: EXTRA IMAGES GALLERY
 --}}
 <section class="py-24 bg-gray-50 border-y border-gray-100" aria-labelledby="gallery-heading">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="text-center mb-16">
             <h2 id="gallery-heading" class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4">Weitere faszinierende Einblicke</h2>
-            <p class="text-gray-500 font-light">Entdecken Sie alle Facetten dieses Meisterwerks im Detail.</p>
+            <p class="text-gray-500 font-light">Entdecke alle Facetten dieses Meisterwerks im Detail.</p>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -289,14 +335,11 @@
 @endif
 
 {{--
-    SECTION 4: PREIS-KALKULATOR CTA
-    Dunkler Kontrastbereich als Abschluss des Info-Teils
+    SECTION 7: PREIS & CTA
 --}}
 <section class="py-24 bg-gray-900 relative overflow-hidden" aria-labelledby="cta-heading">
-    {{-- Background Pattern --}}
     <div class="absolute inset-0 opacity-[0.03]" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'1\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');" aria-hidden="true"></div>
 
-    {{-- Schein --}}
     <div class="absolute top-0 right-0 -mt-20 -mr-20 w-96 h-96 bg-primary/20 rounded-full blur-[120px]" aria-hidden="true"></div>
 
     <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
@@ -304,15 +347,15 @@
             Bereit für echte Wertschätzung?
         </h2>
         <p class="text-xl text-gray-400 mb-12 max-w-2xl mx-auto font-light">
-            Egal ob Einzelstück für einen besonderen Anlass oder 100 Stück für das ganze Event.
-            Nutzen Sie unseren Kalkulator für sofortige Staffelpreise.
+            Egal ob Einzelstück für einen besonderen Anlass oder als wertschätzendes Geschenk.
+            Gestalte jetzt dein persönliches Unikat.
         </p>
 
         <div class="flex flex-col sm:flex-row justify-center gap-5">
             <a href="{{ route('product.show', $landingPage->product->slug) }}"
                title="Jetzt Preis online konfigurieren"
                class="inline-flex justify-center items-center px-10 py-5 border border-transparent text-lg font-bold rounded-xl text-black bg-primary hover:bg-white transition-all shadow-[0_0_30px_-5px_rgba(234,179,8,0.4)] hover:shadow-white/20 hover:-translate-y-1">
-                {{ $landingPage->cta_text }}
+                {{ $landingPage->cta_text ?: 'Jetzt dein Unikat gestalten' }}
             </a>
             <a href="#contact"
                title="Kontaktieren Sie uns für Fragen"
@@ -323,10 +366,12 @@
 
         <p class="mt-10 text-sm text-gray-500 flex items-center justify-center gap-2">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            Keine versteckten Kosten. Angebot 100% transparent.
+            Keine versteckten Kosten. Handveredelt in unserer Manufaktur.
         </p>
     </div>
 </section>
 
-{{-- Contact Section (Livewire Component) --}}
-@livewire('frontend.contact-form')
+{{-- Contact Section --}}
+<div id="contact">
+    @livewire('frontend.contact-form')
+</div>

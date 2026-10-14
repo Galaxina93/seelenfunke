@@ -233,9 +233,4 @@ class Product extends Model
     {
         return $this->hasOne(\App\Models\Marketing\MarketingLandingPage::class);
     }
-
-    public function googleAdsCampaign()
-    {
-        return $this->hasOne(\App\Models\Marketing\MarketingGoogleAdsCampaign::class);
-    }
 }

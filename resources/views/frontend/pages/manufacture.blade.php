@@ -20,7 +20,7 @@
                             {{-- Das Bild mit Rahmen-Animation --}}
                             <div class="relative overflow-hidden rounded-2xl shadow-2xl aspect-[4/5] border-4 border-white transform transition-all duration-500 group-hover:-translate-y-2 group-hover:shadow-primary/20">
                                 <img src="{{ asset('shop/projekt/about/gruender-profil-b.webp') }}"
-                                     alt="Alina Steinhauer – Gründerin von Mein-Seelenfunke"
+                                     alt="Alina Steinhauer, Gründerin von Mein-Seelenfunke"
                                      class="object-cover w-full h-full transform transition-scale duration-1000 group-hover:scale-110">
 
                                 {{-- Herz-Icon & "Kontakt"-Hinweis Overlay bei Hover --}}
@@ -97,7 +97,7 @@
 
                         {{-- Station 1: 2012-2015 --}}
                         <div class="bg-white px-4 group cursor-default max-w-xs flex flex-col items-center md:items-start text-center md:text-left">
-                            <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">2012 — 2015</p>
+                            <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">2012 - 2015</p>
                             <h4 class="text-gray-900 font-bold text-sm uppercase mt-2">Das Fundament</h4>
                             <p class="text-xs text-gray-500 mt-1 leading-relaxed">
                                 Ausbildung zur Fachinformatikerin für Systemintegration. Hier lernte ich die Basis: Netzwerke, Serverstrukturen und Troubleshooting von der Pike auf.
@@ -106,7 +106,7 @@
 
                         {{-- Station 2: 2015-2019 --}}
                         <div class="bg-white px-4 group cursor-default max-w-xs flex flex-col items-center md:items-start text-center md:text-left">
-                            <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">2015 — 2019</p>
+                            <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">2015 - 2019</p>
                             <h4 class="text-gray-900 font-bold text-sm uppercase mt-2">IT-Operations & Support</h4>
                             <p class="text-xs text-gray-500 mt-1 leading-relaxed">
                                 Einsatz im 1st- und 2nd-Level-Support, unter anderem für das DLR. Verantwortung für komplexe IT-Umgebungen und Anwendersysteme.
@@ -115,7 +115,7 @@
 
                         {{-- Station 3: 2019-2023 --}}
                         <div class="bg-white px-4 group cursor-default max-w-xs flex flex-col items-center md:items-start text-center md:text-left">
-                            <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">2019 — 2023</p>
+                            <p class="text-primary font-bold text-2xl transition-transform duration-300 group-hover:scale-125 group-hover:-translate-y-1 inline-block">2019 - 2023</p>
                             <h4 class="text-gray-900 font-bold text-sm uppercase mt-2">Web-Engineering</h4>
                             <p class="text-xs text-gray-500 mt-1 leading-relaxed">
                                 Spezialisierung auf Full-Stack-Entwicklung. Umsetzung von über 30 Webprojekten und komplexen Portallösungen mit Laravel, Vue.js und SQL.
@@ -339,6 +339,120 @@
             </div>
         </section>
 
+        {{--
+            SECTION 5: HERZENSPROJEKTE (Handwerk mit Herz & Soziales Engagement)
+            Verbindung von Präzision mit regionaler Fürsorge
+        --}}
+        <section id="herzensprojekte" class="py-24 bg-gradient-to-b from-white via-amber-500/5 to-white border-t border-gray-100 overflow-hidden" aria-labelledby="herzensprojekte-heading">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+                {{-- Header Badge & Title --}}
+                <div class="max-w-3xl mx-auto text-center mb-16">
+                    <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-primary/15 text-primary text-sm font-bold mb-4 shadow-sm">
+                        <span class="text-base" aria-hidden="true">❤️</span>
+                        <span class="uppercase tracking-wider">Verantwortung & Engagement</span>
+                    </div>
+
+                    <h2 id="herzensprojekte-heading" class="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold text-gray-900 leading-tight mb-6">
+                        Handwerk mit Herz: <br>
+                        <span class="text-primary italic">Ein Funke, der Gutes tut</span>.
+                    </h2>
+
+                    <p class="text-lg text-gray-600 leading-relaxed">
+                        Für uns bei <strong class="text-gray-900">Mein Seelenfunke</strong> ist echte Handwerkskunst untrennbar mit Menschlichkeit verbunden. Wir glauben fest daran, dass ein Unternehmen der Gesellschaft und besonders den Kleinsten unter uns etwas zurückgeben muss.
+                    </p>
+                </div>
+
+                {{-- 3 Säulen unseres Engagements --}}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+
+                    {{-- Säule 1 --}}
+                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
+                        <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-primary flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                            🧸
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Kitas & Kinder vor Ort</h3>
+                        <p class="text-sm text-gray-600 leading-relaxed flex-grow">
+                            Unsere Hilfe geht direkt an Kindertagesstätten, Kindergärten und kleine Bildungseinrichtungen in Gifhorn und Umgebung, etwa mit handgefertigtem Holzspielzeug, Fördermaterialien und Projekten zum Mitmachen.
+                        </p>
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-semibold text-primary">
+                            <span>Regional & greifbar</span>
+                        </div>
+                    </div>
+
+                    {{-- Säule 2 --}}
+                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                            🎁
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Fester Teil jeder Bestellung</h3>
+                        <p class="text-sm text-gray-600 leading-relaxed flex-grow">
+                            Kein Spendenaufruf an der Kasse, kein Cent Aufpreis für dich. Wir spenden bei jeder einzelnen Bestellung einen festen Betrag aus unseren eigenen Unternehmenserlösen direkt in den Herzensprojekte-Fonds.
+                        </p>
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-semibold text-emerald-600">
+                            <span>100% aus Unternehmensmitteln</span>
+                        </div>
+                    </div>
+
+                    {{-- Säule 3 --}}
+                    <div class="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm hover:shadow-xl hover:border-primary/30 transition-all duration-300 flex flex-col group">
+                        <div class="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform shadow-inner">
+                            🤝
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900 mb-3">Persönlich & Transparent</h3>
+                        <p class="text-sm text-gray-600 leading-relaxed flex-grow">
+                            Wir übergeben Sachmittel und Unterstützung persönlich vor Ort. In unserer Community und auf unserem Blog teilen wir Einblicke, damit du genau siehst, wo die Freude bei den Kindern ankommt.
+                        </p>
+                        <div class="mt-6 pt-4 border-t border-gray-100 flex items-center text-xs font-semibold text-blue-600">
+                            <span>Nachvollziehbar & ehrlich</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                {{-- Gründerin Zitat & Call to Action Banner --}}
+                <div class="bg-gray-900 rounded-3xl p-8 sm:p-12 text-white shadow-2xl relative overflow-hidden">
+                    <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+
+                    <div class="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
+                        <div class="max-w-2xl">
+                            <span class="text-primary font-bold tracking-wider uppercase text-xs mb-3 block">
+                                Unsere Vision & Haltung
+                            </span>
+                            <blockquote class="text-xl sm:text-2xl font-serif italic text-gray-100 mb-6 leading-relaxed">
+                                „Ein Seelenfunke soll nicht nur im Regal unserer Kunden leuchten, sondern auch in den Augen von Kindern einen Funken Begeisterung entfachen. Handwerk und soziale Verantwortung gehören für mich untrennbar zusammen.“
+                            </blockquote>
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary">
+                                    <img src="{{ asset('shop/projekt/about/gruender-profil-b.webp') }}" alt="Alina Steinhauer" class="w-full h-full object-cover">
+                                </div>
+                                <div>
+                                    <div class="font-bold text-sm text-white">Alina Steinhauer</div>
+                                    <div class="text-xs text-gray-400">Gründerin von Mein Seelenfunke</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="shrink-0 flex flex-col items-center sm:items-start gap-4 text-center sm:text-left">
+                            <a href="{{ route('shop') }}" class="px-8 py-4 bg-primary hover:bg-primary-hover active:scale-95 text-gray-950 font-bold rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center gap-3">
+                                <span>Unikat gestalten & Gutes tun</span>
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                            </a>
+                            <span class="text-xs text-gray-400">Jeder Einkauf stärkt lokale Kinder-Aktionen</span>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Legal Transparency Notice --}}
+                <div class="mt-8 text-center">
+                    <p class="text-xs text-gray-400 max-w-3xl mx-auto leading-relaxed">
+                        <strong class="text-gray-500">Transparenzhinweis:</strong> Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderinitiativen finanzieren wir vollständig aus den erwirtschafteten Mitteln unseres Unternehmens.
+                    </p>
+                </div>
+
+            </div>
+        </section>
+
         {{--Contact Section--}}
         @livewire('frontend.contact-form')
 
@@ -375,7 +489,7 @@
                     </svg>
                     <div class="text-left">
                         <h3 class="text-lg font-bold text-white leading-none">Laserschutzbeauftragte Zertifikat</h3>
-                        <span class="text-xs text-gray-400">Alina Steinhauer – Ausgestellt nach OStrV & TROS Laserstrahlung</span>
+                        <span class="text-xs text-gray-400">Alina Steinhauer, ausgestellt nach OStrV & TROS Laserstrahlung</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">

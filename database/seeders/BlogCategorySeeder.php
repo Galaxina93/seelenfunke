@@ -19,6 +19,7 @@ class BlogCategorySeeder extends Seeder
 
             // Vertrauensaufbau & Marke
             'Hinter den Kulissen',
+            'Herzensprojekte',
 
             // Verkaufsfördernde Anlässe (Top für SEO)
             'Geschenkideen & Anlässe',

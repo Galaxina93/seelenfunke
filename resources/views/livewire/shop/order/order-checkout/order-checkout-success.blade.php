@@ -32,6 +32,13 @@
             <p class="text-gray-600">
                 Wir haben dir eine Bestätigung an <span class="font-bold text-gray-900">{{ $email ?? 'deine E-Mail' }}</span> gesendet.
             </p>
+
+            <div class="mt-6 p-4 bg-amber-50/80 border border-amber-200/60 rounded-xl flex items-center justify-center gap-3 text-amber-950 text-sm">
+                <span class="text-xl shrink-0">❤️</span>
+                <span class="text-left sm:text-center text-xs sm:text-sm">
+                    <strong>Danke, dass du Freude schenkst!</strong> Durch deinen Einkauf fließt automatisch ein Beitrag in unseren Spenden-Topf für regionale Kindergärten & Kinderaktionen.
+                </span>
+            </div>
         </div>
     </div>
 

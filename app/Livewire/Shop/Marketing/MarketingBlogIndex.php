@@ -61,7 +61,8 @@ class MarketingBlogIndex extends Component
 
         return view('livewire.shop.marketing.marketing-blog-index', [
             'posts' => $query->paginate(9),
-            'categories' => MarketingBlogCategory::whereIn('id', MarketingBlogPost::pluck('blog_category_id'))->orderBy('name')->get() // Nur Kategorien mit Posts
+            'categories' => MarketingBlogCategory::whereIn('id', MarketingBlogPost::pluck('blog_category_id'))->orderBy('name')->get(), // Nur Kategorien mit Posts
+            'categorySlug' => $this->categorySlug,
         ])->layout('components.layouts.frontend_layout');
     }
 }

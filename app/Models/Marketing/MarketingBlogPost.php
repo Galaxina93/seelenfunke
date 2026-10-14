@@ -26,15 +26,18 @@ class MarketingBlogPost extends Model
         'contains_affiliate_links' => 'boolean',
     ];
 
-    // --- SCOPES ---
-
     /**
-     * Zeigt nur Artikel, die "Published" sind UND deren Datum erreicht ist.
+     * Zeigt nur Artikel, die "published" sind.
+     * In Produktion nur Artikel, deren Datum bereits erreicht ist (geplante Beiträge).
+     * Im lokalen Modus oder für eingeloggte Admins können geplante Beiträge bereits begutachtet werden.
      */
     public function scopePublished(Builder $query): void
     {
-        $query->where('status', 'published')
-            ->where('published_at', '<=', now());
+        $query->where('status', 'published');
+
+        if (!app()->isLocal() && !auth('admin')->check()) {
+            $query->where('published_at', '<=', now());
+        }
     }
 
     // --- RELATIONSHIPS ---

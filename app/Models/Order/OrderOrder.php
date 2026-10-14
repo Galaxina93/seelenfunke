@@ -459,6 +459,9 @@ class OrderOrder extends Model
                 }
             }
 
+            // --- HERZENSPROJEKT: AUTOMATISCHER BEITRAG IN DEN SPENDENTOPF ---
+            \App\Services\HerzensprojektService::recordDonationForOrder($order);
+
             // --- NEU: DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
             \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($this);
         });

@@ -145,3 +145,27 @@ Um ein erneutes Auftreten dieses Fehlers bei zukünftigen Interaktionen oder Wer
 
 3. **Markdown-Links im Chat**:
    - Für klickbare Links im Chat-Fenster ist stets das Format `[Link-Text](file://wsl.localhost/Ubuntu/pfad/zur/datei)` oder `[Link-Text](file:///C:/pfad/zur/datei)` zu verwenden.
+
+---
+
+## 6. Endgültige System-Lösung (14. Oktober 2026): Defense-in-Depth Architektur
+
+Da organisatorische Richtlinien allein nicht verhindern können, dass KI-Modelle oder Subagenten dynamisch Forward-Slashes generieren, wurde am 14. Oktober 2026 eine vollautomatische, mehrstufige Systemarchitektur eingerichtet:
+
+### 6.1 Automatischer Eingangs-Wächter (`PreToolUse`-Lifecycle-Hook)
+- **Implementierung**: `C:\Users\konta\.gemini\antigravity\bin\agy_wsl_guard.py` (Modus `--hook`).
+- **Konfiguration**:
+  - Global: `C:\Users\konta\.gemini\config\hooks.json`
+  - Workspace: `.agents/hooks.json` in `seelenfunke`
+  - WSL: `~/.gemini/config/hooks.json`
+- **Funktionsweise**: Fängt vor jedem Werkzeugaufruf (`view_file`, `replace_file_content`, `write_to_file`, `run_command` etc.) alle Pfad-Argumente ab. Startet ein Pfad mit `//wsl.localhost/` oder `//wsl$/`, wird er per `overwrite`-Attribut vor der Ausführung transparent zu `\\wsl.localhost\...` normalisiert.
+- **Wirkung**: In SQLite-Datenbanken und Transkripten können **niemals wieder vergiftete Strings** abgelegt werden.
+
+### 6.2 Globale und Projekt-Regeln (`GEMINI.md` / `AGENTS.md`)
+- `C:\Users\konta\.gemini\config\GEMINI.md` und `seelenfunke/GEMINI.md` definieren verbindliche Standards für alle Sessions und Unteragenten.
+
+### 6.3 Massenbereinigung & Selbstheilung (`agy_wsl_guard.py --repair`)
+- Vollständiger Scan über alle 24 SQLite-Datenbanken und Transkripte durchgeführt.
+- 18 betroffene Datenbanken wurden verlustfrei repariert (0-Byte-Shift zur Erhaltung der Protobuf-Wire-Integrität) und mit `PRAGMA wal_checkpoint(TRUNCATE)` sowie `VACUUM` optimiert.
+- Alle 35 Transkript-Dateien wurden automatisch entgiftet.
+

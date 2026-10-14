@@ -52,6 +52,13 @@
                                 <span aria-hidden="true">🛍️</span> Zum Shop
                             </a>
                         </li>
+                        <li>
+                            <a href="{{ route('manufacture') }}#herzensprojekte"
+                               title="Unsere Herzensprojekte für Kitas & Kinder vor Ort"
+                               class="text-primary hover:underline transition flex items-center gap-2 font-medium">
+                                <span aria-hidden="true">❤️</span> Unsere Herzensprojekte
+                            </a>
+                        </li>
 
                         {{-- 1. Allgemeine Kontakt-Mail --}}
                         <li>
@@ -109,6 +116,9 @@
             <div class="text-gray-500 text-sm text-center md:text-left">
                 &copy; {{ date('Y') }} <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong>. Alle Rechte vorbehalten.<br>
                 <span class="text-xs">Handmade with ❤️ in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.</span>
+                <p class="text-[11px] text-gray-500 mt-2 leading-relaxed max-w-3xl">
+                    * Transparenzhinweis zu unseren Herzensprojekten: Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderprojekte erfolgen vollumfänglich aus den erwirtschafteten Mitteln unseres Unternehmens.
+                </p>
             </div>
 
             <div class="flex space-x-4">

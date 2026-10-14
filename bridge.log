@@ -13375,3 +13375,7 @@ Inva
 [2026-10-13T10:09:24.372Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
 [2026-10-13T10:09:24.388Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
 [2026-10-13T10:09:24.388Z] Erfolgreich gebunden auf Port 8081
+[2026-10-14T09:32:42.904Z] --- NODE JS SERVER RESTARTED (VERSION: v1.0) ---
+[2026-10-14T09:32:42.939Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-10-14T09:32:42.954Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-10-14T09:32:42.955Z] Erfolgreich gebunden auf Port 8081
