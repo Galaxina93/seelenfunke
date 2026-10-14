@@ -114,8 +114,23 @@ class GeminiAgent implements AiProviderInterface
                                  'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n";
         }
 
-        $systemPromptText .= 'EPHEMERAL CONTEXT: ' . session()->get('ai_ephemeral_state', 'Der User hat aktuell keine Dateien oder speziellen UI-Elemente fokussiert.') . "\n" .
-                             "Reasoning: high\n\n" .
+        $systemPromptText .= 'EPHEMERAL CONTEXT: ' . session()->get('ai_ephemeral_state', 'Der User hat aktuell keine Dateien oder speziellen UI-Elemente fokussiert.') . "\n";
+
+        if ($isAdmin && class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
+            $latestDocs = \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')->take(3)->get();
+            if ($latestDocs->isNotEmpty()) {
+                $systemPromptText .= "\n[WORKSPACE LIVE-STATUS: ZULETZT HOCHGELADENE DATEIEN]\n";
+                foreach ($latestDocs as $idx => $d) {
+                    $prefix = $idx === 0 ? "🔥 ALLERLETZTE HOCHGELADENE DATEI: " : "Vorherige Datei: ";
+                    $uploadTime = $d->created_at ? $d->created_at->format('d.m.Y H:i:s') : 'k.A.';
+                    $diff = $d->created_at ? '(' . $d->created_at->diffForHumans() . ')' : '';
+                    $systemPromptText .= "- {$prefix}'{$d->filename}' | Pfad: `{$d->file_path}` | Upload-Zeit: {$uploadTime} {$diff} | Kategorie: {$d->category} | Zweck: {$d->purpose}\n";
+                }
+                $systemPromptText .= "WICHTIG: Wenn der Nutzer fragt 'Was war die letzte Datei die hochgeladen wurde?' oder nach kürzlich hochgeladenen Dateien fragt, nenne ihm SOFORT und direkt präzise die Datei `{$latestDocs->first()->filename}` mit ihren Details (Speicherpfad, Kategorie, Zweck)!\n";
+            }
+        }
+
+        $systemPromptText .= "Reasoning: high\n\n" .
                              "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
                              "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
                              "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";

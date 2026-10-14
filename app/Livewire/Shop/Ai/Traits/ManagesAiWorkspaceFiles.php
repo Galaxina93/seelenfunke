@@ -188,6 +188,33 @@ trait ManagesAiWorkspaceFiles
             $msg = $result['message'] ?? 'Dateitrichter erfolgreich ausgeführt.';
             $this->dateitrichterMessage = $msg;
             $this->dispatch('dateitrichter-completed', message: $msg);
+
+            // Logge Dateitrichter-Ergebnis in den Chat Log
+            if (method_exists($this, 'saveMessageToDb')) {
+                $count = $result['processed_count'] ?? 0;
+                $icon = $count > 0 ? 'sparkles' : 'funnel';
+                $color = $count > 0 ? 'amber-400' : 'gray-400';
+                $this->saveMessageToDb('assistant', "> ⚙️ **Dateitrichter:** {$msg}", [
+                    'name' => 'Dateitrichter',
+                    'color' => $color,
+                    'icon' => $icon,
+                    'profile_picture' => null,
+                ]);
+                unset($this->messages);
+                $this->dispatch('chat-memory-updated');
+            }
+
+            if (class_exists(\App\Models\System\SystemLog::class)) {
+                \App\Models\System\SystemLog::create([
+                    'type' => 'workspace_dateitrichter',
+                    'title' => 'Dateitrichter ausgeführt',
+                    'message' => $msg,
+                    'status' => 'success',
+                    'payload' => $result,
+                    'started_at' => now(),
+                    'finished_at' => now(),
+                ]);
+            }
         } catch (\Exception $e) {
             $this->dateitrichterMessage = 'Fehler im Dateitrichter: ' . $e->getMessage();
             $this->dispatch('dateitrichter-completed', message: $this->dateitrichterMessage);
@@ -243,6 +270,8 @@ trait ManagesAiWorkspaceFiles
         ]);
 
         $filename = $this->fileUpload->getClientOriginalName();
+        $fileSize = $this->fileUpload->getSize();
+        $sizeFormatted = round($fileSize / 1024, 1) . ' KB';
         $this->fileUpload->storeAs($this->currentFilePath, $filename, 'workspace');
         
         $relPath = $this->currentFilePath . '/' . $filename;
@@ -253,12 +282,47 @@ trait ManagesAiWorkspaceFiles
             [
                 'filename' => $filename,
                 'file_type' => $this->fileUpload->getClientOriginalExtension(),
-                'file_size' => $this->fileUpload->getSize(),
+                'file_size' => $fileSize,
                 'title' => pathinfo($filename, PATHINFO_FILENAME),
                 'category' => 'Manuelle Uploads',
                 'purpose' => 'Manuell im Workspace hochgeladenes Arbeitsdokument.',
             ]
         );
+
+        // 1. In den Chat Log (AiChatMemory) schreiben, damit der Upload sichtbar ist
+        if (method_exists($this, 'saveMessageToDb')) {
+            $this->saveMessageToDb('assistant', "> 📥 **Datei hochgeladen:** `{$filename}` ({$sizeFormatted}) im Workspace-Ordner `{$this->currentFilePath}` abgelegt.", [
+                'name' => 'Dateisystem',
+                'color' => 'blue-400',
+                'icon' => 'arrow-up-tray',
+                'profile_picture' => null,
+            ]);
+            unset($this->messages);
+            $this->dispatch('chat-memory-updated');
+        }
+
+        // 2. In SystemLog eintragen
+        if (class_exists(\App\Models\System\SystemLog::class)) {
+            \App\Models\System\SystemLog::create([
+                'type' => 'workspace_upload',
+                'title' => 'Datei hochgeladen: ' . $filename,
+                'message' => "Datei '{$filename}' ({$sizeFormatted}) wurde im Workspace unter '{$relPath}' hochgeladen.",
+                'status' => 'success',
+                'payload' => [
+                    'filename' => $filename,
+                    'path' => $relPath,
+                    'size' => $fileSize,
+                    'uploaded_at' => now()->toIso8601String(),
+                ],
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+
+        // 3. Ephemeral State der Session für sofortigen KI-Kontext aktualisieren
+        session()->put('ai_ephemeral_state', "Zuletzt hochgeladene Datei im Workspace: '{$filename}' (Pfad: '{$relPath}', Zeit: " . now()->format('d.m.Y H:i:s') . ").");
+
+        $this->dateitrichterMessage = "Datei '{$filename}' ({$sizeFormatted}) erfolgreich hochgeladen.";
 
         $this->loadFileManagerFiles();
         $this->fileUpload = null;

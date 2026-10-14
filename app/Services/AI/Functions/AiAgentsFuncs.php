@@ -269,6 +269,21 @@ trait AiAgentsFuncs
                     'required' => []
                 ],
                 'callable' => [self::class, 'executeWorkspaceRunDateitrichter']
+            ],
+            [
+                'name' => 'workspace_get_latest_uploads',
+                'description' => 'Liefert die zuletzt im Workspace hochgeladenen Dateien sortiert nach dem exakten Upload-Zeitpunkt (created_at). Perfekt für Fragen wie "Was war die letzte Datei die hochgeladen wurde?", "Welche Dateien wurden zuletzt hochgeladen?" oder zur Überprüfung kürzlicher Uploads.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'limit' => [
+                            'type' => 'integer',
+                            'description' => 'Anzahl der neuesten Dokumente (Standard: 5, Max: 20).'
+                        ]
+                    ],
+                    'required' => []
+                ],
+                'callable' => [self::class, 'executeWorkspaceGetLatestUploads']
             ]
         ];
     }
@@ -743,6 +758,7 @@ trait AiAgentsFuncs
         $query = trim($args['query'] ?? '');
         $category = trim($args['category'] ?? '');
         $limit = min(max((int)($args['limit'] ?? 20), 1), 50);
+        $sortBy = $args['sort_by'] ?? null;
 
         if (!class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
             return ['status' => 'error', 'message' => 'AiWorkspaceDocument Modell nicht verfügbar.'];
@@ -754,13 +770,26 @@ trait AiAgentsFuncs
             $q->where('category', 'like', "%{$category}%");
         }
 
+        $isLatestQuery = false;
         if (!empty($query)) {
-            $q->search($query);
+            $lowerQ = mb_strtolower($query);
+            // Wenn der User nach der letzten/neuesten Datei fragt
+            if (str_contains($lowerQ, 'letzte') || str_contains($lowerQ, 'neueste') || str_contains($lowerQ, 'zuletzt') || str_contains($lowerQ, 'kürzlich') || str_contains($lowerQ, 'recent') || str_contains($lowerQ, 'latest')) {
+                $isLatestQuery = true;
+                $sortBy = 'upload_date';
+            } else {
+                $q->search($query);
+            }
         }
 
-        $docs = $q->orderBy('extracted_date', 'desc')
-            ->limit($limit)
-            ->get(['id', 'filename', 'file_path', 'title', 'category', 'tags', 'purpose', 'summary', 'extracted_date', 'file_size']);
+        if ($sortBy === 'upload_date' || $isLatestQuery) {
+            $q->orderBy('created_at', 'desc');
+        } else {
+            $q->orderBy('extracted_date', 'desc')->orderBy('created_at', 'desc');
+        }
+
+        $docs = $q->limit($limit)
+            ->get(['id', 'filename', 'file_path', 'title', 'category', 'tags', 'purpose', 'summary', 'extracted_date', 'file_size', 'created_at']);
 
         return [
             'status' => 'success',
@@ -769,12 +798,68 @@ trait AiAgentsFuncs
                 return [
                     'filename' => $doc->filename,
                     'path' => $doc->file_path,
+                    'uploaded_at' => $doc->created_at ? $doc->created_at->format('d.m.Y H:i:s') : null,
                     'title' => $doc->title,
                     'category' => $doc->category,
                     'tags' => $doc->tags,
                     'purpose' => $doc->purpose, // Wofür das Dokument da ist
                     'summary' => $doc->summary,
                     'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
+                    'size' => $doc->file_size,
+                    'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
+                ];
+            })->toArray()
+        ];
+    }
+
+    public static function executeWorkspaceGetLatestUploads(array $args): array
+    {
+        $limit = min(max((int)($args['limit'] ?? 5), 1), 20);
+
+        if (!class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
+            return ['status' => 'error', 'message' => 'AiWorkspaceDocument Modell nicht verfügbar.'];
+        }
+
+        $docs = \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get();
+
+        if ($docs->isEmpty()) {
+            return [
+                'status' => 'empty',
+                'message' => 'Es wurden bisher keine Dokumente im Workspace abgelegt.',
+                'documents' => []
+            ];
+        }
+
+        $latest = $docs->first();
+
+        return [
+            'status' => 'success',
+            'count' => $docs->count(),
+            'message' => "Die letzte im Workspace hochgeladene Datei ist '{$latest->filename}' (hochgeladen am " . ($latest->created_at ? $latest->created_at->format('d.m.Y H:i:s') : 'unbekannt') . " in '{$latest->file_path}').",
+            'latest_document' => [
+                'filename' => $latest->filename,
+                'path' => $latest->file_path,
+                'uploaded_at' => $latest->created_at ? $latest->created_at->format('d.m.Y H:i:s') : null,
+                'time_ago' => $latest->created_at ? $latest->created_at->diffForHumans() : null,
+                'title' => $latest->title,
+                'category' => $latest->category,
+                'purpose' => $latest->purpose,
+                'summary' => $latest->summary,
+                'key_facts' => $latest->key_facts,
+                'date' => $latest->extracted_date ? $latest->extracted_date->format('d.m.Y') : null,
+                'size' => $latest->file_size,
+                'url' => route('admin.ai.workspace.file', ['path' => $latest->file_path])
+            ],
+            'recent_documents' => $docs->map(function ($doc) {
+                return [
+                    'filename' => $doc->filename,
+                    'path' => $doc->file_path,
+                    'uploaded_at' => $doc->created_at ? $doc->created_at->format('d.m.Y H:i:s') : null,
+                    'title' => $doc->title,
+                    'category' => $doc->category,
+                    'purpose' => $doc->purpose,
                     'size' => $doc->file_size,
                     'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
                 ];

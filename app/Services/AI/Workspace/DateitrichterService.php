@@ -105,6 +105,7 @@ class DateitrichterService
         $targetFolder = 'agenten/workspace/' . $classification['main_folder'] . '/' . $classification['sub_folder'];
         $targetPath = $targetFolder . '/' . $filename;
 
+        $originalFilePath = $filePath;
         $wasMoved = false;
         $currentFolder = dirname($filePath);
 
@@ -121,6 +122,15 @@ class DateitrichterService
             }
 
             $workspace->move($filePath, $targetPath);
+
+            // Vorhandenen Datensatz auf neuen Pfad umschreiben, um Duplikate/Waisen zu verhindern
+            $existingOldDoc = AiWorkspaceDocument::where('file_path', $originalFilePath)->first();
+            if ($existingOldDoc) {
+                $existingOldDoc->file_path = $targetPath;
+                $existingOldDoc->filename = basename($targetPath);
+                $existingOldDoc->save();
+            }
+
             $filePath = $targetPath;
             $wasMoved = true;
         }
@@ -156,7 +166,7 @@ class DateitrichterService
         $this->syncToKnowledgeBase($doc, $classification);
 
         return [
-            'original_path' => $filePath,
+            'original_path' => $originalFilePath,
             'current_path' => $filePath,
             'filename' => basename($filePath),
             'title' => $title,
@@ -169,7 +179,7 @@ class DateitrichterService
     }
 
     /**
-     * Textinhalt aus PDF, Text, MD oder CSV extrahieren
+     * Textinhalt aus PDF, Bildern, Text, MD oder CSV extrahieren
      */
     protected function extractTextContent(string $fullPath, string $extension): string
     {
@@ -178,15 +188,113 @@ class DateitrichterService
         }
 
         if ($extension === 'pdf') {
-            // Schnellster und robustester Weg: pdftotext
+            $text = '';
+            // 1. Smalot PDF Parser (reines PHP, kein externer Executable nötig)
+            if (class_exists(\Smalot\PdfParser\Parser::class)) {
+                try {
+                    $raw = file_get_contents($fullPath);
+                    $fixedRaw = preg_replace('/xref\s+1\s+(\d+)\s+0000000000\s+65535\s+f/m', "xref\r0 $1\r0000000000 65535 f", $raw);
+                    $parser = new \Smalot\PdfParser\Parser();
+                    $pdf = $parser->parseContent($fixedRaw);
+                    $text = trim($pdf->getText());
+                } catch (\Throwable $e) {
+                    Log::warning("Smalot PDF parse exception: " . $e->getMessage());
+                }
+            }
+
+            // Wenn Text-Layer vorhanden und aussagekräftig
+            if (mb_strlen($text) >= 50) {
+                return $text;
+            }
+
+            // 2. pdftotext Fallback (falls Binary vorhanden)
             $cmd = 'pdftotext -layout ' . escapeshellarg($fullPath) . ' - 2>/dev/null';
-            $output = shell_exec($cmd);
-            if (!empty($output)) {
+            $output = @shell_exec($cmd);
+            if (!empty($output) && mb_strlen(trim($output)) >= 50) {
                 return trim($output);
+            }
+
+            // 3. Gemini Multimodal OCR Fallback für reine Scans / Bild-PDFs
+            $ocrText = $this->ocrViaGemini($fullPath, 'application/pdf');
+            if (!empty($ocrText)) {
+                return $ocrText;
+            }
+
+            return $text;
+        }
+
+        // Bilder (PNG, JPG, JPEG, WEBP) per Gemini Vision OCR auslesen
+        if (in_array($extension, ['png', 'jpg', 'jpeg', 'webp'])) {
+            $mime = match ($extension) {
+                'png' => 'image/png',
+                'webp' => 'image/webp',
+                default => 'image/jpeg'
+            };
+            $ocrText = $this->ocrViaGemini($fullPath, $mime);
+            if (!empty($ocrText)) {
+                return $ocrText;
             }
         }
 
         return '';
+    }
+
+    /**
+     * Führt eine strukturierte Texterkennung (OCR) über Gemini Vision / Multimodal aus
+     */
+    protected function ocrViaGemini(string $fullPath, string $mime): ?string
+    {
+        $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
+        if (empty($apiKey) || !file_exists($fullPath)) {
+            return null;
+        }
+
+        // Maximale Dateigröße für Base64-OCR: 15 MB
+        if (filesize($fullPath) > 15 * 1024 * 1024) {
+            return null;
+        }
+
+        $models = ['gemini-2.5-flash', 'gemini-1.5-flash'];
+        $base64 = base64_encode(file_get_contents($fullPath));
+
+        $prompt = "Du bist ein intelligenter Dokumenten-Analyst für Verwaltung, Behörden, Medizin und Recht. Analysiere dieses Dokument vollständig und transkribiere den gesamten Inhalt strukturiert auf Deutsch. Erfasse alle Absender (z.B. BKK firmus, Agentur für Arbeit), Empfänger, Datumsangaben, Aktenzeichen, Diagnosen, Paragraphen, Beträge und Kernaussagen.";
+
+        $payload = [
+            'contents' => [
+                [
+                    'parts' => [
+                        ['text' => $prompt],
+                        [
+                            'inlineData' => [
+                                'mimeType' => $mime,
+                                'data' => $base64
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            'generationConfig' => [
+                'temperature' => 0.1,
+            ]
+        ];
+
+        foreach ($models as $model) {
+            try {
+                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+                $response = \Illuminate\Support\Facades\Http::timeout(45)->post($url, $payload);
+                if ($response->successful()) {
+                    $resData = $response->json();
+                    $text = $resData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                    if (!empty($text)) {
+                        return trim($text);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning("Gemini OCR Exception with model {$model}: " . $e->getMessage());
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -325,13 +433,21 @@ class DateitrichterService
             return Carbon::createFromFormat('d-m-Y', "{$m[1]}-{$m[2]}-{$m[3]}");
         }
 
-        // 2. Suche im Text nach Datum (z.B. "Datum: 01.10.2026" oder "01.10.2026")
+        // 2. Suche im Text nach Datum (z.B. "Datum: 01.10.2026" oder "2026-10-01")
         if (!empty($text)) {
-            if (preg_match('/(?:Datum|vom|Stand|Gültig ab)[:\s]+(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.(202[0-9])/i', $text, $m)) {
+            // DD.MM.YYYY
+            if (preg_match('/(?:Datum|vom|Stand|Gültig ab|Zeichen)[:\s]+(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.(202[0-9])/i', $text, $m)) {
                 return Carbon::createFromFormat('d.m.Y', "{$m[1]}.{$m[2]}.{$m[3]}");
+            }
+            // YYYY-MM-DD
+            if (preg_match('/(?:Datum|vom|Stand|Zeichen)[:\s]+(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])/i', $text, $m)) {
+                return Carbon::createFromFormat('Y-m-d', "{$m[1]}-{$m[2]}-{$m[3]}");
             }
             if (preg_match('/(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.(202[0-9])/', $text, $m)) {
                 return Carbon::createFromFormat('d.m.Y', "{$m[1]}.{$m[2]}.{$m[3]}");
+            }
+            if (preg_match('/(202[0-9])-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])/', $text, $m)) {
+                return Carbon::createFromFormat('Y-m-d', "{$m[1]}-{$m[2]}-{$m[3]}");
             }
         }
 
@@ -405,8 +521,8 @@ class DateitrichterService
     {
         $facts = [];
 
-        // Beträge suchen (z.B. 120,42 € oder 65,90 EUR)
-        if (preg_match_all('/(\d{1,4}(?:[.,]\d{2})?)\s*(?:€|EUR)/i', $text, $matches)) {
+        // Beträge suchen (z.B. 1.250,42 € oder 65,90 EUR)
+        if (preg_match_all('/(?:\d{1,3}(?:\.\d{3})*|\d+)(?:,\d{2})?\s*(?:€|EUR)/i', $text, $matches)) {
             $uniqueAmounts = array_unique(array_slice($matches[0], 0, 5));
             if (!empty($uniqueAmounts)) {
                 $facts['betraege'] = implode(', ', $uniqueAmounts);
