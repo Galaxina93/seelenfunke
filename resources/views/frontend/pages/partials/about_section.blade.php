@@ -40,7 +40,7 @@
                     <div class="bg-white rounded-2xl p-8 shadow-xl border-t-4 border-primary">
                         <div class="flex items-start gap-4 mb-6">
                             {{-- Hier dein Profilbild einfügen --}}
-                            <img src="{{ asset('shop/projekt/about/gruender-profil.webp') }}"
+                            <img src="{{ asset('shop/projekt/about/gruender-welcome-sm.webp') }}"
                                  alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
                                  width="64" height="64"
                                  loading="lazy"
@@ -125,78 +125,52 @@
                     </p>
                 </div>
 
-                {{-- Team Grid --}}
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto mb-16">
+                {{-- Gründerin Spotlight: Alina Steinhauer --}}
+                <div class="max-w-4xl mx-auto mb-16">
+                    <div class="bg-gradient-to-br from-amber-500/5 via-white to-amber-500/10 border-2 border-primary/30 rounded-3xl p-8 sm:p-12 shadow-xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row items-center gap-8 md:gap-12">
 
-                    {{-- 1. ALINA (VISION & LEITUNG) --}}
-                    <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-primary/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
-                        <div class="absolute top-0 right-0 bg-primary text-gray-900 text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
-                            Geschäftsführung
+                        <div class="absolute top-0 right-0 bg-primary text-gray-900 text-[10px] font-bold px-4 py-1.5 rounded-bl-xl uppercase tracking-widest shadow-sm">
+                            Inhaberin & Handwerksleitung
                         </div>
 
-                        <img src="{{ asset('shop/projekt/about/gruender-profil.webp') }}"
-                             alt="Alina Steinhauer - Gründerin von Mein Seelenfunke"
-                             width="128" height="128"
-                             loading="lazy"
-                             class="w-32 h-32 rounded-2xl border-4 border-primary object-cover shadow-md flex-shrink-0" />
-
-                        <div class="text-center sm:text-left lg:text-center xl:text-left">
-                            <h4 class="text-2xl font-bold text-gray-900">Alina Steinhauer</h4>
-                            <p class="text-[#8a6820] font-bold uppercase tracking-wide text-xs mt-1">
-                                Gründerin & Laserschutzbeauftragte
-                            </p>
-                            <p class="text-gray-600 mt-3 text-sm italic">
-                                "Qualität ist kein Zufall, sondern eine Haltung. Ich habe diese Manufaktur gegründet, um bleibende Werte zu schaffen. Mein Name steht für die Garantie, dass jedes Stück, das unser Haus verlässt, höchsten Ansprüchen genügt."
-                            </p>
+                        {{-- Profilbild mit edlem Rahmen --}}
+                        <div class="relative shrink-0 group">
+                            <div class="w-40 h-40 sm:w-48 sm:h-48 rounded-2xl overflow-hidden border-4 border-white shadow-2xl relative z-10 transform group-hover:scale-105 transition-transform duration-500">
+                                <img src="{{ asset('shop/projekt/about/gruender-welcome.webp') }}"
+                                     alt="Alina Steinhauer, Gründerin von Mein Seelenfunke"
+                                     width="192" height="192"
+                                     loading="lazy"
+                                     class="w-full h-full object-cover">
+                            </div>
+                            <div class="absolute -inset-2 bg-primary/20 rounded-2xl blur-lg -z-0"></div>
                         </div>
+
+                        {{-- Text & Zitat --}}
+                        <div class="text-center md:text-left flex-1">
+                            <h4 class="text-3xl font-serif font-bold text-gray-900 leading-tight">Alina Steinhauer</h4>
+                            <p class="text-[#8a6820] font-bold uppercase tracking-wider text-xs mt-1 mb-4">
+                                Gründerin & zertifizierte Laserschutzbeauftragte
+                            </p>
+
+                            <blockquote class="text-gray-700 text-base sm:text-lg leading-relaxed italic border-l-0 md:border-l-4 md:border-primary/40 md:pl-4 my-4">
+                                "Qualität ist kein Zufall, sondern eine persönliche Haltung. Ich habe diese Manufaktur gegründet, um bleibende Werte zu schaffen. Hinter jedem Seelenkristall stehe ich mit meinem Namen und der Garantie, dass jedes Stück in unserer Gifhorner Werkstatt mit echter Sorgfalt von Hand gefertigt und geprüft wird."
+                            </blockquote>
+
+                            {{-- Vertrauensmerkmale --}}
+                            <div class="mt-6 flex flex-wrap justify-center md:justify-start gap-3">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-xs">
+                                    <span>🛡️</span> Fachkunde nach TROS Laserstrahlung
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-xs">
+                                    <span>🤍</span> Manuelle Endkontrolle
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-800 shadow-xs">
+                                    <span>🇩🇪</span> Handwerk aus Gifhorn
+                                </span>
+                            </div>
+                        </div>
+
                     </div>
-
-                    {{-- 2. FUNKIRA (DIE ALLWISSENDE STIMME) --}}
-                    <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-purple-500/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
-                        <div class="absolute top-0 right-0 bg-purple-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
-                            Expertise & Stimme
-                        </div>
-
-                        <img src="{{ asset('shop/ai/images/funkira_selfie.png') }}"
-                             alt="Funkira, die allwissende KI-Expertin von Mein Seelenfunke"
-                             width="128" height="128"
-                             loading="lazy"
-                             class="w-32 h-32 rounded-2xl border-4 border-purple-500 object-cover shadow-md flex-shrink-0" />
-
-                        <div class="text-center sm:text-left lg:text-center xl:text-left">
-                            <h4 class="text-2xl font-bold text-gray-900">Funkira</h4>
-                            <p class="text-purple-600 font-bold uppercase tracking-wide text-xs mt-1">
-                                Allwissende KI-Expertin
-                            </p>
-                            <p class="text-gray-600 mt-3 text-sm">
-                                Von Gründerin Alina eigens erschaffen, ist Funkira das ultimative, allwissende Gehirn und die direkte Stimme der Manufaktur. Als weitaus größere und stärkere KI-Instanz kennt sie jedes Detail unserer Produkte und steht jederzeit als absolute Expertin zur Seite.
-                            </p>
-                        </div>
-                    </div>
-
-                    {{-- 3. FUNKI (DER ALLESKÖNNER) --}}
-                    <div class="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-6 p-6 bg-white border-2 border-indigo-500/20 rounded-3xl shadow-xl transition relative overflow-hidden hover:shadow-2xl">
-                        <div class="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">
-                            System & Support
-                        </div>
-
-                        <img src="{{ asset('shop/ai/images/funki_selfie.png') }}"
-                             alt="Funki, das digitale Maskottchen von Mein Seelenfunke"
-                             width="128" height="128"
-                             loading="lazy"
-                             class="w-32 h-32 rounded-2xl border-4 border-indigo-500 object-cover shadow-md flex-shrink-0" />
-
-                        <div class="text-center sm:text-left lg:text-center xl:text-left">
-                            <h4 class="text-2xl font-bold text-gray-900">Funki</h4>
-                            <p class="text-indigo-600 font-bold uppercase tracking-wide text-xs mt-1">
-                                Digitale Seele & Alleskönner
-                            </p>
-                            <p class="text-gray-600 mt-3 text-sm">
-                                Funki ist das Herz unserer Automatisierung. Er behält den Überblick über alle Bestellungen, koordiniert die Logik im Hintergrund und sorgt dafür, dass kein Seelenfunke verloren geht. Mit Admin-Rechten ausgestattet, ist er unser unermüdlicher 24/7 Begleiter.
-                            </p>
-                        </div>
-                    </div>
-
                 </div>
 
                 {{-- Produktion & Service Bereich --}}
