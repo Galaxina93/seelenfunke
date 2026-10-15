@@ -32,6 +32,7 @@ class AccountingInvoice extends Model
         'total' => 'integer',
         'custom_items' => 'array',
         'is_e_invoice' => 'boolean',
+        'is_small_business' => 'boolean',
     ];
 
     /**

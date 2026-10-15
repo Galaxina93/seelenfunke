@@ -9,8 +9,18 @@ trait FormatsECommerceData
      */
     public function toFormattedArray()
     {
-        // 1. Globale Shop-Einstellungen laden
-        $isSmallBusiness   = (bool)shop_setting('is_small_business', false);
+        // 1. Steuerstatus ermitteln: Priorisiere festen Beleg-Snapshot, dann Steuerjahr, dann globale Einstellung
+        if (isset($this->is_small_business) && $this->is_small_business !== null) {
+            $isSmallBusiness = (bool)$this->is_small_business;
+        } else {
+            $itemDate = $this->invoice_date ?? $this->created_at ?? null;
+            if ($itemDate) {
+                $year = is_string($itemDate) ? (int)date('Y', strtotime($itemDate)) : (int)$itemDate->year;
+                $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($year);
+            } else {
+                $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+            }
+        }
         $defaultTaxRate    = (float)shop_setting('default_tax_rate', 19);
         $validityDays      = (int)shop_setting('order_quote_validity_days', 14);
         $shippingThreshold = (int)shop_setting('shipping_free_threshold', 5000);

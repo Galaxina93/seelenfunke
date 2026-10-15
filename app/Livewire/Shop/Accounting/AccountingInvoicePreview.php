@@ -72,7 +72,9 @@ class AccountingInvoicePreview extends Component
         ];
 
         if($invoice) {
-            $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+            $isSmallBusiness = $invoice->is_small_business !== null
+                ? (bool)$invoice->is_small_business
+                : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
             // Fix: Check if item is object (getItemsAttribute map) or array (from database)
             $items = $invoice->items;
             $defaultTax = (float)shop_setting('default_tax_rate', 19.0);

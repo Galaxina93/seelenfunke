@@ -171,14 +171,30 @@ class AccountingTax extends Component
             ->whereIn('status', ['paid', 'cancelled'])
             ->get();
 
+        $taxService = app(\App\Services\Tax\TaxSettingService::class);
+        $isYearSmallBusiness = $taxService->isSmallBusinessForYear((int)$this->selectedYear);
+        $isMidyearSwitch = $taxService->isMidyearSwitch((int)$this->selectedYear);
+        $switchDate = $taxService->getMidyearSwitchDate();
+
         $revenueGross = 0;
         $vatCollected = 0;
+        $retroactiveVatCollected = 0;
         $igErwerbTax = 0;
         $paragraph13bTax = 0;
 
         foreach ($orders as $order) {
             $total = $order->total_price / 100;
             $tax = $order->tax_amount / 100;
+
+            if ($isYearSmallBusiness) {
+                $tax = 0;
+            } elseif ($tax == 0 && ($isMidyearSwitch || $order->is_small_business)) {
+                // § 19 UStG Ganzjahres-Prinzip: Bei unterjährigem Wechsel rückwirkend MwSt aus Brutto herausrechnen
+                $rate = (float)shop_setting('default_tax_rate', 19.0);
+                $net = $total / (1 + ($rate / 100));
+                $tax = $total - $net;
+                $retroactiveVatCollected += $tax;
+            }
 
             $revenueGross += $total;
 
@@ -195,6 +211,15 @@ class AccountingTax extends Component
         foreach ($creditNotes as $cn) {
             $total = $cn->total / 100; // ist bereits negativ in der DB
             $tax = $cn->tax_amount / 100; // ist bereits negativ in der DB
+
+            if ($isYearSmallBusiness) {
+                $tax = 0;
+            } elseif ($tax == 0 && ($isMidyearSwitch || $cn->is_small_business)) {
+                $rate = (float)shop_setting('default_tax_rate', 19.0);
+                $net = $total / (1 + ($rate / 100));
+                $tax = $total - $net; // negativ
+                $retroactiveVatCollected += $tax;
+            }
 
             $revenueGross += $total;
 
@@ -266,6 +291,12 @@ class AccountingTax extends Component
             } else {
                 $expensesNet += $amt;
             }
+        }
+
+        if ($isYearSmallBusiness) {
+            // Als Kleinunternehmer kein Vorsteuerabzug (§ 19 Abs. 1 Satz 4 UStG)
+            $vatPaid = 0;
+            $expensesNet = $totalExpensesGross;
         }
 
         // Finale Zahllast Berechnung
@@ -362,6 +393,10 @@ class AccountingTax extends Component
                 'revenue_gross' => $revenueGross,
                 'revenue_net' => $revenueNet,
                 'vat_collected' => $vatCollected,
+                'retroactive_vat_collected' => $retroactiveVatCollected,
+                'is_small_business_year' => $isYearSmallBusiness,
+                'is_midyear_switch' => $isMidyearSwitch,
+                'switch_date' => $switchDate,
                 'ig_erwerb_tax' => $igErwerbTax,
                 'paragraph_13b_tax' => $paragraph13bTax,
                 'total_tax' => $totalTax,

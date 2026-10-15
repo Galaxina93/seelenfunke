@@ -201,6 +201,7 @@ trait HandlesOrderCreation
                 'discount_amount' => $totals['discount_amount'] ?? 0,
                 'subtotal_price' => $totals['subtotal_gross'],
                 'tax_amount' => $totals['tax'],
+                'is_small_business' => app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness(),
                 'shipping_price' => $totals['shipping'],
                 'express_price' => $totals['express'] ?? 0,
                 'total_price' => $totals['total'],

@@ -64,6 +64,7 @@ class InvoiceService
                     'total' => $order->total_price,
                     'notes' => $order->notes,
                     'is_e_invoice' => false,
+                    'is_small_business' => $order->is_small_business ?? app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness(),
                 ]);
 
                 // PDF sofort nach Erstellung physisch speichern
@@ -110,6 +111,7 @@ class InvoiceService
                     'total' => -1 * abs($originalInvoice->total),
                     'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
                     'is_e_invoice' => $originalInvoice->is_e_invoice,
+                    'is_small_business' => $originalInvoice->is_small_business ?? app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($originalInvoice->invoice_date?->year ?? now()->year),
                 ]);
 
                 // Stornobeleg ebenfalls archivieren
@@ -160,6 +162,7 @@ class InvoiceService
                     'notes' => $data['notes'] ?? '',
                     'custom_items' => $data['custom_items'] ?? [], // Manueller Posten-Array
                     'is_e_invoice' => false,
+                    'is_small_business' => $data['is_small_business'] ?? app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness(),
                 ]);
 
                 // PDF generieren und speichern

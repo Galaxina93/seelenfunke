@@ -73,7 +73,9 @@ class AccountingXmlInvoiceService
 
     private function addItems($transaction, AccountingInvoice $invoice)
     {
-        $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+        $isSmallBusiness = $invoice->is_small_business !== null
+            ? (bool)$invoice->is_small_business
+            : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
 
         // Positionen + Versandkosten zusammenführen
         $allItems = $invoice->custom_items ?? [];
@@ -209,7 +211,9 @@ class AccountingXmlInvoiceService
         // Für 100% Korrektheit müsste man nach Steuersätzen gruppieren.
         // Hier nehmen wir die Gesamtwerte aus der Invoice-DB.
 
-        $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+        $isSmallBusiness = $invoice->is_small_business !== null
+            ? (bool)$invoice->is_small_business
+            : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
         $taxTotalAmount = $invoice->tax_amount / 100;
         $grandTotal = $invoice->total / 100;
         $netTotal = ($invoice->total - $invoice->tax_amount) / 100;

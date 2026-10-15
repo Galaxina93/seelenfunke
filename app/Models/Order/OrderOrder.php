@@ -41,7 +41,8 @@ class OrderOrder extends Model
         'is_express',
         'express_price',
         'expires_at',
-        'token'
+        'token',
+        'is_small_business',
     ];
 
     protected $casts = [
@@ -54,6 +55,7 @@ class OrderOrder extends Model
         'created_at' => 'datetime',
         'expires_at' => 'datetime',
         'is_express' => 'boolean',
+        'is_small_business' => 'boolean',
         'cancellation_reason' => 'string',
     ];
 

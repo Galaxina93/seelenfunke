@@ -294,4 +294,88 @@ class SmallBusinessAndDeliveryTest extends TestCase
         $this->assertStringContainsString('<ram:ExemptionReasonCode>VATEX-EU-19</ram:ExemptionReasonCode>', $xmlContent);
         $this->assertStringContainsString('<ram:RateApplicablePercent>0.00</ram:RateApplicablePercent>', $xmlContent);
     }
+
+    /**
+     * Test: Steuerjahr-Logik (§ 19 UStG Ganzjahres-Prinzip) über TaxSettingService.
+     */
+    public function test_tax_setting_service_annual_and_midyear_logic(): void
+    {
+        $taxService = app(\App\Services\Tax\TaxSettingService::class);
+
+        // Fall 1: Normal aktiv
+        $this->setSmallBusiness(true);
+        $this->assertTrue($taxService->isSmallBusinessForYear(2026));
+
+        // Fall 2: Unterjähriger Wechsel im Jahr 2026
+        $taxService->applyTransition(false, 'immediate_retroactive');
+
+        // Für 2026 MUSS jetzt Regelbesteuerung gelten (da ganzes Jahr 2026 MwSt fällig)
+        $this->assertFalse($taxService->isSmallBusinessForYear(2026));
+        $this->assertTrue($taxService->isMidyearSwitch(2026));
+        $this->assertFalse($taxService->isCurrentSmallBusiness());
+
+        // Vergangenes Jahr 2025 bleibt aber Kleinunternehmer
+        $this->assertTrue($taxService->isSmallBusinessForYear(2025));
+
+        // Rückrechnung testen: 119,00 € Brutto -> 100,00 € Netto + 19,00 € MwSt
+        $calc = $taxService->calculateRetroactiveVat(11900, 19.0);
+        $this->assertEquals(10000, $calc['net_cents']);
+        $this->assertEquals(1900, $calc['vat_cents']);
+    }
+
+    /**
+     * Test: Geplanter Wechsel zum 01.01. des Folgejahres.
+     */
+    public function test_scheduled_tax_transition_for_next_year(): void
+    {
+        $taxService = app(\App\Services\Tax\TaxSettingService::class);
+        $currentYear = (int)now()->year;
+
+        // Geplanter Wechsel zum nächsten Jahr
+        $taxService->applyTransition(false, 'next_year');
+
+        // Für das laufende Jahr bleibt Kleinunternehmer aktiv
+        $this->assertTrue($taxService->isSmallBusinessForYear($currentYear));
+        $this->assertTrue($taxService->isCurrentSmallBusiness());
+
+        // Für das nächste Jahr gilt bereits Regelbesteuerung
+        $this->assertFalse($taxService->isSmallBusinessForYear($currentYear + 1));
+    }
+
+    /**
+     * Test: Belege behalten ihren festen Snapshot-Status (GoBD-Sicherheit).
+     */
+    public function test_invoice_retains_small_business_snapshot_regardless_of_global_setting(): void
+    {
+        // 1. Rechnung mit Snapshot Kleinunternehmer (z.B. aus Mai 2026)
+        $invoiceSB = new AccountingInvoice([
+            'invoice_number' => 'RE-2026-MAY',
+            'total' => 5950,
+            'tax_amount' => 0,
+            'is_small_business' => true,
+        ]);
+
+        // Aktuell ist im Shop aber Regelbesteuerung aktiv
+        $this->setSmallBusiness(false);
+        $formatted = $invoiceSB->toFormattedArray();
+
+        $this->assertTrue($formatted['is_small_business'], 'Beleg muss seinen Kleinunternehmer-Snapshot behalten');
+        $this->assertStringContainsString('§ 19 UStG', $formatted['tax_note']);
+
+        // 2. Umgekehrt: Rechnung mit Snapshot Regelbesteuerung
+        $invoiceStandard = new AccountingInvoice([
+            'invoice_number' => 'RE-2026-NOV',
+            'total' => 5950,
+            'tax_amount' => 950,
+            'is_small_business' => false,
+        ]);
+
+        // Aktuell ist im Shop Kleinunternehmer aktiv
+        $this->setSmallBusiness(true);
+        $formattedStd = $invoiceStandard->toFormattedArray();
+
+        $this->assertFalse($formattedStd['is_small_business'], 'Beleg muss seinen Regelbesteuerungs-Snapshot behalten');
+        $this->assertStringContainsString('Enthaltene MwSt', $formattedStd['tax_note']);
+    }
 }
+

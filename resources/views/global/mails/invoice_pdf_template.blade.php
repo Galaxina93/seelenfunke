@@ -89,7 +89,9 @@
     $taxId         = shop_setting('owner_tax_id', '19/143/11624');
     $ustId         = shop_setting('owner_ust_id');
     $court         = shop_setting('owner_court', 'Gifhorn');
-    $isSmallBusiness = (bool)shop_setting('is_small_business', false);
+    $isSmallBusiness = $invoice->is_small_business !== null
+        ? (bool)$invoice->is_small_business
+        : app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($invoice->invoice_date?->year ?? now()->year);
 @endphp
 
 {{-- Stempel-Logik --}}

@@ -89,6 +89,23 @@
             </div>
         </div>
 
+        {{-- § 19 UStG STATUS BANNER --}}
+        @if(!empty($activeData['is_small_business_year']))
+            <div class="mb-8 flex items-start gap-3 bg-blue-500/10 p-4 rounded-2xl border border-blue-500/20 shadow-inner">
+                <x-heroicon-s-shield-check class="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
+                <div class="text-xs text-blue-700 dark:text-blue-300 leading-relaxed font-medium">
+                    <strong class="text-blue-600 dark:text-blue-400">Kleinunternehmer (§ 19 UStG):</strong> Für das gesamte Steuerjahr {{ $selectedYear }} gilt die Kleinunternehmerregelung. Es wird keine Umsatzsteuer abgeführt und kein Vorsteuerabzug geltend gemacht (UStVA-Zahllast: 0,00 €).
+                </div>
+            </div>
+        @elseif(!empty($activeData['retroactive_vat_collected']) && $activeData['retroactive_vat_collected'] > 0)
+            <div class="mb-8 flex items-start gap-3 bg-amber-500/10 p-4 rounded-2xl border border-amber-500/30 shadow-inner">
+                <x-heroicon-s-exclamation-triangle class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div class="text-xs text-amber-800 dark:text-amber-200 leading-relaxed font-medium">
+                    <strong class="text-amber-600 dark:text-amber-400">Rückwirkende USt-Schuld (§ 19 UStG):</strong> Wegen des unterjährigen Wechsels zur Regelbesteuerung sind in diesem Monat <strong>{{ number_format($activeData['retroactive_vat_collected'], 2, ',', '.') }} €</strong> Umsatzsteuer fällig (aus den Brutto-Umsätzen herausgerechnet), da nach § 19 Abs. 2 UStG das gesamte Kalenderjahr {{ $selectedYear }} der Regelbesteuerung unterliegt.
+                </div>
+            </div>
+        @endif
+
         {{-- MONATS-NAVIGATION (Slider) --}}
         <div class="w-full mb-8 relative group" x-data="{ scrollAmount: 0 }">
             <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-3 snap-x scroll-smooth w-full px-1">

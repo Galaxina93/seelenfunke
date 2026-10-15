@@ -24,8 +24,17 @@ class SystemShopConfig extends Component
     public $selectedReports = [];
     public $reportFiles = [];
 
+    // Kleinunternehmer § 19 UStG Transition Modal
+    public bool $showSmallBusinessModal = false;
+    public string $smallBusinessTransitionMode = 'immediate_retroactive';
+    public ?bool $pendingSmallBusinessState = null;
+
     protected $configKeys = [
         'is_small_business',
+        'small_business_end_year',
+        'small_business_scheduled_end_year',
+        'small_business_switched_year',
+        'small_business_switched_at',
         'default_tax_rate',
         // Company Data
         'company_name',
@@ -176,6 +185,10 @@ class SystemShopConfig extends Component
     {
         $fallbacks = [
             'is_small_business' => false,
+            'small_business_end_year' => '',
+            'small_business_scheduled_end_year' => '',
+            'small_business_switched_year' => '',
+            'small_business_switched_at' => '',
             'default_tax_rate'  => 19,
             'company_name'      => 'Mein Seelenfunke',
             'company_street'    => 'Carl-Goerdeler-Ring',
@@ -276,6 +289,88 @@ class SystemShopConfig extends Component
         } catch (\Throwable $e) {}
 
         $this->saved = true;
+    }
+
+    public function initiateSmallBusinessToggle()
+    {
+        $currentState = (bool)($this->settings['is_small_business'] ?? false);
+        $this->pendingSmallBusinessState = !$currentState;
+        $this->smallBusinessTransitionMode = 'immediate_retroactive';
+        $this->showSmallBusinessModal = true;
+    }
+
+    public function cancelSmallBusinessTransition()
+    {
+        $this->showSmallBusinessModal = false;
+        $this->pendingSmallBusinessState = null;
+    }
+
+    public function confirmSmallBusinessTransition()
+    {
+        $targetState = (bool)$this->pendingSmallBusinessState;
+        $mode = $this->smallBusinessTransitionMode;
+
+        app(\App\Services\Tax\TaxSettingService::class)->applyTransition($targetState, $mode);
+
+        // Einstellungen direkt in Livewire-State aktualisieren
+        $this->settings['is_small_business'] = (bool)shop_setting('is_small_business', false);
+        $this->settings['small_business_end_year'] = shop_setting('small_business_end_year', '');
+        $this->settings['small_business_scheduled_end_year'] = shop_setting('small_business_scheduled_end_year', '');
+        $this->settings['small_business_switched_year'] = shop_setting('small_business_switched_year', '');
+        $this->settings['small_business_switched_at'] = shop_setting('small_business_switched_at', '');
+
+        $this->showSmallBusinessModal = false;
+        $this->pendingSmallBusinessState = null;
+        $this->saved = true;
+    }
+
+    public function getTaxStatusSummaryProperty(): array
+    {
+        $isSmallBusiness = (bool)($this->settings['is_small_business'] ?? false);
+        $scheduledEndYear = $this->settings['small_business_scheduled_end_year'] ?? '';
+        $switchedYear = $this->settings['small_business_switched_year'] ?? '';
+        $switchedAt = $this->settings['small_business_switched_at'] ?? '';
+        $currentYear = (int)now()->year;
+
+        if ($scheduledEndYear && (int)$scheduledEndYear === $currentYear) {
+            return [
+                'type' => 'scheduled',
+                'badge' => "Geplanter Wechsel zum 01.01." . ($currentYear + 1),
+                'title' => "Geplanter Wechsel zum 01.01." . ($currentYear + 1),
+                'desc' => "Bis zum 31.12.{$currentYear} bleibt dein Shop Kleinunternehmer (§ 19 UStG). Ab dem 01.01." . ($currentYear + 1) . " wird automatisch zur Regelbesteuerung gewechselt.",
+                'badge_color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+            ];
+        }
+
+        if ($switchedYear && (int)$switchedYear === $currentYear) {
+            $switchDateFormatted = $switchedAt ? \Carbon\Carbon::parse($switchedAt)->format('d.m.Y') : 'im laufenden Jahr';
+            return [
+                'type' => 'midyear_switch',
+                'badge' => "Regelbesteuerung (Unterjähriger Wechsel)",
+                'title' => "Unterjährig gewechselt am {$switchDateFormatted}",
+                'desc' => "Gemäß § 19 UStG ist für das gesamte Steuerjahr {$currentYear} MwSt fällig. Für Verkäufe vor dem {$switchDateFormatted} errechnet die UStVA-Zentrale die fällige Steuer automatisch aus dem Brutto heraus.",
+                'badge_color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+            ];
+        }
+
+        if ($isSmallBusiness) {
+            return [
+                'type' => 'active',
+                'badge' => "Kleinunternehmer (§ 19 UStG)",
+                'title' => "Kleinunternehmerregelung aktiv",
+                'desc' => "Gilt für das gesamte Steuerjahr {$currentYear}. Es wird keine MwSt berechnet und kein Vorsteuerabzug geltend gemacht.",
+                'badge_color' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
+            ];
+        }
+
+        $taxRate = $this->settings['default_tax_rate'] ?? 19;
+        return [
+            'type' => 'standard',
+            'badge' => "Regelbesteuerung ({$taxRate}%)",
+            'title' => "Regelbesteuerung aktiv",
+            'desc' => "Im Shop und auf Rechnungen wird die gesetzliche MwSt ({$taxRate}%) ausgewiesen und Vorsteuerabzug gewährt.",
+            'badge_color' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+        ];
     }
 
     public function resetSaved() { $this->saved = false; }
