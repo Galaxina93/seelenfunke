@@ -503,7 +503,7 @@ class AccountingTax extends Component
         foreach ($data['raw_specials'] as $special) {
             if (!empty($special->file_paths)) {
                 foreach ($special->file_paths as $idx => $path) {
-                    $source = storage_path('app/buchhaltung/' . $path);
+                    $source = str_starts_with($path, 'buchhaltung/') ? storage_path('app/' . $path) : storage_path('app/buchhaltung/' . $path);
                     if (File::exists($source)) {
                         $ext = pathinfo($source, PATHINFO_EXTENSION);
                         File::copy($source, $receiptsDir . "/Ausgabe_" . date('Y-m-d', strtotime($special->execution_date)) . "_" . Str::slug($special->title) . "_{$idx}.{$ext}");

@@ -658,6 +658,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '1x Bambus-Kugelschreiber (24er Set) & 2x Edelstahl-Schlüsselanhänger (16 Stk. Gold)',
+                'location'       => 'Temu',
+                'amount'         => -32.85,
+                'date'           => '2026-10-15',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-11149563187830774',
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/10/2026-10-15_Temu_Bambus-Kugelschreiber-Edelstahl-Schluesselanhaenger.pdf',
+                    'buchhaltung/receipts/2026/10/2026-10-15_Temu_Bambus-Kugelschreiber-Edelstahl-Schluesselanhaenger.png'
+                ]
+            ],
+            [
                 'title'          => 'Tragfähigkeitsprüfung für ALG 1 Gründungszuschuss & Erstellung der fachkundigen Stellungnahme',
                 'location'       => 'CopeCart GmbH',
                 'amount'         => -94.01,
