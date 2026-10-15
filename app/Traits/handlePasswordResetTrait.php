@@ -17,6 +17,14 @@ trait handlePasswordResetTrait
             'email' => 'required|email',
         ]);
 
+        $throttleKey = 'password_reset_request_' . request()->ip();
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            session()->flash('error', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden, bevor du es erneut versuchst.");
+            return;
+        }
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+
         $guardsToCheck = ['admin', 'employee', 'customer'];
         $foundGuard = null;
         $user = null;
@@ -32,7 +40,9 @@ trait handlePasswordResetTrait
         }
 
         if (!$user) {
-            session()->flash('error', 'Diese E-Mail-Adresse ist uns nicht bekannt.');
+            // Einheitliche Meldung zur Verhinderung von User-Enumeration
+            $this->email = "";
+            session()->flash('status', 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.');
             return;
         }
 
@@ -45,7 +55,7 @@ trait handlePasswordResetTrait
 
         // Sollte der PassworResetToken existieren aber die Zeit von 2 Minuten ist noch nicht vergangen, dann return
         if ($passwordResetToken != null && !Carbon::parse($passwordResetToken->created_at)->addMinutes(2)->isPast()) {
-            session()->flash('error', 'Bitte warte, bis du es erneut versuchst!');
+            session()->flash('error', 'Bitte warte kurz, bis du es erneut versuchst!');
             return;
         }
 
@@ -63,7 +73,7 @@ trait handlePasswordResetTrait
 
         $this->email = "";
 
-        session()->flash('status', 'Wir haben Ihnen den Link zum Zurücksetzen des Passworts per E-Mail zugesandt!');
+        session()->flash('status', 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.');
 
     }
     public function generateToken(): string

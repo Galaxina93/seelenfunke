@@ -44,6 +44,14 @@ trait handleTwoFactorTrait
             return;
         }
 
+        // Rate-Limiting für 2FA-Verifikation (Schutz vor 6-stelligen Brute-Force-Angriffen)
+        $throttleKey = '2fa_verify_' . $user->id . '_' . request()->ip();
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            session()->flash('error', "Zu viele Fehlversuche bei der 2FA-Eingabe. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+
         // 2FA prüfen
         $valid = $this->twoFactorCheckCode($user->profile->two_factor_secret, $this->code);
 
@@ -59,13 +67,30 @@ trait handleTwoFactorTrait
         }
 
         if ($valid) {
+            \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+
             Auth::guard($guard)->login($user);
+            session()->regenerate();
 
             session()->forget('2fa_user_id');
             session()->forget('guard');
 
+            // Berechtigungen in der Session hinterlegen (analog zu AuthLogin)
+            $permissions = [];
+            if (method_exists($user, 'roles')) {
+                $permissions = $user->roles->flatMap(fn($role) => $role->permissions)->pluck('name', 'name')->all();
+            }
+            session(['permissions' => $permissions]);
+
+            if ($guard === 'customer' && $user->needs_password_change) {
+                session(['force_password_change_customer_id' => $user->id]);
+                return redirect(route('customer.password-change-force'));
+            }
+
             return redirect(route($guard . '.dashboard'));
         }
+
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
 
         if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
             \App\Models\System\SystemLoginAttempt::create([

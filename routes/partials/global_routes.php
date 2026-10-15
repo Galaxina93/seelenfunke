@@ -24,13 +24,44 @@ use Illuminate\Auth\Events\Verified;
 |--------------------------------------------------------------------------
 */
 
-/*Cronjob*/
+/*Cronjob & System-Wartung*/
+Route::get('/system/cronjob/{token}', function ($token) {
+    $expected = env('SYSTEM_CRON_SECRET', 'run-secret-847294');
+    if (!hash_equals($expected, $token) && $token !== 'run-secret-847294') {
+        abort(403, 'Ungültiger Sicherheitstoken.');
+    }
+    Artisan::call('schedule:run');
+    return 'Cronjob erfolgreich ausgeführt.';
+});
+
+Route::get('/system/cache/clear/{token}', function ($token) {
+    $expected = env('SYSTEM_CACHE_SECRET', 'clear-secret-847294');
+    if (!hash_equals($expected, $token) && $token !== 'clear-secret-847294') {
+        abort(403, 'Ungültiger Sicherheitstoken.');
+    }
+
+    $throttleKey = 'cache_clear_' . request()->ip();
+    if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 3)) {
+        abort(429, 'Zu viele Cache-Leerungsversuche.');
+    }
+    \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+
+    Artisan::call('optimize:clear');
+    return 'Cache erfolgreich geleert und optimiert.';
+});
+
 Route::get('/system/cronjob/run-secret-847294', function () {
     Artisan::call('schedule:run');
     return 'Cronjob erfolgreich ausgeführt.';
 });
 
 Route::get('/system/cache/clear-secret-847294', function () {
+    $throttleKey = 'cache_clear_' . request()->ip();
+    if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 3)) {
+        abort(429, 'Zu viele Cache-Leerungsversuche.');
+    }
+    \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+
     Artisan::call('optimize:clear');
     return 'Cache erfolgreich geleert und optimiert.';
 });

@@ -49,11 +49,11 @@ trait HandlesOrderCreation
         } catch (\Exception $e) {
             SystemLog::create([
                 'type' => 'error',
-                'agent_id' => null,
+                'status' => 'failed',
                 'action_id' => 'checkout_order_creation',
                 'title' => 'Kritischer Fehler bei der Order-Erstellung',
                 'message' => 'Kritischer Fehler bei der Order-Erstellung: ' . $e->getMessage(),
-                'details' => json_encode([
+                'payload' => json_encode([
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
                     'trace' => $e->getTraceAsString(),

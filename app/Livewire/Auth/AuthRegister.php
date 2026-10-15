@@ -4,16 +4,23 @@ namespace App\Livewire\Auth;
 
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerProfile;
+use App\Models\System\SystemBlockedIp;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Auth\Events\Registered;
 use Livewire\Component;
 
 class AuthRegister extends Component
 {
     public ?string $sessionToken = null;
+    public string $company_hp = ''; // Honeypot für Spam-Bots
 
     public function mount(?string $sessionToken = null)
     {
+        if (SystemBlockedIp::isBlocked(request()->ip())) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $this->sessionToken = $sessionToken ?? request()->cookie('sf_chat_uuid');
     }
 
@@ -98,11 +105,36 @@ class AuthRegister extends Component
 
     public function register()
     {
+        $ip = request()->ip();
+
+        if (SystemBlockedIp::isBlocked($ip)) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
+        // 1. Honeypot Check (Bots füllen unsichtbare Felder aus)
+        if (!empty($this->company_hp)) {
+            \Illuminate\Support\Facades\Log::warning("Spam-Bot Registrierung blockiert (Honeypot ausgelöst) von IP: {$ip}");
+            // Stillschweigende Umleitung ohne Speicherung
+            session()->flash('status', 'Willkommen bei Mein Seelenfunke! Wir haben dir eine E-Mail gesendet. Bitte bestätige deine Adresse, um dich einzuloggen.');
+            return redirect()->route('login');
+        }
+
+        // 2. Rate-Limiting gegen Registrierungs-Flooding
+        $throttleKey = 'register_attempt_' . $ip;
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            $this->addError('email', "Zu viele Registrierungsversuche von diesem Anschluss. Bitte warte {$minutes} Minute(n).");
+            return;
+        }
+
         $this->validate();
 
         if (!$this->canRegister) {
             return;
         }
+
+        RateLimiter::hit($throttleKey, 900); // 15 Minuten Throttling
 
         $customer = Customer::create([
             'first_name' => $this->firstname,

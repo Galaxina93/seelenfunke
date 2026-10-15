@@ -27,6 +27,12 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         'temporary_password',
     ];
 
+    protected $hidden = [
+        'password',
+        'remember_token',
+        'temporary_password',
+    ];
+
     public $incrementing = false; // Deaktivieren Sie das Inkrementieren des Primärschlüssels
     protected $keyType = 'string'; // Setzen Sie den Primärschlüsseltyp auf 'string'
 

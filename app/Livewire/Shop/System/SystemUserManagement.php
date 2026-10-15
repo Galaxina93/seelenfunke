@@ -29,6 +29,7 @@ class SystemUserManagement extends Component
 
     public $editingId = null;
     public $editingType = null;
+    public bool $editing2faActive = false;
 
     public $isCreating = false;
     public $createType = 'customer';
@@ -65,6 +66,7 @@ class SystemUserManagement extends Component
         $this->resetErrorBag();
         $this->editingId = null;
         $this->editingType = null;
+        $this->editing2faActive = false;
         $this->isCreating = true;
         $this->createType = 'customer';
         $this->formData = [
@@ -155,6 +157,7 @@ class SystemUserManagement extends Component
         $this->editingType = $type;
 
         $model = $this->getModelInstance($type, $id);
+        $this->editing2faActive = (bool) ($model->profile->two_factor_is_active ?? false);
         $this->formData = [
             'first_name' => $model->first_name,
             'last_name' => $model->last_name,
@@ -177,6 +180,7 @@ class SystemUserManagement extends Component
     {
         $this->editingId = null;
         $this->editingType = null;
+        $this->editing2faActive = false;
         $this->isCreating = false;
         $this->resetErrorBag();
     }
@@ -280,6 +284,52 @@ class SystemUserManagement extends Component
 
         $this->editingId = null;
         session()->flash('message', 'Änderungen gespeichert.');
+    }
+
+    public function disable2Fa()
+    {
+        if (!$this->editingId || !$this->editingType) {
+            return;
+        }
+
+        $this->disable2FaForUser($this->editingId, $this->editingType);
+        $this->editing2faActive = false;
+    }
+
+    public function disable2FaForUser($id, $type)
+    {
+        $model = $this->getModelInstance($type, $id);
+
+        if ($model->profile) {
+            $model->profile->update([
+                'two_factor_is_active' => false,
+                'two_factor_secret' => null,
+                'two_factor_recovery_codes' => null,
+            ]);
+        }
+
+        if ($this->editingId === $id && $this->editingType === $type) {
+            $this->editing2faActive = false;
+        }
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'user:2fa_disable',
+            'title' => '2-Faktor-Authentifizierung deaktiviert',
+            'message' => "Die 2-Faktor-Authentifizierung für '{$model->email}' ({$type}) wurde durch Administrator {$adminEmail} zurückgesetzt.",
+            'status' => 'warning',
+            'payload' => [
+                'actor' => $adminEmail,
+                'target_user' => $model->email,
+                'user_type' => $type,
+                'ip' => request()->ip(),
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        session()->flash('message', "2-Faktor-Authentifizierung für '{$model->email}' erfolgreich deaktiviert.");
     }
 
     public function archiveUser($id, $type)

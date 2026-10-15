@@ -25,6 +25,13 @@ class SendAbandonedCartRemindersTest extends TestCase
         SystemSetting::create(['key' => 'cart_abandoned_red_hours', 'value' => '3']);
 
         $customer = Customer::factory()->create(['email' => 'test@example.com']);
+
+        // Rechtssichere Werbeeinwilligung hinterlegen (Double-Opt-In)
+        \App\Models\Marketing\MarketingNewsletterSubscriber::create([
+            'email' => $customer->email,
+            'is_verified' => true,
+        ]);
+
         $cart = Cart::create([
             'session_id' => 'abc',
             'customer_id' => $customer->id,
@@ -43,6 +50,30 @@ class SendAbandonedCartRemindersTest extends TestCase
         });
 
         $this->assertNotNull($cart->fresh()->reminder_email_sent_at);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_does_not_send_reminders_without_marketing_consent()
+    {
+        Mail::fake();
+        SystemSetting::create(['key' => 'cart_abandoned_red_hours', 'value' => '3']);
+
+        $customer = Customer::factory()->create(['email' => 'noconsent@example.com']);
+
+        $cart = Cart::create([
+            'session_id' => 'no_consent_session',
+            'customer_id' => $customer->id,
+        ]);
+
+        $product = Product::forceCreate(['id' => \Illuminate\Support\Str::uuid(), 'name' => 'Test', 'slug' => 'test-' . uniqid(), 'price' => 1000]);
+        CartItem::create(['cart_id' => $cart->id, 'product_id' => $product->id, 'quantity' => 1, 'unit_price' => 100]);
+        
+        \Illuminate\Support\Facades\DB::table('carts')->where('id', $cart->id)->update(['updated_at' => now()->subHours(4)]);
+
+        $this->artisan('shop:send-abandoned-cart-reminders')
+             ->assertSuccessful();
+
+        Mail::assertNothingQueued();
     }
 
     #[\PHPUnit\Framework\Attributes\Test]

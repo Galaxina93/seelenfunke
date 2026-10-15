@@ -23,6 +23,11 @@ class Employee extends Model implements Authenticatable
         'password',
     ];
 
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
     public $incrementing = false;
     protected $keyType = 'string';
 

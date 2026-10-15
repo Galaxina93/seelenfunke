@@ -23,6 +23,11 @@ class Admin extends Model implements Authenticatable
         'password',
     ];
 
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
     public $incrementing = false; // Deaktivieren Sie das Inkrementieren des Primärschlüssels
     protected $keyType = 'string'; // Setzen Sie den Primärschlüsseltyp auf 'string'
 

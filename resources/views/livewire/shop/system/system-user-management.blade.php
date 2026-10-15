@@ -117,6 +117,43 @@
                                 <span class="text-[10px] text-gray-500 font-medium">Gewährt direkten Zugriff auf das System</span>
                             </div>
                         </label>
+
+                        @if(!$isCreating)
+                            <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div class="flex items-center gap-3">
+                                    <div @class([
+                                        'p-2.5 rounded-xl border shrink-0',
+                                        'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 dark:text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.15)]' => $editing2faActive,
+                                        'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-400' => !$editing2faActive,
+                                    ])>
+                                        @if($editing2faActive)
+                                            <x-heroicon-m-shield-check class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
+                                        @else
+                                            <x-heroicon-m-shield-exclamation class="w-5 h-5" />
+                                        @endif
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                            <span>2-Faktor-Authentifizierung</span>
+                                            @if($editing2faActive)
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/30">Aktiv</span>
+                                            @else
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-gray-200 dark:bg-gray-800 text-gray-500 border border-gray-300 dark:border-gray-700">Inaktiv</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-[10px] text-gray-500 font-medium mt-0.5">
+                                            {{ $editing2faActive ? 'Zwei-Faktor-Schutz ist scharf geschaltet. Deaktivierung setzt Secret & Wiederherstellungscodes zurück.' : 'Keine Zwei-Faktor-Authentifizierung für dieses Konto eingerichtet.' }}
+                                        </div>
+                                    </div>
+                                </div>
+                                @if($editing2faActive)
+                                    <button type="button" wire:confirm="Möchtest du die 2-Faktor-Authentifizierung für diesen Benutzer wirklich deaktivieren? Der Nutzer kann sich danach wieder nur mit Passwort anmelden." wire:click="disable2Fa" class="px-3.5 py-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 hover:text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-2 shadow-sm">
+                                        <x-heroicon-s-key class="w-4 h-4" />
+                                        2FA deaktivieren
+                                    </button>
+                                @endif
+                            </div>
+                        @endif
                     </div>
 
                     {{-- Right Column: Address & Details --}}
@@ -382,6 +419,13 @@
                                                 </div>
                                             @endif
                                         </div>
+
+                                        @if(!empty($profile['two_factor_is_active']))
+                                            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-black uppercase tracking-widest" title="Zwei-Faktor-Authentifizierung aktiv">
+                                                <x-heroicon-m-shield-check class="w-3.5 h-3.5 shrink-0" />
+                                                <span>2FA Aktiv</span>
+                                            </div>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top">
@@ -429,6 +473,11 @@
                                     <div class="flex justify-end gap-2 mt-1">
                                         @if(!$showArchive)
                                             <div class="opacity-100 xl:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                @if(!empty($profile['two_factor_is_active']))
+                                                    <button type="button" wire:confirm="Möchtest du die 2-Faktor-Authentifizierung für '{{ $user['first_name'] }} {{ $user['last_name'] }}' ({{ $user['email'] }}) wirklich deaktivieren?" wire:click="disable2FaForUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-amber-500/30 text-amber-500 hover:text-amber-400 hover:border-amber-500/60 rounded-xl transition-all shadow-sm dark:shadow-inner" title="2FA deaktivieren (Support-Reset)">
+                                                        <x-heroicon-s-key class="w-4 h-4" />
+                                                    </button>
+                                                @endif
                                                 <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Bearbeiten">
                                                     <x-heroicon-m-pencil-square class="w-4 h-4" />
                                                 </button>

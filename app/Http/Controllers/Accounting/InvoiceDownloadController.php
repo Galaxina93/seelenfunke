@@ -18,13 +18,23 @@ class InvoiceDownloadController extends Controller
     public function download(AccountingInvoice $invoice, InvoiceService $service)
     {
         // Security Gate: Darf der User das sehen?
-        // Admin darf alles, Customer nur seine eigenen
-        if (\App\Services\AI\AiAuthHelper::isAdmin()) {
-            // ok
-        } elseif (\App\Services\AI\AiAuthHelper::isCustomer() && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id) {
-            // ok
-        } else {
-            abort(403);
+        $isAuthorized = false;
+
+        // 1. Admin & Mitarbeiter dürfen alle Rechnungen einsehen
+        if (\App\Services\AI\AiAuthHelper::isAdmin() || auth()->guard('employee')->check() || auth()->guard('admin')->check()) {
+            $isAuthorized = true;
+        } 
+        // 2. Eingeloggter Kunde darf seine eigenen Rechnungen einsehen
+        elseif (\App\Services\AI\AiAuthHelper::isCustomer() && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id) {
+            $isAuthorized = true;
+        } 
+        // 3. Gültige kryptografische URL-Signatur (z. B. für Gastkunden via Mail)
+        elseif (request()->hasValidSignature()) {
+            $isAuthorized = true;
+        }
+
+        if (!$isAuthorized) {
+            abort(403, 'Zugriff verweigert.');
         }
 
         $pdf = $service->generatePdf($invoice);

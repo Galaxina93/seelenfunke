@@ -5,7 +5,9 @@ namespace App\Livewire\Frontend\Emergency;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use App\Models\System\SystemSetting;
+use App\Models\System\SystemBlockedIp;
 
 #[Layout('components.layouts.frontend_layout')]
 class EmergencyProtocol extends Component
@@ -56,6 +58,10 @@ class EmergencyProtocol extends Component
 
     public function mount()
     {
+        if (SystemBlockedIp::isBlocked(request()->ip())) {
+            abort(403, 'Zugriff aufgrund wiederholter Sicherheitsverletzungen verweigert.');
+        }
+
         if (session('emergency_access_granted')) {
             $this->isAuthenticated = true;
         }
@@ -70,6 +76,23 @@ class EmergencyProtocol extends Component
     public function authenticate()
     {
         $this->errorMessage = '';
+        $ip = request()->ip();
+
+        if (SystemBlockedIp::isBlocked($ip)) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
+        $throttleKey = 'emergency_auth_' . $ip;
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+
+            // Automatische IP-Sperre für 24 Stunden bei fortgesetzten Brute-Force-Versuchen
+            SystemBlockedIp::blockIp($ip, 'Brute-Force-Schutz: Zu viele Fehlversuche am Notfall-Protokoll', 24, 'Notfall-Monitor');
+
+            $this->errorMessage = "Zu viele Fehlversuche. Dieser Bereich wurde aus Sicherheitsgründen für {$minutes} Minute(n) gesperrt.";
+            return;
+        }
         
         $masterHash = SystemSetting::where('key', 'emergency_master_password')->value('value');
         
@@ -79,10 +102,13 @@ class EmergencyProtocol extends Component
         }
 
         if (Hash::check($this->passwordInput, $masterHash)) {
+            RateLimiter::clear($throttleKey);
             session(['emergency_access_granted' => true]);
             $this->isAuthenticated = true;
         } else {
-            $this->errorMessage = 'Das eingegebene Master-Passwort ist inkorrekt.';
+            RateLimiter::hit($throttleKey, 900); // 15 Minuten Throttling-Fenster
+            $remaining = RateLimiter::remaining($throttleKey, 5);
+            $this->errorMessage = "Das eingegebene Master-Passwort ist inkorrekt. (Verbleibende Versuche: {$remaining})";
         }
         $this->passwordInput = '';
     }

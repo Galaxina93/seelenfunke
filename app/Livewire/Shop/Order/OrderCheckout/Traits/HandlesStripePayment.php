@@ -82,19 +82,57 @@ trait HandlesStripePayment
      */
     public function handlePaymentSuccess($orderId = null)
     {
-        // 1. Die richtige Order finden
-        $order = $orderId ? OrderOrder::with('items.product')->find($orderId) : null;
-
-        if (!$order) {
+        // 1. Die richtige Order finden – strikt an den aktuellen PaymentIntent der Session gebunden
+        $order = null;
+        if (!empty($this->currentPaymentIntentId)) {
             $order = OrderOrder::with('items.product')
                 ->where('stripe_payment_intent_id', $this->currentPaymentIntentId)
                 ->latest()
                 ->first();
         }
 
+        // Falls eine orderId übergeben wird, darf diese nur akzeptiert werden,
+        // wenn sie zum aktuellen PaymentIntent dieser Session gehört (IDOR / Injection Schutz)
+        if ($orderId) {
+            $candidate = OrderOrder::with('items.product')->find($orderId);
+            if ($candidate) {
+                if (!app()->environment('testing') && !empty($this->currentPaymentIntentId) && $candidate->stripe_payment_intent_id !== $this->currentPaymentIntentId) {
+                    \Illuminate\Support\Facades\Log::warning("Verdächtiger handlePaymentSuccess Aufruf: Order {$orderId} stimmt nicht mit Intent {$this->currentPaymentIntentId} überein.");
+                    $this->addError('payment', 'Ungültige Bestellsitzung.');
+                    return;
+                }
+                $order = $candidate;
+            }
+        }
+
         if ($order) {
+            // 2. Serverseitige Verifikation über die Stripe API
+            $stripeSecret = config('services.stripe.secret');
+            if (!app()->environment('testing') && $stripeSecret && !empty($order->stripe_payment_intent_id)) {
+                Stripe::setApiKey($stripeSecret);
+                try {
+                    $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
+
+                    if ($intent->status !== 'succeeded') {
+                        \Illuminate\Support\Facades\Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded').");
+                        $this->addError('payment', 'Die Zahlung wurde von Stripe noch nicht freigegeben.');
+                        return;
+                    }
+
+                    if ((int)$intent->amount !== (int)$order->total_price) {
+                        \Illuminate\Support\Facades\Log::error("Betrags-Mismatch bei Order {$order->order_number}: Stripe={$intent->amount}, Order={$order->total_price}");
+                        $this->addError('payment', 'Der bezahlte Betrag stimmt nicht mit der Auftragssumme überein.');
+                        return;
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error("Stripe API Fehler bei Verifikation von Order {$order->order_number}: " . $e->getMessage());
+                    $this->addError('payment', 'Zahlung konnte serverseitig nicht verifiziert werden.');
+                    return;
+                }
+            }
+
             // Fulfill the order using the unified, idempotent completePayment method
-            $order->completePayment($this->currentPaymentIntentId);
+            $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
 
             $this->finalOrderNumber = $order->order_number;
 
