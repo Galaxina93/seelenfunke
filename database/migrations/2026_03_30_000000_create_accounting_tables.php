@@ -53,6 +53,7 @@ return new class extends Migration
                 $table->json('shipping_address')->nullable();
                 $table->integer('subtotal');
                 $table->integer('tax_amount');
+                $table->boolean('is_small_business')->nullable()->comment('Status der Kleinunternehmerregelung (§ 19 UStG) zum Rechnungszeitpunkt');
                 $table->integer('shipping_cost')->default(0);
                 $table->integer('discount_amount')->default(0);
                 $table->integer('volume_discount')->default(0);

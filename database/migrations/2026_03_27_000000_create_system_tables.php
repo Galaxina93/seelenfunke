@@ -100,6 +100,7 @@ return new class extends Migration
                 $table->timestamp('email_verified_at')->nullable();
                 $table->timestamp('last_seen')->nullable();
                 $table->string('last_ip', 45)->nullable();
+                $table->timestamp('cart_reminder_unsubscribed_at')->nullable()->comment('Zeitstempel, falls der Kunde dem Erhalt von Warenkorb-Erinnerungen widersprochen hat (Opt-Out nach § 7 UWG / DSGVO)');
                 $table->softDeletes();
                 $table->timestamps();
 

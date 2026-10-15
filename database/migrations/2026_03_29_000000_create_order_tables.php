@@ -35,6 +35,7 @@ return new class extends Migration
             // Summen in Cent (Integer)
             $table->integer('subtotal_price');
             $table->integer('tax_amount');
+            $table->boolean('is_small_business')->nullable()->comment('Status der Kleinunternehmerregelung (§ 19 UStG) zum Bestellzeitpunkt');
             $table->integer('shipping_price')->default(0);
             $table->integer('total_price');
 
