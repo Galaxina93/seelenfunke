@@ -108,10 +108,43 @@ class GeminiAgent implements AiProviderInterface
                              'UMGEBUNG: ' . (app()->environment('local') ? 'Lokal (Entwicklung / Testphase)' : (app()->environment('stage', 'staging') ? 'Stage' : 'Live (Produktion)')) . "\n";
                              
         if ($isAdmin && $aiCommand) {
-            $systemPromptText .= 'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
+            $systemPromptText .= "\n\n[ULTIMATE COMMAND & TAGES-FOKUS]\n" .
+                                 'FLOW: ' . ($aiCommand['flow']['title'] ?? 'Unbekannt') . ' (' . ($aiCommand['flow']['step'] ?? '-') . ")\n" .
                                  'TOP-PRIORITÄT: ' . ($aiCommand['recommendation']['title'] ?? 'Keine') . "\n" .
                                  'DETAILS: ' . ($aiCommand['recommendation']['message'] ?? 'Nichts zu tun') . "\n" .
                                  'ALTERNATIVEN: ' . collect($aiCommand['alternatives'] ?? [])->map(fn($alt) => $alt['title'] . ' (Score: ' . $alt['score'] . ')')->implode(', ') . "\n";
+
+            if (!empty($aiCommand['financial_status'])) {
+                $f = $aiCommand['financial_status'];
+                $systemPromptText .= "\n[VORBERECHNETE ECHTZEIT-FINANZEN (VOM SYSTEM ERMITTELT - REALER IST-ZUSTAND)]\n" .
+                                     "- Gewerbliche Einnahmen (aktueller Monat): " . number_format($f['month_actual_sales_eur'] ?? 0, 2, ',', '.') . " € (" . ($f['month_paid_orders_count'] ?? 0) . " bezahlte Bestellungen)\n" .
+                                     "- Gewerbliche Einnahmen (gesamt im System): " . number_format($f['total_recorded_sales_eur'] ?? 0, 2, ',', '.') . " €\n" .
+                                     "- Gewerbliche Fixkosten (monatlich): " . number_format($f['business_fixed_costs_monthly_eur'] ?? 0, 2, ',', '.') . " € (" . ($f['business_fixed_costs_summary'] ?? 'Keine Fixkosten') . ")\n" .
+                                     "- Betriebliche Sonderausgaben/Materialien (gesamt erfasst): " . number_format($f['variable_costs_special_issues_total_eur'] ?? 0, 2, ',', '.') . " €\n" .
+                                     "- Reales Netto-Betriebsergebnis im System (Einnahmen abzgl. Sonderausgaben): " . number_format($f['net_recorded_cashflow_eur'] ?? 0, 2, ',', '.') . " €\n" .
+                                     "- Offene Bestell-Pipeline: " . ($f['pending_orders_count'] ?? 0) . " wartende Bestellung(en) (Auftragsvolumen: " . number_format($f['pending_orders_volume_eur'] ?? 0, 2, ',', '.') . " €)\n" .
+                                     "- Offene Rechnungen / Forderungen: " . number_format($f['open_invoices_sum_eur'] ?? 0, 2, ',', '.') . " €\n" .
+                                     "- Soll-Monatsumsatz laut Tragfähigkeitsplan: " . number_format($f['target_sales_current_month_eur'] ?? 0, 2, ',', '.') . " € (Differenz: " . (($f['sales_delta_eur'] ?? 0) >= 0 ? '+' : '') . number_format($f['sales_delta_eur'] ?? 0, 2, ',', '.') . " €)\n" .
+                                     "- Förderstatus: " . ($f['funding_status'] ?? '-') . "\n";
+            }
+
+            if (!empty($aiCommand['strategic_vision'])) {
+                $v = $aiCommand['strategic_vision'];
+                $cp = $v['current_phase'] ?? [];
+                $systemPromptText .= "\n[DAS 10-JAHRES-MASTERZIEL DER CHEFIN (ALTER 33 -> 43)]\n" .
+                                     "- Gründerin: {$v['founder_name']} (aktuell {$v['current_age']} Jahre alt)\n" .
+                                     "- MASTER-ZIEL: Mit {$v['target_age']} Jahren 'DURCH SEIN' (Deadline: {$v['target_year']})!\n" .
+                                     "- Ultimatives Endziel: {$v['ultimate_goal']}\n" .
+                                     "- Sprungbrett: {$v['intermediate_hub']}\n" .
+                                     "- Aktuelle Phase: " . ($cp['name'] ?? '') . "\n" .
+                                     "- Phasen-Fokus: " . ($cp['description'] ?? '') . "\n" .
+                                     "- Nächster strategischer Schritt: " . ($cp['next_step'] ?? '') . "\n" .
+                                     "\n🔥 FÜHRUNGS-DIREKTIVE BEI 'WAS MUSS ICH JETZT TUN?':\n" .
+                                     "Wenn Alina dich fragt 'Was muss ich jetzt tun?', 'Was steht an?' oder nach Aufgaben fragt, antworte IMMER als strategische CEO-KI in diesem 3-Säulen-Prinzip:\n" .
+                                     "1. OPERATIV ANPACKEN (Hands-on Chefin): Nenne ihr sofort und glasklar die konkrete operative Prio 1 für heute. WICHTIG: Wenn Bestellungen zur Fertigung anstehen, nenne AUSSCHLIESSLICH die realen Bestellnummern und echten Produkte aus der Datenbank (z.B. Seelen Kristall, Seelenanhänger). Erfinde NIEMALS Phantasieprodukte oder ausgedachte Musteraufträge! Wenn keine Bestellungen offen sind, nenne die nächste reale Aufgabe aus ManagementTask.\n" .
+                                     "2. STRATEGISCHE EINORDNUNG INS 10-JAHRES-ZIEL: Verknüpfe diese Tagesaufgabe mit dem großen Bild: Zeige ihr auf, wie die heutige Arbeit direkt auf die Garagenhof-Expansion (nach dem 20k-Tore-Umbau) und das 15-Mio.-Firmengebäude bis Alter 43 einzahlt.\n" .
+                                     "3. ECHTE SYSTEM-FINANZEN: Nutze die oben vorberechneten Finanz- und Kostenzahlen transparent. Keine erfundenen Pauschalvermögen – das System fängt bei 0 an und bildet die reale Kosten- und Einnahmensituation ab.\n";
+            }
         }
 
         $systemPromptText .= 'EPHEMERAL CONTEXT: ' . session()->get('ai_ephemeral_state', 'Der User hat aktuell keine Dateien oder speziellen UI-Elemente fokussiert.') . "\n";

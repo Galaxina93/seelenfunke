@@ -5,7 +5,9 @@ namespace App\Services\AI;
 use App\Models\Management\ManagementCalendarEvent;
 use App\Models\Management\ManagementDayRoutine;
 use App\Models\Accounting\AccountingSpecialIssue;
+use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingInvoice;
+use App\Models\Accounting\AccountingBankAccount;
 use App\Models\System\SystemLoginAttempt;
 use App\Models\Order\OrderOrder;
 use App\Models\Management\ManagementTask;
@@ -188,20 +190,57 @@ class AiSupportService
         }
 
         // ------------------------------------------------------------------
-        // 3. BUSINESS (Score 200)
+        // 3. BUSINESS: PRODUKTION & ECHTE BESTELLUNGEN (Score 200-250)
         // ------------------------------------------------------------------
-        $prioOrder = OrderOrder::whereIn('status', ['pending', 'processing'])
+        $pendingOrders = OrderOrder::whereIn('status', ['pending', 'processing'])
+            ->with(['items.product'])
             ->orderBy('is_express', 'desc')
-            ->first();
+            ->orderBy('created_at', 'asc')
+            ->get();
 
-        if ($prioOrder) {
+        if ($pendingOrders->isNotEmpty()) {
+            $hasExpress = $pendingOrders->contains('is_express', true);
+            $orderCount = $pendingOrders->count();
+
+            // Reale Produktliste zusammenstellen
+            $ordersSummary = [];
+            foreach ($pendingOrders as $order) {
+                $itemNames = $order->items->map(function($it) {
+                    $name = $it->product ? $it->product->name : ($it->name ?? 'Produkt');
+                    return "{$it->quantity}x {$name}";
+                })->implode(', ');
+
+                $ordersSummary[] = "#{$order->order_number} (" . ($itemNames ?: '1x Artikel') . ")";
+            }
+
+            $orderListText = implode(', ', $ordersSummary);
+            $msg = $orderCount === 1
+                ? "Bestellung {$ordersSummary[0]} wartet auf deine Fertigung. Ran an den Laser!"
+                : "{$orderCount} Bestellungen warten auf deine Fertigung: {$orderListText}. Ran an den Laser!";
+
+            if ($hasExpress) {
+                $msg .= " 🚨 Achtung: Mindestens ein Express-Auftrag dabei!";
+            }
+
             $options[] = [
-                'score' => $prioOrder->is_express ? 250 : 200,
-                'title' => 'Produktion starten',
-                'message' => "Bestellung #{$prioOrder->order_number} wartet auf Fertigung. " . ($prioOrder->is_express ? "🚨 Express!" : "Lass die Laser glühen!"),
-                'action_label' => 'Jetzt fertigen',
+                'score' => $hasExpress ? 250 : 200,
+                'title' => 'Produktion: ' . ($orderCount > 1 ? "{$orderCount} Aufträge offen" : "Bestellung {$pendingOrders->first()->order_number}"),
+                'message' => $msg,
+                'action_label' => 'Zu den Bestellungen',
                 'action_route' => 'admin.orders',
-                'icon' => '🚀'
+                'icon' => '🚀',
+                'real_orders' => $pendingOrders->map(function($o) {
+                    return [
+                        'order_number' => $o->order_number,
+                        'status' => $o->status,
+                        'is_express' => (bool)$o->is_express,
+                        'total_eur' => round($o->total_price / 100, 2),
+                        'items' => $o->items->map(fn($it) => [
+                            'name' => $it->product ? $it->product->name : ($it->name ?? 'Produkt'),
+                            'quantity' => $it->quantity,
+                        ])->toArray()
+                    ];
+                })->toArray()
             ];
         }
 
@@ -233,7 +272,7 @@ class AiSupportService
         }
 
         // ------------------------------------------------------------------
-        // 5. TASKS (Score 10)
+        // 5. TASKS (Score 20 - 300)
         // ------------------------------------------------------------------
         $nextTask = ManagementTask::where('is_completed', false)
             ->whereNull('parent_id')
@@ -241,24 +280,25 @@ class AiSupportService
                 $query->whereNull('relevant_from')
                       ->orWhere('relevant_from', '<=', now());
             })
-            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+            ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'urgent', 'hoch', 'high', 'mittel', 'medium', 'niedrig')")
             ->orderBy('created_at', 'desc')
             ->first();
 
         if ($nextTask) {
-            $prioScore = match($nextTask->priority) {
-                'hoch' => 25,
-                'mittel' => 15,
-                default => 10
+            $prioScore = match(strtolower($nextTask->priority ?? '')) {
+                'urgent' => 300,
+                'hoch', 'high' => 150,
+                'mittel', 'medium' => 50,
+                default => 20
             };
 
             $options[] = [
                 'score' => $prioScore,
-                'title' => 'Aufgabe abhaken',
-                'message' => "Wenn du gerade Luft hast: Nächster Punkt auf der Liste ist '{$nextTask->title}'.",
-                'action_label' => 'Zur Liste',
+                'title' => ($nextTask->priority === 'urgent' ? 'Dringende Aufgabe: ' : 'Aufgabe: ') . $nextTask->title,
+                'message' => "Nächster wichtiger Punkt auf deiner Aufgabenliste: '{$nextTask->title}'.",
+                'action_label' => 'Zur Aufgabenliste',
                 'action_route' => 'admin.tasks',
-                'icon' => '✅'
+                'icon' => $nextTask->priority === 'urgent' ? '⚠️' : '✅'
             ];
         }
 
@@ -294,11 +334,180 @@ class AiSupportService
             }
         }
 
+        $financialStatus = $this->calculateFinancialStatus($now);
+        $strategicVision = $this->getStrategicVision($now);
+
         return [
             'flow' => $currentFlow,
             'recommendation' => $options[0],
             'alternatives' => array_slice($options, 1, 2),
-            'routines' => $sliderRoutines
+            'routines' => $sliderRoutines,
+            'financial_status' => $financialStatus,
+            'strategic_vision' => $strategicVision,
+        ];
+    }
+
+    /**
+     * Berechnet den aktuellen Finanz- und Kostenstatus vorab aus den realen Daten des Systems
+     * (Einnahmen, gewerbliche Fixkosten, Sonderausgaben, offene Pipeline).
+     * Das System fängt ohne angenommene Phantasie-Polster bei 0 an.
+     */
+    private function calculateFinancialStatus(Carbon $now): array
+    {
+        $startOfMonth = $now->copy()->startOfMonth();
+        $endOfMonth = $now->copy()->endOfMonth();
+
+        // 1. Bankkonten (reale Kontostände, falls angebunden, sonst 0.00)
+        $businessBankBalance = 0.0;
+        $privateBankBalance = 0.0;
+        $accountsCount = 0;
+        if (class_exists(AccountingBankAccount::class)) {
+            $businessBankBalance = (float) AccountingBankAccount::where('is_business', true)->sum('balance');
+            $privateBankBalance = (float) AccountingBankAccount::where('is_business', false)->sum('balance');
+            $accountsCount = AccountingBankAccount::count();
+        }
+
+        // 2. Reale gewerbliche Fixkosten (monatlich berechnet aus AccountingCostItem)
+        $monthlyBizFixedCosts = 0.0;
+        $bizCostItemsList = [];
+        if (class_exists(AccountingCostItem::class)) {
+            $bizCostItems = AccountingCostItem::where('is_business', true)->get();
+            foreach ($bizCostItems as $item) {
+                $interval = max(1, (int)$item->interval_months);
+                $monthlyAmount = abs((float)$item->amount) / $interval;
+                $monthlyBizFixedCosts += $monthlyAmount;
+                if ($monthlyAmount > 0) {
+                    $bizCostItemsList[] = $item->name . ' (' . number_format($monthlyAmount, 2, ',', '.') . ' €/Monat)';
+                }
+            }
+        }
+        $monthlyBizFixedCosts = round($monthlyBizFixedCosts, 2);
+
+        // 3. Reale betriebliche Sonderausgaben / Material- & Vorbereitungskosten
+        $specialIssuesTotal = 0.0;
+        $specialIssuesMonth = 0.0;
+        if (class_exists(AccountingSpecialIssue::class)) {
+            $specialIssuesTotal = round((float) AccountingSpecialIssue::sum('amount'), 2);
+            $specialIssuesMonth = round((float) AccountingSpecialIssue::whereYear('created_at', $now->year)
+                ->whereMonth('created_at', $now->month)
+                ->sum('amount'), 2);
+        }
+
+        // 4. Reale gewerbliche Einnahmen (bezahlte Shop- & Auftragsbestellungen)
+        $monthPaidOrders = OrderOrder::where('payment_status', 'paid')
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->get();
+        $monthActualSales = round((float)($monthPaidOrders->sum('total_price') / 100), 2);
+        $monthPaidOrdersCount = $monthPaidOrders->count();
+
+        $totalRecordedSales = round((float)(OrderOrder::where('payment_status', 'paid')->sum('total_price') / 100), 2);
+
+        // 5. Reales Netto-Betriebsergebnis des Systems (Einnahmen abzgl. Sonderausgaben)
+        $netRecordedCashflow = round($totalRecordedSales + $specialIssuesTotal, 2);
+
+        // 6. Soll-Umsatz laut geprüftem Businessplan (Mein Seelenfunke 2026–2029)
+        $businessPlanTargets = [
+            2026 => [11 => 2000.0, 12 => 2500.0],
+            2027 => [1 => 2200.0, 2 => 3800.0, 3 => 2800.0, 4 => 3200.0, 5 => 4200.0, 6 => 2500.0, 7 => 2400.0, 8 => 2500.0, 9 => 3000.0, 10 => 3500.0, 11 => 5200.0, 12 => 5800.0],
+            2028 => [1 => 2800.0, 2 => 4500.0, 3 => 3200.0, 4 => 3800.0, 5 => 5000.0, 6 => 3000.0, 7 => 2800.0, 8 => 3000.0, 9 => 3500.0, 10 => 4200.0, 11 => 6000.0, 12 => 6500.0],
+            2029 => [1 => 3200.0, 2 => 4900.0, 3 => 3600.0, 4 => 4100.0, 5 => 5400.0, 6 => 3500.0, 7 => 3100.0, 8 => 3200.0, 9 => 3900.0, 10 => 4800.0, 11 => 6800.0, 12 => 7100.0],
+        ];
+        $targetSalesCurrentMonth = (float)($businessPlanTargets[$now->year][$now->month] ?? 0.0);
+        $salesDelta = round($monthActualSales - $targetSalesCurrentMonth, 2);
+        $salesTargetAchievedPercent = $targetSalesCurrentMonth > 0 ? round(($monthActualSales / $targetSalesCurrentMonth) * 100, 1) : 0.0;
+
+        // 7. Produktions-Pipeline & Auftragslage
+        $pendingOrders = OrderOrder::whereIn('status', ['pending', 'processing'])->get();
+        $pendingOrdersCount = $pendingOrders->count();
+        $pendingOrdersVolume = round((float)($pendingOrders->sum('total_price') / 100), 2);
+
+        // 8. Offene Rechnungen & Forderungen
+        $openInvoicesSum = 0.0;
+        $overdueInvoicesSum = 0.0;
+        if (class_exists(AccountingInvoice::class)) {
+            $openInvoicesSum = round((float) (AccountingInvoice::where('status', 'open')->sum('total') / 100), 2);
+            $overdueInvoicesSum = round((float) (AccountingInvoice::where('status', 'open')->where('due_date', '<', $now)->sum('total') / 100), 2);
+        }
+
+        // 9. Gründungszuschuss & Förderphase
+        $isGründungszuschussActive = ($now->year == 2026 && $now->month >= 11) || ($now->year == 2027 && $now->month <= 4);
+        $gzStatus = $isGründungszuschussActive
+            ? "Phase 1 aktiv (2.106,30 €/Monat gesichert – Lebensunterhalt 100% gedeckt)"
+            : ($now->lt(Carbon::create(2026, 11, 1)) ? "In Startvorbereitung (Stichtag 01.11.2026 mit 2.106,30 €/Monat Gründungszuschuss)" : "Regulärer Geschäftsbetrieb nach Förderphase 1");
+
+        return [
+            'business_bank_balance' => $businessBankBalance,
+            'private_bank_balance' => $privateBankBalance,
+            'bank_accounts_synced' => $accountsCount > 0,
+            'business_fixed_costs_monthly_eur' => $monthlyBizFixedCosts,
+            'business_fixed_costs_summary' => !empty($bizCostItemsList) ? implode(', ', $bizCostItemsList) : 'Keine aktiven Fixkosten',
+            'variable_costs_special_issues_total_eur' => $specialIssuesTotal,
+            'variable_costs_special_issues_month_eur' => $specialIssuesMonth,
+            'total_recorded_sales_eur' => $totalRecordedSales,
+            'month_actual_sales_eur' => $monthActualSales,
+            'month_paid_orders_count' => $monthPaidOrdersCount,
+            'net_recorded_cashflow_eur' => $netRecordedCashflow,
+            'target_sales_current_month_eur' => $targetSalesCurrentMonth,
+            'sales_delta_eur' => $salesDelta,
+            'sales_achieved_percent' => $salesTargetAchievedPercent,
+            'pending_orders_count' => $pendingOrdersCount,
+            'pending_orders_volume_eur' => $pendingOrdersVolume,
+            'open_invoices_sum_eur' => $openInvoicesSum,
+            'overdue_invoices_sum_eur' => $overdueInvoicesSum,
+            'funding_status' => $gzStatus,
+            'garagenhof_project_budget' => 20000.0, // 20k Modernisierung Tore & Türen
+        ];
+    }
+
+    /**
+     * Liefert die strategische 10-Jahres-Roadmap der Chefin Alina Steinhauer (Alter 33 -> 43).
+     */
+    private function getStrategicVision(Carbon $now): array
+    {
+        $currentAge = 33;
+        $targetAge = 43;
+        $targetYear = 2036;
+
+        $phaseNum = 1;
+        $phaseName = "Phase 1: Das Fundament (Dachboden & Hands-on Chefin)";
+        $phaseDesc = "Standort Dachboden mit 1 xTool F2 Ultra Laser. Chefin Alina packt operativ voll an (Fertigung, Gravuren, Etsy, Unboxing, 5-Sterne-Bewertungen). Ziel: 41.100 € Jahresumsatz, 100% Gründungszuschuss-Ausschöpfung.";
+        $phaseNextStep = "Garagenhof für 20k modernisieren (Tore & Türen einbauen) als Sprungbrett für den Manufaktur-Umzug.";
+
+        if ($now->year >= 2028 && $now->year <= 2030) {
+            $phaseNum = 2;
+            $phaseName = "Phase 2: Der Garagenhof-Boost (Skalierung ohne Fremdmiete)";
+            $phaseDesc = "Standort eigener Garagenhof. 3-6 Industriemaschinen, 2-5 Festangestellte für Packstraße & Versand, B2B-Start für Firmenkunden. Umsatz: 200k - 1,5 Mio. €. Maximale Gewinnthesaurierung als Eigenkapital für den Bau.";
+            $phaseNextStep = "Volle Web-to-Laser Softwareautomatisierung und Vorbereitung Grundstückskauf.";
+        } elseif ($now->year >= 2031 && $now->year <= 2033) {
+            $phaseNum = 3;
+            $phaseName = "Phase 3: Tech-Automatisierung & B2B-Konzern";
+            $phaseDesc = "Web-to-Laser Pipeline (KI-Vektorisierung, Direktansteuerung), Corporate Gifts Großkunden, White-Label. Umsatz: 3 - 8 Mio. €, 15-20 Mitarbeiter. Garagenhof platzt aus allen Nähten.";
+            $phaseNextStep = "Bauantrag und Baubeginn für das 15-Mio.-Firmengebäude.";
+        } elseif ($now->year >= 2034) {
+            $phaseNum = 4;
+            $phaseName = "Phase 4: Der 15-Mio.-Firmensitz & 'Mit 43 durch sein'";
+            $phaseDesc = "Neues 15-Mio.-Firmengebäude bezogen (Showroom, Logistik, Büro). Garagenhof agiert als Vertriebsstätte/Außenlager. 12-20 Mio. € Jahresumsatz. Operative Geschäftsführung entlastet Alina. Ziel erreicht: Mit 43 finanziell frei / durch sein!";
+            $phaseNextStep = "Ziel erreicht: Durch sein!";
+        }
+
+        return [
+            'founder_name' => 'Alina Steinhauer',
+            'current_age' => $currentAge,
+            'target_age' => $targetAge,
+            'target_year' => $targetYear,
+            'ultimate_goal' => "Neues 15-Millionen-Euro-Firmengebäude (Showroom, Logistik, Büro), Garagenhof agiert als Vertriebsstätte / Außenlager. Mit 43 Jahren finanziell 'durch sein'.",
+            'current_phase' => [
+                'number' => $phaseNum,
+                'name' => $phaseName,
+                'description' => $phaseDesc,
+                'next_step' => $phaseNextStep,
+            ],
+            'intermediate_hub' => "Eigener Garagenhof: Wird demnächst für 20k modernisiert (neue Tore + Türen). Dient ab Phase 2 als mietfreie Manufaktur & später als Vertriebsstätte.",
+            'guidelines_for_ai' => [
+                'chefin_hands_on' => "Alina packt als Chefin in Phase 1 operativ voll an (Laser bedienen, Bestellungen fertigen, Belege pflegen, Prozesse aufsetzen).",
+                'strategic_framing' => "Jede Tagesaufgabe und jede gefertigte Bestellung ist ein direkter Baustein für den Umzug in den Garagenhof und den 15-Mio.-Firmensitz bis 43.",
+                'financial_awareness' => "Nutze immer die vorberechneten Finanz- und Soll-Zahlen aus 'financial_status', ohne den Nutzer nach Zahlen zu fragen oder separate Tools aufzurufen."
+            ]
         ];
     }
 

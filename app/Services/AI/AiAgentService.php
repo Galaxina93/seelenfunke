@@ -77,6 +77,24 @@ class AiAgentService
                     $timeInfo .= "\nACHTUNG: ES IST SCHLAFENSZEIT! Du musst den Nutzer anweisen, sofort schlafen zu gehen. Verweigere neue Aufgaben strengstens!\n";
                 }
             }
+
+            if (!empty($mission['financial_status'])) {
+                $fin = $mission['financial_status'];
+                $timeInfo .= "\n[VORBERECHNETE ECHTZEIT-FINANZEN (REALER IST-ZUSTAND)]\n";
+                $timeInfo .= "- Gewerbliche Einnahmen Monat: " . number_format($fin['month_actual_sales_eur'] ?? 0, 2, ',', '.') . " € (" . ($fin['month_paid_orders_count'] ?? 0) . " bezahlte Bestellungen)\n";
+                $timeInfo .= "- Gewerbliche Fixkosten Monat: " . number_format($fin['business_fixed_costs_monthly_eur'] ?? 0, 2, ',', '.') . " €\n";
+                $timeInfo .= "- Netto-Betriebsergebnis im System: " . number_format($fin['net_recorded_cashflow_eur'] ?? 0, 2, ',', '.') . " €\n";
+                $timeInfo .= "- Offene Bestell-Pipeline: " . ($fin['pending_orders_count'] ?? 0) . " wartende Bestellung(en) (" . number_format($fin['pending_orders_volume_eur'] ?? 0, 2, ',', '.') . " €)\n";
+                $timeInfo .= "- Offene Rechnungen: " . number_format($fin['open_invoices_sum_eur'] ?? 0, 2, ',', '.') . " €\n";
+            }
+
+            if (!empty($mission['strategic_vision'])) {
+                $strat = $mission['strategic_vision'];
+                $timeInfo .= "\n[DAS 10-JAHRES-MASTERZIEL (ALTER 33 -> 43)]\n";
+                $timeInfo .= "Master-Ziel: " . ($strat['ultimate_goal'] ?? '') . "\n";
+                $timeInfo .= "Aktuelle Phase: " . ($strat['current_phase']['name'] ?? '') . "\n";
+                $timeInfo .= "Direktive: Wenn die Chefin fragt 'Was muss ich jetzt tun?', gib ihr zuerst die glasklare, handfeste operative Priorität für heute. Nenne bei Fertigungsaufträgen EXAKT die echten Bestellnummern und Produkte aus der Datenbank (keine Fantasieprodukte!). Verknüpfe dies mit dem 10-Jahres-Ziel und spiegle transparent die realen Systemfinanzen wider.\n";
+            }
         } catch (\Exception $e) {
             // Fallback falls der Service nicht erreichbar ist
         }

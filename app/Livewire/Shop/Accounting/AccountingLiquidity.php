@@ -48,20 +48,20 @@ class AccountingLiquidity extends Component
 
     public array $expenseRows = [
         'investments' => ['label' => 'Investitionen / Markteinführung', 'tooltip' => 'Einmalige Anschaffungen (Laser, Shop-Setup)'],
-        'goods' => ['label' => 'Wareneinkauf', 'tooltip' => 'Einkauf von Rohlingen und Verpackungsmaterial'],
-        'personnel' => ['label' => 'Personalkosten', 'tooltip' => 'Löhne, Sozialabgaben (inkl. Aushilfen)'],
-        'room' => ['label' => 'Raumkosten', 'tooltip' => 'Miete für Produktionsräume'],
-        'room_extra' => ['label' => 'Raumnebenkosten', 'tooltip' => 'Energie, Heizung, Instandhaltung'],
+        'goods' => ['label' => 'Wareneinsatz & Logistik (30%)', 'tooltip' => 'Material/Rohlinge 15% + Verpackung/Versand 15%'],
+        'personnel' => ['label' => 'Personalkosten', 'tooltip' => 'Löhne, Sozialabgaben (Minijobber ab 2029)'],
+        'room' => ['label' => 'Raumkosten (Dachboden)', 'tooltip' => 'Miete für Produktionsräume (0 € im Eigenheim)'],
+        'room_extra' => ['label' => 'Raumnebenkosten', 'tooltip' => 'Strom für Laser, Heizung'],
         'vehicle' => ['label' => 'Fahrzeugkosten', 'tooltip' => 'Benzin, Leasing, Instandhaltung'],
-        'office' => ['label' => 'Bürokosten', 'tooltip' => 'PC, Telefon, Software (Sevdesk), Porto'],
-        'marketing/marketing/marketing' => ['label' => 'Werbung / Vertrieb', 'tooltip' => 'Marketingkosten (TikTok Ads, Etsy Ads)'],
-        'insurance' => ['label' => 'Versicherungen / Beiträge', 'tooltip' => 'Betriebshaftpflicht, IHK, Verpackungslizenz'],
+        'office' => ['label' => 'Büro- & Softwarekosten', 'tooltip' => 'Billbee, Sevdesk, IT, Domains'],
+        'marketing/marketing/marketing' => ['label' => 'Marketing & Vertrieb', 'tooltip' => 'Fixes Werbebudget (Ads) + Marktplatzgebühren (Etsy 15%)'],
+        'insurance' => ['label' => 'Versicherungen & Beiträge', 'tooltip' => 'Betriebshaftpflicht, IHK, Verpackungslizenz (LUCID)'],
         'taxes' => ['label' => 'Ertragssteuern', 'tooltip' => 'Gewerbesteuer, Einkommensteuer Vorauszahlungen'],
-        'interest' => ['label' => 'Zinsen', 'tooltip' => 'Zinsen für Darlehen'],
-        'repayment' => ['label' => 'Tilgungen', 'tooltip' => 'Tilgungsraten von Krediten'],
+        'interest' => ['label' => 'Zinsen (Darlehen: 0 €)', 'tooltip' => 'Zinsen für Darlehen (0 € bei 100% Eigenmitteln)'],
+        'repayment' => ['label' => 'Tilgungen (Darlehen: 0 €)', 'tooltip' => 'Tilgungsraten von Krediten (0 €)'],
         'tax_payment' => ['label' => 'Umsatzsteuer', 'tooltip' => 'Umsatzsteuerzahllast an das Finanzamt'],
-        'private' => ['label' => 'Private Ausgaben (Lebenshaltung)', 'tooltip' => 'Kosten für das Privatleben, die aus der Firma entnommen werden'],
-        'other_out' => ['label' => 'sonstige Kosten', 'tooltip' => 'Reisekosten, Weiterbildungen'],
+        'private' => ['label' => 'Private Ausgaben (Lebenshaltung)', 'tooltip' => 'Planmäßige Privatentnahmen aus erwirtschaftetem Gewinn'],
+        'other_out' => ['label' => 'Sonstige Kosten', 'tooltip' => 'Instandhaltung Laser (30 €) + Steuerberater (120 €)'],
     ];
 
     public array $adjustmentRows = [
@@ -70,23 +70,23 @@ class AccountingLiquidity extends Component
     ];
 
     public array $rentRows = [
-        'umsatz' => 'Umsatzerlöse',
-        'material' => 'Material-/ Warenaufwand',
-        'rohertrag' => 'Rohertrag',
-        'personal' => 'Personalkosten (Löhne, Gehälter, Sozialabgaben)',
-        'raum' => 'Raumkosten (Miete)',
-        'raumneben' => 'Raumnebenkosten (Energie, Instandhaltung, Rep.)',
-        'fahrzeug' => 'Fahrzeugkosten (Benzin, Leasing, Instandhaltung)',
-        'buero' => 'Bürokosten (PC, Telefon, Material, Porto,...)',
-        'werbung' => 'Werbung/Vertrieb',
-        'versicherung' => 'Versicherungen / Beiträge / sonst. Steuern',
-        'abschreibung' => 'Abschreibungen',
-        'sonstige' => 'sonstige betriebliche Aufwendungen (Reisekosten,...)',
-        'betriebsergebnis' => 'Betriebsergebnis',
-        'zinsen' => 'Zinsaufwendungen und Zinserträge',
-        'ergebnis_vor_steuern' => 'Ergebnis vor Steuern',
-        'steuern' => 'Steuern (Gewerbe, Körperschaft bzw. Ertrag)',
-        'gewinn' => 'Gewinn / Jahresüberschuss',
+        'brutto_umsatz' => 'Umsatzerlöse (Brutto inkl. 19% USt)',
+        'ust' => 'abzüglich 19% Umsatzsteuer',
+        'umsatz' => 'Umsatzerlöse (Netto)',
+        'material' => 'Material- & Wareneinsatz (15% Netto)',
+        'versand' => 'Versand- & Verpackungskosten (15% Netto)',
+        'gebuehren' => 'Vertriebs- & Marktplatzgebühren (15% Netto)',
+        'rohertrag' => 'Rohertrag (Deckungsbeitrag I, 55% Netto)',
+        'personal' => 'Personalkosten (Minijobber ab 2029)',
+        'raumneben' => 'Raumnebenkosten (Energie Laser, Heizung)',
+        'buero' => 'Büro- & Softwarekosten (Billbee, Sevdesk, IT)',
+        'werbung' => 'Marketing & Werbung (Werbebudget Ads)',
+        'versicherung' => 'Versicherungen & LUCID-Lizenz',
+        'sonstige' => 'Sonstige Kosten (Instandhaltung 30 € + Steuerberater 120 €)',
+        'abschreibung' => 'Abschreibungen (lineare AfA Maschinen)',
+        'betriebsergebnis' => 'Betriebsergebnis (EÜR vor Steuern)',
+        'zinsen' => 'Zinsaufwendungen (0 € bei 100% Eigenmitteln)',
+        'gewinn' => 'Gewerblicher Jahresgewinn (EÜR vor Ertragsteuern)',
         'cashflow' => 'Cash-Flow (Gewinn + Abschreibungen)',
     ];
 
@@ -107,8 +107,11 @@ class AccountingLiquidity extends Component
         $this->activeYear = $currentYear;
 
         $this->initEmptyData();
-        $this->injectSeelenfunkeBusinessPlan();
-        $this->injectLiveData();
+        if ($this->configLoadDemoData) {
+            $this->injectSeelenfunkeBusinessPlan();
+        } else {
+            $this->injectLiveData();
+        }
         $this->calculate();
     }
 
@@ -134,8 +137,11 @@ class AccountingLiquidity extends Component
         $this->activeYear = $this->configStartYear;
         
         $this->initEmptyData();
-        $this->injectSeelenfunkeBusinessPlan();
-        $this->injectLiveData();
+        if ($this->configLoadDemoData) {
+            $this->injectSeelenfunkeBusinessPlan();
+        } else {
+            $this->injectLiveData();
+        }
         $this->calculate();
         
         // Neu laden der Chart-Instanz forcieren im Frontend
@@ -173,8 +179,11 @@ class AccountingLiquidity extends Component
         $nextYear = max($this->years) + 1;
         $this->years[] = $nextYear;
         $this->initYear($nextYear);
-        $this->injectSeelenfunkeBusinessPlan();
-        $this->injectLiveData();
+        if ($this->configLoadDemoData) {
+            $this->injectSeelenfunkeBusinessPlan();
+        } else {
+            $this->injectLiveData();
+        }
         $this->calculate();
 
         $this->activeYear = $nextYear;
@@ -198,8 +207,11 @@ class AccountingLiquidity extends Component
     public function syncLiveData()
     {
         $this->initEmptyData();
-        $this->injectSeelenfunkeBusinessPlan();
-        $this->injectLiveData();
+        if ($this->configLoadDemoData) {
+            $this->injectSeelenfunkeBusinessPlan();
+        } else {
+            $this->injectLiveData();
+        }
         $this->calculate();
         session()->flash('success', 'Livedaten erfolgreich synchronisiert.');
     }
@@ -226,6 +238,8 @@ class AccountingLiquidity extends Component
             return; // Komplette Demo-Daten abschalten, wenn der User "Blanko" planen möchte
         }
 
+        $this->startBalance = 7815.00; // 100 % vorhandene Eigenmittel auf dem Geschäftskonto
+
         $y1 = $this->configStartYear;     // 2026
         $y2 = $y1 + 1;                    // 2027
         $y3 = $y1 + 2;                    // 2028
@@ -246,8 +260,8 @@ class AccountingLiquidity extends Component
             // Soft-Launch / Weihnachtsgeschäft im November und Dezember 2026
             if ($sm <= 11) {
                 $this->data[$y1][11]['in']['sales'] = 2000;
-                $this->data[$y1][11]['out']['goods'] = ($this->data[$y1][11]['out']['goods'] ?? 0) + 600; // 30% Material & Versand
-                $this->data[$y1][11]['out']['marketing/marketing/marketing'] = 100;
+                $this->data[$y1][11]['out']['goods'] = 600; // 30% Material & Versand
+                $this->data[$y1][11]['out']['marketing/marketing/marketing'] = 400; // 100 € Ads + 300 € (15% Etsy)
                 $this->data[$y1][11]['out']['room_extra'] = 20;
                 $this->data[$y1][11]['out']['office'] = 45;
                 $this->data[$y1][11]['out']['insurance'] = 45;
@@ -256,14 +270,14 @@ class AccountingLiquidity extends Component
             if ($sm <= 12) {
                 $this->data[$y1][12]['in']['sales'] = 2500;
                 $this->data[$y1][12]['out']['goods'] = 750; // 30% Material & Versand
-                $this->data[$y1][12]['out']['marketing/marketing/marketing'] = 100;
+                $this->data[$y1][12]['out']['marketing/marketing/marketing'] = 475; // 100 € Ads + 375 € (15% Etsy)
                 $this->data[$y1][12]['out']['room_extra'] = 20;
                 $this->data[$y1][12]['out']['office'] = 45;
                 $this->data[$y1][12]['out']['insurance'] = 45;
                 $this->data[$y1][12]['out']['other_out'] = 150;
             }
 
-            // Private Entnahmen im Nov/Dez 2026: 0 € nötig, da Gründungszuschuss (2.106,30 €) + Mieteinnahmen (595 €) den privaten Bedarf (ca. 1.850 €) voll decken
+            // Private Entnahmen im Nov/Dez 2026: 0 € nötig, da Gründungszuschuss (2.106,30 €) + Mieteinnahmen (620 €) den privaten Bedarf (ca. 1.850 €) voll decken
             for ($m = $sm; $m <= 12; $m++) {
                 $this->data[$y1][$m]['out']['private'] = 0;
             }
@@ -271,18 +285,19 @@ class AccountingLiquidity extends Component
 
         // Jahr 2 (2027) - 1. volles Geschäftsjahr (Etablierung & Kundenstamm) - 41.100 €
         if (in_array($y2, $this->years)) {
-            $salesY2 = [1=>3200, 2=>3800, 3=>2800, 4=>3200, 5=>4200, 6=>2500, 7=>2400, 8=>2500, 9=>3000, 10=>3500, 11=>5200, 12=>5800];
+            $salesY2 = [1=>2200, 2=>3800, 3=>2800, 4=>3200, 5=>4200, 6=>2500, 7=>2400, 8=>2500, 9=>3000, 10=>3500, 11=>5200, 12=>5800];
             foreach($salesY2 as $m => $val) {
                 $this->data[$y2][$m]['in']['sales'] = $val;
                 // Wareneinsatz & Verpackung (15%) + Versandlogistik (15%) = 30%
                 $this->data[$y2][$m]['out']['goods'] = round($val * 0.30, 2);
-                $this->data[$y2][$m]['out']['marketing/marketing/marketing'] = 100;
+                // Fixes Marketing (100 € Ads) + Marktplatzgebühren (15% Etsy = round($val * 0.15, 2))
+                $this->data[$y2][$m]['out']['marketing/marketing/marketing'] = 100 + round($val * 0.15, 2);
                 $this->data[$y2][$m]['out']['room_extra'] = 20;
                 $this->data[$y2][$m]['out']['office'] = 45;
                 $this->data[$y2][$m]['out']['insurance'] = 45;
                 $this->data[$y2][$m]['out']['other_out'] = 150; // Instandhaltung 30 € + StB 120 €
-                // Bis April 2027 läuft Gründungszuschuss Phase 1 (2.106,30 €) -> keine Entnahme nötig. Ab Mai 2027: 1.600 € Entnahme.
-                $this->data[$y2][$m]['out']['private'] = ($m <= 4) ? 0 : 1600;
+                // Bis April 2027 läuft Gründungszuschuss Phase 1 (2.106,30 €) -> keine Entnahme nötig. Ab Mai 2027: 1.100 € Entnahme.
+                $this->data[$y2][$m]['out']['private'] = ($m <= 4) ? 0 : 1100;
             }
         }
 
@@ -292,12 +307,12 @@ class AccountingLiquidity extends Component
             foreach($salesY3 as $m => $val) {
                 $this->data[$y3][$m]['in']['sales'] = $val;
                 $this->data[$y3][$m]['out']['goods'] = round($val * 0.30, 2);
-                $this->data[$y3][$m]['out']['marketing/marketing/marketing'] = 150;
+                $this->data[$y3][$m]['out']['marketing/marketing/marketing'] = 150 + round($val * 0.15, 2);
                 $this->data[$y3][$m]['out']['room_extra'] = 20;
                 $this->data[$y3][$m]['out']['office'] = 45;
                 $this->data[$y3][$m]['out']['insurance'] = 45;
                 $this->data[$y3][$m]['out']['other_out'] = 150;
-                $this->data[$y3][$m]['out']['private'] = 1800;
+                $this->data[$y3][$m]['out']['private'] = 1300;
             }
         }
 
@@ -309,12 +324,12 @@ class AccountingLiquidity extends Component
                 $this->data[$y4][$m]['out']['goods'] = round($val * 0.30, 2);
                 // Personalvariante: 520 € Minijobber / Aushilfe für Packstraße & Versand
                 $this->data[$y4][$m]['out']['personnel'] = 520;
-                $this->data[$y4][$m]['out']['marketing/marketing/marketing'] = 200;
+                $this->data[$y4][$m]['out']['marketing/marketing/marketing'] = 200 + round($val * 0.15, 2);
                 $this->data[$y4][$m]['out']['room_extra'] = 25;
                 $this->data[$y4][$m]['out']['office'] = 55;
                 $this->data[$y4][$m]['out']['insurance'] = 45;
                 $this->data[$y4][$m]['out']['other_out'] = 160;
-                $this->data[$y4][$m]['out']['private'] = 2000;
+                $this->data[$y4][$m]['out']['private'] = 1000;
             }
         }
 
@@ -564,8 +579,8 @@ class AccountingLiquidity extends Component
 
                 if ($isSubsidyPhase) {
                     $extraPrivate = 0;
-                } elseif ($year == 2026 && $month < 11) {
-                    $extraPrivate = 450; // Vorgründungsphase Pauschale
+                } elseif ($year == $this->configStartYear && $month < $this->configStartMonth) {
+                    $extraPrivate = 0; // Vor der Gründung keine Firmenentnahmen
                 } elseif ($year == 2027) {
                     if ($currentPrivOut < 1600) {
                         $extraPrivate = 1600 - $currentPrivOut;
@@ -593,7 +608,7 @@ class AccountingLiquidity extends Component
 
                 // B) Automatische Darlehens-Injection inkl. Iterationsschleife zur Absicherung der 1. Rate (Notfall)
                 $addedLoanThisMonth = 0;
-                while ($preEnd < 0 && ($year > $this->configStartYear || ($year == $this->configStartYear && $month >= $this->configStartMonth))) {
+                while (!$this->configLoadDemoData && $preEnd < 0 && ($year > $this->configStartYear || ($year == $this->configStartYear && $month >= $this->configStartMonth))) {
                     $neededLoan = abs($preEnd);
                     $increment = max(ceil($neededLoan / 1000) * 1000, 3000); // Minimum 3000€
                     
@@ -650,55 +665,76 @@ class AccountingLiquidity extends Component
         $this->rentabilitaet = [];
 
         foreach ($this->years as $year) {
-            $umsatz = 0; $material = 0; $personal = 0; $raum = 0; $raumneben = 0;
-            $fahrzeug = 0; $buero = 0; $werbung = 0; $versicherung = 0;
-            $sonstige = 0; $zinsen = 0; $steuern = 0; $abschreibung = 0;
+            $bruttoUmsatz = 0;
+            $personal = 0; $raumneben = 0; $buero = 0; $versicherung = 0;
+            $sonstige = 0; $zinsen = 0;
 
             for ($m = 1; $m <= 12; $m++) {
-                $umsatz += (float) ($this->data[$year][$m]['in']['sales'] ?? 0);
-                $material += (float) ($this->data[$year][$m]['out']['goods'] ?? 0);
+                $bruttoUmsatz += (float) ($this->data[$year][$m]['in']['sales'] ?? 0);
                 $personal += (float) ($this->data[$year][$m]['out']['personnel'] ?? 0);
-                $raum += (float) ($this->data[$year][$m]['out']['room'] ?? 0);
                 $raumneben += (float) ($this->data[$year][$m]['out']['room_extra'] ?? 0);
-                $fahrzeug += (float) ($this->data[$year][$m]['out']['vehicle'] ?? 0);
                 $buero += (float) ($this->data[$year][$m]['out']['office'] ?? 0);
-                $werbung += (float) ($this->data[$year][$m]['out']['marketing/marketing/marketing'] ?? 0);
                 $versicherung += (float) ($this->data[$year][$m]['out']['insurance'] ?? 0);
                 $sonstige += (float) ($this->data[$year][$m]['out']['other_out'] ?? 0);
                 $zinsen += (float) ($this->data[$year][$m]['out']['interest'] ?? 0);
-                $steuern += (float) ($this->data[$year][$m]['out']['taxes'] ?? 0);
             }
 
-            $totalInvestments = 0;
-            foreach ($this->years as $y) {
-                if ($y <= $year) {
-                    for ($m = 1; $m <= 12; $m++) {
-                        $totalInvestments += (float) ($this->data[$y][$m]['out']['investments'] ?? 0);
-                    }
-                }
-            }
-            // Pro-rata AfA: Im Gründungsjahr 2026 für 2 Monate (Nov/Dez = 2/12), in den Folgejahren 12/12
+            // Fixes Werbebudget (Ads) getrennt von variablen Marktplatzgebühren
+            if ($year == 2026) $werbungFix = 200.00;
+            elseif ($year == 2027) $werbungFix = 1200.00;
+            elseif ($year == 2028) $werbungFix = 1800.00;
+            elseif ($year == 2029) $werbungFix = 2400.00;
+            else $werbungFix = 0.00;
+
+            // AfA linear über 5 Jahre (Anschaffungskosten Maschinen/Technik = 5.665 €)
             if ($year == $this->configStartYear) {
-                $abschreibung = round(($totalInvestments / 3) * (2 / 12), 2);
+                $abschreibung = round((5665 / 5) * (2 / 12), 2); // 188,83 € für Nov/Dez 2026
             } else {
-                $abschreibung = round($totalInvestments / 3, 2);
+                $abschreibung = 1133.00; // 5.665 € / 5 Jahre = 1.133,00 € p.a.
             }
 
-            $rohertrag = $umsatz - $material;
-            $summe_kosten = $personal + $raum + $raumneben + $fahrzeug + $buero + $werbung + $versicherung + $abschreibung + $sonstige;
-            $betriebsergebnis = $rohertrag - $summe_kosten;
-            $ergebnis_vor_steuern = $betriebsergebnis - $zinsen;
-            $gewinn = $ergebnis_vor_steuern - $steuern;
-            $cashflow = $gewinn + $abschreibung;
+            // Exakte Netto-Berechnung nach § 4 Abs. 3 EStG (EÜR)
+            $ust = round($bruttoUmsatz - ($bruttoUmsatz / 1.19), 2);
+            $nettoUmsatz = round($bruttoUmsatz / 1.19, 2);
+
+            // Variable Kosten: 15% Material, 15% Versand, 15% Marktplatzgebühren (jeweils vom Nettoumsatz)
+            $material = round($nettoUmsatz * 0.15, 2);
+            $versand = round($nettoUmsatz * 0.15, 2);
+            $gebuehren = round($nettoUmsatz * 0.15, 2);
+            $variableGesamt = $material + $versand + $gebuehren;
+
+            $rohertrag = round($nettoUmsatz - $variableGesamt, 2); // 55% Deckungsbeitrag
+            $fixkostenGesamt = $personal + $raumneben + $buero + $werbungFix + $versicherung + $abschreibung + $sonstige;
+            
+            $betriebsergebnis = round($rohertrag - $fixkostenGesamt, 2);
+            $ergebnis_vor_steuern = round($betriebsergebnis - $zinsen, 2);
+            $gewinn = $ergebnis_vor_steuern; // EÜR vor persönlichen Ertragsteuern
+            $cashflow = round($gewinn + $abschreibung, 2);
 
             $this->rentabilitaet[$year] = [
-                'umsatz' => $umsatz, 'material' => $material, 'rohertrag' => $rohertrag,
-                'personal' => $personal, 'raum' => $raum, 'raumneben' => $raumneben,
-                'fahrzeug' => $fahrzeug, 'buero' => $buero, 'werbung' => $werbung,
-                'versicherung' => $versicherung, 'abschreibung' => $abschreibung,
-                'sonstige' => $sonstige, 'betriebsergebnis' => $betriebsergebnis,
-                'zinsen' => $zinsen, 'ergebnis_vor_steuern' => $ergebnis_vor_steuern,
-                'steuern' => $steuern, 'gewinn' => $gewinn, 'cashflow' => $cashflow,
+                'brutto_umsatz' => $bruttoUmsatz,
+                'ust' => $ust,
+                'umsatz' => $nettoUmsatz,
+                'material' => $material,
+                'versand' => $versand,
+                'gebuehren' => $gebuehren,
+                'variable_gesamt' => $variableGesamt,
+                'rohertrag' => $rohertrag,
+                'personal' => $personal,
+                'raum' => 0.00,
+                'raumneben' => $raumneben,
+                'fahrzeug' => 0.00,
+                'buero' => $buero,
+                'werbung' => $werbungFix,
+                'versicherung' => $versicherung,
+                'abschreibung' => $abschreibung,
+                'sonstige' => $sonstige,
+                'betriebsergebnis' => $betriebsergebnis,
+                'zinsen' => $zinsen,
+                'ergebnis_vor_steuern' => $ergebnis_vor_steuern,
+                'steuern' => 0.00,
+                'gewinn' => $gewinn,
+                'cashflow' => $cashflow,
             ];
         }
     }
