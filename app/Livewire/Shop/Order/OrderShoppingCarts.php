@@ -28,11 +28,13 @@ class OrderShoppingCarts extends Component
     
     public $cartYellowLimit = 3;
     public $cartRedLimit = 24;
+    public $cartRequireConsent = true;
 
     public function mount()
     {
         $this->cartYellowLimit = (int) shop_setting('cart_abandoned_yellow_hours', 3);
         $this->cartRedLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
+        $this->cartRequireConsent = (bool) shop_setting('cart_abandoned_require_consent', true);
     }
 
     public function saveSettings()
@@ -40,6 +42,7 @@ class OrderShoppingCarts extends Component
         $this->validate([
             'cartYellowLimit' => 'required|numeric|min:1',
             'cartRedLimit' => 'required|numeric|min:1|gt:cartYellowLimit',
+            'cartRequireConsent' => 'boolean',
         ]);
 
         SystemSetting::updateOrCreate(
@@ -52,8 +55,13 @@ class OrderShoppingCarts extends Component
             ['value' => $this->cartRedLimit]
         );
 
+        SystemSetting::updateOrCreate(
+            ['key' => 'cart_abandoned_require_consent'],
+            ['value' => $this->cartRequireConsent ? '1' : '0']
+        );
+
         Cache::forget('global_shop_settings');
-        session()->flash('success', 'Warenkorb-Ampeln erfolgreich aktualisiert.');
+        session()->flash('success', 'Warenkorb-Ampeln und Rechtssicherheits-Einstellungen erfolgreich aktualisiert.');
     }
 
     // Reset pagination when search changes
@@ -152,20 +160,27 @@ class OrderShoppingCarts extends Component
 
     public function sendReminderEmail($cartId)
     {
-        $cart = Cart::with('customer')->find($cartId);
+        $cart = Cart::with(['customer.profile', 'items.product'])->find($cartId);
 
-        if ($cart && $cart->customer && $cart->customer->email) {
-            try {
-                Mail::to($cart->customer->email)->send(new AbandonedCartReminder($cart));
-                $cart->update(['reminder_email_sent_at' => now()]);
-                session()->flash('success', 'Erinnerungsmail wurde erfolgreich an ' . $cart->customer->email . ' gesendet.');
-                unset($this->carts); // Clear Computed property cache so UI updates instantly
-            } catch (\Exception $e) {
-                Log::error('Failed to send abandoned cart reminder: ' . $e->getMessage());
-                session()->flash('error', 'Fehler beim Senden der Mail: ' . $e->getMessage());
-            }
-        } else {
+        if (!$cart || !$cart->customer || !$cart->customer->email) {
             session()->flash('error', 'Dieser Warenkorb hat keinen hinterlegten Kunden mit E-Mail-Adresse.');
+            return;
+        }
+
+        // Rechtlicher Schutz: Wurde widersprochen? (§ 7 Abs. 3 UWG / Art. 21 DSGVO)
+        if ($cart->customer->profile?->cart_reminder_unsubscribed_at !== null) {
+            session()->flash('error', 'Rechtlicher Schutz nach § 7 UWG: Dieser Kunde hat dem Erhalt von Warenkorb-Erinnerungen widersprochen (Opt-Out am ' . $cart->customer->profile->cart_reminder_unsubscribed_at->format('d.m.Y H:i') . ' Uhr). Ein erneuter Versand ist untersagt.');
+            return;
+        }
+
+        try {
+            Mail::to($cart->customer->email)->send(new AbandonedCartReminder($cart));
+            $cart->update(['reminder_email_sent_at' => now()]);
+            session()->flash('success', 'Erinnerungsmail wurde erfolgreich an ' . $cart->customer->email . ' gesendet.');
+            unset($this->carts); // Clear Computed property cache so UI updates instantly
+        } catch (\Exception $e) {
+            Log::error('Failed to send abandoned cart reminder: ' . $e->getMessage());
+            session()->flash('error', 'Fehler beim Senden der Mail: ' . $e->getMessage());
         }
     }
     
@@ -184,7 +199,7 @@ class OrderShoppingCarts extends Component
     #[Computed]
     public function carts()
     {
-        return Cart::with(['customer', 'items'])
+        return Cart::with(['customer.profile', 'items.product'])
             ->when($this->search, function ($query) {
                 $query->where('session_id', 'like', '%' . $this->search . '%')
                     ->orWhereHas('customer', function ($q) {
@@ -200,7 +215,7 @@ class OrderShoppingCarts extends Component
     public function getDetailCartProperty()
     {
         if (!$this->detailCartId) return null;
-        return Cart::with(['customer', 'items.product.tierPrices'])->find($this->detailCartId);
+        return Cart::with(['customer.profile', 'items.product.tierPrices'])->find($this->detailCartId);
     }
 
     #[Computed]

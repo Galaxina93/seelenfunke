@@ -42,6 +42,22 @@
         <a href="{{ config('app.url') }}/support" style="color: #16a34a; text-decoration: underline; font-weight: bold;">Zum Kundenservice</a>. Wir helfen dir gerne weiter!
     </div>
 
+    {{-- RECHTLICHER HINWEIS & WIDERSPRUCHSRECHT (§ 7 Abs. 3 UWG / Art. 21 DSGVO) --}}
+    @if(!empty($unsubscribeUrl))
+    <div style="margin-top: 30px; padding: 15px 20px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; color: #64748b; line-height: 1.6;">
+        <p style="margin: 0 0 6px 0;">
+            <strong>Hinweis zum Datenschutz & Werbewiderspruch:</strong> Du erhältst diese Service-Nachricht, da du ein Kundenkonto bei uns besitzt und für Benachrichtigungen zu Produkten oder Newslettern angemeldet bist.
+        </p>
+        <p style="margin: 0;">
+            Wenn du in Zukunft <strong>keine Erinnerungen an offene Warenkörbe</strong> mehr erhalten möchtest, kannst du der Verwendung deiner Daten zu diesem Zweck jederzeit kostenfrei (ohne andere Kosten als die Übermittlungskosten nach den Basistarifen deines Providers) widersprechen:
+            <br>
+            <a href="{{ $unsubscribeUrl }}" style="color: #475569; text-decoration: underline; font-weight: bold;">
+                👉 Hier klicken, um dich von weiteren Warenkorb-Erinnerungen abzumelden
+            </a>
+        </p>
+    </div>
+    @endif
+
     {{-- FOOTER --}}
     @include('global.mails.partials.mail_footer')
 

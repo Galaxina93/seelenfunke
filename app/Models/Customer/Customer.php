@@ -121,4 +121,46 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
     {
         return $this->hasMany(\App\Models\Product\ProductReview::class);
     }
+
+    /**
+     * Prüft, ob der Kunde eine nachweisbare Werbeeinwilligung (Double-Opt-In) hat
+     * und nicht widersprochen hat.
+     */
+    public function hasMarketingConsent(): bool
+    {
+        if ($this->profile?->cart_reminder_unsubscribed_at !== null) {
+            return false;
+        }
+
+        return \App\Models\Marketing\MarketingNewsletterSubscriber::where('email', $this->email)
+            ->where('is_verified', true)
+            ->exists();
+    }
+
+    /**
+     * Prüft, ob der Kunde rechtssicher für Warenkorb-Erinnerungen kontaktiert werden darf.
+     */
+    public function allowsCartReminders(): bool
+    {
+        // 1. Wenn der Kunde ausdrücklich widersprochen hat (Opt-Out nach § 7 UWG / Art. 21 DSGVO)
+        if ($this->profile?->cart_reminder_unsubscribed_at !== null) {
+            return false;
+        }
+
+        // 2. Rechtssicherheits-Schalter (Standard: true, nur mit Einwilligung)
+        $requireConsent = shop_setting('cart_abandoned_require_consent', true);
+        if ($requireConsent) {
+            return $this->hasMarketingConsent();
+        }
+
+        return true;
+    }
+
+    /**
+     * Generiert einen kryptografischen Hash für den One-Click-Widerspruchslink (Opt-Out).
+     */
+    public function getCartReminderUnsubscribeHash(): string
+    {
+        return hash_hmac('sha256', $this->id . '|' . $this->email, config('app.key'));
+    }
 }

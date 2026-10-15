@@ -47,6 +47,9 @@ Route::get('/newsletter', MarketingNewsletterPage::class)->name('newsletter.page
 // Der Link aus der E-Mail (Controller Action)
 Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])->name('newsletter.verify');
 
+// Warenkorb-Erinnerungen Abmeldung (Opt-Out nach § 7 Abs. 3 UWG / Art. 21 DSGVO)
+Route::get('/warenkorb/erinnerung/abmelden/{id}/{hash}', [\App\Http\Controllers\CartReminderUnsubscribeController::class, 'unsubscribe'])->name('cart.reminder.unsubscribe');
+
 // Der Checkout
 Route::get('/checkout', OrderCheckout::class)->name('checkout');
 Route::get('/checkout/success', OrderCheckoutSuccess::class)->name('checkout.success');

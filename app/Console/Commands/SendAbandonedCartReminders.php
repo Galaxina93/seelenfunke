@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Models\Cart\Cart;
-use App\Models\System\SystemSetting;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use App\Mail\AbandonedCartReminder;
@@ -23,41 +22,68 @@ class SendAbandonedCartReminders extends Command
      *
      * @var string
      */
-    protected $description = 'Sends email reminders to customers who abandoned their carts passing the yellow limit.';
+    protected $description = 'Versendet rechtssichere E-Mail-Erinnerungen für verlassene Warenkörbe unter Beachtung von Werbeeinwilligungen (§ 7 UWG / DSGVO).';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        // Get red limit from settings, default to 24 hours
-        $setting = SystemSetting::where('key', 'cart_abandoned_red_hours')->first();
-        $redLimit = $setting ? (int)$setting->value : 24;
+        // 1. Konfiguration abrufen
+        $redLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
+        $maxDays = (int) shop_setting('cart_abandoned_max_days', 7);
+        $requireConsent = (bool) shop_setting('cart_abandoned_require_consent', true);
 
-        // Fetch carts that are older than red limit but haven't received an email
-        $carts = Cart::with('customer')
+        $this->info("Prüfe verlassene Warenkörbe (Älter als {$redLimit}h, jünger als {$maxDays} Tage, Rechtssicherheits-Modus: " . ($requireConsent ? 'AKTIV' : 'INAKTIV') . ")...");
+
+        // 2. Relevante Warenkörbe abfragen (nur registrierte Kunden mit Artikeln, innerhalb des Zeitfensters)
+        $carts = Cart::with(['customer.profile', 'items.product'])
             ->where('updated_at', '<=', now()->subHours($redLimit))
+            ->where('updated_at', '>=', now()->subDays($maxDays))
             ->whereNull('reminder_email_sent_at')
-            ->whereNotNull('customer_id') // we need a known customer to send emails
-            ->has('items') // don't send emails for empty carts
+            ->whereNotNull('customer_id')
+            ->has('items')
             ->get();
 
-        $count = 0;
+        $sentCount = 0;
+        $skippedNoConsentCount = 0;
+        $skippedUnsubscribedCount = 0;
 
         foreach ($carts as $cart) {
-            if ($cart->customer && $cart->customer->email) {
-                try {
-                    Mail::to($cart->customer->email)->send(new AbandonedCartReminder($cart));
-                    $cart->update(['reminder_email_sent_at' => now()]);
-                    $count++;
-                    $this->info("Sent reminder to {$cart->customer->email} for cart {$cart->id}");
-                } catch (\Exception $e) {
-                    Log::error("Failed to send scheduled abandoned cart reminder to {$cart->customer->email}: " . $e->getMessage());
-                    $this->error("Failed to send to {$cart->customer->email}");
-                }
+            $customer = $cart->customer;
+
+            if (!$customer || empty($customer->email)) {
+                continue;
+            }
+
+            // A. Gesetzlicher Werbewiderspruch (§ 7 Abs. 3 Nr. 4 UWG / Art. 21 DSGVO)
+            if ($customer->profile?->cart_reminder_unsubscribed_at !== null) {
+                $this->line("Überspringe Warenkorb #{$cart->id}: Kunde {$customer->email} hat Warenkorb-Erinnerungen abbestellt (Opt-Out).");
+                $skippedUnsubscribedCount++;
+                continue;
+            }
+
+            // B. Rechtssicherheitsprüfung: Liegt ein verifiziertes Werbe-Opt-In (Double-Opt-In) vor?
+            if ($requireConsent && !$customer->hasMarketingConsent()) {
+                $this->line("Überspringe Warenkorb #{$cart->id}: Kunde {$customer->email} hat keine verifizierte Werbeeinwilligung (§ 7 Abs. 2 UWG).");
+                $skippedNoConsentCount++;
+                continue;
+            }
+
+            // C. Erinnerungs-Mail versenden
+            try {
+                Mail::to($customer->email)->send(new AbandonedCartReminder($cart));
+                $cart->update(['reminder_email_sent_at' => now()]);
+                $sentCount++;
+                $this->info("Erinnerung erfolgreich an {$customer->email} für Warenkorb #{$cart->id} gesendet.");
+            } catch (\Exception $e) {
+                Log::error("Fehler beim automatischen Versand der Warenkorberinnerung an {$customer->email}: " . $e->getMessage());
+                $this->error("Fehler beim Versand an {$customer->email}: " . $e->getMessage());
             }
         }
 
-        $this->info("Successfully sent $count reminder emails.");
+        $this->info("Abgeschlossen: {$sentCount} Mails versendet | {$skippedNoConsentCount} wegen fehlender Einwilligung übersprungen | {$skippedUnsubscribedCount} wegen Opt-Out übersprungen.");
+
+        return Command::SUCCESS;
     }
 }

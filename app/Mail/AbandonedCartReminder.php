@@ -16,16 +16,24 @@ class AbandonedCartReminder extends Mailable implements ShouldQueue
 
     public Cart $cart;
     public string $cartLink;
+    public ?string $unsubscribeUrl = null;
 
     public function __construct(Cart $cart)
     {
         $this->cart = $cart;
         
-        // Ensure cart is loaded with customer for the view to use
-        $this->cart->loadMissing('customer');
+        // Ensure cart is loaded with customer profile and items for the view
+        $this->cart->loadMissing(['customer.profile', 'items.product']);
         
-        // Link directly to the cart if they are logged in or just to the cart page
-        $this->cartLink = config('app.url') . '/cart';
+        // Link directly to the cart
+        $this->cartLink = route('cart');
+
+        if ($cart->customer) {
+            $this->unsubscribeUrl = route('cart.reminder.unsubscribe', [
+                'id' => $cart->customer->id,
+                'hash' => $cart->customer->getCartReminderUnsubscribeHash(),
+            ]);
+        }
     }
 
     public function envelope(): Envelope
@@ -39,6 +47,9 @@ class AbandonedCartReminder extends Mailable implements ShouldQueue
     {
         return new Content(
             view: 'global.mails.order_shopping_cart_reminder_to_customer',
+            with: [
+                'unsubscribeUrl' => $this->unsubscribeUrl,
+            ],
         );
     }
 }
