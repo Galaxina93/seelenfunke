@@ -6,10 +6,13 @@ use App\Models\Customer\CustomerGamification;
 use App\Services\Gamification\GameConfig;
 use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class GameSparkHuntComponent extends Component
 {
+    #[Locked]
     public $isVisible = false;
 
     public function mount()
@@ -34,6 +37,7 @@ class GameSparkHuntComponent extends Component
                     // 30% Chance, dass ein Funke auf dieser Seite spawnt
                     if (mt_rand(1, 100) <= 30) {
                         $this->isVisible = true;
+                        session(['spark_hunt_token' => $user->id . '_' . now()->timestamp]);
                     }
                 }
             }
@@ -46,6 +50,19 @@ class GameSparkHuntComponent extends Component
 
         $user = Auth::guard('customer')->user();
         if ($user) {
+            // Anti-Abuse Rate Limiter
+            $throttleKey = 'spark_hunt_' . $user->id;
+            if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                return;
+            }
+            RateLimiter::hit($throttleKey, 60);
+
+            // Server-Token prüfen
+            if (!session()->has('spark_hunt_token')) {
+                return;
+            }
+            session()->forget('spark_hunt_token');
+
             $gamificationService->addFunken($user, 1, 'website_hunt');
             $this->isVisible = false;
 

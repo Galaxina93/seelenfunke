@@ -85,17 +85,23 @@ trait handleProfilesTrait
 
     public function saveUserProfileData($data): void
     {
+        $table = match($this->guard) {
+            'admin' => 'admins',
+            'employee' => 'employees',
+            default => 'customers',
+        };
+
         $rules = [
-            'firstName' => 'required|string',
-            'lastName' => 'required|string',
-            'email' => 'required|email',
-            'phoneNumber' => 'nullable|string',
-            'about' => 'nullable|string',
-            'url' => 'nullable|string',
-            'street' => 'nullable|string',
-            'houseNumber' => 'nullable|string',
-            'postal' => 'nullable|string',
-            'city' => 'nullable|string',
+            'firstName' => 'required|string|max:100',
+            'lastName' => 'required|string|max:100',
+            'email' => 'required|email|max:191|unique:' . $table . ',email,' . $this->user->id,
+            'phoneNumber' => 'nullable|string|max:50',
+            'about' => 'nullable|string|max:1000',
+            'url' => 'nullable|string|max:255',
+            'street' => 'nullable|string|max:150',
+            'houseNumber' => 'nullable|string|max:20',
+            'postal' => 'nullable|string|max:20',
+            'city' => 'nullable|string|max:100',
             'country' => 'nullable|string|max:2',
         ];
 
@@ -104,11 +110,7 @@ trait handleProfilesTrait
             $rules['birthday'] = 'nullable|date';
         }
 
-        try {
-            $validatedData = $this->validate($rules);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            dd($e->errors());
-        }
+        $validatedData = $this->validate($rules);
 
         // Erfasse den Zustand VOR dem Update
         $oldData = [

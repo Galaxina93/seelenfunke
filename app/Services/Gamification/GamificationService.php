@@ -28,23 +28,33 @@ class GamificationService
 
     public function upgradeLevel(Customer $customer): array
     {
-        $profile = $this->getProfile($customer);
-        $cost = $this->getUpgradeCost($profile->level);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($customer) {
+            $profile = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+            if (!$profile) {
+                $profile = $this->getProfile($customer);
+            }
 
-        if ($profile->level >= GameConfig::MAX_LEVEL) return ['success' => false, 'message' => 'Maximales Level erreicht.'];
-        if ($profile->funken_balance < $cost) return ['success' => false, 'message' => 'Nicht genügend Funken.'];
+            $cost = $this->getUpgradeCost($profile->level);
 
-        $profile->funken_balance -= $cost;
-        $profile->level += 1;
-        $profile->save();
+            if ($profile->level >= GameConfig::MAX_LEVEL) {
+                return ['success' => false, 'message' => 'Maximales Level erreicht.'];
+            }
+            if ($profile->funken_balance < $cost) {
+                return ['success' => false, 'message' => 'Nicht genügend Funken.'];
+            }
 
-        $rewardMessage = $this->checkAndIssueCoupon($profile, $profile->level);
+            $profile->funken_balance -= $cost;
+            $profile->level += 1;
+            $profile->save();
 
-        return [
-            'success' => true,
-            'new_level' => $profile->level,
-            'reward' => $rewardMessage ?? 'Neue Form freigeschaltet!'
-        ];
+            $rewardMessage = $this->checkAndIssueCoupon($profile, $profile->level);
+
+            return [
+                'success' => true,
+                'new_level' => $profile->level,
+                'reward' => $rewardMessage ?? 'Neue Form freigeschaltet!'
+            ];
+        });
     }
 
     private function checkAndIssueCoupon(CustomerGamification $profile, int $newLevel): ?string
@@ -52,6 +62,13 @@ class GamificationService
         $rewards = GameConfig::getLevelRewards();
 
         if (array_key_exists($newLevel, $rewards)) {
+            $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
+
+            // Duplicate Minting Prevention
+            if (isset($unlocked[(string)$newLevel]) || isset($unlocked[$newLevel])) {
+                return null;
+            }
+
             $rewardConfig = $rewards[$newLevel];
             $code = 'FUNKI-L' . $newLevel . '-' . strtoupper(Str::random(5));
             $email = $profile->customer ? $profile->customer->email : 'System';
@@ -67,7 +84,6 @@ class GamificationService
                 'mode'            => 'manual',
             ]);
 
-            $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
             $unlocked[(string)$newLevel] = $code; // Als String speichern!
 
             $profile->unlocked_coupons = $unlocked;

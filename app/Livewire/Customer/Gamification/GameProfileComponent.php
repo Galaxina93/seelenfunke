@@ -119,13 +119,31 @@ class GameProfileComponent extends Component
     public function selectTitle($titleKey, GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
-        if ($user) {
-            $profile = $gameService->getProfile($user);
-            $profile->update(['active_title' => $titleKey]);
+        if (!$user) return;
 
-            $this->loadGamificationData($gameService, $profile);
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
+        $profile = $gameService->getProfile($user);
+        $titlesData = $gameService->evaluateTitles($profile);
+
+        $isUnlocked = false;
+
+        if ($titleKey === null || $titleKey === 'apprentice') {
+            $isUnlocked = true;
+        } elseif ($titleKey === 'mega_title') {
+            $isUnlocked = ($titlesData['mega_title']['rank'] ?? 0) > 0;
+        } elseif (isset($titlesData['titles'][$titleKey])) {
+            $tier = $titlesData['titles'][$titleKey]['tier'] ?? 'grau';
+            $isUnlocked = ($tier !== 'grau');
         }
+
+        if (!$isUnlocked) {
+            $this->dispatch('notify', ['type' => 'error', 'message' => 'Dieser Titel ist noch nicht freigeschaltet!']);
+            return;
+        }
+
+        $profile->update(['active_title' => $titleKey]);
+
+        $this->loadGamificationData($gameService, $profile);
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
     }
 
     public function loadGamificationData(GamificationService $gameService, $profile)
@@ -235,93 +253,5 @@ class GameProfileComponent extends Component
         if ($level >= 4) return 'Lehrling';
         if ($level >= 2) return 'Helfer';
         return 'Funken-Novize';
-    }
-
-    /**
-     * Keine Parameter-Injektion mehr, sondern sicheres Auflösen über app()
-     */
-    public function consumeEnergy()
-    {
-        $user = Auth::guard('customer')->user();
-        if (!$user) {
-            \Log::warning('consumeEnergy: SystemUser not found in customer guard');
-            return false;
-        }
-
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
-
-        if ($profile && $profile->energy_balance > 0) {
-            // 1. Energie abziehen
-            $profile->energy_balance -= 1;
-            $profile->save();
-
-            // 2. Den Titel für "Spiele gespielt" hochzählen
-            $gameService = app(GamificationService::class);
-            $gameService->incrementTitleProgress($profile, 'spieler');
-
-            // 3. Events abfeuern (für HUD Updates)
-            $this->dispatch('energy-updated');
-            return true;
-        }
-
-        /*\Log::warning('consumeEnergy: Profile missing or energy is 0', [
-            'user_id' => $user->id,
-            'profile_found' => !!$profile,
-            'energy_balance' => $profile ? $profile->energy_balance : 'N/A'
-        ]);*/
-
-        $this->dispatch('notify', ['type' => 'error', 'message' => 'Nicht genug Seelen-Energie!']);
-        return false;
-    }
-
-    public function rewardGameSparks($amount)
-    {
-        $safeAmount = min(intval($amount), 50);
-
-        if ($safeAmount > 0) {
-            $user = Auth::guard('customer')->user();
-            $profile = CustomerGamification::where('customer_id', $user->id)->first();
-
-            if ($profile) {
-                // Funken gutschreiben
-                $profile->funken_balance += $safeAmount;
-                $profile->funken_total_earned += $safeAmount;
-                $profile->save();
-
-                $this->dispatch('sparks-awarded');
-            }
-        }
-    }
-
-    public function saveGameRecord($distance, $funkenCollected)
-    {
-        $user = Auth::guard('customer')->user();
-        if (!$user) return;
-
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile) {
-            $safeAmount = min(intval($funkenCollected), 500); // Sicherheitslimit
-
-            if ($safeAmount > 0) {
-                $profile->funken_balance += $safeAmount;
-                $profile->funken_total_earned += $safeAmount;
-            }
-
-            // Highscore für Funkenflug basierend auf Distanz aktualisieren
-            $dist = intval($distance);
-            if ($dist > ($profile->funkenflug_highscore ?? 0)) {
-                $profile->funkenflug_highscore = $dist;
-            }
-
-            $profile->save();
-
-            if ($safeAmount > 0) {
-                $this->dispatch('sparks-awarded');
-            }
-
-            // Sync Frontend State
-            $this->personalHighscoreFF = $profile->funkenflug_highscore;
-            $this->globalHighscoreFF = max($this->globalHighscoreFF, $dist);
-        }
     }
 }

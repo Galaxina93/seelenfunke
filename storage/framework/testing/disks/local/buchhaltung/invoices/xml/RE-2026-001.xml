@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Raul Orn</ram:Name>
+        <ram:Name>Rebekah Grant</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>78312-4613</ram:PostcodeCode>
-          <ram:LineOne>89954 Jedediah Grove Apt. 750</ram:LineOne>
-          <ram:CityName>Borershire</ram:CityName>
+          <ram:PostcodeCode>47288</ram:PostcodeCode>
+          <ram:LineOne>12761 Doyle Run Apt. 738</ram:LineOne>
+          <ram:CityName>Lake Valerie</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>

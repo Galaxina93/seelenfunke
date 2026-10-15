@@ -117,13 +117,31 @@ class GameGamesComponent extends Component
     public function selectTitle($titleKey, GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
-        if ($user) {
-            $profile = $gameService->getProfile($user);
-            $profile->update(['active_title' => $titleKey]);
+        if (!$user) return;
 
-            $this->loadGamificationData($gameService, $profile);
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
+        $profile = $gameService->getProfile($user);
+        $titlesData = $gameService->evaluateTitles($profile);
+
+        $isUnlocked = false;
+
+        if ($titleKey === null || $titleKey === 'apprentice') {
+            $isUnlocked = true;
+        } elseif ($titleKey === 'mega_title') {
+            $isUnlocked = ($titlesData['mega_title']['rank'] ?? 0) > 0;
+        } elseif (isset($titlesData['titles'][$titleKey])) {
+            $tier = $titlesData['titles'][$titleKey]['tier'] ?? 'grau';
+            $isUnlocked = ($tier !== 'grau');
         }
+
+        if (!$isUnlocked) {
+            $this->dispatch('notify', ['type' => 'error', 'message' => 'Dieser Titel ist noch nicht freigeschaltet!']);
+            return;
+        }
+
+        $profile->update(['active_title' => $titleKey]);
+
+        $this->loadGamificationData($gameService, $profile);
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
     }
 
     public function loadGamificationData(GamificationService $gameService, $profile)
@@ -236,10 +254,7 @@ class GameGamesComponent extends Component
         return 'Funken-Novize';
     }
 
-    /**
-     * Keine Parameter-Injektion mehr, sondern sicheres Auflösen über app()
-     */
-    public function consumeEnergy()
+    public function consumeEnergy(): bool
     {
         $user = Auth::guard('customer')->user();
         if (!$user) {
@@ -247,27 +262,34 @@ class GameGamesComponent extends Component
             return false;
         }
 
+        $throttleKey = 'game_consume_energy_' . $user->id;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $this->dispatch('notify', ['type' => 'error', 'message' => 'Zu viele Anfragen. Bitte kurz warten.']);
+            return false;
+        }
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 3);
+
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
 
         if ($profile && $profile->energy_balance > 0) {
-            // 1. Energie abziehen
             $profile->energy_balance -= 1;
             $profile->save();
 
-            // 2. Den Titel für "Spiele gespielt" hochzählen
             $gameService = app(GamificationService::class);
             $gameService->incrementTitleProgress($profile, 'spieler');
 
-            // 3. Events abfeuern (für HUD Updates)
+            // Aktive Spiel-Sitzung serverseitig registrieren (Anti-Cheat & Anti-Replay)
+            session([
+                'active_game_session' => [
+                    'user_id' => $user->id,
+                    'started_at' => now()->timestamp,
+                    'token' => \Illuminate\Support\Str::random(32),
+                ]
+            ]);
+
             $this->dispatch('energy-updated');
             return true;
         }
-
-       /* \Log::warning('consumeEnergy: Profile missing or energy is 0', [
-            'user_id' => $user->id,
-            'profile_found' => !!$profile,
-            'energy_balance' => $profile ? $profile->energy_balance : 'N/A'
-        ]);*/
 
         $this->dispatch('notify', ['type' => 'error', 'message' => 'Nicht genug Seelen-Energie!']);
         return false;
@@ -275,14 +297,40 @@ class GameGamesComponent extends Component
 
     public function rewardGameSparks($amount)
     {
-        $safeAmount = min(intval($amount), 50);
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+
+        // Anti-Cheat: Nur mit registrierter Spielsitzung belohnen
+        $gameSession = session('active_game_session');
+        if (!$gameSession || empty($gameSession['started_at'])) {
+            \Log::warning("Manipulationsversuch: rewardGameSparks ohne aktive Spielsitzung (User: {$user->id})");
+            return;
+        }
+
+        if (($gameSession['user_id'] ?? null) !== $user->id) {
+            \Log::warning("Manipulationsversuch: Ungültige User-ID in Spielsitzung (User: {$user->id})");
+            session()->forget('active_game_session');
+            return;
+        }
+
+        $elapsed = now()->timestamp - (int)$gameSession['started_at'];
+        // Mindestspieldauer für Kristall-Kollaps prüfen
+        if ($elapsed < 5) {
+            \Log::warning("Manipulationsversuch: rewardGameSparks zu schnell eingereicht ({$elapsed}s) von User {$user->id}");
+            session()->forget('active_game_session');
+            return;
+        }
+
+        // Sitzung sofort invalidieren (Einmal-Gültigkeit)
+        session()->forget('active_game_session');
+
+        // Plausibilitätsprüfung für Punkte/Funken
+        $safeAmount = max(0, min(intval($amount), 50));
 
         if ($safeAmount > 0) {
-            $user = Auth::guard('customer')->user();
             $profile = CustomerGamification::where('customer_id', $user->id)->first();
 
             if ($profile) {
-                // Funken gutschreiben
                 $profile->funken_balance += $safeAmount;
                 $profile->funken_total_earned += $safeAmount;
                 $profile->save();
@@ -297,30 +345,59 @@ class GameGamesComponent extends Component
         $user = Auth::guard('customer')->user();
         if (!$user) return;
 
+        // Anti-Cheat: Nur mit registrierter Spielsitzung speichern
+        $gameSession = session('active_game_session');
+        if (!$gameSession || empty($gameSession['started_at'])) {
+            \Log::warning("Manipulationsversuch: saveGameRecord ohne aktive Spielsitzung (User: {$user->id})");
+            return;
+        }
+
+        if (($gameSession['user_id'] ?? null) !== $user->id) {
+            \Log::warning("Manipulationsversuch: Ungültige User-ID in Spielsitzung (User: {$user->id})");
+            session()->forget('active_game_session');
+            return;
+        }
+
+        $elapsed = now()->timestamp - (int)$gameSession['started_at'];
+        if ($elapsed < 2) {
+            \Log::warning("Manipulationsversuch: saveGameRecord zu schnell eingereicht ({$elapsed}s) von User {$user->id}");
+            session()->forget('active_game_session');
+            return;
+        }
+
+        // Sitzung sofort invalidieren (Einmal-Gültigkeit)
+        session()->forget('active_game_session');
+
+        // Physikalische Plausibilitätsprüfung für Funkenflug-Distanz
+        $rawDistance = max(0, intval($distance));
+        $maxPossibleDistance = max(100, $elapsed * 65);
+        $safeDistance = min($rawDistance, $maxPossibleDistance);
+        $safeDistance = min($safeDistance, 10000);
+
+        // Plausibilitätsprüfung für gesammelte Funken
+        $rawSparks = max(0, intval($funkenCollected));
+        $maxPossibleSparks = (int) ceil($safeDistance / 20) + 5;
+        $safeSparks = min($rawSparks, $maxPossibleSparks, 100);
+
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if ($profile) {
-            $safeAmount = min(intval($funkenCollected), 500); // Sicherheitslimit
-
-            if ($safeAmount > 0) {
-                $profile->funken_balance += $safeAmount;
-                $profile->funken_total_earned += $safeAmount;
+            if ($safeSparks > 0) {
+                $profile->funken_balance += $safeSparks;
+                $profile->funken_total_earned += $safeSparks;
             }
 
-            // Highscore für Funkenflug basierend auf Distanz aktualisieren
-            $dist = intval($distance);
-            if ($dist > ($profile->funkenflug_highscore ?? 0)) {
-                $profile->funkenflug_highscore = $dist;
+            if ($safeDistance > ($profile->funkenflug_highscore ?? 0)) {
+                $profile->funkenflug_highscore = $safeDistance;
             }
 
             $profile->save();
 
-            if ($safeAmount > 0) {
+            if ($safeSparks > 0) {
                 $this->dispatch('sparks-awarded');
             }
 
-            // Sync Frontend State
             $this->personalHighscoreFF = $profile->funkenflug_highscore;
-            $this->globalHighscoreFF = max($this->globalHighscoreFF, $dist);
+            $this->globalHighscoreFF = max($this->globalHighscoreFF, $safeDistance);
         }
     }
 
