@@ -10,43 +10,72 @@
 @php
     // --- 1. THEME STEUERUNG ---
     $isDark = $design === 'dark';
+    $isAdaptive = $design === 'adaptive';
 
     // Base Container
-    $containerClass = $containerOverride ?? ($isDark
-        ? 'bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-[2rem] p-6 sm:p-8 shadow-2xl h-full'
-        : 'bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm h-full');
+    if ($containerOverride) {
+        $containerClass = $containerOverride;
+    } elseif ($isAdaptive) {
+        $containerClass = 'bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[2rem] p-6 sm:p-8 shadow-sm dark:shadow-2xl h-full';
+    } elseif ($isDark) {
+        $containerClass = 'bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-[2rem] p-6 sm:p-8 shadow-2xl h-full';
+    } else {
+        $containerClass = 'bg-gray-50 border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm h-full';
+    }
 
     // Text & Border Colors
-    $titleClass = $isDark ? 'text-white border-gray-800' : 'text-gray-900 border-gray-200';
-    $iconClass = $isDark ? 'text-primary' : 'text-gray-400';
-    $labelClass = $isDark ? 'text-gray-400' : 'text-gray-600';
-    $valueClass = $isDark ? 'text-white font-bold' : 'text-gray-900';
-    $dividerClass = $isDark ? 'border-gray-800' : 'border-gray-200';
+    if ($isAdaptive) {
+        $titleClass = 'text-gray-900 dark:text-white border-gray-200 dark:border-gray-800';
+        $iconClass = 'text-[var(--theme-color)]';
+        $labelClass = 'text-gray-600 dark:text-gray-400';
+        $valueClass = 'text-gray-900 dark:text-white font-bold';
+        $dividerClass = 'border-gray-200 dark:border-gray-800';
 
-    // Discount Box
-    $discountBoxClass = $isDark
-        ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl shadow-inner -mx-3'
-        : 'bg-green-50 border border-green-200 text-green-700 font-bold p-3 rounded-xl shadow-sm -mx-3';
-    $discountIconClass = $isDark ? 'text-emerald-400' : 'text-green-700';
+        $discountBoxClass = 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 p-3 rounded-xl shadow-sm dark:shadow-inner -mx-3';
+        $discountIconClass = 'text-emerald-600 dark:text-emerald-400';
 
-    // Express Box
-    $expressBoxClass = $isDark
-        ? 'bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-xl shadow-inner -mx-3'
-        : 'bg-red-50 border border-red-200 text-red-700 font-bold p-3 rounded-xl shadow-sm -mx-3';
-    $expressIconClass = $isDark ? 'text-red-400' : 'text-red-500';
+        $expressBoxClass = 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 p-3 rounded-xl shadow-sm dark:shadow-inner -mx-3';
+        $expressIconClass = 'text-red-500 dark:text-red-400';
 
-    // Free Shipping Badge
-    $freeShipBadgeClass = $isDark
-        ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-md -mx-2 uppercase tracking-widest shadow-inner'
-        : 'bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-md -mx-2 font-bold uppercase tracking-widest shadow-sm';
+        $freeShipBadgeClass = 'bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-md -mx-2 uppercase tracking-widest shadow-sm dark:shadow-inner';
+        $freeShipTextClass = 'text-emerald-600 dark:text-emerald-400';
 
-    $freeShipTextClass = $isDark ? 'text-emerald-400' : 'text-green-600';
+        $totalLabelClass = 'text-gray-900 dark:text-white';
+        $totalValueClass = 'text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_15px_rgba(197,160,89,0.3)]';
+        $totalDividerClass = 'border-gray-200 dark:border-gray-800';
+        $taxTextClass = 'text-gray-500 dark:text-gray-400';
+    } else {
+        $titleClass = $isDark ? 'text-white border-gray-800' : 'text-gray-900 border-gray-200';
+        $iconClass = $isDark ? 'text-primary' : 'text-gray-400';
+        $labelClass = $isDark ? 'text-gray-400' : 'text-gray-600';
+        $valueClass = $isDark ? 'text-white font-bold' : 'text-gray-900';
+        $dividerClass = $isDark ? 'border-gray-800' : 'border-gray-200';
 
-    // Totals Section
-    $totalLabelClass = $isDark ? 'text-white' : 'text-gray-900';
-    $totalValueClass = $isDark ? 'text-primary drop-shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-primary';
-    $totalDividerClass = $isDark ? 'border-gray-800' : 'border-gray-300';
-    $taxTextClass = $isDark ? 'text-gray-500' : 'text-gray-500';
+        // Discount Box
+        $discountBoxClass = $isDark
+            ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl shadow-inner -mx-3'
+            : 'bg-green-50 border border-green-200 text-green-700 font-bold p-3 rounded-xl shadow-sm -mx-3';
+        $discountIconClass = $isDark ? 'text-emerald-400' : 'text-green-700';
+
+        // Express Box
+        $expressBoxClass = $isDark
+            ? 'bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-xl shadow-inner -mx-3'
+            : 'bg-red-50 border border-red-200 text-red-700 font-bold p-3 rounded-xl shadow-sm -mx-3';
+        $expressIconClass = $isDark ? 'text-red-400' : 'text-red-500';
+
+        // Free Shipping Badge
+        $freeShipBadgeClass = $isDark
+            ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-md -mx-2 uppercase tracking-widest shadow-inner'
+            : 'bg-green-50 border border-green-200 text-green-700 px-2 py-0.5 rounded-md -mx-2 font-bold uppercase tracking-widest shadow-sm';
+
+        $freeShipTextClass = $isDark ? 'text-emerald-400' : 'text-green-600';
+
+        // Totals Section
+        $totalLabelClass = $isDark ? 'text-white' : 'text-gray-900';
+        $totalValueClass = $isDark ? 'text-primary drop-shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-primary';
+        $totalDividerClass = $isDark ? 'border-gray-800' : 'border-gray-300';
+        $taxTextClass = $isDark ? 'text-gray-500' : 'text-gray-500';
+    }
 
 
     // --- 2. EINSTELLUNGEN LADEN ---

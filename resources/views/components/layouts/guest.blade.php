@@ -21,6 +21,43 @@
 
     @livewireStyles
 
+    <script>
+        // Theme Initialisierung: Standardmäßig Light Mode
+        (function() {
+            try {
+                if (localStorage.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+            }
+        })();
+
+        document.addEventListener('livewire:navigated', function() {
+            try {
+                if (localStorage.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {}
+        });
+
+        // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
+        window.addEventListener('unhandledrejection', function(event) {
+            if (event.reason && event.reason.isFromCancelledTransition === true) {
+                event.preventDefault();
+            }
+        });
+    </script>
+
     @include("components.layouts.partials.frontend-error-tracker")
 </head>
 

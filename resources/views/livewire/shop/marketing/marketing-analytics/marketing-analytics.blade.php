@@ -3,17 +3,17 @@
     {{-- Header --}}
     <div class="mb-6 md:flex md:items-center md:justify-between py-2">
         <div class="min-w-0 flex-1">
-            <h2 class="text-2xl sm:text-3xl font-bold leading-7 text-white sm:truncate sm:tracking-tight font-serif drop-shadow-md flex items-center gap-3">
+            <h2 class="text-2xl sm:text-3xl font-bold leading-7 text-gray-900 dark:text-white sm:truncate sm:tracking-tight font-serif flex items-center gap-3">
                 <x-heroicon-o-chart-pie class="w-8 h-8 font-bold {{ $this->themeColorClass }}" />
                 Marketing & Growth Analyse
             </h2>
-            <p class="mt-1 text-sm text-gray-400">
-                Performance Tracking für Newsletter, Gutscheine, Blog-Trafic und Kampagnen-Auswertungen.
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Performance Tracking für Newsletter, Gutscheine, Blog-Traffic und Kampagnen-Auswertungen.
             </p>
         </div>
 
         <div class="mt-4 flex md:ml-4 md:mt-0 gap-3">
-            <select wire:model.live="dateRange" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-300 bg-gray-900 shadow-sm ring-1 ring-inset ring-gray-700 focus:ring-2 focus:ring-inset focus:ring-primary sm:text-sm sm:leading-6 transition-all duration-300">
+            <select wire:model.live="dateRange" class="mt-2 block w-full rounded-xl border-0 py-2 pl-3 pr-10 text-gray-900 dark:text-gray-300 bg-white dark:bg-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-700 focus:ring-2 focus:ring-inset focus:ring-[var(--theme-color)] sm:text-sm sm:leading-6 transition-all duration-300 outline-none">
                 <option value="7">Letzte 7 Tage</option>
                 <option value="30">Letzte 30 Tage</option>
                 <option value="90">Letzte 90 Tage</option>
@@ -33,6 +33,7 @@
         {{-- Hidden JSON variables to bridge Livewire PHP arrays directly to Alpine/ChartJS --}}
         <div class="hidden"
              id="analytics-data-bridge"
+             data-theme-color="{{ $this->themeColorHex }}"
              data-newsletter='@json($newsletterData)'
              data-voucher='@json($voucherData)'
              data-blog='@json($blogData)'
@@ -42,10 +43,10 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {{-- Newsletter Chart --}}
-            <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+            <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
-                    <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                    <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
                         <x-heroicon-o-users class="w-5 h-5 text-emerald-500" />
                         Newsletter Wachstum (Verifiziert)
                     </h3>
@@ -53,16 +54,16 @@
                         <canvas id="newsletterChart"></canvas>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-emerald-400 uppercase text-[10px] tracking-widest block mb-1">Lead Generation</strong>Zeigt an, wie viele neue verifizierte Double-Opt-In Subscriber wir gewinnen.</p>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-emerald-600 dark:text-emerald-400 uppercase text-[10px] tracking-widest block mb-1">Lead Generation</strong>Zeigt an, wie viele neue verifizierte Double-Opt-In Subscriber wir gewinnen.</p>
                 </div>
             </div>
 
             {{-- Voucher Generation --}}
-            <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+            <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
-                    <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                    <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
                         <x-heroicon-o-ticket class="w-5 h-5 text-rose-500" />
                         Gutschein Generierungen
                     </h3>
@@ -70,18 +71,18 @@
                         <canvas id="voucherChart"></canvas>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-rose-400 uppercase text-[10px] tracking-widest block mb-1">Kampagnen Taktung</strong>Visualisiert den operativen Output an neu generierten Kampagnen-Gutscheinen.</p>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-rose-600 dark:text-rose-400 uppercase text-[10px] tracking-widest block mb-1">Kampagnen Taktung</strong>Visualisiert den operativen Output an neu generierten Kampagnen-Gutscheinen.</p>
                 </div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             {{-- Blog Categories --}}
-            <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+            <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
-                    <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                    <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
                         <x-heroicon-o-document-text class="w-5 h-5 text-indigo-500" />
                         Blogartikel nach Kategorie
                     </h3>
@@ -89,16 +90,16 @@
                         <canvas id="blogChart"></canvas>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-indigo-400 uppercase text-[10px] tracking-widest block mb-1">SEO Fokus</strong>Bricht die erzeugten Content-Stücke in ihre Themensilos herunter.</p>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-indigo-600 dark:text-indigo-400 uppercase text-[10px] tracking-widest block mb-1">SEO Fokus</strong>Bricht die erzeugten Content-Stücke in ihre Themensilos herunter.</p>
                 </div>
             </div>
 
             {{-- Voucher Types --}}
-            <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+            <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
-                    <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                    <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
                         <x-heroicon-o-gift class="w-5 h-5 text-amber-500" />
                         Gutschein Verteilung (Typen)
                     </h3>
@@ -106,18 +107,18 @@
                         <canvas id="voucherTypeChart"></canvas>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-amber-400 uppercase text-[10px] tracking-widest block mb-1">Verkaufstaktik</strong>Prozentuale Aufschlüsselung der Gutschein-Archetypen (z.B. Fester Euro-Wert vs Rabatt %).</p>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-amber-600 dark:text-amber-400 uppercase text-[10px] tracking-widest block mb-1">Verkaufstaktik</strong>Prozentuale Aufschlüsselung der Gutschein-Archetypen (z.B. Fester Euro-Wert vs Rabatt %).</p>
                 </div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {{-- Landing Page Chart --}}
-            <div class="lg:col-span-2 bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
-                <div class="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+            <div class="lg:col-span-2 bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                 <div>
-                    <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                    <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
                         <x-heroicon-o-cursor-arrow-rays class="w-5 h-5 text-purple-500" />
                         Landing Page Aufrufe
                     </h3>
@@ -125,35 +126,35 @@
                         <canvas id="landingPageChart"></canvas>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-700/50">
-                    <p class="text-xs text-gray-400 mb-1"><strong class="text-purple-400 uppercase text-[10px] tracking-widest block mb-1">Traffic Acquisition</strong>Misst die Seitenaufrufe auf spezifische Landing Pages, generiert durch Instagram und Ads.</p>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                    <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-purple-600 dark:text-purple-400 uppercase text-[10px] tracking-widest block mb-1">Traffic Acquisition</strong>Misst die Seitenaufrufe auf spezifische Landing Pages, generiert durch Instagram und Ads.</p>
                 </div>
             </div>
 
             {{-- Top Performing Landing Pages --}}
-            <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden flex flex-col h-full">
-                <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2 mb-6">
+            <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden flex flex-col h-full transition-colors">
+                <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2 mb-6">
                     <x-heroicon-o-fire class="w-5 h-5 text-[var(--theme-color)]" />
                     Top Performer
                 </h3>
                 <div class="flex-1 overflow-y-auto pr-1 space-y-4">
                     @forelse($topLandingPages as $top)
-                        <div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-xl border border-gray-700/50 hover:border-purple-500/30 transition-colors group">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700/50 hover:border-purple-500/30 transition-colors group">
                              <div class="flex-1 min-w-0 pr-4">
-                                  <p class="text-sm font-bold text-gray-200 truncate group-hover:text-purple-400 transition-colors">{{ $top['product_name'] }}</p>
+                                  <p class="text-sm font-bold text-gray-900 dark:text-gray-200 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{{ $top['product_name'] }}</p>
                                   <p class="text-[10px] text-gray-500 font-mono truncate mt-0.5">
-                                      <a href="{{ $top['path'] }}" target="_blank" class="hover:text-gray-300">{{ $top['path'] }}</a>
+                                      <a href="{{ $top['path'] }}" target="_blank" class="hover:text-gray-700 dark:hover:text-gray-300">{{ $top['path'] }}</a>
                                   </p>
                              </div>
-                             <div class="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-950 rounded-lg border border-gray-800 shadow-inner">
+                             <div class="flex flex-col items-center justify-center shrink-0 w-12 h-12 bg-gray-100 dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
                                   <span class="text-xs text-gray-500 uppercase font-black" style="font-size: 8px;">Views</span>
-                                  <span class="text-sm font-black text-white">{{ $top['visits'] }}</span>
+                                  <span class="text-sm font-black text-gray-900 dark:text-white">{{ $top['visits'] }}</span>
                              </div>
                         </div>
                     @empty
                         <div class="flex flex-col items-center justify-center h-full text-center py-8">
-                            <x-heroicon-o-document-magnifying-glass class="w-10 h-10 text-gray-600 mb-2" />
-                            <p class="text-sm text-gray-400">Keine Aufrufe verzeichnet</p>
+                            <x-heroicon-o-document-magnifying-glass class="w-10 h-10 text-gray-400 dark:text-gray-600 mb-2" />
+                            <p class="text-sm text-gray-500 dark:text-gray-400">Keine Aufrufe verzeichnet</p>
                         </div>
                     @endforelse
                 </div>

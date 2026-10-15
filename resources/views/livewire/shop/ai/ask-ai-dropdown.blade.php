@@ -16,32 +16,32 @@
         };
     @endphp
 
-<div class="flex items-center bg-gray-900/50 border {{ $styles['border'] }} rounded-xl overflow-hidden pl-2 {{ $styles['shadow'] }} w-full sm:w-auto">
+<div class="flex items-center bg-white/90 dark:bg-gray-900/50 border border-gray-200/80 dark:{{ $styles['border'] }} rounded-xl overflow-hidden pl-2 dark:{{ $styles['shadow'] }} w-full sm:w-auto transition-colors duration-300">
     @if($selectedAgent && !empty($selectedAgent['icon']))
         <div class="pl-2 pr-1 {{ $styles['text'] }} flex items-center justify-center transition-all">
             @if(str_starts_with($selectedAgent['icon'], 'bi-'))
-                <i class="{{ $selectedAgent['icon'] }} text-lg drop-shadow-[0_0_5px_currentColor]"></i>
+                <i class="{{ $selectedAgent['icon'] }} text-lg dark:drop-shadow-[0_0_5px_currentColor]"></i>
             @elseif(str_starts_with(trim($selectedAgent['icon']), '<svg'))
-                <div class="w-5 h-5 [&>svg]:w-full [&>svg]:h-full drop-shadow-[0_0_5px_currentColor]">{!! $selectedAgent['icon'] !!}</div>
+                <div class="w-5 h-5 [&>svg]:w-full [&>svg]:h-full dark:drop-shadow-[0_0_5px_currentColor]">{!! $selectedAgent['icon'] !!}</div>
             @else
-                <x-dynamic-component :component="'heroicon-o-' . $selectedAgent['icon']" class="w-5 h-5 drop-shadow-[0_0_5px_currentColor]" />
+                <x-dynamic-component :component="'heroicon-o-' . $selectedAgent['icon']" class="w-5 h-5 dark:drop-shadow-[0_0_5px_currentColor]" />
             @endif
         </div>
     @else
         <div class="pl-2 pr-1 {{ $styles['text'] }} flex items-center justify-center">
-            <x-heroicon-o-cpu-chip class="w-5 h-5 drop-shadow-[0_0_5px_currentColor]" />
+            <x-heroicon-o-cpu-chip class="w-5 h-5 dark:drop-shadow-[0_0_5px_currentColor]" />
         </div>
     @endif
-    <div class="text-[10px] sm:text-xs font-semibold {{ $styles['text'] }} uppercase tracking-wider pr-2 border-r border-gray-800 hidden sm:block ml-2">Agent</div>
-    <select wire:model.live="{{ $model ?? 'selectedAgentId' }}" class="bg-transparent text-xs sm:text-sm py-2 pl-2 pr-6 focus:outline-none cursor-pointer text-gray-300 appearance-none min-w-0 sm:min-w-[200px] w-full truncate">
-        <option value="" class="bg-gray-900 text-white">Agent wählen...</option>
+    <div class="text-[10px] sm:text-xs font-semibold {{ $styles['text'] }} uppercase tracking-wider pr-2 border-r border-gray-200 dark:border-gray-800 hidden sm:block ml-2">Agent</div>
+    <select wire:model.live="{{ $model ?? 'selectedAgentId' }}" class="bg-transparent text-xs sm:text-sm py-2 pl-2 pr-6 focus:outline-none cursor-pointer text-gray-800 dark:text-gray-300 appearance-none min-w-0 sm:min-w-[200px] w-full truncate">
+        <option value="" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Agent wählen...</option>
         @foreach($availableAgents as $agent)
-            <option value="{{ $agent['id'] }}" class="bg-gray-900 text-white">
+            <option value="{{ $agent['id'] }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
                 {{ $agent['name'] }} @if(!empty($agent['role']) && !empty($agent['role']['name']))- {{ $agent['role']['name'] }}@endif
             </option>
         @endforeach
     </select>
-    <button wire:click="{{ $actionMethod }}" wire:loading.attr="disabled" class="whitespace-nowrap flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r {{ $styles['gradient'] }} {{ $styles['text'] }} font-medium transition-all disabled:opacity-50 border-l border-gray-800 focus:outline-none">
+    <button wire:click="{{ $actionMethod }}" wire:loading.attr="disabled" class="whitespace-nowrap flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r {{ $styles['gradient'] }} {{ $styles['text'] }} font-medium transition-all disabled:opacity-50 border-l border-gray-200 dark:border-gray-800 focus:outline-none">
         <span wire:loading.remove wire:target="{{ $actionMethod }}">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         </span>

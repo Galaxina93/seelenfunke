@@ -84,8 +84,8 @@
         </div>
 
         <div class="text-center mb-12">
-            <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-[0_0_15px_var(--theme-color)]/20 drop-shadow-md">KI Organigramm</h1>
-            <p class="text-gray-400 mt-2 text-sm uppercase tracking-widest">Die vollständige KI-Unternehmensstruktur im Überblick.</p>
+            <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-none dark:shadow-sm dark:shadow-[0_0_15px_var(--theme-color)]/20 drop-shadow-none dark:drop-shadow-md">KI Organigramm</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-2 text-sm uppercase tracking-widest">Die vollständige KI-Unternehmensstruktur im Überblick.</p>
         </div>
 
         {{-- Tree Diagram Container --}}
@@ -98,13 +98,13 @@
 
                     {{-- ROOT NODE: LOGO --}}
                     <div class="flex flex-col items-center relative z-10 group cursor-default">
-                        <div class="bg-gray-950 p-6 sm:px-8 sm:py-6 rounded-3xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all relative text-center"
-                             :class="pulseLogo ? 'border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-[1.02]' : 'border-gray-800 hover:border-[var(--theme-color-50)]'">
+                        <div class="bg-white dark:bg-gray-950 p-6 sm:px-8 sm:py-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-lg dark:shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center justify-center transition-all relative text-center"
+                             :class="pulseLogo ? 'border-emerald-500 shadow-sm dark:shadow-[0_0_20px_rgba(16,185,129,0.3)] scale-[1.02]' : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)]'">
 
-                            <img src="/shop/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-[0_0_25px_var(--theme-color-40)] mx-auto mb-2 pointer-events-none">
-                            <span class="text-[var(--theme-color)] tracking-widest uppercase font-black text-sm block drop-shadow-md">Headquarters</span>
+                            <img src="/shop/projekt/logo/mein-seelenfunke-logo.svg" alt="Seelenfunke" class="h-24 sm:h-28 drop-shadow-none dark:drop-shadow-[0_0_25px_var(--theme-color-40)] mx-auto mb-2 pointer-events-none">
+                            <span class="text-[var(--theme-color)] tracking-widest uppercase font-black text-sm block drop-shadow-none dark:drop-shadow-md">Headquarters</span>
                             <div class="absolute -bottom-16 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button wire:click="createDepartment" class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-[var(--theme-color)] hover:text-black flex items-center gap-1 shadow-[0_0_15px_var(--theme-color-20)]">
+                                <button wire:click="createDepartment" class="bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest hover:bg-[var(--theme-color)] hover:text-black flex items-center gap-1 shadow-sm dark:shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)]">
                                     <x-heroicon-m-plus class="w-3 h-3" /> Abteilung
                                 </button>
                             </div>
@@ -115,7 +115,7 @@
 
                 {{-- Vertical Line down from Root --}}
                 @if($departments->count() > 0)
-                    <div class="w-px h-12 bg-gray-700"></div>
+                    <div class="w-px h-12 bg-gray-300 dark:bg-gray-700"></div>
                 @endif
 
                 {{-- DEPARTMENTS ROW --}}
@@ -123,7 +123,7 @@
 
                     {{-- Horizontal Connecting Line --}}
                     @if($departments->count() > 1)
-                        <div class="absolute top-0 h-px bg-gray-700" style="width: calc(100% - {{ 100 / count($departments) }}%); left: {{ 50 / count($departments) }}%;"></div>
+                        <div class="absolute top-0 h-px bg-gray-300 dark:bg-gray-700" style="width: calc(100% - {{ 100 / count($departments) }}%); left: {{ 50 / count($departments) }}%;"></div>
                     @endif
 
                     @foreach($departments as $dept)
@@ -131,37 +131,37 @@
 
                             {{-- Line up to horizontal bar --}}
                             @if($departments->count() > 1)
-                                <div class="absolute top-0 left-1/2 w-px h-8 bg-gray-700 -translate-x-1/2"></div>
+                                <div class="absolute top-0 left-1/2 w-px h-8 bg-gray-300 dark:bg-gray-700 -translate-x-1/2"></div>
                             @endif
 
                             {{-- Department Card --}}
-                            <div class="w-full bg-black/80 backdrop-blur-xl border rounded-2xl p-5 cursor-pointer transition-all duration-300 z-10 relative"
-                                 :class="pulseDept === '{{ $dept->id }}' ? 'border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.8)] scale-105' : 'border-gray-800/80 shadow-[0_5px_20px_rgba(0,0,0,0.5)] hover:border-{{ $dept->color ?: 'emerald-500' }}/50'"
+                            <div class="w-full bg-white dark:bg-black/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 cursor-pointer transition-all duration-300 z-10 relative shadow-sm dark:shadow-[0_5px_20px_rgba(0,0,0,0.5)]"
+                                 :class="pulseDept === '{{ $dept->id }}' ? 'border-emerald-500 shadow-sm dark:shadow-[0_0_25px_rgba(16,185,129,0.8)] scale-105' : 'border-gray-200 dark:border-gray-800/80 hover:border-{{ $dept->color ?: 'emerald-500' }}/50'"
                                  @dragover="dragOver($event, 'department')"
                                  @dragenter="dragEnter($event, 'department')"
                                  @dragleave="dragLeave"
                                  @drop="drop($event, 'department', '{{ $dept->id }}')">
 
                                 <div class="absolute top-2 right-2 flex items-center z-20">
-                                    <button wire:click.stop="editDepartment('{{ $dept->id }}')" class="text-gray-500 hover:text-white transition-colors p-1" title="Bearbeiten">
+                                    <button wire:click.stop="editDepartment('{{ $dept->id }}')" class="text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors p-1" title="Bearbeiten">
                                         <x-heroicon-o-pencil-square class="w-4 h-4" />
                                     </button>
                                 </div>
 
-                                <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-gray-950 border border-{{ $dept->color ?: 'emerald-500' }}/50 rounded-full flex items-center justify-center shadow-[0_0_15px_currentColor] text-{{ $dept->color ?: 'emerald-500' }} z-20 hover:scale-110 transition-transform">
+                                <div class="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-white dark:bg-gray-950 border border-{{ $dept->color ?: 'emerald-500' }}/50 rounded-full flex items-center justify-center shadow-sm dark:shadow-sm dark:shadow-[0_0_15px_currentColor] text-{{ $dept->color ?: 'emerald-500' }} z-20 hover:scale-110 transition-transform">
                                     <x-dynamic-component :component="'heroicon-o-' . ($dept->icon ?: 'building-office')" class="w-6 h-6" />
                                 </div>
 
                                 <div class="mt-4 text-center pb-2">
-                                    <h2 class="text-sm font-bold text-white uppercase tracking-widest truncate">{{ $dept->name }}</h2>
+                                    <h2 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-widest truncate">{{ $dept->name }}</h2>
                                     <span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest block">{{ $dept->agents->count() }} Agenten</span>
                                 </div>
-                                <p class="text-[10px] text-gray-400 leading-relaxed line-clamp-2 h-7 w-full">{{ $dept->description ?: 'Keine Beschreibung' }}</p>
+                                <p class="text-[10px] text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-2 h-7 w-full">{{ $dept->description ?: 'Keine Beschreibung' }}</p>
                             </div>
 
                             {{-- Vertical Line to Agents --}}
                             @if($dept->agents->count() > 0)
-                                <div class="w-px h-16 bg-gray-800 my-2"></div>
+                                <div class="w-px h-16 bg-gray-300 dark:bg-gray-800 my-2"></div>
                             @endif
 
                             {{-- AGENTS COLUMN --}}
@@ -180,41 +180,41 @@
 
                                         {{-- Connecting Line --}}
                                         @if($index > 0)
-                                            <div class="w-px h-6 bg-gray-800 absolute -top-6"></div>
+                                            <div class="w-px h-6 bg-gray-300 dark:bg-gray-800 absolute -top-6"></div>
                                         @endif
 
                                         @php
                                             $c = $agent->color ?: 'cyan-500';
                                             $borderClass = match($c) {
-                                                'blue-500' => 'border-gray-800 hover:border-blue-500/50 hover:shadow-[0_0_15px_rgba(59,130,246,0.15)]',
-                                                'purple-500' => 'border-gray-800 hover:border-purple-500/50 hover:shadow-[0_0_15px_rgba(168,85,247,0.15)]',
-                                                'amber-500' => 'border-gray-800 hover:border-amber-500/50 hover:shadow-[0_0_15px_rgba(245,158,11,0.15)]',
-                                                'emerald-500' => 'border-gray-800 hover:border-emerald-500/50 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)]',
-                                                'red-500' => 'border-gray-800 hover:border-red-500/50 hover:shadow-[0_0_15px_rgba(239,68,68,0.15)]',
-                                                'rose-500' => 'border-gray-800 hover:border-rose-500/50 hover:shadow-[0_0_15px_rgba(244,63,94,0.15)]',
-                                                'cyan-500' => 'border-gray-800 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)]',
-                                                'sky-500' => 'border-gray-800 hover:border-sky-500/50 hover:shadow-[0_0_15px_rgba(14,165,233,0.15)]',
-                                                'primary' => 'border-gray-800 hover:border-[var(--theme-color-50)] hover:shadow-[0_0_15px_var(--theme-color-15)]',
-                                                default => 'border-gray-800 hover:border-cyan-500/50 hover:shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                                                'blue-500' => 'border-gray-200 dark:border-gray-800 hover:border-blue-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(59,130,246,0.15)]',
+                                                'purple-500' => 'border-gray-200 dark:border-gray-800 hover:border-purple-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(168,85,247,0.15)]',
+                                                'amber-500' => 'border-gray-200 dark:border-gray-800 hover:border-amber-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(245,158,11,0.15)]',
+                                                'emerald-500' => 'border-gray-200 dark:border-gray-800 hover:border-emerald-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.15)]',
+                                                'red-500' => 'border-gray-200 dark:border-gray-800 hover:border-red-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.15)]',
+                                                'rose-500' => 'border-gray-200 dark:border-gray-800 hover:border-rose-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(244,63,94,0.15)]',
+                                                'cyan-500' => 'border-gray-200 dark:border-gray-800 hover:border-cyan-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.15)]',
+                                                'sky-500' => 'border-gray-200 dark:border-gray-800 hover:border-sky-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(14,165,233,0.15)]',
+                                                'primary' => 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)] hover:shadow-sm dark:shadow-[0_0_15px_var(--theme-color-15)]',
+                                                default => 'border-gray-200 dark:border-gray-800 hover:border-cyan-500/50 hover:shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.15)]'
                                             };
                                             $iconStyleClass = match($c) {
-                                                'blue-500' => 'bg-blue-500/10 text-blue-500 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.5)]',
-                                                'purple-500' => 'bg-purple-500/10 text-purple-500 border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.5)]',
-                                                'amber-500' => 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.5)]',
-                                                'emerald-500' => 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.5)]',
-                                                'red-500' => 'bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.5)]',
-                                                'rose-500' => 'bg-rose-500/10 text-rose-500 border-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.5)]',
-                                                'cyan-500' => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.5)]',
-                                                'sky-500' => 'bg-sky-500/10 text-sky-500 border-sky-500/20 shadow-[0_0_15px_rgba(14,165,233,0.5)]',
-                                                'primary' => 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-20)] shadow-[0_0_15px_var(--theme-color-50)]',
-                                                default => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                                                'blue-500' => 'bg-blue-500/10 text-blue-500 border-blue-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(59,130,246,0.5)]',
+                                                'purple-500' => 'bg-purple-500/10 text-purple-500 border-purple-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(168,85,247,0.5)]',
+                                                'amber-500' => 'bg-amber-500/10 text-amber-500 border-amber-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(245,158,11,0.5)]',
+                                                'emerald-500' => 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.5)]',
+                                                'red-500' => 'bg-red-500/10 text-red-500 border-red-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.5)]',
+                                                'rose-500' => 'bg-rose-500/10 text-rose-500 border-rose-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(244,63,94,0.5)]',
+                                                'cyan-500' => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.5)]',
+                                                'sky-500' => 'bg-sky-500/10 text-sky-500 border-sky-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(14,165,233,0.5)]',
+                                                'primary' => 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-20)] shadow-sm dark:shadow-[0_0_15px_var(--theme-color-50)]',
+                                                default => 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20 shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.5)]'
                                             };
                                         @endphp
                                         {{-- Agent Card --}}
-                                        <div class="w-11/12 bg-gray-950 border rounded-xl p-4 transition-all z-10 relative cursor-grab active:cursor-grabbing {{ $borderClass }}">
+                                        <div class="w-11/12 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl p-4 transition-all z-10 relative cursor-grab active:cursor-grabbing shadow-sm {{ $borderClass }}">
 
                                             <div class="absolute top-2 right-2 flex items-center">
-                                                <button wire:click.stop="editAgent('{{ $agent->id }}')" class="text-gray-600 hover:text-white transition-colors p-1" title="Bearbeiten">
+                                                <button wire:click.stop="editAgent('{{ $agent->id }}')" class="text-gray-400 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors p-1" title="Bearbeiten">
                                                     <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
@@ -230,13 +230,13 @@
                                                         <x-dynamic-component :component="'heroicon-s-' . $agentIcon" class="w-8 h-8 pointer-events-none" />
                                                     @endif
                                                 </div>
-                                                <h3 class="text-xs font-bold text-gray-200 uppercase tracking-wider truncate text-center w-full group-hover/agent:text-white transition-colors">{{ $agent->name }}</h3>
+                                                <h3 class="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider truncate text-center w-full group-hover/agent:text-gray-900 dark:group-hover/agent:text-white transition-colors">{{ $agent->name }}</h3>
                                                 @php
                                                     $rawModel = $agent->model ?? 'Standard';
                                                     $shortModel = str_replace(['gemini-', '-pro', '-flash'], ['Gemini ', ' Pro', ' Flash'], $rawModel);
                                                     $shortModel = ucwords(trim($shortModel));
                                                 @endphp
-                                                <div class="text-[8px] uppercase tracking-widest text-gray-500 truncate mb-2">{{ $shortModel }}</div>
+                                                <div class="text-[8px] uppercase tracking-widest text-gray-500 dark:text-gray-400 truncate mb-2">{{ $shortModel }}</div>
 
                                                 @if($agent->role)
                                                     <div class="text-[9px] bg-blue-500/20 text-blue-400/90 px-2 py-1 rounded-md border border-blue-500/30 uppercase tracking-widest text-center truncate max-w-full">
@@ -270,14 +270,14 @@
          ========================================== --}}
     @if($viewMode !== 'tree')
         <div class="mb-8 flex items-center gap-4">
-            <button wire:click="closeEditor" class="text-gray-400 hover:text-white transition-colors bg-gray-900 border border-gray-800 rounded-full h-10 w-10 flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <button wire:click="closeEditor" class="text-gray-400 hover:text-white transition-colors bg-gray-900 border border-gray-800 rounded-full h-10 w-10 flex items-center justify-center shadow-sm dark:shadow-[0_0_15px_rgba(0,0,0,0.5)]">
                 <x-heroicon-o-arrow-left class="w-5 h-5" />
             </button>
             <div>
-                <h2 class="text-3xl font-black text-white mb-1 uppercase tracking-wider font-mono">
+                <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-1 uppercase tracking-wider font-mono">
                     @if($viewMode === 'edit-dept') {{ $editingId ? 'Abteilung bearbeiten' : 'Neue Abteilung erstellen' }} @endif
                 </h2>
-                <p class="text-gray-400 font-mono text-sm">Organigramm Struktur verwalten.</p>
+                <p class="text-gray-600 dark:text-gray-400 font-mono text-sm">Organigramm Struktur verwalten.</p>
             </div>
         </div>
     @endif
@@ -286,31 +286,31 @@
          EDIT: DEPARTMENT
          ========================================== --}}
     @if($viewMode === 'edit-dept')
-        <div class="bg-black/60 backdrop-blur-xl border border-gray-800 rounded-3xl p-6 sm:p-10 shadow-[0_0_30px_rgba(0,0,0,0.5)] max-w-4xl mx-auto mt-6">
+        <div class="bg-white dark:bg-black/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-10 shadow-sm dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] max-w-4xl mx-auto mt-6">
             <div class="space-y-8">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Name der Abteilung <span class="text-[var(--theme-color)]">*</span></label>
-                        <input type="text" wire:model.live.debounce.500ms="deptName" placeholder="z.B. Marketing" class="w-full bg-black/40 border {{ $errors->has('deptName') ? 'border-red-500' : 'border-gray-700' }} rounded-xl focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white p-3 transition-all">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-2">Name der Abteilung <span class="text-[var(--theme-color)]">*</span></label>
+                        <input type="text" wire:model.live.debounce.500ms="deptName" placeholder="z.B. Marketing" class="w-full bg-gray-50 dark:bg-black/40 border {{ $errors->has('deptName') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700' }} rounded-xl focus:bg-white dark:focus:bg-black/40 focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white p-3 transition-all">
                         @error('deptName') <span class="text-red-500 text-[10px] mt-1 block uppercase">{{ $message }}</span> @enderror
                     </div>
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Beschreibung</label>
-                        <input type="text" wire:model.live.debounce.500ms="deptDescription" placeholder="Kurzbeschreibung des Bereichs..." class="w-full bg-black/40 border border-gray-700 rounded-xl focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-300 p-3 transition-all">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-2">Beschreibung</label>
+                        <input type="text" wire:model.live.debounce.500ms="deptDescription" placeholder="Kurzbeschreibung des Bereichs..." class="w-full bg-gray-50 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-xl focus:bg-white dark:focus:bg-black/40 focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-800 dark:text-gray-300 p-3 transition-all">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-8">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-3">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-3">
                             Abteilungs-Icon Auswählen:
-                            <div class="w-8 h-8 bg-gray-900 border border-gray-700 rounded-lg flex items-center justify-center text-[var(--theme-color)] shadow-[0_0_10px_var(--theme-color-20)]">
+                            <div class="w-8 h-8 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center text-[var(--theme-color)] shadow-sm dark:shadow-[0_0_10px_var(--theme-color-20)]">
                                 <x-dynamic-component :component="'heroicon-o-' . ($deptIcon ?: 'building-office')" class="w-5 h-5" />
                             </div>
                         </label>
-                        <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-14 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-3 bg-black/40 border border-gray-800 rounded-xl">
+                        <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 lg:grid-cols-14 gap-2 max-h-48 overflow-y-auto custom-scrollbar p-3 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-gray-800 rounded-xl">
                             @foreach($availableIcons as $icon)
-                                <button type="button" wire:click="$set('deptIcon', '{{ $icon }}')" class="w-10 h-10 rounded-lg flex items-center justify-center transition-all {{ $deptIcon === $icon ? 'bg-[var(--theme-color)] text-black shadow-[0_0_15px_var(--theme-color-50)] scale-110 z-10' : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-600 hover:text-white hover:bg-gray-800' }}">
+                                <button type="button" wire:click="$set('deptIcon', '{{ $icon }}')" class="w-10 h-10 rounded-lg flex items-center justify-center transition-all {{ $deptIcon === $icon ? 'bg-[var(--theme-color)] text-black shadow-sm dark:shadow-[0_0_15px_var(--theme-color-50)] scale-110 z-10' : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-600 hover:text-white hover:bg-gray-800' }}">
                                     <x-dynamic-component :component="'heroicon-o-' . $icon" class="w-5 h-5" />
                                 </button>
                             @endforeach
@@ -320,12 +320,12 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Akzentfarbe</label>
-                        <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 p-3 bg-black/40 border border-gray-800 rounded-xl">
+                        <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-3">Akzentfarbe</label>
+                        <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 p-3 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-gray-800 rounded-xl">
                             @foreach($availableColors as $col)
                                 <button type="button" wire:click="$set('deptColor', '{{ $col }}')"
                                     class="w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center relative group
-                                    {{ $deptColor === $col ? 'border-white scale-110 shadow-[0_0_15px_currentColor] z-10' : 'border-transparent hover:scale-110 hover:border-gray-500' }}
+                                    {{ $deptColor === $col ? 'border-white scale-110 shadow-sm dark:shadow-[0_0_15px_currentColor] z-10' : 'border-transparent hover:scale-110 hover:border-gray-500' }}
                                     bg-{{ $col }} text-{{ $col }}"
                                     title="{{ $col }}">
                                     @if($deptColor === $col)
@@ -340,7 +340,7 @@
             </div>
 
             {{-- Action Buttons --}}
-            <div class="mt-10 flex flex-col-reverse sm:flex-row justify-between items-center border-t border-gray-800 pt-6 gap-4">
+            <div class="mt-10 flex flex-col-reverse sm:flex-row justify-between items-center border-t border-gray-200 dark:border-gray-800 pt-6 gap-4">
                 @if($editingId)
                     <button wire:click="deleteDepartment('{{ $editingId }}')" wire:confirm="Bist du sicher? Die Abteilung wird unwiderruflich gelöscht. Alle zugewiesenen Agenten landen in der Stabsstelle." class="w-full sm:w-auto px-4 sm:px-6 py-3 bg-red-500/10 border border-red-500/50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors text-xs font-bold uppercase tracking-widest flex justify-center items-center gap-2">
                         <x-heroicon-o-trash class="w-4 h-4" /> Löschen
@@ -349,10 +349,10 @@
                     <div class="hidden sm:block"></div>
                 @endif
                 <div class="flex w-full sm:w-auto gap-2 sm:gap-4">
-                    <button wire:click="closeEditor" class="flex-1 sm:flex-none px-4 sm:px-6 py-3 bg-gray-900 border border-gray-700 text-gray-400 rounded-xl hover:text-white hover:bg-gray-800 transition-colors text-xs font-bold uppercase tracking-widest">
+                    <button wire:click="closeEditor" class="flex-1 sm:flex-none px-4 sm:px-6 py-3 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 rounded-xl hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-xs font-bold uppercase tracking-widest">
                         Abbrechen
                     </button>
-                    <button wire:click="saveDepartment" class="flex-1 sm:flex-none px-5 sm:px-8 py-3 bg-[var(--theme-color)] text-black font-black uppercase tracking-widest text-xs rounded-xl shadow-[0_0_20px_var(--theme-color-40)] hover:scale-105 transition-all text-center">
+                    <button wire:click="saveDepartment" class="flex-1 sm:flex-none px-5 sm:px-8 py-3 bg-[var(--theme-color)] text-black font-black uppercase tracking-widest text-xs rounded-xl shadow-sm dark:shadow-[0_0_20px_var(--theme-color-40)] hover:scale-105 transition-all text-center">
                         {{ $editingId ? 'Speichern' : 'Erstellen' }}
                     </button>
                 </div>

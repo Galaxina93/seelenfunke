@@ -1,11 +1,11 @@
         <!-- HEALTH TAB CONTENT -->
-        <div wire:key="tab-health" :class="{'hidden': activeTab !== 'health'}" class="flex-1 shrink-0 rounded-2xl border border-[var(--theme-color-50)] bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-6">
+        <div wire:key="tab-health" :class="{'hidden': activeTab !== 'health'}" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-[var(--theme-color-50)] bg-white dark:bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-6">
             
             <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-1 xl:grid-cols-2 gap-8">
                 
                 <!-- MEDICATIONS -->
                 <div class="flex flex-col gap-4">
-                    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                    <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-2">
                         <h2 class="text-xl font-black text-[var(--theme-color)] uppercase tracking-widest flex items-center gap-2">
                             <x-heroicon-o-beaker class="w-6 h-6" /> Aktive Medikamente
                         </h2>
@@ -17,15 +17,15 @@
                     @if(count($this->activeMedications) > 0)
                         <div class="space-y-3">
                             @foreach($this->activeMedications as $med)
-                                <div class="bg-black/40 border border-gray-800 rounded-xl p-4 hover:border-[var(--theme-color-50)] transition-colors flex justify-between items-start group">
+                                <div class="bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-gray-800 rounded-xl p-4 hover:border-[var(--theme-color-50)] transition-colors flex justify-between items-start group shadow-sm">
                                     <div>
-                                        <h3 class="font-bold text-gray-200 text-lg flex items-center gap-2">
+                                        <h3 class="font-bold text-gray-800 dark:text-gray-200 text-lg flex items-center gap-2">
                                             {{ $med->name }}
                                             @if($med->is_long_term)
                                                 <span class="bg-[var(--theme-color-20)] text-[var(--theme-color)] opacity-90 text-[10px] px-2 py-0.5 rounded-full border border-[var(--theme-color-30)] uppercase tracking-widest">Dauermedikation</span>
                                             @endif
                                         </h3>
-                                        <p class="text-sm text-gray-400 mt-1">{{ $med->active_ingredients ?: 'Keine Wirkstoffangabe' }}</p>
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $med->active_ingredients ?: 'Keine Wirkstoffangabe' }}</p>
                                         <div class="flex gap-4 mt-3 text-xs text-gray-500 font-mono">
                                             @if($med->dosage)<span class="bg-gray-800 px-2 py-1 rounded border border-gray-700">Dosis: <span class="text-gray-300">{{ $med->dosage }}</span></span>@endif
                                             @if($med->frequency)<span class="bg-gray-800 px-2 py-1 rounded border border-gray-700">Frequenz: <span class="text-gray-300">{{ $med->frequency }}</span></span>@endif
@@ -48,7 +48,7 @@
 
                 <!-- DOCTORS -->
                 <div class="flex flex-col gap-4">
-                    <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                    <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-2">
                         <h2 class="text-xl font-black text-[var(--theme-color)] uppercase tracking-widest flex items-center gap-2">
                             <x-heroicon-o-identification class="w-6 h-6" /> Ärzte & Praxen
                         </h2>

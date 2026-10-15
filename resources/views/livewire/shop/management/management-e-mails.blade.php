@@ -3,21 +3,21 @@
      @message-selected.window="typeof mobileView !== 'undefined' ? mobileView = 'detail' : null"
      @folder-selected.window="typeof mobileView !== 'undefined' ? mobileView = 'list' : null"
      @settings-opened.window="typeof mobileView !== 'undefined' ? mobileView = 'settings' : null"
-     class="h-[calc(100vh-8rem)] flex bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-800 overflow-hidden shadow-2xl relative w-full">
+     class="h-[calc(100vh-8rem)] flex bg-white/90 dark:bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-gray-800 overflow-hidden dark:shadow-2xl relative w-full transition-colors duration-300">
 
     {{-- COLUMN 1: Folders & Accounts --}}
-    <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full lg:w-80 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
+    <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full lg:w-80 bg-gray-50/90 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
          :class="typeof mobileView !== 'undefined' && mobileView === 'folders' ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
-        <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
-            <h2 class="text-white font-serif text-xl tracking-wide">Postfächer</h2>
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/90 dark:bg-gray-900">
+            <h2 class="text-gray-900 dark:text-white font-serif text-xl tracking-wide">Postfächer</h2>
             <div class="flex gap-1">
-                <button wire:click="syncMails" class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors" title="Postfächer jetzt synchronisieren">
+                <button wire:click="syncMails" class="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Postfächer jetzt synchronisieren">
                     <x-heroicon-o-arrow-path class="w-5 h-5" wire:loading.class="animate-spin" wire:target="syncMails"/>
                 </button>
-                <button wire:click="openAccountSettings('new')" class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors" title="Neues E-Mail Konto anbinden">
+                <button wire:click="openAccountSettings('new')" class="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Neues E-Mail Konto anbinden">
                     <x-heroicon-o-plus class="w-5 h-5"/>
                 </button>
-                <button wire:click="$set('showNewFolderModal', true)" class="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white transition-colors" title="Neuen Ordner erstellen">
+                <button wire:click="$set('showNewFolderModal', true)" class="p-1 hover:bg-gray-200 dark:hover:bg-gray-800 rounded text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" title="Neuen Ordner erstellen">
                     <x-heroicon-o-folder-plus class="w-5 h-5"/>
                 </button>
             </div>
@@ -56,26 +56,26 @@
                                     <div x-data="{ open: {{ $isAccActive ? 'true' : 'false' }} }" class="space-y-1">
 
                                         {{-- Account Header / Accordion Toggle --}}
-                                        <div class="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-bold transition-colors {{ $isAccActive ? 'text-white bg-gray-800/50' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/30' }}">
+                                        <div class="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-sm font-bold transition-colors {{ $isAccActive ? 'text-gray-900 dark:text-white bg-gray-200/70 dark:bg-gray-800/50' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-200/40 dark:hover:bg-gray-800/30' }}">
 
                                             <button @click="open = !open; $wire.selectAccount({{ $acc->id }})" class="flex items-center gap-2 truncate flex-1 text-left">
                                                 <x-heroicon-s-chevron-right class="w-4 h-4 transition-transform duration-200 shrink-0" x-bind:class="open ? 'rotate-90 text-[var(--theme-color)]' : ''" />
                                                 @if($acc->status === 'error')
-                                                    <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" title="Fehler: Bitte Passwort prüfen"/>
+                                                    <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 text-red-500 dark:drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" title="Fehler: Bitte Passwort prüfen"/>
                                                 @else
-                                                    <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 text-emerald-400 drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" title="Verbunden"/>
+                                                    <x-heroicon-o-at-symbol class="w-4 h-4 shrink-0 text-emerald-500 dark:text-emerald-400 dark:drop-shadow-[0_0_6px_rgba(52,211,153,0.6)]" title="Verbunden"/>
                                                 @endif
                                                 <span class="truncate">{{ $acc->name }}</span>
                                             </button>
 
                                             <div class="flex items-center gap-1 shrink-0">
                                                 @if($accTotalUnread > 0)
-                                                    <span class="bg-[var(--theme-color)] text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $accTotalUnread }}</span>
+                                                    <span class="bg-[var(--theme-color)] text-gray-900 text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $accTotalUnread }}</span>
                                                 @endif
-                                                <button type="button" @click.prevent.stop="navigator.clipboard.writeText('{{ $acc->email }}'); $el.innerHTML = `<svg class='w-3.5 h-3.5 text-green-400' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 13l4 4L19 7'/></svg>`; setTimeout(() => $el.innerHTML = `<svg class='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3'/></svg>`, 2000)" class="p-1 text-gray-500 hover:text-white transition-colors" title="E-Mail kopieren">
+                                                <button type="button" @click.prevent.stop="navigator.clipboard.writeText('{{ $acc->email }}'); $el.innerHTML = `<svg class='w-3.5 h-3.5 text-green-500' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 13l4 4L19 7'/></svg>`; setTimeout(() => $el.innerHTML = `<svg class='w-3.5 h-3.5' fill='none' viewBox='0 0 24 24' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3'/></svg>`, 2000)" class="p-1 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-white transition-colors" title="E-Mail kopieren">
                                                     <x-heroicon-o-clipboard-document class="w-3.5 h-3.5" />
                                                 </button>
-                                                <button type="button" wire:click.stop="openAccountSettings({{ $acc->id }})" class="p-1 text-gray-500 hover:text-white transition-colors" title="Konto-Einstellungen">
+                                                <button type="button" wire:click.stop="openAccountSettings({{ $acc->id }})" class="p-1 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-white transition-colors" title="Konto-Einstellungen">
                                                     <x-heroicon-o-cog-6-tooth class="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
@@ -83,7 +83,7 @@
 
                                         {{-- Folders List (Collapsible) --}}
                                         <div x-show="open" x-collapse>
-                                            <div class="pl-6 pr-2 py-1 space-y-0.5 border-l border-gray-800/50 ml-4">
+                                            <div class="pl-6 pr-2 py-1 space-y-0.5 border-l border-gray-200 dark:border-gray-800/50 ml-4">
                                                 @foreach($accFolders as $key => $label)
                                                     @php
                                                         // A folder is only visually "active" if it belongs to the currently selected account AND is the selected folder
@@ -109,13 +109,13 @@
                                                          ">
                                                         <button wire:click.stop="selectAccountAndFolder({{ $acc->id }}, '{{ $key }}')"
                                                                 :class="isDragOver ? 'ring-1 ring-[var(--theme-color)] bg-[var(--theme-color-20)]' : ''"
-                                                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors {{ $isActiveFolder ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)]' : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+                                                                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors {{ $isActiveFolder ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)]' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white' }}">
                                                             <div class="flex items-center gap-3 truncate">
-                                                                <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-4 h-4 shrink-0 {{ $isActiveFolder ? 'text-[var(--theme-color)]' : 'text-gray-500' }}" />
+                                                                <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-4 h-4 shrink-0 {{ $isActiveFolder ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-500' }}" />
                                                                 <span class="truncate">{{ $label }}</span>
                                                             </div>
                                                             @if($count > 0)
-                                                                <span class="bg-gray-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm shrink-0">{{ $count }}</span>
+                                                                <span class="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm shrink-0">{{ $count }}</span>
                                                             @endif
                                                         </button>
                                                     </div>
@@ -139,20 +139,20 @@
          x-data="{ mode: @entangle('viewMode') }">
 
         {{-- INBOX VIEW --}}
-        <div x-show="typeof mode !== 'undefined' && mode === 'inbox'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 flex bg-gray-950/50">
+        <div x-show="typeof mode !== 'undefined' && mode === 'inbox'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 flex bg-transparent">
 
             {{-- COLUMN 2: Message List --}}
-            <div class="absolute inset-0 z-20 lg:relative lg:z-10 w-full lg:w-80 bg-gray-950/80 border-r border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
+            <div class="absolute inset-0 z-20 lg:relative lg:z-10 w-full lg:w-80 bg-white/80 dark:bg-gray-950/80 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
                  :class="(typeof mobileView !== 'undefined' && (mobileView === 'list' || mobileView === 'folders')) ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
-        <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-950">
             <div class="flex items-center gap-2">
-                <button @click="typeof mobileView !== 'undefined' ? mobileView = 'folders' : null" class="lg:hidden p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors">
+                <button @click="typeof mobileView !== 'undefined' ? mobileView = 'folders' : null" class="lg:hidden p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-200 dark:bg-gray-800 rounded-lg transition-colors">
                     <x-heroicon-o-chevron-left class="w-5 h-5"/>
                 </button>
-                <h3 class="text-white font-bold truncate">{{ $selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails') }}</h3>
+                <h3 class="text-gray-900 dark:text-white font-bold truncate">{{ $selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails') }}</h3>
             </div>
             @if($accounts->isEmpty())
-                <button disabled class="bg-gray-800 text-gray-500 cursor-not-allowed p-1.5 rounded-lg shrink-0" title="Keine Postfächer hinterlegt">
+                <button disabled class="bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed p-1.5 rounded-lg shrink-0" title="Keine Postfächer hinterlegt">
                     <x-heroicon-o-pencil-square class="w-5 h-5"/>
                 </button>
             @else
@@ -163,12 +163,12 @@
         </div>
 
         {{-- Search & Filter Bar --}}
-        <div class="px-4 py-3 border-b border-gray-800 bg-gray-950/50 flex flex-col gap-2">
+        <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/50 flex flex-col gap-2">
             <div class="relative">
-                <x-heroicon-o-magnifying-glass class="w-4 h-4 absolute left-3 top-2.5 text-gray-500"/>
-                <input type="text" wire:model.live.debounce.300ms="searchQuery" placeholder="Suchen..." class="w-full bg-gray-900 border border-gray-800 text-white text-sm rounded-lg pl-9 pr-3 py-2 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] placeholder-gray-600 transition-colors">
+                <x-heroicon-o-magnifying-glass class="w-4 h-4 absolute left-3 top-2.5 text-gray-400 dark:text-gray-500"/>
+                <input type="text" wire:model.live.debounce.300ms="searchQuery" placeholder="Suchen..." class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-sm rounded-lg pl-9 pr-3 py-2 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] placeholder-gray-400 dark:placeholder-gray-600 transition-colors">
             </div>
-            <select wire:model.live="filterMode" class="w-full bg-gray-900 border border-gray-800 text-gray-300 text-xs rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)]">
+            <select wire:model.live="filterMode" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 text-xs rounded-lg px-3 py-1.5 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)]">
                 <option value="all">Alle Nachrichten</option>
                 <option value="unread">Nur Ungelesene</option>
                 <option value="attachments">Mit Anhang</option>
@@ -186,13 +186,13 @@
                      @dragstart="$event.dataTransfer.setData('text/plain', {{ $msg->id }})"
                      @contextmenu.prevent="contextMenuOpen = true; $event.preventDefault();"
                      @click.outside="contextMenuOpen = false"
-                     class="relative border-b border-gray-800/50 cursor-grab active:cursor-grabbing">
+                     class="relative border-b border-gray-100 dark:border-gray-800/50 cursor-grab active:cursor-grabbing">
 
-                    <button wire:click="selectMessage({{ $msg->id }})" class="w-full text-left p-4 hover:bg-gray-800 transition-colors {{ $isMsgActive ? 'bg-gray-800 border-l-2 border-[var(--theme-color)]' : '' }} {{ !$msg->is_read ? 'bg-gray-900/40' : '' }}">
+                    <button wire:click="selectMessage({{ $msg->id }})" class="w-full text-left p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors {{ $isMsgActive ? 'bg-gray-100 dark:bg-gray-800 border-l-2 border-[var(--theme-color)]' : '' }} {{ !$msg->is_read ? 'bg-gray-50/60 dark:bg-gray-900/40' : '' }}">
                         <div class="flex justify-between items-start mb-1">
-                            <span class="text-sm truncate pr-2 flex items-center gap-2 {{ !$msg->is_read ? 'text-white font-bold' : 'text-gray-300' }}">
+                            <span class="text-sm truncate pr-2 flex items-center gap-2 {{ !$msg->is_read ? 'text-gray-900 dark:text-white font-bold' : 'text-gray-700 dark:text-gray-300' }}">
                                 @if(!$msg->is_read)
-                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 dark:shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
                                 @endif
                                 {{ $msg->from_name ?: $msg->from_email }}
                             </span>
@@ -203,91 +203,91 @@
                                 {{ $msg->received_at ? $msg->received_at->format('H:i') : '' }}
                             </span>
                         </div>
-                        <h4 class="text-xs truncate mb-1 {{ !$msg->is_read ? 'text-gray-200 font-semibold' : 'text-gray-400' }}">{{ $msg->subject }}</h4>
+                        <h4 class="text-xs truncate mb-1 {{ !$msg->is_read ? 'text-gray-800 dark:text-gray-200 font-semibold' : 'text-gray-500 dark:text-gray-400' }}">{{ $msg->subject }}</h4>
                         
                         @if($msg->category || !empty($msg->tags) || $msg->priority)
                             <div class="flex flex-wrap gap-1 mb-1.5">
                                 @if($msg->priority === 'high')
-                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-900/50 text-red-400 border border-red-800/50">Wichtig</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600 border border-red-200 dark:bg-red-900/50 dark:text-red-400 dark:border-red-800/50">Wichtig</span>
                                 @elseif($msg->priority === 'low')
-                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-800 text-gray-400 border border-gray-700">Niedrig</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700">Niedrig</span>
                                 @endif
                                 
                                 @if($msg->category)
-                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-900/40 text-blue-400 border border-blue-800/50">{{ ucfirst($msg->category) }}</span>
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-400 dark:border-blue-800/50">{{ ucfirst($msg->category) }}</span>
                                 @endif
 
                                 @if(!empty($msg->tags) && is_array($msg->tags))
                                     @foreach(array_slice($msg->tags, 0, 3) as $tag)
-                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-800 text-gray-300 border border-gray-700">{{ $tag }}</span>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700">{{ $tag }}</span>
                                     @endforeach
                                     @if(count($msg->tags) > 3)
-                                        <span class="px-1 py-0.5 rounded text-[9px] font-medium bg-gray-800 text-gray-500 border border-gray-700">+{{ count($msg->tags) - 3 }}</span>
+                                        <span class="px-1 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-500 border border-gray-200 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700">+{{ count($msg->tags) - 3 }}</span>
                                     @endif
                                 @endif
                             </div>
                         @endif
 
-                        <!-- Preview snippet could go here -->
+                        <!-- Preview snippet -->
                         <p class="text-[10px] text-gray-500 truncate">{{ Str::limit(strip_tags($msg->body_plain ?? $msg->body_html), 40) }}</p>
                     </button>
 
                     {{-- Context Menu Dropdown --}}
                     <div x-show="contextMenuOpen"
                          style="display: none;"
-                         class="absolute z-50 left-10 top-10 w-48 bg-[#1E1E1E] border border-gray-700 rounded-lg shadow-2xl py-1 text-sm font-medium overflow-hidden">
+                         class="absolute z-50 left-10 top-10 w-48 bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl dark:shadow-2xl py-1 text-sm font-medium overflow-hidden">
 
-                        <button wire:click="selectMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Öffnen <x-heroicon-m-envelope-open class="w-4 h-4 text-gray-500"/>
+                        <button wire:click="selectMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white flex justify-between items-center">
+                            Öffnen <x-heroicon-m-envelope-open class="w-4 h-4 text-gray-400 dark:text-gray-500"/>
                         </button>
 
-                        <div class="h-px bg-gray-700 my-1"></div>
+                        <div class="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
 
                         @if($msg->is_archived)
-                            <button wire:click="unarchiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-400 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                            <button wire:click="unarchiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800 flex justify-between items-center">
                                 Dearchivieren <x-heroicon-m-arrow-path class="w-4 h-4 text-emerald-500"/>
                             </button>
                         @else
-                            <button wire:click="archiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                                Archivieren <x-heroicon-m-archive-box class="w-4 h-4 text-gray-500"/>
+                            <button wire:click="archiveMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white flex justify-between items-center">
+                                Archivieren <x-heroicon-m-archive-box class="w-4 h-4 text-gray-400 dark:text-gray-500"/>
                             </button>
                         @endif
 
-                        <div class="h-px bg-gray-700 my-1"></div>
+                        <div class="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
 
-                        <button wire:click="openCompose('reply', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Antworten <x-heroicon-m-arrow-uturn-left class="w-4 h-4 text-gray-500"/>
+                        <button wire:click="openCompose('reply', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white flex justify-between items-center">
+                            Antworten <x-heroicon-m-arrow-uturn-left class="w-4 h-4 text-gray-400 dark:text-gray-500"/>
                         </button>
 
-                        <button wire:click="openCompose('forward', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
-                            Weiterleiten <x-heroicon-m-arrow-uturn-right class="w-4 h-4 text-gray-500"/>
+                        <button wire:click="openCompose('forward', {{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white flex justify-between items-center">
+                            Weiterleiten <x-heroicon-m-arrow-uturn-right class="w-4 h-4 text-gray-400 dark:text-gray-500"/>
                         </button>
 
-                        <div class="h-px bg-gray-700 my-1"></div>
+                        <div class="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
 
-                        <button wire:click="openRoutingModal({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white flex justify-between items-center">
+                        <button wire:click="openRoutingModal({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white flex justify-between items-center">
                             Abonnieren (Autom. in Ordner) <x-heroicon-m-inbox-arrow-down class="w-4 h-4 text-[var(--theme-color)]"/>
                         </button>
 
-                        <div class="h-px bg-gray-700 my-1"></div>
+                        <div class="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
 
                         @if($msg->folder === 'Junk')
-                            <button wire:click="unmarkSpam({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-400 hover:bg-emerald-900/30 flex justify-between items-center">
+                            <button wire:click="unmarkSpam({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 flex justify-between items-center">
                                 Kein Spam (Entsperren) <x-heroicon-m-shield-check class="w-4 h-4 text-emerald-500"/>
                             </button>
                         @else
-                            <button wire:click="markAsSpam({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-400 hover:bg-red-900/30 flex justify-between items-center">
+                            <button wire:click="markAsSpam({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex justify-between items-center">
                                 Als Spam markieren <x-heroicon-m-shield-exclamation class="w-4 h-4 text-red-500"/>
                             </button>
                         @endif
 
-                        <button wire:click="deleteMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-500 hover:bg-red-900/30 flex justify-between items-center">
+                        <button wire:click="deleteMessage({{ $msg->id }})" @click.stop="contextMenuOpen = false" class="w-full text-left px-4 py-2 text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 flex justify-between items-center">
                             Löschen <x-heroicon-m-trash class="w-4 h-4 text-red-500"/>
                         </button>
                     </div>
                 </div>
             @empty
-                <div class="p-8 text-center text-gray-500">
+                <div class="p-8 text-center text-gray-400 dark:text-gray-500">
                     <x-heroicon-o-inbox class="w-12 h-12 mx-auto mb-3 opacity-50" />
                     Keine E-Mails vorhanden.
                 </div>
@@ -296,47 +296,47 @@
     </div>
 
     {{-- COLUMN 3: Reading Pane --}}
-    <div class="absolute inset-0 z-10 lg:relative lg:z-auto w-full lg:flex-1 bg-gray-950 flex flex-col transition-transform duration-300 min-w-0"
+    <div class="absolute inset-0 z-10 lg:relative lg:z-auto w-full lg:flex-1 bg-white dark:bg-gray-950 flex flex-col transition-transform duration-300 min-w-0"
          :class="(typeof mobileView !== 'undefined' && (mobileView === 'detail' || mobileView === 'settings')) ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'">
         @if (session()->has('success_message'))
-            <div class="fixed top-4 right-4 z-[100] p-3 text-sm text-green-400 bg-green-900/90 border border-green-800 rounded-lg shadow-xl backdrop-blur-sm">
+            <div class="fixed top-4 right-4 z-[100] p-3 text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/90 border border-green-200 dark:border-green-800 rounded-lg shadow-xl backdrop-blur-sm">
                 {{ session('success_message') }}
             </div>
         @endif
 
         @if (session()->has('error_message'))
-            <div class="fixed top-4 right-4 z-[100] p-3 text-sm text-red-400 bg-red-900/90 border border-red-800 rounded-lg shadow-xl backdrop-blur-sm max-w-sm">
+            <div class="fixed top-4 right-4 z-[100] p-3 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/90 border border-red-200 dark:border-red-800 rounded-lg shadow-xl backdrop-blur-sm max-w-sm">
                 {{ session('error_message') }}
             </div>
         @endif
 
         @if($selectedMessage)
             {{-- Toolbar --}}
-            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-900">
                 <div class="flex gap-1 sm:gap-2 items-center flex-wrap">
-                    <button @click="typeof mobileView !== 'undefined' ? mobileView = 'list' : null" class="lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors mr-1" title="Zurück">
+                    <button @click="typeof mobileView !== 'undefined' ? mobileView = 'list' : null" class="lg:hidden p-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-200 dark:bg-gray-800 rounded-lg transition-colors mr-1" title="Zurück">
                         <x-heroicon-o-chevron-left class="w-5 h-5"/>
                     </button>
-                    <button wire:click="openCompose('reply', {{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Antworten">
+                    <button wire:click="openCompose('reply', {{ $selectedMessage->id }})" class="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" title="Antworten">
                         <x-heroicon-o-arrow-uturn-left class="w-5 h-5" />
                     </button>
-                    <button wire:click="openCompose('forward', {{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Weiterleiten">
+                    <button wire:click="openCompose('forward', {{ $selectedMessage->id }})" class="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" title="Weiterleiten">
                         <x-heroicon-o-arrow-uturn-right class="w-5 h-5" />
                     </button>
-                    <div class="hidden sm:block w-px h-6 bg-gray-700 mx-1 my-auto"></div>
+                    <div class="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 my-auto"></div>
                     @if($selectedMessage->is_archived)
-                        <button wire:click="unarchiveMessage({{ $selectedMessage->id }})" class="p-2 text-emerald-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Dearchivieren">
+                        <button wire:click="unarchiveMessage({{ $selectedMessage->id }})" class="p-2 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 hover:bg-gray-200 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" title="Dearchivieren">
                             <x-heroicon-o-arrow-path class="w-5 h-5" />
                         </button>
                     @else
-                        <button wire:click="archiveMessage({{ $selectedMessage->id }})" class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" title="Archivieren">
+                        <button wire:click="archiveMessage({{ $selectedMessage->id }})" class="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-200 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-800 rounded-lg transition-colors" title="Archivieren">
                             <x-heroicon-o-archive-box class="w-5 h-5" />
                         </button>
                     @endif
-                    <button wire:click="deleteMessage({{ $selectedMessage->id }})" class="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-lg transition-colors" title="Löschen">
+                    <button wire:click="deleteMessage({{ $selectedMessage->id }})" class="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Löschen">
                         <x-heroicon-o-trash class="w-5 h-5" />
                     </button>
-                    <button wire:click="markAsSpam({{ $selectedMessage->id }})" class="p-2 text-orange-400 hover:text-orange-300 hover:bg-orange-900/20 rounded-lg transition-colors" title="Als Spam markieren">
+                    <button wire:click="markAsSpam({{ $selectedMessage->id }})" class="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-900/20 rounded-lg transition-colors" title="Als Spam markieren">
                         <x-heroicon-o-shield-exclamation class="w-5 h-5" />
                     </button>
                 </div>
@@ -346,16 +346,16 @@
             </div>
 
             {{-- Mail Header --}}
-            <div class="p-4 sm:p-6 border-b border-gray-800/50">
-                <h2 class="text-xl sm:text-2xl font-bold text-white mb-4 break-words">{{ $selectedMessage->subject }}</h2>
+            <div class="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800/50">
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 break-words">{{ $selectedMessage->subject }}</h2>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3 w-full">
-                        <div class="w-10 h-10 shrink-0 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700">
+                        <div class="w-10 h-10 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700">
                             <span class="text-[var(--theme-color)] font-serif font-bold">{{ substr($selectedMessage->from_name ?: $selectedMessage->from_email, 0, 1) }}</span>
                         </div>
                         <div class="min-w-0 flex-1">
-                            <div class="text-white font-medium truncate">{{ $selectedMessage->from_name ?: $selectedMessage->from_email }}</div>
-                            <div class="text-[10px] sm:text-xs text-gray-400 truncate">&lt;{{ $selectedMessage->from_email }}&gt; an {{ $selectedMessage->to_email }}</div>
+                            <div class="text-gray-900 dark:text-white font-medium truncate">{{ $selectedMessage->from_name ?: $selectedMessage->from_email }}</div>
+                            <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">&lt;{{ $selectedMessage->from_email }}&gt; an {{ $selectedMessage->to_email }}</div>
                         </div>
                     </div>
                 </div>
@@ -363,8 +363,8 @@
 
             {{-- Attachments Section --}}
             @if($selectedMessage->attachments && $selectedMessage->attachments->count() > 0)
-                <div x-data="{ showAttachments: false, previewFile: null }" class="border-b border-gray-800/50 bg-gray-900/30 shrink-0">
-                    <button @click="showAttachments = !showAttachments" class="w-full flex items-center justify-between p-3 sm:px-6 text-sm font-medium text-gray-400 hover:text-white transition-colors bg-gray-900/50">
+                <div x-data="{ showAttachments: false, previewFile: null }" class="border-b border-gray-200 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/30 shrink-0">
+                    <button @click="showAttachments = !showAttachments" class="w-full flex items-center justify-between p-3 sm:px-6 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors bg-gray-100/70 dark:bg-gray-900/50">
                         <div class="flex items-center gap-2">
                             <x-heroicon-o-paper-clip class="w-4 h-4" />
                             <span>{{ $selectedMessage->attachments->count() }} Anhang/Anhänge</span>
@@ -375,21 +375,21 @@
                     <div x-show="showAttachments" x-collapse>
                         <div class="p-3 sm:px-6 flex flex-wrap gap-2">
                             @foreach($selectedMessage->attachments as $attachment)
-                                <div class="flex items-center p-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-[var(--theme-color)] hover:bg-gray-800/80 cursor-pointer transition-colors max-w-xs w-full sm:w-auto" @click="previewFile = '{{ $attachment->stream_url }}'">
-                                    <div class="w-10 h-10 shrink-0 rounded bg-gray-900 flex items-center justify-center mr-3 border border-gray-700">
+                                <div class="flex items-center p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-[var(--theme-color)] hover:bg-gray-50 dark:hover:bg-gray-800/80 cursor-pointer transition-colors max-w-xs w-full sm:w-auto" @click="previewFile = '{{ $attachment->stream_url }}'">
+                                    <div class="w-10 h-10 shrink-0 rounded bg-gray-100 dark:bg-gray-900 flex items-center justify-center mr-3 border border-gray-200 dark:border-gray-700">
                                         @php
                                             $ext = strtolower(pathinfo($attachment->filename, PATHINFO_EXTENSION));
                                             $icon = 'document';
                                             if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])) $icon = 'photo';
                                             elseif (in_array($ext, ['pdf'])) $icon = 'document-text';
                                         @endphp
-                                        <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-5 h-5 text-gray-400" />
+                                        <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
                                     </div>
                                     <div class="min-w-0 pr-2 flex-col flex justify-center">
-                                        <div class="text-xs text-white font-medium truncate" title="{{ $attachment->filename }}">{{ Str::limit($attachment->filename, 20) }}</div>
+                                        <div class="text-xs text-gray-900 dark:text-white font-medium truncate" title="{{ $attachment->filename }}">{{ Str::limit($attachment->filename, 20) }}</div>
                                         <div class="text-[10px] text-gray-500">{{ round($attachment->size / 1024, 1) }} KB</div>
                                     </div>
-                                    <button wire:click.prevent="downloadAttachment({{ $attachment->id }})" class="ml-auto p-1.5 text-gray-500 hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-10)] rounded-md transition-colors focus:outline-none" @click.stop title="Herunterladen">
+                                    <button wire:click.prevent="downloadAttachment({{ $attachment->id }})" class="ml-auto p-1.5 text-gray-400 hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-10)] rounded-md transition-colors focus:outline-none" @click.stop title="Herunterladen">
                                         <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
                                     </button>
                                 </div>
@@ -398,9 +398,9 @@
                     </div>
 
                     {{-- Preview Overlay Modal/Inline --}}
-                    <div x-show="previewFile" class="relative bg-black/50 border-t border-gray-800 p-2 h-[50vh] transition-all" style="display: none;">
+                    <div x-show="previewFile" class="relative bg-black/50 border-t border-gray-200 dark:border-gray-800 p-2 h-[50vh] transition-all" style="display: none;">
                         <div class="absolute top-4 right-4 z-20">
-                            <button @click="previewFile = null" class="p-2 bg-gray-900/90 backdrop-blur-md border border-gray-700 text-gray-400 hover:text-white hover:bg-red-500/20 hover:border-red-500/50 rounded-lg shadow-xl transition-all" title="Vorschau schließen">
+                            <button @click="previewFile = null" class="p-2 bg-white dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-700 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-red-500/20 hover:border-red-500/50 rounded-lg shadow-xl transition-all" title="Vorschau schließen">
                                 <x-heroicon-m-x-mark class="w-5 h-5" />
                             </button>
                         </div>
@@ -420,7 +420,7 @@
                 @endif
             </div>
         @else
-            <div class="flex-1 flex flex-col items-center justify-center text-gray-500">
+            <div class="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
                 <x-heroicon-o-envelope-open class="w-16 h-16 mb-4 opacity-20" />
                 <p class="text-lg">Wähle eine E-Mail aus, um sie zu lesen.</p>
             </div>
@@ -429,12 +429,12 @@
         </div> {{-- End INBOX VIEW --}}
 
         {{-- SETTINGS VIEW --}}
-        <div x-show="typeof mode !== 'undefined' && mode === 'account_settings'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 bg-gray-950 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
+        <div x-show="typeof mode !== 'undefined' && mode === 'account_settings'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 bg-white dark:bg-gray-950 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>
             <div class="p-4 sm:p-8 max-w-5xl mx-auto">
                 {{-- Settings Form Header --}}
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-800">
-                    <h3 class="text-xl sm:text-2xl font-serif text-white tracking-wide flex items-center gap-3">
-                        <button @click.prevent="typeof mobileView !== 'undefined' ? mobileView = 'folders' : null" wire:click="closeAccountSettings" class="lg:hidden p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors mr-1 text-sm font-sans flex items-center gap-1">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-200 dark:border-gray-800">
+                    <h3 class="text-xl sm:text-2xl font-serif text-gray-900 dark:text-white tracking-wide flex items-center gap-3">
+                        <button @click.prevent="typeof mobileView !== 'undefined' ? mobileView = 'folders' : null" wire:click="closeAccountSettings" class="lg:hidden p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-100 dark:bg-gray-800 rounded-lg transition-colors mr-1 text-sm font-sans flex items-center gap-1">
                             <x-heroicon-o-chevron-left class="w-5 h-5"/>
                         </button>
                         <x-heroicon-o-cog class="w-6 h-6 sm:w-8 sm:h-8 text-[var(--theme-color)]" />
@@ -442,11 +442,11 @@
                     </h3>
                     <div class="flex gap-2 sm:gap-3 w-full sm:w-auto">
                         @if($editAccountId)
-                            <button wire:click="deleteAccount({{ $editAccountId }})" wire:confirm="Sicher, dass dieses Postfach gelöscht werden soll?" class="text-red-500 hover:text-red-400 transition-colors flex items-center justify-center gap-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 px-3 py-2 sm:px-4 sm:py-2 rounded-lg font-bold flex-1 sm:flex-none text-xs sm:text-base">
+                            <button wire:click="deleteAccount({{ $editAccountId }})" wire:confirm="Sicher, dass dieses Postfach gelöscht werden soll?" class="text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors flex items-center justify-center gap-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-900/50 px-3 py-2 sm:px-4 sm:py-2 rounded-lg font-bold flex-1 sm:flex-none text-xs sm:text-base">
                                 <x-heroicon-o-trash class="w-4 h-4 sm:w-5 sm:h-5" /> Löschen
                             </button>
                         @endif
-                        <button wire:click="closeAccountSettings" class="hidden sm:flex text-gray-400 hover:text-white transition-colors items-center gap-2 bg-gray-800/50 hover:bg-gray-800 px-4 py-2 rounded-lg font-bold">
+                        <button wire:click="closeAccountSettings" class="hidden sm:flex text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800/50 dark:hover:bg-gray-800 px-4 py-2 rounded-lg font-bold">
                             <x-heroicon-o-arrow-left class="w-5 h-5" /> Zurück
                         </button>
                     </div>
@@ -456,16 +456,16 @@
                 <div class="mb-8">
                     <h4 class="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Schnellauswahl (Auto-Fill)</h4>
                     <div class="flex flex-wrap gap-3">
-                        <button type="button" wire:click="applyPreset('mittwald')" class="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] hover:bg-[#2A2A2A] border border-gray-700 hover:border-white text-white text-sm font-semibold rounded-xl transition-all">
+                        <button type="button" wire:click="applyPreset('mittwald')" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1A1A1A] hover:bg-gray-100 dark:hover:bg-[#2A2A2A] border border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-white text-gray-900 dark:text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
                             Mittwald / Agenturserver
                         </button>
-                        <button type="button" wire:click="applyPreset('gmail')" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-red-500 text-white text-sm font-semibold rounded-xl transition-all">
+                        <button type="button" wire:click="applyPreset('gmail')" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-red-500 text-gray-900 dark:text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
                             Google Workspace / GMail
                         </button>
-                        <button type="button" wire:click="applyPreset('t-online')" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-[#E20074] text-white text-sm font-semibold rounded-xl transition-all">
+                        <button type="button" wire:click="applyPreset('t-online')" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-[#E20074] text-gray-900 dark:text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
                             T-Online
                         </button>
-                        <button type="button" wire:click="applyPreset('gmx')" class="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-[#1C449B] text-white text-sm font-semibold rounded-xl transition-all">
+                        <button type="button" wire:click="applyPreset('gmx')" class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-[#1C449B] text-gray-900 dark:text-white text-sm font-semibold rounded-xl transition-all shadow-sm">
                             GMX
                         </button>
                     </div>
@@ -475,35 +475,35 @@
 
                     {{-- Allgemeine Infos --}}
                     <div class="lg:col-span-2 space-y-4">
-                        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                        <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-2">
                             <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase">Kontodetails</h4>
                             <div class="flex items-center gap-3">
-                                <span class="text-xs font-bold transition-colors" :class="!$wire.is_commercial ? 'text-white' : 'text-gray-600'">Privat</span>
+                                <span class="text-xs font-bold transition-colors" :class="!$wire.is_commercial ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-600'">Privat</span>
                                 <button type="button" 
                                     wire:click="$toggle('is_commercial')"
-                                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-gray-900" 
-                                    :class="$wire.is_commercial ? 'bg-[var(--theme-color)]' : 'bg-gray-700'">
+                                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" 
+                                    :class="$wire.is_commercial ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700'">
                                     <span aria-hidden="true" 
                                         class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out" 
                                         :class="$wire.is_commercial ? 'translate-x-5' : 'translate-x-0'"></span>
                                 </button>
-                                <span class="text-xs font-bold transition-colors" :class="$wire.is_commercial ? 'text-[var(--theme-color)]' : 'text-gray-600'">Gewerblich</span>
+                                <span class="text-xs font-bold transition-colors" :class="$wire.is_commercial ? 'text-[var(--theme-color)]' : 'text-gray-400 dark:text-gray-600'">Gewerblich</span>
                             </div>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Anzeigename</label>
-                                <input type="text" wire:model="account_name" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required placeholder="z.B. Zentrale Inbox" />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Anzeigename</label>
+                                <input type="text" wire:model="account_name" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required placeholder="z.B. Zentrale Inbox" />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">E-Mail Adresse</label>
-                                <input type="email" wire:model.live.debounce.500ms="email" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required placeholder="hallo@mein-seelenfunke.de" />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">E-Mail Adresse</label>
+                                <input type="email" wire:model.live.debounce.500ms="email" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required placeholder="hallo@mein-seelenfunke.de" />
                             </div>
                             <div class="md:col-span-2" x-data="{ showPassword: false }">
-                                <label class="block text-xs text-gray-400 mb-1">Passwort / App-Passwort</label>
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Passwort / App-Passwort</label>
                                 <div class="relative">
-                                    <input :type="typeof showPassword !== 'undefined' && showPassword ? 'text' : 'password'" wire:model="password" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg pl-3 pr-10 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" {{ $editAccountId ? '' : 'required' }} />
-                                    <button type="button" @click="typeof showPassword !== 'undefined' ? showPassword = !showPassword : null" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-[var(--theme-color)] transition-colors">
+                                    <input :type="typeof showPassword !== 'undefined' && showPassword ? 'text' : 'password'" wire:model="password" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg pl-3 pr-10 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" {{ $editAccountId ? '' : 'required' }} />
+                                    <button type="button" @click="typeof showPassword !== 'undefined' ? showPassword = !showPassword : null" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 dark:text-gray-500 hover:text-[var(--theme-color)] transition-colors">
                                         <svg x-show="typeof showPassword !== 'undefined' && !showPassword" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                         <svg x-show="typeof showPassword !== 'undefined' && showPassword" style="display: none;" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
                                     </button>
@@ -514,23 +514,23 @@
 
                     {{-- IMAP Settings --}}
                     <div class="space-y-4">
-                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-800 pb-2">Eingangsserver (IMAP)</h4>
+                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-200 dark:border-gray-800 pb-2">Eingangsserver (IMAP)</h4>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">IMAP Host</label>
-                                <input type="text" wire:model="imap_host" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">IMAP Host</label>
+                                <input type="text" wire:model="imap_host" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Benutzer (optional)</label>
-                                <input type="text" wire:model="imap_username" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Benutzer (optional)</label>
+                                <input type="text" wire:model="imap_username" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Port</label>
-                                <input type="number" wire:model="imap_port" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Port</label>
+                                <input type="number" wire:model="imap_port" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Verschlüsselung</label>
-                                <select wire:model="imap_encryption" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]">
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Verschlüsselung</label>
+                                <select wire:model="imap_encryption" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]">
                                     <option value="ssl">SSL / TLS</option>
                                     <option value="tls">STARTTLS</option>
                                     <option value="">Keine</option>
@@ -541,23 +541,23 @@
 
                     {{-- SMTP Settings --}}
                     <div class="space-y-4">
-                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-800 pb-2">Ausgangsserver (SMTP)</h4>
+                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-200 dark:border-gray-800 pb-2">Ausgangsserver (SMTP)</h4>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">SMTP Host</label>
-                                <input type="text" wire:model="smtp_host" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">SMTP Host</label>
+                                <input type="text" wire:model="smtp_host" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Benutzer (optional)</label>
-                                <input type="text" wire:model="smtp_username" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Benutzer (optional)</label>
+                                <input type="text" wire:model="smtp_username" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Port</label>
-                                <input type="number" wire:model="smtp_port" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Port</label>
+                                <input type="number" wire:model="smtp_port" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]" required />
                             </div>
                             <div>
-                                <label class="block text-xs text-gray-400 mb-1">Verschlüsselung</label>
-                                <select wire:model="smtp_encryption" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]">
+                                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">Verschlüsselung</label>
+                                <select wire:model="smtp_encryption" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]">
                                     <option value="ssl">SSL / TLS</option>
                                     <option value="tls">STARTTLS</option>
                                     <option value="">Keine</option>
@@ -568,14 +568,14 @@
 
                     {{-- Signatur --}}
                     <div class="lg:col-span-2 space-y-4">
-                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-800 pb-2">Signatur</h4>
+                        <h4 class="text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase border-b border-gray-200 dark:border-gray-800 pb-2">Signatur</h4>
                         <div>
-                            <textarea wire:model="signature" rows="4" class="w-full bg-gray-950 border border-gray-800 text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)] font-mono text-xs"></textarea>
+                            <textarea wire:model="signature" rows="4" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-lg px-3 py-2 focus:border-[var(--theme-color)] focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)] font-mono text-xs"></textarea>
                         </div>
                     </div>
 
-                    <div class="lg:col-span-2 pt-6 border-t border-gray-800 flex justify-end gap-3">
-                        <button type="submit" class="px-6 py-2 bg-[var(--theme-color)] text-black hover:bg-[var(--theme-color)]/80 font-bold rounded-lg transition-colors">Konto speichern</button>
+                    <div class="lg:col-span-2 pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3">
+                        <button type="submit" class="px-6 py-2 bg-[var(--theme-color)] text-gray-900 hover:brightness-105 font-bold rounded-lg transition-all">Konto speichern</button>
                     </div>
                 </form>
             </div>
@@ -585,17 +585,17 @@
         {{-- Modal: Neuer Ordner --}}
         @if($showNewFolderModal)
             <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showNewFolderModal', false)">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showNewFolderModal', false)">
-                    <h3 class="text-xl font-bold text-white mb-4">Neuen Ordner erstellen</h3>
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showNewFolderModal', false)">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4">Neuen Ordner erstellen</h3>
                     <form wire:submit.prevent="createFolder">
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-400 mb-1">Ordnername</label>
-                            <input type="text" wire:model="newFolderName" class="w-full bg-gray-950 border border-gray-700 text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" placeholder="z.B. Rechnungen, Projekte..." required autofocus>
+                            <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Ordnername</label>
+                            <input type="text" wire:model="newFolderName" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" placeholder="z.B. Rechnungen, Projekte..." required autofocus>
                             @error('newFolderName') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
                         <div class="flex justify-end gap-3 mt-6">
-                            <button type="button" wire:click="$set('showNewFolderModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-6 py-2 text-sm font-bold rounded-lg transition-colors">Erstellen</button>
+                            <button type="button" wire:click="$set('showNewFolderModal', false)" class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Abbrechen</button>
+                            <button type="submit" class="bg-[var(--theme-color)] hover:brightness-105 text-gray-900 px-6 py-2 text-sm font-bold rounded-lg transition-all">Erstellen</button>
                         </div>
                     </form>
                 </div>
@@ -605,13 +605,13 @@
         {{-- Modal: Auto-Routing Regel --}}
         @if($showRoutingModal)
             <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.set('showRoutingModal', false)">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showRoutingModal', false)">
-                    <h3 class="text-xl font-bold text-white mb-2">Automatisches Einsortieren</h3>
-                    <p class="text-xs text-gray-400 mb-4">Mails von diesem Absender werden in Zukunft immer sofort in den gewählten Ordner verschoben.</p>
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl" @keydown.escape.window="$wire.set('showRoutingModal', false)">
+                    <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Automatisches Einsortieren</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Mails von diesem Absender werden in Zukunft immer sofort in den gewählten Ordner verschoben.</p>
                     <form wire:submit.prevent="saveRoutingRule">
                         <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-400 mb-1">Ziel-Ordner</label>
-                            <select wire:model="routingTargetFolder" class="w-full bg-gray-950 border border-gray-700 text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" required>
+                            <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Ziel-Ordner</label>
+                            <select wire:model="routingTargetFolder" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-lg focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] px-4 py-2" required>
                                 <option value="">-- Ordner wählen --</option>
                                 @foreach($folders as $key => $label)
                                     @if(!in_array($key, ['Drafts', 'Sent', 'Trash', 'Junk']))
@@ -622,8 +622,8 @@
                             @error('routingTargetFolder') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
                         <div class="flex justify-end gap-3 mt-6">
-                            <button type="button" wire:click="$set('showRoutingModal', false)" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Abbrechen</button>
-                            <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-black px-6 py-2 text-sm font-bold rounded-lg transition-colors">Regel aktivieren</button>
+                            <button type="button" wire:click="$set('showRoutingModal', false)" class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Abbrechen</button>
+                            <button type="submit" class="bg-[var(--theme-color)] hover:brightness-105 text-gray-900 px-6 py-2 text-sm font-bold rounded-lg transition-all">Regel aktivieren</button>
                         </div>
                     </form>
                 </div>
@@ -633,29 +633,29 @@
         {{-- Modal: E-Mail Schreiben / Antworten --}}
         @if($showComposeModal)
             <div x-data="{ composePreviewFile: null }" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.call('closeCompose')">
-                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.call('closeCompose')">
-                    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-950 rounded-t-2xl">
-                        <h3 class="text-lg font-bold text-white">Neue Nachricht</h3>
-                        <button type="button" wire:click="closeCompose" class="text-gray-400 hover:text-white transition-colors">
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.call('closeCompose')">
+                    <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-950 rounded-t-2xl">
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Neue Nachricht</h3>
+                        <button type="button" wire:click="closeCompose" class="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                             <x-heroicon-o-x-mark class="w-6 h-6"/>
                         </button>
                     </div>
                     <form wire:submit.prevent="sendMail" class="flex flex-col flex-1 overflow-hidden relative">
-                        <div class="p-4 border-b border-gray-800 space-y-3 shrink-0">
+                        <div class="p-4 border-b border-gray-200 dark:border-gray-800 space-y-3 shrink-0">
                             @if(count($accounts) > 1)
                                 <div class="flex items-center gap-2">
                                     <span class="text-gray-500 text-sm w-16">Von:</span>
-                                    <select wire:model="composeAccountId" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0 text-sm font-semibold cursor-pointer">
+                                    <select wire:model="composeAccountId" class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm font-semibold cursor-pointer">
                                         @foreach($accounts as $acc)
                                             <option class="text-black" value="{{ $acc->id }}">{{ $acc->name }} ({{ $acc->email }})</option>
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="h-px bg-gray-800"></div>
+                                <div class="h-px bg-gray-200 dark:bg-gray-800"></div>
                             @endif
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500 text-sm w-16">An:</span>
-                                <input type="email" wire:model="composeTo" list="contact-emails-list" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0" required>
+                                <input type="email" wire:model="composeTo" list="contact-emails-list" class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0" required>
                                 <datalist id="contact-emails-list">
                                     @foreach($accounts as $acc)
                                         <option value="{{ $acc->email }}">{{ $acc->name }} (Eigenes Postfach)</option>
@@ -665,13 +665,13 @@
                                     @endforeach
                                 </datalist>
                             </div>
-                            <div class="h-px bg-gray-800"></div>
+                            <div class="h-px bg-gray-200 dark:bg-gray-800"></div>
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500 text-sm w-16">Betreff:</span>
-                                <input type="text" wire:model="composeSubject" class="flex-1 bg-transparent border-none text-white focus:ring-0 p-0 font-bold" required>
+                                <input type="text" wire:model="composeSubject" class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 font-bold" required>
                             </div>
                             @if ($errors->any())
-                                <div class="bg-red-900/20 text-red-400 p-2 text-xs rounded-lg border border-red-900/50 mt-2">
+                                <div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 text-xs rounded-lg border border-red-200 dark:border-red-900/50 mt-2">
                                     Bitte alle Felder korrekt ausfüllen (Empfänger & Nachricht).
                                 </div>
                             @endif
@@ -682,30 +682,38 @@
                                 .cke_notifications_area { display: none !important; }
 
                                 /* Rahmen und Basis */
-                                .cke_chrome { border: none !important; border-top: 1px solid #1f2937 !important; border-radius: 0 !important; overflow: hidden; box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5) !important; background: #030712 !important; height: 100% !important; display: flex !important; flex-direction: column !important; }
+                                .cke_chrome { border: none !important; border-top: 1px solid #e5e7eb !important; border-radius: 0 !important; overflow: hidden; background: #ffffff !important; height: 100% !important; display: flex !important; flex-direction: column !important; }
+                                :is(.dark) .cke_chrome { border-top-color: #1f2937 !important; box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5) !important; background: #030712 !important; }
                                 
                                 /* Toolbar Hintergrund */
-                                .cke_top { background: #111827 !important; border-bottom: 1px solid #1f2937 !important; padding: 12px 10px !important; }
-                                .cke_bottom { background: #111827 !important; border-top: 1px solid #1f2937 !important; }
+                                .cke_top { background: #f9fafb !important; border-bottom: 1px solid #e5e7eb !important; padding: 12px 10px !important; }
+                                :is(.dark) .cke_top { background: #111827 !important; border-bottom-color: #1f2937 !important; }
+                                .cke_bottom { background: #f9fafb !important; border-top: 1px solid #e5e7eb !important; }
+                                :is(.dark) .cke_bottom { background: #111827 !important; border-top-color: #1f2937 !important; }
 
                                 /* Button-Gruppen & Buttons */
-                                .cke_toolgroup { background: #1f2937 !important; border: 1px solid #374151 !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important; border-radius: 8px !important; margin-right: 8px !important; }
+                                .cke_toolgroup { background: #f3f4f6 !important; border: 1px solid #d1d5db !important; border-radius: 8px !important; margin-right: 8px !important; }
+                                :is(.dark) .cke_toolgroup { background: #1f2937 !important; border-color: #374151 !important; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3) !important; }
                                 .cke_button { transition: all 0.2s; padding: 4px 6px !important; border: 1px solid transparent !important; margin: 0 !important; }
-                                .cke_button:hover { background: #374151 !important; border-radius: 6px !important; border: 1px solid transparent !important; }
+                                .cke_button:hover { background: #e5e7eb !important; border-radius: 6px !important; }
+                                :is(.dark) .cke_button:hover { background: #374151 !important; }
 
-                                /* Icons invertieren (hell machen) und zum Leuchten bringen */
-                                .cke_button_icon { filter: invert(0.8) hue-rotate(180deg) brightness(1.5) !important; opacity: 0.8; transition: opacity 0.2s; }
-                                .cke_button:hover .cke_button_icon { opacity: 1; filter: invert(1) brightness(2) drop-shadow(0 0 2px rgba(255,255,255,0.5)) !important; }
+                                :is(.dark) .cke_button_icon { filter: invert(0.8) hue-rotate(180deg) brightness(1.5) !important; opacity: 0.8; transition: opacity 0.2s; }
+                                :is(.dark) .cke_button:hover .cke_button_icon { opacity: 1; filter: invert(1) brightness(2) drop-shadow(0 0 2px rgba(255,255,255,0.5)) !important; }
 
-                                /* Dropdowns (z.B. Format, Schriftart) */
-                                .cke_combo_text { color: #d1d5db !important; text-shadow: none !important; }
-                                .cke_combo_button { background: #1f2937 !important; border: 1px solid #374151 !important; border-radius: 6px !important; margin: 2px 4px !important; padding: 0 !important; }
-                                .cke_combo_open { border-left: 1px solid #374151 !important; }
-                                .cke_combo_arrow { filter: invert(1) !important; }
+                                /* Dropdowns */
+                                .cke_combo_text { color: #374151 !important; text-shadow: none !important; }
+                                :is(.dark) .cke_combo_text { color: #d1d5db !important; }
+                                .cke_combo_button { background: #f3f4f6 !important; border: 1px solid #d1d5db !important; border-radius: 6px !important; margin: 2px 4px !important; padding: 0 !important; }
+                                :is(.dark) .cke_combo_button { background: #1f2937 !important; border-color: #374151 !important; }
+                                .cke_combo_open { border-left: 1px solid #d1d5db !important; }
+                                :is(.dark) .cke_combo_open { border-left-color: #374151 !important; }
+                                :is(.dark) .cke_combo_arrow { filter: invert(1) !important; }
 
                                 /* iFrame Hintergrund-Wrapper & Flexbox-Stretching */
                                 .cke_inner { display: flex !important; flex-direction: column !important; flex-grow: 1 !important; }
-                                .cke_contents { background: #030712 !important; flex-grow: 1 !important; height: 0 !important; }
+                                .cke_contents { background: #ffffff !important; flex-grow: 1 !important; height: 0 !important; }
+                                :is(.dark) .cke_contents { background: #030712 !important; }
                                 iframe.cke_wysiwyg_frame { height: 100% !important; width: 100% !important; }
                             </style>
                             <div x-data="{
@@ -714,10 +722,11 @@
                                                     CKEDITOR.instances['composeEditor'].destroy(true);
                                                 }
 
+                                                const isDark = document.documentElement.classList.contains('dark');
                                                 CKEDITOR.addCss(`
                                                     body.cke_editable {
-                                                        background-color: #030712 !important; /* bg-gray-950 */
-                                                        color: #d1d5db !important; /* text-gray-300 */
+                                                        background-color: ${isDark ? '#030712' : '#ffffff'} !important;
+                                                        color: ${isDark ? '#d1d5db' : '#1f2937'} !important;
                                                         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important;
                                                         font-size: 14px !important;
                                                         line-height: 1.8 !important;
@@ -728,7 +737,7 @@
                                                     p { margin-bottom: 1.2em !important; }
                                                     a { color: var(--theme-color) !important; text-decoration: none !important; transition: all 0.2s; }
                                                     a:hover { text-decoration: underline !important; color: #d4af37 !important; }
-                                                    h1, h2, h3, h4, h5, h6 { color: #ffffff !important; font-family: ui-serif, Georgia, serif !important; font-weight: bold !important; margin-top: 1.5em !important; margin-bottom: 0.5em !important; }
+                                                    h1, h2, h3, h4, h5, h6 { color: ${isDark ? '#ffffff' : '#111827'} !important; font-family: ui-serif, Georgia, serif !important; font-weight: bold !important; margin-top: 1.5em !important; margin-bottom: 0.5em !important; }
                                                     ul, ol { margin-bottom: 1.2em !important; padding-left: 1.5em !important; }
                                                     li { margin-bottom: 0.5em !important; }
                                                     blockquote { border-left: 3px solid var(--theme-color) !important; padding-left: 1.5em !important; color: #9ca3af !important; font-style: italic !important; background: var(--theme-color-5) !important; padding-top: 0.5em !important; padding-bottom: 0.5em !important; border-radius: 0 8px 8px 0 !important; }
@@ -770,12 +779,12 @@
                                 : number_format($totalSizeBytes / 1024, 1) . ' KB';
                             $limitExceeded = $totalSizeBytes > 20 * 1024 * 1024;
                         @endphp
-                        <div class="p-4 border-t border-gray-800 bg-gray-950 rounded-b-2xl flex flex-col gap-3 shrink-0">
+                        <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 rounded-b-2xl flex flex-col gap-3 shrink-0">
                             {{-- Top row: upload button and submit buttons --}}
                             <div class="flex justify-between items-center w-full">
                                 <div>
                                     <input type="file" wire:model="uploadedFiles" id="attachment-upload" class="hidden" multiple>
-                                    <label for="attachment-upload" class="cursor-pointer py-2 px-4 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-gray-800 transition-colors flex items-center gap-2 border border-gray-700 bg-gray-900/50 hover:border-gray-600">
+                                    <label for="attachment-upload" class="cursor-pointer py-2 px-4 rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900/50 hover:border-gray-400 dark:hover:border-gray-600 shadow-sm">
                                         <x-heroicon-o-paper-clip class="w-4 h-4 text-[#E6C687]" />
                                         <span>Datei anfügen</span>
                                     </label>
@@ -784,7 +793,7 @@
                                 </div>
 
                                 <div class="flex gap-3">
-                                    <button type="button" wire:click="closeCompose" class="px-4 py-2 text-sm font-bold text-gray-400 hover:text-white transition-colors">Verwerfen</button>
+                                    <button type="button" wire:click="closeCompose" class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Verwerfen</button>
                                     <button @click="$wire.set('composeBody', CKEDITOR.instances['composeEditor'].getData())" 
                                             type="submit" 
                                             {{ $limitExceeded ? 'disabled' : '' }}
@@ -797,17 +806,17 @@
 
                             {{-- Display composition attachments under the "Datei anfügen" button --}}
                             @if(count($composeAttachments) > 0 || !empty($uploadedFiles))
-                                <div class="border-t border-gray-800/50 pt-3">
+                                <div class="border-t border-gray-200 dark:border-gray-800/50 pt-3">
                                     <div class="flex justify-between items-center mb-2">
-                                        <span class="text-xs text-gray-400 font-semibold uppercase tracking-wider">Anhänge ({{ count($composeAttachments) }}):</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Anhänge ({{ count($composeAttachments) }}):</span>
                                         
-                                        <span class="text-xs font-bold {{ $limitExceeded ? 'text-red-500 animate-pulse' : 'text-gray-400' }}">
+                                        <span class="text-xs font-bold {{ $limitExceeded ? 'text-red-500 animate-pulse' : 'text-gray-500 dark:text-gray-400' }}">
                                             Gesamtgröße: {{ $totalSizeFormatted }} / 20.00 MB
                                         </span>
                                     </div>
 
                                     @if($limitExceeded)
-                                        <div class="mb-3 px-3 py-2 bg-red-950/60 border border-red-800 text-red-400 text-xs rounded-lg flex items-center gap-2">
+                                        <div class="mb-3 px-3 py-2 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs rounded-lg flex items-center gap-2">
                                             <x-heroicon-o-exclamation-triangle class="w-4 h-4 text-red-500 shrink-0" />
                                             <span>Das Gesamtlimit von 20 MB ist überschritten. Bitte lösche einige Anhänge, um senden zu können.</span>
                                         </div>
@@ -822,22 +831,22 @@
                                                 if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'])) $icon = 'photo';
                                                 elseif (in_array($ext, ['pdf'])) $icon = 'document-text';
                                             @endphp
-                                            <div class="flex items-center p-2 bg-gray-800 border border-gray-700 rounded-lg hover:border-[var(--theme-color)] hover:bg-gray-800/80 cursor-pointer transition-colors max-w-xs w-full sm:w-auto"
+                                            <div class="flex items-center p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-[var(--theme-color)] hover:bg-gray-50 dark:hover:bg-gray-800/80 cursor-pointer transition-colors max-w-xs w-full sm:w-auto shadow-sm"
                                                  @click="composePreviewFile = '{{ $previewUrl }}'">
-                                                <div class="w-10 h-10 shrink-0 rounded bg-gray-900 flex items-center justify-center mr-3 border border-gray-700">
-                                                    <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-5 h-5 text-gray-400" />
+                                                <div class="w-10 h-10 shrink-0 rounded bg-gray-100 dark:bg-gray-900 flex items-center justify-center mr-3 border border-gray-200 dark:border-gray-700">
+                                                    <x-dynamic-component :component="'heroicon-o-'.$icon" class="w-5 h-5 text-gray-500 dark:text-gray-400" />
                                                 </div>
                                                 <div class="min-w-0 pr-2 flex-col flex justify-center">
-                                                    <div class="text-xs text-white font-medium truncate" title="{{ $att['filename'] }}">{{ Str::limit($att['filename'], 15) }}</div>
+                                                    <div class="text-xs text-gray-900 dark:text-white font-medium truncate" title="{{ $att['filename'] }}">{{ Str::limit($att['filename'], 15) }}</div>
                                                     <div class="text-[10px] text-gray-500">{{ $att['size'] > 1024 * 1024 ? number_format($att['size'] / (1024 * 1024), 2) . ' MB' : number_format($att['size'] / 1024, 1) . ' KB' }}</div>
                                                 </div>
-                                                <button type="button" wire:click.prevent="removeAttachment({{ $index }})" class="ml-auto p-1.5 text-gray-500 hover:text-red-400 rounded-md transition-colors focus:outline-none" @click.stop title="Anhang entfernen">
+                                                <button type="button" wire:click.prevent="removeAttachment({{ $index }})" class="ml-auto p-1.5 text-gray-400 hover:text-red-500 rounded-md transition-colors focus:outline-none" @click.stop title="Anhang entfernen">
                                                     <x-heroicon-o-x-mark class="w-4 h-4" />
                                                 </button>
                                             </div>
                                         @endforeach
 
-                                        <div wire:loading wire:target="uploadedFiles" class="flex items-center gap-2 bg-gray-800/50 text-gray-400 text-xs px-3 py-1.5 rounded-lg border border-gray-700 border-dashed">
+                                        <div wire:loading wire:target="uploadedFiles" class="flex items-center gap-2 bg-gray-100 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 text-xs px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 border-dashed">
                                             <svg class="animate-spin h-3.5 w-3.5 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24">
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -877,10 +886,16 @@
         background: transparent;
     }
     .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: #374151; /* gray-700 */
+        background: #d1d5db; /* gray-300 */
         border-radius: 4px;
     }
+    :is(.dark) .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #374151; /* gray-700 */
+    }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+    }
+    :is(.dark) .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: #4B5563; /* gray-600 */
     }
     </style>

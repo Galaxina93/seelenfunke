@@ -53,25 +53,25 @@
                 }
                 this.renamingItemPath = null;
             }
-        }" @click="closeContextMenu" @scroll.window="closeContextMenu" :class="{'hidden': activeTab !== 'files'}" class="flex-1 shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full p-6">
+        }" @click="closeContextMenu" @scroll.window="closeContextMenu" :class="{'hidden': activeTab !== 'files'}" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full p-6">
             
             <!-- Suchleiste (Volle Breite) -->
             <div class="w-full mb-4">
                 <div class="relative w-full">
                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-500" />
+                        <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-400 dark:text-gray-500" />
                     </div>
-                    <input type="text" wire:model.live.debounce.300ms="searchFileManager" placeholder="Dateien und Ordner im gesamten Workspace suchen..." class="w-full bg-black/50 border border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-200 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-all shadow-inner">
+                    <input type="text" wire:model.live.debounce.300ms="searchFileManager" placeholder="Dateien und Ordner im gesamten Workspace suchen..." class="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-lg pl-10 pr-4 py-2.5 text-sm text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-all shadow-inner">
                 </div>
             </div>
 
             <!-- Header & Navigation -->
-            <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-800">
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200 dark:border-gray-800">
                 <div class="flex items-center gap-2">
-                    <button type="button" wire:click="goUpFileManagerFolder" class="p-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors" title="Ebene hoch">
+                    <button type="button" wire:click="goUpFileManagerFolder" class="p-2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 transition-colors shadow-sm" title="Ebene hoch">
                         <x-heroicon-o-arrow-up class="w-5 h-5" />
                     </button>
-                    <div class="text-sm font-mono text-gray-400 bg-black/50 px-3 py-1.5 rounded-lg border border-gray-800 flex items-center">
+                    <div class="text-sm font-mono text-gray-700 dark:text-gray-400 bg-gray-50 dark:bg-black/50 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 flex items-center shadow-inner">
                         <x-heroicon-o-folder-open class="w-4 h-4 mr-2 text-[var(--theme-color)]" />
                         {{ $this->currentFilePath }}
                     </div>
@@ -80,15 +80,15 @@
                     
                     <!-- CREATE FOLDER -->
                     <form wire:submit.prevent="createFileManagerFolder" class="flex items-center gap-2">
-                        <input type="text" wire:model="newFolderName" placeholder="Neuer Ordner..." class="bg-black/50 border border-gray-800 rounded px-3 py-1.5 text-sm text-gray-200 focus:border-[var(--theme-color)] outline-none w-32 sm:focus:w-48 transition-all">
-                        <button type="submit" class="bg-gray-800 hover:bg-gray-700 text-[var(--theme-color)] p-1.5 rounded transition-colors shadow-md" title="Ordner erstellen">
+                        <input type="text" wire:model="newFolderName" placeholder="Neuer Ordner..." class="bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:border-[var(--theme-color)] outline-none w-32 sm:focus:w-48 transition-all">
+                        <button type="submit" class="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-[var(--theme-color)] border border-gray-200 dark:border-gray-700 p-1.5 rounded transition-colors shadow-sm" title="Ordner erstellen">
                             <x-heroicon-o-folder-plus class="w-5 h-5" />
                         </button>
                     </form>
                     
                     <!-- UPLOAD FILE -->
-                    <form class="flex items-center gap-2 border-l border-gray-800 pl-3">
-                        <label class="cursor-pointer bg-gray-800 hover:bg-gray-700 text-[var(--theme-color)] p-1.5 rounded transition-colors shadow-md" title="Datei hochladen">
+                    <form class="flex items-center gap-2 border-l border-gray-200 dark:border-gray-800 pl-3">
+                        <label class="cursor-pointer bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-[var(--theme-color)] border border-gray-200 dark:border-gray-700 p-1.5 rounded transition-colors shadow-sm" title="Datei hochladen">
                             <x-heroicon-o-arrow-up-tray class="w-5 h-5" />
                             <input type="file" wire:model.live="fileUpload" class="hidden">
                         </label>
@@ -96,24 +96,24 @@
                     </form>
 
                     <!-- DATEITRICHTER (Intelligente Sortierung & Knowledge Base) -->
-                    <div class="flex items-center gap-1.5 border-l border-gray-800 pl-3">
+                    <div class="flex items-center gap-1.5 border-l border-gray-200 dark:border-gray-800 pl-3">
                         <button type="button" 
                                 wire:click="runDateitrichter" 
                                 wire:loading.attr="disabled"
-                                class="bg-amber-950/40 hover:bg-amber-900/60 border border-amber-600/50 text-amber-400 hover:text-amber-300 p-1.5 rounded transition-all shadow-md flex items-center justify-center group" 
+                                class="bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-600/50 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 p-1.5 rounded transition-all shadow-sm flex items-center justify-center group" 
                                 title="Dateitrichter: Unsortierte Dateien analysieren, intelligent einsortieren & Knowledge Base aktualisieren">
                             <x-heroicon-o-funnel class="w-5 h-5" />
                         </button>
-                        <div wire:loading wire:target="runDateitrichter" class="text-xs text-amber-400 font-mono animate-pulse flex items-center gap-1">
+                        <div wire:loading wire:target="runDateitrichter" class="text-xs text-amber-500 dark:text-amber-400 font-mono animate-pulse flex items-center gap-1">
                             <x-heroicon-o-arrow-path class="w-3.5 h-3.5 animate-spin" /> Trichter aktiv...
                         </div>
                     </div>
 
-                    <div class="flex bg-black/50 rounded-lg border border-gray-800 p-1 ml-1 sm:ml-2">
-                        <button type="button" @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'" class="p-1.5 rounded transition-colors">
+                    <div class="flex bg-gray-100 dark:bg-black/50 rounded-lg border border-gray-200 dark:border-gray-800 p-1 ml-1 sm:ml-2">
+                        <button type="button" @click="viewMode = 'grid'" :class="viewMode === 'grid' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="p-1.5 rounded transition-colors">
                             <x-heroicon-o-squares-2x2 class="w-5 h-5" />
                         </button>
-                        <button type="button" @click="viewMode = 'table'" :class="viewMode === 'table' ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'" class="p-1.5 rounded transition-colors">
+                        <button type="button" @click="viewMode = 'table'" :class="viewMode === 'table' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="p-1.5 rounded transition-colors">
                             <x-heroicon-o-list-bullet class="w-5 h-5" />
                         </button>
                     </div>
@@ -274,11 +274,11 @@
                                      @dragover.prevent="$event.dataTransfer.dropEffect = 'move'; $el.classList.add('border-emerald-500', 'bg-emerald-950/30')"
                                      @dragleave="$el.classList.remove('border-emerald-500', 'bg-emerald-950/30')"
                                      @drop.prevent="$el.classList.remove('border-emerald-500', 'bg-emerald-950/30'); if(draggedItemPath && draggedItemPath !== '{{ addslashes($file['path']) }}') { $wire.moveFileManagerItem(draggedItemPath, '{{ addslashes($file['path']) }}'); draggedItemPath = null; }"
-                                     class="cursor-pointer border border-gray-800 bg-gray-950 rounded-xl p-4 flex flex-col items-center justify-center text-center gap-3 transition-all hover:scale-105 hover:border-[var(--theme-color)] shadow-md group relative">
+                                     class="cursor-pointer border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 rounded-xl p-4 flex flex-col items-center justify-center text-center gap-3 transition-all hover:scale-105 hover:border-[var(--theme-color)] shadow-sm dark:shadow-md group relative">
                                     <x-heroicon-o-folder class="w-16 h-16 text-[var(--theme-color)] opacity-80 group-hover:opacity-100 transition-opacity" />
-                                    <div class="font-mono text-xs font-bold leading-tight break-all line-clamp-2 w-full px-1 text-gray-300">
+                                    <div class="font-mono text-xs font-bold leading-tight break-all line-clamp-2 w-full px-1 text-gray-800 dark:text-gray-300">
                                         <template x-if="renamingItemPath === '{{ addslashes($file['path']) }}'">
-                                            <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-1 py-0.5 text-center text-white outline-none">
+                                            <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-center text-gray-900 dark:text-white outline-none">
                                         </template>
                                         <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
                                             <span>{{ $file['name'] }}</span>
@@ -292,12 +292,12 @@
                                 @php
                                     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
                                     $props = match($ext) {
-                                        'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp' => ['icon' => 'heroicon-o-photo', 'class' => 'text-fuchsia-400 border-fuchsia-900/50 bg-fuchsia-950/30'],
-                                        'pdf' => ['icon' => 'heroicon-o-document-text', 'class' => 'text-red-400 border-red-900/50 bg-red-950/30'],
-                                        'csv', 'xlsx' => ['icon' => 'heroicon-o-table-cells', 'class' => 'text-emerald-400 border-emerald-900/50 bg-emerald-950/30'],
-                                        'mp4', 'webm', 'ogg', 'mov' => ['icon' => 'heroicon-o-film', 'class' => 'text-blue-400 border-blue-900/50 bg-blue-950/30'],
-                                        'mp3', 'wav', 'm4a' => ['icon' => 'heroicon-o-musical-note', 'class' => 'text-orange-400 border-orange-900/50 bg-orange-950/30'],
-                                        default => ['icon' => 'heroicon-o-document', 'class' => 'text-gray-400 border-gray-700 bg-gray-900']
+                                        'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp' => ['icon' => 'heroicon-o-photo', 'class' => 'text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-200 dark:border-fuchsia-900/50 bg-fuchsia-50 dark:bg-fuchsia-950/30'],
+                                        'pdf' => ['icon' => 'heroicon-o-document-text', 'class' => 'text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30'],
+                                        'csv', 'xlsx' => ['icon' => 'heroicon-o-table-cells', 'class' => 'text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30'],
+                                        'mp4', 'webm', 'ogg', 'mov' => ['icon' => 'heroicon-o-film', 'class' => 'text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30'],
+                                        'mp3', 'wav', 'm4a' => ['icon' => 'heroicon-o-musical-note', 'class' => 'text-orange-600 dark:text-orange-400 border-orange-200 dark:border-orange-900/50 bg-orange-50 dark:bg-orange-950/30'],
+                                        default => ['icon' => 'heroicon-o-document', 'class' => 'text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900']
                                     };
                                     $previewType = match($ext) {
                                         'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp' => 'image',
@@ -312,11 +312,11 @@
                                      @contextmenu.prevent.stop="openContextMenu($event, '{{ addslashes($file['path']) }}', '{{ addslashes($file['name']) }}')"
                                      draggable="true"
                                      @dragstart="draggedItemPath = '{{ addslashes($file['path']) }}'; $event.dataTransfer.effectAllowed = 'move'; $event.dataTransfer.setData('text/plain', draggedItemPath);"
-                                     class="border rounded-xl p-4 flex flex-col items-center justify-center text-center gap-3 transition-all hover:scale-105 hover:bg-opacity-80 shadow-md {{ $props['class'] }} relative overflow-hidden group">
+                                     class="border rounded-xl p-4 flex flex-col items-center justify-center text-center gap-3 transition-all hover:scale-105 hover:bg-opacity-80 shadow-sm dark:shadow-md {{ $props['class'] }} relative overflow-hidden group">
                                     
                                     @if($previewType === 'text')
                                         <button type="button" wire:click="openFilePreview('{{ addslashes($file['path']) }}')" class="cursor-pointer">
-                                            <div class="w-16 h-16 rounded-full bg-black/40 border border-current shadow-inner flex justify-center items-center group-hover:scale-110 transition-transform">
+                                            <div class="w-16 h-16 rounded-full bg-black/10 dark:bg-black/40 border border-current shadow-inner flex justify-center items-center group-hover:scale-110 transition-transform">
                                                 <x-dynamic-component :component="$props['icon']" class="w-8 h-8 opacity-80" />
                                             </div>
                                         </button>
@@ -328,25 +328,25 @@
                                         </button>
                                     @else
                                         <button type="button" @click="openPreview('{{ $file['url'] }}', '{{ $previewType }}', '{{ addslashes($file['name']) }}')" class="cursor-pointer">
-                                            <div class="w-16 h-16 rounded-full bg-black/40 border border-current shadow-inner flex justify-center items-center group-hover:scale-110 transition-transform">
+                                            <div class="w-16 h-16 rounded-full bg-black/10 dark:bg-black/40 border border-current shadow-inner flex justify-center items-center group-hover:scale-110 transition-transform">
                                                 <x-dynamic-component :component="$props['icon']" class="w-8 h-8 opacity-80" />
                                             </div>
                                         </button>
                                     @endif
-                                    <div class="font-mono text-xs font-bold leading-tight break-all line-clamp-2 w-full px-1 text-gray-300" title="{{ $file['name'] }}">
+                                    <div class="font-mono text-xs font-bold leading-tight break-all line-clamp-2 w-full px-1 text-gray-800 dark:text-gray-300" title="{{ $file['name'] }}">
                                         <template x-if="renamingItemPath === '{{ addslashes($file['path']) }}'">
-                                            <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-1 py-0.5 text-center text-white outline-none">
+                                            <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-600 rounded px-1 py-0.5 text-center text-gray-900 dark:text-white outline-none">
                                         </template>
                                         <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
                                             <span>{{ $file['title'] ?? $file['name'] }}</span>
                                         </template>
                                     </div>
                                     @if(!empty($file['category']))
-                                        <div class="text-[9px] px-2 py-0.5 rounded bg-fuchsia-950/60 text-fuchsia-300 border border-fuchsia-800/40 font-semibold truncate max-w-full" title="{{ $file['category'] }}">{{ $file['category'] }}</div>
+                                        <div class="text-[9px] px-2 py-0.5 rounded bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 border border-fuchsia-200 dark:border-fuchsia-800/40 font-semibold truncate max-w-full" title="{{ $file['category'] }}">{{ $file['category'] }}</div>
                                     @endif
                                     @if(!empty($file['purpose']))
-                                        <div class="text-[10px] text-gray-400 italic line-clamp-2 px-1 text-left w-full bg-black/40 p-1.5 rounded border border-gray-800/60" title="{{ $file['purpose'] }}">
-                                            <span class="text-amber-400 font-bold not-italic">Zweck:</span> {{ $file['purpose'] }}
+                                        <div class="text-[10px] text-gray-600 dark:text-gray-400 italic line-clamp-2 px-1 text-left w-full bg-gray-50 dark:bg-black/40 p-1.5 rounded border border-gray-200 dark:border-gray-800/60" title="{{ $file['purpose'] }}">
+                                            <span class="text-amber-600 dark:text-amber-400 font-bold not-italic">Zweck:</span> {{ $file['purpose'] }}
                                         </div>
                                     @endif
                                     @if(!empty($this->searchFileManager))
@@ -369,7 +369,7 @@
                     <div x-show="viewMode === 'table'" style="display: none;">
                         <table class="w-full text-left border-collapse">
                             <thead>
-                                <tr class="text-xs uppercase text-gray-500 border-b border-gray-800">
+                                <tr class="text-xs uppercase text-gray-500 border-b border-gray-200 dark:border-gray-800">
                                     <th class="py-2 pl-2">Name / Titel</th>
                                     <th class="py-2 px-2">Kategorie & Zweck (Wofür da)</th>
                                     <th class="py-2">Größe</th>
@@ -389,18 +389,18 @@
                                             @dragleave="$el.classList.remove('bg-emerald-900/40')"
                                             @drop.prevent="$el.classList.remove('bg-emerald-900/40'); if(draggedItemPath && draggedItemPath !== '{{ addslashes($file['path']) }}') { $wire.moveFileManagerItem(draggedItemPath, '{{ addslashes($file['path']) }}'); draggedItemPath = null; }"
                                         @endif
-                                        class="border-b border-gray-800/50 hover:bg-gray-800/20 transition-colors cursor-pointer">
+                                        class="border-b border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors cursor-pointer">
                                         <td class="py-3 pl-2 flex items-center gap-3">
                                             @if($file['type'] === 'folder')
                                                 <x-heroicon-s-folder class="w-6 h-6 text-[var(--theme-color)]" />
                                                 <template x-if="renamingItemPath === '{{ addslashes($file['path']) }}'">
-                                                    <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-2 py-1 text-white outline-none font-bold">
+                                                    <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white outline-none font-bold">
                                                 </template>
                                                 <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                                    <button @click="if(renamingItemPath !== '{{ addslashes($file['path']) }}') { $wire.openFileManagerFolder('{{ addslashes($file['name']) }}') }" class="font-bold text-gray-300 hover:text-white hover:underline flex flex-col items-start">
+                                                    <button @click="if(renamingItemPath !== '{{ addslashes($file['path']) }}') { $wire.openFileManagerFolder('{{ addslashes($file['name']) }}') }" class="font-bold text-gray-800 dark:text-gray-300 hover:text-black dark:hover:text-white hover:underline flex flex-col items-start">
                                                         <span>{{ $file['name'] }}</span>
                                                         @if(!empty($this->searchFileManager))
-                                                            <span class="text-[10px] text-gray-600 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
+                                                            <span class="text-[10px] text-gray-500 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
                                                         @endif
                                                     </button>
                                                 </template>
@@ -419,13 +419,13 @@
                                                 @if($previewType === 'text')
                                                     <x-heroicon-o-document-text class="w-6 h-6 text-gray-400" />
                                                     <template x-if="renamingItemPath === '{{ addslashes($file['path']) }}'">
-                                                        <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-2 py-1 text-white outline-none">
+                                                        <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white outline-none">
                                                     </template>
                                                     <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                                        <button wire:click="openFilePreview('{{ addslashes($file['path']) }}')" class="text-gray-400 hover:text-white hover:underline flex flex-col items-start">
+                                                        <button wire:click="openFilePreview('{{ addslashes($file['path']) }}')" class="text-gray-700 dark:text-gray-400 hover:text-black dark:hover:text-white hover:underline flex flex-col items-start">
                                                             <span>{{ $file['name'] }}</span>
                                                             @if(!empty($this->searchFileManager))
-                                                                <span class="text-[10px] text-gray-600 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
+                                                                <span class="text-[10px] text-gray-500 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
                                                             @endif
                                                         </button>
                                                     </template>
@@ -436,13 +436,13 @@
                                                     @else <x-heroicon-o-document class="w-6 h-6 text-gray-400" /> @endif
                                                     
                                                     <template x-if="renamingItemPath === '{{ addslashes($file['path']) }}'">
-                                                        <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-black/50 border border-gray-600 rounded px-2 py-1 text-white outline-none">
+                                                        <input :id="'renameInput_{{ addslashes($file['path']) }}'" type="text" x-model="renameInput" @keydown.enter.prevent.stop="submitRename" @keydown.escape.prevent.stop="renamingItemPath = null" @click.stop class="w-full bg-white dark:bg-black/50 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-900 dark:text-white outline-none">
                                                     </template>
                                                     <template x-if="renamingItemPath !== '{{ addslashes($file['path']) }}'">
-                                                        <button @click="openPreview('{{ $file['url'] }}', '{{ $previewType }}', '{{ addslashes($file['name']) }}')" class="text-gray-400 hover:text-white hover:underline flex flex-col items-start">
+                                                        <button @click="openPreview('{{ $file['url'] }}', '{{ $previewType }}', '{{ addslashes($file['name']) }}')" class="text-gray-700 dark:text-gray-400 hover:text-black dark:hover:text-white hover:underline flex flex-col items-start">
                                                             <span>{{ $file['name'] }}</span>
                                                             @if(!empty($this->searchFileManager))
-                                                                <span class="text-[10px] text-gray-600 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
+                                                                <span class="text-[10px] text-gray-500 font-normal mt-0.5">{{ dirname($file['path']) }}</span>
                                                             @endif
                                                         </button>
                                                     </template>
@@ -451,7 +451,7 @@
                                         </td>
                                         <td class="py-3 px-2 max-w-sm">
                                             @if($file['type'] === 'folder')
-                                                <span class="text-xs text-gray-600 italic">Verzeichnis</span>
+                                                <span class="text-xs text-gray-500 italic">Verzeichnis</span>
                                             @else
                                                 @if(!empty($file['category']))
                                                     <span class="inline-block text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-950/60 text-fuchsia-300 border border-fuchsia-800/40 font-semibold mb-0.5">{{ $file['category'] }}</span>

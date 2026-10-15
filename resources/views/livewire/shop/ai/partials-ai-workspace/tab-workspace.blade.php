@@ -5,7 +5,7 @@
                          class="flex-1 flex flex-col gap-2 overflow-hidden h-full w-full relative">
                          
                     <!-- TOP: Workspace Kanban Canvas -->
-                    <div class="flex-1 min-h-0 shrink-0 rounded-2xl border border-gray-800 relative overflow-hidden shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-[#050505] flex" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
+                    <div class="flex-1 min-h-0 shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 relative overflow-hidden shadow-inner dark:shadow-[inset_0_0_50px_rgba(0,0,0,1)] bg-gray-50 dark:bg-[#050505] flex" style="background-image: linear-gradient(var(--theme-color-5) 1px, transparent 1px), linear-gradient(90deg, var(--theme-color-5) 1px, transparent 1px); background-size: 3rem 3rem;">
                     <div class="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-emerald-500/5 to-transparent pointer-events-none"></div>
                 
                 <!-- Heartbeat Monitor (Ultra-Realistic HTML5 Canvas) -->
@@ -197,7 +197,7 @@
                     <!-- ============================== -->
                     <div class="flex lg:hidden w-full flex-wrap gap-4 items-start content-start">
 @foreach($tasks as $task)
-                        <div class="task-node relative w-full lg:w-80 {{ $task->parent_task_id ? 'ml-0 lg:ml-8 border-l-4 border-l-[var(--theme-color-50)]' : '' }} bg-gray-950/90 backdrop-blur-md border {{ $task->status === 'completed' ? 'border-[var(--theme-color-50)] shadow-xl shadow-[var(--theme-color-10)]' : ($task->status === 'processing' ? 'border-[var(--theme-color-50)] shadow-[0_0_15px_var(--theme-color-10)] animate-pulse-slow' : 'border-gray-800') }} rounded-2xl p-5 flex flex-col transition-all shrink-0"
+                        <div class="task-node relative w-full lg:w-80 {{ $task->parent_task_id ? 'ml-0 lg:ml-8 border-l-4 border-l-[var(--theme-color-50)]' : '' }} bg-white dark:bg-gray-950/90 backdrop-blur-md border {{ $task->status === 'completed' ? 'border-[var(--theme-color-50)] shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)]' : ($task->status === 'processing' ? 'border-[var(--theme-color-50)] shadow-sm dark:shadow-[0_0_15px_var(--theme-color-10)] animate-pulse-slow' : 'border-gray-200 dark:border-gray-800') }} rounded-2xl p-5 flex flex-col transition-all shrink-0 shadow-sm"
                              @if($task->status === 'pending')
                                  x-on:dragover.prevent="dragOver($event)"
                                  x-on:dragleave.prevent="dragLeave($event)"
@@ -276,7 +276,7 @@
                                 </div>
                             </div>
                             
-                            <p class="text-sm text-gray-300 leading-relaxed font-sans mb-4">{{ $task->prompt }}</p>
+                            <p class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-sans mb-4">{{ $task->prompt }}</p>
 
                             @if(!empty($task->ui_metadata['attachments']) || !empty($task->ui_metadata['local_uploads']))
                                 <div class="flex flex-wrap gap-2 mb-4 -mt-2">
@@ -332,7 +332,7 @@
                                 @endif
                             @endif
 
-                            <div class="mt-auto pt-4 border-t border-gray-800/80 lg:pointer-events-none">
+                            <div class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800/80 lg:pointer-events-none">
                                 @if($task->assigned_agent_id && $task->agent)
                                     <div class="flex items-center gap-2">
                                         <div class="w-6 h-6 rounded-full bg-gray-900 border border-gray-700 overflow-hidden shrink-0">
@@ -374,21 +374,21 @@
                     <!-- ============================== -->
                     <!-- DESKTOP: TABELLEN-ANSICHT      -->
                     <!-- ============================== -->
-                    <div class="hidden lg:flex lg:flex-col lg:flex-1 min-h-0 w-full text-white">
+                    <div class="hidden lg:flex lg:flex-col lg:flex-1 min-h-0 w-full text-gray-900 dark:text-white">
                         @if($tasks->isNotEmpty())
-                            <div class="overflow-x-auto overflow-y-auto flex-1 rounded-xl border border-gray-800 bg-gray-950/50 backdrop-blur-md shadow-2xl custom-scrollbar">
+                            <div class="overflow-x-auto overflow-y-auto flex-1 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950/50 backdrop-blur-md shadow-sm dark:shadow-2xl custom-scrollbar">
                                 <table class="w-full text-left border-collapse relative">
-                                    <thead class="sticky top-0 z-20 bg-gray-900 shadow-sm border-b border-gray-800">
-                                        <tr class="text-[10px] uppercase tracking-widest text-gray-500 font-bold">
+                                    <thead class="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-800">
+                                        <tr class="text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-500 font-bold">
                                             <th class="px-6 py-4">ID & Aufgabe</th>
                                             <th class="px-6 py-4 w-48">Agent</th>
                                             <th class="px-6 py-4 w-56">Status</th>
                                             <th class="px-6 py-4 w-32 text-right">Aktionen</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-gray-800/60">
+                                    <tbody class="divide-y divide-gray-200 dark:divide-gray-800/60">
                                         @foreach($tasks as $task)
-                                        <tr class="transition-colors hover:bg-gray-900/40 {{ $task->parent_task_id ? 'bg-gray-900/20' : '' }}"
+                                        <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/40 {{ $task->parent_task_id ? 'bg-gray-50/50 dark:bg-gray-900/20' : '' }}"
                                             @if($task->status === 'pending')
                                                 x-on:dragover.prevent="dragOver($event)"
                                                 x-on:dragleave.prevent="dragLeave($event)"

@@ -124,7 +124,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Einnahmen',
                 'name'        => 'Gründerzuschuss',
-                'amount'      => 2106.30,
+                'amount'      => 0,
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-11-01',
                 'last_date'   => '2027-04-30',

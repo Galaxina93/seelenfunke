@@ -285,15 +285,23 @@
         --}}
         <section class="py-16 bg-white" aria-labelledby="kompetenz-heading">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div class="bg-gray-900 rounded-2xl p-8 md:p-12 text-center shadow-2xl relative overflow-hidden">
+                <div class="bg-gradient-to-br from-stone-50 via-white to-stone-50 border border-gray-200/80 rounded-3xl p-8 md:p-12 text-center shadow-xl relative overflow-hidden">
+                    <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+                    <div class="absolute -left-20 -top-20 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+
                     <div class="relative z-10">
-                        <h2 id="kompetenz-heading" class="text-2xl font-bold text-white mb-4">Unsere Kompetenz für Ihre Sicherheit</h2>
-                        <p class="text-gray-300 max-w-2xl mx-auto mb-8">
+                        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/15 text-primary-dark text-xs font-bold uppercase tracking-wider mb-4 shadow-sm">
+                            <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            Geprüfte Sicherheitsstandards
+                        </div>
+
+                        <h2 id="kompetenz-heading" class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 mb-4">Unsere Kompetenz für Ihre Sicherheit</h2>
+                        <p class="text-gray-600 max-w-2xl mx-auto mb-8 text-base leading-relaxed">
                             Wir arbeiten mit Hochleistungslasern der Klasse 4. Um höchste Qualität und Sicherheit zu gewährleisten,
                             haben wir uns intensiv fortgebildet und prüfen lassen.
                         </p>
                         <div class="flex justify-center gap-4 flex-wrap mb-8">
-                            <button @click="showCertModal = true" class="px-5 py-3 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg border border-white/20 hover:border-primary/50 text-white font-medium flex items-center gap-2.5 transition-all duration-300 transform hover:-translate-y-0.5 shadow-lg cursor-pointer group">
+                            <button @click="showCertModal = true" class="px-5 py-3 bg-white hover:bg-stone-50 active:bg-stone-100 rounded-xl border border-gray-300 hover:border-primary text-gray-800 font-bold flex items-center gap-2.5 transition-all duration-300 transform hover:-translate-y-0.5 shadow-sm cursor-pointer group">
                                 <svg class="w-5 h-5 text-primary transition-transform duration-300 group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                                 </svg>
@@ -303,7 +311,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                 </svg>
                             </button>
-                            <div class="px-5 py-3 bg-white/10 rounded-lg border border-white/20 text-white font-medium flex items-center gap-2.5">
+                            <div class="px-5 py-3 bg-white rounded-xl border border-gray-300 text-gray-800 font-bold flex items-center gap-2.5 shadow-sm">
                                 <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
@@ -312,10 +320,10 @@
                         </div>
 
                         {{-- TROS Info als Accordion --}}
-                        <div x-data="{ open: false }" class="bg-black/30 border border-white/10 rounded-xl max-w-3xl mx-auto shadow-inner overflow-hidden">
+                        <div x-data="{ open: false }" class="bg-white border border-gray-200 rounded-2xl max-w-3xl mx-auto shadow-sm overflow-hidden">
                             <button @click="open = !open" 
-                                    class="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:bg-white/5 hover:bg-white/5 transition-colors gap-4">
-                                <strong class="text-gray-200">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</strong>
+                                    class="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:bg-stone-50 hover:bg-stone-50 transition-colors gap-4 cursor-pointer">
+                                <strong class="text-gray-900 font-bold text-sm sm:text-base">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</strong>
                                 <svg class="w-5 h-5 text-gray-400 transform transition-transform duration-300 flex-shrink-0" 
                                      :class="{'rotate-180': open}" 
                                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -326,9 +334,9 @@
                             <div x-show="open" 
                                  x-collapse
                                  x-cloak
-                                 class="px-6 pb-6 text-sm text-gray-400 text-left leading-relaxed">
-                                <div class="pt-2 border-t border-white/10 mt-2">
-                                    Die Qualifikation nach <strong class="text-white">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4. 
+                                 class="px-6 pb-6 text-sm text-gray-600 text-left leading-relaxed">
+                                <div class="pt-3 border-t border-gray-100 mt-2">
+                                    Die Qualifikation nach <strong class="text-gray-900 font-bold">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4. 
                                     <br><br>
                                     Diese staatlich anerkannte Fachkunde untermauert, dass wir unsere Produkte nicht einfach im Hobbykeller "bedrucken", sondern unter hochprofessionellen, sicheren Industriebedingungen veredeln. Für dich bedeutet das: Dein Unikat entsteht in einer rechtssicheren Manufaktur, bei der Arbeitsschutz, technische Präzision und tiefes Fachwissen die absolute Grundlage bilden.
                                 </div>
@@ -411,34 +419,35 @@
                 </div>
 
                 {{-- Gründerin Zitat & Call to Action Banner --}}
-                <div class="bg-gray-900 rounded-3xl p-8 sm:p-12 text-white shadow-2xl relative overflow-hidden">
+                <div class="bg-gradient-to-br from-stone-50 via-white to-amber-50/40 border border-gray-200/80 rounded-3xl p-8 sm:p-12 text-gray-900 shadow-xl relative overflow-hidden">
                     <div class="absolute -right-20 -bottom-20 w-80 h-80 bg-primary/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+                    <div class="absolute -left-20 -top-20 w-80 h-80 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
 
                     <div class="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
                         <div class="max-w-2xl">
-                            <span class="text-primary font-bold tracking-wider uppercase text-xs mb-3 block">
+                            <span class="text-primary-dark font-bold tracking-wider uppercase text-xs mb-3 block">
                                 Unsere Vision & Haltung
                             </span>
-                            <blockquote class="text-xl sm:text-2xl font-serif italic text-gray-100 mb-6 leading-relaxed">
-                                „Ein Seelenfunke soll nicht nur im Regal unserer Kunden leuchten, sondern auch in den Augen von Kindern einen Funken Begeisterung entfachen. Handwerk und soziale Verantwortung gehören für mich untrennbar zusammen.“
+                            <blockquote class="text-xl sm:text-2xl font-serif italic text-gray-800 mb-6 leading-relaxed">
+                                „Ich stehe mit ganzem Herzen dafür, meinen Kunden mit liebevoll handgefertigten Unikaten pure Freude zu schenken – und gleichzeitig soziale Fürsorge für Kinder aktiv zu leben. Ein Seelenfunke soll nicht nur im Zuhause unserer Kunden ein warmes Leuchten entfachen, sondern zeitgleich auch in Kinderaugen echte Begeisterung und ein Lächeln zaubern. Pure Freude beim Kunden und soziales Engagement für Kinder gehören für mich untrennbar zusammen.“
                             </blockquote>
                             <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary">
+                                <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-primary shadow-sm">
                                     <img src="{{ asset('shop/projekt/about/gruender-profil-b.webp') }}" alt="Alina Steinhauer" class="w-full h-full object-cover">
                                 </div>
                                 <div>
-                                    <div class="font-bold text-sm text-white">Alina Steinhauer</div>
-                                    <div class="text-xs text-gray-400">Gründerin von Mein Seelenfunke</div>
+                                    <div class="font-bold text-sm text-gray-900">Alina Steinhauer</div>
+                                    <div class="text-xs text-gray-500 font-medium">Gründerin von Mein Seelenfunke</div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="shrink-0 flex flex-col items-center sm:items-start gap-4 text-center sm:text-left">
-                            <a href="{{ route('shop') }}" class="px-8 py-4 bg-primary hover:bg-primary-hover active:scale-95 text-gray-950 font-bold rounded-xl shadow-lg shadow-primary/20 transition-all flex items-center gap-3">
+                            <a href="{{ route('shop') }}" class="px-8 py-4 bg-gradient-to-r from-primary-light to-primary hover:brightness-105 active:scale-95 text-gray-900 font-bold rounded-xl shadow-md transition-all flex items-center gap-3 cursor-pointer">
                                 <span>Unikat gestalten & Gutes tun</span>
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                             </a>
-                            <span class="text-xs text-gray-400">Jeder Einkauf stärkt lokale Kinder-Aktionen</span>
+                            <span class="text-xs text-gray-500 font-medium">Jeder Einkauf stärkt lokale Kinder-Aktionen</span>
                         </div>
                     </div>
                 </div>
@@ -466,7 +475,7 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
          x-cloak
          style="display: none;">
         
@@ -479,30 +488,30 @@
              x-transition:leave="transition ease-in duration-200 transform scale-100 opacity-100"
              x-transition:leave-start="scale-100 opacity-100"
              x-transition:leave-end="scale-95 opacity-0"
-             class="relative w-full max-w-5xl h-[85vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+             class="relative w-full max-w-5xl h-[85vh] bg-white border border-gray-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             
             <!-- Modal Header -->
-            <div class="px-6 py-4 border-b border-gray-800 flex items-center justify-between bg-gray-950/50">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-stone-50/80">
                 <div class="flex items-center gap-3">
                     <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                     </svg>
                     <div class="text-left">
-                        <h3 class="text-lg font-bold text-white leading-none">Laserschutzbeauftragte Zertifikat</h3>
-                        <span class="text-xs text-gray-400">Alina Steinhauer, ausgestellt nach OStrV & TROS Laserstrahlung</span>
+                        <h3 class="text-lg font-bold text-gray-900 leading-none">Laserschutzbeauftragte Zertifikat</h3>
+                        <span class="text-xs text-gray-500">Alina Steinhauer, ausgestellt nach OStrV & TROS Laserstrahlung</span>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
                     <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" 
                        target="_blank" 
-                       class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-xs font-bold rounded-lg border border-gray-700 transition-colors flex items-center gap-1.5">
+                       class="px-3 py-1.5 bg-white hover:bg-stone-100 text-gray-800 text-xs font-bold rounded-lg border border-gray-300 transition-colors flex items-center gap-1.5 shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                         </svg>
                         <span>Vollbild / Herunterladen</span>
                     </a>
                     <button @click="showCertModal = false" 
-                            class="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg border border-gray-700 transition-colors">
+                            class="p-1.5 bg-white hover:bg-stone-100 text-gray-500 hover:text-gray-900 rounded-lg border border-gray-300 transition-colors shadow-sm cursor-pointer">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
@@ -511,13 +520,13 @@
             </div>
             
             <!-- Modal Content (PDF Embed / Iframe) -->
-            <div class="flex-1 bg-gray-950 relative">
+            <div class="flex-1 bg-stone-100 relative">
                 <iframe src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}#toolbar=0" 
                         class="w-full h-full border-0" 
                         title="Laserschutzbeauftragte Zertifikat PDF">
-                    <div class="text-gray-400 p-8 text-center flex flex-col items-center justify-center h-full">
+                    <div class="text-gray-500 p-8 text-center flex flex-col items-center justify-center h-full">
                         <p class="mb-4">Ihr Browser unterstützt die direkte PDF-Vorschau nicht.</p>
-                        <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" target="_blank" class="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-bold transition-colors">Zertifikat hier herunterladen</a>
+                        <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" target="_blank" class="px-4 py-2 bg-gradient-to-r from-primary-light to-primary text-gray-900 rounded-lg font-bold transition-all shadow-md">Zertifikat hier herunterladen</a>
                     </div>
                 </iframe>
             </div>

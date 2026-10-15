@@ -1,8 +1,8 @@
 <div x-show="activeTab === 'owner'" class="space-y-6 md:space-y-8 animate-fade-in" style="display: none;">
-    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-10 relative overflow-hidden">
+        <div class="hidden dark:block absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
 
-        <h3 class="text-lg sm:text-xl font-serif font-bold text-white mb-8 border-b border-gray-800 pb-5 flex items-center gap-3 tracking-wide mt-12">
+        <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white mb-8 border-b border-gray-100 dark:border-gray-800 pb-5 flex items-center gap-3 tracking-wide mt-12">
             <div class="p-2.5 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
             </div>
@@ -18,7 +18,7 @@
                 <input type="text" wire:model="settings.company_name" class="{{ $inputClass }} !text-base !font-bold border-[var(--theme-color-30)] focus:border-[var(--theme-color)]">
             </div>
 
-            <div class="md:col-span-2 h-px bg-gray-800 my-2"></div>
+            <div class="md:col-span-2 h-px bg-gray-100 dark:bg-gray-800 my-2"></div>
 
             <div>
                 <label class="{{ $labelClass }}">Straße</label>
@@ -45,7 +45,7 @@
                 <input type="text" wire:model="settings.company_country" class="{{ $inputClass }} uppercase font-mono max-w-[120px]">
             </div>
 
-            <div class="md:col-span-2 h-px bg-gray-800 my-2"></div>
+            <div class="md:col-span-2 h-px bg-gray-100 dark:bg-gray-800 my-2"></div>
 
             <div>
                 <label class="{{ $labelClass }}">Öffentliche Telefonnummer</label>
@@ -59,7 +59,7 @@
         </div>
 
 
-        <h3 class="text-lg sm:text-xl font-serif font-bold text-white mb-8 border-b border-gray-800 pb-5 flex items-center gap-3 tracking-wide">
+        <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white mb-8 border-b border-gray-100 dark:border-gray-800 pb-5 flex items-center gap-3 tracking-wide">
             <div class="p-2.5 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             </div>
@@ -104,14 +104,14 @@
             </div>
 
             {{-- E-Mail Routing & Postfächer --}}
-            <div class="md:col-span-2 mt-6 pt-6 border-t border-[var(--theme-color-20)]">
+            <div class="md:col-span-2 mt-6 pt-6 border-t border-gray-200 dark:border-[var(--theme-color-20)]">
                 <div class="flex items-center gap-3 mb-6">
                     <div class="p-1.5 bg-[var(--theme-color-10)] rounded-lg text-[var(--theme-color)] shadow-inner border border-[var(--theme-color-20)]">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
                         </svg>
                     </div>
-                    <h4 class="text-[10px] font-black text-[var(--theme-color)] uppercase tracking-widest drop-shadow-[0_0_8px_currentColor]">E-Mail Routing & Postfächer</h4>
+                    <h4 class="text-[10px] font-black text-[var(--theme-color)] uppercase tracking-widest drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">E-Mail Routing & Postfächer</h4>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -126,7 +126,7 @@
                                 <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
                             </div>
                         </div>
-                        <input type="email" wire:model.blur="settings.owner_email" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-inner transition-all placeholder:text-gray-600">
+                        <input type="email" wire:model.blur="settings.owner_email" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
                     </div>
 
                     {{-- 2. Impressum --}}
@@ -140,7 +140,7 @@
                                 <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email_impressum'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
                             </div>
                         </div>
-                        <input type="email" wire:model.blur="settings.owner_email_impressum" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-inner transition-all placeholder:text-gray-600">
+                        <input type="email" wire:model.blur="settings.owner_email_impressum" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
                     </div>
 
                     {{-- 3. Rechnungen --}}
@@ -154,7 +154,7 @@
                                 <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email_invoices'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
                             </div>
                         </div>
-                        <input type="email" wire:model.blur="settings.owner_email_invoices" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-inner transition-all placeholder:text-gray-600">
+                        <input type="email" wire:model.blur="settings.owner_email_invoices" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
                     </div>
 
                     {{-- 4. Backup --}}
@@ -168,14 +168,14 @@
                                 <div x-show="show" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-gray-900 border border-gray-700 text-gray-300 text-[10px] rounded-xl shadow-2xl z-50 text-center font-medium">{{ $infoTexts['owner_email_backup'] }}<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-700"></div></div>
                             </div>
                         </div>
-                        <input type="email" wire:model.blur="settings.owner_email_backup" class="w-full bg-gray-950 border border-gray-800 text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-inner transition-all placeholder:text-gray-600">
+                        <input type="email" wire:model.blur="settings.owner_email_backup" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] outline-none shadow-sm dark:shadow-inner transition-all placeholder:text-gray-400 dark:placeholder:text-gray-600">
                     </div>
                 </div>
             </div>
 
             {{-- Erweiterte Behördliche Daten --}}
-            <div class="md:col-span-2 mt-8 pt-8 border-t border-[var(--theme-color-20)] relative z-20">
-                <h4 class="text-[10px] font-black text-[var(--theme-color)] uppercase tracking-widest mb-6 flex items-center gap-3 drop-shadow-[0_0_8px_currentColor]">
+            <div class="md:col-span-2 mt-8 pt-8 border-t border-gray-200 dark:border-[var(--theme-color-20)] relative z-20">
+                <h4 class="text-[10px] font-black text-[var(--theme-color)] uppercase tracking-widest mb-6 flex items-center gap-3 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">
                                 <span class="p-1.5 rounded-lg bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
                                 </span>
@@ -250,7 +250,7 @@
             </div>
 
             {{-- Bankverbindung Box (High Highlight) --}}
-            <div class="md:col-span-2 bg-[var(--theme-color)]/5 p-6 sm:p-8 rounded-[2rem] border border-[var(--theme-color-20)] mt-6 shadow-inner relative z-10 group">
+            <div class="md:col-span-2 bg-[var(--theme-color)]/5 p-6 sm:p-8 rounded-[2rem] border border-[var(--theme-color-20)] mt-6 shadow-sm dark:shadow-inner relative z-10 group">
 
                 {{-- Glanz-Effekt --}}
                 <div class="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
@@ -258,7 +258,7 @@
                 </div>
 
                 <div class="relative z-20">
-                    <h4 class="text-sm font-black text-[var(--theme-color)] uppercase tracking-widest mb-6 flex items-center gap-3 drop-shadow-[0_0_8px_currentColor]">
+                    <h4 class="text-sm font-black text-[var(--theme-color)] uppercase tracking-widest mb-6 flex items-center gap-3 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">
                                     <span class="p-2 rounded-lg bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] shadow-inner">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
                                     </span>
@@ -284,11 +284,11 @@
 
                         <div class="md:col-span-2">
                             <div class="flex items-center gap-2 mb-2 ml-1">
-                                <label class="text-[10px] font-black text-[var(--theme-color)] uppercase tracking-[0.2em] drop-shadow-[0_0_8px_currentColor]">IBAN</label>
+                                <label class="text-[10px] font-black text-[var(--theme-color)] uppercase tracking-[0.2em] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">IBAN</label>
                                 @include('components.alerts.info-tooltip', ['key' => 'owner_iban'])
                             </div>
                             <input type="text" wire:model="settings.owner_iban"
-                                   class="w-full rounded-xl bg-gray-950/80 border border-[var(--theme-color-30)] focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color)]/20 py-4 px-6 font-mono tracking-[0.2em] text-lg sm:text-xl text-[var(--theme-color)] shadow-inner outline-none text-center uppercase"
+                                   class="w-full rounded-xl bg-white dark:bg-gray-950/80 border border-[var(--theme-color-30)] focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color)]/20 py-4 px-6 font-mono tracking-[0.2em] text-lg sm:text-xl text-[var(--theme-color)] shadow-sm dark:shadow-inner outline-none text-center uppercase placeholder-[var(--theme-color-30)]"
                                    placeholder="DE00 0000 0000 0000 0000 00">
                         </div>
 

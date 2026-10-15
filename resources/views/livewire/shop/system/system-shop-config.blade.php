@@ -4,15 +4,15 @@
         {{-- Header --}}
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
             <div>
-                <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">Shop-Konfiguration</h1>
-                <p class="text-xs sm:text-sm text-gray-400 mt-2 font-medium">Zentrale Steuerung aller Shop-Parameter und rechtlichen Grundlagen.</p>
+                <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Shop-Konfiguration</h1>
+                <p class="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2 font-medium">Zentrale Steuerung aller Shop-Parameter und rechtlichen Grundlagen.</p>
             </div>
             <button
                 wire:click="save"
                 wire:loading.attr="disabled"
                 x-data="{ saved: @entangle('saved') }"
                 x-effect="if (saved) { setTimeout(() => { saved = false; $wire.resetSaved(); }, 3000) }"
-                :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-[var(--theme-color)] text-gray-900 hover:bg-[var(--theme-color)]-dark hover:scale-[1.02] shadow-[0_0_15px_var(--theme-color)0.2)]'"
+                :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-[var(--theme-color)] text-gray-900 hover:bg-[var(--theme-color)]-dark hover:scale-[1.02] shadow-sm dark:shadow-[0_0_15px_var(--theme-color)0.2)]'"
                 class="px-8 py-3.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 min-w-[240px] justify-center border border-transparent">
 
                 <svg wire:loading class="animate-spin h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -41,19 +41,19 @@
         </div>
 
         {{-- Tab Navigation --}}
-        <div class="flex border-b border-gray-800 mb-8 overflow-x-auto no-scrollbar gap-2 sm:gap-6">
-            <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Allgemein & Steuern</button>
-            <button @click="activeTab = 'products'" :class="activeTab === 'products' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Produkt & Marketing</button>
-            <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Versand & Lieferzeit</button>
-            <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Stammdaten</button>
-            <button @click="activeTab = 'system'" :class="activeTab === 'system' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">System</button>
-            <button @click="activeTab = 'emergency'" :class="activeTab === 'emergency' ? 'border-red-500 text-red-500 drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Notfallplan</button>
+        <div class="flex border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto no-scrollbar gap-2 sm:gap-6">
+            <button @click="activeTab = 'general'" :class="activeTab === 'general' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Allgemein & Steuern</button>
+            <button @click="activeTab = 'products'" :class="activeTab === 'products' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Produkt & Marketing</button>
+            <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Versand & Lieferzeit</button>
+            <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Stammdaten</button>
+            <button @click="activeTab = 'system'" :class="activeTab === 'system' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">System</button>
+            <button @click="activeTab = 'emergency'" :class="activeTab === 'emergency' ? 'border-red-500 text-red-500 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Notfallplan</button>
         </div>
 
         @php
-            $inputClass = "w-full bg-gray-950 border border-gray-800 text-white rounded-xl text-sm p-3.5 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-600";
-            $labelClass = "block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2 ml-1";
-            $checkboxContainerClass = "flex items-center gap-4 cursor-pointer p-4 rounded-2xl border border-gray-800 bg-gray-950 hover:border-gray-700 hover:bg-gray-900/80 transition-all shadow-inner group";
+            $inputClass = "w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl text-sm p-3.5 focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner outline-none placeholder-gray-400 dark:placeholder-gray-600";
+            $labelClass = "block text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-2 ml-1";
+            $checkboxContainerClass = "flex items-center gap-4 cursor-pointer p-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-900/80 transition-all shadow-sm dark:shadow-inner group";
         @endphp
 
         <div class="grid grid-cols-1 gap-8">

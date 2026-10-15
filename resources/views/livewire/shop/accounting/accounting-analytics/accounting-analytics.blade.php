@@ -1,5 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <div class="min-h-screen bg-transparent pb-20 font-sans text-gray-300">
+    <div class="min-h-screen bg-transparent pb-20 font-sans text-gray-700 dark:text-gray-300">
         <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
 
         {{-- Success Notification --}}
@@ -15,9 +15,9 @@
         @endif
 
         {{-- Header & Datumswähler --}}
-        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
+        <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm dark:shadow-2xl border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30 transition-all duration-300">
             <div class="w-full px-4 py-4 md:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h1 class="text-2xl sm:text-3xl font-serif font-bold text-white flex items-center gap-3 tracking-tight">
+                <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white flex items-center gap-3 tracking-tight">
                     <div class="p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] shadow-inner rounded-xl text-[var(--theme-color)] shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
@@ -26,11 +26,11 @@
                     <span>Auswertung & Übersicht</span>
                 </h1>
 
-                <div class="flex items-center gap-2 sm:gap-3 bg-gray-950 p-1.5 rounded-2xl border border-gray-800 shadow-inner w-full sm:w-auto">
+                <div class="flex items-center gap-2 sm:gap-3 bg-gray-100 dark:bg-gray-950 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner w-full sm:w-auto">
                     {{-- Monat --}}
                     <div class="relative group flex-1 sm:flex-none">
                         <select wire:model.live="selectedMonth"
-                                class="appearance-none w-full bg-transparent pl-4 pr-10 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-900 hover:text-white focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] transition-all cursor-pointer border-none outline-none sm:w-40 shadow-inner">
+                                class="appearance-none w-full bg-transparent pl-4 pr-10 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] transition-all cursor-pointer border-none outline-none sm:w-40 shadow-inner">
                             @foreach(range(1,12) as $m)
                                 <option value="{{ $m }}" class="bg-gray-900">{{ \Carbon\Carbon::create()->month($m)->locale('de')->monthName }}</option>
                             @endforeach
@@ -41,11 +41,11 @@
                             </svg>
                         </div>
                     </div>
-                    <div class="h-8 w-px bg-gray-800"></div>
+                    <div class="h-8 w-px bg-gray-200 dark:bg-gray-800"></div>
                     {{-- Jahr --}}
                     <div class="relative group flex-1 sm:flex-none">
                         <select wire:model.live="selectedYear"
-                                class="appearance-none w-full bg-transparent pl-4 pr-10 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-900 hover:text-white focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] transition-all cursor-pointer border-none outline-none sm:w-28 shadow-inner">
+                                class="appearance-none w-full bg-transparent pl-4 pr-10 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] transition-all cursor-pointer border-none outline-none sm:w-28 shadow-inner">
                             @foreach(range(date('Y')-2, date('Y')+2) as $y)
                                 <option value="{{ $y }}" class="bg-gray-900">{{ $y }}</option>
                             @endforeach
@@ -57,7 +57,7 @@
                         </div>
                     </div>
 
-                    <div class="h-8 w-px bg-gray-800 hidden sm:block"></div>
+                    <div class="h-8 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block"></div>
 
                     {{-- Brutto/Netto Toggle --}}
                     <label class="hidden sm:inline-flex items-center cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-gray-900 transition-colors" title="Wechsel zwischen Brutto- und Nettoansicht">
@@ -85,25 +85,25 @@
         <div class="w-full px-4 mt-8 md:mt-12 space-y-8 md:space-y-12 animate-fade-in-up" style="animation-delay: 100ms;">
 
             {{-- Section 1: Header Stats + Schnellerfassung --}}
-            <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden relative group">
-                <div class="absolute top-0 left-0 w-[500px] h-[500px] bg-[var(--theme-color-5)] rounded-full blur-[80px] -translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
+            <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden relative group">
+                <div class="absolute top-0 left-0 w-[500px] h-[500px] bg-[var(--theme-color-5)] rounded-full blur-[80px] -translate-y-1/2 -translate-x-1/2 pointer-events-none hidden dark:block"></div>
 
                 {{-- OBERER BEREICH: STATISTIKEN --}}
-                <div class="p-6 md:p-10 border-b border-gray-800 relative z-10 bg-gray-950/50">
+                <div class="p-6 md:p-10 border-b border-gray-200 dark:border-gray-800 relative z-10 bg-gray-50/50 dark:bg-gray-950/50">
                     {{-- Export Button (Jetzt flexibel und nicht mehr absolut schwebend) --}}
                     <div class="flex flex-wrap justify-end items-center gap-3 mb-8">
-                        <select wire:model="exportMonth" class="bg-gray-900 border border-gray-800 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-inner cursor-pointer appearance-none">
+                        <select wire:model="exportMonth" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-none dark:shadow-inner cursor-pointer appearance-none">
                             @foreach(range(1,12) as $m)
                                 <option value="{{ $m }}">{{ \Carbon\Carbon::create()->month($m)->locale('de')->shortMonthName }}</option>
                             @endforeach
                         </select>
-                        <select wire:model="exportYear" class="bg-gray-900 border border-gray-800 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-inner cursor-pointer appearance-none">
+                        <select wire:model="exportYear" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-none dark:shadow-inner cursor-pointer appearance-none">
                             @foreach(range(date('Y')-2, date('Y')+2) as $y)
                                 <option value="{{ $y }}">{{ $y }}</option>
                             @endforeach
                         </select>
                         <button wire:click="downloadTaxExport"
-                                class="w-full md:w-auto flex items-center justify-center gap-2 bg-gray-800 border border-gray-700 text-gray-300 px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-gray-700 hover:text-white hover:border-gray-500 shadow-inner transition-all">
+                                class="w-full md:w-auto flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 px-5 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white hover:border-gray-300 dark:hover:border-gray-500 shadow-none dark:shadow-inner transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                             </svg>
@@ -115,9 +115,9 @@
                         {{-- Linke Seite der Stats: Hauptzahl --}}
                         <div class="flex-1 text-center xl:text-left w-full">
                             <div class="flex flex-col sm:flex-row items-center justify-center xl:justify-start gap-4 mb-3">
-                                <span class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] bg-gray-950 px-3 py-1 rounded-md border border-gray-800">Frei Verfügbar</span>
+                                <span class="text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-[0.2em] bg-gray-100 dark:bg-gray-950 px-3 py-1 rounded-md border border-gray-200 dark:border-gray-800">Frei Verfügbar</span>
 
-                                <label class="inline-flex items-center cursor-pointer group bg-gray-900/50 px-3 py-1.5 rounded-full border border-gray-800 shadow-inner hover:bg-gray-800 transition-colors">
+                                <label class="inline-flex items-center cursor-pointer group bg-gray-100/80 dark:bg-gray-900/50 px-3 py-1.5 rounded-full border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
                                     <input type="checkbox" wire:model.live="excludeSpecialExpenses" class="sr-only peer">
                                     <div class="relative w-8 h-4 bg-gray-950 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:bg-emerald-500/20 peer-checked:border-emerald-500/50 after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 peer-checked:after:bg-emerald-400 after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-[14px]"></div>
                                     <span class="ms-2 text-[9px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors select-none">Ohne Sonderausgaben</span>
@@ -128,7 +128,7 @@
                                 $mainValue = $excludeSpecialExpenses ? ($stats['total_budget'] + $stats['fixed_expenses']) : $stats['available'];
                             @endphp
 
-                            <div class="text-5xl md:text-7xl font-serif font-black tracking-tighter mb-2 {{ $mainValue >= 0 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'text-red-400 drop-shadow-[0_0_15px_rgba(239,68,68,0.2)]' }}">
+                            <div class="text-5xl md:text-7xl font-serif font-black tracking-tighter mb-2 {{ $mainValue >= 0 ? 'text-emerald-600 dark:text-emerald-400 drop-shadow-none dark:drop-shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'text-red-600 dark:text-red-400 drop-shadow-none dark:drop-shadow-[0_0_15px_rgba(239,68,68,0.2)]' }}">
                                 {{ number_format($mainValue, 2, ',', '.') }}&nbsp;€
                             </div>
 
@@ -138,19 +138,19 @@
                         {{-- Rechte Seite der Stats --}}
                         <div class="flex flex-col sm:flex-row gap-4 sm:gap-6 text-center sm:text-left w-full xl:w-auto overflow-x-auto no-scrollbar pb-2">
 
-                            <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px]">
+                            <div class="bg-gray-50 dark:bg-gray-950 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner flex-1 min-w-[150px]">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Monatsbudget</div>
-                                <div class="text-xl sm:text-2xl font-bold text-white">+&nbsp;{{ number_format($stats['total_budget'], 2, ',', '.') }}&nbsp;€</div>
+                                <div class="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">+&nbsp;{{ number_format($stats['total_budget'], 2, ',', '.') }}&nbsp;€</div>
                             </div>
 
-                            <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px]">
+                            <div class="bg-gray-50 dark:bg-gray-950 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner flex-1 min-w-[150px]">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Fixkosten</div>
-                                <div class="text-xl sm:text-2xl font-bold text-rose-400">{{ number_format($stats['fixed_expenses'], 2, ',', '.') }}&nbsp;€</div>
+                                <div class="text-xl sm:text-2xl font-bold text-rose-600 dark:text-rose-400">{{ number_format($stats['fixed_expenses'], 2, ',', '.') }}&nbsp;€</div>
                             </div>
 
-                            <div class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner flex-1 min-w-[150px] transition-all duration-300 {{ $excludeSpecialExpenses ? 'opacity-40 grayscale-[0.8] scale-95 border-dashed' : 'opacity-100' }}">
+                            <div class="bg-gray-50 dark:bg-gray-950 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner flex-1 min-w-[150px] transition-all duration-300 {{ $excludeSpecialExpenses ? 'opacity-40 grayscale-[0.8] scale-95 border-dashed' : 'opacity-100' }}">
                                 <div class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2">Sonderausgaben</div>
-                                <div class="text-xl sm:text-2xl font-bold text-orange-400">{{ number_format($stats['special_expenses'], 2, ',', '.') }}&nbsp;€</div>
+                                <div class="text-xl sm:text-2xl font-bold text-orange-600 dark:text-orange-400">{{ number_format($stats['special_expenses'], 2, ',', '.') }}&nbsp;€</div>
                             </div>
                         </div>
                     </div>
@@ -160,10 +160,10 @@
             </div>
 
             {{-- Section 2: Jahresübersicht + Bar Chart --}}
-            <div class="bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden relative">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 md:p-8 bg-gray-950 border-b border-gray-800 shadow-inner gap-4">
-                    <h2 class="text-lg md:text-xl font-serif font-bold text-white flex items-center gap-3">
-                        <div class="p-2 bg-gray-800 rounded-xl text-gray-400 shadow-inner">
+            <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden relative">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-6 md:p-8 bg-gray-50/80 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 shadow-none dark:shadow-inner gap-4">
+                    <h2 class="text-lg md:text-xl font-serif font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                        <div class="p-2 bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-600 dark:text-gray-400 shadow-none dark:shadow-inner">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                             </svg>
@@ -178,7 +178,7 @@
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                             <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Entwicklung Einnahmen vs. Ausgaben</h3>
                             <div class="flex flex-wrap gap-3 items-center w-full md:w-auto">
-                                <select wire:model.live="chartFilter" class="flex-1 md:flex-none bg-gray-950 border border-gray-800 text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl p-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-inner cursor-pointer">
+                                <select wire:model.live="chartFilter" class="flex-1 md:flex-none bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-400 text-[10px] font-black uppercase tracking-widest rounded-xl p-3 focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none shadow-none dark:shadow-inner cursor-pointer">
                                     <option value="last_12_months">Letzte 12 Monate</option>
                                     <option value="this_year">Dieses Jahr</option>
                                     <option value="custom">Benutzerdefiniert</option>
@@ -194,9 +194,9 @@
                         </div>
                     </div>
 
-                    <div class="border-t border-gray-800 overflow-x-auto no-scrollbar pb-2">
+                    <div class="border-t border-gray-200 dark:border-gray-800 overflow-x-auto no-scrollbar pb-2">
                         <table class="w-full text-xs text-right whitespace-nowrap border-collapse">
-                            <thead class="bg-gray-950/80 text-gray-500 font-bold border-b border-gray-800">
+                            <thead class="bg-gray-50/80 dark:bg-gray-950/80 text-gray-500 font-bold border-b border-gray-200 dark:border-gray-800">
                             <tr>
                                 <th class="p-4 text-left font-black uppercase tracking-[0.2em] text-[9px]">
                                     Kategorie
@@ -204,13 +204,13 @@
                                 @foreach(range(1,12) as $m)
                                     <th class="p-4 min-w-[70px] uppercase tracking-widest text-[9px]">{{ \Carbon\Carbon::create()->month($m)->locale('de')->shortMonthName }}</th>
                                 @endforeach
-                                <th class="p-4 font-black uppercase tracking-widest text-[9px] text-[var(--theme-color)] bg-gray-900 shadow-inner">Jahr</th>
+                                <th class="p-4 font-black uppercase tracking-widest text-[9px] text-[var(--theme-color)] bg-gray-100 dark:bg-gray-900 shadow-none dark:shadow-inner">Jahr</th>
                             </tr>
                             </thead>
-                            <tbody class="divide-y divide-gray-800/50">
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-800/50">
 
                             @foreach($yearlyMatrix['product_categories'] as $key => $category)
-                                <tr class="hover:bg-gray-800/30 transition-colors cursor-pointer group"
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors cursor-pointer group"
                                     wire:click="toggleCategory('{{ $key }}')">
                                     <td class="p-4 text-left font-bold {{ $category['color'] }} flex items-center gap-3">
                                         <div class="w-2 h-2 rounded-full {{ $category['bg'] }} shadow-[0_0_8px_currentColor]"></div>
@@ -222,30 +222,30 @@
                                     @foreach(range(1,12) as $m)
                                         <td class="p-4 text-gray-400 font-medium font-mono">{{ number_format($category['months'][$m], 2, ',', '.') }}</td>
                                     @endforeach
-                                    <td class="p-4 font-bold bg-gray-900 shadow-inner text-white font-mono">{{ number_format($category['year_sum'], 2, ',', '.') }}</td>
+                                    <td class="p-4 font-bold bg-gray-100 dark:bg-gray-900 shadow-none dark:shadow-inner text-gray-900 dark:text-white font-mono">{{ number_format($category['year_sum'], 2, ',', '.') }}</td>
                                 </tr>
 
                                 @if(in_array($key, $expandedCategories))
                                     @foreach($category['items'] as $item)
-                                        <tr class="bg-gray-950/50 text-[11px] text-gray-500 animate-fade-in-down border-b border-gray-800/30 last:border-b-0">
+                                        <tr class="bg-gray-50/50 dark:bg-gray-950/50 text-[11px] text-gray-600 dark:text-gray-500 animate-fade-in-down border-b border-gray-200 dark:border-gray-800/30 last:border-b-0">
                                             <td class="p-3 pl-10 text-left border-l-2 {{ str_replace('bg-', 'border-', $category['bg']) }} font-medium">{{ $item['name'] }}</td>
                                             @foreach(range(1,12) as $m)
                                                 <td class="p-3 font-mono">{{ $item['months'][$m] != 0 ? number_format($item['months'][$m], 2, ',', '.') : '-' }}</td>
                                             @endforeach
-                                            <td class="p-3 font-bold text-gray-400 bg-gray-900/30 font-mono">{{ number_format($item['year_sum'], 2, ',', '.') }}</td>
+                                            <td class="p-3 font-bold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-900/30 font-mono">{{ number_format($item['year_sum'], 2, ',', '.') }}</td>
                                         </tr>
                                     @endforeach
                                 @endif
                             @endforeach
 
-                            <tr class="bg-gray-900 border-t-2 border-gray-700">
-                                <td class="p-5 text-left uppercase text-[10px] font-black tracking-[0.2em] text-white">Bilanz</td>
+                            <tr class="bg-gray-100 dark:bg-gray-900 border-t-2 border-gray-300 dark:border-gray-700">
+                                <td class="p-5 text-left uppercase text-[10px] font-black tracking-[0.2em] text-gray-900 dark:text-white">Bilanz</td>
                                 @foreach(range(1,12) as $m)
-                                    <td class="p-5 font-mono font-bold text-sm {{ $yearlyMatrix['totals']['months'][$m] >= 0 ? 'text-emerald-400 drop-shadow-[0_0_5px_currentColor]' : 'text-red-400 drop-shadow-[0_0_5px_currentColor]' }}">
+                                    <td class="p-5 font-mono font-bold text-sm {{ $yearlyMatrix['totals']['months'][$m] >= 0 ? 'text-emerald-600 dark:text-emerald-400 drop-shadow-none dark:drop-shadow-[0_0_5px_currentColor]' : 'text-red-600 dark:text-red-400 drop-shadow-none dark:drop-shadow-[0_0_5px_currentColor]' }}">
                                         {{ number_format($yearlyMatrix['totals']['months'][$m], 2, ',', '.') }}
                                     </td>
                                 @endforeach
-                                <td class="p-5 text-white font-mono font-black text-base bg-gray-950 border-l border-gray-800 shadow-inner">
+                                <td class="p-5 text-gray-900 dark:text-white font-mono font-black text-base bg-gray-200/50 dark:bg-gray-950 border-l border-gray-300 dark:border-gray-800 shadow-none dark:shadow-inner">
                                     {{ number_format($yearlyMatrix['totals']['year_sum'], 2, ',', '.') }}
                                 </td>
                             </tr>
@@ -270,10 +270,10 @@
                 <!-- ROW 1: Erlöse & Sonderausgaben -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Invoices --}}
-                    <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
+                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between">
                         <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                         <div>
-                            <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold drop-shadow-none dark:drop-shadow-sm flex items-center gap-2">
                                 <x-heroicon-o-chart-bar class="w-5 h-5 text-emerald-500" />
                                 Erlösentwicklung (Rechnungen)
                             </h3>
@@ -281,16 +281,16 @@
                                 <canvas id="invoiceChart"></canvas>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-700/50">
-                            <p class="text-xs text-gray-400 mb-1"><strong class="text-emerald-400 uppercase text-[10px] tracking-widest block mb-1">Umsatzstabilität</strong>Visualisiert die fakturierten Rechnungsdaten ({{ $isNet ? 'Netto' : 'Brutto' }}), unabhängig vom Geldeingang.</p>
+                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-emerald-400 uppercase text-[10px] tracking-widest block mb-1">Umsatzstabilität</strong>Visualisiert die fakturierten Rechnungsdaten ({{ $isNet ? 'Netto' : 'Brutto' }}), unabhängig vom Geldeingang.</p>
                         </div>
                     </div>
 
                     {{-- Special Issues --}}
-                    <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-red-900/40 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
+                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-red-200 dark:border-red-900/40 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between">
                         <div class="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
                         <div>
-                            <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold drop-shadow-none dark:drop-shadow-sm flex items-center gap-2">
                                 <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-red-500" />
                                 Sonderausgaben (Eskalationen)
                             </h3>
@@ -298,8 +298,8 @@
                                 <canvas id="specialChart"></canvas>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-red-900/50">
-                            <p class="text-xs text-gray-400 mb-1"><strong class="text-red-400 uppercase text-[10px] tracking-widest block mb-1">Kapitalblutung</strong>Außerordentliche Spikes belasten das Budget. Dieser Graph dokumentiert spontane Schock-Ausgaben.</p>
+                        <div class="mt-4 pt-4 border-t border-red-200 dark:border-red-900/50">
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-red-400 uppercase text-[10px] tracking-widest block mb-1">Kapitalblutung</strong>Außerordentliche Spikes belasten das Budget. Dieser Graph dokumentiert spontane Schock-Ausgaben.</p>
                         </div>
                     </div>
                 </div>
@@ -307,9 +307,9 @@
                 <!-- ROW 2: Fixkosten & Strukturen -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Fix Kosten --}}
-                    <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
+                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between">
                         <div>
-                            <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold drop-shadow-none dark:drop-shadow-sm flex items-center gap-2">
                                 <x-heroicon-o-building-office class="w-5 h-5 text-[var(--theme-color)]" />
                                 Konstante Fixkosten-Blöcke
                             </h3>
@@ -317,15 +317,15 @@
                                 <canvas id="costChart"></canvas>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-700/50">
-                            <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Infrastruktur Overhead</strong>Die aggregierten Systemkosten, sortiert nach Zuweisungsgruppen. Erkennen von versteckten Aufwänden.</p>
+                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Infrastruktur Overhead</strong>Die aggregierten Systemkosten, sortiert nach Zuweisungsgruppen. Erkennen von versteckten Aufwänden.</p>
                         </div>
                     </div>
 
                     {{-- Kategorien Verteilung --}}
-                    <div class="bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-700 p-6 shadow-xl relative overflow-hidden group flex flex-col justify-between">
+                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm dark:shadow-xl relative overflow-hidden group flex flex-col justify-between">
                         <div>
-                            <h3 class="text-white text-lg font-serif font-semibold drop-shadow-sm flex items-center gap-2">
+                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold drop-shadow-none dark:drop-shadow-sm flex items-center gap-2">
                                 <x-heroicon-o-chart-pie class="w-5 h-5 text-[var(--theme-color)]" />
                                 Kategorische Kontierung
                             </h3>
@@ -333,8 +333,8 @@
                                 <canvas id="groupChart"></canvas>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-700/50">
-                            <p class="text-xs text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Ressourcen Fokus</strong>Zerstört visuell den Irrglauben, wo Liquidität vernichtet wird. Der radiale Chart zerlegt die Finanzen in Abteilungen.</p>
+                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
+                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-[var(--theme-color)] uppercase text-[10px] tracking-widest block mb-1">Ressourcen Fokus</strong>Zerstört visuell den Irrglauben, wo Liquidität vernichtet wird. Der radiale Chart zerlegt die Finanzen in Abteilungen.</p>
                         </div>
                     </div>
                 </div>

@@ -268,6 +268,7 @@ renderer = new window.THREE.WebGLRenderer({ antialias: window.innerWidth > 768, 
 renderer.setSize(container.offsetWidth, container.offsetHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
 renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
+renderer.domElement.style.cursor = 'default';
 container.appendChild(renderer.domElement);
 
 scene.add(new window.THREE.AmbientLight(0xffffff, 2.5));

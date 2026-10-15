@@ -1,8 +1,8 @@
 <div class="w-full mb-8">
-    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 shadow-2xl border border-gray-800 flex flex-col relative group w-full" wire:ignore>
+    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] p-6 dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 flex flex-col relative group w-full transition-colors duration-300" wire:ignore>
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
             <div>
-                <h3 class="text-xs sm:text-sm font-black text-gray-400 uppercase tracking-widest">Gewinn-Entwicklung</h3>
+                <h3 class="text-xs sm:text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Gewinn-Entwicklung</h3>
                 @php
                     $bEven = $stats['break_even_monthly'] ?? 0;
                     $currentRev = $stats['avg_revenue_monthly'] ?? 0;
@@ -10,22 +10,22 @@
                 @endphp
                 <div class="mt-1 flex items-center gap-2">
                     @if($missing > 0)
-                        <span class="text-[10px] font-bold text-red-400">Noch {{ number_format($missing, 2, ',', '.') }} € pro Monat benötigt</span>
+                        <span class="text-[10px] font-bold text-red-500 dark:text-red-400">Noch {{ number_format($missing, 2, ',', '.') }} € pro Monat benötigt</span>
                     @else
-                        <span class="text-[10px] font-bold text-emerald-400">Break-Even (mtl.) erreicht!</span>
+                        <span class="text-[10px] font-bold text-emerald-500 dark:text-emerald-400">Break-Even (mtl.) erreicht!</span>
                     @endif
-                    <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black">({{ number_format($currentRev, 2, ',', '.') }} € / {{ number_format($bEven, 2, ',', '.') }} € pro Monat)</span>
+                    <span class="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-widest font-black">({{ number_format($currentRev, 2, ',', '.') }} € / {{ number_format($bEven, 2, ',', '.') }} € pro Monat)</span>
                 </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <span class="flex items-center gap-1.5 text-[9px] font-black text-white uppercase tracking-widest bg-gray-950 px-2.5 py-1 rounded-full border border-gray-800">
-                    <span class="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_currentColor]"></span> Break-Even
+                <span class="flex items-center gap-1.5 text-[9px] font-black text-gray-800 dark:text-white uppercase tracking-widest bg-gray-100 dark:bg-gray-950 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-800">
+                    <span class="w-2 h-2 rounded-full bg-red-500 dark:shadow-[0_0_8px_currentColor]"></span> Break-Even
                 </span>
-                <span class="flex items-center gap-1.5 text-[9px] font-black text-white uppercase tracking-widest bg-gray-950 px-2.5 py-1 rounded-full border border-gray-800">
-                    <span class="w-2 h-2 rounded-full bg-gray-500 shadow-[0_0_8px_currentColor]"></span> Umsatz
+                <span class="flex items-center gap-1.5 text-[9px] font-black text-gray-800 dark:text-white uppercase tracking-widest bg-gray-100 dark:bg-gray-950 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-800">
+                    <span class="w-2 h-2 rounded-full bg-gray-500 dark:shadow-[0_0_8px_currentColor]"></span> Umsatz
                 </span>
-                <span class="flex items-center gap-1.5 text-[9px] font-black text-white uppercase tracking-widest bg-gray-950 px-2.5 py-1 rounded-full border border-gray-800">
-                    <span class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_currentColor]"></span> Gewinn
+                <span class="flex items-center gap-1.5 text-[9px] font-black text-gray-800 dark:text-white uppercase tracking-widest bg-gray-100 dark:bg-gray-950 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-800">
+                    <span class="w-2 h-2 rounded-full bg-primary dark:shadow-[0_0_8px_currentColor]"></span> Gewinn
                 </span>
             </div>
         </div>

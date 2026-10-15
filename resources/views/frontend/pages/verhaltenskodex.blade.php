@@ -77,7 +77,7 @@
 
                     <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-6">
                         <p class="font-medium text-gray-800">
-                            💙 Gemeinsam schaffen wir eine respektvolle und vertrauensvolle Community.
+                            ❤️ Gemeinsam schaffen wir eine respektvolle und vertrauensvolle Community.
                         </p>
                         <p class="mt-2 text-sm text-gray-600">
                             Vielen Dank für dein Vertrauen – schön, dass du Teil der <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}-Community</strong> bist.

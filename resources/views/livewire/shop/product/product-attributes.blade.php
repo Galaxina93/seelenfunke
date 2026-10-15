@@ -1,15 +1,15 @@
 <div x-data="{ open: false }" class="w-full min-w-0">
-    <div class="bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800 animate-fade-in-up transition-colors hover:border-gray-700 w-full min-w-0">
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 animate-fade-in-up transition-colors hover:border-gray-300 dark:hover:border-gray-700 w-full min-w-0">
 
         {{-- Header (Klickbar zum Aufklappen) & Controls --}}
-        <div class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between gap-4 sm:gap-5 transition-all" :class="open ? 'mb-6 border-b border-gray-800 pb-5' : ''">
+        <div class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between gap-4 sm:gap-5 transition-all" :class="open ? 'mb-6 border-b border-gray-200 dark:border-gray-800 pb-5' : ''">
 
             {{-- Klickbarer Titelbereich --}}
             <div @click="open = !open" class="flex items-center gap-3 sm:gap-4 cursor-pointer group flex-1 min-w-[200px] w-full lg:w-auto">
-                <div class="p-2 rounded-xl bg-gray-950 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
+                <div class="p-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-30)] transition-all shadow-inner shrink-0">
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
-                <h3 class="text-lg sm:text-xl font-serif font-bold text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Details & Eigenschaften</h3>
+                <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide group-hover:text-[var(--theme-color)] transition-colors truncate">Details & Eigenschaften</h3>
 
                 @if(!$isManaging)
                     <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-2.5 py-1 rounded-lg shadow-inner animate-pulse whitespace-nowrap ml-2 hidden sm:inline-block">
@@ -28,8 +28,8 @@
                         @click="open = true" {{-- Beim Klick auf Verwalten automatisch aufklappen --}}
                         class="text-[10px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-inner border w-full sm:w-auto shrink-0
                            {{ $isManaging
-                              ? 'bg-[var(--theme-color)] border-[var(--theme-color-50)] text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]'
-                              : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:border-gray-600'
+                              ? 'bg-[var(--theme-color)] border-[var(--theme-color-50)] text-gray-900 dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]'
+                              : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300 dark:hover:border-gray-600'
                            }}">
                     @if($isManaging)
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
@@ -49,7 +49,7 @@
             @if(!$isManaging)
                 <div class="space-y-8 pt-2">
                     {{-- OBERER BEREICH: Auswahl Pool (Tag-Cloud) --}}
-                    <div class="border-b border-gray-800 pb-8">
+                    <div class="border-b border-gray-200 dark:border-gray-800 pb-8">
                         <h4 class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 mb-5 ml-1">1. Verfügbare Eigenschaften auswählen</h4>
                         <div class="flex flex-row flex-wrap gap-3">
                             @forelse($availableAttributes as $attr)
@@ -61,13 +61,13 @@
                                     wire:click="toggleAttribute('{{ $name }}')"
                                     class="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl border transition-all shadow-inner
                                        {{ $isActive
-                                          ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-50)] shadow-[0_0_15px_rgba(197,160,89,0.2)] scale-[1.03]'
-                                          : 'bg-gray-950 text-gray-400 border-gray-800 hover:border-gray-600 hover:text-white hover:bg-gray-900'
+                                          ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-50)] shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.2)] scale-[1.03]'
+                                          : 'bg-white dark:bg-gray-950 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-900'
                                        }}">
                                     {{ $name }}
                                 </button>
                             @empty
-                                <p class="text-[10px] font-bold text-gray-600">Keine Attribute gefunden. Klicke oben auf "Verwalten".</p>
+                                <p class="text-[10px] font-bold text-gray-500 dark:text-gray-600">Keine Attribute gefunden. Klicke oben auf "Verwalten".</p>
                             @endforelse
                         </div>
                     </div>
@@ -80,10 +80,10 @@
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
                                 @foreach($productAttributes as $key => $value)
                                     <div class="relative group min-w-0" wire:key="input-{{ $key }}">
-                                        <label class="block text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 ml-1 drop-shadow-[0_0_8px_currentColor] truncate">{{ $key }}</label>
+                                        <label class="block text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 ml-1 dark:drop-shadow-[0_0_8px_currentColor] truncate">{{ $key }}</label>
                                         <div class="relative w-full">
                                             @php
-                                                $attrInputClass = "w-full px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-950 text-white text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-600 min-w-0";
+                                                $attrInputClass = "w-full px-4 py-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-900 dark:text-white text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all shadow-inner outline-none placeholder-gray-400 dark:placeholder-gray-600 min-w-0";
                                             @endphp
 
                                             @if($key === 'Gewicht')
@@ -100,7 +100,7 @@
                                             @endif
 
                                             <button wire:click="toggleAttribute('{{ $key }}')"
-                                                    class="absolute -right-2 -top-2 bg-gray-900 border border-gray-700 text-gray-400 hover:text-red-400 hover:border-red-500/30 rounded-full p-1.5 shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                                                    class="absolute -right-2 -top-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-500/30 rounded-full p-1.5 shadow-md dark:shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
                                                     title="Eigenschaft entfernen">
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                             </button>
@@ -114,8 +114,8 @@
                                 @endforeach
                             </div>
                         @else
-                            <div class="bg-gray-950 border border-dashed border-gray-800 rounded-[1.5rem] p-12 text-center shadow-inner w-full">
-                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-600">Wähle oben Eigenschaften aus, um hier Werte einzutragen.</p>
+                            <div class="bg-gray-50 dark:bg-gray-950 border border-dashed border-gray-200 dark:border-gray-800 rounded-[1.5rem] p-12 text-center shadow-inner w-full">
+                                <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-600">Wähle oben Eigenschaften aus, um hier Werte einzutragen.</p>
                             </div>
                         @endif
                     </div>
@@ -124,21 +124,21 @@
             @else
                 <div class="space-y-8 pt-2 animate-fade-in w-full">
                     {{-- 1. Erstellen --}}
-                    <div class="bg-gray-950 p-5 sm:p-6 rounded-[1.5rem] border border-gray-800 shadow-inner w-full min-w-0">
-                        <label class="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 ml-1">Neue Eigenschaft definieren</label>
+                    <div class="bg-gray-50 dark:bg-gray-950 p-5 sm:p-6 rounded-[1.5rem] border border-gray-200 dark:border-gray-800 shadow-inner w-full min-w-0">
+                        <label class="block text-[9px] font-black uppercase tracking-[0.2em] text-gray-600 dark:text-gray-400 mb-3 ml-1">Neue Eigenschaft definieren</label>
                         <div class="flex gap-3 w-full">
                             <input type="text"
                                    wire:model.live="newAttributeName"
                                    wire:keydown.enter="createAttribute"
                                    placeholder="z.B. Material, Pflegehinweis..."
-                                   class="flex-1 px-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-white text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all outline-none shadow-inner placeholder-gray-600 min-w-0">
+                                   class="flex-1 px-4 py-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-20)] transition-all outline-none shadow-inner placeholder-gray-400 dark:placeholder-gray-600 min-w-0">
                             <button wire:click="createAttribute"
-                                    class="bg-[var(--theme-color)] text-gray-900 px-6 py-3.5 rounded-xl text-lg font-black hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(197,160,89,0.2)] shrink-0 flex items-center justify-center"
+                                    class="bg-[var(--theme-color)] text-gray-900 px-6 py-3.5 rounded-xl text-lg font-black hover:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed dark:shadow-[0_0_15px_rgba(197,160,89,0.2)] shrink-0 flex items-center justify-center"
                                     @if(empty($newAttributeName)) disabled @endif>
                                 +
                             </button>
                         </div>
-                        @error('newAttributeName') <span class="text-[10px] font-bold uppercase tracking-widest text-red-400 mt-2 block ml-1">{{ $message }}</span> @enderror
+                        @error('newAttributeName') <span class="text-[10px] font-bold uppercase tracking-widest text-red-500 dark:text-red-400 mt-2 block ml-1">{{ $message }}</span> @enderror
                     </div>
 
                     {{-- 2. Liste Bearbeiten (Flex-Wrap Tag-Cloud) --}}
@@ -149,31 +149,31 @@
                                 $attrName = $attr['name'];
                             @endphp
 
-                            <div class="flex items-center justify-between p-3.5 bg-gray-950 border border-gray-800 rounded-2xl shadow-inner hover:border-gray-700 transition-colors group gap-4 shrink-0 min-w-0 max-w-full" wire:key="attr-{{ $attrId }}">
+                            <div class="flex items-center justify-between p-3.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-inner hover:border-gray-300 dark:hover:border-gray-700 transition-colors group gap-4 shrink-0 min-w-0 max-w-full" wire:key="attr-{{ $attrId }}">
 
                                 @if($editingAttributeId === $attrId)
                                     <div class="flex items-center gap-2 animate-fade-in w-full min-w-0">
                                         <input type="text"
                                                wire:model="editingAttributeName"
                                                wire:keydown.enter="updateAttribute"
-                                               class="w-full sm:w-48 px-3 py-2 text-sm font-bold border border-[var(--theme-color)] bg-gray-900 text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none shadow-inner min-w-0">
+                                               class="w-full sm:w-48 px-3 py-2 text-sm font-bold border border-[var(--theme-color)] bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none shadow-inner min-w-0">
 
-                                        <button wire:click="updateAttribute" class="text-gray-900 bg-emerald-500 hover:bg-emerald-400 p-2.5 rounded-xl shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg></button>
-                                        <button wire:click="cancelEditing" class="text-gray-400 bg-gray-900 border border-gray-700 hover:text-white p-2.5 rounded-xl transition-all shadow-inner shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                        <button wire:click="updateAttribute" class="text-gray-900 bg-emerald-500 hover:bg-emerald-400 p-2.5 rounded-xl dark:shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg></button>
+                                        <button wire:click="cancelEditing" class="text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:text-gray-900 dark:hover:text-white p-2.5 rounded-xl transition-all shadow-inner shrink-0"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
                                     </div>
                                 @else
                                     <div class="flex items-center gap-3 min-w-0 flex-1">
-                                        <div class="w-1.5 h-1.5 rounded-full shrink-0 {{ array_key_exists($attrName, $productAttributes) ? 'bg-[var(--theme-color)] shadow-[0_0_8px_currentColor]' : 'bg-gray-700' }}"></div>
-                                        <span class="text-sm font-bold text-gray-300 tracking-wide truncate max-w-[150px]">{{ $attrName }}</span>
+                                        <div class="w-1.5 h-1.5 rounded-full shrink-0 {{ array_key_exists($attrName, $productAttributes) ? 'bg-[var(--theme-color)] dark:shadow-[0_0_8px_currentColor]' : 'bg-gray-300 dark:bg-gray-700' }}"></div>
+                                        <span class="text-sm font-bold text-gray-700 dark:text-gray-300 tracking-wide truncate max-w-[150px]">{{ $attrName }}</span>
                                     </div>
 
                                     <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
-                                        <button wire:click="startEditing({{ $attrId }}, '{{ addslashes($attrName) }}')" class="p-2 text-gray-500 hover:text-[var(--theme-color)] bg-gray-900 border border-gray-800 hover:border-[var(--theme-color-30)] rounded-xl transition-all shadow-inner" title="Umbenennen">
+                                        <button wire:click="startEditing({{ $attrId }}, '{{ addslashes($attrName) }}')" class="p-2 text-gray-500 hover:text-[var(--theme-color)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-30)] rounded-xl transition-all shadow-inner" title="Umbenennen">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                         </button>
                                         <button wire:confirm="Sicher? Dies löscht die Eigenschaft aus dem System."
                                                 wire:click="deleteAttribute({{ $attrId }})"
-                                                class="p-2 text-gray-500 hover:text-red-400 bg-gray-900 border border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Löschen">
+                                                class="p-2 text-gray-500 hover:text-red-500 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Löschen">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                         </button>
                                     </div>

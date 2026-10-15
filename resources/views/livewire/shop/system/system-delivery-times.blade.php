@@ -9,9 +9,9 @@
 
     <div>
         <div class="flex items-center gap-3 mb-2">
-            <h4 class="text-lg font-serif font-bold text-white">Standard Lieferzeiten</h4>
+            <h4 class="text-lg font-serif font-bold text-gray-900 dark:text-white">Standard Lieferzeiten</h4>
         </div>
-        <p class="text-xs text-gray-400 mb-6 font-medium">
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-6 font-medium">
             Erstelle verschiedene Lieferzeiten und wähle aus, welche aktuell als Standard im Shop angezeigt werden soll.
         </p>
 
@@ -30,10 +30,10 @@
                         default => 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
                     };
                 @endphp
-                <div class="relative group p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between min-h-[160px] {{ $isActive ? 'shadow-[0_0_20px_var(--theme-color-15)] border-[var(--theme-color-50)] bg-gray-900' : 'bg-gray-950 border-gray-800 hover:border-gray-700 shadow-inner' }}">
+                <div class="relative group p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between min-h-[160px] {{ $isActive ? 'shadow-sm dark:shadow-[0_0_20px_var(--theme-color-15)] border-[var(--theme-color-50)] bg-white dark:bg-gray-900' : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 shadow-sm dark:shadow-inner' }}">
                     <div>
                         <div class="flex justify-between items-start mb-3">
-                            <h5 class="font-bold text-white tracking-wide flex items-center gap-2">
+                            <h5 class="font-bold text-gray-900 dark:text-white tracking-wide flex items-center gap-2">
                                 {{ $colorIcon }} {{ $time->name }}
                             </h5>
                         </div>
@@ -46,7 +46,7 @@
                         <p class="text-xs text-gray-500 leading-relaxed line-clamp-3 mb-4">{{ $time->description }}</p>
                     </div>
 
-                    <button wire:click="setActiveDeliveryTime('{{ $time->id }}')" class="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $isActive ? 'bg-[var(--theme-color)] text-gray-900 shadow-glow' : 'bg-gray-900 text-gray-400 border border-gray-700 hover:bg-gray-800 hover:text-white' }}">
+                    <button wire:click="setActiveDeliveryTime('{{ $time->id }}')" class="w-full py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $isActive ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm dark:shadow-glow' : 'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white' }}">
                         {{ $isActive ? 'Im Shop aktiv' : 'Im Shop nutzen' }}
                     </button>
                 </div>
@@ -58,13 +58,13 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        <div class="bg-gray-950/80 rounded-[2rem] border border-gray-800 p-6 sm:p-8 shadow-inner relative overflow-hidden transition-all duration-500 {{ $isVacationMode ? 'ring-1 ring-amber-500/50 shadow-[inset_0_0_30px_rgba(245,158,11,0.05)]' : '' }}">
+        <div class="bg-white dark:bg-gray-950/80 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-inner relative overflow-hidden transition-all duration-500 {{ $isVacationMode ? 'ring-1 ring-amber-500/50 shadow-sm dark:shadow-[inset_0_0_30px_rgba(245,158,11,0.05)]' : '' }}">
 
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div class="flex items-start sm:items-center gap-3">
                     <span class="p-2 bg-amber-500/10 text-amber-400 rounded-xl border border-amber-500/20 shadow-inner shrink-0">☀️</span>
                     <div>
-                        <h4 class="text-lg font-serif font-bold text-white leading-tight">Urlaubsmodus</h4>
+                        <h4 class="text-lg font-serif font-bold text-gray-900 dark:text-white leading-tight">Urlaubsmodus</h4>
                         <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Kreativpause aktivieren</p>
                     </div>
                 </div>
@@ -89,22 +89,22 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Von</label>
-                        <input type="date" wire:model.live="vacationStartDate" class="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-inner [color-scheme:dark]">
+                        <input type="date" wire:model.live="vacationStartDate" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-sm dark:shadow-inner">
                     </div>
                     <div>
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Bis</label>
-                        <input type="date" wire:model.live="vacationEndDate" class="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-inner [color-scheme:dark]">
+                        <input type="date" wire:model.live="vacationEndDate" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-sm dark:shadow-inner">
                     </div>
                 </div>
                 <div>
                     <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Kunden-Meldung (Wird im Shop angezeigt)</label>
-                    <textarea wire:model.blur="vacationDescription" rows="4" class="w-full bg-gray-900 border border-gray-800 text-amber-100/80 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-inner resize-none"></textarea>
+                    <textarea wire:model.blur="vacationDescription" rows="4" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-amber-900 dark:text-amber-100/80 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition-all shadow-sm dark:shadow-inner resize-none"></textarea>
                     <p class="text-[9px] text-amber-500/60 mt-1.5 ml-1 font-medium">Das Datum und die Lieferzeit werden automatisch unterhalb des Textes im Shop berechnet und angezeigt.</p>
                 </div>
 
                 <button x-data="{ saved: false }"
                         @click="$wire.saveSettings().then(() => { saved = true; setTimeout(() => saved = false, 2500) })"
-                        :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-amber-500 hover:bg-amber-400 text-gray-900 shadow-[0_0_15px_rgba(245,158,11,0.3)]'"
+                        :class="saved ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-amber-500 hover:bg-amber-400 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(245,158,11,0.3)]'"
                         class="w-full py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                     <span x-show="!saved" wire:loading.remove wire:target="saveSettings">Speichern</span>
                     <span x-show="!saved" wire:loading wire:target="saveSettings" class="flex items-center gap-2">
@@ -119,13 +119,13 @@
             </div>
         </div>
 
-        <div class="bg-gray-950/80 rounded-[2rem] border border-gray-800 p-6 sm:p-8 shadow-inner relative overflow-hidden transition-all duration-500 {{ $isSickMode ? 'ring-1 ring-red-500/50 shadow-[inset_0_0_30px_rgba(239,68,68,0.05)]' : '' }}">
+        <div class="bg-white dark:bg-gray-950/80 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-inner relative overflow-hidden transition-all duration-500 {{ $isSickMode ? 'ring-1 ring-red-500/50 shadow-sm dark:shadow-[inset_0_0_30px_rgba(239,68,68,0.05)]' : '' }}">
 
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div class="flex items-start sm:items-center gap-3">
                     <span class="p-2 bg-red-500/10 text-red-400 rounded-xl border border-red-500/20 shadow-inner shrink-0">🤒</span>
                     <div>
-                        <h4 class="text-lg font-serif font-bold text-white leading-tight">Krankheitsmodus</h4>
+                        <h4 class="text-lg font-serif font-bold text-gray-900 dark:text-white leading-tight">Krankheitsmodus</h4>
                         <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mt-1">Verzögerung melden</p>
                     </div>
                 </div>
@@ -149,13 +149,13 @@
             <div class="space-y-5 transition-all duration-300 {{ $isSickMode ? 'opacity-100' : 'opacity-40 grayscale pointer-events-none' }}">
                 <div>
                     <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Kunden-Meldung (Wird im Shop angezeigt)</label>
-                    <textarea wire:model="sickDescription" rows="4" class="w-full bg-gray-900 border border-gray-800 text-red-100/80 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-red-500/30 focus:border-red-500 outline-none transition-all shadow-inner resize-none"></textarea>
+                    <textarea wire:model="sickDescription" rows="4" class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-red-900 dark:text-red-100/80 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-red-500/30 focus:border-red-500 outline-none transition-all shadow-sm dark:shadow-inner resize-none"></textarea>
                     <p class="text-[9px] text-red-500/60 mt-1.5 ml-1 font-medium">Dem Kunden wird automatisch eine Verzögerung von 6 Tagen zur aktuellen Lieferzeit mitgeteilt.</p>
                 </div>
 
                 <button x-data="{ saved: false }"
                         @click="$wire.saveSettings().then(() => { saved = true; setTimeout(() => saved = false, 2500) })"
-                        :class="saved ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-red-500 hover:bg-red-400 text-white shadow-[0_0_15px_rgba(239,68,68,0.3)]'"
+                        :class="saved ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-red-500 hover:bg-red-400 text-white shadow-sm dark:shadow-[0_0_15px_rgba(239,68,68,0.3)]'"
                         class="w-full py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2">
                     <span x-show="!saved" wire:loading.remove wire:target="saveSettings">Speichern</span>
                     <span x-show="!saved" wire:loading wire:target="saveSettings" class="flex items-center gap-2">
@@ -172,25 +172,25 @@
     </div>
 
     @if(count($this->feedbackLogs) > 0)
-        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] border border-gray-800 p-6 sm:p-8 shadow-2xl mt-8">
-            <h3 class="text-xl font-serif font-bold text-white mb-6 flex items-center gap-3">
+        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl mt-8">
+            <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-3">
                 <svg class="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
                 Herzliche Grüße aus der Community
             </h3>
 
-            <div class="overflow-x-auto custom-scrollbar bg-gray-950 rounded-2xl border border-gray-800 shadow-inner">
+            <div class="overflow-x-auto custom-scrollbar bg-white dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
                 <table class="w-full text-left text-sm min-w-[500px]">
-                    <thead class="bg-gray-900 border-b border-gray-800 text-gray-500 text-[9px] uppercase tracking-widest font-black">
+                    <thead class="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-500 text-[9px] uppercase tracking-widest font-black">
                     <tr>
                         <th class="p-4">Kunde</th>
                         <th class="p-4">Gesendeter Wunsch</th>
                         <th class="p-4 text-right">Datum</th>
                     </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-800/50">
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800/50">
                     @foreach($this->feedbackLogs as $fb)
-                        <tr class="hover:bg-gray-900/50 transition-colors">
-                            <td class="p-4 font-bold text-white">{{ $fb->user_name ?? 'Unbekannt' }}</td>
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                            <td class="p-4 font-bold text-gray-900 dark:text-white">{{ $fb->user_name ?? 'Unbekannt' }}</td>
                             <td class="p-4">
                                 @if($fb->type === 'vacation')
                                     <span class="bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest shadow-inner inline-flex items-center gap-1.5"><span class="text-sm">🌴</span> Schönen Urlaub</span>

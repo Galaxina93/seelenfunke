@@ -1,5 +1,5 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <div class="bg-transparent pb-20 font-sans text-gray-300">
+    <div class="bg-transparent pb-20 font-sans text-gray-700 dark:text-gray-300">
 
         {{-- Success Notification --}}
         @if (session()->has('success'))
@@ -24,9 +24,9 @@
         @endif
 
         {{-- Header (Anklickbar gemacht, um die Liste auf-/zuzuklappen) --}}
-        <div class="bg-gray-900/80 backdrop-blur-md shadow-2xl border-b border-gray-800 sticky top-0 z-30 transition-all duration-300">
+        <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm dark:shadow-2xl border-b border-gray-200 dark:border-gray-800 sticky top-0 z-30 transition-all duration-300">
             <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4 md:py-6 flex justify-between items-center gap-2">
-                <h1 class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white flex items-center gap-2 sm:gap-3 tracking-tight shrink min-w-0">
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3 tracking-tight shrink min-w-0">
                     <div class="p-1.5 sm:p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-xl text-[var(--theme-color)] shadow-inner shrink-0">
                         <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -97,7 +97,7 @@
 
                     {{-- Archiv Toggle --}}
                     <button wire:click="$toggle('showArchive')" 
-                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : ($this->archivedItems->count() > 0 ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-800/40 border border-gray-700/50 text-gray-400 hover:text-gray-300 hover:bg-gray-800') }}"
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : ($this->archivedItems->count() > 0 ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-100 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800') }}"
                             title="{{ $this->archivedItems->count() > 0 ? 'Archiv: ' . $this->archivedItems->count() . ' archivierte Kostenstellen' : 'Archiv: Keine archivierten Kostenstellen' }}">
                         <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -123,9 +123,9 @@
                             $totalItems = $groups->sum(fn($group) => $group->items->count());
                         @endphp
 
-                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(239,68,68,0.05)] border border-red-500/20 overflow-hidden transition-all duration-300"
+                        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-sm dark:shadow-[0_0_30px_rgba(239,68,68,0.05)] border border-red-200 dark:border-red-500/20 overflow-hidden transition-all duration-300"
                              x-data="{ expanded: true }">
-                            <div class="bg-red-900/10 px-6 sm:px-8 py-5 border-b border-red-500/20 flex justify-between items-center cursor-pointer hover:bg-red-900/20 transition-colors shadow-inner"
+                            <div class="bg-red-50 dark:bg-red-900/10 px-6 sm:px-8 py-5 border-b border-red-200 dark:border-red-500/20 flex justify-between items-center cursor-pointer hover:bg-red-100/60 dark:hover:bg-red-900/20 transition-colors shadow-inner"
                                  @click="expanded = !expanded">
                                 <div class="flex items-center gap-4">
                                     <div class="p-2.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-pulse shrink-0">
@@ -134,15 +134,15 @@
                                         </svg>
                                     </div>
                                     <div>
-                                        <h3 class="text-base sm:text-lg font-serif font-bold text-red-400 flex flex-wrap items-center gap-3 tracking-wide">
+                                        <h3 class="text-base sm:text-lg font-serif font-bold text-red-600 dark:text-red-400 flex flex-wrap items-center gap-3 tracking-wide">
                                             Vertrags-Check: Fehlende Unterlagen
-                                            <span class="bg-red-500/20 text-red-300 border border-red-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingContracts->count() }} / {{ $totalItems }}</span>
+                                            <span class="bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingContracts->count() }} / {{ $totalItems }}</span>
                                         </h3>
-                                        <p class="text-[10px] sm:text-xs text-red-300/80 font-medium mt-1">Bei folgenden Kostenstellen wurde noch kein Vertrag oder Beleg hinterlegt.</p>
+                                        <p class="text-[10px] sm:text-xs text-red-600/80 dark:text-red-300/80 font-medium mt-1">Bei folgenden Kostenstellen wurde noch kein Vertrag oder Beleg hinterlegt.</p>
                                     </div>
                                 </div>
 
-                                <div class="text-red-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-red-400' : ''">
+                                <div class="text-red-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-red-600 dark:text-red-400' : ''">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
@@ -150,22 +150,22 @@
                             </div>
 
                             <div x-show="expanded" x-collapse>
-                                <div class="block md:hidden divide-y divide-gray-800/50">
+                                <div class="block md:hidden divide-y divide-gray-200 dark:divide-gray-800/50">
                                     @foreach($missingContracts as $missingItem)
-                                        <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                        <div class="p-5 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                             <div class="mb-3">
-                                                <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
+                                                <p class="font-bold text-gray-900 dark:text-white text-sm mb-1">{{ $missingItem->name }}</p>
                                                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
                                             </div>
 
                                             <div>
                                                 @if($uploadingMissingItemId === $missingItem->id)
-                                                    <div class="flex flex-col gap-3 bg-gray-950 p-4 rounded-xl border border-red-500/20">
+                                                    <div class="flex flex-col gap-3 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-red-200 dark:border-red-500/20">
                                                         <input type="file" wire:model="quickUploadFile"
                                                                class="w-full text-[9px] text-gray-400 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-red-500/10 file:text-red-400 file:border file:border-red-500/20 hover:file:bg-red-500/20 transition-all cursor-pointer">
 
                                                         <div class="flex justify-end gap-2 mt-2">
-                                                            <button wire:click="cancelQuickUpload" class="px-4 py-2 bg-gray-900 border border-gray-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:text-white transition-colors">
+                                                            <button wire:click="cancelQuickUpload" class="px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-widest hover:text-gray-900 dark:hover:text-white transition-colors">
                                                                 Abbrechen
                                                             </button>
                                                             <button wire:click="saveQuickUpload" wire:loading.attr="disabled" class="bg-red-500 text-gray-900 px-6 py-2 rounded-xl hover:bg-red-400 transition-all shadow-[0_0_15px_rgba(239,68,68,0.2)] disabled:opacity-50 text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -190,21 +190,21 @@
 
                                 <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
                                     <table class="w-full text-sm text-left min-w-[600px]">
-                                        <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                        <thead class="bg-gray-50 dark:bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-200 dark:border-gray-800">
                                         <tr>
                                             <th class="px-8 py-4">Kostenstelle</th>
                                             <th class="px-4 py-4">Gruppe</th>
                                             <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
                                         </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-800/50 bg-transparent">
                                         @foreach($missingContracts as $missingItem)
-                                            <tr class="hover:bg-gray-800/30 transition-colors group">
-                                                <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
-                                                <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
+                                            <tr class="hover:bg-gray-50/80 dark:hover:bg-gray-800/30 transition-colors group">
+                                                <td class="px-8 py-5 font-bold text-gray-900 dark:text-white tracking-wide">{{ $missingItem->name }}</td>
+                                                <td class="px-4 py-5 text-gray-600 dark:text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
                                                 <td class="px-8 py-5 text-right">
                                                     @if($uploadingMissingItemId === $missingItem->id)
-                                                        <div class="flex items-center justify-end gap-3 bg-gray-950 p-2 rounded-xl border border-red-500/20">
+                                                        <div class="flex items-center justify-end gap-3 bg-gray-50 dark:bg-gray-950 p-2 rounded-xl border border-red-200 dark:border-red-500/20">
                                                             <input type="file" wire:model="quickUploadFile"
                                                                    class="w-[200px] text-[9px] text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-red-500/10 file:text-red-400 file:border file:border-red-500/20 hover:file:bg-red-500/20 transition-all cursor-pointer">
 
@@ -215,7 +215,7 @@
                                                                     <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
                                                                 </span>
                                                             </button>
-                                                            <button wire:click="cancelQuickUpload" class="text-gray-500 hover:text-red-400 px-2 transition-colors">
+                                                            <button wire:click="cancelQuickUpload" class="text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 px-2 transition-colors">
                                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                                             </button>
                                                         </div>
@@ -235,16 +235,16 @@
                             </div>
                         </div>
                     @else
-                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
-                            <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
+                        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-sm dark:shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-200 dark:border-emerald-500/20 overflow-hidden animate-fade-in-down">
+                            <div class="bg-emerald-50 dark:bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
                                 <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Unterlagen liegen vor</h3>
-                                    <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen entsprechende Belege oder Verträge hinterlegt.</p>
+                                    <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-700 dark:text-emerald-400 tracking-wide drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Unterlagen liegen vor</h3>
+                                    <p class="text-[10px] sm:text-xs text-emerald-700/80 dark:text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen entsprechende Belege oder Verträge hinterlegt.</p>
                                 </div>
                             </div>
                         </div>
@@ -254,9 +254,9 @@
                 {{-- Validierungstabelle: Fehlende Datensätze ODER Alles OK --}}
                 @if($showMissingData)
                     @if($missingDataItems->count() > 0)
-                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(234,179,8,0.05)] border border-yellow-500/20 overflow-hidden transition-all duration-300"
+                        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-sm dark:shadow-[0_0_30px_rgba(234,179,8,0.05)] border border-yellow-300 dark:border-yellow-500/20 overflow-hidden transition-all duration-300"
                              x-data="{ expanded: true }">
-                            <div class="bg-yellow-900/10 px-6 sm:px-8 py-5 border-b border-yellow-500/20 flex justify-between items-center cursor-pointer hover:bg-yellow-900/20 transition-colors shadow-inner"
+                            <div class="bg-yellow-50 dark:bg-yellow-900/10 px-6 sm:px-8 py-5 border-b border-yellow-200 dark:border-yellow-500/20 flex justify-between items-center cursor-pointer hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20 transition-colors shadow-inner"
                                  @click="expanded = !expanded">
                                 <div class="flex items-center gap-4">
                                     <div class="p-2.5 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 rounded-xl shadow-[0_0_15px_rgba(234,179,8,0.2)] animate-pulse shrink-0">
@@ -265,15 +265,15 @@
                                         </svg>
                                     </div>
                                     <div>
-                                        <h3 class="text-base sm:text-lg font-serif font-bold text-yellow-400 flex flex-wrap items-center gap-3 tracking-wide">
+                                        <h3 class="text-base sm:text-lg font-serif font-bold text-yellow-800 dark:text-yellow-400 flex flex-wrap items-center gap-3 tracking-wide">
                                             Vertrags-Check: Fehlende Datensätze
-                                            <span class="bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingDataItems->count() }} Fehlend</span>
+                                            <span class="bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-500/30 text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $missingDataItems->count() }} Fehlend</span>
                                         </h3>
-                                        <p class="text-[10px] sm:text-xs text-yellow-300/80 font-medium mt-1">Bei folgenden Kostenstellen fehlen wichtige Adress- oder Vertragsdaten (z. B. Anbieter).</p>
+                                        <p class="text-[10px] sm:text-xs text-yellow-800/80 dark:text-yellow-300/80 font-medium mt-1">Bei folgenden Kostenstellen fehlen wichtige Adress- oder Vertragsdaten (z. B. Anbieter).</p>
                                     </div>
                                 </div>
 
-                                <div class="text-yellow-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-yellow-400' : ''">
+                                <div class="text-yellow-500/50 transition-transform duration-300 shrink-0 ml-4" :class="expanded ? 'rotate-180 text-yellow-700 dark:text-yellow-400' : ''">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                     </svg>
@@ -281,15 +281,15 @@
                             </div>
 
                             <div x-show="expanded" x-collapse>
-                                <div class="block md:hidden divide-y divide-gray-800/50">
+                                <div class="block md:hidden divide-y divide-gray-200 dark:divide-gray-800/50">
                                     @foreach($missingDataItems as $missingItem)
-                                        <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                        <div class="p-5 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                             <div class="mb-3">
-                                                <p class="font-bold text-white text-sm mb-1">{{ $missingItem->name }}</p>
+                                                <p class="font-bold text-gray-900 dark:text-white text-sm mb-1">{{ $missingItem->name }}</p>
                                                 <p class="text-[10px] font-black uppercase tracking-widest text-gray-500">{{ $missingItem->group->name }}</p>
                                             </div>
                                             <div>
-                                                <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="w-full text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-3 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 flex items-center justify-center gap-2">
+                                                <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="w-full text-[9px] bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-4 py-3 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-800 dark:hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-300 dark:border-yellow-500/20 flex items-center justify-center gap-2">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                                     Daten ergänzen
                                                 </button>
@@ -300,20 +300,20 @@
 
                                 <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
                                     <table class="w-full text-sm text-left min-w-[600px]">
-                                        <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                        <thead class="bg-gray-50 dark:bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-200 dark:border-gray-800">
                                         <tr>
                                             <th class="px-8 py-4">Kostenstelle</th>
                                             <th class="px-4 py-4">Gruppe</th>
                                             <th class="px-8 py-4 text-right w-[400px]">Aktion</th>
                                         </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-800/50 bg-transparent">
                                         @foreach($missingDataItems as $missingItem)
-                                            <tr class="hover:bg-gray-800/30 transition-colors group">
-                                                <td class="px-8 py-5 font-bold text-white tracking-wide">{{ $missingItem->name }}</td>
-                                                <td class="px-4 py-5 text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
+                                            <tr class="hover:bg-gray-50/80 dark:hover:bg-gray-800/30 transition-colors group">
+                                                <td class="px-8 py-5 font-bold text-gray-900 dark:text-white tracking-wide">{{ $missingItem->name }}</td>
+                                                <td class="px-4 py-5 text-gray-600 dark:text-gray-400 font-medium">{{ $missingItem->group->name }}</td>
                                                 <td class="px-8 py-5 text-right">
-                                                    <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="text-[9px] bg-yellow-500/10 text-yellow-400 px-4 py-2 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-500/20 inline-flex items-center gap-2">
+                                                    <button wire:click="openItemForm('{{ $missingItem->group->id }}', '{{ $missingItem->id }}')" @click="setTimeout(() => { document.getElementById('item-card-{{ $missingItem->id }}')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100)" class="text-[9px] bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-xl hover:bg-yellow-500/20 hover:text-yellow-800 dark:hover:text-yellow-300 transition-all font-black uppercase tracking-widest shadow-inner border border-yellow-300 dark:border-yellow-500/20 inline-flex items-center gap-2">
                                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                                                         Daten ergänzen
                                                     </button>
@@ -326,16 +326,16 @@
                             </div>
                         </div>
                     @else
-                        <div class="bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-500/20 overflow-hidden animate-fade-in-down">
-                            <div class="bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
+                        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] shadow-sm dark:shadow-[0_0_30px_rgba(16,185,129,0.05)] border border-emerald-200 dark:border-emerald-500/20 overflow-hidden animate-fade-in-down">
+                            <div class="bg-emerald-50 dark:bg-emerald-900/10 px-6 sm:px-8 py-5 flex items-center gap-4 shadow-inner">
                                 <div class="p-2.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.2)] shrink-0">
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-400 tracking-wide drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Datensätze vollständig</h3>
-                                    <p class="text-[10px] sm:text-xs text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen die entsprechenden Adress- und Anbieterdaten hinterlegt.</p>
+                                    <h3 class="text-base sm:text-lg font-serif font-bold text-emerald-700 dark:text-emerald-400 tracking-wide drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Vertrags-Check: Alle Datensätze vollständig</h3>
+                                    <p class="text-[10px] sm:text-xs text-emerald-700/80 dark:text-emerald-300/70 font-medium mt-0.5">Es wurden zu allen Kostenstellen die entsprechenden Adress- und Anbieterdaten hinterlegt.</p>
                                 </div>
                             </div>
                         </div>
@@ -344,16 +344,16 @@
 
                 {{-- GLOBAL TAG MANAGEMENT SECTION --}}
                 @if($showTagManagement)
-                    <div x-data="{ expandedTags: true }" class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8 animate-fade-in-down">
+                    <div x-data="{ expandedTags: true }" class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-10 relative overflow-hidden mt-8 mb-8 animate-fade-in-down">
                         <div class="flex items-center justify-between cursor-pointer group" @click="expandedTags = !expandedTags">
                             <div>
-                                <h3 class="text-xl font-serif font-bold text-white mb-1 tracking-wide flex items-center gap-3">
+                                <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white mb-1 tracking-wide flex items-center gap-3">
                                     <svg class="w-6 h-6 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                     </svg>
                                     Tag-Verwaltung
                                 </h3>
-                                <p class="text-xs text-gray-400 mb-0">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mb-0">Verwalte alle vergebenen Tags global. Änderungen (Umbennennung oder Löschen) wirken sich automatisch auf alle verknüpften Kostenstellen aus.</p>
                             </div>
                             <div class="text-gray-500 transition-transform duration-300" :class="expandedTags ? 'rotate-180' : ''">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -366,12 +366,12 @@
                             <div class="flex flex-wrap gap-3">
                                 @forelse($this->globalTags as $tag)
                                     @if($editingGlobalTag === $tag)
-                                        <div class="flex items-center gap-2 bg-gray-950 p-1.5 rounded-full border border-[var(--theme-color-50)] shadow-inner">
-                                            <input type="text" wire:model="editingGlobalTagValue" wire:keydown.enter="saveGlobalTag" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-white px-2 outline-none w-28">
+                                        <div class="flex items-center gap-2 bg-white dark:bg-gray-950 p-1.5 rounded-full border border-[var(--theme-color-50)] shadow-inner">
+                                            <input type="text" wire:model="editingGlobalTagValue" wire:keydown.enter="saveGlobalTag" class="bg-transparent text-[10px] font-black uppercase tracking-widest text-gray-900 dark:text-white px-2 outline-none w-28">
                                             <button wire:click="saveGlobalTag" class="text-emerald-400 hover:text-emerald-300 transition-colors" title="Speichern">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                                             </button>
-                                            <button wire:click="$set('editingGlobalTag', null)" class="text-gray-500 hover:text-gray-400 pr-1 transition-colors" title="Abbrechen">
+                                            <button wire:click="$set('editingGlobalTag', null)" class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400 pr-1 transition-colors" title="Abbrechen">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </div>
@@ -389,7 +389,7 @@
                                         </div>
                                     @endif
                                 @empty
-                                    <span class="text-xs text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
+                                    <span class="text-xs text-gray-400 dark:text-gray-500 italic">Bisher wurden keine Tags vergeben. Setze welche direkt bei den Kostenstellen.</span>
                                 @endforelse
                             </div>
                         </div>
@@ -398,7 +398,7 @@
 
                 {{-- ARCHIV SECTION --}}
                 @if($showArchive)
-                    <div x-data="{ expandedArchive: true }" class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-[var(--theme-color-20)] overflow-hidden mt-8 mb-8 animate-fade-in-down">
+                    <div x-data="{ expandedArchive: true }" class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-[var(--theme-color-20)] overflow-hidden mt-8 mb-8 animate-fade-in-down">
                         <div class="bg-[var(--theme-color-5)] px-6 sm:px-8 py-5 border-b border-[var(--theme-color-20)] flex justify-between items-center cursor-pointer hover:bg-[var(--theme-color-10)] transition-colors shadow-inner"
                              @click="expandedArchive = !expandedArchive">
                             <div class="flex items-center gap-4">
@@ -412,7 +412,7 @@
                                         Archiv: Gelöschte Kostenstellen
                                         <span class="bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-md uppercase">{{ $this->archivedItems->count() }} Archiviert</span>
                                     </h3>
-                                    <p class="text-[10px] sm:text-xs text-gray-400 font-medium mt-1">Hier findest du alle archivierten Kostenstellen. Sie können wiederhergestellt oder endgültig gelöscht werden.</p>
+                                    <p class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium mt-1">Hier findest du alle archivierten Kostenstellen. Sie können wiederhergestellt oder endgültig gelöscht werden.</p>
                                 </div>
                             </div>
 
@@ -426,12 +426,12 @@
                         <div x-show="expandedArchive" x-collapse>
                             @if($this->archivedItems->count() > 0)
                                 {{-- Mobile View --}}
-                                <div class="block md:hidden divide-y divide-gray-800/50">
+                                <div class="block md:hidden divide-y divide-gray-200 dark:divide-gray-800/50">
                                     @foreach($this->archivedItems as $archivedItem)
-                                        <div class="p-5 hover:bg-gray-800/30 transition-colors">
+                                        <div class="p-5 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                             <div class="flex justify-between items-start mb-2">
                                                 <div>
-                                                    <p class="font-bold text-white text-sm mb-1">{{ $archivedItem->name }}</p>
+                                                    <p class="font-bold text-gray-900 dark:text-white text-sm mb-1">{{ $archivedItem->name }}</p>
                                                     <p class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)]/80">{{ $archivedItem->group?->name ?? 'Ohne Gruppe' }}</p>
                                                 </div>
                                                 <div class="text-right">
@@ -469,7 +469,7 @@
                                 {{-- Desktop Table View --}}
                                 <div class="hidden md:block overflow-x-auto w-full no-scrollbar">
                                     <table class="w-full text-sm text-left min-w-[700px]">
-                                        <thead class="bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-800">
+                                        <thead class="bg-gray-50 dark:bg-gray-950/50 text-[10px] text-gray-500 font-black uppercase tracking-widest border-b border-gray-200 dark:border-gray-800">
                                             <tr>
                                                 <th class="px-8 py-4">Kostenstelle</th>
                                                 <th class="px-4 py-4">Gruppe</th>
@@ -479,16 +479,16 @@
                                                 <th class="px-8 py-4 text-right">Aktionen</th>
                                             </tr>
                                         </thead>
-                                        <tbody class="divide-y divide-gray-800/50 bg-transparent">
+                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-800/50 bg-transparent">
                                             @foreach($this->archivedItems as $archivedItem)
-                                                <tr class="hover:bg-gray-800/30 transition-colors group">
+                                                <tr class="hover:bg-gray-50/80 dark:hover:bg-gray-800/30 transition-colors group">
                                                     <td class="px-8 py-5">
                                                         <div class="font-bold text-white tracking-wide">{{ $archivedItem->name }}</div>
                                                         @if($archivedItem->provider_company)
                                                             <div class="text-[11px] text-gray-400">{{ $archivedItem->provider_company }}</div>
                                                         @endif
                                                     </td>
-                                                    <td class="px-4 py-5 text-gray-400 font-medium">
+                                                    <td class="px-4 py-5 text-gray-600 dark:text-gray-400 font-medium">
                                                         {{ $archivedItem->group?->name ?? '—' }}
                                                     </td>
                                                     <td class="px-4 py-5">
@@ -529,7 +529,7 @@
                                     <svg class="w-10 h-10 mx-auto text-[var(--theme-color)]/40 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                     </svg>
-                                    <p class="text-sm font-semibold text-gray-300">Das Archiv ist leer</p>
+                                    <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">Das Archiv ist leer</p>
                                     <p class="text-xs text-gray-500 mt-1">Hier erscheinen Kostenstellen, sobald sie gelöscht wurden.</p>
                                 </div>
                             @endif
@@ -539,11 +539,11 @@
 
                 {{-- 1. Donut Chart Section (WIRE:IGNORE WICHTIG) --}}
                 @if($showChart)
-                    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden animate-fade-in-down" wire:ignore>
-                        <div class="absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color-5)] rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+                    <div class="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden animate-fade-in-down" wire:ignore>
+                        <div class="hidden dark:block absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color-5)] rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
                         <div class="w-full md:w-1/3 relative z-10 text-center md:text-left">
-                            <h3 class="text-xl font-serif font-bold text-white mb-3 tracking-wide">Finanzielle Aufteilung</h3>
-                            <p class="text-xs text-gray-400 leading-relaxed font-medium">Übersicht der monatlichen Volumina nach Gruppen. <br class="hidden md:block mt-2"> <span class="text-emerald-400 font-bold drop-shadow-[0_0_5px_currentColor]">Grün = Einnahmen</span>, <span class="text-red-400 font-bold drop-shadow-[0_0_5px_currentColor]">Rot = Ausgaben</span>.</p>
+                            <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white mb-3 tracking-wide">Finanzielle Aufteilung</h3>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed font-medium">Übersicht der monatlichen Volumina nach Gruppen. <br class="hidden md:block mt-2"> <span class="text-emerald-600 dark:text-emerald-400 font-bold drop-shadow-none dark:drop-shadow-[0_0_5px_currentColor]">Grün = Einnahmen</span>, <span class="text-red-600 dark:text-red-400 font-bold drop-shadow-none dark:drop-shadow-[0_0_5px_currentColor]">Rot = Ausgaben</span>.</p>
                         </div>
                         <div class="w-full md:w-2/3 h-64 sm:h-80 relative z-10">
                             <canvas id="groupsChart"></canvas>
@@ -552,8 +552,8 @@
                 @endif
 
                 {{-- Suchleiste direkt unterhalb "Finanzielle Aufteilung" --}}
-                <div class="relative bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-800 p-4 shadow-2xl flex items-center gap-4 group/search">
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-full blur-[40px] -translate-y-1/2 translate-x-1/3 pointer-events-none transition-all duration-300 group-hover/search:bg-[var(--theme-color-10)]"></div>
+                <div class="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-200 dark:border-gray-800 p-4 shadow-sm dark:shadow-2xl flex items-center gap-4 group/search">
+                    <div class="hidden dark:block absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-full blur-[40px] -translate-y-1/2 translate-x-1/3 pointer-events-none transition-all duration-300 group-hover/search:bg-[var(--theme-color-10)]"></div>
                     <div class="p-3 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-2xl text-[var(--theme-color)] shadow-inner shrink-0 group-focus-within/search:bg-[var(--theme-color-20)] transition-all duration-300">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -563,10 +563,10 @@
                         <input type="text"
                                wire:model.live.debounce.300ms="searchQuery"
                                placeholder="Verträge, Gruppen, Anbieter, Beschreibung oder Tags durchsuchen..."
-                               class="w-full bg-transparent text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:ring-0 border-0 p-1">
+                               class="w-full bg-transparent text-sm sm:text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-0 border-0 p-1 cursor-pointer">
                         
                         @if(!empty($searchQuery))
-                            <button wire:click="$set('searchQuery', '')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors" title="Suche zurücksetzen">
+                            <button wire:click="$set('searchQuery', '')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-white transition-colors" title="Suche zurücksetzen">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -613,7 +613,7 @@
 
                         {{-- GROUP CARD (Dropzone für Gruppen UND Items) --}}
                         <div data-group-id="{{ $group->id }}"
-                             class="group-sortable-card bg-gray-900/80 backdrop-blur-md border rounded-[2rem] overflow-hidden shadow-2xl transition-all duration-300 {{ $activeGroupId === $group->id ? 'border-[var(--theme-color-50)] shadow-[0_0_30px_var(--theme-color-15)] lg:col-span-2' : 'border-gray-800 hover:border-gray-700' }}"
+                             class="group-sortable-card bg-white/90 dark:bg-gray-900/80 backdrop-blur-md border rounded-[2rem] overflow-hidden shadow-sm dark:shadow-2xl transition-all duration-300 {{ $activeGroupId === $group->id ? 'border-[var(--theme-color-50)] shadow-[0_0_30px_var(--theme-color-15)] lg:col-span-2' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700' }}"
                              draggable="true"
                              @dragstart.stop="draggedGroup = $el; $el.classList.add('opacity-40', 'scale-[0.98]', 'border-dashed')"
                              @dragend.stop="draggedGroup = null; $el.classList.remove('opacity-40', 'scale-[0.98]', 'border-dashed')"
@@ -628,11 +628,11 @@
                                     $wire.moveCostItem(draggingItemId, '{{ $group->id }}');
                                 }
                              "
-                             :class="isDraggingOver ? 'ring-2 ring-[var(--theme-color)] bg-gray-900 scale-[1.01] shadow-[0_0_40px_var(--theme-color-20)]' : ''"
+                             :class="isDraggingOver ? 'ring-2 ring-[var(--theme-color)] bg-gray-50 dark:bg-gray-900 scale-[1.01] shadow-md dark:shadow-[0_0_40px_var(--theme-color-20)]' : ''"
                         >
                             {{-- Drag Handle Indikator für die Gruppe --}}
-                            <div class="w-full py-2 bg-gray-950 flex items-center justify-center cursor-grab active:cursor-grabbing border-b border-gray-800 opacity-50 hover:opacity-100 transition-opacity shadow-inner" title="Gruppe verschieben">
-                                <div class="w-12 h-1.5 bg-gray-700 rounded-full"></div>
+                            <div class="w-full py-2 bg-gray-50 dark:bg-gray-950 flex items-center justify-center cursor-move border-b border-gray-200 dark:border-gray-800 opacity-60 hover:opacity-100 transition-opacity shadow-inner" title="Gruppe verschieben">
+                                <div class="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full"></div>
                             </div>
 
                             {{-- Group Header --}}
@@ -640,23 +640,25 @@
 
                             {{-- Group Body (Items) --}}
                             @if($activeGroupId === $group->id || !empty(trim($searchQuery)))
-                                <div class="border-t border-gray-800 bg-gray-950/50 p-4 sm:p-8 animate-fade-in-down shadow-inner" @dragstart.stop>
+                                <div class="border-t border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/50 p-4 sm:p-8 animate-fade-in-down shadow-inner" @dragstart.stop>
 
                                     <div class="space-y-4">
                                         @foreach($group->items as $item)
                                             {{-- ITEM CARD (Draggable) --}}
                                             <div wire:key="item-card-{{ $item->id }}"
                                                  id="item-card-{{ $item->id }}"
-                                                 class="bg-gray-900 border border-gray-800 rounded-2xl shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-[0_0_15px_var(--theme-color-10)] transition-all cursor-grab active:cursor-grabbing group/item overflow-hidden"
-                                                 draggable="true"
+                                                 class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm dark:shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-md dark:hover:shadow-[0_0_15px_var(--theme-color-10)] transition-all cursor-default group/item overflow-hidden"
+                                                 {{ $editingItemId === $item->id ? '' : 'draggable=true' }}
+                                                 @if($editingItemId !== $item->id)
                                                  @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
-                                                 @dragend.stop="draggingItemId = null">
+                                                 @dragend.stop="draggingItemId = null"
+                                                 @endif>
                                                 @if($editingItemId === $item->id)
-                                                    <div wire:key="edit-view-{{ $item->id }}" class="p-4 sm:p-6 bg-gray-800/30">
+                                                    <div wire:key="edit-view-{{ $item->id }}" class="p-4 sm:p-6 bg-gray-50 dark:bg-gray-800/30 cursor-default">
                                                         @include('livewire.shop.accounting.accounting-fix-costs.partials.edit_cost_item')
                                                     </div>
                                                 @else
-                                                    <div wire:key="read-view-{{ $item->id }}" class="p-4 sm:p-6">
+                                                    <div wire:key="read-view-{{ $item->id }}" class="p-4 sm:p-6 cursor-default">
                                                         @include('livewire.shop.accounting.accounting-fix-costs.partials.cost_item')
                                                     </div>
                                                 @endif
@@ -687,9 +689,9 @@
     {{-- Kündigungs Modal --}}
     @if($cancellingItemId)
         <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
-            <div class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm" wire:click="closeCancellationModal"></div>
+            <div class="absolute inset-0 bg-gray-900/40 dark:bg-gray-950/80 backdrop-blur-sm" wire:click="closeCancellationModal"></div>
             
-            <div class="relative bg-gray-900 border border-gray-700 rounded-3xl shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-lg w-full overflow-hidden animate-fade-in-up">
+            <div class="relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-3xl shadow-2xl dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] max-w-lg w-full overflow-hidden animate-fade-in-up">
                 <div class="p-6 sm:p-8">
                     <div class="flex items-start justify-between mb-6">
                         <div class="flex items-center gap-3">
@@ -699,42 +701,42 @@
                                 </svg>
                             </div>
                             <div>
-                                <h3 class="text-xl font-serif font-bold text-white tracking-wide">Kündigung erstellen</h3>
-                                <p class="text-xs text-gray-400 font-medium">Automatische PDF Generierung</p>
+                                <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white tracking-wide">Kündigung erstellen</h3>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 font-medium">Automatische PDF Generierung</p>
                             </div>
                         </div>
-                        <button wire:click="closeCancellationModal" class="text-gray-500 hover:text-white transition-colors">
+                        <button wire:click="closeCancellationModal" class="text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-white transition-colors">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
 
                     <div class="space-y-5">
                         <div>
-                            <label class="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2">Kündigungsdatum</label>
+                            <label class="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400 tracking-widest block mb-2">Kündigungsdatum</label>
                             <div class="space-y-3">
-                                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 bg-gray-950 cursor-pointer hover:border-gray-500 transition-colors">
-                                    <input type="radio" wire:model.live="cancellationDateType" value="next_possible" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-gray-900 border-gray-600">
-                                    <span class="text-sm font-medium text-white">Zum nächstmöglichen Zeitpunkt</span>
+                                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 cursor-pointer hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
+                                    <input type="radio" wire:model.live="cancellationDateType" value="next_possible" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600">
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">Zum nächstmöglichen Zeitpunkt</span>
                                 </label>
                                 
-                                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-700 bg-gray-950 cursor-pointer hover:border-gray-500 transition-colors">
-                                    <input type="radio" wire:model.live="cancellationDateType" value="custom_date" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-gray-900 border-gray-600">
-                                    <span class="text-sm font-medium text-white">Zu einem bestimmten Datum</span>
+                                <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 cursor-pointer hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
+                                    <input type="radio" wire:model.live="cancellationDateType" value="custom_date" class="text-[var(--theme-color)] focus:ring-[var(--theme-color)] bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600">
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">Zu einem bestimmten Datum</span>
                                 </label>
                             </div>
                         </div>
 
                         @if($cancellationDateType === 'custom_date')
                             <div class="animate-fade-in-down">
-                                <label class="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2">Gewünschtes Datum</label>
-                                <input type="date" wire:model="cancellationCustomDate" class="w-full text-sm p-3.5 rounded-xl border border-gray-700 bg-gray-950 text-white focus:bg-black focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
+                                <label class="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400 tracking-widest block mb-2">Gewünschtes Datum</label>
+                                <input type="date" wire:model="cancellationCustomDate" class="w-full text-sm p-3.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white focus:bg-white dark:focus:bg-black focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-30)] outline-none cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
                             </div>
                         @endif
                     </div>
                 </div>
 
-                <div class="bg-gray-950 p-6 flex justify-end gap-3 border-t border-gray-800">
-                    <button wire:click="closeCancellationModal" class="px-5 py-2.5 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors">Abbrechen</button>
+                <div class="bg-gray-50 dark:bg-gray-950 p-6 flex justify-end gap-3 border-t border-gray-200 dark:border-gray-800">
+                    <button wire:click="closeCancellationModal" class="px-5 py-2.5 text-xs font-black uppercase tracking-widest text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Abbrechen</button>
                     <button wire:click="generateCancellationPdf" class="bg-red-500 text-white px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:bg-red-400 transition-colors flex items-center gap-2">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         PDF generieren

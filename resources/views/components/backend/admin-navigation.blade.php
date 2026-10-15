@@ -49,21 +49,21 @@
                                     $deptColorName = $dept->color;
                                     // Map department colors to specific tailwind glow classes
                                     $deptColorCss = match($dept->color) {
-                                        'blue-500' => 'text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]',
-                                        'purple-500' => 'text-purple-500 drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]',
-                                        'amber-500' => 'text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]',
-                                        'emerald-500' => 'text-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]',
-                                        'red-500' => 'text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]',
-                                        'rose-500' => 'text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]',
-                                        'cyan-500' => 'text-cyan-500 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
-                                        'indigo-500' => 'text-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]',
-                                        'teal-500' => 'text-teal-500 drop-shadow-[0_0_8px_rgba(20,184,166,0.8)]',
-                                        'orange-500' => 'text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]',
-                                        'yellow-500' => 'text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]',
-                                        'green-500' => 'text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]',
-                                        'sky-500' => 'text-sky-500 drop-shadow-[0_0_8px_rgba(14,165,233,0.8)]',
-                                        'pink-500' => 'text-pink-500 drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]',
-                                        'primary' => 'text-primary drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]',
+                                        'blue-500' => 'text-blue-500 dark:drop-shadow-[0_0_8px_rgba(59,130,246,0.8)]',
+                                        'purple-500' => 'text-purple-500 dark:drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]',
+                                        'amber-500' => 'text-amber-500 dark:drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]',
+                                        'emerald-500' => 'text-emerald-500 dark:drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]',
+                                        'red-500' => 'text-red-500 dark:drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]',
+                                        'rose-500' => 'text-rose-500 dark:drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]',
+                                        'cyan-500' => 'text-cyan-500 dark:drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]',
+                                        'indigo-500' => 'text-indigo-500 dark:drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]',
+                                        'teal-500' => 'text-teal-500 dark:drop-shadow-[0_0_8px_rgba(20,184,166,0.8)]',
+                                        'orange-500' => 'text-orange-500 dark:drop-shadow-[0_0_8px_rgba(249,115,22,0.8)]',
+                                        'yellow-500' => 'text-yellow-500 dark:drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]',
+                                        'green-500' => 'text-green-500 dark:drop-shadow-[0_0_8px_rgba(34,197,94,0.8)]',
+                                        'sky-500' => 'text-sky-500 dark:drop-shadow-[0_0_8px_rgba(14,165,233,0.8)]',
+                                        'pink-500' => 'text-pink-500 dark:drop-shadow-[0_0_8px_rgba(236,72,153,0.8)]',
+                                        'primary' => 'text-primary dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.8)]',
                                         default => 'text-gray-500' // Better default so we can see when it fails instead of forcing emerald
                                     };
                                 }
@@ -72,16 +72,16 @@
                             $displayIcon = isset($dept) && $dept->icon ? $dept->icon : $item['icon'];
                         @endphp
                         <li x-data="{ open: {{ $isActive ? 'true' : 'false' }} }">
-                            <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5' }}">
+                            <button @click="open = !open" class="group flex items-center w-full text-left gap-x-3 rounded-xl p-2.5 text-sm font-semibold transition-all duration-300 {{ $isActive ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100/80 dark:hover:bg-white/5' }}">
                                 @if(!empty($deptColorCss))
                                     <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $deptColorCss }} {{ $hasAgents ? 'animate-pulse-slow' : '' }}" />
                                 @else
-                                    <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-500 group-hover:text-white' }}" />
+                                    <x-dynamic-component :component="'heroicon-o-' . $displayIcon" class="h-5 w-5 shrink-0 transition-colors {{ $isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white' }}" />
                                 @endif
                                 <span class="flex-1">{{ $item['title'] }}</span>
                                 <x-heroicon-m-chevron-right class="h-4 w-4 shrink-0 transition-transform duration-300" ::class="open ? 'rotate-90' : ''" />
                             </button>
-                            <ul x-show="open" x-collapse style="{{ $isActive ? '' : 'display: none;' }}" class="mt-1 space-y-1 pl-3 ml-3 border-l border-white/10">
+                            <ul x-show="open" x-collapse style="{{ $isActive ? '' : 'display: none;' }}" class="mt-1 space-y-1 pl-3 ml-3 border-l border-gray-200 dark:border-white/10">
                                 @foreach($item['children'] as $child)
                                     @php
                                         $dotProps = [];

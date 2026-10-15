@@ -28,6 +28,34 @@
         window.showAllOperative = false;
         window.tooltip = false;
 
+        // Theme Initialisierung: Standardmäßig Light Mode
+        (function() {
+            try {
+                if (localStorage.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+            }
+        })();
+
+        document.addEventListener('livewire:navigated', function() {
+            try {
+                if (localStorage.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {}
+        });
+
         // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
         window.addEventListener('unhandledrejection', function(event) {
             if (event.reason && event.reason.isFromCancelledTransition === true) {
@@ -49,10 +77,10 @@
 
     @include("components.layouts.partials.frontend-error-tracker")
 </head>
-<body class="min-h-screen bg-gray-950 font-sans text-gray-300 antialiased relative overflow-x-hidden" x-data="universeLayout()" x-init="init()">
+<body class="min-h-screen bg-slate-100 dark:bg-gray-950 font-sans text-gray-800 dark:text-gray-300 antialiased relative overflow-x-hidden transition-colors duration-300" x-data="universeLayout()" x-init="init()">
 
 {{-- HINTERGRUND UNIVERSUM --}}
-<canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full" wire:ignore></canvas>
+<canvas id="global-universe-canvas" class="fixed inset-0 z-0 pointer-events-none w-full h-full opacity-0 dark:opacity-100 transition-opacity duration-500" wire:ignore></canvas>
 
 @php
     // Determine active guard if not explicitly passed by view/component
@@ -218,10 +246,10 @@
                                 </svg>
                             </button>
                         </div>
-                        <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/95 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+                        <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl px-6 pb-4 border-r border-gray-200/80 dark:border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.1)] dark:shadow-[20px_0_50px_rgba(0,0,0,0.5)] transition-colors duration-300">
 
                             {{-- MOBILE LOGO MIT LINK --}}
-                            <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
+                            <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-200/80 dark:border-gray-800 mb-2">
                                 <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" wire:navigate class="block">
                                     <img class="h-24 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                                 </a>
@@ -236,10 +264,10 @@
             </div>
 
             <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
-                <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-gray-900/80 backdrop-blur-xl px-6 pb-4 border-r border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+                <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl px-6 pb-4 border-r border-gray-200/80 dark:border-gray-800 shadow-[20px_0_50px_rgba(0,0,0,0.05)] dark:shadow-[20px_0_50px_rgba(0,0,0,0.5)] transition-colors duration-300">
 
                     {{-- DESKTOP LOGO MIT LINK --}}
-                    <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-800 mb-2">
+                    <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-200/80 dark:border-gray-800 mb-2">
                         <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" wire:navigate class="block">
                             <img class="h-24 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                         </a>
@@ -254,21 +282,21 @@
 
         <div class="{{ $guard !== 'customer' ? 'lg:pl-72' : '' }} transition-all duration-500 flex-1 flex flex-col">
             @if($guard !== 'customer')
-                <div class="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-xl px-4 shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw]">
+                <div class="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl px-4 shadow-sm dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] sm:px-6 lg:px-8 w-full max-w-[100vw] transition-colors duration-300">
 
-                    <button @click="open = true" type="button" class="shrink-0 -m-2.5 p-2.5 text-gray-400 lg:hidden hover:text-primary transition-colors">
+                    <button @click="open = true" type="button" class="shrink-0 -m-2.5 p-2.5 text-gray-500 dark:text-gray-400 lg:hidden hover:text-primary transition-colors">
                         <span class="sr-only">Menü öffnen</span>
                         <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                         </svg>
                     </button>
 
-                    <div class="shrink-0 h-6 w-px bg-gray-700 lg:hidden" aria-hidden="true"></div>
+                    <div class="shrink-0 h-6 w-px bg-gray-200 dark:bg-gray-700 lg:hidden" aria-hidden="true"></div>
 
                     <div class="flex flex-1 items-center justify-end md:justify-between min-w-0">
 
                         <div class="hidden md:block shrink-0 pr-4">
-                            <span class="flex items-center text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] drop-shadow-sm">
+                            <span class="flex items-center text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.2em] drop-shadow-sm">
                                 @php
                                     $breadcrumbData = \App\Services\Navigation\BackendNavigationService::getBreadcrumbs(request()->path(), $guard);
                                     $crumbs = explode(' / ', $breadcrumbData['text']);
@@ -318,7 +346,7 @@
 @stack('scripts')
 
 <style>
-    .shadow-glow { filter: drop-shadow(0 0 8px rgba(197, 160, 89, 0.3)); }
+    html.dark .shadow-glow { filter: drop-shadow(0 0 8px rgba(197, 160, 89, 0.3)); }
     .animate-fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
     @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(20px); }

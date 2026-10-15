@@ -15,11 +15,11 @@
                 <div class="text-sm sm:text-2xl font-serif font-bold text-primary tracking-tight leading-none">{{ $balance }} <span class="hidden sm:inline text-xs font-sans">Funken</span><span class="sm:hidden text-[9px] font-sans ml-0.5">F.</span></div>
             </div>
 
-            <div class="flex items-center gap-1.5 sm:gap-2 bg-gray-900 border border-gray-800 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl shadow-inner relative group cursor-help shrink-0">
+            <div class="flex items-center gap-1.5 sm:gap-2 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl shadow-sm dark:shadow-inner relative group cursor-help shrink-0">
                 <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 <div class="flex flex-col">
                     <span class="hidden sm:block text-[8px] text-gray-500 font-black uppercase tracking-widest leading-none">Energie</span>
-                    <span class="text-white font-bold leading-none sm:mt-0.5 text-[10px] sm:text-xs">{{ $energyBalance }} / {{ $maxEnergy }}</span>
+                    <span class="text-gray-900 dark:text-white font-bold leading-none sm:mt-0.5 text-[10px] sm:text-xs">{{ $energyBalance }} / {{ $maxEnergy }}</span>
                 </div>
             </div>
         </div>

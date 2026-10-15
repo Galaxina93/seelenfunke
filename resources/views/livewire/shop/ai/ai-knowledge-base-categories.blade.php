@@ -1,14 +1,14 @@
 <div x-data="{ open: false }" class="w-full min-w-0">
-    <div class="bg-gray-950 p-5 sm:p-6 rounded-2xl shadow-inner border border-gray-800 animate-fade-in-up transition-colors hover:border-[var(--theme-color-50)] w-full min-w-0">
+    <div class="bg-white dark:bg-gray-950 p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800 animate-fade-in-up transition-colors hover:border-[var(--theme-color-50)] w-full min-w-0">
         
         {{-- Header --}}
-        <div class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between gap-4 sm:gap-5 transition-all" :class="open ? 'mb-5 border-b border-gray-800 pb-4' : ''">
+        <div class="flex flex-wrap lg:flex-nowrap items-start lg:items-center justify-between gap-4 sm:gap-5 transition-all" :class="open ? 'mb-5 border-b border-gray-200 dark:border-gray-800 pb-4' : ''">
             
             <div @click="open = !open" class="flex items-center gap-3 sm:gap-4 cursor-pointer group flex-1 min-w-[200px] w-full lg:w-auto">
-                <div class="p-2 rounded-xl bg-gray-900 border border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-50)] transition-all shadow-inner shrink-0">
+                <div class="p-2 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 group-hover:text-[var(--theme-color)] group-hover:border-[var(--theme-color-50)] transition-all shadow-sm dark:shadow-inner shrink-0">
                     <svg class="w-5 h-5 transition-transform duration-300" :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </div>
-                <h3 class="text-lg sm:text-xl font-bold text-gray-300 tracking-wider group-hover:text-[var(--theme-color)] transition-colors truncate">
+                <h3 class="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-300 tracking-wider group-hover:text-[var(--theme-color)] transition-colors truncate">
                     Kategorie wählen
                 </h3>
             </div>
@@ -19,7 +19,7 @@
                         class="text-[10px] uppercase tracking-widest px-5 py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 shadow-inner border w-full sm:w-auto shrink-0 font-bold
                                {{ $isManaging
                                   ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-[var(--theme-color)] shadow-xl'
-                                  : 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white hover:border-gray-700 hover:bg-gray-800'
+                                  : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-800'
                                }}">
                     @if($isManaging)
                         <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
@@ -41,7 +41,7 @@
                         <input type="text"
                                wire:model.live.debounce.300ms="search"
                                placeholder="Kategorie suchen..."
-                               class="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-800 bg-gray-900 text-sm font-bold text-gray-300 focus:bg-gray-950 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color-30)] transition-all shadow-inner outline-none placeholder-gray-500">
+                               class="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-sm font-bold text-gray-900 dark:text-gray-300 focus:bg-white dark:focus:bg-gray-950 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color-30)] transition-all shadow-sm dark:shadow-inner outline-none placeholder-gray-400 dark:placeholder-gray-500">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <svg class="h-5 w-5 text-gray-500 group-focus-within:text-[var(--theme-color)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>

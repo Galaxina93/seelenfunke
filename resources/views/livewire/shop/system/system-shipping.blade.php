@@ -7,11 +7,11 @@
         </style>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-800 shadow-2xl flex items-center justify-between group hover:border-blue-500/50 transition-colors">
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex items-center justify-between group hover:border-blue-400 dark:hover:border-blue-500/50 transition-colors">
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Aktive Zonen</p>
                     <div class="flex items-baseline gap-2">
-                        <p class="text-3xl font-serif font-bold text-white group-hover:text-blue-400 transition-colors">{{$stats['zones']}}</p>
+                        <p class="text-3xl font-serif font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{{$stats['zones']}}</p>
                         @if($stats['inactive_zones'] > 0)
                             <span class="text-[9px] font-bold text-gray-500">({{ $stats['inactive_zones'] }} inaktiv)</span>
                         @endif
@@ -22,30 +22,30 @@
                 </div>
             </div>
 
-            <div class="bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-800 shadow-2xl flex items-center justify-between group hover:border-amber-500/50 transition-colors">
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex items-center justify-between group hover:border-amber-400 dark:hover:border-amber-500/50 transition-colors">
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Archiv</p>
-                    <p class="text-3xl font-serif font-bold text-white group-hover:text-amber-400 transition-colors">{{$stats['archived_zones']}}</p>
+                    <p class="text-3xl font-serif font-bold text-gray-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">{{$stats['archived_zones']}}</p>
                 </div>
                 <div class="p-3.5 bg-amber-500/10 rounded-2xl text-amber-400 border border-amber-500/20 shadow-inner">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                 </div>
             </div>
 
-            <div class="bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-800 shadow-2xl flex items-center justify-between group hover:border-emerald-500/50 transition-colors">
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex items-center justify-between group hover:border-emerald-400 dark:hover:border-emerald-500/50 transition-colors">
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Aktive Länder</p>
-                    <p class="text-3xl font-serif font-bold text-white group-hover:text-emerald-400 transition-colors">{{$stats['countries_covered']}}</p>
+                    <p class="text-3xl font-serif font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">{{$stats['countries_covered']}}</p>
                 </div>
                 <div class="p-3.5 bg-emerald-500/10 rounded-2xl text-emerald-400 border border-emerald-500/20 shadow-inner">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                 </div>
             </div>
 
-            <div class="bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-800 shadow-2xl flex items-center justify-between group hover:border-purple-500/50 transition-colors">
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-5 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex items-center justify-between group hover:border-purple-400 dark:hover:border-purple-500/50 transition-colors">
                 <div>
                     <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Aktive Tarife</p>
-                    <p class="text-3xl font-serif font-bold text-white group-hover:text-purple-400 transition-colors">{{$stats['rates']}}</p>
+                    <p class="text-3xl font-serif font-bold text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">{{$stats['rates']}}</p>
                 </div>
                 <div class="p-3.5 bg-purple-500/10 rounded-2xl text-purple-400 border border-purple-500/20 shadow-inner">
                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -62,19 +62,19 @@
 
         <div class="flex flex-col xl:flex-row gap-6 w-full min-h-[650px] xl:h-[75vh]">
 
-            <div class="flex-1 relative bg-gray-900/20 backdrop-blur-sm rounded-[2.5rem] border border-gray-800 shadow-2xl overflow-hidden flex flex-col min-h-[400px]">
+            <div class="flex-1 relative bg-gray-50/50 dark:bg-gray-900/20 backdrop-blur-sm rounded-[2.5rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl overflow-hidden flex flex-col min-h-[400px]">
 
                 <div class="absolute top-6 left-6 right-6 z-10 flex flex-wrap justify-between gap-4 pointer-events-none">
-                    <div class="bg-gray-900/80 backdrop-blur-md p-4 rounded-2xl border border-gray-700 shadow-xl pointer-events-auto">
-                        <h3 class="font-serif font-bold text-lg text-white tracking-wide">Weltkarte</h3>
+                    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-xl pointer-events-auto">
+                        <h3 class="font-serif font-bold text-lg text-gray-900 dark:text-white tracking-wide">Weltkarte</h3>
                         <p class="text-[10px] text-gray-400 mt-1 font-medium uppercase tracking-widest">Liefergebiete</p>
                     </div>
 
-                    <div class="flex flex-wrap gap-3 bg-gray-900/80 backdrop-blur-md p-3.5 rounded-2xl border border-gray-700 shadow-xl pointer-events-auto max-w-sm justify-end">
+                    <div class="flex flex-wrap gap-3 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-xl pointer-events-auto max-w-sm justify-end">
                         @foreach($mapVisuals['legend'] as $name => $color)
                             <div class="flex items-center gap-2">
                                 <span class="w-2.5 h-2.5 rounded-full shadow-[0_0_8px_currentColor]" style="background-color:{{$color}};color:{{$color}};"></span>
-                                <span class="text-[9px] font-black uppercase tracking-widest text-gray-300">{{$name}}</span>
+                                <span class="text-[9px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">{{$name}}</span>
                             </div>
                         @endforeach
                         <div class="flex items-center gap-2">
@@ -181,26 +181,26 @@
                 </script>
             </div>
 
-            <div class="w-full xl:w-[450px] shrink-0 bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-800 shadow-2xl flex flex-col overflow-hidden relative z-10">
+            <div class="w-full xl:w-[450px] shrink-0 bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex flex-col overflow-hidden relative z-10">
 
                 @if($view === 'list')
-                    <div class="p-5 border-b border-gray-800 bg-gray-950/50 shadow-inner shrink-0 space-y-3">
+                    <div class="p-5 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/50 shadow-sm dark:shadow-inner shrink-0 space-y-3">
                         <div class="flex justify-between items-center">
                             <div>
-                                <h2 class="text-lg font-serif font-bold text-white tracking-wide">Steuerung</h2>
+                                <h2 class="text-lg font-serif font-bold text-gray-900 dark:text-white tracking-wide">Steuerung</h2>
                                 <p class="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-0.5">Versandzonen Verwaltung</p>
                             </div>
-                            <button wire:click="createZone" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] brightness-90 text-gray-900 w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-[0_0_15px_var(--theme-color-20)] hover:scale-105" title="Neue Zone">
+                            <button wire:click="createZone" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] brightness-90 text-gray-900 w-9 h-9 rounded-xl flex items-center justify-center transition-all shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)] hover:scale-105" title="Neue Zone">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>
                             </button>
                         </div>
 
                         <!-- Tab Switcher: Zonen vs Archiv -->
-                        <div class="grid grid-cols-2 gap-1.5 p-1 bg-gray-950 rounded-xl border border-gray-800">
-                            <button wire:click="toggleArchiveView(false)" class="py-1.5 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 {{ !$showArchived ? 'bg-[var(--theme-color)] text-gray-950 shadow-sm' : 'text-gray-400 hover:text-white' }}">
+                        <div class="grid grid-cols-2 gap-1.5 p-1 bg-gray-100 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800">
+                            <button wire:click="toggleArchiveView(false)" class="py-1.5 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 {{ !$showArchived ? 'bg-[var(--theme-color)] text-gray-950 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
                                 <span>Zonen ({{ $zones->count() }})</span>
                             </button>
-                            <button wire:click="toggleArchiveView(true)" class="py-1.5 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 {{ $showArchived ? 'bg-amber-500 text-gray-950 shadow-sm' : 'text-gray-400 hover:text-white' }}">
+                            <button wire:click="toggleArchiveView(true)" class="py-1.5 px-3 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 {{ $showArchived ? 'bg-amber-500 text-gray-950 shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                                 <span>Archiv ({{ $archivedZones->count() }})</span>
                             </button>
@@ -210,38 +210,38 @@
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
                         @if(!$showArchived)
                             @forelse($zones as $zone)
-                                <div wire:click="editZone('{{$zone->id}}')" class="bg-gray-950 rounded-2xl p-4 border {{ $zone->is_active ? 'border-gray-800 hover:border-[var(--theme-color-50)]' : 'border-gray-800/60 opacity-80 hover:opacity-100 hover:border-gray-700' }} shadow-inner hover:bg-gray-900 transition-all cursor-pointer group">
+                                <div wire:click="editZone('{{$zone->id}}')" class="bg-gray-50 dark:bg-gray-950 rounded-2xl p-4 border {{ $zone->is_active ? 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)]' : 'border-gray-200/60 dark:border-gray-800/60 opacity-80 hover:opacity-100 hover:border-gray-300 dark:hover:border-gray-700' }} shadow-sm dark:shadow-inner hover:bg-gray-100 dark:hover:bg-gray-900 transition-all cursor-pointer group">
                                     <div class="flex justify-between items-start gap-2 mb-2.5">
                                         <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-2 flex-wrap">
-                                                <h3 class="font-bold text-white text-base group-hover:text-[var(--theme-color)] transition-colors truncate">{{$zone->name}}</h3>
+                                                <h3 class="font-bold text-gray-900 dark:text-white text-base group-hover:text-[var(--theme-color)] transition-colors truncate">{{$zone->name}}</h3>
                                                 @if($zone->is_active)
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Aktiv</span>
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">Aktiv</span>
                                                 @else
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-gray-800 text-gray-400 border border-gray-700">Inaktiv</span>
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700">Inaktiv</span>
                                                 @endif
                                             </div>
                                         </div>
                                         <div class="flex items-center gap-1 shrink-0">
                                             <!-- Toggle Active/Inactive -->
-                                            <button wire:click.stop="toggleZoneActive('{{$zone->id}}')" class="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors" title="{{ $zone->is_active ? 'Zone deaktivieren' : 'Zone aktivieren' }}">
+                                            <button wire:click.stop="toggleZoneActive('{{$zone->id}}')" class="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors" title="{{ $zone->is_active ? 'Zone deaktivieren' : 'Zone aktivieren' }}">
                                                 @if($zone->is_active)
-                                                    <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                    <svg class="w-4 h-4 text-emerald-500 dark:text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                 @else
-                                                    <svg class="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                                                    <svg class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                                                 @endif
                                             </button>
                                             <!-- Archive Button -->
-                                            <button wire:click.stop="archiveZone('{{$zone->id}}')" wire:confirm="Zone '{{$zone->name}}' ins Archiv verschieben?" class="p-1.5 rounded-lg text-gray-500 hover:text-amber-400 hover:bg-gray-800 transition-colors" title="Ins Archiv verschieben">
+                                            <button wire:click.stop="archiveZone('{{$zone->id}}')" wire:confirm="Zone '{{$zone->name}}' ins Archiv verschieben?" class="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-amber-500 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors" title="Ins Archiv verschieben">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                                             </button>
                                         </div>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                             {{$zone->countries_count}} Länder
                                         </span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                                             {{$zone->rates_count}} Tarife
                                         </span>
                                     </div>
@@ -253,18 +253,18 @@
                             @endforelse
                         @else
                             @forelse($archivedZones as $archivedZone)
-                                <div class="bg-gray-950/70 rounded-2xl p-4 border border-dashed border-gray-800 shadow-inner hover:border-amber-500/40 hover:bg-gray-900/60 transition-all">
+                                <div class="bg-gray-50/70 dark:bg-gray-950/70 rounded-2xl p-4 border border-dashed border-gray-300 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-amber-500/40 hover:bg-gray-100/60 dark:hover:bg-gray-900/60 transition-all">
                                     <div class="flex justify-between items-start gap-2 mb-2.5">
                                         <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-2 flex-wrap">
-                                                <h3 class="font-bold text-gray-300 text-base line-through truncate">{{$archivedZone->name}}</h3>
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">Archiviert</span>
+                                                <h3 class="font-bold text-gray-600 dark:text-gray-300 text-base line-through truncate">{{$archivedZone->name}}</h3>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">Archiviert</span>
                                             </div>
                                             <p class="text-[9px] text-gray-500 mt-1">Archiviert am {{$archivedZone->deleted_at ? $archivedZone->deleted_at->format('d.m.Y H:i') : ''}}</p>
                                         </div>
                                         <div class="flex items-center gap-1 shrink-0">
                                             <!-- Restore Button -->
-                                            <button wire:click="restoreZone('{{$archivedZone->id}}')" class="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors" title="Wiederherstellen">
+                                            <button wire:click="restoreZone('{{$archivedZone->id}}')" class="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors" title="Wiederherstellen">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                             </button>
                                             <!-- Force Delete Button -->
@@ -274,10 +274,10 @@
                                         </div>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-gray-800 text-gray-400 border border-gray-700">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
                                             {{$archivedZone->countries_count}} Länder
                                         </span>
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-gray-800 text-gray-400 border border-gray-700">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700">
                                             {{$archivedZone->rates_count}} Tarife
                                         </span>
                                     </div>
@@ -291,82 +291,82 @@
                     </div>
 
                 @else
-                    <div class="p-5 border-b border-gray-800 flex items-center justify-between bg-gray-950/50 shadow-inner shrink-0">
+                    <div class="p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-950/50 shadow-sm dark:shadow-inner shrink-0">
                         <div class="flex items-center gap-3">
-                            <button wire:click="cancel" class="w-9 h-9 bg-gray-900 border border-gray-700 text-gray-400 rounded-xl flex items-center justify-center hover:text-white hover:border-gray-500 transition-all shadow-inner">
+                            <button wire:click="cancel" class="w-9 h-9 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 rounded-xl flex items-center justify-center hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-500 transition-all shadow-sm dark:shadow-inner">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
                             </button>
-                            <h2 class="text-lg font-serif font-bold text-white tracking-wide">{{ $view === 'create' ? 'Neue Zone' : 'Zone bearbeiten' }}</h2>
+                            <h2 class="text-lg font-serif font-bold text-gray-900 dark:text-white tracking-wide">{{ $view === 'create' ? 'Neue Zone' : 'Zone bearbeiten' }}</h2>
                         </div>
                         @if($view === 'edit' && $activeZoneId)
-                            <button wire:click="archiveZone('{{$activeZoneId}}')" wire:confirm="Zone wirklich ins Archiv verschieben?" class="p-2 text-gray-500 hover:text-amber-400 hover:bg-gray-800 rounded-xl transition-colors" title="Zone archivieren">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+                            <button wire:click="archiveZone('{{$activeZoneId}}')" wire:confirm="Zone wirklich ins Archiv verschieben?" class="p-2 text-gray-400 dark:text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors" title="Zone archivieren">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
                             </button>
                         @endif
                     </div>
 
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
                         <div>
-                            <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Name der Zone</label>
-                            <input type="text" wire:model="zoneName" class="w-full rounded-xl bg-gray-950 border border-gray-700 text-white p-3.5 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all outline-none shadow-inner" placeholder="z.B. Europäische Union">
+                            <label class="block text-[9px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest mb-2 ml-1">Name der Zone</label>
+                            <input type="text" wire:model="zoneName" class="w-full rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white p-3.5 focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all outline-none shadow-sm dark:shadow-inner placeholder-gray-400 dark:placeholder-gray-600" placeholder="z.B. Europäische Union">
                             @error('zoneName')<span class="text-[9px] font-bold text-red-400 mt-2 block ml-1 uppercase tracking-widest">{{$message}}</span>@enderror
                         </div>
 
                         <!-- Status Toggle (Aktiv / Inaktiv) -->
-                        <div class="p-4 bg-gray-950 rounded-xl border border-gray-800 flex items-center justify-between gap-3">
+                        <div class="p-4 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
                             <div>
-                                <span class="text-xs font-bold text-white block">Status der Versandzone</span>
-                                <span class="text-[9px] text-gray-400 block mt-0.5">
+                                <span class="text-xs font-bold text-gray-900 dark:text-white block">Status der Versandzone</span>
+                                <span class="text-[9px] text-gray-600 dark:text-gray-400 block mt-0.5">
                                     {{ $zoneIsActive ? 'Aktiv (Wird für Versand und Kasse verwendet)' : 'Inaktiv (Gesperrt, z.B. wegen Verpackungsordnung)' }}
                                 </span>
                             </div>
-                            <button type="button" wire:click="$toggle('zoneIsActive')" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $zoneIsActive ? 'bg-emerald-500' : 'bg-gray-700' }}">
+                            <button type="button" wire:click="$toggle('zoneIsActive')" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $zoneIsActive ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }}">
                                 <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $zoneIsActive ? 'translate-x-5' : 'translate-x-0' }}"></span>
                             </button>
                         </div>
 
                         @if($view === 'edit')
-                            <div class="border-t border-gray-800 pt-6">
-                                <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Länder zuweisen</label>
+                            <div class="border-t border-gray-200 dark:border-gray-800 pt-6">
+                                <label class="block text-[9px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Länder zuweisen</label>
                                 <div class="flex gap-2 mb-4">
-                                    <select wire:model="selectedCountryToAdd" class="flex-1 rounded-xl bg-gray-950 border border-gray-700 text-gray-300 text-xs font-bold p-3 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all outline-none shadow-inner cursor-pointer appearance-none">
-                                        <option value="" class="bg-gray-900">Land wählen...</option>
+                                    <select wire:model="selectedCountryToAdd" class="flex-1 rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-300 text-xs font-bold p-3 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all outline-none shadow-sm dark:shadow-inner cursor-pointer appearance-none">
+                                        <option value="" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Land wählen...</option>
                                         @foreach($availableCountries as $code => $name)
-                                            <option value="{{$code}}" class="bg-gray-900">{{$name}} ({{$code}})</option>
+                                            <option value="{{$code}}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{$name}} ({{$code}})</option>
                                         @endforeach
                                     </select>
-                                    <button wire:click="addCountry" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] brightness-90 text-gray-900 px-4 rounded-xl font-black text-xl transition-all shadow-[0_0_15px_var(--theme-color-20)] hover:scale-105">+</button>
+                                    <button wire:click="addCountry" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)] brightness-90 text-gray-900 px-4 rounded-xl font-black text-xl transition-all shadow-sm dark:shadow-[0_0_15px_var(--theme-color-20)] hover:scale-105">+</button>
                                 </div>
                                 @error('selectedCountryToAdd')<span class="text-[9px] font-bold text-red-400 mb-3 block uppercase tracking-widest ml-1">{{$message}}</span>@enderror
 
                                 <div class="flex flex-wrap gap-2">
                                     @foreach($activeZoneModel->countries as $country)
-                                        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-950 text-gray-300 border border-gray-700 shadow-inner group">
+                                        <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-950 text-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-inner group">
                                             <img src="https://flagcdn.com/16x12/{{strtolower($country->country_code)}}.png" class="mr-2 h-2.5 w-3.5 object-cover rounded-sm opacity-80" alt="{{$country->country_code}}">
                                             {{$allCountries[$country->country_code] ?? $country->country_code}}
-                                            <button wire:click="removeCountry('{{$country->id}}')" class="ml-2 pl-2 border-l border-gray-800 text-gray-500 hover:text-red-400 transition-colors">
+                                            <button wire:click="removeCountry('{{$country->id}}')" class="ml-2 pl-2 border-l border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                                             </button>
                                         </span>
                                     @endforeach
                                 </div>
                                 @if($activeZoneModel->countries->isEmpty())
-                                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-600 text-center py-4 bg-gray-950 rounded-xl border border-gray-800 shadow-inner mt-2">Noch keine Länder zugewiesen.</p>
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-600 text-center py-4 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner mt-2">Noch keine Länder zugewiesen.</p>
                                 @endif
                             </div>
 
-                            <div class="border-t border-gray-800 pt-6">
-                                <label class="block text-[9px] font-black text-gray-500 uppercase tracking-widest mb-3 ml-1">Tarife (Netto)</label>
+                            <div class="border-t border-gray-200 dark:border-gray-800 pt-6">
+                                <label class="block text-[9px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest mb-3 ml-1">Tarife (Netto)</label>
 
-                                <div class="bg-gray-950 p-4 rounded-xl border border-gray-800 mb-5 shadow-inner">
+                                <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 mb-5 shadow-sm dark:shadow-inner">
                                     <div class="space-y-3">
-                                        <input type="text" wire:model="newRate.name" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none" placeholder="Name (z.B. Paket S)">
+                                        <input type="text" wire:model="newRate.name" class="w-full rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none placeholder-gray-400 dark:placeholder-gray-500" placeholder="Name (z.B. Paket S)">
                                         <div class="flex gap-2">
-                                            <input type="number" wire:model="newRate.min_weight" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none text-center" placeholder="Min g">
-                                            <input type="number" wire:model="newRate.max_weight" class="w-full rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none text-center" placeholder="Max g">
+                                            <input type="number" wire:model="newRate.min_weight" class="w-full rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none text-center placeholder-gray-400 dark:placeholder-gray-500" placeholder="Min g">
+                                            <input type="number" wire:model="newRate.max_weight" class="w-full rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none text-center placeholder-gray-400 dark:placeholder-gray-500" placeholder="Max g">
                                         </div>
                                         <div class="flex gap-2">
-                                            <input type="number" step="0.01" wire:model="newRate.price" class="flex-1 rounded-lg bg-gray-900 border border-gray-700 text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none font-mono" placeholder="Preis €">
+                                            <input type="number" step="0.01" wire:model="newRate.price" class="flex-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs p-2.5 focus:border-[var(--theme-color)] outline-none font-mono placeholder-gray-400 dark:placeholder-gray-500" placeholder="Preis €">
                                             <button wire:click="addRate" class="bg-emerald-500 hover:bg-emerald-400 text-gray-900 px-4 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all">Add</button>
                                         </div>
                                     </div>
@@ -379,32 +379,32 @@
 
                                 <div class="space-y-2">
                                     @forelse($activeZoneModel->rates as $rate)
-                                        <div class="flex items-center justify-between bg-gray-950 p-3 rounded-lg border border-gray-800 shadow-inner">
+                                        <div class="flex items-center justify-between bg-white dark:bg-gray-950 p-3 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
                                             <div class="min-w-0 flex-1 pr-2">
-                                                <p class="text-[10px] font-bold text-white truncate">{{$rate->name}}</p>
+                                                <p class="text-[10px] font-bold text-gray-900 dark:text-white truncate">{{$rate->name}}</p>
                                                 <p class="text-[9px] text-gray-500 font-mono mt-0.5">{{number_format($rate->min_weight, 0, ',', '.')}}g - {{$rate->max_weight ? number_format($rate->max_weight, 0, ',', '.') . 'g' : '∞'}}</p>
                                             </div>
                                             <div class="flex items-center gap-3 shrink-0">
                                                 <span class="text-xs font-bold font-mono text-[var(--theme-color)]">{{number_format($rate->price / 100, 2, ',', '.')}}€</span>
-                                                <button wire:click="removeRate('{{$rate->id}}')" class="text-gray-600 hover:text-red-400 transition-colors p-1">
+                                                <button wire:click="removeRate('{{$rate->id}}')" class="text-gray-400 hover:text-red-500 transition-colors p-1">
                                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>
                                             </div>
                                         </div>
                                     @empty
-                                        <p class="text-[10px] font-black uppercase tracking-widest text-gray-600 text-center py-2">Keine Tarife hinterlegt.</p>
+                                        <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-600 text-center py-2">Keine Tarife hinterlegt.</p>
                                     @endforelse
                                 </div>
                             </div>
                         @else
-                            <div class="border-t border-gray-800 pt-6 text-center">
+                            <div class="border-t border-gray-200 dark:border-gray-800 pt-6 text-center">
                                 <p class="text-[10px] text-gray-500 uppercase tracking-widest font-black">Speichere die Zone, um Länder und Tarife hinzuzufügen.</p>
                             </div>
                         @endif
                     </div>
 
-                    <div class="p-5 border-t border-gray-800 bg-gray-950/50 shrink-0">
-                        <button wire:click="saveZone" class="w-full bg-[var(--theme-color)] text-gray-900 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-white hover:scale-[1.02] transition-all shadow-[0_0_15px_var(--theme-color-30)]">
+                    <div class="p-5 border-t border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-950/50 shrink-0">
+                        <button wire:click="saveZone" class="w-full bg-[var(--theme-color)] text-gray-900 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:brightness-95 hover:scale-[1.02] transition-all shadow-sm dark:shadow-[0_0_15px_var(--theme-color-30)]">
                             Zone Speichern
                         </button>
                     </div>

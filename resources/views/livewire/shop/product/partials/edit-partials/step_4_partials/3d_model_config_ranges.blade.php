@@ -1,13 +1,13 @@
-<div x-data="{ open: false }" x-show="modelPath" style="display: none;" class="bg-gray-950 p-5 rounded-2xl border border-gray-800 shadow-inner group transition-colors hover:border-gray-700 w-full overflow-hidden">
-    <div @click="open = !open" class="flex items-center justify-between cursor-pointer transition-all" :class="open ? 'border-b border-gray-800 pb-4' : ''">
-        <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-3 group-hover:text-white transition-colors">
-            <span class="w-5 h-5 rounded-lg bg-gray-800 flex items-center justify-center text-white shadow-inner shrink-0 transition-colors group-hover:bg-[var(--theme-color)] group-hover:text-gray-900">2</span>
+<div x-data="{ open: false }" x-show="modelPath" style="display: none;" class="bg-gray-50 dark:bg-gray-950 p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner group transition-colors hover:border-gray-300 dark:hover:border-gray-700 w-full overflow-hidden">
+    <div @click="open = !open" class="flex items-center justify-between cursor-pointer transition-all" :class="open ? 'border-b border-gray-200 dark:border-gray-800 pb-4' : ''">
+        <h4 class="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest flex items-center gap-3 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+            <span class="w-5 h-5 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center text-gray-800 dark:text-white shadow-inner shrink-0 transition-colors group-hover:bg-[var(--theme-color)] group-hover:text-gray-900">2</span>
             3D-Modell
         </h4>
 
         <div class="flex items-center gap-3 shrink-0">
-            <button type="button" @click.stop="resetModel()" x-show="open" x-transition class="text-[9px] text-gray-500 font-black uppercase tracking-widest hover:text-red-400 transition-colors bg-gray-900 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-gray-800 hover:border-red-500/30 shadow-inner">Alle Reset</button>
-            <div class="p-1 text-gray-500 group-hover:text-white transition-colors">
+            <button type="button" @click.stop="resetModel()" x-show="open" x-transition class="text-[9px] text-gray-500 font-black uppercase tracking-widest hover:text-red-500 transition-colors bg-white dark:bg-gray-900 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-red-500/30 shadow-inner">Alle Reset</button>
+            <div class="p-1 text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                 <svg class="w-4 h-4 transition-transform duration-300" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
             </div>
         </div>
@@ -15,24 +15,24 @@
 
     <div x-show="open" x-collapse style="display: none;">
         @php
-            $rangeInputClassModel = "w-16 shrink-0 px-2 py-1.5 text-[10px] text-center font-mono font-bold rounded-lg border border-gray-800 bg-gray-900 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all";
+            $rangeInputClassModel = "w-16 shrink-0 px-2 py-1.5 text-[10px] text-center font-mono font-bold rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none transition-all";
             $labelClassModel = "text-[9px] font-black text-gray-500 uppercase tracking-widest w-20 shrink-0 text-left";
-            $rangeSliderClassModel = "flex-1 min-w-[50px] h-1.5 bg-gray-900 rounded-lg appearance-none cursor-pointer border border-gray-800 shadow-inner
+            $rangeSliderClassModel = "flex-1 min-w-[50px] h-1.5 bg-gray-200 dark:bg-gray-900 rounded-lg appearance-none cursor-pointer border border-gray-300 dark:border-gray-800 shadow-inner
                                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5
-                                [&::-webkit-slider-thumb]:bg-[var(--theme-color)] [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(197,160,89,0.8)]
+                                [&::-webkit-slider-thumb]:bg-[var(--theme-color)] [&::-webkit-slider-thumb]:rounded-full dark:[&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(197,160,89,0.8)]
                                 hover:[&::-webkit-slider-thumb]:scale-125 transition-all";
-            $resetBtnClass = "p-1.5 text-gray-600 hover:text-[var(--theme-color)] bg-gray-900 border border-gray-800 hover:border-[var(--theme-color-50)] rounded-lg transition-all shadow-inner shrink-0";
+            $resetBtnClass = "p-1.5 text-gray-500 dark:text-gray-600 hover:text-[var(--theme-color)] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)] rounded-lg transition-all shadow-inner shrink-0";
         @endphp
 
         <div class="flex flex-col gap-4 pt-5">
 
             <div class="flex items-center gap-2 w-full">
                 <span class="{{ $labelClassModel }}">Material</span>
-                <select x-model="configSettings.material_type" @change="applyMaterial()" class="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border border-gray-800 bg-gray-900 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] cursor-pointer outline-none appearance-none">
-                    <option value="glass" class="bg-gray-950">Glas (Transparent)</option>
-                    <option value="wood" class="bg-gray-950">Holz (Matt)</option>
-                    <option value="metal" class="bg-gray-950">Metall (Glänzend)</option>
-                    <option value="plastic" class="bg-gray-950">Kunststoff</option>
+                <select x-model="configSettings.material_type" @change="applyMaterial()" class="flex-1 min-w-0 text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] cursor-pointer outline-none appearance-none">
+                    <option value="glass" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Glas (Transparent)</option>
+                    <option value="wood" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Holz (Matt)</option>
+                    <option value="metal" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Metall (Glänzend)</option>
+                    <option value="plastic" class="bg-white dark:bg-gray-950 text-gray-900 dark:text-white">Kunststoff</option>
                 </select>
                 <button type="button" @click="configSettings.material_type = 'glass'; applyMaterial()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
@@ -65,7 +65,7 @@
                 <button type="button" @click="configSettings.model_pos_z = 0; applyModelTransforms()" class="{{ $resetBtnClass }}" title="Zurücksetzen"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
             </div>
 
-            <div class="flex items-center gap-2 w-full pt-4 mt-2 border-t border-gray-800">
+            <div class="flex items-center gap-2 w-full pt-4 mt-2 border-t border-gray-200 dark:border-gray-800">
                 <span class="{{ $labelClassModel }}">Rot X°</span>
                 <input type="range" x-model.number="configSettings.model_rot_x" @input="applyModelTransforms()" min="-180" max="180" step="0.1" class="{{ $rangeSliderClassModel }}">
                 <input type="number" x-model.number="configSettings.model_rot_x" @input="applyModelTransforms()" class="{{ $rangeInputClassModel }}" step="0.01">

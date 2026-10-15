@@ -63,7 +63,7 @@
                     </li>
                 </ul>
 
-                <button @click="triggerEpicStart($event)" class="group relative px-12 py-6 bg-gradient-to-r from-primary to-primary-dark text-gray-900 rounded-2xl font-black uppercase tracking-widest text-base shadow-[0_0_40px_rgba(197,160,89,0.5)] hover:scale-105 hover:shadow-[0_0_60px_rgba(197,160,89,0.8)] transition-all flex items-center gap-4 overflow-hidden">
+                <button @click="triggerEpicStart($event)" class="group relative px-12 py-6 bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light text-gray-900 border border-primary/40 rounded-2xl font-black uppercase tracking-widest text-base shadow-sm dark:shadow-[0_0_30px_rgba(197,160,89,0.4)] hover:scale-105 hover:shadow-md dark:hover:shadow-[0_0_50px_rgba(197,160,89,0.7)] transition-all flex items-center gap-4 overflow-hidden">
                     <div class="absolute inset-0 bg-white/20 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out"></div>
                     Magie jetzt aktivieren
                     <svg class="w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>

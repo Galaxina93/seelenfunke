@@ -1,17 +1,17 @@
 <div class="animate-fade-in-up">
     {{-- Erstellungs-Formular Toolbar --}}
-    <div class="flex flex-col md:flex-row justify-end items-center gap-5 mb-8 bg-gray-900/80 backdrop-blur-md p-4 sm:p-5 rounded-[2rem] shadow-2xl border border-gray-800 relative z-20">
-        <div class="flex items-center gap-3 bg-gray-950 px-4 py-2 rounded-xl border border-gray-800 shadow-inner">
-            <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">E-Rechnung</span>
+    <div class="flex flex-col md:flex-row justify-end items-center gap-5 mb-8 bg-white dark:bg-gray-900/80 backdrop-blur-md p-4 sm:p-5 rounded-[2rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative z-20">
+        <div class="flex items-center gap-3 bg-gray-50 dark:bg-gray-950 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-800 shadow-inner">
+            <span class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400">E-Rechnung</span>
             @include('components.alerts.info-tooltip', ['key' => 'e_invoice'])
             <label class="relative inline-flex items-center cursor-pointer ml-1">
                 <input type="checkbox" wire:model.live="manualInvoice.is_e_invoice" class="sr-only peer">
-                <div class="w-10 h-5 bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] peer-checked:after:bg-gray-900 border border-gray-700 shadow-inner"></div>
+                <div class="w-10 h-5 bg-gray-200 dark:bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:after:bg-gray-400 after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] peer-checked:after:bg-white dark:peer-checked:after:bg-gray-900 border border-gray-300 dark:border-gray-700 shadow-inner"></div>
             </label>
         </div>
         <div class="flex gap-3 w-full sm:w-auto">
             <button wire:click="saveManualInvoice('draft')"
-                    class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl transition-all text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-inner {{ $draftSuccess ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-800 text-gray-400 border border-gray-700 hover:bg-gray-700 hover:text-white' }}">
+                    class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl transition-all text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-inner {{ $draftSuccess ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white' }}">
                 {{ $draftSuccess ? 'Gespeichert' : 'Entwurf speichern' }}
             </button>
             <button wire:click="saveManualInvoice('paid')"
@@ -39,12 +39,12 @@
         <div class="space-y-6 xl:space-y-8 min-w-0">
 
             {{-- Empfänger --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border {{ $errors->has('manualInvoice.last_name') ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-gray-800' }}">
-                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 border-b border-gray-800 pb-4 gap-4">
-                    <h3 class="text-sm font-serif font-bold text-white tracking-wide">Empfänger</h3>
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border {{ $errors->has('manualInvoice.last_name') ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-gray-800' }}">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 border-b border-gray-200 dark:border-gray-800 pb-4 gap-4">
+                    <h3 class="text-sm font-serif font-bold text-gray-900 dark:text-white tracking-wide">Empfänger</h3>
                     <div class="flex items-center gap-3 w-full sm:w-auto">
                         @include('components.alerts.info-tooltip', ['key' => 'customer'])
-                        <select wire:model.live="selectedCustomerId" class="flex-1 sm:flex-none bg-gray-950 border border-gray-700 text-gray-300 rounded-xl text-xs font-bold p-2 focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] outline-none shadow-inner cursor-pointer w-full max-w-full">
+                        <select wire:model.live="selectedCustomerId" class="flex-1 sm:flex-none bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-300 rounded-xl text-xs font-bold p-2 focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] outline-none shadow-inner cursor-pointer w-full max-w-full">
                             <option value="">Bestandskunde wählen...</option>
                             @foreach($customers as $c)
                                 <option value="{{ $c->id }}">{{ $c->last_name }}, {{ $c->first_name }}</option>
@@ -54,7 +54,7 @@
                 </div>
 
                 @php
-                    $inputClass = "w-full bg-gray-950 border border-gray-800 text-white rounded-xl text-sm p-3 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all shadow-inner outline-none placeholder-gray-600";
+                    $inputClass = "w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl text-sm p-3 focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all shadow-sm dark:shadow-inner outline-none placeholder-gray-400 dark:placeholder-gray-600";
                     $errorClass = "border-red-500/50 focus:ring-red-500/30 focus:border-red-500 bg-red-900/10";
                 @endphp
 
@@ -103,19 +103,19 @@
             </div>
 
             {{-- Rechnungsinformationen --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border {{ $errors->has('manualInvoice.invoice_number') ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-gray-800' }}">
-                <div class="flex items-center gap-3 mb-6 border-b border-gray-800 pb-4">
-                    <h3 class="text-sm font-serif font-bold text-white tracking-wide">Rechnungsinformationen</h3>
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border {{ $errors->has('manualInvoice.invoice_number') ? 'border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-gray-800' }}">
+                <div class="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
+                    <h3 class="text-sm font-serif font-bold text-gray-900 dark:text-white tracking-wide">Rechnungsinformationen</h3>
                     @include('components.alerts.info-tooltip', ['key' => 'invoice_info'])
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                     <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Rechnungsdatum *</label>
-                        <input type="date" wire:model.live="manualInvoice.invoice_date" class="{{ $inputClass }} {{ $errors->has('manualInvoice.invoice_date') ? $errorClass : '' }} [&::-webkit-calendar-picker-indicator]:filter-[invert(1)] cursor-pointer">
+                        <input type="date" wire:model.live="manualInvoice.invoice_date" class="{{ $inputClass }} {{ $errors->has('manualInvoice.invoice_date') ? $errorClass : '' }} dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(1)] cursor-pointer">
                     </div>
                     <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Lieferdatum / Zeitraum *</label>
-                        <input type="date" wire:model.live="manualInvoice.delivery_date" class="{{ $inputClass }} {{ $errors->has('manualInvoice.delivery_date') ? $errorClass : '' }} [&::-webkit-calendar-picker-indicator]:filter-[invert(1)] cursor-pointer">
+                        <input type="date" wire:model.live="manualInvoice.delivery_date" class="{{ $inputClass }} {{ $errors->has('manualInvoice.delivery_date') ? $errorClass : '' }} dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(1)] cursor-pointer">
                     </div>
                     <div class="col-span-1">
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Rechnungsnummer *</label>
@@ -128,7 +128,7 @@
                     <div class="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5">
                         <div>
                             <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Zahlungsziel (Datum)</label>
-                            <input type="date" wire:model.live="manualInvoice.due_date" class="{{ $inputClass }} bg-gray-900 text-gray-400 [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
+                            <input type="date" wire:model.live="manualInvoice.due_date" class="{{ $inputClass }} bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)]">
                         </div>
                         <div>
                             <div class="flex items-center gap-2 mb-1.5 ml-1">
@@ -142,9 +142,9 @@
             </div>
 
             {{-- Kopftext --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800">
-                <div class="flex items-center gap-3 mb-6 border-b border-gray-800 pb-4">
-                    <h3 class="text-sm font-serif font-bold text-white tracking-wide">Kopftext</h3>
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-800">
+                <div class="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
+                    <h3 class="text-sm font-serif font-bold text-gray-900 dark:text-white tracking-wide">Kopftext</h3>
                     @include('components.alerts.info-tooltip', ['key' => 'header_text'])
                 </div>
                 <div class="space-y-5">
@@ -160,12 +160,12 @@
             </div>
 
             {{-- Positionen --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border {{ $errors->has('manualInvoice.items') ? 'border-red-500/50' : 'border-gray-800' }} overflow-hidden">
-                <h3 class="text-sm font-serif font-bold text-white tracking-wide mb-6 border-b border-gray-800 pb-4">Positionen</h3>
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border {{ $errors->has('manualInvoice.items') ? 'border-red-500/50' : 'border-gray-800' }} overflow-hidden">
+                <h3 class="text-sm font-serif font-bold text-gray-900 dark:text-white tracking-wide mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">Positionen</h3>
                 <div class="overflow-x-auto w-full no-scrollbar pb-2">
                     <table class="w-full text-sm min-w-[600px] border-collapse">
                         <thead>
-                        <tr class="text-left text-[9px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-800">
+                        <tr class="text-left text-[9px] font-black uppercase tracking-widest text-gray-500 border-b border-gray-200 dark:border-gray-800">
                             <th class="pb-3 pl-1">Produkt / Service *</th>
                             <th class="pb-3 text-center w-24">Menge *</th>
                             <th class="pb-3 text-right w-32">Preis Netto *</th>
@@ -174,7 +174,7 @@
                             <th class="pb-3 w-12 text-center">Del</th>
                         </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-800/50">
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-800/50">
                         @foreach($manualInvoice['items'] as $index => $item)
                             <tr class="group" wire:key="item-{{ $index }}">
                                 <td class="py-3 pr-2">
@@ -193,11 +193,11 @@
                                         <option value="0" class="bg-gray-900">0%</option>
                                     </select>
                                 </td>
-                                <td class="py-3 pl-2 pr-4 text-right font-mono font-bold text-white whitespace-nowrap">
+                                <td class="py-3 pl-2 pr-4 text-right font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap">
                                     {{ number_format(($item['unit_price'] ?: 0) * ($item['quantity'] ?: 0), 2, ',', '.') }} €
                                 </td>
                                 <td class="py-3 text-center">
-                                    <button wire:click="removeItem({{$index}})" class="text-gray-600 hover:text-red-400 bg-gray-950 border border-gray-800 hover:border-red-500/30 p-2 rounded-xl transition-all shadow-inner hover:shadow-[0_0_10px_rgba(239,68,68,0.2)]">
+                                    <button wire:click="removeItem({{$index}})" class="text-gray-400 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 p-2 rounded-xl transition-all shadow-sm dark:shadow-inner hover:shadow-[0_0_10px_rgba(239,68,68,0.2)]">
                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                     </button>
                                 </td>
@@ -213,28 +213,28 @@
             </div>
 
             {{-- Kosten & Rabatte --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800">
-                <h3 class="text-sm font-serif font-bold text-white tracking-wide mb-6 border-b border-gray-800 pb-4">Gesamtrabatte / Aufschläge</h3>
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-800">
+                <h3 class="text-sm font-serif font-bold text-gray-900 dark:text-white tracking-wide mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">Gesamtrabatte / Aufschläge</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
                     <div>
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500 mb-1.5 ml-1">Versand (€)</label>
                         <input type="number" step="0.01" wire:model.live="manualInvoice.shipping_cost" class="{{ $inputClass }} text-right font-mono">
                     </div>
                     <div>
-                        <label class="block text-[9px] font-black uppercase tracking-widest text-red-400 mb-1.5 ml-1 drop-shadow-[0_0_8px_currentColor]">Gutschein (€)</label>
-                        <input type="number" step="0.01" wire:model.live="manualInvoice.discount_amount" class="{{ $inputClass }} !border-red-500/30 !text-red-400 text-right font-mono font-bold focus:!border-red-500 focus:!ring-red-500/30 !bg-red-900/10">
+                        <label class="block text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 mb-1.5 ml-1 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Gutschein (€)</label>
+                        <input type="number" step="0.01" wire:model.live="manualInvoice.discount_amount" class="{{ $inputClass }} !border-red-500/30 !text-red-400 text-right font-mono font-bold focus:!border-red-500 focus:!ring-red-500/30 !bg-red-50 dark:!bg-red-900/10">
                     </div>
                     <div>
-                        <label class="block text-[9px] font-black uppercase tracking-widest text-red-400 mb-1.5 ml-1 drop-shadow-[0_0_8px_currentColor]">Mengenrabatt (€)</label>
-                        <input type="number" step="0.01" wire:model.live="manualInvoice.volume_discount" class="{{ $inputClass }} !border-red-500/30 !text-red-400 text-right font-mono font-bold focus:!border-red-500 focus:!ring-red-500/30 !bg-red-900/10">
+                        <label class="block text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 mb-1.5 ml-1 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Mengenrabatt (€)</label>
+                        <input type="number" step="0.01" wire:model.live="manualInvoice.volume_discount" class="{{ $inputClass }} !border-red-500/30 !text-red-400 text-right font-mono font-bold focus:!border-red-500 focus:!ring-red-500/30 !bg-red-50 dark:!bg-red-900/10">
                     </div>
                 </div>
             </div>
 
             {{-- Fußtext --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-2xl border border-gray-800">
-                <div class="flex items-center gap-3 mb-6 border-b border-gray-800 pb-4">
-                    <h3 class="text-sm font-serif font-bold text-white tracking-wide">Fußtext</h3>
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 sm:p-8 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-800">
+                <div class="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
+                    <h3 class="text-sm font-serif font-bold text-gray-900 dark:text-white tracking-wide">Fußtext</h3>
                     @include('components.alerts.info-tooltip', ['key' => 'footer_text'])
                 </div>
                 <div>
@@ -242,7 +242,7 @@
                         <label class="block text-[9px] font-black uppercase tracking-widest text-gray-500">Zahlungshinweise & Grußformel</label>
                         @include('components.alerts.info-tooltip', ['key' => 'variables'])
                     </div>
-                    <textarea wire:model.live.debounce.500ms="manualInvoice.footer_text" rows="5" class="{{ $inputClass }} resize-none font-mono text-xs leading-relaxed text-gray-400" placeholder="Zahlungsinformationen hier eingeben..."></textarea>
+                    <textarea wire:model.live.debounce.500ms="manualInvoice.footer_text" rows="5" class="{{ $inputClass }} resize-none font-mono text-xs leading-relaxed text-gray-600 dark:text-gray-400" placeholder="Zahlungsinformationen hier eingeben..."></textarea>
                 </div>
             </div>
         </div>

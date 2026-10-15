@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de" class="dark">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="overflow-x-hidden">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,7 +18,43 @@
 
     @livewireStyles
 
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+
     <script>
+        // Fallbacks für Alpine-Variablen, die bei Page-Transitions (wire:navigate) kurzzeitig ihre Scopes verlieren können
+        window.showAllOperative = false;
+        window.tooltip = false;
+
+        // Theme Initialisierung: Standardmäßig Light Mode
+        (function() {
+            try {
+                if (localStorage.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {
+                document.documentElement.classList.remove('dark');
+                document.documentElement.classList.add('light');
+            }
+        })();
+
+        document.addEventListener('livewire:navigated', function() {
+            try {
+                if (localStorage.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                }
+            } catch (e) {}
+        });
+
         // Unterdrückt den harmlosen Alpine/Livewire Fehler bei abgebrochenen CSS-Animationen
         window.addEventListener('unhandledrejection', function(event) {
             if (event.reason && event.reason.isFromCancelledTransition === true) {
@@ -89,24 +125,24 @@
       }"
       x-init="initGlobalEcho()"
       @clear-ticket-badge.window="hasUnreadSupport = false"
-      class="bg-gray-950 text-white flex h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative">
+      class="bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-white flex h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative transition-colors duration-300">
 
 {{-- HINTERGRUND UNIVERSUM --}}
-<div x-data="goldDust()" x-init="init()" class="fixed inset-0 z-0 pointer-events-none">
-    <canvas id="gold-dust-canvas" class="w-full h-full opacity-60"></canvas>
+<div x-data="goldDust()" x-init="init()" class="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-60">
+    <canvas id="gold-dust-canvas" class="w-full h-full"></canvas>
 </div>
 
 {{-- DESKTOP SIDEBAR --}}
-<aside class="hidden lg:flex flex-col w-72 bg-gray-900/80 backdrop-blur-xl border-r border-gray-800 relative z-40 shadow-2xl h-full shrink-0">
-    <div class="p-8 border-b border-gray-800 flex justify-center shrink-0">
+<aside class="hidden lg:flex flex-col w-72 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800 relative z-40 shadow-sm dark:shadow-2xl h-full shrink-0 transition-colors duration-300">
+    <div class="p-8 border-b border-gray-200 dark:border-gray-800 flex justify-center shrink-0">
         <a href="{{ route('customer.dashboard') }}" class="block hover:scale-105 transition-transform">
             <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-24 w-auto" alt="Logo">
         </a>
     </div>
 
     <nav class="flex-1 p-6 space-y-3 overflow-y-auto custom-scrollbar">
-        <div x-data="{ copied: false, code: '{{ strtoupper(explode('-', $customerId)[0]) }}' }" class="mb-6 flex items-center justify-between px-4 py-3 bg-gray-900 border border-primary/30 rounded-2xl shadow-[0_0_15px_rgba(197,160,89,0.15)] mx-4 group">
-            <span class="text-[9px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-2">
+        <div x-data="{ copied: false, code: '{{ strtoupper(explode('-', $customerId)[0]) }}' }" class="mb-6 flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-primary/30 rounded-2xl shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.15)] mx-4 group">
+            <span class="text-[9px] text-gray-500 dark:text-gray-400 font-black uppercase tracking-widest flex items-center gap-2">
                 <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
                 </svg>
@@ -114,7 +150,7 @@
             </span>
             <div class="flex items-center gap-2">
                 <span class="text-xs font-black text-primary font-mono tracking-wider" x-text="code"></span>
-                <button type="button" @click="navigator.clipboard.writeText(code); copied = true; setTimeout(() => copied = false, 2000)" class="text-gray-500 hover:text-primary transition-colors focus:outline-none" title="Nummer kopieren">
+                <button type="button" @click="navigator.clipboard.writeText(code); copied = true; setTimeout(() => copied = false, 2000)" class="text-gray-400 dark:text-gray-500 hover:text-primary transition-colors focus:outline-none" title="Nummer kopieren">
                     <svg x-show="!copied" class="w-4 h-4 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                     </svg>
@@ -125,27 +161,25 @@
             </div>
         </div>
 
-        <div class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4 px-4">Navigation</div>
+        <div class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4 px-4">Navigation</div>
 
-        <a href="{{ route('customer.dashboard') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.dashboard') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+        <a href="{{ route('customer.dashboard') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.dashboard') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
             Dashboard
         </a>
 
-        <a href="{{ route('customer.orders') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.orders') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+        <a href="{{ route('customer.orders') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.orders') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
             Bestellungen
         </a>
 
-        <a href="{{ route('customer.invoices') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.invoices') ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800' }}">
+        <a href="{{ route('customer.invoices') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.invoices') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             Rechnungen
         </a>
 
-
-
         {{-- NEU: SUPPORT DESK LINK --}}
-        <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{request()->routeIs('customer.support')? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-400 hover:text-white hover:bg-gray-800'}}">
+        <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{request()->routeIs('customer.support')? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'}}">
             <div class="relative">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
@@ -159,7 +193,7 @@
         {{-- SPIELE EXPANDABLE MENU --}}
         @if($hasOptedIn)
         <div x-data="{ expanded: {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'true' : 'false' }} }" class="flex flex-col">
-            <button @click="expanded = !expanded" class="w-full flex justify-between items-center px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'text-gray-400 hover:text-emerald-400 hover:bg-gray-800' }}">
+            <button @click="expanded = !expanded" class="w-full flex justify-between items-center px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'text-gray-600 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
                 <div class="flex items-center gap-4">
                     <span class="text-xl">🎮</span>
                     Spiele
@@ -169,26 +203,26 @@
                 </svg>
             </button>
             <div x-show="expanded" x-collapse x-cloak class="mt-2 space-y-2 pl-4">
-                <a href="{{ route('customer.gamification.profile') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold tracking-wide transition-all text-sm {{ request()->routeIs('customer.gamification.profile') ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-white hover:bg-gray-800' }}">
+                <a href="{{ route('customer.gamification.profile') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold tracking-wide transition-all text-sm {{ request()->routeIs('customer.gamification.profile') ? 'bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
                     <span class="text-lg">✨</span>
                     Profil
                 </a>
-                <a href="{{ route('customer.games') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold tracking-wide transition-all text-sm {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-white hover:bg-gray-800' }}">
+                <a href="{{ route('customer.games') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold tracking-wide transition-all text-sm {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
                     <span class="text-lg">🧩</span>
                     Manufaktur Spiele
                 </a>
             </div>
         </div>
         @else
-        <a href="{{ route('customer.games') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-400 hover:text-emerald-400 hover:bg-gray-800' }}">
+        <a href="{{ route('customer.games') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
             <span class="text-xl">🎮</span>
             Spiele
         </a>
         @endif
     </nav>
 
-    <div class="p-6 border-t border-gray-800 shrink-0">
-        <a href="{{ route('shop') }}" target="_blank" class="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all">
+    <div class="p-6 border-t border-gray-200 dark:border-gray-800 shrink-0">
+        <a href="{{ route('shop') }}" target="_blank" class="w-full flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-700 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm">
             Zum Shop
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         </a>
@@ -199,7 +233,7 @@
 <main class="flex-1 flex flex-col h-full relative z-30 min-w-0">
 
     {{-- GLOBALER HEADER --}}
-    <header class="h-20 lg:h-24 w-full min-w-0 bg-gray-900/90 backdrop-blur-xl border-b border-gray-800 px-3 lg:px-8 shadow-lg shrink-0 flex items-center">
+    <header class="h-20 lg:h-24 w-full min-w-0 bg-white/80 dark:bg-gray-900/90 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-3 lg:px-8 shadow-sm dark:shadow-lg shrink-0 flex items-center transition-colors duration-300">
         <livewire:customer.gamification.game-global-stats-header />
     </header>
 
@@ -211,26 +245,24 @@
 </main>
 
 {{-- MOBILE BOTTOM NAVIGATION --}}
-<nav class="lg:hidden fixed bottom-0 left-0 w-full bg-gray-900/98 backdrop-blur-xl border-t border-gray-800 z-50 flex items-center justify-around px-2 py-2 pb-safe shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
-    <a href="{{ route('customer.dashboard') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.dashboard') ? 'text-primary' : 'text-gray-500' }}">
+<nav class="lg:hidden fixed bottom-0 left-0 w-full bg-white/95 dark:bg-gray-900/98 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 z-50 flex items-center justify-around px-2 py-2 pb-safe shadow-lg dark:shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+    <a href="{{ route('customer.dashboard') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.dashboard') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Dashboard</span>
     </a>
 
-    <a href="{{ route('customer.orders') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500' }}">
+    <a href="{{ route('customer.orders') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.orders') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Bestellungen</span>
     </a>
 
-    <a href="{{ route('customer.invoices') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.invoices') ? 'text-primary' : 'text-gray-500' }}">
+    <a href="{{ route('customer.invoices') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.invoices') ? 'text-primary' : 'text-gray-500 dark:text-gray-400' }}">
         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         <span class="text-[9px] font-black uppercase tracking-widest">Rechnungen</span>
     </a>
 
-
-
     {{-- NEU: MOBILE SUPPORT LINK --}}
-    <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex flex-col items-center gap-1 flex-1 py-1 {{request()->routeIs('customer.support')? 'text-primary' : 'text-gray-500'}}">
+    <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex flex-col items-center gap-1 flex-1 py-1 {{request()->routeIs('customer.support')? 'text-primary' : 'text-gray-500 dark:text-gray-400'}}">
         <div class="relative">
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-0.5 -right-1 flex h-2.5 w-2.5">
@@ -242,12 +274,12 @@
     </a>
 
     @if($hasOptedIn)
-    <a href="{{ route('customer.gamification.profile') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'text-emerald-500' : 'text-gray-500' }}">
+    <a href="{{ route('customer.gamification.profile') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'text-emerald-500' : 'text-gray-500 dark:text-gray-400' }}">
         <span class="text-xl leading-none h-6 flex items-center">🎮</span>
         <span class="text-[9px] font-black uppercase tracking-widest">Spiele</span>
     </a>
     @else
-    <a href="{{ route('customer.games') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') ? 'text-emerald-500' : 'text-gray-500' }}">
+    <a href="{{ route('customer.games') }}" class="flex flex-col items-center gap-1 flex-1 py-1 {{ request()->routeIs('customer.games') ? 'text-emerald-500' : 'text-gray-500 dark:text-gray-400' }}">
         <span class="text-xl leading-none h-6 flex items-center">🎮</span>
         <span class="text-[9px] font-black uppercase tracking-widest">Spiele</span>
     </a>
@@ -263,13 +295,13 @@
          x-transition:leave="transition-all duration-500 ease-out"
          x-transition:leave-start="translate-y-0 opacity-100"
          x-transition:leave-end="translate-y-10 opacity-0 pointer-events-none">
-        <a href="{{ route('customer.support') }}" class="bg-gray-900/95 backdrop-blur-md border border-gray-700 hover:border-primary/50 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer transition-all group block">
+        <a href="{{ route('customer.support') }}" class="bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border border-gray-200 dark:border-gray-700 hover:border-primary/50 shadow-2xl rounded-2xl p-4 flex items-center gap-4 max-w-sm cursor-pointer transition-all group block">
             <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center shrink-0 border border-primary/30 group-hover:scale-110 transition-transform">
                 <span class="text-primary text-xl">💌</span>
             </div>
             <div>
-                <h4 class="text-white text-sm font-bold tracking-wide group-hover:text-primary transition-colors">Support Desk</h4>
-                <p class="text-gray-400 text-xs mt-0.5" x-text="toastMessage"></p>
+                <h4 class="text-gray-900 dark:text-white text-sm font-bold tracking-wide group-hover:text-primary transition-colors">Support Desk</h4>
+                <p class="text-gray-600 dark:text-gray-400 text-xs mt-0.5" x-text="toastMessage"></p>
                 <div class="text-[10px] text-primary mt-1.5 font-bold uppercase tracking-widest opacity-80 group-hover:opacity-100 transition-opacity">Zum Ticket springen &rarr;</div>
             </div>
         </a>
@@ -406,6 +438,7 @@
                 renderer = new window.THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(container.offsetWidth, container.offsetHeight);
                 renderer.setPixelRatio(window.devicePixelRatio);
+                renderer.domElement.style.cursor = 'default';
                 container.appendChild(renderer.domElement);
 
                 scene.add(new window.THREE.AmbientLight(0xffffff, 2.5));

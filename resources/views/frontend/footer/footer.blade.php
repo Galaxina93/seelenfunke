@@ -1,4 +1,4 @@
-<footer class="relative bg-gray-900 text-white py-16 overflow-hidden border-t border-gray-800" role="contentinfo">
+<footer class="relative bg-stone-50 text-gray-800 py-16 overflow-hidden border-t border-gray-200" role="contentinfo">
 
     <div class="relative z-10 max-w-7xl mx-auto px-6 lg:px-12">
 
@@ -8,31 +8,31 @@
             {{-- Spalte 1: Laser Info --}}
             <div class="flex flex-col items-start">
                 <div class="flex items-center gap-3 mb-4">
-                    <div class="w-12 h-12 rounded-full border-2 border-primary flex items-center justify-center text-primary bg-primary/10" aria-hidden="true">
+                    <div class="w-12 h-12 rounded-full border-2 border-primary flex items-center justify-center text-primary bg-amber-50 shadow-sm" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
                         </svg>
                     </div>
                     <div>
-                        <h3 class="text-lg font-serif font-bold text-white leading-tight">Laserzertifiziert</h3>
-                        <span class="text-xs text-primary uppercase tracking-wider">Industrie & Gewerbe</span>
+                        <h3 class="text-lg font-serif font-bold text-gray-900 leading-tight">Laserzertifiziert</h3>
+                        <span class="text-xs text-amber-800 font-bold uppercase tracking-wider">Industrie & Gewerbe</span>
                     </div>
                 </div>
-                <p class="text-sm text-gray-400 leading-relaxed">
+                <p class="text-sm text-gray-600 leading-relaxed">
                     Mit einer zertifizierten <strong>Laserschutzbeauftragten</strong> stehen Sicherheit und Präzision bei der Veredelung Ihrer Unikate an erster Stelle.
                 </p>
             </div>
 
             {{-- Spalte 2: Adresse --}}
             <div>
-                <h3 class="text-lg font-serif font-semibold mb-4 text-primary">Manufaktur & Büro</h3>
-                <div class="flex items-start gap-3 text-gray-300 text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary mt-1" aria-hidden="true">
+                <h3 class="text-lg font-serif font-bold mb-4 text-gray-900">Manufaktur & Büro</h3>
+                <div class="flex items-start gap-3 text-gray-600 text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-primary mt-1 shrink-0" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                     </svg>
                     <address class="not-italic">
-                        <span class="font-medium text-white">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</span><br>
+                        <span class="font-bold text-gray-900">{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</span><br>
                         {{ shop_setting('company_street', shop_setting('owner_street', 'Carl-Goerdeler-Ring')) }} {{ shop_setting('company_street_number', '26') }}<br>
                         {{ shop_setting('company_zip', '38518') }} {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}<br>
                         {{ shop_setting('company_country', 'Deutschland') }}
@@ -42,20 +42,20 @@
 
             {{-- Spalte 3: Links --}}
             <div>
-                <h3 class="text-lg font-serif font-semibold mb-4 text-primary">Service & Rechtliches</h3>
+                <h3 class="text-lg font-serif font-bold mb-4 text-gray-900">Service & Rechtliches</h3>
                 <nav aria-label="Footer Navigation">
-                    <ul class="text-gray-300 text-sm space-y-3">
+                    <ul class="text-gray-600 text-sm space-y-3">
                         <li>
                             <a href="{{ route('shop') }}"
                                title="Direkt zum Online-Shop"
-                               class="hover:text-primary transition flex items-center gap-2">
+                               class="hover:text-amber-800 transition flex items-center gap-2">
                                 <span aria-hidden="true">🛍️</span> Zum Shop
                             </a>
                         </li>
                         <li>
                             <a href="{{ route('manufacture') }}#herzensprojekte"
                                title="Unsere Herzensprojekte für Kitas & Kinder vor Ort"
-                               class="text-primary hover:underline transition flex items-center gap-2 font-medium">
+                               class="text-amber-800 hover:underline transition flex items-center gap-2 font-semibold">
                                 <span aria-hidden="true">❤️</span> Unsere Herzensprojekte
                             </a>
                         </li>
@@ -64,7 +64,7 @@
                         <li>
                             <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}"
                                title="Senden Sie uns eine E-Mail"
-                               class="hover:text-primary transition flex items-center gap-2">
+                               class="hover:text-amber-800 transition flex items-center gap-2">
                                 <span aria-hidden="true">📧</span> {{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}
                             </a>
                         </li>
@@ -74,7 +74,7 @@
                             <li>
                                 <a href="mailto:{{ shop_setting('owner_email_impressum') }}"
                                    title="Rechtliche Anfragen"
-                                   class="hover:text-primary transition flex items-center gap-2">
+                                   class="hover:text-amber-800 transition flex items-center gap-2">
                                     <span aria-hidden="true">⚖️</span> {{ shop_setting('owner_email_impressum') }}
                                 </a>
                             </li>
@@ -85,22 +85,22 @@
                             <li>
                                 <a href="mailto:{{ shop_setting('owner_email_invoices') }}"
                                    title="Buchhaltung & Rechnungen"
-                                   class="hover:text-primary transition flex items-center gap-2">
+                                   class="hover:text-amber-800 transition flex items-center gap-2">
                                     <span aria-hidden="true">🧾</span> {{ shop_setting('owner_email_invoices') }}
                                 </a>
                             </li>
                         @endif
 
-                        <li class="h-px bg-gray-800 w-full my-2" aria-hidden="true"></li>
+                        <li class="h-px bg-gray-200 w-full my-2" aria-hidden="true"></li>
 
-                        <li><a href="/impressum" title="Impressum ansehen" class="hover:text-white transition opacity-80 hover:opacity-100">Impressum</a></li>
-                        <li><a href="/datenschutz" title="Datenschutzerklärung lesen" class="hover:text-white transition opacity-80 hover:opacity-100">Datenschutzerklärung</a></li>
-                        <li><a href="/agb" title="Allgemeine Geschäftsbedingungen" class="hover:text-white transition opacity-80 hover:opacity-100">AGB & Widerrufsbelehrung</a></li>
-                        <li><a href="/verhaltenskodex" title="Unser Verhaltenskodex" class="hover:text-white transition opacity-80 hover:opacity-100">Verhaltenskodex</a></li>
-                        <li><a href="/versand" title="Informationen zu Versand & Lieferung" class="hover:text-white transition opacity-80 hover:opacity-100">Versand</a></li>
-                        <li><a href="/barrierefreiheit" title="Erklärung zur Barrierefreiheit" class="hover:text-white transition opacity-80 hover:opacity-100">Barrierefreiheit</a></li>
+                        <li><a href="/impressum" title="Impressum ansehen" class="hover:text-gray-900 transition text-gray-500">Impressum</a></li>
+                        <li><a href="/datenschutz" title="Datenschutzerklärung lesen" class="hover:text-gray-900 transition text-gray-500">Datenschutzerklärung</a></li>
+                        <li><a href="/agb" title="Allgemeine Geschäftsbedingungen" class="hover:text-gray-900 transition text-gray-500">AGB & Widerrufsbelehrung</a></li>
+                        <li><a href="/verhaltenskodex" title="Unser Verhaltenskodex" class="hover:text-gray-900 transition text-gray-500">Verhaltenskodex</a></li>
+                        <li><a href="/versand" title="Informationen zu Versand & Lieferung" class="hover:text-gray-900 transition text-gray-500">Versand</a></li>
+                        <li><a href="/barrierefreiheit" title="Erklärung zur Barrierefreiheit" class="hover:text-gray-900 transition text-gray-500">Barrierefreiheit</a></li>
                         
-                        <li class="pt-2"><a href="{{ route('widerruf') }}" title="Vertrag elektronisch widerrufen" class="text-red-400/80 hover:text-red-400 transition flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" /></svg>Vertrag widerrufen</a></li>
+                        <li class="pt-2"><a href="{{ route('widerruf') }}" title="Vertrag elektronisch widerrufen" class="text-red-600 hover:text-red-800 transition flex items-center gap-1.5 font-medium"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" /></svg>Vertrag widerrufen</a></li>
                     </ul>
                 </nav>
             </div>
@@ -112,10 +112,10 @@
 
         </div>
 
-        <div class="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="text-gray-500 text-sm text-center md:text-left">
+        <div class="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="text-gray-600 text-sm text-center md:text-left">
                 &copy; {{ date('Y') }} <strong>{{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }}</strong>. Alle Rechte vorbehalten.<br>
-                <span class="text-xs">Handmade with ❤️ in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.</span>
+                <span class="text-xs text-gray-500">Handmade with ❤️ in unserer Manufaktur in {{ shop_setting('company_city', shop_setting('owner_city', 'Gifhorn')) }}.</span>
                 <p class="text-[11px] text-gray-500 mt-2 leading-relaxed max-w-3xl">
                     * Transparenzhinweis zu unseren Herzensprojekten: Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine steuerliche Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderprojekte erfolgen vollumfänglich aus den erwirtschafteten Mitteln unseres Unternehmens.
                 </p>

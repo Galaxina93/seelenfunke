@@ -8,6 +8,10 @@
                 const barCtx = document.getElementById('yearlyBarChart');
                 if (barCtx) {
                     if (barChart) barChart.destroy();
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
+                    const tickColor = isDark ? '#9ca3af' : '#6b7280';
+
                     barChart = new Chart(barCtx, {
                         type: 'bar',
                         data: {
@@ -31,7 +35,15 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             scales: {
-                                y: { beginAtZero: true }
+                                y: {
+                                    beginAtZero: true,
+                                    grid: { color: gridColor, drawBorder: false },
+                                    ticks: { color: tickColor }
+                                },
+                                x: {
+                                    grid: { display: false, drawBorder: false },
+                                    ticks: { color: tickColor }
+                                }
                             }
                         }
                     });

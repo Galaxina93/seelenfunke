@@ -1,14 +1,14 @@
 <div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;">
-    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-8 min-h-[600px] flex flex-col relative overflow-hidden transition-all duration-500">
+    <div class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 p-6 sm:p-8 min-h-[600px] flex flex-col relative overflow-hidden transition-all duration-500">
         {{-- Dekorativer Hintergrund (Gold-Glow passend zum Projekt) --}}
         <div class="absolute top-0 right-0 w-48 h-full bg-gradient-to-l from-[var(--theme-color)]/5 to-transparent opacity-50 pointer-events-none"></div>
 
         <div class="flex justify-between items-center mb-8 relative z-10">
             <div>
-                <h3 class="text-2xl font-serif font-bold text-white tracking-tight">Tagesroutine</h3>
+                <h3 class="text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Tagesroutine</h3>
                 <p class="text-[10px] font-black text-gray-500 mt-1 uppercase tracking-[0.2em]">Dein Bio-Rhythmus</p>
             </div>
-            <button wire:click="create" class="w-10 h-10 rounded-xl bg-gray-950 text-white flex items-center justify-center border border-gray-800 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-all shadow-inner active:scale-95 group">
+            <button wire:click="create" class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-950 text-gray-700 dark:text-white flex items-center justify-center border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-all dark:shadow-inner active:scale-95 group">
                 <x-heroicon-m-plus class="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
             </button>
         </div>
@@ -40,7 +40,7 @@
 
                     <div class="flex items-center gap-4 group">
                         {{-- Uhrzeit --}}
-                        <div class="w-12 text-right font-mono text-xs font-bold {{ $isActive ? 'text-[var(--theme-color)] drop-shadow-[0_0_8px_var(--theme-color-50)]' : 'text-gray-600' }}">
+                        <div class="w-12 text-right font-mono text-xs font-bold {{ $isActive ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_8px_var(--theme-color-50)]' : 'text-gray-500 dark:text-gray-600' }}">
                             {{ \Carbon\Carbon::parse($r->start_time)->format('H:i') }}
                         </div>
 
@@ -48,51 +48,51 @@
                         <div class="relative flex items-center justify-center">
                             @if($isActive)
                                 <span class="absolute inline-flex h-6 w-6 rounded-full bg-[var(--theme-color)] opacity-20 animate-ping"></span>
-                                <div class="w-3.5 h-3.5 rounded-full bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] shadow-[0_0_15px_var(--theme-color)] z-10"></div>
+                                <div class="w-3.5 h-3.5 rounded-full bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] dark:shadow-[0_0_15px_var(--theme-color)] z-10"></div>
                             @else
-                                <div class="w-3 h-3 rounded-full border-2 border-gray-700 bg-gray-950 group-hover:border-[var(--theme-color-50)] group-hover:scale-125 transition-all duration-500 z-10"></div>
+                                <div class="w-3 h-3 rounded-full border-2 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 group-hover:border-[var(--theme-color-50)] group-hover:scale-125 transition-all duration-500 z-10"></div>
                             @endif
 
                             @if(!$loop->last)
-                                <div class="absolute top-3 w-px h-16 bg-gray-800 z-0"></div>
+                                <div class="absolute top-3 w-px h-16 bg-gray-200 dark:bg-gray-800 z-0"></div>
                             @endif
                         </div>
 
                         {{-- Routine Karte --}}
                         <div class="flex-1 relative transition-all duration-500 ease-in-out cursor-pointer rounded-2xl p-4 sm:p-5 border
                             {{ $isActive
-                                ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[0_0_25px_var(--theme-color-15)] scale-[1.02] z-20'
-                                : 'bg-gray-950/50 border-gray-800 hover:border-gray-600 hover:bg-gray-900 shadow-inner' }}"
+                                ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] dark:shadow-[0_0_25px_var(--theme-color-15)] scale-[1.02] z-20'
+                                : 'bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-900 dark:shadow-inner' }}"
                              wire:click="edit('{{ $r->id }}')">
 
                             @if($isActive)
-                                <span class="absolute -top-3 right-4 bg-[var(--theme-color)] text-gray-900 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
+                                <span class="absolute -top-3 right-4 bg-[var(--theme-color)] text-gray-900 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full dark:shadow-lg">
                                     In Aktion
                                 </span>
                             @endif
 
                             <div class="flex justify-between items-start gap-4">
                                 <div class="flex-1 min-w-0">
-                                    <h4 class="font-bold {{ $isActive ? 'text-white text-base' : 'text-gray-300 text-sm group-hover:text-white' }} transition-colors">
+                                    <h4 class="font-bold {{ $isActive ? 'text-gray-900 dark:text-white text-base' : 'text-gray-700 dark:text-gray-300 text-sm group-hover:text-gray-900 dark:group-hover:text-white' }} transition-colors">
                                         {{ $r->title }}
                                     </h4>
 
                                     <div class="mt-1.5 overflow-hidden transition-all duration-500 ease-in-out
                                         {{ $isActive ? 'max-h-40' : 'max-h-5 group-hover:max-h-40' }}">
-                                        <p class="leading-relaxed {{ $isActive ? 'text-gray-400 text-xs font-medium' : 'text-gray-500 text-[11px]' }}">
+                                        <p class="leading-relaxed {{ $isActive ? 'text-gray-600 dark:text-gray-400 text-xs font-medium' : 'text-gray-500 text-[11px]' }}">
                                             {{ $r->message }}
                                         </p>
                                     </div>
                                 </div>
                                 <div class="shrink-0 text-[9px] font-black px-2 py-1 rounded border
-                                    {{ $isActive ? 'bg-gray-900 text-[var(--theme-color)] border-[var(--theme-color-30)]' : 'bg-gray-950 border-gray-800 text-gray-600' }} shadow-inner">
+                                    {{ $isActive ? 'bg-white dark:bg-gray-900 text-[var(--theme-color)] border-[var(--theme-color-30)]' : 'bg-gray-100 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }} dark:shadow-inner">
                                     {{ $r->duration_minutes }} MIN
                                 </div>
                             </div>
                         </div>
 
                         {{-- Löschen Button --}}
-                        <button wire:click="delete('{{ $r->id }}')" wire:confirm="Routine löschen?" class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-500 transition-all duration-300 p-2 shrink-0 transform hover:scale-110">
+                        <button wire:click="delete('{{ $r->id }}')" wire:confirm="Routine löschen?" class="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all duration-300 p-2 shrink-0 transform hover:scale-110">
                             <x-heroicon-m-trash class="w-4 h-4" />
                         </button>
                     </div>
@@ -101,20 +101,20 @@
         @else
             {{-- EDITOR --}}
             <div class="flex-1 flex flex-col animate-fade-in relative z-10">
-                <div class="space-y-6 bg-gray-950/50 p-6 rounded-3xl border border-gray-800 shadow-inner">
+                <div class="space-y-6 bg-gray-50 dark:bg-gray-950/50 p-6 rounded-3xl border border-gray-200 dark:border-gray-800 dark:shadow-inner">
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1.5">
                             <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Uhrzeit Start</label>
-                            <input type="time" wire:model="r_time" class="w-full bg-gray-900 border-gray-800 rounded-xl font-bold text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner transition-all [color-scheme:dark]">
+                            <input type="time" wire:model="r_time" class="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] dark:shadow-inner transition-all">
                         </div>
                         <div class="space-y-1.5">
                             <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Dauer (Minuten)</label>
-                            <input type="number" wire:model="r_duration" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner transition-all">
+                            <input type="number" wire:model="r_duration" class="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] dark:shadow-inner transition-all">
                         </div>
                     </div>
                     <div class="space-y-1.5">
                         <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Typ der Routine</label>
-                        <select wire:model="r_type" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner transition-all">
+                        <select wire:model="r_type" class="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] dark:shadow-inner transition-all">
                             <option value="general">Allgemeine Arbeit (General)</option>
                             <option value="sleep">Schlafenszeit / Nachtruhe (Sleep)</option>
                             <option value="break">Pause / Entspannung (Break)</option>
@@ -124,16 +124,16 @@
                     </div>
                     <div class="space-y-1.5">
                         <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Titel der Routine</label>
-                        <input type="text" wire:model="r_title" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm font-bold text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner transition-all placeholder-gray-700" placeholder="z.B. Deep Work Phase">
+                        <input type="text" wire:model="r_title" class="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl text-sm font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] dark:shadow-inner transition-all placeholder-gray-400 dark:placeholder-gray-700" placeholder="z.B. Deep Work Phase">
                     </div>
                     <div class="space-y-1.5">
                         <label class="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Funkis Anweisung</label>
-                        <textarea wire:model="r_message" class="w-full bg-gray-900 border-gray-800 rounded-xl text-sm h-32 focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] shadow-inner resize-none leading-relaxed text-white placeholder-gray-700" placeholder="Klare Anweisungen für diesen Zeitblock..."></textarea>
+                        <textarea wire:model="r_message" class="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl text-sm h-32 focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-20)] dark:shadow-inner resize-none leading-relaxed text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-700" placeholder="Klare Anweisungen für diesen Zeitblock..."></textarea>
                     </div>
                 </div>
                 <div class="mt-8 flex gap-4">
-                    <button wire:click="cancel" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 hover:text-white transition-all shadow-lg">Abbrechen</button>
-                    <button wire:click="save" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-900 bg-[var(--theme-color)] rounded-xl hover:brightness-110 transition-all shadow-[0_0_20px_var(--theme-color-30)]">Speichern</button>
+                    <button wire:click="cancel" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all dark:shadow-lg">Abbrechen</button>
+                    <button wire:click="save" class="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-900 bg-[var(--theme-color)] rounded-xl hover:brightness-110 transition-all dark:shadow-[0_0_20px_var(--theme-color-30)]">Speichern</button>
                 </div>
             </div>
         @endif

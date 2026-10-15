@@ -2,13 +2,13 @@
 
     {{-- Table Area --}}
         {{-- Header --}}
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-2xl border border-gray-800 relative overflow-hidden animate-fade-in-up">
-            <div class="absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none"><x-heroicon-o-sparkles class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)1)]" /></div>
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-gray-900/80 backdrop-blur-md p-6 sm:p-10 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative overflow-hidden animate-fade-in-up">
+            <div class="hidden dark:block absolute top-0 right-0 p-8 opacity-10 blur-sm pointer-events-none"><x-heroicon-o-sparkles class="w-40 h-40 text-[var(--theme-color)] drop-shadow-[0_0_20px_var(--theme-color)1)]" /></div>
             <div class="relative z-10">
-                <h1 class="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">
+                <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
                     {{ $showArchive ? 'Archivierte Seelen' : 'Benutzer-Zentrale' }}
                 </h1>
-                <p class="text-gray-400 mt-2 text-sm font-medium">Verwalten Sie Ihre Community mit Präzision und Übersicht.</p>
+                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">Verwalten Sie Ihre Community mit Präzision und Übersicht.</p>
             </div>
 
             <div class="flex items-center gap-3 relative z-10">
@@ -18,7 +18,7 @@
                     </button>
                 @endif
                 @if(!$isCreating && !$editingId)
-                    <button wire:click="toggleArchive" class="inline-flex items-center px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $showArchive ? 'bg-[var(--theme-color)] text-gray-900 shadow-[0_0_20px_var(--theme-color)0.3)] hover:bg-[var(--theme-color)]-dark hover:text-white hover:scale-[1.02]' : 'bg-gray-950 text-gray-400 hover:text-white border border-gray-800 shadow-inner' }}">
+                    <button wire:click="toggleArchive" class="inline-flex items-center px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $showArchive ? 'bg-[var(--theme-color)] text-gray-900 shadow-sm dark:shadow-[0_0_20px_var(--theme-color)0.3)] hover:bg-[var(--theme-color)]-dark hover:text-white hover:scale-[1.02]' : 'bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner' }}">
                         <x-heroicon-o-archive-box class="w-4 h-4 mr-2" />
                         {{ $showArchive ? 'Aktive Liste' : 'Archiv' }}
                     </button>
@@ -36,18 +36,18 @@
 
         @if($isCreating || $editingId)
             {{-- FULL PAGE INLINE EDITOR --}}
-            <div class="bg-gray-900/80 backdrop-blur-md p-8 sm:p-10 rounded-[2.5rem] border border-gray-800 shadow-2xl relative overflow-hidden animate-fade-in mt-6">
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-8 sm:p-10 rounded-[2.5rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl relative overflow-hidden animate-fade-in mt-6">
                 {{-- Form Header --}}
-                <div class="flex justify-between items-center mb-8 border-b border-gray-800 pb-6">
+                <div class="flex justify-between items-center mb-8 border-b border-gray-100 dark:border-gray-800 pb-6">
                     <div>
-                        <h2 class="text-2xl font-serif font-bold text-white tracking-wide">
+                        <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide">
                             {{ $isCreating ? 'Neues Seelenlicht erschaffen' : "Benutzerprofil bearbeiten" }}
                         </h2>
                         <p class="text-xs text-gray-500 font-medium mt-1">
                             {{ $isCreating ? 'Wähle die Rolle und fülle die grundlegenden Stammdaten aus.' : 'Passe die Identitätsdaten und Zugriffsrechte dieses Begleiters an.' }}
                         </p>
                     </div>
-                    <button wire:click="cancelEdit" class="p-2.5 text-gray-500 hover:text-white bg-gray-950 border border-gray-800 rounded-xl transition-all shadow-inner hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-400 group">
+                    <button wire:click="cancelEdit" class="p-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl transition-all shadow-sm dark:shadow-inner hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-500 dark:hover:text-red-400 group">
                         <x-heroicon-m-x-mark class="w-6 h-6 group-hover:scale-110 transition-transform" />
                     </button>
                 </div>
@@ -55,7 +55,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
                     {{-- Left Column: Account & Security --}}
                     <div class="space-y-6">
-                        <div class="flex items-center gap-3 text-[var(--theme-color)] mb-4 pb-2 border-b border-gray-800/50">
+                        <div class="flex items-center gap-3 text-[var(--theme-color)] mb-4 pb-2 border-b border-gray-100 dark:border-gray-800/50">
                             <x-heroicon-m-shield-check class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
                             <h3 class="text-[10px] font-black uppercase tracking-widest">Account & Sicherheit</h3>
                         </div>
@@ -63,7 +63,7 @@
                         @if($isCreating)
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">System-Rolle</label>
-                                <select wire:model.live="createType" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner p-4 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all appearance-none cursor-pointer">
+                                <select wire:model.live="createType" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner p-4 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all appearance-none cursor-pointer">
                                     <option value="customer">Kunde</option>
                                     <option value="employee">Mitarbeiter</option>
                                     <option value="admin">Administrator</option>
@@ -72,7 +72,7 @@
                         @else
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">System-Rolle</label>
-                                <div class="w-full text-sm border-gray-800 rounded-xl bg-gray-950/50 text-gray-500 px-4 py-4 border inline-flex items-center gap-2 cursor-not-allowed">
+                                <div class="w-full text-sm border-gray-200 dark:border-gray-800 rounded-xl bg-gray-50 dark:bg-gray-950/50 text-gray-500 px-4 py-4 border inline-flex items-center gap-2 cursor-not-allowed">
                                     <x-heroicon-m-lock-closed class="w-4 h-4" />
                                     @if($editingType === 'admin') Administrator @elseif($editingType === 'employee') Mitarbeiter @else Kunde @endif
                                 </div>
@@ -82,23 +82,23 @@
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Vorname *</label>
-                                <input type="text" wire:model="formData.first_name" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                <input type="text" wire:model="formData.first_name" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                             </div>
                             <div class="space-y-2">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nachname *</label>
-                                <input type="text" wire:model="formData.last_name" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                <input type="text" wire:model="formData.last_name" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                             </div>
                         </div>
 
                         <div class="space-y-2">
                             <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">E-Mail Adresse *</label>
-                            <input type="email" wire:model="formData.email" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                            <input type="email" wire:model="formData.email" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                         </div>
 
                         <div class="space-y-2">
                             <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Passwort {{ $isCreating ? '*' : '(Optional - Leer für kein Reset)' }}</label>
                             <div x-data="{ showPw: false }" class="relative">
-                                <input :type="showPw ? 'text' : 'password'" wire:model="formData.password" placeholder="{{ $isCreating ? 'Mindestens 8 Zeichen' : 'Neues Passwort eingeben...' }}" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 pr-12 outline-none placeholder-gray-600">
+                                <input :type="showPw ? 'text' : 'password'" wire:model="formData.password" placeholder="{{ $isCreating ? 'Mindestens 8 Zeichen' : 'Neues Passwort eingeben...' }}" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 pr-12 outline-none placeholder-gray-400 dark:placeholder-gray-600">
                                 <button type="button" @click="showPw = !showPw" class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[var(--theme-color)] transition-colors focus:outline-none">
                                     <x-heroicon-o-eye x-show="!showPw" class="w-5 h-5" />
                                     <x-heroicon-o-eye-slash x-show="showPw" class="w-5 h-5" style="display: none;" />
@@ -106,14 +106,14 @@
                             </div>
                         </div>
 
-                        <label class="flex items-center gap-4 cursor-pointer group bg-gray-950 p-4 rounded-xl border border-gray-800 shadow-inner mt-4 hover:border-emerald-500/50 transition-colors">
+                        <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner mt-4 hover:border-emerald-500/50 transition-colors">
                             <div class="relative flex items-center shrink-0">
                                 <input type="checkbox" wire:model="formData.is_verified" class="peer sr-only">
                                 <div class="w-6 h-6 bg-black border-2 border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
                                 <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                             </div>
                             <div class="flex flex-col">
-                                <span class="text-sm font-bold text-gray-300 group-hover:text-white transition-colors">E-Mail verifiziert</span>
+                                <span class="text-sm font-bold text-gray-800 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">E-Mail verifiziert</span>
                                 <span class="text-[10px] text-gray-500 font-medium">Gewährt direkten Zugriff auf das System</span>
                             </div>
                         </label>
@@ -121,16 +121,16 @@
 
                     {{-- Right Column: Address & Details --}}
                     <div class="space-y-6">
-                        <div class="flex items-center gap-3 text-[var(--theme-color)] mb-4 pb-2 border-b border-gray-800/50">
+                        <div class="flex items-center gap-3 text-[var(--theme-color)] mb-4 pb-2 border-b border-gray-100 dark:border-gray-800/50">
                             <x-heroicon-m-map-pin class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
                             <h3 class="text-[10px] font-black uppercase tracking-widest">Standort & Profil</h3>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4 bg-gray-950 p-1.5 rounded-xl shadow-inner border border-gray-800">
-                            <button wire:click="$set('formData.customer_type', 'private')" type="button" @class(['py-3.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-gray-800 text-[var(--theme-color)] shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-gray-700' => $formData['customer_type'] === 'private', 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50' => $formData['customer_type'] !== 'private'])>
+                        <div class="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-950 p-1.5 rounded-xl shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800">
+                            <button wire:click="$set('formData.customer_type', 'private')" type="button" @class(['py-3.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-white dark:bg-gray-800 text-[var(--theme-color)] shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-700' => $formData['customer_type'] === 'private', 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50' => $formData['customer_type'] !== 'private'])>
                                 Privatperson
                             </button>
-                            <button wire:click="$set('formData.customer_type', 'business')" type="button" @class(['py-3.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-gray-800 text-[var(--theme-color)] shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-gray-700' => $formData['customer_type'] === 'business', 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50' => $formData['customer_type'] !== 'business'])>
+                            <button wire:click="$set('formData.customer_type', 'business')" type="button" @class(['py-3.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all', 'bg-white dark:bg-gray-800 text-[var(--theme-color)] shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-700' => $formData['customer_type'] === 'business', 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50' => $formData['customer_type'] !== 'business'])>
                                 Gewerblich (B2B)
                             </button>
                         </div>
@@ -139,11 +139,11 @@
                             <div class="grid grid-cols-2 gap-4 animate-fade-in-up">
                                 <div class="space-y-2">
                                     <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Firmenname</label>
-                                    <input type="text" wire:model="formData.company_name" placeholder="GmbH, UG..." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                    <input type="text" wire:model="formData.company_name" placeholder="GmbH, UG..." class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                                 </div>
                                 <div class="space-y-2">
                                     <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">USt-IdNr.</label>
-                                    <input type="text" wire:model="formData.vat_id" placeholder="DE..." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none font-mono uppercase">
+                                    <input type="text" wire:model="formData.vat_id" placeholder="DE..." class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none font-mono uppercase">
                                 </div>
                             </div>
                         @endif
@@ -151,39 +151,39 @@
                         <div class="flex gap-4">
                             <div class="space-y-2 w-2/3">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Straße</label>
-                                <input type="text" wire:model="formData.street" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                <input type="text" wire:model="formData.street" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                             </div>
                             <div class="space-y-2 w-1/3">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Nr.</label>
-                                <input type="text" wire:model="formData.house_number" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                <input type="text" wire:model="formData.house_number" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                             </div>
                         </div>
 
                         <div class="flex gap-4">
                             <div class="space-y-2 w-1/3">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">PLZ</label>
-                                <input type="text" wire:model="formData.postal" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                <input type="text" wire:model="formData.postal" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                             </div>
                             <div class="space-y-2 w-2/3">
                                 <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Stadt</label>
-                                <input type="text" wire:model="formData.city" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                                <input type="text" wire:model="formData.city" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                             </div>
                         </div>
 
                         <div class="space-y-2">
                             <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefon</label>
-                            <input type="text" wire:model="formData.phone_number" class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
+                            <input type="text" wire:model="formData.phone_number" class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none">
                         </div>
 
                         <div class="space-y-2">
                             <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Interne Notiz (Nur für Admins)</label>
-                            <textarea wire:model="formData.internal_note" rows="3" placeholder="Besonderheiten, VIP Status..." class="w-full text-sm border-gray-700 rounded-xl bg-gray-950 text-white shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none resize-none"></textarea>
+                            <textarea wire:model="formData.internal_note" rows="3" placeholder="Besonderheiten, VIP Status..." class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none resize-none"></textarea>
                         </div>
                     </div>
                 </div>
 
                 {{-- Action Footer --}}
-                <div class="mt-10 pt-8 border-t border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-6">
+                <div class="mt-10 pt-8 border-t border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-center gap-6">
                     @if($errors->any())
                         <div class="text-red-400 text-[10px] font-bold bg-red-500/10 px-4 py-3 rounded-xl border border-red-500/20 w-full sm:w-auto flex items-center gap-3">
                             <x-heroicon-m-exclamation-triangle class="w-5 h-5 flex-shrink-0" />
@@ -194,10 +194,10 @@
                     @endif
 
                     <div class="flex items-center gap-4 w-full sm:w-auto">
-                        <button wire:click="cancelEdit" class="flex-1 sm:flex-none px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-gray-950 border border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800 shadow-inner hover:-translate-x-1">
+                        <button wire:click="cancelEdit" class="flex-1 sm:flex-none px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 shadow-sm dark:shadow-inner hover:-translate-x-1">
                             Zurück zur Liste
                         </button>
-                        <button wire:click="{{ $isCreating ? 'saveNewUser' : 'saveInline' }}" class="flex-1 sm:flex-none px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-emerald-500 text-gray-900 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400 hover:scale-[1.02] flex items-center justify-center gap-2">
+                        <button wire:click="{{ $isCreating ? 'saveNewUser' : 'saveInline' }}" class="flex-1 sm:flex-none px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition-all bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:bg-emerald-400 hover:scale-[1.02] flex items-center justify-center gap-2">
                             <x-heroicon-m-check class="w-5 h-5 drop-shadow-[0_0_4px_rgba(0,0,0,0.5)]" />
                             {{ $isCreating ? 'Benutzer erstellen' : 'Änderungen speichern' }}
                         </button>
@@ -206,16 +206,16 @@
             </div>
         @else
             {{-- Filter & Search --}}
-            <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-800 shadow-2xl items-center animate-fade-in-up">
+            <div class="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 bg-white dark:bg-gray-900/80 backdrop-blur-md p-3 sm:p-4 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl items-center animate-fade-in-up">
                 <div class="md:col-span-3 relative group">
                     <input wire:model.live.debounce.300ms="search" type="text" placeholder="Kundennummer, Name, Firma, E-Mail oder Stadt suchen..."
-                           class="w-full pl-12 pr-4 py-4 bg-gray-950 border border-gray-800 rounded-[1.5rem] focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner transition-all text-white placeholder-gray-600 outline-none text-sm">
+                           class="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-[1.5rem] focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-sm dark:shadow-inner transition-all text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 outline-none text-sm">
                     <div class="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
                         <x-heroicon-o-magnifying-glass class="h-5 w-5 text-gray-600 group-focus-within:text-[var(--theme-color)] transition-colors" />
                     </div>
                 </div>
 
-                <select wire:model.live="filterRole" class="md:col-span-1 bg-gray-950 border border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors cursor-pointer outline-none appearance-none">
+                <select wire:model.live="filterRole" class="md:col-span-1 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-[1.5rem] px-5 py-4 focus:bg-white dark:focus:bg-black focus:ring-2 focus:ring-[var(--theme-color)]/30 focus:border-[var(--theme-color)] shadow-sm dark:shadow-inner text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer outline-none appearance-none">
                     <option value="all" class="bg-gray-900 text-white">Alle Rollen</option>
                     <option value="admin" class="bg-gray-900 text-white">Administratoren</option>
                     <option value="employee" class="bg-gray-900 text-white">Mitarbeiter</option>
@@ -224,11 +224,11 @@
             </div>
 
             {{-- Table --}}
-            <div class="mt-6 bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden w-full relative animate-fade-in-up">
+            <div class="mt-6 bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden w-full relative animate-fade-in-up">
                 <div class="overflow-x-auto w-full custom-scrollbar">
                     <table class="w-full text-left border-collapse min-w-[1000px]">
                         <thead>
-                        <tr class="bg-gray-950/80 border-b border-gray-800 text-[10px] font-black text-gray-500 uppercase tracking-widest shadow-inner">
+                        <tr class="bg-gray-50/80 dark:bg-gray-950/80 border-b border-gray-200 dark:border-gray-800 text-[10px] font-black text-gray-600 dark:text-gray-500 uppercase tracking-widest shadow-sm dark:shadow-inner">
                             <th wire:click="sortBy('identity')" class="px-6 sm:px-8 py-6 w-[25%] cursor-pointer hover:text-white transition-colors select-none">
                                 <div class="flex items-center gap-1">
                                     Identität
@@ -297,18 +297,18 @@
                             @php
                                 $profile = $user['profile'] ?? [];
                             @endphp
-                            <tr class="transition-all duration-300 group hover:bg-gray-800/40 cursor-default">
+                            <tr class="transition-all duration-300 group hover:bg-gray-50 dark:hover:bg-gray-800/40 cursor-default">
                                 <td class="px-6 sm:px-8 py-4 align-top">
                                     <div class="flex items-center gap-4">
-                                        <div class="h-12 w-12 rounded-[1.2rem] shrink-0 bg-gray-950 border border-gray-800 flex items-center justify-center text-[var(--theme-color)] font-serif text-xl font-bold shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_15px_var(--theme-color)0.1)] group-hover:shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_20px_var(--theme-color)0.3)] transition-shadow">
+                                        <div class="h-12 w-12 rounded-[1.2rem] shrink-0 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-[var(--theme-color)] font-serif text-xl font-bold shadow-sm dark:shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_15px_var(--theme-color)0.1)] group-hover:shadow-md dark:group-hover:shadow-[inset_0_-2px_10px_rgba(0,0,0,0.5),_0_0_20px_var(--theme-color)0.3)] transition-shadow">
                                             {{ substr($user['first_name'], 0, 1) }}
                                         </div>
                                         <div class="min-w-0">
-                                            <div class="font-bold text-white text-sm tracking-wide truncate">{{ $user['first_name'] }} {{ $user['last_name'] }}</div>
+                                            <div class="font-bold text-gray-900 dark:text-white text-sm tracking-wide truncate">{{ $user['first_name'] }} {{ $user['last_name'] }}</div>
                                             <div class="text-[11px] text-gray-500 font-medium tracking-wide mt-0.5 group-hover:text-[var(--theme-color)] transition-colors truncate">{{ $user['email'] }}</div>
                                             @if($user['user_type'] === 'customer')
                                                 <div class="mt-1 flex items-center gap-1.5">
-                                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-900 px-1.5 py-0.5 rounded border border-gray-800 shadow-inner">KDN:</span>
+                                                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 bg-gray-100 dark:bg-gray-900 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">KDN:</span>
                                                     <span class="text-[10px] text-[var(--theme-color)] font-mono font-black tracking-widest">{{ strtoupper(explode('-', $user['id'])[0]) }}</span>
                                                 </div>
                                             @endif
@@ -386,7 +386,7 @@
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top">
                                     <div class="text-xs space-y-1.5 mt-1">
-                                        <div class="flex items-center gap-2 text-gray-300">
+                                        <div class="flex items-center gap-2 text-gray-800 dark:text-gray-300">
                                             <x-heroicon-m-map-pin class="w-4 h-4 text-[var(--theme-color)] drop-shadow-[0_0_8px_currentColor] shrink-0" />
                                             <span class="font-bold tracking-wide truncate">{{ $profile['city'] ?? 'Ort unbekannt' }}</span>
                                         </div>
@@ -399,7 +399,7 @@
                                 <td class="px-6 sm:px-8 py-4 align-top">
                                     <div class="text-xs font-mono font-bold text-gray-400 mt-1 select-all" title="Letzte bekannte IP">
                                         @if(!empty($profile['last_ip']))
-                                            <div class="flex items-center gap-1.5 text-gray-300">
+                                            <div class="flex items-center gap-1.5 text-gray-800 dark:text-gray-300">
                                                 <x-heroicon-o-computer-desktop class="w-4 h-4 text-gray-500 shrink-0" />
                                                 <span>{{ $profile['last_ip'] }}</span>
                                             </div>
@@ -429,18 +429,18 @@
                                     <div class="flex justify-end gap-2 mt-1">
                                         @if(!$showArchive)
                                             <div class="opacity-100 xl:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                                <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-950 border border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-inner" title="Bearbeiten">
+                                                <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Bearbeiten">
                                                     <x-heroicon-m-pencil-square class="w-4 h-4" />
                                                 </button>
-                                                <button wire:click="archiveUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-950 border border-gray-800 text-gray-500 hover:text-orange-400 hover:border-orange-500/30 rounded-xl transition-all shadow-inner" title="Archivieren">
+                                                <button wire:click="archiveUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-orange-500 dark:hover:text-orange-400 hover:border-orange-500/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Archivieren">
                                                     <x-heroicon-m-archive-box class="w-4 h-4" />
                                                 </button>
                                             </div>
                                         @else
-                                            <button wire:click="restoreUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-950 border border-gray-800 text-gray-500 hover:text-emerald-400 hover:border-emerald-500/30 rounded-xl transition-all shadow-inner" title="Wiederherstellen">
+                                            <button wire:click="restoreUser('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Wiederherstellen">
                                                 <x-heroicon-m-arrow-path class="w-4 h-4" />
                                             </button>
-                                            <button wire:confirm="Sicher, dass dieser Benutzer unwiderruflich gelöscht werden soll?" wire:click="forceDelete('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-950 border border-gray-800 text-gray-500 hover:text-red-400 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Permanent löschen">
+                                            <button wire:confirm="Sicher, dass dieser Benutzer unwiderruflich gelöscht werden soll?" wire:click="forceDelete('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:border-red-500/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Permanent löschen">
                                                 <x-heroicon-m-trash class="w-4 h-4" />
                                             </button>
                                         @endif
@@ -453,7 +453,7 @@
                         </tbody>
                     </table>
                 </div>
-                @if($users->hasPages()) <div class="px-8 py-6 bg-gray-900/30 border-t border-gray-800">{{ $users->links() }}</div> @endif
+                @if($users->hasPages()) <div class="px-8 py-6 bg-gray-50/50 dark:bg-gray-900/30 border-t border-gray-200 dark:border-gray-800">{{ $users->links() }}</div> @endif
             </div>
         @endif
 </div>

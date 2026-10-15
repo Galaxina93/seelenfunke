@@ -1,10 +1,10 @@
 
             <!-- AI Chat Console -->
-            <div wire:key="tab-chat" x-data="{ showMobileChatSidebar: false }" :class="{'hidden': activeTab !== 'chat', '!fixed !inset-0 !m-0 !p-0 !z-[99999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen}" class="flex-1 shrink-0 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-xl flex overflow-hidden relative shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full">
+            <div wire:key="tab-chat" x-data="{ showMobileChatSidebar: false }" :class="{'hidden': activeTab !== 'chat', '!fixed !inset-0 !m-0 !p-0 !z-[99999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen}" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/80 backdrop-blur-xl flex overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full">
 
                 
                 <!-- Burger Menu Sidebar (Desktop/Tablet) -->
-                <div class="hidden md:flex border-r border-gray-800" x-show="!isChatFullScreen">
+                <div class="hidden md:flex border-r border-gray-200 dark:border-gray-800" x-show="!isChatFullScreen">
                     <x-backend.ai-chat-sidebar />
                 </div>
                 
@@ -63,7 +63,7 @@
                                     @endif
                                 </div>
                             </div>
-                            <div class="max-w-[90%] lg:max-w-[85%] min-w-0 text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-950 border border-gray-700 text-gray-300 rounded-tr-none shadow-md' : 'bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]' }}">
+                            <div class="max-w-[90%] lg:max-w-[85%] min-w-0 text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-300 rounded-tr-none shadow-sm dark:shadow-md' : 'bg-[var(--theme-color-5)] dark:bg-[var(--theme-color-10)] text-gray-800 dark:text-gray-200 rounded-tl-none border border-[var(--theme-color-20)] dark:border-gray-800 shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)]' }}">
                                 @if($msg['role'] === 'user')
                                     @if(!empty($msg['attachments']) || !empty($msg['local_uploads']))
                                         <div class="flex flex-wrap gap-2 mb-2">
@@ -289,7 +289,7 @@
                                    @keyup="checkMention" @click="checkMention"
                                    rows="1"
                                    style="padding-left: 90px;"
-                                   class="w-full bg-gray-900 border border-gray-800 rounded-lg pr-12 py-3 text-[var(--theme-color)] focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
+                                   class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 rounded-lg pr-12 py-3 text-gray-900 dark:text-[var(--theme-color)] focus:bg-white dark:focus:bg-gray-900 focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
                                    placeholder="Nachricht eingeben..." autofocus></textarea>
                                    
                             <button type="button" wire:click="createTaskFromChat" title="Als neue Aufgabe auf dem Board ablegen" class="absolute left-10 top-1/2 -translate-y-1/2 h-8 w-10 z-10 bg-emerald-500/10 border border-emerald-500/30 rounded-md hover:bg-emerald-500/20 text-emerald-500 flex justify-center items-center transition-all cursor-pointer">

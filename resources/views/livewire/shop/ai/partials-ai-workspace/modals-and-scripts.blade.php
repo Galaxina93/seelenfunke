@@ -146,7 +146,7 @@
                  x-transition:leave-start="opacity-100"
                  x-transition:leave-end="opacity-0">
                 
-                <div class="relative w-[95vw] h-[95vh] lg:w-[90vw] lg:h-[90vh] bg-gray-950 border border-emerald-500/30 rounded-3xl overflow-auto custom-scrollbar shadow-2xl flex flex-col" 
+                <div class="relative w-[95vw] h-[95vh] lg:w-[90vw] lg:h-[90vh] bg-white dark:bg-gray-950 border border-gray-200 dark:border-emerald-500/30 rounded-3xl overflow-auto custom-scrollbar shadow-2xl flex flex-col" 
                      x-transition:enter="ease-out duration-300 transform"
                      x-transition:enter-start="opacity-0 translate-y-8 scale-95"
                      x-transition:enter-end="opacity-100 translate-y-0 scale-100"
@@ -155,7 +155,7 @@
                      x-transition:leave-end="opacity-0 translate-y-8 scale-95"
                      @click.away="showRoleManager = false">
                     
-                    <button @click="showRoleManager = false" class="absolute top-4 right-4 z-50 text-gray-400 hover:text-white p-2 bg-gray-900/50 rounded-full border border-gray-700/50 hover:bg-gray-800 transition-colors">
+                    <button @click="showRoleManager = false" class="absolute top-4 right-4 z-50 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-900/50 dark:hover:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700/50 transition-colors">
                         <x-heroicon-o-x-mark class="w-6 h-6" />
                     </button>
                     
@@ -184,7 +184,7 @@
                  x-transition:leave-start="opacity-100"
                  x-transition:leave-end="opacity-0">
                 
-                <div class="relative w-[95vw] h-[95vh] lg:w-[90vw] lg:h-[90vh] bg-[#050505] border border-gray-800 rounded-3xl overflow-auto custom-scrollbar shadow-[0_0_50px_rgba(0,0,0,1)] flex flex-col pt-10" 
+                <div class="relative w-[95vw] h-[95vh] lg:w-[90vw] lg:h-[90vh] bg-white dark:bg-[#050505] border border-gray-200 dark:border-gray-800 rounded-3xl overflow-auto custom-scrollbar shadow-2xl dark:shadow-[0_0_50px_rgba(0,0,0,1)] flex flex-col pt-10" 
                      x-transition:enter="ease-out duration-300 transform"
                      x-transition:enter-start="opacity-0 translate-y-8 scale-95"
                      x-transition:enter-end="opacity-100 translate-y-0 scale-100"
@@ -193,7 +193,7 @@
                      x-transition:leave-end="opacity-0 translate-y-8 scale-95"
                      @click.away="if(!document.querySelector('.ck-body-wrapper')) showAgentManager = false">
                     
-                    <button @click="showAgentManager = false" class="absolute top-4 right-4 z-50 text-gray-400 hover:text-white p-2 bg-gray-900/50 rounded-full border border-gray-700/50 hover:bg-gray-800 transition-colors">
+                    <button @click="showAgentManager = false" class="absolute top-4 right-4 z-50 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-900/50 dark:hover:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700/50 transition-colors">
                         <x-heroicon-o-x-mark class="w-6 h-6" />
                     </button>
                     

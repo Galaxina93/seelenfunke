@@ -33,7 +33,8 @@
                                 labels: {
                                     boxWidth: 12,
                                     font: { size: 11, family: 'sans-serif' },
-                                    padding: 20
+                                    padding: 20,
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#4b5563'
                                 }
                             }
                         },

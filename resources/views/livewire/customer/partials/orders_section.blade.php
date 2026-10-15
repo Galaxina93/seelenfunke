@@ -429,13 +429,13 @@
                     </div>
                 </div>
             @empty
-                <div class="bg-gray-900 rounded-[3rem] shadow-2xl border border-gray-800 p-20 text-center animate-fade-in-up">
-                    <div class="w-32 h-32 bg-gray-950 rounded-full flex items-center justify-center mx-auto mb-8 text-gray-700 border border-gray-800 shadow-inner">
-                        <svg class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                <div class="bg-white dark:bg-gray-900 rounded-[3rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-20 text-center animate-fade-in-up">
+                    <div class="w-32 h-32 bg-gray-100 dark:bg-gray-950 rounded-full flex items-center justify-center mx-auto mb-8 text-gray-400 dark:text-gray-700 border border-gray-200 dark:border-gray-800 shadow-inner">
+                        <svg class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2-2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     </div>
-                    <h2 class="text-3xl font-serif font-bold text-white mb-4">Noch keine Bestellungen</h2>
-                    <p class="text-gray-400 text-lg mb-10 max-w-lg mx-auto">Die Chronik deiner Seelenstücke ist noch leer. Zeit, die Manufaktur zu erkunden.</p>
-                    <a href="{{ route('shop') }}" class="inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary-dark text-gray-900 px-10 py-5 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_30px_rgba(197,160,89,0.4)] hover:scale-105 transition-all">
+                    <h2 class="text-3xl font-serif font-bold text-gray-900 dark:text-white mb-4">Noch keine Bestellungen</h2>
+                    <p class="text-gray-500 dark:text-gray-400 text-lg mb-10 max-w-lg mx-auto">Die Chronik deiner Seelenstücke ist noch leer. Zeit, die Manufaktur zu erkunden.</p>
+                    <a href="{{ route('shop') }}" class="inline-flex items-center gap-3 bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light text-gray-900 border border-primary/40 px-10 py-5 rounded-2xl font-black uppercase tracking-widest shadow-sm dark:shadow-[0_0_30px_rgba(197,160,89,0.4)] hover:scale-105 transition-all">
                         Zum Shop
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                     </a>

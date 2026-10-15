@@ -1,4 +1,4 @@
-<div x-data="{ expanded: false }" class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative shadow-[0_0_20px_rgba(0,0,0,0.3)] mb-8">
+<div x-data="{ expanded: false }" class="bg-white/90 dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative dark:shadow-[0_0_20px_rgba(0,0,0,0.3)] mb-8">
 
     <div wire:init="loadStorageDetails" class="relative z-10 flex flex-col gap-6">
 
@@ -7,27 +7,27 @@
 
             <!-- Left: Headline & Tooltip -->
             <div class="flex items-center gap-3">
-                <h2 class="text-xl sm:text-2xl font-black text-white uppercase tracking-wider font-mono flex items-center gap-3">
-                    <i class="bi bi-hdd-network text-gray-400"></i>
+                <h2 class="text-xl sm:text-2xl font-black text-gray-900 dark:text-white uppercase tracking-wider font-mono flex items-center gap-3">
+                    <i class="bi bi-hdd-network text-gray-500 dark:text-gray-400"></i>
                     Speicher-Last
                 </h2>
                 <!-- Tooltip replacing subtext -->
                 <div class="group relative flex items-center cursor-help">
-                    <i class="bi bi-info-circle text-gray-500 hover:text-cyan-400 transition-colors text-sm sm:text-lg hidden md:block"></i>
-                    <div class="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 w-64 bg-gray-900 border border-gray-700 p-3 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all text-gray-300 font-mono text-[10px] sm:text-xs">
+                    <i class="bi bi-info-circle text-gray-400 dark:text-gray-500 hover:text-cyan-500 dark:hover:text-cyan-400 transition-colors text-sm sm:text-lg hidden md:block"></i>
+                    <div class="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-50 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all text-gray-700 dark:text-gray-300 font-mono text-[10px] sm:text-xs">
                         Überwacht die Auslastung der physischen Server-Festplatte. Bei 100% drohen fatale Systemausfälle. Schwellenwerte dienen als Warnsystem.
                     </div>
                 </div>
                 
                 <!-- Display overall Space in Title -->
-                <div class="hidden sm:flex ml-4 rounded-full border border-gray-800 bg-gray-900/50 px-3 py-1 font-mono text-[10px] font-bold tracking-widest text-gray-400">
+                <div class="hidden sm:flex ml-4 rounded-full border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-900/50 px-3 py-1 font-mono text-[10px] font-bold tracking-widest text-gray-600 dark:text-gray-400">
                     {{ $usedSpaceGb }} GB / {{ $totalSpaceGb }} GB belegt
                 </div>
             </div>
 
             <!-- Middle/Right: Expander -->
             <div class="flex w-full md:w-auto items-center justify-between md:justify-end gap-3 sm:gap-4">
-                <button @click="expanded = !expanded" class="flex items-center gap-2 bg-gray-900/80 hover:bg-gray-800 border border-gray-700 focus:outline-none focus:ring opacity-90 hover:opacity-100 transition duration-300 rounded-xl px-3 sm:px-4 py-2 shadow-inner text-gray-400 hover:text-white group">
+                <button @click="expanded = !expanded" class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-900/80 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring opacity-90 hover:opacity-100 transition duration-300 rounded-xl px-3 sm:px-4 py-2 shadow-sm dark:shadow-inner text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white group">
                     <span class="text-[10px] sm:text-xs font-mono font-bold uppercase tracking-wider" x-text="expanded ? 'Schließen' : 'Details'"></span>
                     <i class="bi transform transition-transform duration-300 group-hover:scale-110" :class="expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
                 </button>
@@ -104,15 +104,15 @@
                 }">
 
             <!-- Balken-Container -->
-            <div x-ref="track" class="w-full h-8 bg-black/60 rounded-full border border-gray-800 shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative overflow-visible select-none">
+            <div x-ref="track" class="w-full h-8 bg-gray-200 dark:bg-black/60 rounded-full border border-gray-300 dark:border-gray-800 dark:shadow-inner dark:shadow-[inset_0_2px_15px_rgba(0,0,0,0.8)] relative overflow-visible select-none">
 
                 <!-- Der Füllbalken -->
                 <div class="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-2 overflow-hidden
-                    {{ $level === 0 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.6)]' : '' }}
-                    {{ $level === 1 ? 'bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.6)]' : '' }}
-                    {{ $level === 2 ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-pulse' : '' }}
-                    {{ $level === 3 ? 'bg-gradient-to-r from-orange-600 via-red-600 to-red-800 shadow-[0_0_30px_rgba(220,38,38,0.8)] animate-pulse' : '' }}
-                    {{ $level === 4 ? 'bg-gradient-to-r from-red-600 via-red-800 to-red-950 shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse' : '' }}"
+                    {{ $level === 0 ? 'bg-gradient-to-r from-emerald-600 to-emerald-400 dark:shadow-[0_0_20px_rgba(16,185,129,0.6)]' : '' }}
+                    {{ $level === 1 ? 'bg-gradient-to-r from-emerald-500 via-amber-400 to-amber-500 dark:shadow-[0_0_20px_rgba(245,158,11,0.6)]' : '' }}
+                    {{ $level === 2 ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 dark:shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-pulse' : '' }}
+                    {{ $level === 3 ? 'bg-gradient-to-r from-orange-600 via-red-600 to-red-800 dark:shadow-[0_0_30px_rgba(220,38,38,0.8)] animate-pulse' : '' }}
+                    {{ $level === 4 ? 'bg-gradient-to-r from-red-600 via-red-800 to-red-950 dark:shadow-[0_0_40px_rgba(220,38,38,0.8)] animate-pulse' : '' }}"
                     style="width: {{ min($percentage, 100) }}%;">
 
                     <!-- Glanz-Effekt im Balken -->
@@ -126,7 +126,7 @@
 
                 <!-- T1: Warnung 1 -->
                 <div class="absolute w-6 sm:w-5 h-20 sm:h-16 -top-6 sm:-top-4 -ml-3 sm:-ml-2.5 flex justify-center z-20 cursor-ew-resize group" :style="`left: ${t1}%;`" @mousedown="startDrag($event, 't1')" @touchstart.passive="startDrag($event, 't1')">
-                    <div class="w-1.5 sm:w-1.5 h-full bg-amber-500/80 rounded shadow-[0_0_10px_rgba(245,158,11,0.5)] group-hover:bg-amber-400 transition-colors"></div>
+                    <div class="w-1.5 sm:w-1.5 h-full bg-amber-500/80 rounded dark:shadow-[0_0_10px_rgba(245,158,11,0.5)] group-hover:bg-amber-400 transition-colors"></div>
                     <div class="absolute -top-6 sm:-top-8 text-[9px] sm:text-[10px] font-bold text-amber-500 font-mono text-center whitespace-nowrap pointer-events-none">
                         <span x-text="t1"></span>%<br><span class="text-[7px] sm:text-[8px] uppercase tracking-wider text-amber-600/70">WARNUNG 1</span>
                     </div>
@@ -134,7 +134,7 @@
 
                 <!-- T2: Warnung 2 -->
                 <div class="absolute w-6 sm:w-5 h-20 sm:h-16 -top-6 sm:-top-4 -ml-3 sm:-ml-2.5 flex justify-center z-20 cursor-ew-resize group" :style="`left: ${t2}%;`" @mousedown="startDrag($event, 't2')" @touchstart.passive="startDrag($event, 't2')">
-                    <div class="w-1.5 sm:w-1.5 h-full bg-orange-500/90 rounded shadow-[0_0_10px_rgba(249,115,22,0.8)] group-hover:bg-orange-400 transition-colors"></div>
+                    <div class="w-1.5 sm:w-1.5 h-full bg-orange-500/90 rounded dark:shadow-[0_0_10px_rgba(249,115,22,0.8)] group-hover:bg-orange-400 transition-colors"></div>
                     <div class="absolute -top-6 sm:-top-8 text-[9px] sm:text-[10px] font-bold text-orange-500 font-mono text-center whitespace-nowrap pointer-events-none">
                         <span x-text="t2"></span>%<br><span class="text-[7px] sm:text-[8px] uppercase tracking-wider text-orange-600/70">WARNUNG 2</span>
                     </div>
@@ -142,7 +142,7 @@
 
                 <!-- T3: Kritisch -->
                 <div class="absolute w-6 sm:w-5 h-20 sm:h-16 -top-6 sm:-top-4 -ml-3 sm:-ml-2.5 flex justify-center z-20 cursor-ew-resize group" :style="`left: ${t3}%;`" @mousedown="startDrag($event, 't3')" @touchstart.passive="startDrag($event, 't3')">
-                    <div class="w-1.5 sm:w-1.5 h-full bg-rose-500/90 rounded shadow-[0_0_10px_rgba(225,29,72,0.8)] group-hover:bg-rose-400 transition-colors"></div>
+                    <div class="w-1.5 sm:w-1.5 h-full bg-rose-500/90 rounded dark:shadow-[0_0_10px_rgba(225,29,72,0.8)] group-hover:bg-rose-400 transition-colors"></div>
                     <div class="absolute -top-6 sm:-top-8 text-[9px] sm:text-[10px] font-bold text-rose-500 font-mono text-center whitespace-nowrap pointer-events-none">
                         <span x-text="t3"></span>%<br><span class="text-[7px] sm:text-[8px] uppercase tracking-wider text-rose-600/70">KRITISCH</span>
                     </div>
@@ -150,8 +150,8 @@
 
                 <!-- 100% Festplatte Voll (Fix) -->
                 <div class="absolute w-5 h-20 sm:h-18 -top-6 sm:-top-4 right-0 flex justify-end z-20 group">
-                    <div class="w-1.5 h-full bg-red-600 rounded pointer-events-none shadow-[0_0_15px_rgba(220,38,38,1)]"></div>
-                    <div class="absolute -top-6 sm:-top-10 right-0 text-[10px] sm:text-[12px] font-black text-red-500 font-mono text-right whitespace-nowrap drop-shadow-lg pr-2 pointer-events-none">
+                    <div class="w-1.5 h-full bg-red-600 rounded pointer-events-none dark:shadow-[0_0_15px_rgba(220,38,38,1)]"></div>
+                    <div class="absolute -top-6 sm:-top-10 right-0 text-[10px] sm:text-[12px] font-black text-red-500 font-mono text-right whitespace-nowrap dark:drop-shadow-lg pr-2 pointer-events-none">
                         100%<br><span class="text-[7px] sm:text-[9px] uppercase tracking-wider text-red-400/90">DISK FULL</span>
                     </div>
                 </div>
@@ -160,9 +160,9 @@
 
             <!-- Float-Indikator des aktuellen State über dem Balken -->
             <div class="absolute z-30 transition-all duration-1000 ease-out pointer-events-none" style="left: calc({{ min($percentage, 100) }}% - 15px); top: -24px;">
-                <div class="relative bg-white text-black font-black font-mono text-xs sm:text-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded shadow-lg border-2 border-white {{ $level >= 2 ? 'animate-bounce' : '' }}">
+                <div class="relative bg-gray-900 dark:bg-white text-white dark:text-black font-black font-mono text-xs sm:text-sm px-1.5 sm:px-2 py-0.5 sm:py-1 rounded shadow-sm dark:shadow-lg border-2 border-gray-900 dark:border-white {{ $level >= 2 ? 'animate-bounce' : '' }}">
                     {{ $percentage }}%
-                    <div class="absolute w-1.5 sm:w-2 h-1.5 sm:h-2 bg-white rotate-45 -bottom-1 left-1/2 -translate-x-1/2 rounded-[1px]"></div>
+                    <div class="absolute w-1.5 sm:w-2 h-1.5 sm:h-2 bg-gray-900 dark:bg-white rotate-45 -bottom-1 left-1/2 -translate-x-1/2 rounded-[1px]"></div>
                 </div>
             </div>
         </div>
@@ -170,9 +170,9 @@
         <!-- MINI LOG (IMMER SICHTBAR, UNTER DEM BALKEN) -->
         <div x-show="!expanded" class="px-1 md:px-6 transition-opacity duration-300">
             @if(count($actionLog) > 0)
-                <div class="text-[9px] sm:text-[10px] font-mono text-gray-500 flex gap-2 sm:gap-3 items-center truncate">
-                    <span class="text-[8px] bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded border border-gray-700 uppercase shrink-0">Letztes Event</span>
-                    <span class="text-gray-400 truncate">
+                <div class="text-[9px] sm:text-[10px] font-mono text-gray-500 dark:text-gray-400 flex gap-2 sm:gap-3 items-center truncate">
+                    <span class="text-[8px] bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 uppercase shrink-0">Letztes Event</span>
+                    <span class="text-gray-700 dark:text-gray-400 truncate">
                         >_ {{ $actionLog[count($actionLog)-1]['msg'] }}
                     </span>
                 </div>
@@ -180,51 +180,51 @@
         </div>
 
         <!-- EXPANDED VIEW -->
-        <div x-show="expanded" x-collapse.duration.400ms class="pt-6 sm:pt-8 border-t border-gray-800/60 mt-1">
+        <div x-show="expanded" x-collapse.duration.400ms class="pt-6 sm:pt-8 border-t border-gray-200 dark:border-gray-800/60 mt-1">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                 <!-- One-Click-Cleaner Panel -->
                 <div class="col-span-1 flex flex-col gap-5">
-                    <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 sm:p-5 shadow-inner h-full flex flex-col">
-                        <div class="text-[10px] text-gray-400 uppercase font-black tracking-widest mb-4 border-b border-gray-800/80 pb-3 flex items-center justify-between">
+                    <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 shadow-sm dark:shadow-inner h-full flex flex-col">
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-black tracking-widest mb-4 border-b border-gray-200 dark:border-gray-800/80 pb-3 flex items-center justify-between">
                             System-Reinigung
                             <i class="bi bi-magic text-emerald-500"></i>
                         </div>
                         <div class="flex-1 flex flex-col gap-3 justify-center">
                             
-                            <button wire:click="clearLaravelLogs" wire:loading.attr="disabled" title="Pfad: storage/logs/ - Leert sämtliche laravel.log Dateien, in denen sich Fehler oder Zugriffe stauen." class="w-full flex items-center justify-between bg-black border border-gray-800 hover:border-emerald-500/50 hover:bg-gray-800 transition-colors p-3 rounded-xl group relative overflow-hidden">
+                            <button wire:click="clearLaravelLogs" wire:loading.attr="disabled" title="Pfad: storage/logs/ - Leert sämtliche laravel.log Dateien, in denen sich Fehler oder Zugriffe stauen." class="w-full flex items-center justify-between bg-white dark:bg-black border border-gray-200 dark:border-gray-800 hover:border-emerald-500/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors p-3 rounded-xl group relative overflow-hidden shadow-sm">
                                 <div class="absolute inset-0 bg-emerald-500/5 translate-y-full group-hover:translate-y-0 transition-transform"></div>
                                 <div class="flex items-center gap-3 relative z-10">
                                     <i class="bi bi-journal-x text-emerald-500 text-lg"></i>
-                                    <span class="text-xs font-mono font-bold text-gray-300 group-hover:text-white transition-colors">Laravel Logs leeren</span>
+                                    <span class="text-xs font-mono font-bold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">Laravel Logs leeren</span>
                                 </div>
                                 <div class="flex items-center gap-2 relative z-10">
-                                    <i class="bi bi-info-circle text-gray-500 hover:text-emerald-400 cursor-help transition-colors"></i>
-                                    <i class="bi bi-chevron-right text-gray-600 transition-transform group-hover:translate-x-1"></i>
+                                    <i class="bi bi-info-circle text-gray-400 dark:text-gray-500 hover:text-emerald-500 dark:hover:text-emerald-400 cursor-help transition-colors"></i>
+                                    <i class="bi bi-chevron-right text-gray-400 dark:text-gray-600 transition-transform group-hover:translate-x-1"></i>
                                 </div>
                             </button>
 
-                            <button wire:click="clearFrameworkCache" wire:loading.attr="disabled" title="Pfad: storage/framework/views & /cache - Erzwingt das Neuerstellen der kompilierten Blade-Sichten ohne die User-Sessions zu zerstören." class="w-full flex items-center justify-between bg-black border border-gray-800 hover:border-cyan-500/50 hover:bg-gray-800 transition-colors p-3 rounded-xl group relative overflow-hidden">
+                            <button wire:click="clearFrameworkCache" wire:loading.attr="disabled" title="Pfad: storage/framework/views & /cache - Erzwingt das Neuerstellen der kompilierten Blade-Sichten ohne die User-Sessions zu zerstören." class="w-full flex items-center justify-between bg-white dark:bg-black border border-gray-200 dark:border-gray-800 hover:border-cyan-500/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors p-3 rounded-xl group relative overflow-hidden shadow-sm">
                                 <div class="absolute inset-0 bg-cyan-500/5 translate-y-full group-hover:translate-y-0 transition-transform"></div>
                                 <div class="flex items-center gap-3 relative z-10">
                                     <i class="bi bi-cpu text-cyan-500 text-lg"></i>
-                                    <span class="text-xs font-mono font-bold text-gray-300 group-hover:text-white transition-colors">Views/Cache purgen</span>
+                                    <span class="text-xs font-mono font-bold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">Views/Cache purgen</span>
                                 </div>
                                 <div class="flex items-center gap-2 relative z-10">
-                                    <i class="bi bi-info-circle text-gray-500 hover:text-cyan-400 cursor-help transition-colors"></i>
-                                    <i class="bi bi-chevron-right text-gray-600 transition-transform group-hover:translate-x-1"></i>
+                                    <i class="bi bi-info-circle text-gray-400 dark:text-gray-500 hover:text-cyan-500 dark:hover:text-cyan-400 cursor-help transition-colors"></i>
+                                    <i class="bi bi-chevron-right text-gray-400 dark:text-gray-600 transition-transform group-hover:translate-x-1"></i>
                                 </div>
                             </button>
 
-                            <button wire:click="clearTempDirectory" wire:loading.attr="disabled" title="Pfad: storage/app/tmp & livewire-tmp - Löscht sämtliche Rest-Dateien von abgebrochenen Uploads oder Zwischenprozessen." class="w-full flex items-center justify-between bg-black border border-gray-800 hover:border-amber-500/50 hover:bg-gray-800 transition-colors p-3 rounded-xl group relative overflow-hidden">
+                            <button wire:click="clearTempDirectory" wire:loading.attr="disabled" title="Pfad: storage/app/tmp & livewire-tmp - Löscht sämtliche Rest-Dateien von abgebrochenen Uploads oder Zwischenprozessen." class="w-full flex items-center justify-between bg-white dark:bg-black border border-gray-200 dark:border-gray-800 hover:border-amber-500/50 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors p-3 rounded-xl group relative overflow-hidden shadow-sm">
                                 <div class="absolute inset-0 bg-amber-500/5 translate-y-full group-hover:translate-y-0 transition-transform"></div>
                                 <div class="flex items-center gap-3 relative z-10">
                                     <i class="bi bi-trash2 text-amber-500 text-lg"></i>
-                                    <span class="text-xs font-mono font-bold text-gray-300 group-hover:text-white transition-colors">Temp-Ordner leeren</span>
+                                    <span class="text-xs font-mono font-bold text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">Temp-Ordner leeren</span>
                                 </div>
                                 <div class="flex items-center gap-2 relative z-10">
-                                    <i class="bi bi-info-circle text-gray-500 hover:text-amber-400 cursor-help transition-colors"></i>
-                                    <i class="bi bi-chevron-right text-gray-600 transition-transform group-hover:translate-x-1"></i>
+                                    <i class="bi bi-info-circle text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 cursor-help transition-colors"></i>
+                                    <i class="bi bi-chevron-right text-gray-400 dark:text-gray-600 transition-transform group-hover:translate-x-1"></i>
                                 </div>
                             </button>
 
@@ -237,34 +237,34 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         
                         <!-- Ordnerstruktur Tabelle -->
-                        <div class="bg-gray-900/80 border border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 shadow-inner relative">
-                            <div class="flex justify-between items-center mb-3 border-b border-gray-800/80 pb-2">
-                                <div class="text-[10px] text-gray-400 uppercase font-black tracking-widest flex items-center gap-2">
-                                    <i class="bi bi-folder2-open text-gray-500"></i> storage/ Ordner
+                        <div class="bg-gray-50 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 shadow-sm dark:shadow-inner relative">
+                            <div class="flex justify-between items-center mb-3 border-b border-gray-200 dark:border-gray-800/80 pb-2">
+                                <div class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-black tracking-widest flex items-center gap-2">
+                                    <i class="bi bi-folder2-open text-gray-400 dark:text-gray-500"></i> storage/ Ordner
                                 </div>
                                 <div class="text-[10px] font-mono text-gray-500">
-                                    Gesamt: <span class="text-white">{{ $totalStorageAppGb }} GB</span>
+                                    Gesamt: <span class="text-gray-900 dark:text-white font-bold">{{ $totalStorageAppGb }} GB</span>
                                 </div>
                             </div>
                             
-                            <div wire:loading wire:target="loadStorageDetails" class="absolute inset-0 z-20 bg-gray-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                            <div wire:loading wire:target="loadStorageDetails" class="absolute inset-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center">
                                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
                             </div>
 
                             <div class="space-y-1 mt-3">
                                 @forelse($folderSizes as $folder)
-                                    <div class="flex justify-between items-center bg-black/40 rounded p-1.5 px-3 border border-gray-800/50">
-                                        <div class="text-xs font-mono text-gray-300"><i class="bi bi-folder me-2 text-emerald-600/70"></i>{{ $folder['name'] }}</div>
-                                        <div class="text-[10px] font-mono font-bold {{ $folder['size_mb'] > 1000 ? 'text-red-400' : 'text-gray-400' }}">{{ $folder['size_mb'] }} MB</div>
+                                    <div class="flex justify-between items-center bg-white dark:bg-black/40 rounded p-1.5 px-3 border border-gray-200 dark:border-gray-800/50">
+                                        <div class="text-xs font-mono text-gray-700 dark:text-gray-300"><i class="bi bi-folder me-2 text-emerald-600/70"></i>{{ $folder['name'] }}</div>
+                                        <div class="text-[10px] font-mono font-bold {{ $folder['size_mb'] > 1000 ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-gray-400' }}">{{ $folder['size_mb'] }} MB</div>
                                     </div>
                                 @empty
-                                    <div class="text-[10px] text-gray-500 font-mono text-center py-4">Lade Ordner...</div>
+                                    <div class="text-[10px] text-gray-400 dark:text-gray-500 font-mono text-center py-4">Lade Ordner...</div>
                                 @endforelse
                             </div>
                         </div>
 
                         <!-- Action Log Terminal -->
-                        <div class="flex-1 bg-[#0a0a0c] rounded-2xl border border-gray-800/80 relative overflow-hidden flex flex-col shadow-inner">
+                        <div class="flex-1 bg-gray-950 dark:bg-[#0a0a0c] rounded-2xl border border-gray-800/80 relative overflow-hidden flex flex-col shadow-inner">
                             <div class="absolute top-0 inset-x-0 h-7 sm:h-8 bg-gray-900 border-b border-gray-800/80 flex items-center px-3 gap-2">
                                 <div class="w-2.5 h-2.5 rounded-full bg-red-500/50"></div>
                                 <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
@@ -275,17 +275,17 @@
                                 @forelse($actionLog as $log)
                                     <div class="flex items-start gap-3 font-mono text-[10px] sm:text-xs">
                                         <div class="mt-0.5 shrink-0">
-                                            @if($log['type'] === 'success') <i class="bi bi-check-circle-fill text-emerald-500"></i> @endif
-                                            @if($log['type'] === 'warning') <i class="bi bi-exclamation-triangle-fill text-amber-500"></i> @endif
-                                            @if($log['type'] === 'danger') <i class="bi bi-exclamation-octagon-fill text-orange-500 pulse"></i> @endif
-                                            @if($log['type'] === 'critical') <i class="bi bi-shield-fill-x text-red-500 pulse"></i> @endif
+                                             @if($log['type'] === 'success') <i class="bi bi-check-circle-fill text-emerald-500"></i> @endif
+                                             @if($log['type'] === 'warning') <i class="bi bi-exclamation-triangle-fill text-amber-500"></i> @endif
+                                             @if($log['type'] === 'danger') <i class="bi bi-exclamation-octagon-fill text-orange-500 pulse"></i> @endif
+                                             @if($log['type'] === 'critical') <i class="bi bi-shield-fill-x text-red-500 pulse"></i> @endif
                                         </div>
-                                        <span class="{{ $log['type'] === 'success' ? 'text-emerald-300' : '' }} {{ $log['type'] === 'warning' ? 'text-amber-300' : '' }} {{ $log['type'] === 'danger' ? 'text-orange-300 font-bold' : '' }} {{ $log['type'] === 'critical' ? 'text-red-400 font-black tracking-wide' : '' }}">
+                                        <span class="{{ $log['type'] === 'success' ? 'text-emerald-400' : '' }} {{ $log['type'] === 'warning' ? 'text-amber-400' : '' }} {{ $log['type'] === 'danger' ? 'text-orange-400 font-bold' : '' }} {{ $log['type'] === 'critical' ? 'text-red-400 font-black tracking-wide' : '' }}">
                                             >_ {{ $log['msg'] }}
                                         </span>
                                     </div>
                                 @empty
-                                    <div class="text-gray-600 text-[10px] font-mono">>_ Keine Aufzeichnungen ...</div>
+                                    <div class="text-gray-500 text-[10px] font-mono">>_ Keine Aufzeichnungen ...</div>
                                 @endforelse
                             </div>
                         </div>
@@ -293,19 +293,19 @@
                     </div>
 
                     <!-- Größte Dateien Details -->
-                    <div class="bg-gray-900/50 border border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 shadow-inner relative">
-                        <div class="text-[10px] text-gray-400 uppercase font-black tracking-widest flex items-center gap-2 mb-3 border-b border-gray-800/80 pb-2">
-                            <i class="bi bi-file-earmark-bar-graph text-gray-500"></i> Die 10 größten Dateien
+                    <div class="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 flex-1 shadow-sm dark:shadow-inner relative">
+                        <div class="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-black tracking-widest flex items-center gap-2 mb-3 border-b border-gray-200 dark:border-gray-800/80 pb-2">
+                            <i class="bi bi-file-earmark-bar-graph text-gray-400 dark:text-gray-500"></i> Die 10 größten Dateien
                         </div>
                         
-                        <div wire:loading wire:target="loadStorageDetails" class="absolute inset-0 z-20 bg-gray-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                        <div wire:loading wire:target="loadStorageDetails" class="absolute inset-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl flex items-center justify-center">
                             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
                         </div>
 
                         <div class="overflow-x-auto w-full">
                             <table class="w-full text-left border-collapse">
                                 <thead>
-                                    <tr class="text-[9px] uppercase tracking-widest text-gray-500 border-b border-gray-800/80">
+                                    <tr class="text-[9px] uppercase tracking-widest text-gray-500 border-b border-gray-200 dark:border-gray-800/80">
                                         <th class="pb-2 font-medium">Dateipfad</th>
                                         <th class="pb-2 font-medium text-right">Größe (MB)</th>
                                         <th class="pb-2 font-medium text-right hidden sm:table-cell">Letzte Änd.</th>
@@ -313,11 +313,11 @@
                                 </thead>
                                 <tbody>
                                     @foreach($largestFiles as $f)
-                                        <tr class="border-b border-gray-800/40 last:border-0 hover:bg-black/20 transition-colors">
-                                            <td class="py-2 text-[10px] sm:text-xs font-mono text-gray-300 truncate max-w-[150px] sm:max-w-[300px]">
+                                        <tr class="border-b border-gray-200/60 dark:border-gray-800/40 last:border-0 hover:bg-gray-100/50 dark:hover:bg-black/20 transition-colors">
+                                            <td class="py-2 text-[10px] sm:text-xs font-mono text-gray-800 dark:text-gray-300 truncate max-w-[150px] sm:max-w-[300px]">
                                                 {{ $f['path'] }}
                                             </td>
-                                            <td class="py-2 text-[10px] sm:text-xs font-mono {{ $f['size_mb'] > 50 ? 'text-red-400 font-bold' : 'text-gray-400' }} text-right">
+                                            <td class="py-2 text-[10px] sm:text-xs font-mono {{ $f['size_mb'] > 50 ? 'text-red-500 dark:text-red-400 font-bold' : 'text-gray-600 dark:text-gray-400' }} text-right">
                                                 {{ $f['size_mb'] }}
                                             </td>
                                             <td class="py-2 text-[10px] font-mono text-gray-500 text-right hidden sm:table-cell">
@@ -326,7 +326,7 @@
                                         </tr>
                                     @endforeach
                                     @if(count($largestFiles) === 0)
-                                        <tr><td colspan="3" class="text-center text-[10px] text-gray-600 py-3 font-mono">Keine Daten geladen...</td></tr>
+                                        <tr><td colspan="3" class="text-center text-[10px] text-gray-400 dark:text-gray-600 py-3 font-mono">Keine Daten geladen...</td></tr>
                                     @endif
                                 </tbody>
                             </table>

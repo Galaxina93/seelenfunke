@@ -1,4 +1,4 @@
-<div class="w-full lg:w-1/2 h-auto lg:h-full lg:overflow-y-auto bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-800">
+<div class="w-full lg:w-1/2 h-auto lg:h-full lg:overflow-y-auto bg-gray-50/50 dark:bg-gray-950/30 custom-scrollbar z-10 lg:border-r border-gray-200 dark:border-gray-800">
     <div class="p-6 md:p-8 space-y-8">
 
         {{-- 1. EXPRESS ALERT --}}
@@ -9,13 +9,13 @@
                         <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     </div>
                     <div>
-                        <h3 class="text-red-400 font-black uppercase tracking-widest text-xs drop-shadow-[0_0_8px_currentColor]">Express Auftrag</h3>
+                        <h3 class="text-red-400 font-black uppercase tracking-widest text-xs drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Express Auftrag</h3>
                         @if($model->deadline)
-                            <p class="text-white text-sm font-bold mt-1 tracking-wide">
+                            <p class="text-gray-900 dark:text-white text-sm font-bold mt-1 tracking-wide">
                                 🏁 Deadline: <span class="text-red-400">{{ \Carbon\Carbon::parse($model->deadline)->format('d.m.Y') }}</span>
                             </p>
                         @else
-                            <p class="text-gray-400 text-[11px] mt-1.5 font-medium leading-relaxed">
+                            <p class="text-gray-600 dark:text-gray-400 text-[11px] mt-1.5 font-medium leading-relaxed">
                                 Bitte vor allen Standard-Aufträgen priorisiert fertigen und versenden. Innerhalb der Express-Aufträge selbst gilt das <strong>First-In, First-Out (FIFO) Prinzip</strong>: Chronologisch nach Bestelleingang abarbeiten.
                             </p>
                         @endif
@@ -27,19 +27,19 @@
         {{-- 2. KUNDENDATEN --}}
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
             {{-- Rechnungsadresse --}}
-            <div class="bg-gray-900/50 backdrop-blur-md p-6 rounded-3xl border border-gray-800 shadow-inner hover:border-[var(--theme-color)]/30 transition-colors">
+            <div class="bg-white dark:bg-gray-900/50 backdrop-blur-md p-6 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-[var(--theme-color)]/30 transition-colors">
                 <h3 class="text-[9px] font-black uppercase text-gray-500 mb-4 tracking-widest flex items-center gap-2">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                     Kunde / Rechnung
                 </h3>
-                <div class="text-sm text-gray-300 leading-relaxed font-medium">
-                    <span class="font-bold text-white text-base block mb-1">{{ $billing['name'] }}</span>
+                <div class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
+                    <span class="font-bold text-gray-900 dark:text-white text-base block mb-1">{{ $billing['name'] }}</span>
                     @if(!empty($billing['company'])) <span class="block text-[var(--theme-color)] mb-1">{{ $billing['company'] }}</span> @endif
                     {{ $billing['address'] }}<br>
                     {{ $billing['city_zip'] }}<br>
                     <span class="uppercase text-[10px] font-black tracking-wider text-gray-500 mt-1 block">{{ $billing['country'] }}</span>
                 </div>
-                <div class="mt-4 pt-4 border-t border-gray-800/50">
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800/50">
                     <a href="mailto:{{ $billing['email'] }}" class="text-xs font-bold text-[var(--theme-color)] hover:text-white transition-colors flex items-center gap-2 group">
                         <svg class="w-4 h-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                         {{ $billing['email'] }}
@@ -50,15 +50,15 @@
             {{-- Lieferadresse (Nur Order) --}}
             @if($isOrder)
                 @php $isDifferent = $shipping && serialize($model->billing_address) !== serialize($model->shipping_address); @endphp
-                <div @class(['p-6 rounded-3xl border transition-colors shadow-inner backdrop-blur-md', $isDifferent ? 'bg-amber-900/10 border-amber-500/30' : 'bg-gray-900/50 border-gray-800'])>
+                <div @class(['p-6 rounded-3xl border transition-colors shadow-sm dark:shadow-inner backdrop-blur-md', $isDifferent ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-500/30' : 'bg-white dark:bg-gray-900/50 border-gray-200 dark:border-gray-800'])>
                     <h3 class="text-[9px] font-black uppercase text-gray-500 mb-4 tracking-widest flex items-center gap-2">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                         Lieferung
                         @if($isDifferent) <span class="ml-auto text-[9px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md font-black uppercase tracking-widest shadow-[0_0_10px_rgba(245,158,11,0.1)]">Abweichend</span> @endif
                     </h3>
-                    <div class="text-sm text-gray-300 leading-relaxed font-medium">
+                    <div class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
                         @if($shipping)
-                            <span class="font-bold text-white block mb-1">{{ $shipping['first_name'] }} {{ $shipping['last_name'] }}</span>
+                            <span class="font-bold text-gray-900 dark:text-white block mb-1">{{ $shipping['first_name'] }} {{ $shipping['last_name'] }}</span>
                             @if(!empty($shipping['company'])) <span class="text-amber-400 block mb-1">{{ $shipping['company'] }}</span> @endif
                             {{ $shipping['address'] }}<br>
                             {{ $shipping['postal_code'] }} {{ $shipping['city'] }}<br>
@@ -76,7 +76,7 @@
 
         {{-- 3. POSITIONEN --}}
         <div>
-            <h3 class="font-serif font-bold text-white text-xl mb-4 flex items-center justify-between tracking-tight">
+            <h3 class="font-serif font-bold text-gray-900 dark:text-white text-xl mb-4 flex items-center justify-between tracking-tight">
                 <span>Bestellpositionen</span>
                 <span class="text-[10px] font-sans font-black uppercase tracking-widest text-[var(--theme-color)] bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] px-3 py-1.5 rounded-full shadow-[0_0_15px_var(--theme-color-15)]">{{ count($model->items) }} Artikel</span>
             </h3>
@@ -89,8 +89,8 @@
                     $progressPct = $totalItems > 0 ? ($completedItems / $totalItems) * 100 : 0;
                 @endphp
                 @if($totalItems > 0)
-                    <div class="mb-5 bg-gray-900/50 rounded-full h-2.5 overflow-hidden border border-gray-800 shadow-inner w-full flex">
-                        <div class="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: {{ $progressPct }}%"></div>
+                    <div class="mb-5 bg-gray-200 dark:bg-gray-900/50 rounded-full h-2.5 overflow-hidden border border-gray-300 dark:border-gray-800 shadow-inner w-full flex">
+                        <div class="bg-emerald-500 h-full transition-all duration-700 ease-out shadow-none dark:shadow-[0_0_10px_rgba(16,185,129,0.5)]" style="width: {{ $progressPct }}%"></div>
                     </div>
                 @endif
             @endif
@@ -102,23 +102,23 @@
                         $productType = $item->product->type ?? 'physical';
                         $isService = $productType === 'service';
                         $isDigital = $productType === 'digital';
-                        $isCompletedClass = 'border-gray-800 bg-gray-900/50 hover:border-gray-600 hover:bg-gray-900 shadow-inner';
+                        $isCompletedClass = 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-900 shadow-sm dark:shadow-inner';
                         if ($isOrder) {
                             $isCompletedClass = $item->is_completed 
-                                ? 'border-emerald-500/50 bg-emerald-950/20 shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:border-emerald-400' 
-                                : 'border-red-500/30 bg-gray-900/50 hover:border-red-400 shadow-inner';
+                                ? 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/20 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:border-emerald-400' 
+                                : 'border-red-200 dark:border-red-500/30 bg-white dark:bg-gray-900/50 hover:border-red-400 shadow-sm dark:shadow-inner';
                         }
                     @endphp
 
                     <div wire:click="selectItemForPreview('{{ $item->id }}')"
                          class="cursor-pointer border border-[2px] rounded-[1.5rem] sm:rounded-[2rem] p-3 sm:p-4 transition-all duration-300 relative overflow-hidden group
                                 {{ $isCompletedClass }}
-                                {{ $selectedItemId == $item->id ? 'ring-2 ring-[var(--theme-color)] ring-offset-2 ring-offset-gray-950' : '' }}"
+                                {{ $selectedItemId == $item->id ? 'ring-2 ring-[var(--theme-color)] ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : '' }}"
                     >
                         @if($isOrder)
                             {{-- Add Checkbox --}}
                             <div class="absolute top-3 sm:top-4 right-3 sm:right-5 z-20" wire:click.stop="toggleItemCompletion('{{ $item->id }}')">
-                                 <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-[2px] sm:border-[2.5px] flex items-center justify-center transition-colors {{ $item->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-900 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'border-gray-500 text-transparent hover:border-[var(--theme-color)] hover:text-[var(--theme-color-50)]' }}">
+                                 <div class="w-5 h-5 sm:w-6 sm:h-6 rounded-full border-[2px] sm:border-[2.5px] flex items-center justify-center transition-colors {{ $item->is_completed ? 'bg-emerald-500 border-emerald-500 text-gray-900 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'border-gray-400 dark:border-gray-500 text-transparent hover:border-[var(--theme-color)] hover:text-[var(--theme-color-50)]' }}">
                                      <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                  </div>
                             </div>
@@ -127,7 +127,7 @@
                         <div class="flex flex-col sm:flex-row gap-3 sm:gap-5">
                             {{-- Bild --}}
                             <div class="flex items-start gap-3 sm:contents">
-                                <div class="h-16 w-16 sm:h-20 sm:w-20 bg-gray-950 rounded-xl sm:rounded-2xl border border-gray-800 overflow-hidden shrink-0 relative shadow-inner">
+                                <div class="h-16 w-16 sm:h-20 sm:w-20 bg-gray-100 dark:bg-gray-950 rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden shrink-0 relative shadow-sm dark:shadow-inner">
                                 @php
                                     $conf = $item->configuration;
                                     $snapshotImg = null;
@@ -156,7 +156,7 @@
 
                             {{-- Mobile Head (Title & Price) when stacked --}}
                             <div class="flex-1 min-w-0 flex flex-col justify-center sm:hidden pr-8">
-                                <h4 class="font-bold text-white text-sm sm:text-base mb-1 line-clamp-2 leading-tight">{{ $item->product_name }}</h4>
+                                <h4 class="font-bold text-gray-900 dark:text-white text-sm sm:text-base mb-1 line-clamp-2 leading-tight">{{ $item->product_name }}</h4>
                                 <div class="flex items-center gap-2">
                                     <span class="font-mono font-bold text-[var(--theme-color)] text-sm whitespace-nowrap">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</span>
                                     <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider">({{ $item->quantity }}x)</span>
@@ -167,7 +167,7 @@
                             {{-- Infos --}}
                             <div class="flex-1 min-w-0 flex flex-col justify-center">
                                 <div class="hidden sm:flex justify-between items-start gap-4">
-                                    <h4 class="font-bold text-white text-base truncate">{{ $item->product_name }}</h4>
+                                    <h4 class="font-bold text-gray-900 dark:text-white text-base truncate">{{ $item->product_name }}</h4>
                                     <span class="font-mono font-bold text-[var(--theme-color)] text-base whitespace-nowrap">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</span>
                                 </div>
                                 <p class="hidden sm:block text-[11px] text-gray-500 font-medium mt-1 uppercase tracking-wider">{{ $item->quantity }}x á {{ number_format($item->unit_price / 100, 2, ',', '.') }} €</p>
@@ -176,7 +176,7 @@
                                 @if(!empty($conf))
                                     <div class="mt-3 flex flex-wrap gap-2">
                                         @if(!empty($conf['text']))
-                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-800 text-gray-400 border border-gray-700 shadow-sm">
+                                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 border border-gray-300 dark:border-gray-700 shadow-sm">
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                                 Text
                                             </span>
@@ -192,10 +192,10 @@
 
                                 {{-- Partial Fulfillment UI --}}
                                 @if($isOrder)
-                                    <div class="mt-4 flex items-center justify-between bg-gray-950/50 p-2 sm:p-2.5 rounded-xl border border-gray-800 shadow-inner w-full xl:w-max gap-2 sm:gap-4" onclick="event.stopPropagation()">
+                                    <div class="mt-4 flex items-center justify-between bg-gray-100/70 dark:bg-gray-950/50 p-2 sm:p-2.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner w-full xl:w-max gap-2 sm:gap-4" onclick="event.stopPropagation()">
                                         <div class="flex items-center gap-2 sm:gap-3 w-full justify-between sm:justify-start">
                                             <button wire:click.prevent="decrementCompletedQuantity('{{ $item->id }}')" 
-                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 border border-transparent transition-colors disabled:opacity-50"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-500/20 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-500/30 border border-gray-200 dark:border-transparent shadow-sm transition-colors disabled:opacity-50"
                                                     @if($item->completed_quantity <= 0) disabled @endif>
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg>
                                             </button>
@@ -212,18 +212,18 @@
                                                 @endif
                                                 <div class="flex items-center gap-1 font-bold text-[9px] text-gray-500 uppercase tracking-widest">
                                                     <span>Erledigt:</span>
-                                                    <span class="text-white">{{ $item->completed_quantity }} / {{ $item->quantity }}</span>
+                                                    <span class="text-gray-900 dark:text-white">{{ $item->completed_quantity }} / {{ $item->quantity }}</span>
                                                 </div>
                                             </div>
 
                                             <button wire:click.prevent="incrementCompletedQuantity('{{ $item->id }}')"
-                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:bg-emerald-500/20 hover:text-emerald-400 hover:border-emerald-500/30 border border-transparent transition-colors disabled:opacity-50"
+                                                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-200 dark:hover:border-emerald-500/30 border border-gray-200 dark:border-transparent shadow-sm transition-colors disabled:opacity-50"
                                                     @if($item->completed_quantity >= $item->quantity) disabled @endif>
                                                 <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
                                             </button>
 
                                             @if($item->quantity > 1)
-                                                <div class="w-px h-5 bg-gray-800 mx-1"></div>
+                                                <div class="w-px h-5 bg-gray-300 dark:bg-gray-800 mx-1"></div>
                                                 <button wire:click.prevent="setAllCompletedQuantity('{{ $item->id }}')"
                                                         class="text-[9px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5 rounded-lg shadow-sm hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
                                                         @if($item->completed_quantity >= $item->quantity) disabled @endif
@@ -252,15 +252,15 @@
         @endphp
 
         @if($isPersonalizable)
-            <div x-data="{ showFiles: false }" class="bg-gray-900/50 rounded-[2rem] shadow-inner border border-gray-800 overflow-hidden transition-all duration-300">
-            <div @click="showFiles = !showFiles" class="bg-gray-950 px-6 py-4 border-b border-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-800 transition-colors">
+            <div x-data="{ showFiles: false }" class="bg-white dark:bg-gray-900/50 rounded-[2rem] shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800 overflow-hidden transition-all duration-300">
+            <div @click="showFiles = !showFiles" class="bg-gray-50 dark:bg-gray-950 px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-3">
-                    <div class="p-1.5 rounded-lg bg-gray-800 text-gray-300 border border-gray-700 shadow-inner">
+                    <div class="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-inner">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     </div>
                     Dateien & Downloads
                 </h3>
-                <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center border border-gray-700 shadow-inner">
+                <div class="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-inner">
                     <svg class="w-4 h-4 text-gray-400 transition-transform duration-300" :class="showFiles ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
@@ -268,7 +268,7 @@
             </div>
 
             <div x-show="showFiles" x-collapse style="display: none;">
-                <div class="p-5 space-y-3 bg-gray-900/30">
+                <div class="p-5 space-y-3 bg-gray-50/50 dark:bg-gray-900/30">
                     @php
                         // Dateien aus der Konfiguration sammeln
                         $files = $previewItem ? ($previewItem->configuration['files'] ?? []) : [];
@@ -333,13 +333,13 @@
                     @endphp
 
                     @forelse($allFiles as $fileObj)
-                        <div class="flex items-center justify-between p-3.5 rounded-2xl border border-gray-800 bg-gray-950 hover:bg-gray-800 hover:border-gray-700 transition-colors group shadow-inner">
+                        <div class="flex items-center justify-between p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors group shadow-sm dark:shadow-inner">
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="h-12 w-12 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
                                     <span class="text-[11px] font-black uppercase tracking-wider">{{ $fileObj['ext'] }}</span>
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="text-sm font-bold text-white truncate">{{ $fileObj['label'] }}</p>
+                                    <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $fileObj['label'] }}</p>
                                     <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5">
                                         Hinterlegt am {{ isset($fileObj['created_at']) ? $fileObj['created_at']->format('d.m.Y') : $model->created_at->format('d.m.Y') }}
                                     </p>
@@ -348,7 +348,7 @@
                             <a href="{{ $fileObj['download_url'] ?? asset('storage/'.$fileObj['path']) }}"
                                @if(empty($fileObj['download_url'])) download="{{ $fileObj['label'] . '.' . $fileObj['ext'] }}" @endif
                                target="_blank"
-                               class="ml-4 p-3 bg-gray-800 text-gray-400 rounded-xl hover:bg-[var(--theme-color)] hover:text-gray-900 hover:shadow-[0_0_15px_var(--theme-color-40)] transition-all"
+                               class="ml-4 p-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl hover:bg-[var(--theme-color)] hover:text-gray-900 shadow-sm dark:shadow-inner transition-all"
                                title="Herunterladen">
                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                             </a>
@@ -371,10 +371,10 @@
             @endphp
 
             @if($hasFront || $hasBack)
-                <div class="bg-gray-950 px-6 py-5 border-t border-gray-800">
+                <div class="bg-gray-50 dark:bg-gray-950 px-6 py-5 border-t border-gray-200 dark:border-gray-800">
                     <div class="flex flex-col gap-3">
                         @if($hasFront)
-                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] hover:shadow-[0_0_20px_var(--theme-color-30)] transition-all duration-300 group focus:outline-none">
+                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none">
                                 <svg class="w-5 h-5 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                                 </svg>
@@ -383,7 +383,7 @@
                         @endif
 
                         @if($hasBack)
-                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-700 shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] hover:shadow-[0_0_20px_var(--theme-color-30)] transition-all duration-300 group focus:outline-none">
+                            <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'back')" class="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none">
                                 <svg class="w-5 h-5 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                                 </svg>
@@ -399,15 +399,15 @@
 
         {{-- 5. BESONDERE KUNDENWÜNSCHE (NEU) --}}
         @if(!empty($previewItem->configuration['notes']))
-            <div class="bg-amber-900/10 rounded-[2rem] shadow-inner border border-amber-500/20 overflow-hidden mb-6">
-                <div class="bg-amber-500/10 px-6 py-4 border-b border-amber-500/20">
-                    <h3 class="text-[10px] font-black text-amber-400 uppercase tracking-widest flex items-center gap-2 drop-shadow-[0_0_8px_currentColor]">
+            <div class="bg-amber-50/50 dark:bg-amber-900/10 rounded-[2rem] shadow-sm dark:shadow-inner border border-amber-200 dark:border-amber-500/20 overflow-hidden mb-6">
+                <div class="bg-amber-100/50 dark:bg-amber-500/10 px-6 py-4 border-b border-amber-200 dark:border-amber-500/20">
+                    <h3 class="text-[10px] font-black text-amber-800 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
                         Besondere Kundenwünsche
                     </h3>
                 </div>
-                <div class="p-6 text-sm text-amber-100/80 leading-relaxed font-medium">
-                    <div class="bg-amber-950/50 rounded-2xl p-5 border border-amber-900 shadow-inner italic">
+                <div class="p-6 text-sm text-amber-900/80 dark:text-amber-100/80 leading-relaxed font-medium">
+                    <div class="bg-white dark:bg-amber-950/50 rounded-2xl p-5 border border-amber-200 dark:border-amber-900 shadow-sm dark:shadow-inner italic">
                         "{!! nl2br(e($previewItem->configuration['notes'])) !!}"
                     </div>
                 </div>
@@ -416,12 +416,12 @@
 
         {{-- 6. COST SUMMARY --}}
         <div>
-            <x-shop.cost-summary :model="$model" design="dark" />
+            <x-shop.cost-summary :model="$model" design="adaptive" />
         </div>
 
         {{-- 7. LÖSCHEN --}}
         @if($isOrder)
-            <div class="pt-8 border-t border-gray-800 flex justify-center">
+            <div class="pt-8 border-t border-gray-200 dark:border-gray-800 flex justify-center">
                 <button wire:click="delete('{{ $model->id }}')" wire:confirm="Wirklich löschen?" class="text-[10px] font-black text-red-500 hover:text-red-400 hover:shadow-[0_0_15px_currentColor] uppercase tracking-widest border border-transparent hover:border-red-500/50 bg-transparent hover:bg-red-500/10 px-4 py-2 rounded-lg transition-all">
                     Bestellung unwiderruflich löschen
                 </button>

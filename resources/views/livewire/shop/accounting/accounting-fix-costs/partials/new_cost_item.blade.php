@@ -1,7 +1,7 @@
 {{-- Toggle Button --}}
 <div class="flex justify-center mt-8">
     @if($showAddItemFormForGroup !== $group->id)
-        <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="bg-gray-900 border border-gray-800 hover:bg-gray-800 hover:border-gray-700 text-gray-400 hover:text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-inner hover:shadow-lg">
+        <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm dark:shadow-inner hover:shadow-md">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Kostenstelle hinzufügen
         </button>
@@ -10,20 +10,20 @@
 
 {{-- Formular --}}
 @if($showAddItemFormForGroup === $group->id && !$editingItemId)
-    <div class="mt-8 space-y-6 sm:space-y-8 bg-gray-950/50 p-6 sm:p-8 rounded-[2rem] border border-gray-800 shadow-inner relative animate-fade-in-down">
+    <div draggable="false" @dragstart.stop.prevent class="mt-8 space-y-6 sm:space-y-8 bg-white dark:bg-gray-950/50 p-6 sm:p-8 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner relative animate-fade-in-down">
 
-        <div class="flex items-center justify-between border-b border-gray-800 pb-5">
+        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-5">
             <span class="text-[10px] uppercase font-black text-[var(--theme-color)] tracking-[0.2em] flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] animate-pulse shadow-[0_0_8px_currentColor]"></span>
                 Neue Kostenstelle
             </span>
-            <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="text-gray-600 hover:text-red-400 transition-colors bg-gray-900 p-1.5 rounded-lg border border-gray-800">
+            <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="text-gray-400 hover:text-red-500 dark:text-gray-600 dark:hover:text-red-400 transition-colors bg-gray-100 dark:bg-gray-900 p-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
 
         @php
-            $inputClass = "w-full text-sm p-4 rounded-xl border border-gray-800 bg-gray-900 text-white placeholder-gray-600 focus:bg-gray-950 focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-30)] transition-all duration-300 outline-none shadow-inner";
+            $inputClass = "w-full text-sm p-4 rounded-xl border border-gray-300 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:bg-white dark:focus:bg-gray-950 focus:border-[var(--theme-color)] focus:ring-2 focus:ring-[var(--theme-color-30)] transition-all duration-300 outline-none shadow-sm dark:shadow-inner cursor-pointer";
         @endphp
 
         {{-- Zeile 1 --}}
@@ -71,7 +71,7 @@
             </div>
             <div>
                 <label class="text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5 block">Erste Zahlung</label>
-                <input type="date" wire:model="itemDate" class="{{ $inputClass }} cursor-pointer [&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)] text-gray-400">
+                <input type="date" wire:model="itemDate" class="{{ $inputClass }} cursor-pointer dark:[&::-webkit-calendar-picker-indicator]:filter-[invert(0.5)] text-gray-400">
                 @error('itemDate') <span class="text-[10px] text-red-400 mt-2 block font-bold tracking-widest uppercase ml-1 drop-shadow-[0_0_8px_currentColor]">{{ $message }}</span> @enderror
             </div>
             <div>
@@ -89,7 +89,7 @@
                         </div>
                     </div>
                 </label>
-                <input type="file" wire:model="itemFile" class="block w-full text-xs text-gray-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-800 file:text-gray-300 hover:file:bg-gray-700 hover:file:text-white transition-all cursor-pointer bg-gray-900 border border-gray-800 rounded-xl p-1 shadow-inner animate-fade-in-down">
+                <input type="file" wire:model="itemFile" class="block w-full text-xs text-gray-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700 hover:file:text-gray-900 dark:hover:file:text-white transition-all cursor-pointer bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-1 shadow-sm dark:shadow-inner animate-fade-in-down">
                 @endif
             </div>
         </div>
@@ -98,20 +98,20 @@
         <div class="pt-2">
             <label class="inline-flex items-center cursor-pointer select-none group mb-5 mr-6">
                 <input type="checkbox" wire:model.live="itemIsBusiness" class="sr-only peer">
-                <div class="relative w-11 h-6 bg-gray-900 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-gray-950"></div>
-                <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors">Gewerblicher Eintrag</span>
+                <div class="relative w-11 h-6 bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-white dark:after:bg-gray-500 after:border-gray-300 dark:after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-white dark:peer-checked:after:bg-gray-950"></div>
+                <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors">Gewerblicher Eintrag</span>
             </label>
             <label class="inline-flex items-center cursor-pointer select-none group mb-5">
                 <input type="checkbox" wire:model.live="itemRequiresContract" class="sr-only peer">
-                <div class="relative w-11 h-6 bg-gray-900 border border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-gray-500 after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-gray-950"></div>
-                <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-300 transition-colors">Vertrag/Abo benötigt</span>
+                <div class="relative w-11 h-6 bg-gray-200 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[1px] after:bg-white dark:after:bg-gray-500 after:border-gray-300 dark:after:border-gray-500 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--theme-color)] shadow-inner peer-checked:after:bg-white dark:peer-checked:after:bg-gray-950"></div>
+                <span class="ms-3 text-[10px] font-black uppercase tracking-widest text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-300 transition-colors">Vertrag/Abo benötigt</span>
             </label>
             <textarea wire:model="itemDescription" placeholder="Notizen, Vertragsnummer..." class="{{ $inputClass }} resize-none leading-relaxed" rows="3"></textarea>
         </div>
 
         {{-- Footer --}}
-        <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 pt-6 border-t border-gray-800">
-            <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="px-6 py-3.5 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-900 border border-gray-800 hover:text-white hover:bg-gray-800 rounded-xl transition-all shadow-inner w-full sm:w-auto text-center">Abbrechen</button>
+        <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 pt-6 border-t border-gray-200 dark:border-gray-800">
+            <button wire:click="toggleAddItemForm('{{ $group->id }}')" class="px-6 py-3.5 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 rounded-xl transition-all shadow-sm dark:shadow-inner w-full sm:w-auto text-center">Abbrechen</button>
 
             <button wire:click="saveNewItem('{{ $group->id }}')" wire:loading.attr="disabled" class="bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-gray-900 px-8 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_var(--theme-color-20)] hover:bg-[var(--theme-color)]-dark hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 w-full sm:w-auto">
                 <span wire:loading.remove wire:target="saveNewItem">Speichern</span>

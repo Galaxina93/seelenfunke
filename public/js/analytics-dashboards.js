@@ -37,8 +37,11 @@ window.supportDashboard = (() => {
 
         initCharts() {
             const data = this.getPayload();
-            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridOptions = { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)', drawBorder: false };
             const gridOptionsX = { display: false, drawBorder: false };
+            const donutBorder = isDark ? '#1f2937' : '#ffffff';
+            const textColor = isDark ? '#9ca3af' : '#6b7280';
             const el = document.getElementById('analytics-data-bridge');
             const tc = el ? el.getAttribute('data-theme-color') || '#c5a059' : '#c5a059';
             
@@ -71,7 +74,7 @@ window.supportDashboard = (() => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: textColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: textColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -87,12 +90,12 @@ window.supportDashboard = (() => {
                         datasets: [{
                             data: data.source.data,
                             backgroundColor: monoPalette,
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'right', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -108,12 +111,12 @@ window.supportDashboard = (() => {
                         datasets: [{
                             data: data.ticketStatus.data,
                             backgroundColor: monoPalette,
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'right', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -129,12 +132,12 @@ window.supportDashboard = (() => {
                         datasets: [{
                             data: data.chatStatus.data,
                             backgroundColor: monoPalette,
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'right', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -150,12 +153,12 @@ window.supportDashboard = (() => {
                         datasets: [{
                             data: data.chatRating.data,
                             backgroundColor: monoPalette,
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'right', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -171,12 +174,12 @@ window.supportDashboard = (() => {
                         datasets: [{
                             data: data.ticketRating.data,
                             backgroundColor: monoPalette,
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'right', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -237,8 +240,11 @@ window.marketingDashboard = (() => {
 
         initCharts() {
             const data = this.getPayload();
-            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridOptions = { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)', drawBorder: false };
             const gridOptionsX = { display: false, drawBorder: false };
+            const donutBorder = isDark ? '#1f2937' : '#ffffff';
+            const textColor = isDark ? '#9ca3af' : '#6b7280';
 
             const toArr = (val) => Array.isArray(val) ? val : Object.values(val || {});
 
@@ -259,14 +265,14 @@ window.marketingDashboard = (() => {
                             label: 'Neue Abonnenten',
                             data: toArr(data.newsletter.data),
                             borderColor: 'rgba(16, 185, 129, 1)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
                             borderWidth: 2, tension: 0.4, fill: true,
                             pointBackgroundColor: 'rgba(16, 185, 129, 1)', pointBorderColor: '#fff',
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: textColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: textColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -282,13 +288,13 @@ window.marketingDashboard = (() => {
                         datasets: [{
                             label: 'Erstellte Gutscheine',
                             data: toArr(data.voucher.data),
-                            backgroundColor: 'rgba(244, 63, 94, 0.8)',
+                            backgroundColor: isDark ? 'rgba(244, 63, 94, 0.8)' : 'rgba(244, 63, 94, 0.85)',
                             borderRadius: 4, barPercentage: 0.6
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: textColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: textColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -304,12 +310,12 @@ window.marketingDashboard = (() => {
                         datasets: [{
                             data: toArr(data.blog.data),
                             backgroundColor: ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6'],
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -325,12 +331,12 @@ window.marketingDashboard = (() => {
                         datasets: [{
                             data: toArr(data.voucherType.data),
                             backgroundColor: ['#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#6366f1'],
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -347,14 +353,14 @@ window.marketingDashboard = (() => {
                             label: 'Seitenaufrufe',
                             data: toArr(data.landingPage.data),
                             borderColor: 'rgba(168, 85, 247, 1)',
-                            backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                            backgroundColor: isDark ? 'rgba(168, 85, 247, 0.1)' : 'rgba(168, 85, 247, 0.05)',
                             borderWidth: 2, tension: 0.4, fill: true,
                             pointBackgroundColor: 'rgba(168, 85, 247, 1)', pointBorderColor: '#fff',
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: textColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: textColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -428,6 +434,7 @@ window.orderAnalyticsDashboard = (() => {
         initCharts() {
             const el = document.getElementById('analytics-data-bridge');
             const themeColor = el ? el.getAttribute('data-theme-color') || '#c5a059' : '#c5a059';
+            const isDark = document.documentElement.classList.contains('dark');
 
             const colors = {
                 primary: themeColor,
@@ -441,10 +448,11 @@ window.orderAnalyticsDashboard = (() => {
                 amber: 'rgba(245, 158, 11, 1)',
                 cyan: 'rgba(6, 182, 212, 1)',
                 cyanLight: 'rgba(6, 182, 212, 0.2)',
-                gray: 'rgba(156, 163, 175, 1)'
+                gray: isDark ? 'rgba(156, 163, 175, 1)' : 'rgba(75, 85, 99, 1)',
+                doughnutBg: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'
             };
             
-            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', tickColor: 'transparent' };
+            const gridOptions = { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)', tickColor: 'transparent' };
             const gridOptionsX = { display: false };
             const data = this.getPayload();
 
@@ -467,7 +475,7 @@ window.orderAnalyticsDashboard = (() => {
                         labels: data.retention.labels,
                         datasets: [{
                             data: data.retention.data,
-                            backgroundColor: [colors.emerald, 'rgba(255, 255, 255, 0.1)'],
+                            backgroundColor: [colors.emerald, colors.doughnutBg],
                             borderColor: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
                             borderWidth: 0, hoverOffset: 4
                         }]
@@ -485,7 +493,7 @@ window.orderAnalyticsDashboard = (() => {
                         labels: data.b2b.labels,
                         datasets: [{
                             data: data.b2b.data,
-                            backgroundColor: ['rgba(255, 255, 255, 0.1)', colors.blue],
+                            backgroundColor: [colors.doughnutBg, colors.blue],
                             borderColor: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
                             borderWidth: 0, hoverOffset: 4
                         }]
@@ -712,8 +720,11 @@ window.productDashboard = (() => {
 
         initCharts() {
             const data = this.getPayload();
-            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridOptions = { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)', drawBorder: false };
             const gridOptionsX = { display: false, drawBorder: false };
+            const donutBorder = isDark ? '#1f2937' : '#ffffff';
+            const textColor = isDark ? '#9ca3af' : '#6b7280';
 
             const toArr = (val) => Array.isArray(val) ? val : Object.values(val || {});
 
@@ -738,7 +749,7 @@ window.productDashboard = (() => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: textColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: textColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -761,7 +772,7 @@ window.productDashboard = (() => {
                     options: {
                         indexAxis: 'y',
                         responsive: true, maintainAspectRatio: false,
-                        scales: { x: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, y: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { x: { beginAtZero: true, grid: gridOptions, ticks: { color: textColor, precision: 0 } }, y: { grid: gridOptionsX, ticks: { color: textColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -777,12 +788,12 @@ window.productDashboard = (() => {
                         datasets: [{
                             data: toArr(data.review.data),
                             backgroundColor: ['#10b981', '#34d399', '#fbbf24', '#f87171', '#ef4444'],
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -798,12 +809,12 @@ window.productDashboard = (() => {
                         datasets: [{
                             data: toArr(data.supplier.data),
                             backgroundColor: ['#6366f1', '#06b6d4', '#ec4899', '#f59e0b', '#8b5cf6', '#14b8a6', '#64748b'],
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: donutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });
@@ -860,8 +871,11 @@ window.accountingDashboard = (() => {
 
         initCharts() {
             const data = this.getPayload();
-            const gridOptions = { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false };
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridOptions = { color: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)', drawBorder: false };
             const gridOptionsX = { display: false, drawBorder: false };
+            const tickColor = isDark ? '#9ca3af' : '#6b7280';
+            const doughnutBorder = isDark ? '#1f2937' : '#ffffff';
 
             if (invoiceChartObj) invoiceChartObj.destroy();
             if (specialChartObj) specialChartObj.destroy();
@@ -879,14 +893,14 @@ window.accountingDashboard = (() => {
                             label: 'Erlöse (€)',
                             data: data.invoices.data,
                             borderColor: 'rgba(16, 185, 129, 1)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            backgroundColor: isDark ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.08)',
                             borderWidth: 2, tension: 0.4, fill: true,
                             pointBackgroundColor: 'rgba(16, 185, 129, 1)', pointBorderColor: '#fff',
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: tickColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: tickColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -908,7 +922,7 @@ window.accountingDashboard = (() => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: tickColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: tickColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -930,7 +944,7 @@ window.accountingDashboard = (() => {
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: '#9ca3af', precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: '#9ca3af' } } },
+                        scales: { y: { beginAtZero: true, grid: gridOptions, ticks: { color: tickColor, precision: 0 } }, x: { grid: gridOptionsX, ticks: { color: tickColor } } },
                         plugins: { legend: { display: false } }
                     }
                 });
@@ -946,12 +960,12 @@ window.accountingDashboard = (() => {
                         datasets: [{
                             data: data.groups.data,
                             backgroundColor: ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4'],
-                            borderWidth: 2, borderColor: '#1f2937'
+                            borderWidth: 2, borderColor: doughnutBorder
                         }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
-                        plugins: { legend: { position: 'right', labels: { color: '#9ca3af', padding: 15, font: { size: 10 } } } },
+                        plugins: { legend: { position: 'right', labels: { color: tickColor, padding: 15, font: { size: 10 } } } },
                         cutout: '60%'
                     }
                 });

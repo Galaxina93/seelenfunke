@@ -1,11 +1,11 @@
 <!-- WORKFLOWS TAB CONTENT -->
-<div wire:key="tab-workflows" :class="{'hidden': activeTab !== 'workflows'}" class="flex-1 shrink-0 rounded-2xl border border-[var(--theme-color-50)] bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-6">
+<div wire:key="tab-workflows" :class="{'hidden': activeTab !== 'workflows'}" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-[var(--theme-color-50)] bg-white dark:bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-6">
     
-    <div class="flex justify-between items-center border-b border-gray-800 pb-3 mb-6 shrink-0">
+    <div class="flex justify-between items-center border-b border-gray-200 dark:border-gray-800 pb-3 mb-6 shrink-0">
         <h2 class="text-xl md:text-2xl font-black text-[var(--theme-color)] uppercase tracking-widest flex items-center gap-3">
             <x-heroicon-o-queue-list class="w-7 h-7" /> Aktive Workflows (SOPs)
         </h2>
-        <div class="text-xs text-gray-400 font-mono hidden sm:block">Übersicht der definierten Agenten-Abläufe</div>
+        <div class="text-xs text-gray-600 dark:text-gray-400 font-mono hidden sm:block">Übersicht der definierten Agenten-Abläufe</div>
     </div>
 
     <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">

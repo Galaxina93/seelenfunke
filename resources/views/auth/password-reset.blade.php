@@ -4,7 +4,7 @@
         - 'bg-black' für den durchgehenden schwarzen Hintergrund.
         - 'flex-col' für vertikale Anordnung.
     --}}
-    <div class="min-h-screen bg-black flex flex-col font-sans antialiased">
+    <div class="min-h-screen bg-gray-50 flex flex-col font-sans antialiased">
 
         {{-- Wrapper für konsistente Breite --}}
         <div>

@@ -1,4 +1,4 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="flex flex-col h-[calc(100vh-6rem)] bg-gray-900/80 backdrop-blur-xl rounded-[1.5rem] md:rounded-[2.5rem] shadow-2xl border border-gray-800 overflow-hidden min-h-[750px] md:min-h-[85vh] relative"
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" class="flex flex-col h-[calc(100vh-6rem)] bg-white/90 dark:bg-gray-900/80 backdrop-blur-xl rounded-[1.5rem] md:rounded-[2.5rem] dark:shadow-2xl border border-gray-200/80 dark:border-gray-800 overflow-hidden min-h-[750px] md:min-h-[85vh] relative transition-colors duration-300"
      x-data="{
         isMobile: window.innerWidth < 768,
         handleDateClick(date) {
@@ -16,22 +16,22 @@
 
     @php
         $styles = [
-            'restmuell'   => ['bg' => 'bg-gray-800', 'text' => 'text-gray-100', 'icon' => 'trash', 'label' => 'Restmüll'],
-            'altpapier'   => ['bg' => 'bg-blue-500/20', 'text' => 'text-blue-400', 'icon' => 'newspaper', 'label' => 'Papier'],
-            'biomuell'    => ['bg' => 'bg-amber-900/40', 'text' => 'text-amber-500', 'icon' => 'trash', 'label' => 'Bio'],
-            'gelber_sack' => ['bg' => 'bg-yellow-500/20', 'text' => 'text-yellow-400', 'icon' => 'shopping-bag', 'label' => 'Gelber Sack'],
-            'schadstoffe' => ['bg' => 'bg-red-500/20', 'text' => 'text-red-400', 'icon' => 'exclamation-triangle', 'label' => 'Schadstoffe'],
-            'sperrmuell'  => ['bg' => 'bg-orange-500/20', 'text' => 'text-orange-400', 'icon' => 'truck', 'label' => 'Sperrmüll'],
-            'gruen'       => ['bg' => 'bg-emerald-500/20', 'text' => 'text-emerald-400', 'icon' => 'scissors', 'label' => 'Grünabfall'],
-            'baum'        => ['bg' => 'bg-teal-500/20', 'text' => 'text-teal-400', 'icon' => 'sparkles', 'label' => 'Tannenbaum'],
-            'call'        => ['bg' => 'bg-fuchsia-500/20', 'text' => 'text-fuchsia-400', 'icon' => 'phone', 'label' => 'Anrufe'],
-            'meeting'     => ['bg' => 'bg-indigo-500/20', 'text' => 'text-indigo-400', 'icon' => 'users', 'label' => 'Besprechung'],
-            'birthday'    => ['bg' => 'bg-pink-500/20', 'text' => 'text-pink-400', 'icon' => 'cake', 'label' => 'Geburtstag'],
-            'vacation'    => ['bg' => 'bg-cyan-500/20', 'text' => 'text-cyan-400', 'icon' => 'sun', 'label' => 'Feiertage'],
-            'travel'      => ['bg' => 'bg-amber-500/20', 'text' => 'text-amber-400', 'icon' => 'globe-alt', 'label' => 'Reise'],
+            'restmuell'   => ['bg' => 'bg-gray-100 dark:bg-gray-800', 'text' => 'text-gray-800 dark:text-gray-100', 'icon' => 'trash', 'label' => 'Restmüll'],
+            'altpapier'   => ['bg' => 'bg-blue-500/15 dark:bg-blue-500/20', 'text' => 'text-blue-600 dark:text-blue-400', 'icon' => 'newspaper', 'label' => 'Papier'],
+            'biomuell'    => ['bg' => 'bg-amber-500/15 dark:bg-amber-900/40', 'text' => 'text-amber-700 dark:text-amber-500', 'icon' => 'trash', 'label' => 'Bio'],
+            'gelber_sack' => ['bg' => 'bg-yellow-500/20', 'text' => 'text-yellow-700 dark:text-yellow-400', 'icon' => 'shopping-bag', 'label' => 'Gelber Sack'],
+            'schadstoffe' => ['bg' => 'bg-red-500/15 dark:bg-red-500/20', 'text' => 'text-red-600 dark:text-red-400', 'icon' => 'exclamation-triangle', 'label' => 'Schadstoffe'],
+            'sperrmuell'  => ['bg' => 'bg-orange-500/15 dark:bg-orange-500/20', 'text' => 'text-orange-600 dark:text-orange-400', 'icon' => 'truck', 'label' => 'Sperrmüll'],
+            'gruen'       => ['bg' => 'bg-emerald-500/15 dark:bg-emerald-500/20', 'text' => 'text-emerald-700 dark:text-emerald-400', 'icon' => 'scissors', 'label' => 'Grünabfall'],
+            'baum'        => ['bg' => 'bg-teal-500/15 dark:bg-teal-500/20', 'text' => 'text-teal-700 dark:text-teal-400', 'icon' => 'sparkles', 'label' => 'Tannenbaum'],
+            'call'        => ['bg' => 'bg-fuchsia-500/15 dark:bg-fuchsia-500/20', 'text' => 'text-fuchsia-700 dark:text-fuchsia-400', 'icon' => 'phone', 'label' => 'Anrufe'],
+            'meeting'     => ['bg' => 'bg-indigo-500/15 dark:bg-indigo-500/20', 'text' => 'text-indigo-700 dark:text-indigo-400', 'icon' => 'users', 'label' => 'Besprechung'],
+            'birthday'    => ['bg' => 'bg-pink-500/15 dark:bg-pink-500/20', 'text' => 'text-pink-700 dark:text-pink-400', 'icon' => 'cake', 'label' => 'Geburtstag'],
+            'vacation'    => ['bg' => 'bg-cyan-500/15 dark:bg-cyan-500/20', 'text' => 'text-cyan-700 dark:text-cyan-400', 'icon' => 'sun', 'label' => 'Feiertage'],
+            'travel'      => ['bg' => 'bg-amber-500/15 dark:bg-amber-500/20', 'text' => 'text-amber-700 dark:text-amber-400', 'icon' => 'globe-alt', 'label' => 'Reise'],
             'project'     => ['bg' => 'bg-[var(--theme-color-20)]', 'text' => 'text-[var(--theme-color)]', 'icon' => 'briefcase', 'label' => 'Projekte'],
-            'customer'    => ['bg' => 'bg-emerald-500/10', 'text' => 'text-emerald-500', 'icon' => 'user', 'label' => 'Kunde'],
-            'general'     => ['bg' => 'bg-gray-800', 'text' => 'text-gray-400', 'icon' => 'calendar', 'label' => 'Termin'],
+            'customer'    => ['bg' => 'bg-emerald-500/15 dark:bg-emerald-500/10', 'text' => 'text-emerald-700 dark:text-emerald-500', 'icon' => 'user', 'label' => 'Kunde'],
+            'general'     => ['bg' => 'bg-gray-100 dark:bg-gray-800', 'text' => 'text-gray-700 dark:text-gray-400', 'icon' => 'calendar', 'label' => 'Termin'],
         ];
     @endphp
 
@@ -39,15 +39,15 @@
     <div x-show="!$wire.showEditModal" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 -translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 -translate-x-8" class="absolute inset-0 flex flex-col">
 
     {{-- 1. HEADER BEREICH --}}
-    <div class="p-4 md:p-8 border-b border-gray-800 bg-gray-950/50 shrink-0 z-20 shadow-inner">
+    <div class="p-4 md:p-8 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/50 shrink-0 z-20 dark:shadow-inner">
         <div class="flex flex-col gap-6">
             {{-- Obere Leiste: Titel & Actions --}}
             <div class="flex items-center justify-between">
                 <div>
-                    <h3 class="text-2xl md:text-4xl font-serif font-bold text-white leading-none tracking-tight">
+                    <h3 class="text-2xl md:text-4xl font-serif font-bold text-gray-900 dark:text-white leading-none tracking-tight">
                         @if($view === 'year') {{ $currentDate->year }}
                         @elseif($view === 'multi-week') 4-Wochen
-                        @else {{ $currentDate->locale('de')->monthName }} <span class="text-gray-600 font-sans hidden sm:inline ml-2">{{ $currentDate->year }}</span>
+                        @else {{ $currentDate->locale('de')->monthName }} <span class="text-gray-500 dark:text-gray-600 font-sans hidden sm:inline ml-2">{{ $currentDate->year }}</span>
                         @endif
                     </h3>
                     <div class="flex items-center gap-3 mt-2">
@@ -59,22 +59,22 @@
                 <div class="flex items-center gap-3">
                     {{-- Import Tool --}}
                     <div x-data="{ open: false }" class="relative">
-                        <button @click="open = !open" class="h-12 px-4 bg-gray-900 border border-gray-700 text-gray-400 rounded-2xl shadow-lg flex items-center justify-center gap-2 hover:bg-gray-800 hover:text-white transition-all active:scale-95 shadow-inner">
+                        <button @click="open = !open" class="h-12 px-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 rounded-2xl dark:shadow-lg flex items-center justify-center gap-2 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-all active:scale-95 dark:shadow-inner">
                             <x-heroicon-m-arrow-up-tray class="w-4 h-4" />
                             <span class="hidden md:inline font-black uppercase tracking-[0.1em] text-[10px]">Import</span>
                         </button>
-                        <div x-show="open" @click.away="open = false" x-cloak class="absolute right-0 top-full mt-3 w-80 bg-gray-900 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-gray-700 p-6 z-50 animate-fade-in-up">
-                            <h4 class="text-[10px] font-black text-white uppercase tracking-widest mb-4">ICS Kalender Import</h4>
-                            <input type="file" wire:model="importFile" class="text-[10px] text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-gray-800 file:text-[var(--theme-color)] file:font-black file:uppercase file:text-[9px] cursor-pointer w-full mb-3 shadow-inner">
+                        <div x-show="open" @click.away="open = false" x-cloak class="absolute right-0 top-full mt-3 w-80 bg-white dark:bg-gray-900 rounded-[2rem] shadow-xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] border border-gray-200 dark:border-gray-700 p-6 z-50 animate-fade-in-up">
+                            <h4 class="text-[10px] font-black text-gray-900 dark:text-white uppercase tracking-widest mb-4">ICS Kalender Import</h4>
+                            <input type="file" wire:model="importFile" class="text-[10px] text-gray-600 dark:text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-gray-100 dark:file:bg-gray-800 file:text-[var(--theme-color)] file:font-black file:uppercase file:text-[9px] cursor-pointer w-full mb-3 dark:shadow-inner">
                             <div wire:loading wire:target="importFile" class="text-[10px] text-[var(--theme-color)] font-bold animate-pulse mb-2">Verarbeite Datei...</div>
                             @if($importFile)
-                                <button wire:click="importEvents" class="w-full bg-[var(--theme-color)] text-gray-900 py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-glow hover:scale-[1.02] transition-transform">Import starten</button>
+                                <button wire:click="importEvents" class="w-full bg-[var(--theme-color)] text-gray-900 py-3 rounded-xl text-xs font-black uppercase tracking-widest dark:shadow-glow hover:scale-[1.02] transition-transform">Import starten</button>
                             @endif
                         </div>
                     </div>
 
                     {{-- Neu Button --}}
-                    <button wire:click="createEvent" class="h-12 px-6 bg-[var(--theme-color)] text-gray-900 rounded-2xl shadow-[0_0_20px_var(--theme-color-30)] flex items-center justify-center gap-2 hover:bg-white transition-all active:scale-95 group">
+                    <button wire:click="createEvent" class="h-12 px-6 bg-[var(--theme-color)] text-gray-900 rounded-2xl dark:shadow-[0_0_20px_var(--theme-color-30)] flex items-center justify-center gap-2 hover:bg-white transition-all active:scale-95 group">
                         <x-heroicon-m-plus class="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                         <span class="hidden md:inline font-black uppercase tracking-[0.1em] text-[10px]">Neuer Eintrag</span>
                     </button>
@@ -83,20 +83,20 @@
 
             {{-- Untere Leiste: Navigation --}}
             <div class="flex flex-col sm:flex-row gap-4">
-                <div class="flex items-center justify-between bg-gray-950 p-1.5 rounded-2xl border border-gray-800 shadow-inner sm:w-auto">
-                    <button wire:click="prev" class="p-2.5 hover:bg-gray-900 rounded-xl transition text-gray-500 hover:text-[var(--theme-color)]">
+                <div class="flex items-center justify-between bg-gray-100/80 dark:bg-gray-950 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-800 dark:shadow-inner sm:w-auto">
+                    <button wire:click="prev" class="p-2.5 hover:bg-gray-200 dark:hover:bg-gray-900 rounded-xl transition text-gray-500 hover:text-[var(--theme-color)]">
                         <x-heroicon-m-chevron-left class="w-5 h-5" />
                     </button>
-                    <button wire:click="today" class="px-6 py-2 bg-gray-900 border border-gray-800 text-white shadow-lg rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:border-[var(--theme-color-50)] transition-all">Heute</button>
-                    <button wire:click="next" class="p-2.5 hover:bg-gray-900 rounded-xl transition text-gray-500 hover:text-[var(--theme-color)]">
+                    <button wire:click="today" class="px-6 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white dark:shadow-lg rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:border-[var(--theme-color-50)] transition-all">Heute</button>
+                    <button wire:click="next" class="p-2.5 hover:bg-gray-200 dark:hover:bg-gray-900 rounded-xl transition text-gray-500 hover:text-[var(--theme-color)]">
                         <x-heroicon-m-chevron-right class="w-5 h-5" />
                     </button>
                 </div>
 
-                <div class="flex p-1.5 bg-gray-950 rounded-2xl border border-gray-800 shadow-inner overflow-x-auto no-scrollbar touch-pan-x gap-1">
+                <div class="flex p-1.5 bg-gray-100/80 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800 dark:shadow-inner overflow-x-auto no-scrollbar touch-pan-x gap-1">
                     @foreach(['year' => 'Jahr', 'month' => 'Monat', 'multi-week' => '4-W', 'week' => 'Woche', 'day' => 'Tag', 'list' => 'Liste'] as $v => $label)
                         <button wire:click="setView('{{ $v }}')"
-                                class="whitespace-nowrap px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $view === $v ? 'bg-[var(--theme-color)] text-gray-900 shadow-glow' : 'text-gray-500 hover:text-gray-300' }}">
+                                class="whitespace-nowrap px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all {{ $view === $v ? 'bg-[var(--theme-color)] text-gray-900 dark:shadow-glow' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300' }}">
                             {{ $label }}
                         </button>
                     @endforeach
@@ -107,20 +107,20 @@
 
     {{-- 2. FEEDBACK MESSAGES --}}
     @if(session()->has('calendar_success'))
-        <div class="bg-emerald-500/10 text-emerald-400 px-6 py-3 text-[10px] uppercase tracking-widest font-black text-center border-b border-emerald-500/20 flex justify-center items-center gap-2 animate-fade-in shadow-inner">
-            <x-heroicon-s-check-circle class="w-4 h-4 drop-shadow-[0_0_8px_currentColor]" /> {{ session('calendar_success') }}
+        <div class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-6 py-3 text-[10px] uppercase tracking-widest font-black text-center border-b border-emerald-500/20 flex justify-center items-center gap-2 animate-fade-in dark:shadow-inner">
+            <x-heroicon-s-check-circle class="w-4 h-4 dark:drop-shadow-[0_0_8px_currentColor]" /> {{ session('calendar_success') }}
         </div>
     @endif
 
     {{-- 3. KALENDER CONTENT (SCROLLABLE) --}}
-    <div class="flex-1 overflow-auto custom-scrollbar bg-gray-950/20">
+    <div class="flex-1 overflow-auto custom-scrollbar bg-gray-50/30 dark:bg-gray-950/20">
 
         {{-- MONATS- & 4-WOCHEN GRID --}}
         @if($view === 'month' || $view === 'multi-week')
             <div class="min-w-[800px] h-full p-4 md:p-6 flex flex-col">
                 <div class="grid grid-cols-7 gap-3 mb-3 shrink-0">
                     @foreach(['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] as $day)
-                        <div class="text-center py-2 text-[10px] font-black uppercase text-gray-600 tracking-[0.2em]">{{ $day }}</div>
+                        <div class="text-center py-2 text-[10px] font-black uppercase text-gray-500 dark:text-gray-600 tracking-[0.2em]">{{ $day }}</div>
                     @endforeach
                 </div>
                 <div class="flex-1 flex flex-col gap-3">
@@ -149,21 +149,21 @@
                                      @dblclick="handleDateDblClick('{{ $day['date']->format('Y-m-d') }}')"
                                      style="grid-row: 1 / span {{ $gridRows }}; grid-column: {{ $col }};"
                                      @class([
-                                         'min-h-[120px] bg-gray-900/40 rounded-[1.5rem] p-2 flex flex-col transition-all border relative cursor-pointer select-none group/day',
-                                         'border-gray-800 hover:border-gray-600 hover:bg-gray-800/60 shadow-inner' => $day['is_current_month'],
+                                         'min-h-[120px] bg-white dark:bg-gray-900/40 rounded-[1.5rem] p-2 flex flex-col transition-all border relative cursor-pointer select-none group/day',
+                                         'border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/60 dark:shadow-inner' => $day['is_current_month'],
                                          'border-transparent opacity-20' => !$day['is_current_month'],
-                                         'ring-2 ring-[var(--theme-color)] ring-offset-4 ring-offset-gray-950 z-10' => $day['is_today']
+                                         'ring-2 ring-[var(--theme-color)] ring-offset-4 ring-offset-white dark:ring-offset-gray-950 z-10' => $day['is_today']
                                      ])>
                                     <div class="flex justify-between items-start mb-2">
                                         <span @class([
                                             'text-xs font-black w-7 h-7 flex items-center justify-center rounded-lg transition-transform group-hover/day:scale-110',
-                                            'bg-[var(--theme-color)] text-gray-900 shadow-glow' => $day['is_today'],
-                                            'text-gray-500 bg-gray-950/50 border border-gray-800' => !$day['is_today'] && $day['is_current_month']
+                                            'bg-[var(--theme-color)] text-gray-900 dark:shadow-glow' => $day['is_today'],
+                                            'text-gray-500 bg-gray-100 dark:bg-gray-950/50 border border-gray-200 dark:border-gray-800' => !$day['is_today'] && $day['is_current_month']
                                         ])>
                                             {{ $day['date']->day }}
                                         </span>
                                         @if($day['date']->day === 1)
-                                            <span class="text-[9px] font-black uppercase text-gray-700 tracking-tighter">{{ $day['date']->locale('de')->shortMonthName }}</span>
+                                            <span class="text-[9px] font-black uppercase text-gray-400 dark:text-gray-700 tracking-tighter">{{ $day['date']->locale('de')->shortMonthName }}</span>
                                         @endif
                                     </div>
                                     
@@ -182,11 +182,11 @@
                                         $event = $item['event'];
                                         $s = $styles[$event->category] ?? $styles['general'];
                                         if ($event->priority === 'high') {
-                                            $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
+                                            $s['bg'] = 'bg-red-500/15 dark:bg-red-500/20'; $s['text'] = 'text-red-600 dark:text-red-400';
                                         } elseif ($event->priority === 'medium') {
-                                            $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-400';
+                                            $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-700 dark:text-yellow-400';
                                         } else {
-                                            $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
+                                            $s['bg'] = 'bg-gray-100 dark:bg-gray-800'; $s['text'] = 'text-gray-700 dark:text-gray-400';
                                         }
                                         
                                         // Rounding for start/end of the span in this week
@@ -206,7 +206,7 @@
                                     @endphp
                                     <div wire:click.stop="editEvent('{{ $event->id }}')"
                                          style="grid-column: {{ $item['start_col'] }} / span {{ $item['span'] }}; grid-row: {{ $item['track'] + 2 }}; margin-top: 2px; margin-bottom: 2px;"
-                                         class="h-6 px-2 py-0.5 {{ $roundClass }} {{ $s['bg'] }} {{ $s['text'] }} text-[9px] font-bold truncate transition-all border border-transparent hover:border-current/30 shadow-lg flex items-center justify-between group/event z-20 select-none"
+                                         class="h-6 px-2 py-0.5 {{ $roundClass }} {{ $s['bg'] }} {{ $s['text'] }} text-[9px] font-bold truncate transition-all border border-transparent hover:border-current/30 dark:shadow-lg flex items-center justify-between group/event z-20 select-none"
                                          title="{{ $event->title }}">
                                         <span class="truncate">
                                             {{ $event->title }}
@@ -226,9 +226,9 @@
         @elseif($view === 'year')
             <div class="p-6 md:p-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-8">
                 @foreach($this->yearGrid as $month)
-                    <div class="bg-gray-900/50 border border-gray-800 rounded-[2rem] p-6 shadow-2xl hover:border-[var(--theme-color-20)] transition-all group">
-                        <h4 wire:click="zoomIntoMonth('{{ $month['days'][15]['date']->format('Y-m-d') }}')" class="text-sm font-black text-white mb-5 uppercase tracking-[0.2em] border-b border-gray-800 pb-3 group-hover:text-[var(--theme-color)] transition-colors cursor-pointer">{{ $month['name'] }}</h4>
-                        <div class="grid grid-cols-7 gap-1 text-center text-[8px] font-black text-gray-700 mb-2">
+                    <div class="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-6 dark:shadow-2xl hover:border-[var(--theme-color-20)] transition-all group">
+                        <h4 wire:click="zoomIntoMonth('{{ $month['days'][15]['date']->format('Y-m-d') }}')" class="text-sm font-black text-gray-900 dark:text-white mb-5 uppercase tracking-[0.2em] border-b border-gray-100 dark:border-gray-800 pb-3 group-hover:text-[var(--theme-color)] transition-colors cursor-pointer">{{ $month['name'] }}</h4>
+                        <div class="grid grid-cols-7 gap-1 text-center text-[8px] font-black text-gray-400 dark:text-gray-700 mb-2">
                             <span>M</span><span>D</span><span>M</span><span>D</span><span>F</span><span>S</span><span>S</span>
                         </div>
                         <div class="grid grid-cols-7 gap-1 text-center">
@@ -237,8 +237,8 @@
                                 <div class="aspect-square flex items-center justify-center cursor-pointer" wire:click="zoomIntoMonth('{{ $day['date']->format('Y-m-d') }}')">
                                     <div @class([
                                         'w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black transition-all',
-                                        'bg-[var(--theme-color)] text-gray-900 shadow-glow scale-110' => $day['has_events'],
-                                        'text-gray-600 hover:text-white hover:bg-gray-800' => !$day['has_events'],
+                                        'bg-[var(--theme-color)] text-gray-900 dark:shadow-glow scale-110' => $day['has_events'],
+                                        'text-gray-500 dark:text-gray-600 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' => !$day['has_events'],
                                         'border border-[var(--theme-color)] text-[var(--theme-color)]' => $day['date']->isToday() && !$day['has_events']
                                     ])>{{ $day['day'] }}</div>
                                 </div>
@@ -262,36 +262,36 @@
                     @php $dayDate = $dayData['date']; @endphp
                     <div class="space-y-4" @if($dayDate->isToday()) id="list-day-today" @endif>
                         <div class="flex items-center gap-4 px-4">
-                            <span class="text-[10px] font-black {{ $dayDate->isToday() ? 'text-[var(--theme-color)]' : 'text-gray-400' }} uppercase tracking-[0.3em]">{{ $dayDate->locale('de')->dayName }}</span>
-                            <div class="h-px bg-gray-800 flex-1"></div>
-                            <span class="text-xs font-bold {{ $dayDate->isToday() ? 'text-[var(--theme-color)]' : 'text-gray-600' }} font-mono">
+                            <span class="text-[10px] font-black {{ $dayDate->isToday() ? 'text-[var(--theme-color)]' : 'text-gray-500 dark:text-gray-400' }} uppercase tracking-[0.3em]">{{ $dayDate->locale('de')->dayName }}</span>
+                            <div class="h-px bg-gray-200 dark:bg-gray-800 flex-1"></div>
+                            <span class="text-xs font-bold {{ $dayDate->isToday() ? 'text-[var(--theme-color)]' : 'text-gray-500 dark:text-gray-600' }} font-mono">
                                 @if($dayDate->isToday()) HEUTE @else {{ $dayDate->format('d.m.Y') }} @endif
                             </span>
                         </div>
                         <div @class([
-                            'bg-gray-900/60 rounded-[2rem] p-3 border space-y-2 transition-all',
-                            'ring-2 ring-[var(--theme-color)] ring-offset-4 ring-offset-gray-950 shadow-glow border-[var(--theme-color)] z-10' => $dayDate->isToday(),
-                            'border-gray-800 shadow-2xl' => !$dayDate->isToday()
+                            'bg-white dark:bg-gray-900/60 rounded-[2rem] p-3 border space-y-2 transition-all',
+                            'ring-2 ring-[var(--theme-color)] ring-offset-4 ring-offset-white dark:ring-offset-gray-950 dark:shadow-glow border-[var(--theme-color)] z-10' => $dayDate->isToday(),
+                            'border-gray-200 dark:border-gray-800 dark:shadow-2xl' => !$dayDate->isToday()
                         ])>
                             @foreach($dayData['events'] as $event)
                                 @php
                                     $s = $styles[$event->category] ?? $styles['general'];
                                     if ($event->priority === 'high') {
-                                        $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
+                                        $s['bg'] = 'bg-red-500/15 dark:bg-red-500/20'; $s['text'] = 'text-red-600 dark:text-red-400';
                                     } elseif ($event->priority === 'medium') {
-                                        $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-400';
+                                        $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-700 dark:text-yellow-400';
                                     } else {
-                                        $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
+                                        $s['bg'] = 'bg-gray-100 dark:bg-gray-800'; $s['text'] = 'text-gray-700 dark:text-gray-400';
                                     }
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
-                                <div class="flex items-center gap-4 p-4 hover:bg-gray-800 rounded-2xl cursor-pointer transition-all group border border-transparent hover:border-gray-700 shadow-sm" wire:click="editEvent('{{ $event->id }}')">
-                                    <div class="w-14 h-14 bg-gray-950 rounded-xl border border-gray-800 shrink-0 flex flex-col items-center justify-center group-hover:border-[var(--theme-color-30)] transition-colors shadow-inner">
-                                        <span class="text-xl font-black text-white leading-none">{{ $dayDate->day }}</span>
-                                        <span class="text-[9px] font-black text-gray-600 uppercase mt-1">{{ $dayDate->locale('de')->shortMonthName }}</span>
+                                <div class="flex items-center gap-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-2xl cursor-pointer transition-all group border border-transparent hover:border-gray-200 dark:hover:border-gray-700 shadow-sm" wire:click="editEvent('{{ $event->id }}')">
+                                    <div class="w-14 h-14 bg-gray-100 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shrink-0 flex flex-col items-center justify-center group-hover:border-[var(--theme-color-30)] transition-colors dark:shadow-inner">
+                                        <span class="text-xl font-black text-gray-900 dark:text-white leading-none">{{ $dayDate->day }}</span>
+                                        <span class="text-[9px] font-black text-gray-500 dark:text-gray-600 uppercase mt-1">{{ $dayDate->locale('de')->shortMonthName }}</span>
                                     </div>
                                     <div class="flex-1 min-w-0">
-                                        <h4 class="text-sm font-bold text-white truncate group-hover:text-[var(--theme-color)] transition-colors">
+                                        <h4 class="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-[var(--theme-color)] transition-colors">
                                             {{ $event->title }}
                                             @if($spanType !== 'single')
                                                 <span class="text-[9px] text-gray-500 ml-2 font-mono uppercase">
@@ -309,7 +309,7 @@
                                             </span>
                                         </div>
                                     </div>
-                                    <div class="w-10 h-10 rounded-full bg-gray-950 flex items-center justify-center text-gray-600 group-hover:text-[var(--theme-color)] group-hover:bg-gray-900 border border-gray-800 transition-all">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-950 flex items-center justify-center text-gray-400 dark:text-gray-600 group-hover:text-[var(--theme-color)] group-hover:bg-gray-200 dark:group-hover:bg-gray-900 border border-gray-200 dark:border-gray-800 transition-all">
                                         <x-heroicon-m-chevron-right class="w-5 h-5" />
                                     </div>
                                 </div>
@@ -318,8 +318,8 @@
                     </div>
                 @endforeach
                 @if($this->events->isEmpty())
-                    <div class="text-center py-20 bg-gray-900/40 rounded-[3rem] border border-dashed border-gray-800">
-                        <x-heroicon-o-calendar class="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                    <div class="text-center py-20 bg-white dark:bg-gray-900/40 rounded-[3rem] border border-dashed border-gray-200 dark:border-gray-800">
+                        <x-heroicon-o-calendar class="w-12 h-12 text-gray-400 dark:text-gray-700 mx-auto mb-4" />
                         <p class="text-sm text-gray-500 font-medium italic">Keine Termine für diesen Zeitraum.</p>
                     </div>
                 @endif
@@ -331,12 +331,12 @@
                 @foreach($this->calendarGrid as $dayData)
                     <div class="relative pl-10 md:pl-16 pb-6">
                         {{-- Timeline Dot --}}
-                        <div @class(['absolute left-0 top-1 w-5 h-5 rounded-full border-4 border-gray-950 z-10 shadow-sm transition-all', 'bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] scale-125 shadow-glow' => $dayData['is_today'], 'bg-gray-700' => !$dayData['is_today']])></div>
-                        @if(!$loop->last) <div class="absolute left-[9px] top-6 bottom-0 w-0.5 bg-gray-800"></div> @endif
+                        <div @class(['absolute left-0 top-1 w-5 h-5 rounded-full border-4 border-white dark:border-gray-950 z-10 shadow-sm transition-all', 'bg-[var(--theme-color)] ring-4 ring-[var(--theme-color-20)] scale-125 dark:shadow-glow' => $dayData['is_today'], 'bg-gray-400 dark:bg-gray-700' => !$dayData['is_today']])></div>
+                        @if(!$loop->last) <div class="absolute left-[9px] top-6 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-800"></div> @endif
 
                         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-6">
-                            <h4 @class(['text-xl font-black uppercase tracking-widest', 'text-[var(--theme-color)] drop-shadow-[0_0_10px_var(--theme-color-50)]' => $dayData['is_today'], 'text-gray-500' => !$dayData['is_today']])>
-                                {{ $dayData['date']->locale('de')->dayName }} <span class="text-white font-serif ml-2">{{ $dayData['date']->day }}.</span>
+                            <h4 @class(['text-xl font-black uppercase tracking-widest', 'text-[var(--theme-color)] dark:drop-shadow-[0_0_10px_var(--theme-color-50)]' => $dayData['is_today'], 'text-gray-500' => !$dayData['is_today']])>
+                                {{ $dayData['date']->locale('de')->dayName }} <span class="text-gray-900 dark:text-white font-serif ml-2">{{ $dayData['date']->day }}.</span>
                             </h4>
                         </div>
 
@@ -345,21 +345,21 @@
                                 @php
                                     $s = $styles[$event->category] ?? $styles['general'];
                                     if ($event->priority === 'high') {
-                                        $s['bg'] = 'bg-red-500/20'; $s['text'] = 'text-red-400';
+                                        $s['bg'] = 'bg-red-500/15 dark:bg-red-500/20'; $s['text'] = 'text-red-600 dark:text-red-400';
                                     } elseif ($event->priority === 'medium') {
-                                        $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-400';
+                                        $s['bg'] = 'bg-yellow-500/20'; $s['text'] = 'text-yellow-700 dark:text-yellow-400';
                                     } else {
-                                        $s['bg'] = 'bg-gray-800'; $s['text'] = 'text-gray-400';
+                                        $s['bg'] = 'bg-gray-100 dark:bg-gray-800'; $s['text'] = 'text-gray-700 dark:text-gray-400';
                                     }
                                     $spanType = $event->span_type ?? 'single';
                                 @endphp
-                                <div wire:click="editEvent('{{ $event->id }}')" class="bg-gray-900/60 border border-gray-800 rounded-[2rem] p-5 shadow-lg hover:shadow-2xl hover:border-[var(--theme-color-40)] transition-all cursor-pointer flex items-center justify-between group/card">
+                                <div wire:click="editEvent('{{ $event->id }}')" class="bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-5 shadow-sm dark:shadow-lg dark:hover:shadow-2xl hover:border-[var(--theme-color-40)] transition-all cursor-pointer flex items-center justify-between group/card">
                                     <div class="flex items-center gap-5">
-                                        <div class="w-12 h-12 rounded-xl flex items-center justify-center {{ $s['bg'] }} {{ $s['text'] }} shadow-inner border border-current/10">
+                                        <div class="w-12 h-12 rounded-xl flex items-center justify-center {{ $s['bg'] }} {{ $s['text'] }} dark:shadow-inner border border-current/10">
                                             <x-dynamic-component :component="'heroicon-o-' . $s['icon']" class="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <h5 class="text-base font-bold text-white group-hover/card:text-[var(--theme-color)] transition-colors">
+                                            <h5 class="text-base font-bold text-gray-900 dark:text-white group-hover/card:text-[var(--theme-color)] transition-colors">
                                                 {{ $event->title }}
                                                 @if($spanType !== 'single')
                                                     <span class="text-[10px] text-gray-500 ml-2 font-mono uppercase">
@@ -374,13 +374,13 @@
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <span class="text-[10px] font-mono font-black text-gray-400 bg-gray-950 px-3 py-1.5 rounded-lg border border-gray-800 shadow-inner">
+                                        <span class="text-[10px] font-mono font-black text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-950 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 dark:shadow-inner">
                                             @if($event->is_all_day) TAG @else {{ $event->start_date->format('H:i') }} @endif
                                         </span>
                                     </div>
                                 </div>
                             @empty
-                                <div class="bg-gray-950/40 rounded-[1.5rem] p-4 border border-dashed border-gray-800 text-[10px] font-black text-gray-600 uppercase tracking-widest text-center">Keine Termine</div>
+                                <div class="bg-gray-100/50 dark:bg-gray-950/40 rounded-[1.5rem] p-4 border border-dashed border-gray-200 dark:border-gray-800 text-[10px] font-black text-gray-400 dark:text-gray-600 uppercase tracking-widest text-center">Keine Termine</div>
                             @endforelse
                         </div>
                     </div>
@@ -392,24 +392,24 @@
     </div> {{-- END CALENDAR VIEW --}}
 
     {{-- EDITOR VIEW --}}
-    <div x-show="$wire.showEditModal" style="display: none;" x-cloak x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-8" class="absolute inset-0 flex flex-col bg-gray-950 z-30 overflow-y-auto custom-scrollbar">
+    <div x-show="$wire.showEditModal" style="display: none;" x-cloak x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 translate-x-8" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-8" class="absolute inset-0 flex flex-col bg-white dark:bg-gray-950 z-30 overflow-y-auto custom-scrollbar">
         <div class="p-4 sm:p-8 max-w-5xl mx-auto w-full flex flex-col min-h-full">
             {{-- Header --}}
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-800 shrink-0 mt-4 sm:mt-0">
-                <h3 class="text-xl sm:text-2xl font-serif text-white tracking-wide flex items-center gap-3">
-                    <button wire:click="closeModal" class="p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded-lg transition-colors mr-1 text-sm font-sans flex items-center gap-1 shadow-inner">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-gray-200 dark:border-gray-800 shrink-0 mt-4 sm:mt-0">
+                <h3 class="text-xl sm:text-2xl font-serif text-gray-900 dark:text-white tracking-wide flex items-center gap-3">
+                    <button wire:click="closeModal" class="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 rounded-lg transition-colors mr-1 text-sm font-sans flex items-center gap-1 dark:shadow-inner">
                         <x-heroicon-o-chevron-left class="w-5 h-5"/>
                     </button>
-                    <x-heroicon-o-calendar class="w-6 h-6 sm:w-8 sm:h-8 text-[var(--theme-color)] drop-shadow-[0_0_10px_currentColor]" />
+                    <x-heroicon-o-calendar class="w-6 h-6 sm:w-8 sm:h-8 text-[var(--theme-color)] dark:drop-shadow-[0_0_10px_currentColor]" />
                     <span class="truncate">{{ $editingEventId ? 'Termin anpassen' : 'Neuer Termin' }}</span>
                 </h3>
                 <div class="flex gap-2 sm:gap-3 w-full sm:w-auto">
                     @if($editingEventId)
-                        <button wire:click="deleteEvent" wire:confirm="Soll dieser Termin wirklich gelöscht werden?" class="text-red-500 hover:text-red-400 transition-colors flex items-center justify-center gap-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 px-3 py-2 sm:px-4 sm:py-2 rounded-lg font-bold flex-1 sm:flex-none text-xs sm:text-base shadow-inner">
+                        <button wire:click="deleteEvent" wire:confirm="Soll dieser Termin wirklich gelöscht werden?" class="text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-900/50 px-3 py-2 sm:px-4 sm:py-2 rounded-lg font-bold flex-1 sm:flex-none text-xs sm:text-base dark:shadow-inner">
                             <x-heroicon-o-trash class="w-4 h-4 sm:w-5 sm:h-5" /> Löschen
                         </button>
                     @endif
-                    <button wire:click="closeModal" class="hidden sm:flex text-gray-400 hover:text-white transition-colors items-center gap-2 bg-gray-800/50 hover:bg-gray-800 px-4 py-2 rounded-lg font-bold shadow-inner">
+                    <button wire:click="closeModal" class="hidden sm:flex text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800/50 dark:hover:bg-gray-800 px-4 py-2 rounded-lg font-bold dark:shadow-inner">
                         <x-heroicon-o-arrow-left class="w-5 h-5" /> Zurück
                     </button>
                 </div>
@@ -421,7 +421,7 @@
                 <div class="space-y-2">
                     <label class="label-xs">Was steht an?</label>
                     <input type="text" wire:model="editTitle" class="input-dark text-base md:text-lg" placeholder="z.B. Team-Meeting">
-                    @error('editTitle') <span class="text-red-400 text-[9px] font-black uppercase ml-1">{{ $message }}</span> @enderror
+                    @error('editTitle') <span class="text-red-500 dark:text-red-400 text-[9px] font-black uppercase ml-1">{{ $message }}</span> @enderror
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -431,10 +431,10 @@
                         <div class="relative group">
                             <select wire:model="editCategory" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
                                 @foreach($styles as $key => $style)
-                                    <option value="{{ $key }}" class="bg-gray-900">{{ $style['label'] }}</option>
+                                    <option value="{{ $key }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ $style['label'] }}</option>
                                 @endforeach
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 dark:text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                         </div>
                     </div>
                     {{-- Erinnerung --}}
@@ -442,13 +442,13 @@
                         <label class="label-xs">Erinnerung</label>
                         <div class="relative group">
                             <select wire:model="editReminderMinutes" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                <option value="" class="bg-gray-900">Aus</option>
-                                <option value="0" class="bg-gray-900">Pünktlich</option>
-                                <option value="15" class="bg-gray-900">15 Min. vorher</option>
-                                <option value="60" class="bg-gray-900">1 Std. vorher</option>
-                                <option value="1440" class="bg-gray-900">1 Tag vorher</option>
+                                <option value="" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Aus</option>
+                                <option value="0" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Pünktlich</option>
+                                <option value="15" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">15 Min. vorher</option>
+                                <option value="60" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">1 Std. vorher</option>
+                                <option value="1440" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">1 Tag vorher</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 dark:text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                         </div>
                     </div>
                     {{-- Priorität --}}
@@ -456,39 +456,39 @@
                         <label class="label-xs">Priorität</label>
                         <div class="relative group">
                             <select wire:model="editPriority" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                <option value="low" class="bg-gray-900">Niedrig (Grau)</option>
-                                <option value="medium" class="bg-gray-900">Mittel (Gelb)</option>
-                                <option value="high" class="bg-gray-900">Wichtig (Rot)</option>
+                                <option value="low" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Niedrig (Grau)</option>
+                                <option value="medium" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Mittel (Gelb)</option>
+                                <option value="high" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Wichtig (Rot)</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 dark:text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                         </div>
                     </div>
                 </div>
 
                 {{-- Zeitstrahl --}}
-                <div class="bg-gray-900 rounded-[1.5rem] md:rounded-[2rem] border border-gray-800 p-5 md:p-6 space-y-5 md:space-y-6 shadow-inner relative overflow-hidden">
+                <div class="bg-gray-50 dark:bg-gray-900 rounded-[1.5rem] md:rounded-[2rem] border border-gray-200 dark:border-gray-800 p-5 md:p-6 space-y-5 md:space-y-6 dark:shadow-inner relative overflow-hidden">
                     <div class="absolute top-0 right-0 w-32 h-32 bg-[var(--theme-color-5)] rounded-bl-full blur-2xl pointer-events-none"></div>
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-800 pb-4 relative z-10 gap-3">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-gray-200 dark:border-gray-800 pb-4 relative z-10 gap-3">
                         <span class="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Zeitraum</span>
                         <label class="flex items-center gap-3 cursor-pointer group">
-                            <input type="checkbox" wire:model.live="editIsAllDay" class="rounded-lg border-gray-700 bg-gray-950 text-[var(--theme-color)] focus:ring-[var(--theme-color)] h-5 w-5">
-                            <span class="text-[10px] font-black uppercase text-gray-400 group-hover:text-white transition-colors">Ganztägig</span>
+                            <input type="checkbox" wire:model.live="editIsAllDay" class="rounded-lg border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 text-[var(--theme-color)] focus:ring-[var(--theme-color)] h-5 w-5">
+                            <span class="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">Ganztägig</span>
                         </label>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-8 relative z-10">
                         <div class="space-y-3">
-                            <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest drop-shadow-[0_0_5px_currentColor]">Beginn</span>
-                            <input type="date" wire:model="editStartDate" class="input-dark-sm [color-scheme:dark] w-full text-xs">
+                            <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest dark:drop-shadow-[0_0_5px_currentColor]">Beginn</span>
+                            <input type="date" wire:model="editStartDate" class="input-dark-sm [color-scheme:light] dark:[color-scheme:dark] w-full text-xs">
                             @if(!$editIsAllDay)
-                                <input type="time" wire:model="editStartTime" class="input-dark-sm mt-2 [color-scheme:dark] w-full text-xs">
+                                <input type="time" wire:model="editStartTime" class="input-dark-sm mt-2 [color-scheme:light] dark:[color-scheme:dark] w-full text-xs">
                             @endif
                         </div>
                         <div class="space-y-3">
-                            <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest drop-shadow-[0_0_5px_currentColor]">Ende</span>
-                            <input type="date" wire:model="editEndDate" class="input-dark-sm [color-scheme:dark] w-full text-xs">
+                            <span class="text-[9px] font-black text-[var(--theme-color)] uppercase ml-1 tracking-widest dark:drop-shadow-[0_0_5px_currentColor]">Ende</span>
+                            <input type="date" wire:model="editEndDate" class="input-dark-sm [color-scheme:light] dark:[color-scheme:dark] w-full text-xs">
                             @if(!$editIsAllDay)
-                                <input type="time" wire:model="editEndTime" class="input-dark-sm mt-2 [color-scheme:dark] w-full text-xs">
+                                <input type="time" wire:model="editEndTime" class="input-dark-sm mt-2 [color-scheme:light] dark:[color-scheme:dark] w-full text-xs">
                             @endif
                         </div>
                     </div>
@@ -500,19 +500,19 @@
                     <div class="flex flex-col sm:flex-row gap-4">
                         <div class="relative group flex-1">
                             <select wire:model.live="editRecurrence" class="input-dark appearance-none pr-10 cursor-pointer text-sm">
-                                <option value="" class="bg-gray-900">Einmaliger Termin</option>
-                                <option value="daily" class="bg-gray-900">Täglich</option>
-                                <option value="weekly" class="bg-gray-900">Wöchentlich</option>
-                                <option value="monthly" class="bg-gray-900">Monatlich</option>
-                                <option value="yearly" class="bg-gray-900">Jährlich</option>
+                                <option value="" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Einmaliger Termin</option>
+                                <option value="daily" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Täglich</option>
+                                <option value="weekly" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Wöchentlich</option>
+                                <option value="monthly" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Monatlich</option>
+                                <option value="yearly" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Jährlich</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400 dark:text-gray-600 group-focus-within:text-[var(--theme-color)]"><x-heroicon-m-chevron-down class="w-4 h-4"/></div>
                         </div>
 
                         @if($editRecurrence)
-                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-gray-950 border border-gray-800 rounded-xl p-3 md:px-4 md:py-2 animate-fade-in shrink-0 shadow-inner w-full sm:w-auto">
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl p-3 md:px-4 md:py-2 animate-fade-in shrink-0 dark:shadow-inner w-full sm:w-auto">
                                 <span class="text-[9px] font-black uppercase text-gray-500">Endet:</span>
-                                <input type="date" wire:model="editRecurrenceEnd" class="bg-transparent border-0 p-0 text-xs font-bold text-white focus:ring-0 [color-scheme:dark] outline-none w-full sm:w-auto">
+                                <input type="date" wire:model="editRecurrenceEnd" class="bg-transparent border-0 p-0 text-xs font-bold text-gray-900 dark:text-white focus:ring-0 [color-scheme:light] dark:[color-scheme:dark] outline-none w-full sm:w-auto">
                             </div>
                         @endif
                     </div>
@@ -521,13 +521,13 @@
                 {{-- Beschreibung --}}
                 <div class="space-y-2">
                     <label class="label-xs">Notizen & Details</label>
-                    <textarea wire:model="editDescription" rows="3" class="input-dark resize-none text-sm placeholder:italic placeholder-gray-600" placeholder="Hinterlasse hier Details zum Termin..."></textarea>
+                    <textarea wire:model="editDescription" rows="3" class="input-dark resize-none text-sm placeholder:italic placeholder-gray-400 dark:placeholder-gray-600" placeholder="Hinterlasse hier Details zum Termin..."></textarea>
                 </div>
             </div>
 
             {{-- Footer --}}
-            <div class="pt-6 border-t border-gray-800 flex justify-end gap-3 shrink-0 pb-6 md:pb-0">
-                <button wire:click="saveEvent" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white shadow-[0_0_30px_var(--theme-color-40)] transition-all active:scale-95 flex items-center justify-center gap-3">
+            <div class="pt-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3 shrink-0 pb-6 md:pb-0">
+                <button wire:click="saveEvent" class="w-full sm:w-auto h-12 md:h-14 px-10 rounded-xl md:rounded-2xl text-[10px] font-black uppercase tracking-widest text-gray-950 bg-[var(--theme-color)] hover:bg-white dark:shadow-[0_0_30px_var(--theme-color-40)] transition-all active:scale-95 flex items-center justify-center gap-3">
                     <span wire:loading.remove wire:target="saveEvent">Speichern</span>
                     <span wire:loading wire:target="saveEvent" class="animate-pulse italic">Speichert...</span>
                     <x-heroicon-m-check class="w-5 h-5 stroke-2" />
@@ -543,43 +543,55 @@
 
         .label-xs { display: block; font-size: 9px; font-weight: 900; color: #6b7280; text-transform: uppercase; letter-spacing: 0.25em; margin-bottom: 8px; margin-left: 4px; }
 
-        /* Zentrale Styling-Klasse für Dark-Inputs */
+        /* Zentrale Styling-Klasse für Inputs */
         .input-dark {
             width: 100%;
-            background-color: #030712; /* gray-950 */
-            border: 1px solid #1f2937; /* gray-800 */
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb; /* gray-200 */
             border-radius: 1.25rem;
             padding: 1rem 1.25rem;
             font-size: 0.875rem;
             font-weight: 700;
-            color: white;
+            color: #111827; /* gray-900 */
             transition: all 0.3s ease;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
             outline: none;
+        }
+        :is(.dark) .input-dark {
+            background-color: #030712; /* gray-950 */
+            border-color: #1f2937; /* gray-800 */
+            color: white;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
         }
         .input-dark:focus {
             border-color: var(--theme-color);
+        }
+        :is(.dark) .input-dark:focus {
             box-shadow: 0 0 20px var(--theme-color-10), inset 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .input-dark-sm {
             width: 100%;
-            background-color: #030712;
-            border: 1px solid #1f2937;
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
             border-radius: 1rem;
             padding: 0.75rem 1rem;
             font-size: 0.75rem;
             font-weight: 800;
-            color: white;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+            color: #111827;
             outline: none;
             transition: border-color 0.3s ease;
+        }
+        :is(.dark) .input-dark-sm {
+            background-color: #030712;
+            border-color: #1f2937;
+            color: white;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
         }
         .input-dark-sm:focus {
             border-color: var(--theme-color);
         }
 
-        .shadow-glow { box-shadow: 0 0 15px var(--theme-color-30); }
+        html.dark .shadow-glow { box-shadow: 0 0 15px var(--theme-color-30); }
 
         @media (max-width: 768px) {
             .animate-modal-up { animation: modal-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
@@ -587,8 +599,9 @@
         }
 
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        :is(.dark) .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--theme-color); }
     </style>
 </div>

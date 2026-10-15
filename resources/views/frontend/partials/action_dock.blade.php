@@ -36,23 +36,23 @@
     </div>
 
     {{-- DAS HAUPT-DOCK --}}
-    <div class="flex flex-col items-center bg-gray-900/95 backdrop-blur-xl py-4 px-1 rounded-l-2xl border-l border-t border-b border-white/10 shadow-[-10px_0_30px_rgba(0,0,0,0.3)] space-y-3 transition-all duration-300 hover:px-2 group/dock relative">
+    <div class="flex flex-col items-center bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl py-4 px-1 rounded-l-2xl border-l border-t border-b border-stone-200/90 dark:border-white/10 shadow-[-5px_0_25px_rgba(0,0,0,0.08)] dark:shadow-[-10px_0_30px_rgba(0,0,0,0.3)] space-y-3 transition-all duration-300 hover:px-2 group/dock relative">
 
         {{-- 0. SUPPORT CHAT (FUNKI) --}}
         <button @click="chatOpen = !chatOpen; if(chatOpen) { vouchersOpen = false; setTimeout(() => $dispatch('chat-opened'), 50); }"
-                class="group/icon relative p-1.5 text-cyan-500 hover:bg-cyan-500/20 rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
+                class="group/icon relative p-1.5 text-cyan-600 hover:bg-cyan-50 dark:text-cyan-400 dark:hover:bg-cyan-500/20 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
                 title="Live Support">
             
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform group-hover/icon:scale-110">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.38-.49 1.636-1.61 2.898-1.674 2.97-.1.116-.08.286.035.385.116.1.286.08.386-.035.056-.065 1.558-1.849 2.503-3.08A9.096 9.096 0 0012 20.25z" />
             </svg>
 
-            <span class="text-[8px] font-bold tracking-widest uppercase opacity-80 group-hover/icon:opacity-100 transition-opacity pointer-events-none w-full text-center">
+            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-cyan-600 dark:group-hover/icon:text-cyan-400 transition-colors pointer-events-none w-full text-center">
                 Support
             </span>
         </button>
 
-        <div class="w-6 h-px bg-white/10"></div>
+        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
 
         {{-- 1. GUTSCHEIN TRIGGER --}}
         @php
@@ -67,7 +67,7 @@
         @endphp
 
         <button @click="vouchersOpen = !vouchersOpen; if(vouchersOpen) chatOpen = false"
-                class="group/icon relative p-1.5 text-primary hover:bg-primary/20 rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
+                class="group/icon relative p-1.5 text-[#B88728] hover:bg-amber-50 dark:text-primary dark:hover:bg-primary/20 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
                 title="Gutscheine">
 
             {{-- Leuchtender Punkt nur, wenn wirklich ein Gutschein für diesen Monat anliegt --}}
@@ -84,17 +84,17 @@
                       d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
             </svg>
 
-            <span class="text-[8px] font-bold tracking-widest uppercase opacity-80 group-hover/icon:opacity-100 transition-opacity pointer-events-none w-full text-center">
+            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-[#B88728] dark:group-hover/icon:text-primary transition-colors pointer-events-none w-full text-center">
                 Rabatte
             </span>
         </button>
 
-        <div class="w-6 h-px bg-white/10"></div>
+        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
 
         {{-- 2. SCROLL NAVIGATION --}}
         <div class="flex flex-col space-y-1">
             <button x-show="!atTop" x-transition @click="window.scrollTo({top: 0, behavior: 'smooth'})"
-                    class="p-1 text-white/40 hover:text-white transition-colors" title="Nach oben">
+                    class="p-1 text-stone-400 hover:text-stone-800 dark:text-white/40 dark:hover:text-white transition-colors" title="Nach oben">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path d="M5 15l7-7 7 7"/>
                 </svg>
@@ -102,39 +102,39 @@
 
             <button x-show="!atBottom" x-transition
                     @click="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})"
-                    class="p-1 text-white/40 hover:text-white transition-colors" title="Nach unten">
+                    class="p-1 text-stone-400 hover:text-stone-800 dark:text-white/40 dark:hover:text-white transition-colors" title="Nach unten">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                     <path d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
         </div>
 
-        <div class="w-6 h-px bg-white/10"></div>
+        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
 
         {{-- 3. COOKIE KEKS --}}
         <button @click="CookieConsent.showPreferences()"
-                class="group/icon relative p-1.5 text-white/30 hover:text-primary transition-all hover:scale-110 flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
+                class="group/icon relative p-1.5 text-stone-400 hover:text-[#B88728] hover:bg-amber-50 dark:text-white/30 dark:hover:text-primary dark:hover:bg-primary/20 rounded-xl transition-all hover:scale-105 flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
                 title="Cookie-Einstellungen">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/>
                 <path d="M9 8h.01M12 12h.01M15 10h.01M11 16h.01M14 15h.01" stroke-linecap="round" stroke-width="3"/>
                 <path d="M18.5 12c-1 0-2-1-2-2s1-2 2-2"/>
             </svg>
-            <span class="text-[8px] font-bold tracking-widest uppercase opacity-80 group-hover/icon:opacity-100 transition-opacity pointer-events-none w-full text-center">
+            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-[#B88728] dark:group-hover/icon:text-primary transition-colors pointer-events-none w-full text-center">
                 Cookies
             </span>
         </button>
 
-        <div class="w-6 h-px bg-white/10"></div>
+        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
 
         {{-- 4. WIDERRUFSBUTTON (EU-Richtlinie 2026) --}}
         <a href="{{ route('widerruf') }}"
-           class="group/icon relative p-1.5 text-red-500/80 hover:bg-red-500/20 hover:text-red-500 rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
+           class="group/icon relative p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-red-500/80 dark:hover:bg-red-500/20 dark:hover:text-red-500 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
            title="Vertrag widerrufen">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform group-hover/icon:scale-110">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" />
             </svg>
-            <span class="text-[8px] font-bold tracking-widest uppercase opacity-80 group-hover/icon:opacity-100 transition-opacity pointer-events-none w-full text-center">
+            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-rose-600 dark:group-hover/icon:text-red-400 transition-colors pointer-events-none w-full text-center">
                 Widerruf
             </span>
         </a>
@@ -148,7 +148,7 @@
              x-transition:enter-start="translate-x-10 opacity-0"
              x-transition:enter-end="translate-x-0 opacity-100"
              x-transition:leave="transition ease-in duration-300"
-             class="fixed left-3 right-[4.25rem] sm:left-auto sm:right-[5.5rem] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] shadow-[-20px_0_50px_rgba(0,0,0,0.15)] rounded-[2rem] sm:rounded-[2.5rem] border border-white/20 flex flex-col pointer-events-auto"
+             class="fixed left-3 right-[4.25rem] sm:left-auto sm:right-[5.5rem] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] shadow-[-15px_0_40px_rgba(0,0,0,0.1)] dark:shadow-[-20px_0_50px_rgba(0,0,0,0.4)] rounded-[2rem] sm:rounded-[2.5rem] border border-stone-200/90 dark:border-white/20 flex flex-col pointer-events-auto"
              style="z-index: 99998;"
         >
             @livewire('shop.marketing.marketing-voucher-slider')

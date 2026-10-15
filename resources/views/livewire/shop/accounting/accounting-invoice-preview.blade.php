@@ -2,11 +2,11 @@
     <div>
         @if($showModal && $invoice)
             <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 md:p-4">
-                <div class="bg-gray-200 w-full max-w-5xl h-[95vh] md:h-[90vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden relative animate-modal-up">
+                <div class="bg-gray-200 dark:bg-gray-900 w-full max-w-5xl h-[95vh] md:h-[90vh] rounded-2xl flex flex-col shadow-2xl overflow-hidden relative animate-modal-up">
                     {{-- Modal Header Toolbar --}}
-                    <div class="bg-white p-3 md:p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 gap-3 sm:gap-0">
+                    <div class="bg-white dark:bg-gray-950 p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center shrink-0 gap-3 sm:gap-0">
                         <div>
-                            <h3 class="font-bold text-gray-900 flex flex-wrap items-center gap-2 text-sm md:text-base">
+                            <h3 class="font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2 text-sm md:text-base">
                                 <span style="color: var(--theme-color)">Belegvorschau:</span> {{ $invoice->invoice_number }}
                                 @if($invoice->status === 'cancelled')
                                     <span class="bg-red-100 text-red-600 text-[10px] px-2 py-0.5 rounded-full uppercase font-bold">Storniert</span>
@@ -30,7 +30,7 @@
                                 <span class="hidden sm:inline">Drucken</span>
                                 <svg class="w-4 h-4 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                             </button>
-                            <button wire:click="closeModal" class="bg-gray-100 text-gray-500 p-1.5 rounded-lg hover:bg-gray-200 transition ml-auto sm:ml-0">
+                            <button wire:click="closeModal" class="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition ml-auto sm:ml-0">
                                 <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             </button>
                         </div>

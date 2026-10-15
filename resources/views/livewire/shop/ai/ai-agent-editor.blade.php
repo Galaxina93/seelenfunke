@@ -2,14 +2,14 @@
 <div>
     <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
         <div class="mb-8 flex items-center gap-4">
-            <button wire:click="cancel" class="text-gray-400 hover:text-white transition-colors bg-gray-900 border border-gray-800 rounded-full h-10 w-10 flex items-center justify-center shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+            <button wire:click="cancel" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-full h-10 w-10 flex items-center justify-center shadow-sm dark:shadow-[0_0_15px_rgba(0,0,0,0.5)]">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                 </svg>
             </button>
             <div>
-                <h2 class="text-3xl font-black text-white mb-1 uppercase tracking-wider font-mono">{{ $agentId === 'new' ? 'Neuen Agenten erschaffen' : 'Agent ' . $name . ' konfigurieren' }}</h2>
-                <p class="text-gray-400 font-mono text-sm">Verwalte die Identität, das Gehirn und die Fähigkeiten (Werkzeuge) dieses Agents.</p>
+                <h2 class="text-3xl font-black text-gray-900 dark:text-white mb-1 uppercase tracking-wider font-mono">{{ $agentId === 'new' ? 'Neuen Agenten erschaffen' : 'Agent ' . $name . ' konfigurieren' }}</h2>
+                <p class="text-gray-500 dark:text-gray-400 font-mono text-sm">Verwalte die Identität, das Gehirn und die Fähigkeiten (Werkzeuge) dieses Agents.</p>
             </div>
         </div>
 
@@ -48,26 +48,26 @@
 
         <!-- Quick Status & Metriken -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
-                <div class="absolute inset-0 bg-gradient-to-br from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/80 rounded-2xl p-4 shadow-sm dark:shadow-inner relative overflow-hidden group">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-indigo-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div class="relative z-10">
-                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-cpu-chip class="w-4 h-4 text-indigo-400" /> Kognitiver Speicher</div>
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-cpu-chip class="w-4 h-4 text-indigo-400" /> Kognitiver Speicher</div>
                     <div class="flex items-end gap-2">
-                        <span class="text-xl font-black text-white font-mono">{{ number_format($contextLoad['tokens'], 0, ',', '.') }}</span>
+                        <span class="text-xl font-black text-gray-900 dark:text-white font-mono">{{ number_format($contextLoad['tokens'], 0, ',', '.') }}</span>
                         <span class="text-[10px] text-gray-500 font-mono mb-1">/ {{ $contextLoad['max'] >= 1000000 ? round($contextLoad['max']/1000000, 1).'M' : number_format($contextLoad['max'], 0, ',', '.') }}</span>
                     </div>
-                    <div class="w-full bg-gray-900 rounded-full h-1.5 mt-3 overflow-hidden border border-gray-800/50">
+                    <div class="w-full bg-gray-100 dark:bg-gray-900 rounded-full h-1.5 mt-3 overflow-hidden border border-gray-200 dark:border-gray-800/50">
                         <div class="h-1.5 rounded-full transition-all duration-500 {{ $contextLoad['percent'] > 80 ? 'bg-red-500' : ($contextLoad['percent'] > 50 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ $contextLoad['percent'] }}%"></div>
                     </div>
                 </div>
             </div>
             
-            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
-                <div class="absolute inset-0 bg-gradient-to-br from-cyan-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/80 rounded-2xl p-4 shadow-sm dark:shadow-inner relative overflow-hidden group">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-cyan-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div class="relative z-10">
-                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-wrench-screwdriver class="w-4 h-4 text-cyan-400" /> Aktive Skills</div>
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-wrench-screwdriver class="w-4 h-4 text-cyan-400" /> Aktive Skills</div>
                     <div class="flex items-end gap-2 mt-1">
-                        <span class="text-xl font-black text-white font-mono">
+                        <span class="text-xl font-black text-gray-900 dark:text-white font-mono">
                             {{ $agentId !== 'new' && \App\Models\Ai\AiAgent::find($agentId) ? \App\Models\Ai\AiAgent::find($agentId)->tools->count() : 0 }}
                         </span>
                         <span class="text-[10px] text-gray-500 font-mono mb-1">Werkzeuge</span>
@@ -75,22 +75,22 @@
                 </div>
             </div>
 
-            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
-                <div class="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/80 rounded-2xl p-4 shadow-sm dark:shadow-inner relative overflow-hidden group">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-purple-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div class="relative z-10">
-                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-sparkles class="w-4 h-4 text-purple-400" /> Primäres Modell</div>
-                    <div class="mt-1 text-sm font-bold text-white truncate" title="{{ $availableModels[$model] ?? $model }}">
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-sparkles class="w-4 h-4 text-purple-400" /> Primäres Modell</div>
+                    <div class="mt-1 text-sm font-bold text-gray-900 dark:text-white truncate" title="{{ $availableModels[$model] ?? $model }}">
                         {{ current(explode(' ', $availableModels[$model] ?? $model)) }}
                     </div>
                     <div class="text-[10px] text-gray-500 mt-1 truncate">{{ $modelDetails[$model]['type'] ?? 'LLM' }}</div>
                 </div>
             </div>
 
-            <div class="bg-black/40 border border-gray-800/80 rounded-2xl p-4 shadow-inner relative overflow-hidden group">
-                <div class="absolute inset-0 bg-gradient-to-br from-rose-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/80 rounded-2xl p-4 shadow-sm dark:shadow-inner relative overflow-hidden group">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-rose-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <div class="relative z-10">
-                    <div class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-speaker-wave class="w-4 h-4 text-rose-400" /> Sprachausgabe (TTS)</div>
-                    <div class="mt-1 text-sm font-bold {{ $tts_enabled ? 'text-white' : 'text-gray-600' }} truncate">
+                    <div class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mb-1 items-center flex gap-2"><x-heroicon-s-speaker-wave class="w-4 h-4 text-rose-400" /> Sprachausgabe (TTS)</div>
+                    <div class="mt-1 text-sm font-bold {{ $tts_enabled ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-600' }} truncate">
                         {{ $tts_enabled ? ($ttsProviders[$tts_provider] ?? 'Aktiv') : 'Deaktiviert' }}
                     </div>
                     <div class="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">{{ $tts_enabled ? 'Speed: '.number_format((float)$tts_speed, 1).'x' : '-' }}</div>
@@ -101,26 +101,26 @@
         <form wire:submit.prevent="save" class="space-y-10">
 
             <!-- Identität -->
-            <section class="bg-black/40 border {{ $agentId === 1 ? 'border-[var(--theme-color)] shadow-[0_0_20px_var(--theme-color-15)]' : 'border-gray-800/60 shadow-[0_0_20px_rgba(0,0,0,0.3)]' }} rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden">
-                <div class="absolute inset-0 bg-gradient-to-br from-gray-900/50 to-transparent pointer-events-none"></div>
+            <section class="bg-white dark:bg-black/40 border {{ $agentId === 1 ? 'border-[var(--theme-color)] shadow-sm dark:shadow-[0_0_20px_var(--theme-color-15)]' : 'border-gray-200 dark:border-gray-800/60 shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)]' }} rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-gray-900/50 to-transparent pointer-events-none"></div>
                 
-                <div class="relative z-10 flex items-center justify-between border-b border-gray-800/80 pb-4 mb-8">
+                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-8">
                     <div>
-                        <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
                             <div class="p-2 rounded-lg bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shadow-[0_0_10px_var(--theme-color-20)]">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" /></svg>
                             </div>
                             1. Identität & Rolle
                         </h3>
-                        <p class="text-xs text-gray-500">Wer ist dieser Agent und was ist sein Hauptzweck (System Prompt)?</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Wer ist dieser Agent und was ist sein Hauptzweck (System Prompt)?</p>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="text-[10px] font-black tracking-widest uppercase transition-colors duration-300 drop-shadow-md {{ $is_active ? 'text-emerald-500' : 'text-red-500' }}">
+                        <span class="text-[10px] font-black tracking-widest uppercase transition-colors duration-300 drop-shadow-none dark:drop-shadow-md {{ $is_active ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500' }}">
                             {{ $is_active ? 'Aktiv' : 'Inaktiv' }}
                         </span>
                         <label class="relative inline-flex items-center cursor-pointer" title="Agent aktivieren/deaktivieren">
                             <input type="checkbox" wire:model.live="is_active" class="sr-only peer">
-                            <div class="w-11 h-6 bg-red-500/80 border border-red-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-red-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500/80 peer-checked:border-emerald-500 peer-checked:shadow-[0_0_15px_rgba(16,185,129,0.4)] shadow-[0_0_15px_rgba(239,68,68,0.4)]"></div>
+                            <div class="w-11 h-6 bg-red-500/80 border border-red-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-red-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500/80 peer-checked:border-emerald-500 peer-checked:shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.4)] dark:shadow-[0_0_15px_rgba(239,68,68,0.4)]"></div>
                         </label>
                     </div>
                 </div>
@@ -130,8 +130,8 @@
                     <!-- Avatar Upload -->
                     <div class="flex flex-col sm:flex-row gap-6 items-start">
                         <div class="shrink-0">
-                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Profilbild</label>
-                            <div class="relative group cursor-pointer w-32 h-32 rounded-2xl border-2 border-dashed {{ $profile_picture || $existing_profile_picture ? 'border-[var(--theme-color-50)]' : 'border-gray-700' }} hover:border-[var(--theme-color)] transition-colors bg-gray-900/50 flex items-center justify-center overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                            <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-3">Profilbild</label>
+                            <div class="relative group cursor-pointer w-32 h-32 rounded-2xl border-2 border-dashed {{ $profile_picture || $existing_profile_picture ? 'border-[var(--theme-color-50)]' : 'border-gray-300 dark:border-gray-700' }} hover:border-[var(--theme-color)] transition-colors bg-gray-50 dark:bg-gray-900/50 flex items-center justify-center overflow-hidden shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.5)]">
                                 
                                 @if ($profile_picture)
                                     <img src="{{ $profile_picture->temporaryUrl() }}" class="w-full h-full object-cover">
@@ -161,13 +161,13 @@
                         <div class="flex-1 space-y-6 w-full">
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Name des Agenten <span class="text-red-500">*</span></label>
-                                    <input type="text" wire:model.defer="name" required placeholder="z.B. IT Administrator" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Name des Agenten <span class="text-red-500">*</span></label>
+                                    <input type="text" wire:model.defer="name" required placeholder="z.B. IT Administrator" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white sm:text-sm p-3 font-mono transition-all">
                                     @error('name') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aktivierungswort <span class="text-gray-600">(Wake Word)</span></label>
-                                    <input type="text" wire:model.defer="wake_word" placeholder="z.B. Computer oder den echten Namen" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all">
+                                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aktivierungswort <span class="text-gray-600">(Wake Word)</span></label>
+                                    <input type="text" wire:model.defer="wake_word" placeholder="z.B. Computer oder den echten Namen" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white sm:text-sm p-3 font-mono transition-all">
                                     <p class="text-[10px] text-gray-500 mt-1 font-mono">Bleibt dieses Feld leer, wird automatisch der <span class="text-[var(--theme-color)] font-bold">Name des Agenten</span> gewählt.</p>
                                     @error('wake_word') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
@@ -175,12 +175,12 @@
 
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aufgaben-Rolle</label>
+                                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aufgaben-Rolle</label>
                                     <div class="relative">
-                                        <select wire:model.live="ai_role_id" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
+                                        <select wire:model.live="ai_role_id" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
                                             <option value="">-- Keine spezifische Rolle --</option>
                                             @foreach($aiRoles as $role)
-                                                <option value="{{ $role->id }}" class="bg-gray-900 text-gray-300">{{ $role->name }}</option>
+                                                <option value="{{ $role->id }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300">{{ $role->name }}</option>
                                             @endforeach
                                         </select>
                                         <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
@@ -190,14 +190,14 @@
                                     @error('ai_role_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Rollen-Kurzbeschreibung (für UI)</label>
-                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-white sm:text-sm p-3 font-mono transition-all mb-4">
+                                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-1.5">Rollen-Kurzbeschreibung (für UI)</label>
+                                    <input type="text" wire:model.defer="role_description" placeholder="Wird automatisch befüllt..." class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white sm:text-sm p-3 font-mono transition-all mb-4">
                                     
                                     <label class="block text-xs font-bold text-sky-400 uppercase tracking-widest mb-1.5 flex items-center gap-2 mt-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
                                         Telegram Bot Token
                                     </label>
-                                    <input type="text" wire:model.defer="telegram_bot_token" placeholder="123456789:ABCdefGHIjkl..." class="w-full bg-black/40 border border-sky-700/50 rounded-xl shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-300 sm:text-sm p-3 font-mono transition-all">
+                                    <input type="text" wire:model.defer="telegram_bot_token" placeholder="123456789:ABCdefGHIjkl..." class="w-full bg-white dark:bg-black/40 border border-sky-300 dark:border-sky-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-900 dark:text-sky-300 sm:text-sm p-3 font-mono transition-all">
                                     <p class="text-[10px] text-gray-500 mt-1 font-mono">Optional. Macht Funkira zum Telegram-Bot!</p>
                                     @error('telegram_bot_token') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                     
@@ -205,7 +205,7 @@
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
                                         Erlaubte Chat IDs (Whitelist)
                                     </label>
-                                    <input type="text" wire:model.defer="telegram_allowed_chat_ids" placeholder="123456789, 987654321..." class="w-full bg-black/40 border border-sky-700/30 rounded-xl shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-300 sm:text-sm p-3 font-mono transition-all">
+                                    <input type="text" wire:model.defer="telegram_allowed_chat_ids" placeholder="123456789, 987654321..." class="w-full bg-white dark:bg-black/40 border border-sky-300 dark:border-sky-700/30 rounded-xl shadow-sm dark:shadow-inner focus:border-sky-500 focus:ring focus:ring-sky-500/20 text-sky-900 dark:text-sky-300 sm:text-sm p-3 font-mono transition-all">
                                     <p class="text-[10px] text-gray-500 mt-1 font-mono">Kommagetrennte Liste von Telegram-IDs. Standardmäßig ist der Bot <b>blockiert</b>. Trage ein <code>*</code> ein, wenn jeder schreiben darf.</p>
                                     @error('telegram_allowed_chat_ids') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                     
@@ -215,9 +215,9 @@
                                             Wie richte ich den Bot ein?
                                         </button>
                                         <div x-show="open" x-collapse x-cloak>
-                                            <div class="p-4 mt-2 bg-sky-900/10 border border-sky-500/20 rounded-xl shadow-inner text-xs font-mono space-y-2">
+                                            <div class="p-4 mt-2 bg-sky-50/70 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-500/20 rounded-xl shadow-sm dark:shadow-inner text-xs font-mono space-y-2">
                                                 <p class="text-sky-300 font-bold">In 3 Schritten zu Telegram:</p>
-                                                <ol class="list-decimal pl-4 space-y-1 text-sky-100/70">
+                                                <ol class="list-decimal pl-4 space-y-1 text-sky-800 dark:text-sky-100/70">
                                                     <li>Schreibe in Telegram dem offiziellen <b>@BotFather</b> den Befehl <code>/newbot</code>.</li>
                                                     <li>Gib ihm einen Namen & Username (muss auf 'bot' enden).</li>
                                                     <li>Kopiere den blauen HTTP-API-Token und füge ihn hier ein.</li>
@@ -228,27 +228,27 @@
                                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-amber-500"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" /></svg>
                                                         Wichtig: Server-Kopplung
                                                     </p>
-                                                    <p class="text-sky-100/70 mb-2 leading-relaxed">Nach dem Speichern weiß Telegram noch nicht, wo dein Server erreichbar ist. Du musst Telegram die URL zwingend mitteilen. Führe dazu bitte <b>einen</b> der folgenden Befehle aus:</p>
+                                                    <p class="text-sky-800 dark:text-sky-100/70 mb-2 leading-relaxed">Nach dem Speichern weiß Telegram noch nicht, wo dein Server erreichbar ist. Du musst Telegram die URL zwingend mitteilen. Führe dazu bitte <b>einen</b> der folgenden Befehle aus:</p>
                                                     
                                                     <div class="space-y-4">
                                                         <!-- Stage Server -->
-                                                        <div class="bg-indigo-900/20 p-2 rounded border border-indigo-700/50">
+                                                        <div class="bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded border border-indigo-200 dark:border-indigo-700/50">
                                                             <div class="flex items-center justify-between mb-1">
                                                                 <span class="text-[10px] font-bold text-indigo-400">1. Stage Server (Testumgebung)</span>
                                                                 <span class="text-[8px] bg-indigo-900 text-indigo-300 px-1 rounded">SSH Terminal</span>
                                                             </div>
                                                             <p class="text-[9px] text-indigo-300/70 mb-1 leading-tight">Verbinde dich via SSH mit dem Stage-Server und führe im Verzeichnis aus:</p>
-                                                            <code class="block bg-black/60 p-1.5 rounded text-sky-400 font-mono text-[9px] break-all border border-indigo-900/50">php artisan telegram:register-webhooks --domain="https://stage.mein-seelenfunke.de"</code>
+                                                            <code class="block bg-white dark:bg-black/60 p-1.5 rounded text-sky-700 dark:text-sky-400 font-mono text-[9px] break-all border border-indigo-200 dark:border-indigo-900/50">php artisan telegram:register-webhooks --domain="https://stage.mein-seelenfunke.de"</code>
                                                         </div>
 
                                                         <!-- Live Server -->
-                                                        <div class="bg-emerald-900/20 p-2 rounded border border-emerald-700/50">
+                                                        <div class="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded border border-emerald-200 dark:border-emerald-700/50">
                                                             <div class="flex items-center justify-between mb-1">
                                                                 <span class="text-[10px] font-bold text-emerald-400">2. Live Server (Bald)</span>
                                                                 <span class="text-[8px] bg-emerald-900 text-emerald-300 px-1 rounded">SSH Terminal</span>
                                                             </div>
                                                             <p class="text-[9px] text-emerald-300/70 mb-1 leading-tight">Verbinde dich via SSH mit dem echten Live-Server und führe im Verzeichnis aus:</p>
-                                                            <code class="block bg-black/60 p-1.5 rounded text-sky-400 font-mono text-[9px] break-all border border-emerald-900/50">php artisan telegram:register-webhooks --domain="https://mein-seelenfunke.de"</code>
+                                                            <code class="block bg-white dark:bg-black/60 p-1.5 rounded text-sky-700 dark:text-sky-400 font-mono text-[9px] break-all border border-emerald-200 dark:border-emerald-900/50">php artisan telegram:register-webhooks --domain="https://mein-seelenfunke.de"</code>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -259,7 +259,7 @@
                             </div>
                             <!-- Personality Presets -->
                             <div class="mt-4 mb-6 pt-4">
-                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-indigo-400"><path d="M10 9a3 3 0 100-6 3 3 0 000 6zM6.711 11.23a.75.75 0 011.026-.201c.712.485 1.54.721 2.378.721 1.401 0 2.721-.63 3.559-1.63a.75.75 0 111.166.96c-1.09 1.302-2.8 2.17-4.725 2.17-1.077 0-2.146-.307-3.078-.94a.75.75 0 01-.326-1.08z" /></svg>
                                     Persönlichkeits-Voreinstellungen (Presets)
                                 </label>
@@ -267,64 +267,64 @@
                                 
                                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                     <!-- CEO Mode -->
-                                    <button type="button" wire:click="applyPreset('ceo')" class="group relative bg-black/40 border hover:border-cyan-500/50 hover:bg-cyan-900/10 rounded-xl p-4 text-left transition-all duration-300 shadow-[0_0_10px_rgba(0,0,0,0.5)] {{ $activePreset === 'ceo' ? 'border-cyan-500 bg-cyan-900/20 shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-700/50' }}">
+                                    <button type="button" wire:click="applyPreset('ceo')" class="group relative bg-white dark:bg-black/40 border hover:border-cyan-500/50 hover:bg-cyan-50 dark:hover:bg-cyan-900/10 rounded-xl p-4 text-left transition-all duration-300 shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] {{ $activePreset === 'ceo' ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.3)]' : 'border-gray-200 dark:border-gray-700/50' }}">
                                         @if($activePreset === 'ceo')
                                             <div class="absolute inset-0 border-2 border-cyan-400 rounded-xl rounded-xl opacity-50 pointer-events-none"></div>
                                         @endif
                                         <div class="flex items-center gap-3 mb-2">
                                             <div class="text-xl relative z-10">🚀</div>
-                                            <h5 class="text-sm font-bold uppercase tracking-widest transition-colors relative z-10 {{ $activePreset === 'ceo' ? 'text-cyan-400' : 'text-gray-200 group-hover:text-cyan-400' }}">CEO-Modus</h5>
+                                            <h5 class="text-sm font-bold uppercase tracking-widest transition-colors relative z-10 {{ $activePreset === 'ceo' ? 'text-cyan-600 dark:text-cyan-400' : 'text-gray-900 dark:text-gray-200 group-hover:text-cyan-600 dark:group-hover:text-cyan-400' }}">CEO-Modus</h5>
                                         </div>
-                                        <p class="text-[10px] font-mono leading-relaxed transition-colors relative z-10 {{ $activePreset === 'ceo' ? 'text-cyan-100' : 'text-gray-400 group-hover:text-gray-300' }}">Absolut effizient. Fokus auf Skalierung und maximalen Geschäftserfolg. Kein Smalltalk, harte Fakten.</p>
+                                        <p class="text-[10px] font-mono leading-relaxed transition-colors relative z-10 {{ $activePreset === 'ceo' ? 'text-cyan-800 dark:text-cyan-100' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300' }}">Absolut effizient. Fokus auf Skalierung und maximalen Geschäftserfolg. Kein Smalltalk, harte Fakten.</p>
                                     </button>
                                     
                                     <!-- Colleague Mode -->
-                                    <button type="button" wire:click="applyPreset('colleague')" class="group relative bg-black/40 border hover:border-emerald-500/50 hover:bg-emerald-900/10 rounded-xl p-4 text-left transition-all duration-300 shadow-[0_0_10px_rgba(0,0,0,0.5)] {{ $activePreset === 'colleague' ? 'border-emerald-500 bg-emerald-900/20 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'border-gray-700/50' }}">
+                                    <button type="button" wire:click="applyPreset('colleague')" class="group relative bg-white dark:bg-black/40 border hover:border-emerald-500/50 hover:bg-emerald-50 dark:hover:bg-emerald-900/10 rounded-xl p-4 text-left transition-all duration-300 shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] {{ $activePreset === 'colleague' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'border-gray-200 dark:border-gray-700/50' }}">
                                         @if($activePreset === 'colleague')
                                             <div class="absolute inset-0 border-2 border-emerald-400 rounded-xl opacity-50 pointer-events-none"></div>
                                         @endif
                                         <div class="flex items-center gap-3 mb-2">
                                             <div class="text-xl relative z-10">⚖️</div>
-                                            <h5 class="text-sm font-bold uppercase tracking-widest transition-colors relative z-10 {{ $activePreset === 'colleague' ? 'text-emerald-400' : 'text-gray-200 group-hover:text-emerald-400' }}">Kollege</h5>
+                                            <h5 class="text-sm font-bold uppercase tracking-widest transition-colors relative z-10 {{ $activePreset === 'colleague' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-900 dark:text-gray-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400' }}">Kollege</h5>
                                         </div>
-                                        <p class="text-[10px] font-mono leading-relaxed transition-colors relative z-10 {{ $activePreset === 'colleague' ? 'text-emerald-100' : 'text-gray-400 group-hover:text-gray-300' }}">Professioneller Erfolg mit menschlicher Note. Zielorientiert, aber charmant und gelegentlich humorvoll.</p>
+                                        <p class="text-[10px] font-mono leading-relaxed transition-colors relative z-10 {{ $activePreset === 'colleague' ? 'text-emerald-800 dark:text-emerald-100' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300' }}">Professioneller Erfolg mit menschlicher Note. Zielorientiert, aber charmant und gelegentlich humorvoll.</p>
                                     </button>
                                     
                                     <!-- Chill Mode -->
-                                    <button type="button" wire:click="applyPreset('chill')" class="group relative bg-black/40 border hover:border-amber-500/50 hover:bg-amber-900/10 rounded-xl p-4 text-left transition-all duration-300 shadow-[0_0_10px_rgba(0,0,0,0.5)] {{ $activePreset === 'chill' ? 'border-amber-500 bg-amber-900/20 shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-gray-700/50' }}">
+                                    <button type="button" wire:click="applyPreset('chill')" class="group relative bg-white dark:bg-black/40 border hover:border-amber-500/50 hover:bg-amber-50 dark:hover:bg-amber-900/10 rounded-xl p-4 text-left transition-all duration-300 shadow-sm dark:shadow-[0_0_10px_rgba(0,0,0,0.5)] {{ $activePreset === 'chill' ? 'border-amber-500 bg-amber-50 dark:bg-amber-900/20 shadow-sm dark:shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'border-gray-200 dark:border-gray-700/50' }}">
                                         @if($activePreset === 'chill')
                                             <div class="absolute inset-0 border-2 border-amber-400 rounded-xl opacity-50 pointer-events-none"></div>
                                         @endif
                                         <div class="flex items-center gap-3 mb-2">
                                             <div class="text-xl relative z-10">🛋️</div>
-                                            <h5 class="text-sm font-bold uppercase tracking-widest transition-colors relative z-10 {{ $activePreset === 'chill' ? 'text-amber-400' : 'text-gray-200 group-hover:text-amber-400' }}">Feierabend</h5>
+                                            <h5 class="text-sm font-bold uppercase tracking-widest transition-colors relative z-10 {{ $activePreset === 'chill' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-gray-200 group-hover:text-amber-600 dark:group-hover:text-amber-400' }}">Feierabend</h5>
                                         </div>
-                                        <p class="text-[10px] font-mono leading-relaxed transition-colors relative z-10 {{ $activePreset === 'chill' ? 'text-amber-100' : 'text-gray-400 group-hover:text-gray-300' }}">Empathischer Begleiter. Fokus auf Alltag, Familie und unbeschwertes Brainstorming. Absolut stressfrei.</p>
+                                        <p class="text-[10px] font-mono leading-relaxed transition-colors relative z-10 {{ $activePreset === 'chill' ? 'text-amber-800 dark:text-amber-100' : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300' }}">Empathischer Begleiter. Fokus auf Alltag, Familie und unbeschwertes Brainstorming. Absolut stressfrei.</p>
                                     </button>
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Master System-Prompt</label>
-                                <textarea wire:model.defer="system_prompt" rows="8" placeholder="Du bist der IT-Admin Bot. Analysiere Fehler präzise und effizient..." class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-emerald-400/90 p-4 font-mono text-sm leading-relaxed transition-all resize-y custom-scrollbar"></textarea>
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-1.5">Master System-Prompt</label>
+                                <textarea wire:model.defer="system_prompt" rows="8" placeholder="Du bist der IT-Admin Bot. Analysiere Fehler präzise und effizient..." class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-emerald-700 dark:text-emerald-400/90 p-4 font-mono text-sm leading-relaxed transition-all resize-y custom-scrollbar"></textarea>
                                 <p class="text-[10px] text-gray-500 mt-2 font-mono"><span class="text-[var(--theme-color)] font-bold">INFO:</span> Dieser Text bildet die Kern-Grundanweisung (Persona), die bei jeder Anfrage als System-Message mitgeschickt wird.</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Appearance (Colors & Icons) matrix style -->
-                    <div class="border border-gray-800/80 bg-black/30 p-6 rounded-2xl shadow-inner relative {{ $inheritedDept ? 'opacity-80' : '' }}">
+                    <div class="border border-gray-200 dark:border-gray-800/80 bg-gray-50/50 dark:bg-black/30 p-6 rounded-2xl shadow-sm dark:shadow-inner relative {{ $inheritedDept ? 'opacity-80' : '' }}">
                         @if($inheritedDept)
-                            <div class="absolute inset-0 bg-black/60 z-20 rounded-2xl flex flex-col items-center justify-center p-6 backdrop-blur-sm">
-                                <div class="bg-gray-950 border border-{{ $inheritedDept['color'] }}/50 shadow-[0_0_30px_currentColor] text-{{ $inheritedDept['color'] }} px-8 py-6 rounded-2xl text-center flex flex-col items-center max-w-md ring-1 ring-white/5">
+                            <div class="absolute inset-0 bg-black/40 dark:bg-black/60 z-20 rounded-2xl flex flex-col items-center justify-center p-6 backdrop-blur-sm">
+                                <div class="bg-white dark:bg-gray-950 border border-{{ $inheritedDept['color'] }}/50 shadow-lg dark:shadow-[0_0_30px_currentColor] text-{{ $inheritedDept['color'] }} px-8 py-6 rounded-2xl text-center flex flex-col items-center max-w-md ring-1 ring-black/5 dark:ring-white/5">
                                     <x-dynamic-component :component="'heroicon-o-' . $inheritedDept['icon']" class="w-10 h-10 mb-3 animate-pulse-slow" />
                                     <h4 class="font-bold text-sm tracking-widest uppercase mb-2">Visuelle Identität Geerbt</h4>
-                                    <p class="text-xs font-mono text-gray-300 leading-relaxed">Dieser Agent arbeitet in der Abteilung <strong class="text-white">"{{ $inheritedDept['name'] }}"</strong>.<br>Farbe und Vektor-Symbol werden systemweit zwingend von der Mutter-Abteilung vererbt und können für diesen Agenten nicht individuell überschrieben werden.</p>
+                                    <p class="text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed">Dieser Agent arbeitet in der Abteilung <strong class="text-gray-900 dark:text-white">"{{ $inheritedDept['name'] }}"</strong>.<br>Farbe und Vektor-Symbol werden systemweit zwingend von der Mutter-Abteilung vererbt und können für diesen Agenten nicht individuell überschrieben werden.</p>
                                 </div>
                             </div>
                         @endif
 
-                        <h4 class="text-xs font-bold text-gray-300 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-gray-800/50 pb-2 relative z-10">
+                        <h4 class="text-xs font-bold text-gray-900 dark:text-gray-300 uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-gray-200 dark:border-gray-800/50 pb-2 relative z-10">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-[var(--theme-color)]"><path fill-rule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM5.5 10a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z" clip-rule="evenodd" /></svg>
                             Optische Identität (UI Präsentation)
                         </h4>
@@ -332,7 +332,7 @@
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
                             <!-- Color Palette -->
                             <div>
-                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Aura Farbe wählen</label>
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-3">Aura Farbe wählen</label>
                                 <!-- Tailwind Safelist Fix for Dynamic Colors in loops -->
                                 <div class="hidden bg-cyan-500 text-cyan-500 border-cyan-500/50 bg-emerald-500 text-emerald-500 border-emerald-500/50 bg-blue-500 text-blue-500 border-blue-500/50 bg-indigo-500 text-indigo-500 border-indigo-500/50 bg-purple-500 text-purple-500 border-purple-500/50 bg-pink-500 text-pink-500 border-pink-500/50 bg-rose-500 text-rose-500 border-rose-500/50 bg-red-500 text-red-500 border-red-500/50 bg-orange-500 text-orange-500 border-orange-500/50 bg-amber-500 text-amber-500 border-amber-500/50 bg-yellow-500 text-yellow-500 border-yellow-500/50 bg-green-500 text-green-500 border-green-500/50 bg-sky-500 text-sky-500 border-sky-500/50"></div>
                                 <div class="grid grid-cols-8 gap-2">
@@ -353,12 +353,12 @@
 
                             <!-- Heroicons Selection -->
                             <div>
-                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Vektor Symbol</label>
+                                <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-3">Vektor Symbol</label>
                                 <div class="grid grid-cols-8 gap-2">
                                     @foreach($availableIcons as $ico)
                                         <button type="button" wire:click="$set('icon', '{{ $ico }}')" 
                                             class="w-10 h-10 rounded-xl border transition-all flex items-center justify-center
-                                            {{ $icon === $ico ? 'border-[var(--theme-color)] bg-[var(--theme-color-20)] text-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-30)]' : 'border-gray-800 bg-gray-900/50 text-gray-500 hover:border-gray-600 hover:text-gray-300' }}"
+                                            {{ $icon === $ico ? 'border-[var(--theme-color)] bg-[var(--theme-color-20)] text-[var(--theme-color)] shadow-sm dark:shadow-[0_0_15px_var(--theme-color-30)]' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/50 text-gray-500 hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-900 dark:hover:text-gray-300' }}"
                                             title="{{ $ico }}">
                                             <!-- Dynamically render heroicon out of standard set -->
                                             <x-dynamic-component :component="'heroicon-o-' . $ico" class="w-6 h-6" />
@@ -374,18 +374,18 @@
             </section>
 
             <!-- Gehirn (LLM Settings) -->
-            <section class="bg-black/40 border border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-[0_0_20px_rgba(0,0,0,0.3)]">
-                <div class="absolute inset-0 bg-gradient-to-br from-indigo-900/10 to-transparent pointer-events-none"></div>
+            <section class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)]">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-indigo-900/10 to-transparent pointer-events-none"></div>
 
-                <div class="relative z-10 flex items-center justify-between border-b border-gray-800/80 pb-4 mb-8">
+                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-8">
                     <div>
-                        <h3 class="text-xl font-bold text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
-                            <div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.2)]">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
+                            <div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-sm dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M11.47 3.841a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.061l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 101.061 1.06l8.69-8.689z" /><path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.432z" /></svg>
                             </div>
                             2. Neuronales Netz (Modell)
                         </h3>
-                        <p class="text-xs text-gray-500">Welches LLM-Gehirn steuert diesen Agenten?</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Welches LLM-Gehirn steuert diesen Agenten?</p>
                     </div>
                 </div>
 
@@ -410,9 +410,9 @@
                             </span>
                         </label>
                         <div class="relative">
-                            <select x-model="selectedModel" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
+                            <select x-model="selectedModel" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-gray-900 dark:text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
                                 @foreach($availableModels as $key => $label)
-                                    <option value="{{ $key }}" class="bg-gray-900 text-gray-300">{{ $label }}</option>
+                                    <option value="{{ $key }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300">{{ $label }}</option>
                                 @endforeach
                             </select>
                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
@@ -421,15 +421,15 @@
                         </div>
                         
                         <!-- Model Details Alpine Render -->
-                        <div x-show="details[selectedModel]" x-transition class="mt-4 p-4 bg-indigo-900/10 border border-indigo-500/20 rounded-xl shadow-[0_0_15px_rgba(99,102,241,0.05)] text-xs font-mono" style="display: none;">
+                        <div x-show="details[selectedModel]" x-transition class="mt-4 p-4 bg-indigo-50/70 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-500/20 rounded-xl shadow-sm dark:shadow-[0_0_15px_rgba(99,102,241,0.05)] text-xs font-mono" style="display: none;">
                             <div class="grid grid-cols-1 gap-3">
                                 <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-1">Typische Anwendungsbeispiele</span> 
-                                     <ul class="text-indigo-200 list-disc list-inside space-y-1" x-html="(details[selectedModel]?.use_cases || []).map(u => `<li>${u}</li>`).join('')">
+                                     <ul class="text-indigo-900 dark:text-indigo-200 list-disc list-inside space-y-1" x-html="(details[selectedModel]?.use_cases || []).map(u => `<li>${u}</li>`).join('')">
                                      </ul>
                                 </div>
                                 <div class="grid grid-cols-2 gap-3 border-t border-indigo-500/20 pt-3 mt-1">
-                                    <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-0.5">Kontextgröße</span> <span x-text="details[selectedModel]?.context" class="text-indigo-200"></span></div>
-                                    <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-0.5">Lizenz</span> <span x-text="details[selectedModel]?.license" class="text-indigo-200"></span></div>
+                                    <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-0.5">Kontextgröße</span> <span x-text="details[selectedModel]?.context" class="text-indigo-900 dark:text-indigo-200"></span></div>
+                                    <div><span class="text-indigo-500/50 uppercase tracking-widest text-[9px] block mb-0.5">Lizenz</span> <span x-text="details[selectedModel]?.license" class="text-indigo-900 dark:text-indigo-200"></span></div>
                                 </div>
                             </div>
                         </div>
@@ -488,7 +488,7 @@
                                 </span>
                                 <label class="relative inline-flex items-center cursor-pointer" title="TTS aktivieren/deaktivieren">
                                     <input type="checkbox" wire:model.live="tts_enabled" class="sr-only peer">
-                                    <div class="w-11 h-6 bg-gray-700/80 border border-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500/80 peer-checked:border-indigo-500 peer-checked:shadow-[0_0_15px_rgba(99,102,241,0.4)] shadow-inner transition-colors"></div>
+                                    <div class="w-11 h-6 bg-gray-200 dark:bg-gray-700/80 border border-gray-300 dark:border-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-400 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 dark:peer-checked:bg-indigo-500/80 peer-checked:border-indigo-600 dark:peer-checked:border-indigo-500 peer-checked:shadow-sm dark:peer-checked:shadow-[0_0_15px_rgba(99,102,241,0.4)] shadow-inner transition-colors"></div>
                                 </label>
                             </div>
                         </div>
@@ -496,9 +496,9 @@
                         <div class="space-y-4 transition-all duration-300" x-show="$wire.tts_enabled" x-collapse x-cloak>
                             <!-- Provider -->
                             <div class="relative">
-                                <select wire:model.live="tts_provider" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
+                                <select wire:model.live="tts_provider" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-gray-900 dark:text-white sm:text-sm p-3 font-mono transition-all appearance-none cursor-pointer">
                                     @foreach($ttsProviders as $key => $label)
-                                        <option value="{{ $key }}" class="bg-gray-900 text-gray-300">{{ $label }}</option>
+                                        <option value="{{ $key }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300">{{ $label }}</option>
                                     @endforeach
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
@@ -531,7 +531,7 @@
                                                 wire:loading.attr="disabled"
                                                 wire:target="playVoiceSample"
                                                 title="Ausgewählte Stimme als Hörprobe abspielen"
-                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[11px] font-mono transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 shadow-[0_0_10px_rgba(99,102,241,0.2)]">
+                                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[11px] font-mono transition-all hover:scale-105 active:scale-95 cursor-pointer disabled:opacity-50 shadow-sm dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]">
                                             <span wire:loading.remove wire:target="playVoiceSample" class="flex items-center gap-1.5">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
@@ -549,12 +549,12 @@
                                 <!-- Voice (Select for predefined, Text for Toni) -->
                                 <div class="relative">
                                     @if($tts_provider === 'toni_xttsv2')
-                                        <input type="text" wire:model.live.debounce.500ms="tts_voice" placeholder="Voice Key (z.B. voice_bab36a97)" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all">
+                                        <input type="text" wire:model.live.debounce.500ms="tts_voice" placeholder="Voice Key (z.B. voice_bab36a97)" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-gray-900 dark:text-white sm:text-sm p-3 pl-10 font-mono transition-all">
                                     @else
-                                        <select wire:model.live="tts_voice" class="w-full bg-black/40 border border-gray-700/50 rounded-xl shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
+                                        <select wire:model.live="tts_voice" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-indigo-500 focus:ring focus:ring-indigo-500/20 text-gray-900 dark:text-white sm:text-sm p-3 pl-10 font-mono transition-all appearance-none cursor-pointer">
                                             <option value="" disabled>-- Stimme wählen --</option>
                                             @foreach($ttsVoices[$tts_provider] ?? [] as $key => $label)
-                                                <option value="{{ $key }}" class="bg-gray-900 text-gray-300">{{ $label }}</option>
+                                                <option value="{{ $key }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300">{{ $label }}</option>
                                             @endforeach
                                         </select>
                                     @endif
@@ -584,7 +584,7 @@
                                         <span>Sprechgeschwindigkeit (Speed)</span>
                                         <span class="text-indigo-400" x-text="(parseFloat($wire.tts_speed)).toFixed(1) + 'x'"></span>
                                     </label>
-                                    <input type="range" wire:model.live="tts_speed" min="0.1" max="3.0" step="0.1" class="w-full accent-indigo-500 bg-gray-800 rounded-lg appearance-none cursor-pointer h-2">
+                                    <input type="range" wire:model.live="tts_speed" min="0.1" max="3.0" step="0.1" class="w-full accent-indigo-600 dark:accent-indigo-500 bg-gray-200 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer h-2">
                                     <div class="flex justify-between text-[9px] text-gray-500 font-mono mt-1">
                                         <span>0.1 (Sehr langsam)</span>
                                         <span>1.0 (Normal)</span>
@@ -600,8 +600,8 @@
                 </div>
             </section>
 
-            <div class="flex justify-between pt-6 border-t border-gray-800/80 items-center">
-                <button type="button" wire:click="cancel" class="text-gray-400 hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-900">Abbrechen</button>
+            <div class="flex justify-between pt-6 border-t border-gray-200 dark:border-gray-800/80 items-center">
+                <button type="button" wire:click="cancel" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900">Abbrechen</button>
                 <div class="flex items-center gap-4">
                     <span x-data="{ show: false, timeout: null }"
                           x-on:agent-saved.window="
@@ -618,7 +618,7 @@
                         </svg>
                         Gespeichert
                     </span>
-                    <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
+                    <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-md dark:shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-lg dark:hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
                         <svg wire:loading.remove wire:target="save" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" /></svg>
                         <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Agent Speichern
@@ -644,7 +644,7 @@
          x-transition:leave="transition ease-in duration-200 transform"
          x-transition:leave-start="opacity-100 scale-100"
          x-transition:leave-end="opacity-0 scale-95"
-         class="fixed bottom-6 right-6 z-50 max-w-md bg-gray-900/95 border border-emerald-500/50 text-white px-5 py-3.5 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(16,185,129,0.3)] backdrop-blur-xl flex items-center gap-3 font-mono text-sm pointer-events-none"
+         class="fixed bottom-6 right-6 z-50 max-w-md bg-white/95 dark:bg-gray-900/95 border border-emerald-500/50 text-gray-900 dark:text-white px-5 py-3.5 rounded-2xl shadow-xl dark:shadow-[0_10px_30px_rgba(0,0,0,0.8),0_0_20px_rgba(16,185,129,0.3)] backdrop-blur-xl flex items-center gap-3 font-mono text-sm pointer-events-none"
          style="display: none;">
         <div class="h-8 w-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

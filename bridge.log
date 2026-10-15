@@ -13536,3 +13536,7 @@ Inva
 [2026-10-14T19:10:20.721Z] 🧠 Gemini Live Proxy: Client Verbindung geschlossen (1005)
 [2026-10-14T19:10:20.749Z] 🧠 Gemini Live Proxy: Sonstige Nachricht von Google: {"sessionResumptionUpdate":{"newHandle":"18285c1f-2b1f-489f-b192-383efec86e44","resumable":true}}
 [2026-10-14T19:10:20.768Z] 🧠 Gemini Live Proxy: Google Verbindung geschlossen (1000): 
+[2026-10-15T09:58:03.955Z] --- NODE JS SERVER RESTARTED (VERSION: v1.0) ---
+[2026-10-15T09:58:03.989Z] Versuche auf Port 8081 zu lauschen... (process.env.PORT=undefined)
+[2026-10-15T09:58:03.998Z] 🚀 Seelenfunke Twilio-Gemini Bridge lauscht auf Port 8081
+[2026-10-15T09:58:03.998Z] Erfolgreich gebunden auf Port 8081

@@ -4,11 +4,11 @@
     <!-- Header -->
     <div class="sm:flex sm:justify-between sm:items-center mb-8">
         <div>
-            <h1 class="text-2xl md:text-3xl font-black tracking-widest uppercase shadow-emerald-500/20 drop-shadow-md text-[var(--theme-color)]">Sicherungen</h1>
-            <p class="mt-1 text-sm text-gray-400">Übersicht und Verwaltung der Datenbank-Backups</p>
+            <h1 class="text-2xl md:text-3xl font-black tracking-widest uppercase drop-shadow-none dark:drop-shadow-md text-[var(--theme-color)]">Sicherungen</h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Übersicht und Verwaltung der Datenbank-Backups</p>
         </div>
         <div class="mt-4 sm:mt-0">
-            <button wire:click="runTestBackup" wire:loading.attr="disabled" class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-lg border border-gray-700 hover:border-[var(--theme-color)] transition-all shadow-lg focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-opacity-50">
+            <button wire:click="runTestBackup" wire:loading.attr="disabled" class="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-900 dark:text-white font-bold rounded-lg border border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)] transition-all shadow-sm dark:shadow-lg focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-opacity-50">
                 <x-heroicon-o-play class="w-5 h-5 text-[var(--theme-color)]" wire:loading.remove wire:target="runTestBackup" />
                 <svg class="animate-spin w-5 h-5 text-[var(--theme-color)] hidden" wire:loading.class.remove="hidden" wire:target="runTestBackup" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -35,57 +35,57 @@
     <!-- KPIs -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <!-- Count -->
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden group">
-            <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm dark:shadow-lg relative overflow-hidden group">
+            <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="flex items-center justify-between relative z-10">
                 <div>
                     <p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Anzahl Backups</p>
-                    <p class="text-2xl font-black text-white tracking-wider">{{ $stats['count'] ?? 0 }}</p>
+                    <p class="text-2xl font-black text-gray-900 dark:text-white tracking-wider">{{ $stats['count'] ?? 0 }}</p>
                 </div>
-                <div class="w-10 h-10 rounded-xl bg-gray-800 border border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-inner">
+                <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-sm dark:shadow-inner">
                     <x-heroicon-o-archive-box class="w-5 h-5" />
                 </div>
             </div>
         </div>
 
         <!-- Total Size -->
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden group">
-            <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm dark:shadow-lg relative overflow-hidden group">
+            <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="flex items-center justify-between relative z-10">
                 <div>
                     <p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Gesamtspeicher</p>
-                    <p class="text-2xl font-black text-white tracking-wider">{{ $stats['total_size'] ?? '0 B' }}</p>
+                    <p class="text-2xl font-black text-gray-900 dark:text-white tracking-wider">{{ $stats['total_size'] ?? '0 B' }}</p>
                 </div>
-                <div class="w-10 h-10 rounded-xl bg-gray-800 border border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-inner">
+                <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-sm dark:shadow-inner">
                     <x-heroicon-o-server class="w-5 h-5" />
                 </div>
             </div>
         </div>
 
         <!-- Newest -->
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden group">
-            <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm dark:shadow-lg relative overflow-hidden group">
+            <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="flex items-center justify-between relative z-10">
                 <div>
                     <p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Neuestes Backup</p>
-                    <p class="text-sm font-bold text-white">{{ $stats['newest_date'] ? $stats['newest_date']->format('d.m.Y H:i:s') : 'Keines' }}</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $stats['newest_date'] ? $stats['newest_date']->format('d.m.Y H:i:s') : 'Keines' }}</p>
                     <p class="text-xs text-gray-500 mt-1">{{ $stats['newest_size'] ?? '0 B' }}</p>
                 </div>
-                <div class="w-10 h-10 rounded-xl bg-gray-800 border border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-inner">
+                <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-sm dark:shadow-inner">
                     <x-heroicon-o-clock class="w-5 h-5" />
                 </div>
             </div>
         </div>
 
         <!-- Oldest -->
-        <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-lg relative overflow-hidden group">
-            <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 shadow-sm dark:shadow-lg relative overflow-hidden group">
+            <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="flex items-center justify-between relative z-10">
                 <div>
                     <p class="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Ältestes Backup</p>
-                    <p class="text-sm font-bold text-white">{{ $stats['oldest_date'] ? $stats['oldest_date']->format('d.m.Y H:i:s') : 'Keines' }}</p>
+                    <p class="text-sm font-bold text-gray-900 dark:text-white">{{ $stats['oldest_date'] ? $stats['oldest_date']->format('d.m.Y H:i:s') : 'Keines' }}</p>
                 </div>
-                <div class="w-10 h-10 rounded-xl bg-gray-800 border border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-inner">
+                <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-[var(--theme-color-20)] flex items-center justify-center text-[var(--theme-color)] shadow-sm dark:shadow-inner">
                     <x-heroicon-o-calendar class="w-5 h-5" />
                 </div>
             </div>
@@ -93,9 +93,9 @@
     </div>
 
     <!-- Details/Table -->
-    <div class="bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
-        <div class="px-6 py-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80">
-            <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+    <div class="bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-2xl">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-900/80">
+            <h2 class="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <x-heroicon-o-table-cells class="w-5 h-5 text-[var(--theme-color)]" /> Backup-Historie
             </h2>
             <div class="text-[10px] uppercase tracking-widest text-gray-400 font-mono">
@@ -107,7 +107,7 @@
         
         <div class="overflow-x-auto">
             <table class="w-full text-left text-sm whitespace-nowrap">
-                <thead class="text-[10px] uppercase tracking-widest text-gray-400 bg-gray-950/50 border-b border-gray-800">
+                <thead class="text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-400 bg-gray-50/50 dark:bg-gray-950/50 border-b border-gray-200 dark:border-gray-800">
                     <tr>
                         <th scope="col" class="px-6 py-4 font-bold">Applikationsname</th>
                         <th scope="col" class="px-6 py-4 font-bold">Backup Name</th>
@@ -117,14 +117,14 @@
                         <th scope="col" class="px-6 py-4 font-bold text-right">Aktionen</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-800/60">
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60">
                     @forelse($backups as $index => $backup)
-                        <tr class="transition-colors hover:bg-gray-800/30">
+                        <tr class="transition-colors hover:bg-gray-50 dark:hover:bg-gray-100 dark:hover:bg-gray-800/30">
                             <td class="px-6 py-4">
-                                <div class="font-medium text-white">{{ $appName }}</div>
+                                <div class="font-medium text-gray-900 dark:text-white">{{ $appName }}</div>
                             </td>
                             <td class="px-6 py-4">
-                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-gray-950 text-gray-300 border border-gray-800">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-gray-50 dark:bg-gray-950 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-none">
                                     <x-heroicon-o-archive-box class="w-3.5 h-3.5 text-[var(--theme-color)]" />
                                     {{ basename($backup['path']) }}
                                 </span>
@@ -133,17 +133,17 @@
                                 <span class="text-gray-400 font-mono text-[11px] uppercase tracking-wider">{{ $diskName }}</span>
                             </td>
                             <td class="px-6 py-4">
-                                <span class="font-mono text-gray-300 text-xs">{{ $backup['sizeFormatted'] }}</span>
+                                <span class="font-mono text-gray-700 dark:text-gray-300 text-xs">{{ $backup['sizeFormatted'] }}</span>
                             </td>
                             <td class="px-6 py-4">
-                                <div class="text-white">{{ $backup['date']->format('d.m.Y') }}</div>
+                                <div class="text-gray-900 dark:text-white">{{ $backup['date']->format('d.m.Y') }}</div>
                                 <div class="text-gray-500 text-[10px] font-mono">{{ $backup['date']->format('H:i:s') }}</div>
                             </td>
                             <td class="px-6 py-4 text-right">
-                                <button type="button" wire:click="downloadBackup('{{ addslashes($backup['path']) }}')" class="p-1.5 text-gray-400 hover:text-[var(--theme-color)] transition-colors rounded-lg hover:bg-gray-800 mr-1">
+                                <button type="button" wire:click="downloadBackup('{{ addslashes($backup['path']) }}')" class="p-1.5 text-gray-400 hover:text-[var(--theme-color)] transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 mr-1">
                                     <x-heroicon-o-arrow-down-tray class="w-5 h-5" />
                                 </button>
-                                <button type="button" wire:confirm="Soll dieses Backup wirklich gelöscht werden?" wire:click="deleteBackup('{{ addslashes($backup['path']) }}')" class="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-800">
+                                <button type="button" wire:confirm="Soll dieses Backup wirklich gelöscht werden?" wire:click="deleteBackup('{{ addslashes($backup['path']) }}')" class="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
                                     <x-heroicon-o-trash class="w-5 h-5" />
                                 </button>
                             </td>
@@ -163,7 +163,7 @@
             </table>
         </div>
         @if($backups->hasPages())
-        <div class="px-6 py-4 border-t border-gray-800">
+        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-800">
             {{ $backups->links() }}
         </div>
         @endif

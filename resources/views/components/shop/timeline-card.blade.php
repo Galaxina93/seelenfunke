@@ -1,4 +1,4 @@
-{{-- DAS IST DIE funki-timeline-card.blade.php im Deep Dark UX Design --}}
+{{-- DAS IST DIE funki-timeline-card.blade.php im Deep Dark & Clean Light UX Design --}}
 @props([
     'date',
     'title',
@@ -12,18 +12,18 @@
 ])
 
 @php
-    // Klassenlogik für das Dark Design
+    // Klassenlogik für Dark & Light Design
     $containerClasses = match($state) {
-        'past'   => 'border-emerald-500/30 bg-emerald-500/5 opacity-80 shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]',
-        'next'   => "border-[color:var(--theme-color)] bg-gray-900 shadow-[0_0_30px_var(--theme-color-20)] ring-1 ring-[color:var(--theme-color-30)] z-10 scale-[1.02]",
-        'future' => 'border-gray-800 bg-gray-950/40 opacity-60 grayscale-[0.3]',
-        default  => 'border-gray-800 bg-gray-900'
+        'past'   => 'border-emerald-500/30 bg-emerald-500/5 opacity-80 shadow-sm dark:shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]',
+        'next'   => "border-[color:var(--theme-color)] bg-white dark:bg-gray-900 shadow-md dark:shadow-[0_0_30px_var(--theme-color-20)] ring-1 ring-[color:var(--theme-color-30)] z-10 scale-[1.02]",
+        'future' => 'border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/40 opacity-75 dark:opacity-60 grayscale-[0.3]',
+        default  => 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900'
     };
 
     // Textfarben für Datum & Highlights
     $textClasses = match($state) {
-        'past'   => 'text-emerald-400',
-        'next'   => "text-[color:var(--theme-color)] drop-shadow-[0_0_8px_var(--theme-color-50)]",
+        'past'   => 'text-emerald-600 dark:text-emerald-400',
+        'next'   => "text-[color:var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_var(--theme-color-50)]",
         'future' => 'text-gray-500',
     };
 
@@ -56,14 +56,14 @@
 
     // Dynamic Color (Ampelsystem)
     if ($daysLeft <= 7) {
-        $progressTheme = 'from-red-600 to-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]';
-        $progressText = 'text-red-400';
+        $progressTheme = 'from-red-600 to-red-400 shadow-none dark:shadow-[0_0_10px_rgba(239,68,68,0.5)]';
+        $progressText = 'text-red-500 dark:text-red-400';
     } elseif ($daysLeft <= 30) {
-        $progressTheme = 'from-amber-600 to-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]';
-        $progressText = 'text-amber-400';
+        $progressTheme = 'from-amber-600 to-amber-400 shadow-none dark:shadow-[0_0_10px_rgba(245,158,11,0.5)]';
+        $progressText = 'text-amber-500 dark:text-amber-400';
     } else {
-        $progressTheme = 'from-emerald-600 to-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]';
-        $progressText = 'text-emerald-400';
+        $progressTheme = 'from-emerald-600 to-emerald-400 shadow-none dark:shadow-[0_0_10px_rgba(16,185,129,0.5)]';
+        $progressText = 'text-emerald-500 dark:text-emerald-400';
     }
 @endphp
 
@@ -73,7 +73,7 @@
     <div class="absolute top-5 right-5 z-20 w-8 h-8 flex items-center justify-center">
         @if($state === 'past')
             {{-- Erledigt: Smaragd-Check --}}
-            <div class="w-8 h-8 bg-gray-900 rounded-full text-emerald-500 flex items-center justify-center border border-emerald-500/20 shadow-lg">
+            <div class="w-8 h-8 bg-white dark:bg-gray-900 rounded-full text-emerald-500 flex items-center justify-center border border-emerald-500/20 shadow-sm dark:shadow-lg">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
                     <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z" clip-rule="evenodd" />
                 </svg>
@@ -82,7 +82,7 @@
             {{-- Aktiv: Pulsierender Ring --}}
             <div class="relative w-8 h-8 flex items-center justify-center">
                 <span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-[color:var(--theme-color)] opacity-40"></span>
-                <div class="relative bg-gray-900 rounded-full w-8 h-8 border border-[color:var(--theme-color-50)] text-[color:var(--theme-color)] shadow-xl flex items-center justify-center">
+                <div class="relative bg-white dark:bg-gray-900 rounded-full w-8 h-8 border border-[color:var(--theme-color-50)] text-[color:var(--theme-color)] shadow-sm dark:shadow-xl flex items-center justify-center">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 animate-spin">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
                     </svg>
@@ -90,7 +90,7 @@
             </div>
         @else
             {{-- Wartend: Dezent --}}
-            <div class="w-8 h-8 flex items-center justify-center text-gray-700">
+            <div class="w-8 h-8 flex items-center justify-center text-gray-400 dark:text-gray-700">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
@@ -104,15 +104,15 @@
             {{ $date->format('d.m.Y') }}
         </div>
 
-        <h5 class="font-bold text-gray-100 text-sm leading-snug line-clamp-2 mb-3 group-hover:text-white transition-colors" title="{{ $title }}">
+        <h5 class="font-bold text-gray-900 dark:text-gray-100 text-sm leading-snug line-clamp-2 mb-3 group-hover:text-primary transition-colors" title="{{ $title }}">
             {{ str_replace('📧 ', '', $title) }}
         </h5>
 
         {{-- Event Badge --}}
         @if($cleanEventName)
-            <div class="inline-flex items-center gap-2 bg-black/40 border border-gray-800 px-3 py-1.5 rounded-xl mb-2 max-w-full shadow-inner">
+            <div class="inline-flex items-center gap-2 bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-xl mb-2 max-w-full shadow-sm dark:shadow-inner">
                 <span class="text-sm leading-none filter drop-shadow-sm">{{ $eventIcon }}</span>
-                <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest truncate">{{ $cleanEventName }}</span>
+                <span class="text-[9px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest truncate">{{ $cleanEventName }}</span>
             </div>
         @endif
 
@@ -129,28 +129,26 @@
                     <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Versand in</span>
                     <span class="text-[10px] font-bold {{ $progressText }}">{{ $daysLeft }} {{ $daysLeft === 1 ? 'Tag' : 'Tagen' }}</span>
                 </div>
-                <div class="w-full bg-gray-950 rounded-full h-1.5 border border-gray-800 overflow-hidden relative">
+                <div class="w-full bg-gray-100 dark:bg-gray-950 rounded-full h-1.5 border border-gray-200 dark:border-gray-800 overflow-hidden relative">
                     <div class="bg-gradient-to-r {{ $progressTheme }} h-1.5 rounded-full transition-all duration-1000 ease-out" style="width: {{ $progressPercent }}%"></div>
                 </div>
             </div>
         @else
-            <div class="mt-4 w-full flex items-center gap-1.5 mt-2 opacity-50">
+            <div class="mt-4 w-full flex items-center gap-1.5 mt-2 opacity-60">
                 <x-heroicon-s-check-circle class="w-3.5 h-3.5 text-emerald-500" />
-                <span class="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erfolgreich abgewickelt</span>
+                <span class="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-500">Erfolgreich abgewickelt</span>
             </div>
         @endif
     </div>
 
-
-
     {{-- 4. ACTION BUTTONS (Archiv & Löschen direkt in der Kachel) --}}
     @if($templateId)
-        <div class="mt-6 pt-4 border-t border-gray-800/60 flex items-center justify-between z-20 relative gap-2">
-            <button wire:click.stop="archiveTemplate('{{ $templateId }}')" wire:confirm="Diese Kampagne wirklich archivieren?" class="flex items-center justify-center gap-1.5 flex-1 text-[9px] font-black uppercase tracking-widest text-amber-500/80 hover:text-white transition-colors bg-amber-500/10 hover:bg-amber-500 px-3 py-2 rounded-xl border border-amber-500/20 shadow-inner group/btn">
+        <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-800/60 flex items-center justify-between z-20 relative gap-2">
+            <button wire:click.stop="archiveTemplate('{{ $templateId }}')" wire:confirm="Diese Kampagne wirklich archivieren?" class="flex items-center justify-center gap-1.5 flex-1 text-[9px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-500/80 hover:text-white transition-colors bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-500 px-3 py-2 rounded-xl border border-amber-200 dark:border-amber-500/20 shadow-sm dark:shadow-inner group/btn">
                 <x-heroicon-o-archive-box-arrow-down class="w-4 h-4 group-hover/btn:animate-bounce" />
                 Archiv
             </button>
-            <button wire:click.stop="deleteTemplate('{{ $templateId }}')" wire:confirm="Diese Kampagne unwiderruflich löschen?" class="flex items-center justify-center gap-1.5 flex-1 text-[9px] font-black uppercase tracking-widest text-red-500/80 hover:text-white transition-colors bg-red-500/10 hover:bg-red-500 px-3 py-2 rounded-xl border border-red-500/20 shadow-inner group/btn">
+            <button wire:click.stop="deleteTemplate('{{ $templateId }}')" wire:confirm="Diese Kampagne unwiderruflich löschen?" class="flex items-center justify-center gap-1.5 flex-1 text-[9px] font-black uppercase tracking-widest text-red-700 dark:text-red-500/80 hover:text-white transition-colors bg-red-50 dark:bg-red-500/10 hover:bg-red-500 px-3 py-2 rounded-xl border border-red-200 dark:border-red-500/20 shadow-sm dark:shadow-inner group/btn">
                 <x-heroicon-o-trash class="w-4 h-4 group-hover/btn:animate-pulse" />
                 Löschen
             </button>

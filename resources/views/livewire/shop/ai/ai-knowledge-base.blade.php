@@ -2,28 +2,28 @@
 <div>
     <div class="animate-fade-in-up font-sans antialiased text-gray-400 pb-28 lg:pb-12 w-full">
 
-        <div class="flex flex-col lg:flex-row h-[calc(100vh-18rem)] min-h-[600px] bg-gray-900/80 backdrop-blur-xl backdrop-blur-xl rounded-2xl shadow-xl shadow-[var(--theme-color-10)] border border-gray-800 overflow-hidden">
+        <div class="flex flex-col lg:flex-row h-[calc(100vh-18rem)] min-h-[600px] bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-sm dark:shadow-xl shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 overflow-hidden">
 
-            <div class="w-full lg:w-1/3 xl:w-1/4 bg-gray-950/80 border-b lg:border-b-0 lg:border-r border-gray-800 flex flex-col shrink-0 z-10 shadow-inner">
-                <div class="p-6 border-b border-gray-800">
+            <div class="w-full lg:w-1/3 xl:w-1/4 bg-gray-50/80 dark:bg-gray-950/80 border-b lg:border-b-0 lg:border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 z-10 shadow-sm dark:shadow-inner">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-800">
                     <div class="relative group">
-                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Wissen durchsuchen..." class="w-full pl-11 pr-4 py-3.5 bg-gray-950 border border-gray-800 rounded-xl text-sm font-bold text-[var(--theme-color)] focus:bg-gray-950 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-[inset_0_0_15px_var(--theme-color-5)] outline-none transition-all placeholder-gray-600 uppercase tracking-widest">
+                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Wissen durchsuchen..." class="w-full pl-11 pr-4 py-3.5 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-bold text-[var(--theme-color)] focus:bg-white dark:focus:bg-gray-950 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] shadow-sm dark:shadow-[inset_0_0_15px_var(--theme-color-5)] outline-none transition-all placeholder-gray-400 dark:placeholder-gray-600 uppercase tracking-widest">
                         <x-heroicon-o-magnifying-glass class="w-5 h-5 text-gray-500 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-[var(--theme-color)] transition-colors" />
                     </div>
                 </div>
 
-                <div class="px-6 py-4 border-b border-gray-800 flex overflow-x-auto custom-scrollbar gap-2 shrink-0">
-                    <button wire:click="setCategory('')" class="whitespace-nowrap px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {{ $selectedCategoryId === null ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-[var(--theme-color)] shadow-xl shadow-[var(--theme-color-10)]' : 'bg-gray-950 text-gray-400 border border-gray-800 hover:text-[var(--theme-color)] hover:border-emerald-700/50' }}">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex overflow-x-auto custom-scrollbar gap-2 shrink-0">
+                    <button wire:click="setCategory('')" class="whitespace-nowrap px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {{ $selectedCategoryId === null ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-[var(--theme-color)] shadow-xl shadow-[var(--theme-color-10)]' : 'bg-white dark:bg-gray-950 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:text-[var(--theme-color)] hover:border-emerald-700/50' }}">
                         Alle
                     </button>
                     @foreach($categories as $cat)
-                        <button wire:click="setCategory('{{$cat->id}}')" class="whitespace-nowrap px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {{ $selectedCategoryId == $cat->id ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-[var(--theme-color)] shadow-xl shadow-[var(--theme-color-10)]' : 'bg-gray-950 text-gray-400 border border-gray-800 hover:text-[var(--theme-color)] hover:border-emerald-700/50' }}">
+                        <button wire:click="setCategory('{{$cat->id}}')" class="whitespace-nowrap px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {{ $selectedCategoryId == $cat->id ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-50)] text-[var(--theme-color)] shadow-xl shadow-[var(--theme-color-10)]' : 'bg-white dark:bg-gray-950 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:text-[var(--theme-color)] hover:border-emerald-700/50' }}">
                             {{$cat->name}}
                         </button>
                     @endforeach
                 </div>
 
-                <div class="p-3 border-b border-gray-800 shrink-0">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-800 shrink-0">
                     <button wire:click="createNewArticle" class="w-full py-2.5 bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[var(--theme-color-20)] hover:border-[var(--theme-color)]/60 shadow-xl shadow-[var(--theme-color-10)] transition-all flex items-center justify-center gap-2">
                         <x-heroicon-o-plus class="w-4 h-4" /> Neuer Eintrag
                     </button>
@@ -31,12 +31,12 @@
 
                 <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1">
                     @forelse($articles as $article)
-                        <button wire:click="selectArticle('{{$article->id}}')" class="w-full text-left p-4 rounded-xl transition-all duration-200 border {{ $activeArticleId == $article->id ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[inset_4px_0_0_var(--theme-color)]' : 'bg-transparent border-transparent hover:bg-gray-950 hover:border-gray-800' }}">
-                            <h4 class="text-sm font-bold tracking-wider truncate {{ $activeArticleId == $article->id ? 'text-[var(--theme-color)]' : 'text-gray-400' }}">{{ $article->title }}</h4>
+                        <button wire:click="selectArticle('{{$article->id}}')" class="w-full text-left p-4 rounded-xl transition-all duration-200 border {{ $activeArticleId == $article->id ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] shadow-[inset_4px_0_0_var(--theme-color)]' : 'bg-transparent border-transparent hover:bg-white dark:hover:bg-gray-950 hover:border-gray-200 dark:hover:border-gray-800' }}">
+                            <h4 class="text-sm font-bold tracking-wider truncate {{ $activeArticleId == $article->id ? 'text-[var(--theme-color)]' : 'text-gray-700 dark:text-gray-400' }}">{{ $article->title }}</h4>
                             <div class="flex flex-wrap gap-1.5 mt-2 h-5 overflow-hidden">
                                 @if($article->tags)
                                     @foreach($article->tags->take(3) as $tag)
-                                        <span class="text-[8px] font-bold uppercase tracking-widest text-gray-400 bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800 shadow-inner">#{{$tag->name}}</span>
+                                        <span class="text-[8px] font-bold uppercase tracking-widest text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-950 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">#{{$tag->name}}</span>
                                     @endforeach
                                 @endif
                             </div>
@@ -53,12 +53,12 @@
             <div class="flex-1 bg-transparent relative overflow-hidden flex flex-col">
                 @if($isEditing)
                     <div class="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-12 space-y-8">
-                         <h2 class="text-2xl font-black text-[var(--theme-color)] uppercase tracking-widest border-b border-gray-800 pb-4">{{ $editForm['id'] ? 'Eintrag bearbeiten' : 'Neuen Eintrag erstellen' }}</h2>
+                         <h2 class="text-2xl font-black text-[var(--theme-color)] uppercase tracking-widest border-b border-gray-200 dark:border-gray-800 pb-4">{{ $editForm['id'] ? 'Eintrag bearbeiten' : 'Neuen Eintrag erstellen' }}</h2>
 
                          <div class="space-y-6">
-                             <div class="bg-gray-950 p-6 rounded-xl border border-gray-800 shadow-inner">
+                             <div class="bg-white dark:bg-gray-950 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
                                  <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3">Titel</label>
-                                 <input type="text" wire:model="editForm.title" placeholder="Eindeutiger Titel..." class="w-full bg-gray-950 border border-gray-800 rounded-lg text-[var(--theme-color)] font-bold px-4 py-3 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none shadow-[inset_0_0_10px_var(--theme-color-5)] transition-all">
+                                 <input type="text" wire:model="editForm.title" placeholder="Eindeutiger Titel..." class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-[var(--theme-color)] font-bold px-4 py-3 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none shadow-sm dark:shadow-[inset_0_0_10px_var(--theme-color-5)] transition-all">
                                  @error('editForm.title') <span class="text-red-500 text-[10px] uppercase tracking-widest mt-2 block">{{ $message }}</span> @enderror
                              </div>
 
@@ -72,29 +72,29 @@
                                  </div>
                              </div>
 
-                             <div class="bg-gray-950 p-6 rounded-xl border border-gray-800 shadow-inner">
+                             <div class="bg-white dark:bg-gray-950 p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
                                  <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3">Artikelinhalt</label>
-                                 <textarea wire:model="editForm.content" rows="15" class="w-full bg-gray-950 border border-gray-800 rounded-lg text-gray-300 px-4 py-4 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none shadow-[inset_0_0_10px_var(--theme-color-5)] transition-all custom-scrollbar font-mono text-sm leading-relaxed"></textarea>
+                                 <textarea wire:model="editForm.content" rows="15" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-800 dark:text-gray-300 px-4 py-4 focus:ring-1 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] outline-none shadow-sm dark:shadow-[inset_0_0_10px_var(--theme-color-5)] transition-all custom-scrollbar font-mono text-sm leading-relaxed"></textarea>
                                  @error('editForm.content') <span class="text-red-500 text-[10px] uppercase tracking-widest mt-2 block">{{ $message }}</span> @enderror
                              </div>
 
-                             <div class="flex gap-4 pt-4 border-t border-gray-800">
+                             <div class="flex gap-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                                  <button wire:click="saveArticle" class="px-8 py-3.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-50)] text-[var(--theme-color)] rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[var(--theme-color)] hover:text-black hover:shadow-xl shadow-[var(--theme-color-10)] transition-all flex items-center gap-2">
                                      <x-heroicon-o-check class="w-5 h-5"/> Speichern
                                  </button>
-                                 <button wire:click="cancelEditing" class="px-8 py-3.5 bg-gray-950 border border-gray-800 text-gray-400 rounded-xl text-xs font-black uppercase tracking-widest hover:border-emerald-700 hover:text-[var(--theme-color)] transition-all">
+                                 <button wire:click="cancelEditing" class="px-8 py-3.5 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 rounded-xl text-xs font-black uppercase tracking-widest hover:border-emerald-700 hover:text-[var(--theme-color)] transition-all">
                                      Abbrechen
                                  </button>
                              </div>
                          </div>
                     </div>
                 @elseif($activeArticle)
-                    <div class="p-8 lg:p-12 pb-6 mt-6 border-b border-gray-800 bg-gray-900/60 backdrop-blur-xl shrink-0 relative">
+                    <div class="p-8 lg:p-12 pb-6 mt-6 border-b border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/60 backdrop-blur-xl shrink-0 relative">
                         <div class="absolute top-8 right-8 flex gap-2">
-                             <button wire:click="editArticle('{{ $activeArticle->id }}')" class="p-2.5 bg-gray-950 border border-gray-800 hover:bg-[var(--theme-color-10)] hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] text-gray-400 rounded-xl transition-all shadow-inner" title="Bearbeiten">
+                             <button wire:click="editArticle('{{ $activeArticle->id }}')" class="p-2.5 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:bg-[var(--theme-color-10)] hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] text-gray-600 dark:text-gray-400 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Bearbeiten">
                                  <x-heroicon-o-pencil class="w-5 h-5" />
                              </button>
-                             <button wire:click="deleteArticle('{{ $activeArticle->id }}')" wire:confirm="Sicher, dass du diesen Eintrag endgültig löschen möchtest?" class="p-2.5 bg-gray-950 border border-gray-800 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 text-gray-500 rounded-xl transition-all shadow-inner" title="Löschen">
+                             <button wire:click="deleteArticle('{{ $activeArticle->id }}')" wire:confirm="Sicher, dass du diesen Eintrag endgültig löschen möchtest?" class="p-2.5 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/50 text-gray-500 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Löschen">
                                  <x-heroicon-o-trash class="w-5 h-5" />
                              </button>
                         </div>
@@ -108,7 +108,7 @@
                         @if($activeArticle->tags && count($activeArticle->tags) > 0)
                             <div class="flex flex-wrap gap-2.5">
                                 @foreach($activeArticle->tags as $tag)
-                                    <span class="text-[10px] font-bold text-[var(--theme-color)] bg-gray-950 border border-gray-800 px-3 py-1.5 rounded-lg shadow-inner flex items-center gap-1.5 uppercase tracking-wider">
+                                    <span class="text-[10px] font-bold text-[var(--theme-color)] bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg shadow-sm dark:shadow-inner flex items-center gap-1.5 uppercase tracking-wider">
                                         <span class="text-gray-400">#</span> {{$tag->name}}
                                     </span>
                                 @endforeach
@@ -127,18 +127,18 @@
                             .kb-content li::marker { color: var(--theme-color-50); }
                         </style>
 
-                        <div class="kb-content max-w-4xl text-gray-300">
+                        <div class="kb-content max-w-4xl text-gray-800 dark:text-gray-300">
                             {!! $activeArticle->content !!}
                         </div>
                     </div>
 
-                    <div class="px-8 py-4 border-t border-gray-800 bg-gray-950 text-[9px] font-black uppercase tracking-widest text-gray-400 flex justify-between items-center shrink-0">
+                    <div class="px-8 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 flex justify-between items-center shrink-0">
                         <span class="flex items-center gap-2"><div class="w-1.5 h-1.5 bg-emerald-700 rounded-full"></div> ID: {{ substr($activeArticle->id, 0, 8) }}</span>
                         <span>Letzte Änderung: {{$activeArticle->updated_at->format('d.m.Y H:i:s')}}</span>
                     </div>
                 @else
                     <div class="flex-1 flex flex-col items-center justify-center text-gray-500 p-10 text-center animate-pulse-slow">
-                        <div class="w-24 h-24 bg-gray-950 border border-gray-800 rounded-full flex items-center justify-center shadow-[inset_0_0_20px_var(--theme-color-5)] mb-6">
+                        <div class="w-24 h-24 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-full flex items-center justify-center shadow-sm dark:shadow-[inset_0_0_20px_var(--theme-color-5)] mb-6">
                             <x-heroicon-o-server-stack class="w-10 h-10 text-gray-500" />
                         </div>
                         <h3 class="text-xl font-bold font-mono tracking-widest uppercase text-gray-400 mb-2">System bereit</h3>
@@ -150,8 +150,8 @@
         </div>
 
         <!-- Wiki Storage Section -->
-        <div class="mt-8 bg-gray-900/80 backdrop-blur-xl backdrop-blur-xl rounded-2xl shadow-xl shadow-[var(--theme-color-10)] border border-gray-800 overflow-hidden">
-            <div class="p-8 lg:p-10 border-b border-gray-800 flex justify-between items-center bg-gray-950/80">
+        <div class="mt-8 bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-sm dark:shadow-xl shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div class="p-8 lg:p-10 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/80 dark:bg-gray-950/80">
                 <div>
                     <h2 class="text-2xl font-black text-[var(--theme-color)] tracking-widest uppercase flex items-center gap-3">
                         <x-heroicon-o-folder-open class="w-8 h-8 text-[var(--theme-color)]" />
@@ -159,13 +159,13 @@
                     </h2>
                     <p class="text-gray-400 mt-2 text-xs font-bold uppercase tracking-widest">Lade PDFs, TXT, DOCX oder CSV in die Agenten-Vektordatenbank.</p>
                 </div>
-                <div class="text-[10px] font-black uppercase tracking-widest text-gray-400 border border-gray-800 bg-gray-950 px-4 py-2 rounded-lg shadow-inner flex items-center gap-2">
+                <div class="text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 py-2 rounded-lg shadow-sm dark:shadow-inner flex items-center gap-2">
                     <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] animate-pulse shadow-[0_0_8px_currentColor]"></span>
                     <span class="text-[var(--theme-color)]" x-text="$wire.uploadedWikiFiles.length"></span> Dateien indiziert
                 </div>
             </div>
 
-            <div class="p-8 lg:p-10 flex flex-col lg:flex-row gap-8 bg-gray-950">
+            <div class="p-8 lg:p-10 flex flex-col lg:flex-row gap-8 bg-gray-50 dark:bg-gray-950">
                 <!-- Dropzone -->
                 <div class="w-full lg:w-1/3">
                     <div
@@ -173,7 +173,7 @@
                         x-on:dragover.prevent="isDropping = true"
                         x-on:dragleave.prevent="isDropping = false"
                         x-on:drop.prevent="isDropping = false; $wire.uploadMultiple('wikiFiles', $event.dataTransfer.files)"
-                        :class="isDropping ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] shadow-[inset_0_0_30px_var(--theme-color-20)]' : 'border-gray-800 hover:border-emerald-700/60 bg-gray-950'"
+                        :class="isDropping ? 'border-[var(--theme-color)] bg-[var(--theme-color-10)] shadow-[inset_0_0_30px_var(--theme-color-20)]' : 'border-gray-300 dark:border-gray-800 hover:border-emerald-700/60 bg-white dark:bg-gray-950'"
                         class="border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center transition-all cursor-pointer relative h-full min-h-[250px]"
                     >
                         <input type="file" wire:model="wikiFiles" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
@@ -202,15 +202,15 @@
 
                 <!-- File List -->
                 <div class="w-full lg:w-2/3">
-                    <div class="bg-gray-950 rounded-xl border border-gray-800 overflow-hidden h-full shadow-[inset_0_0_20px_var(--theme-color-10)]">
-                        <div class="p-5 border-b border-gray-800 bg-gray-900/60 backdrop-blur-xl">
+                    <div class="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden h-full shadow-sm dark:shadow-[inset_0_0_20px_var(--theme-color-10)]">
+                        <div class="p-5 border-b border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/60 backdrop-blur-xl">
                             <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Indizierte Dateien</h3>
                         </div>
                         <div class="p-3 max-h-[300px] overflow-y-auto custom-scrollbar">
                             @forelse($uploadedWikiFiles as $file)
-                                <div class="flex items-center justify-between p-4 hover:bg-gray-950 border border-transparent hover:border-gray-800 rounded-xl transition-all group shadow-inner">
+                                <div class="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-950 border border-transparent hover:border-gray-200 dark:hover:border-gray-800 rounded-xl transition-all group shadow-sm dark:shadow-inner">
                                     <div class="flex items-center gap-4 min-w-0">
-                                        <div class="w-10 h-10 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center shrink-0 shadow-[inset_0_0_10px_var(--theme-color-5)]">
+                                        <div class="w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 flex items-center justify-center shrink-0 shadow-sm dark:shadow-[inset_0_0_10px_var(--theme-color-5)]">
                                             <x-heroicon-o-document-magnifying-glass class="w-5 h-5 text-gray-400" />
                                         </div>
                                         <div class="min-w-0">
@@ -239,9 +239,9 @@
         </div>
 
         <!-- INFOGRAFIK: RAG ARCHITECTURE (MATRIX THEME) -->
-        <div class="mt-8 bg-gray-900/80 backdrop-blur-xl backdrop-blur-xl border border-gray-800 rounded-2xl p-6 lg:p-10 flex flex-col lg:flex-row gap-12 items-center shadow-xl shadow-[var(--theme-color-10)]">
+        <div class="mt-8 bg-white dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800 rounded-2xl p-6 lg:p-10 flex flex-col lg:flex-row gap-12 items-center shadow-sm dark:shadow-xl shadow-[var(--theme-color-10)]">
             <div class="relative w-full max-w-md shrink-0">
-                <svg viewBox="0 0 300 250" class="w-full h-auto drop-shadow-xl shadow-[var(--theme-color-10)] font-mono" xmlns="http://www.w3.org/2000/svg">
+                <svg viewBox="0 0 300 250" class="w-full h-auto drop-shadow-none dark:drop-shadow-xl shadow-none dark:shadow-[var(--theme-color-10)] font-mono" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <marker id="arrowUpMatrix" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--theme-color)" /></marker>
                         <marker id="arrowUpGrayM" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--theme-color-30)" /></marker>
@@ -287,33 +287,33 @@
                 </svg>
             </div>
             <div class="flex-1 space-y-6">
-                <h5 class="text-lg font-black tracking-widest uppercase text-[var(--theme-color)] flex items-center gap-3 border-b border-gray-800 pb-4">
+                <h5 class="text-lg font-black tracking-widest uppercase text-[var(--theme-color)] flex items-center gap-3 border-b border-gray-200 dark:border-gray-800 pb-4">
                     <x-heroicon-o-command-line class="w-6 h-6 text-[var(--theme-color)]" />
                     RAG Architektur
                 </h5>
                 <div class="space-y-5 font-mono mt-4">
-                    <p class="text-sm text-gray-400 font-sans mb-6">
+                    <p class="text-sm text-gray-600 dark:text-gray-400 font-sans mb-6">
                         Die <strong>Retrieval-Augmented Generation (RAG)</strong> ermöglicht es der Künstlichen Intelligenz, auf firmeninterne Dokumente zurückzugreifen, ohne diese jemals zuvor „gelernt“ (trainiert) haben zu müssen. Halluzinationen werden somit drastisch reduziert, da sich die KI strikt an unsere Dokumente hält.
                     </p>
                     <div class="flex items-start gap-4">
                         <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">R</span>
                         <div>
                             <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Retrieval <span class="text-gray-500">(Wissensabruf)</span></strong>
-                            <p class="text-xs text-gray-400 leading-relaxed">Alle deine Texte und Dateiuploads werden beim Speichern in mathematische Vektoren zerlegt. Stellt ein Kunde im Chat eine Frage (z.B. zu den Versandkosten), „scannt“ die RAG Datenbank in Millisekunden alle Einträge nach Bedeutung und ruft nur die fachlich passenden Artikel ab.</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">Alle deine Texte und Dateiuploads werden beim Speichern in mathematische Vektoren zerlegt. Stellt ein Kunde im Chat eine Frage (z.B. zu den Versandkosten), „scannt“ die RAG Datenbank in Millisekunden alle Einträge nach Bedeutung und ruft nur die fachlich passenden Artikel ab.</p>
                         </div>
                     </div>
                     <div class="flex items-start gap-4">
                         <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">A</span>
                         <div>
                             <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Augmentation <span class="text-gray-500">(Zusammenführung)</span></strong>
-                            <p class="text-xs text-gray-400 leading-relaxed">Das soeben abgerufene, hochgradig relevante Detailwissen aus deiner Datenbank wird nun im Hintergrund unsichtbar zur Kundenfrage hinzugefügt. Der KI-Agent erhält also zum Zeitpunkt der Frage sofort den exakten Kontext (z.B. deine Retouren-Richtlinien-PDF).</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">Das soeben abgerufene, hochgradig relevante Detailwissen aus deiner Datenbank wird nun im Hintergrund unsichtbar zur Kundenfrage hinzugefügt. Der KI-Agent erhält also zum Zeitpunkt der Frage sofort den exakten Kontext (z.B. deine Retouren-Richtlinien-PDF).</p>
                         </div>
                     </div>
                     <div class="flex items-start gap-4">
                         <span class="w-6 h-6 rounded bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5 shadow-xl shadow-[var(--theme-color-10)]">G</span>
                          <div>
                             <strong class="text-[var(--theme-color)] block mb-1 uppercase tracking-widest text-xs">Generation <span class="text-gray-500">(Generierung)</span></strong>
-                            <p class="text-xs text-gray-400 leading-relaxed">Zuletzt liest das Sprachmodell (LLM wie GPT-4 oder Claude) den zusammengeführten Kontext und formuliert auf Basis deiner Dokumente eine pointierte, höfliche und menschenähnliche Antwort an den Nutzer. Die Single Source of Truth bleibt intakt.</p>
+                            <p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">Zuletzt liest das Sprachmodell (LLM wie GPT-4 oder Claude) den zusammengeführten Kontext und formuliert auf Basis deiner Dokumente eine pointierte, höfliche und menschenähnliche Antwort an den Nutzer. Die Single Source of Truth bleibt intakt.</p>
                         </div>
                     </div>
                 </div>

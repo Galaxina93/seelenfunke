@@ -1,7 +1,7 @@
 <div x-show="activeTab === 'shipping'" class="space-y-6 md:space-y-8 animate-fade-in" style="display: none;">
     {{-- Versandkosten & Konditionen --}}
-    <div class="bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-2xl border border-gray-800 p-6 sm:p-8">
-        <h3 class="text-sm sm:text-base font-serif font-bold text-white mb-8 flex items-center gap-3 tracking-wide border-b border-gray-800 pb-4">
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8">
+        <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white mb-8 flex items-center gap-3 tracking-wide border-b border-gray-100 dark:border-gray-800 pb-4">
             <div class="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
@@ -76,11 +76,11 @@
             </div>
         </div>
 
-        <div class="pt-8 border-t border-gray-800">
+        <div class="pt-8 border-t border-gray-200 dark:border-gray-800">
             <livewire:shop.system.system-delivery-times />
         </div>
 
-        <div class="pt-8 border-t border-gray-800">
+        <div class="pt-8 border-t border-gray-200 dark:border-gray-800">
             <livewire:shop.system.system-shipping />
         </div>
 
