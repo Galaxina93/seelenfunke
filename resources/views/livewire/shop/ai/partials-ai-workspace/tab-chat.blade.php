@@ -11,12 +11,12 @@
                 <div class="flex-1 flex flex-col min-h-0 relative">
                 
                 <!-- Mobile Sidebar Toggle -->
-                <button @click="showMobileChatSidebar = true" class="md:hidden absolute top-4 left-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chats anzeigen">
+                <button @click="showMobileChatSidebar = true" class="md:hidden absolute top-4 left-4 z-50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-white/90 dark:bg-gray-900/80 hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-200 dark:border-gray-700 shadow-md dark:shadow-xl" title="Chats anzeigen">
                     <x-heroicon-o-bars-3-bottom-left class="w-4 h-4" />
                 </button>
 
                 <!-- Fullscreen Toggle Button (Mobile) -->
-                <button @click="isChatFullScreen = !isChatFullScreen" class="lg:hidden absolute top-4 right-4 z-50 text-gray-400 hover:text-white transition-colors bg-gray-900/80 hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-700 shadow-xl" title="Chat maximieren">
+                <button @click="isChatFullScreen = !isChatFullScreen" class="lg:hidden absolute top-4 right-4 z-50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-white/90 dark:bg-gray-900/80 hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-200 dark:border-gray-700 shadow-md dark:shadow-xl" title="Chat maximieren">
                     <svg x-show="!isChatFullScreen" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
                     </svg>
@@ -107,7 +107,7 @@
                                                     if (window.renderAiMarkdown) { render(); } else { setTimeout(render, 500); }
                                                  " wire:ignore>
                                             </div>
-                                            <div x-show="!expanded && content.length > 300" class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-gray-900/80 to-transparent pointer-events-none"></div>
+                                            <div x-show="!expanded && content.length > 300" class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-white/90 dark:from-gray-900/80 to-transparent pointer-events-none"></div>
                                         </div>
                                         <button x-show="content.length > 300" @click="expanded = !expanded" class="text-[10px] uppercase font-bold tracking-widest text-[var(--theme-color)] mt-3 hover:text-white transition-colors flex items-center gap-1">
                                             <span x-text="expanded ? 'Weniger anzeigen' : 'Vollständige Nachricht lesen'"></span>
@@ -162,7 +162,7 @@
                 </div>
 
                 <!-- Input Area / Form -->
-                <div class="p-3 bg-gray-950 border-t border-gray-800 z-20 shrink-0 relative"
+                <div class="p-3 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800 z-20 shrink-0 relative"
                      x-data="{ isDropping: false }"
                      x-on:dragover.prevent="isDropping = true"
                      x-on:dragleave.prevent="isDropping = false"
@@ -240,17 +240,17 @@
                         @if(!empty($attachments) || !empty($uploadedFiles))
                         <div class="flex flex-wrap gap-2 mb-2">
                             @foreach($attachments as $idx => $att)
-                                <div wire:key="att-{{ md5($att . $idx) }}" class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-gray-300 text-xs px-2 py-1 rounded">
+                                <div wire:key="att-{{ md5($att . $idx) }}" class="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs px-2 py-1 rounded">
                                     <x-heroicon-o-document-text class="w-3 h-3" />
                                     <span>{{ basename($att) }}</span>
-                                    <button type="button" wire:click="removeAttachment('{{ $idx }}')" class="hover:text-red-400 ml-1"><x-heroicon-s-x-mark class="w-3.5 h-3.5" /></button>
+                                    <button type="button" wire:click="removeAttachment('{{ $idx }}')" class="hover:text-red-500 ml-1"><x-heroicon-s-x-mark class="w-3.5 h-3.5" /></button>
                                 </div>
                             @endforeach
                             @foreach($uploadedFiles as $idx => $file)
                                 <div wire:key="up-{{ $idx }}" class="flex items-center gap-1 bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] text-xs px-2 py-1 rounded">
                                     <x-heroicon-o-paper-clip class="w-3 h-3" />
                                     <span>{{ is_object($file) ? $file->getClientOriginalName() : 'Uploading...' }}</span>
-                                    <button type="button" wire:click="removeUploadedFile('{{ $idx }}')" class="hover:text-red-400 ml-1"><x-heroicon-s-x-mark class="w-3.5 h-3.5" /></button>
+                                    <button type="button" wire:click="removeUploadedFile('{{ $idx }}')" class="hover:text-red-500 ml-1"><x-heroicon-s-x-mark class="w-3.5 h-3.5" /></button>
                                 </div>
                             @endforeach
                         </div>
@@ -258,12 +258,12 @@
 
                         <!-- Mention Dropdown -->
                         @if(!empty($mentionResults))
-                        <div id="mention-dropdown" class="absolute bottom-[calc(100%+0.5rem)] left-0 w-80 max-h-60 overflow-y-auto custom-scrollbar bg-gray-900 border border-[var(--theme-color-40)] rounded-xl shadow-2xl z-50">
-                            <div class="text-[10px] text-gray-500 uppercase px-3 py-1 bg-gray-950 border-b border-gray-800">Dateien einfügen</div>
+                        <div id="mention-dropdown" class="absolute bottom-[calc(100%+0.5rem)] left-0 w-80 max-h-60 overflow-y-auto custom-scrollbar bg-white dark:bg-gray-900 border border-gray-200 dark:border-[var(--theme-color-40)] rounded-xl shadow-2xl z-50">
+                            <div class="text-[10px] text-gray-500 uppercase px-3 py-1 bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800">Dateien einfügen</div>
                             @foreach($mentionResults as $result)
-                                <button type="button" @click="insertMention('{{ addslashes($result) }}')" class="mention-item w-full text-left px-3 py-2 hover:bg-[var(--theme-color-20)] border-b border-gray-800/50">
-                                    <div class="flex items-center gap-2 text-sm text-gray-300 font-mono"><x-heroicon-o-document-text class="w-4 h-4 shrink-0" /><span class="truncate">{{ basename($result) }}</span></div>
-                                    <div class="text-[10px] text-gray-500 truncate ml-6">{{ dirname($result) }}</div>
+                                <button type="button" @click="insertMention('{{ addslashes($result) }}')" class="mention-item w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-[var(--theme-color-20)] border-b border-gray-100 dark:border-gray-800/50">
+                                    <div class="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-300 font-mono"><x-heroicon-o-document-text class="w-4 h-4 shrink-0" /><span class="truncate">{{ basename($result) }}</span></div>
+                                    <div class="text-[10px] text-gray-400 dark:text-gray-500 truncate ml-6">{{ dirname($result) }}</div>
                                 </button>
                             @endforeach
                         </div>
@@ -272,14 +272,14 @@
                         <form wire:submit.prevent="sendMessage" class="relative w-full">
                             <!-- Clipboard Permission Button -->
                             <button x-show="clipboardNeedsPermission" x-cloak @click.prevent="readClipboard(true)" 
-                                    class="absolute left-0 -top-12 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse hover:bg-rose-500/30 transition-all font-bold tracking-widest text-[10px] uppercase text-center backdrop-blur-md"
+                                     class="absolute left-0 -top-12 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-rose-500/50 bg-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-pulse hover:bg-rose-500/30 transition-all font-bold tracking-widest text-[10px] uppercase text-center backdrop-blur-md"
                                     title="Zwischenspeicher freigeben">
                                 <x-heroicon-s-camera class="w-4 h-4 shrink-0" />
                                 <span>Klicken für Freigabe</span>
                             </button>
 
                             <div class="absolute left-2 top-1/2 -translate-y-1/2 flex items-center z-10">
-                                <label class="cursor-pointer text-gray-500 hover:text-[var(--theme-color)] p-1">
+                                <label class="cursor-pointer text-gray-400 hover:text-[var(--theme-color)] p-1">
                                     <x-heroicon-o-paper-clip class="w-5 h-5" />
                                     <input type="file" wire:model="uploadedFiles" multiple class="hidden" />
                                 </label>
@@ -292,7 +292,7 @@
                                    class="w-full bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-800 rounded-lg pr-12 py-3 text-gray-900 dark:text-[var(--theme-color)] focus:bg-white dark:focus:bg-gray-900 focus:border-[var(--theme-color)] focus:ring-[var(--theme-color-30)] text-sm shadow-inner font-sans outline-none resize-none custom-scrollbar" 
                                    placeholder="Nachricht eingeben..." autofocus></textarea>
                                    
-                            <button type="button" wire:click="createTaskFromChat" title="Als neue Aufgabe auf dem Board ablegen" class="absolute left-10 top-1/2 -translate-y-1/2 h-8 w-10 z-10 bg-emerald-500/10 border border-emerald-500/30 rounded-md hover:bg-emerald-500/20 text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
+                            <button type="button" wire:click="createTaskFromChat" title="Als neue Aufgabe auf dem Board ablegen" class="absolute left-10 top-1/2 -translate-y-1/2 h-8 w-10 z-10 bg-emerald-500/10 border border-emerald-500/30 rounded-md hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-500 flex justify-center items-center transition-all cursor-pointer">
                                 <x-heroicon-o-queue-list class="w-5 h-5" />
                             </button>
                                    
@@ -305,11 +305,11 @@
 
                 <!-- Mobile Chat Sidebar (Off-canvas) -->
                 <div x-show="showMobileChatSidebar" class="md:hidden absolute inset-0 z-[99999] flex" style="display: none;">
-                    <div x-show="showMobileChatSidebar" x-transition.opacity class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showMobileChatSidebar = false"></div>
-                    <div x-show="showMobileChatSidebar" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative w-[85%] max-w-sm h-full shadow-2xl flex flex-col pointer-events-auto z-10 border-r border-[var(--theme-color-50)]">
+                    <div x-show="showMobileChatSidebar" x-transition.opacity class="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" @click="showMobileChatSidebar = false"></div>
+                    <div x-show="showMobileChatSidebar" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative w-[85%] max-w-sm h-full shadow-2xl flex flex-col pointer-events-auto z-10 border-r border-gray-200 dark:border-[var(--theme-color-50)]">
                         <x-backend.ai-chat-sidebar class="h-full border-r-0 w-full" />
                         <!-- Close Button Inside Sidebar -->
-                        <button @click="showMobileChatSidebar = false" class="absolute top-4 right-4 bg-gray-900 border border-[var(--theme-color-50)] text-gray-300 hover:text-white p-2 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)] z-50">
+                        <button @click="showMobileChatSidebar = false" class="absolute top-4 right-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-[var(--theme-color-50)] text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white p-2 rounded-xl shadow-md dark:shadow-[0_0_15px_rgba(0,0,0,0.5)] z-50">
                             <x-heroicon-s-x-mark class="w-5 h-5" />
                         </button>
                     </div>
