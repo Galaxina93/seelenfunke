@@ -43,11 +43,6 @@
 
                         <!-- Chat & Options Toggle Buttons -->
                         <div class="ml-auto shrink-0 z-20 flex items-center gap-1.5 opacity-90 lg:opacity-40 lg:group-hover:opacity-100 transition-opacity">
-                            <button @click="$dispatch('open-role-manager', { roleId: '{{ $agent->ai_role_id }}' })"
-                                    title="Rolle verwalten"
-                                    class="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:border-cyan-500/50 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 bg-white dark:bg-gray-900 flex items-center justify-center transition-all cursor-pointer">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg>
-                            </button>
                             <button @click="$dispatch('open-agent-manager', { agentId: '{{ $agent->id }}' })"
                                     title="Agent konfigurieren"
                                     class="w-6 h-6 rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 bg-white dark:bg-gray-900 flex items-center justify-center transition-all cursor-pointer">

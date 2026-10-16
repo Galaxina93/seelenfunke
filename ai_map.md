@@ -293,7 +293,6 @@ Diese Datei dient als Index für die Seelenfunke-Codebase, um KI-Agenten die Ori
 - **`AI\Functions\AiSystemFuncs`** (`app/Services/AI/Functions/AiSystemFuncs.php`)
 - **`AI\Functions\AiTaskFuncs`** (`app/Services/AI/Functions/AiTaskFuncs.php`)
 - **`AI\Functions\AiTelefonyFuncs`** (`app/Services/AI/Functions/AiTelefonyFuncs.php`)
-- **`AI\Functions\AiVideoGenerateFuncs`** (`app/Services/AI/Functions/AiVideoGenerateFuncs.php`)
 - **`AI\GeminiAgent`** (`app/Services/AI/GeminiAgent.php`)
 - **`AI\GeminiTtsService`** (`app/Services/AI/GeminiTtsService.php`)
 - **`AI\Mails\AiAgentMessageMail`** (`app/Services/AI/Mails/AiAgentMessageMail.php`)

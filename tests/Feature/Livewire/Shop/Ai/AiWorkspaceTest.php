@@ -205,4 +205,61 @@ class AiWorkspaceTest extends TestCase
             ->assertSet('globalFiles.0.name', 'User.php')
             ->assertSet('globalFiles.1.name', 'test.jpg');
     }
+
+    /** @test */
+    public function test_workspace_disk_points_directly_to_app_agenten()
+    {
+        $resolvedPath = Storage::disk('workspace')->path('agenten/workspace');
+        $expectedPath = storage_path('app/agenten/workspace');
+
+        $this->assertEquals($expectedPath, $resolvedPath);
+        $this->assertTrue(is_dir($expectedPath), 'storage/app/agenten/workspace directory must exist');
+    }
+
+    /** @test */
+    public function test_workspace_files_are_stored_under_app_agenten_and_not_private_or_ai_workspace()
+    {
+        $testRelativePath = 'agenten/workspace/Dokumente/Berichte/unit_test_probe.txt';
+        Storage::disk('workspace')->put($testRelativePath, 'Seelenfunke Probe');
+
+        // Must exist physically in storage/app/agenten/workspace
+        $this->assertFileExists(storage_path('app/' . $testRelativePath));
+
+        // Must NOT exist in old legacy folders
+        $this->assertDirectoryDoesNotExist(storage_path('app/private/agenten'));
+        $this->assertDirectoryDoesNotExist(storage_path('app/ai_workspace'));
+
+        // Clean up test file
+        Storage::disk('workspace')->delete($testRelativePath);
+    }
+
+    /** @test */
+    public function test_workspace_file_route_is_private_and_requires_admin_auth()
+    {
+        $admin = Admin::first() ?? Admin::factory()->create();
+
+        // 1. Unauthenticated guest request must be blocked (private)
+        $guestResponse = $this->get('/admin/ai/workspace/file?path=agenten/workspace/Dokumente/Allgemein/alina.jpg');
+        $guestResponse->assertRedirect('/login');
+
+        // 2. Authenticated admin can view valid workspace file
+        $testRelativePath = 'agenten/workspace/Dokumente/Berichte/auth_test_probe.txt';
+        Storage::disk('workspace')->put($testRelativePath, 'Test file content');
+
+        $adminResponse = $this->actingAs($admin, 'admin')
+            ->get('/admin/ai/workspace/file?path=' . $testRelativePath);
+        $adminResponse->assertStatus(200);
+
+        Storage::disk('workspace')->delete($testRelativePath);
+
+        // 3. Traversal attempt with .. must return 404
+        $traversalResponse = $this->actingAs($admin, 'admin')
+            ->get('/admin/ai/workspace/file?path=../app/Http/Kernel.php');
+        $traversalResponse->assertStatus(404);
+
+        // 4. Nonexistent file must return 404
+        $notFoundResponse = $this->actingAs($admin, 'admin')
+            ->get('/admin/ai/workspace/file?path=agenten/workspace/nonexistent_file_xyz.pdf');
+        $notFoundResponse->assertStatus(404);
+    }
 }

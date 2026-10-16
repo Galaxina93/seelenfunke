@@ -21,4 +21,10 @@ class AiTool extends Model
         return $this->belongsToMany(AiAgent::class, 'ai_agent_tool')
                     ->withTimestamps();
     }
+
+    public function roles()
+    {
+        return $this->belongsToMany(AiRole::class, 'ai_role_tool')
+                    ->withTimestamps();
+    }
 }

@@ -117,8 +117,8 @@ class SystemNeuralAnalysisIndex extends Component
 
         File::put($filePath, $content);
 
-        // Auch im privaten Workspace-Tresor sichern
-        $privDir = storage_path('app/private/agenten/workspace/Dokumente/Berichte');
+        // Auch im internen Workspace sichern
+        $privDir = storage_path('app/agenten/workspace/Dokumente/Berichte');
         if (!File::exists($privDir)) {
             File::makeDirectory($privDir, 0755, true);
         }

@@ -186,9 +186,9 @@ MD
                 'category' => 'Workspace-Dokumentenkatalog',
                 'tags' => ['Workspace', 'Dokumente', 'BKK firmus', 'Existenzgründung'],
                 'content' => <<<MD
-# Master-Dokumentenkatalog des privaten Workspaces
+# Master-Dokumentenkatalog des internen Workspaces
 
-Alle Dokumente sind revisionssicher unter `storage/app/private/agenten/workspace/` in einer strengen 3-Säulen-Struktur mit rein einteiligen Ordnernamen strukturiert:
+Alle Dokumente sind revisionssicher unter `storage/app/agenten/workspace/` in einer strengen 3-Säulen-Struktur mit rein einteiligen Ordnernamen strukturiert:
 
 1. `Berufsleben/`
    - `Existenzgruendung/` (Businessplan, Liquiditätsplan, Lebenslauf, Tragfähigkeit, Seelenfunke)
@@ -323,7 +323,7 @@ MD
                 "  1. Praxis Jung (Leiferde): Schreibt Alina per eAU weiter krank, unterschreibt jedoch aus Angst vor rechtlichen Konsequenzen und Kassenregress keine gesonderte Kausalitätsbescheinigung.\n" .
                 "  2. Dr. Lubos Kliniken (München): Schreiben von Sören Kopmann (08.10.2026) stellt klar: Keine nachträgliche Codierungsänderung, aber volle Freigabe aller Befunde und Akten für das Sozialgericht und den MD.\n" .
                 "- EILANTRAG SOZIALGERICHT: Eilantrag nach § 86b Abs. 2 SGG beim Sozialgericht Braunschweig (Wilhelmstraße 55, Fax 05141 5937-31600) vorbereitet. Einreichung erfolgt via BundID über 'Mein Justizpostfach' (MJP).\n" .
-                "- Alle Gesundheitsakten liegen unter `storage/app/private/agenten/workspace/Gesundheit/` (Krankenkasse, Krankengeld, Klinik, Atteste, Nachweise, Krankschreibungen).";
+                "- Alle Gesundheitsakten liegen unter `storage/app/agenten/workspace/Gesundheit/` (Krankenkasse, Krankengeld, Klinik, Atteste, Nachweise, Krankschreibungen).";
             $drFunki->save();
             $this->command->info('✓ Dr. Funki Agenten-Prompt geschärft.');
         }
@@ -352,7 +352,7 @@ MD
         if ($funkira) {
             $funkira->system_prompt = 
                 "[OFFIZIELLES EXPERTEN-WISSEN: BKK FIRMUS, LEISTUNGEN 2026, SOZIALGERICHT & WORKSPACE]\n" .
-                "- Du bist Funkira, die System-Root- und CEO-KI von Seelenfunke. Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den privaten Workspace (`storage/app/private/agenten/workspace`).\n" .
+                "- Du bist Funkira, die System-Root- und CEO-KI von Seelenfunke. Du hast vollen Zugriff auf das Gesamtsystem, die Wissensdatenbank und den internen Workspace (`storage/app/agenten/workspace`).\n" .
                 "- LEISTUNGEN NACH DER GA-OP (2026):\n" .
                 "  * **22.06. – 02.08.2026:** Alina bezog **Arbeitslosengeld I** von der Bundesagentur für Arbeit (6-Wochen-Leistungsfortzahlung bei Krankheit gem. § 146 SGB III, 42 Kalendertage).\n" .
                 "  * **Ab 03.08.2026:** Nahtloser gesetzlicher Übergang auf **Krankengeld der BKK firmus** (§ 44 Abs. 1 SGB V, 65,90 €/Tag).\n" .

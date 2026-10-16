@@ -138,7 +138,7 @@
              ">
             
             <div x-show="showRoleManager" style="display: none;" 
-                 class="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300" 
+                 class="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300" 
                  x-transition:enter="ease-out duration-300"
                  x-transition:enter-start="opacity-0"
                  x-transition:enter-end="opacity-100"

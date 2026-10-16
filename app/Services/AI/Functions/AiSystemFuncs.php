@@ -1188,7 +1188,7 @@ trait AiSystemFuncs
             $safeName = str_replace(['/', '\\'], '_', $node->file_path);
             $fullPath = storage_path("app/public/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
             if (!\Illuminate\Support\Facades\File::exists($fullPath)) {
-                $fullPath = storage_path("app/private/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
+                $fullPath = storage_path("app/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
             }
 
             if (!\Illuminate\Support\Facades\File::exists($fullPath)) {
@@ -1270,7 +1270,7 @@ trait AiSystemFuncs
 
             $path = storage_path('app/public/agenten/workspace/Dokumente/Berichte/' . $reportFile);
             if (!\Illuminate\Support\Facades\File::exists($path)) {
-                $path = storage_path('app/private/agenten/workspace/Dokumente/Berichte/' . $reportFile);
+                $path = storage_path('app/agenten/workspace/Dokumente/Berichte/' . $reportFile);
             }
             if (!\Illuminate\Support\Facades\File::exists($path)) {
                 $path = storage_path('app/public/agenten/workspace/md/' . $reportFile);

@@ -5,7 +5,10 @@ namespace App\Livewire\Shop\Ai;
 use App\Livewire\Traits\WithDepartmentTheming;
 
 use App\Models\Ai\AiAgent;
+use App\Models\Ai\AiDepartment;
+use App\Models\Ai\AiRole;
 use App\Models\Ai\AiTool;
+use App\Services\AI\AIFunctionsRegistry;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
@@ -44,6 +47,7 @@ class AiAgentEditor extends Component
     public $profile_picture;
     public $inheritedDept = null;
     public $savedMessage = null;
+    public $searchSkill = '';
 
     // Validierte Paletten
     public $availableColors = [
@@ -158,6 +162,33 @@ class AiAgentEditor extends Component
     public function openEditFromWorkspace($id = 'new')
     {
         $this->mount($id ?: 'new');
+    }
+
+    #[\Livewire\Attributes\On('role-saved')]
+    public function onRoleSaved($roleId = null)
+    {
+        if ($roleId && $this->ai_role_id == $roleId) {
+            $role = AiRole::find($roleId);
+            if ($role) {
+                $this->role_description = $role->description;
+            }
+        }
+        $this->updateContextLoad();
+    }
+
+    public function toggleSkill($toolId)
+    {
+        if (!$this->ai_role_id) {
+            return;
+        }
+
+        $role = AiRole::find($this->ai_role_id);
+        if ($role) {
+            $role->tools()->toggle($toolId);
+            $this->updateContextLoad();
+            $this->savedMessage = 'Fähigkeiten aktualisiert';
+            $this->dispatch('agent-saved', message: $this->savedMessage);
+        }
     }
 
     public function mount($id = 'new')
@@ -476,8 +507,105 @@ class AiAgentEditor extends Component
 
     public function render()
     {
+        $currentRole = $this->ai_role_id ? AiRole::with('tools')->find($this->ai_role_id) : null;
+        $activeTools = $currentRole ? $currentRole->tools : collect();
+        $activeToolIds = $activeTools->pluck('id')->map(fn($id) => (string)$id)->toArray();
+
+        // Alle Tools laden und optional via searchSkill filtern
+        $query = AiTool::query();
+        if (!empty($this->searchSkill)) {
+            $query->where(function($q) {
+                $q->where('name', 'like', '%' . $this->searchSkill . '%')
+                  ->orWhere('identifier', 'like', '%' . $this->searchSkill . '%')
+                  ->orWhere('description', 'like', '%' . $this->searchSkill . '%');
+            });
+        }
+        $allTools = $query->orderBy('name')->get();
+
+        // Gruppierung basierend auf der Registry
+        $depts = AiDepartment::pluck('name', 'id')->toArray();
+        $nameCeo = $depts['019d0000-0000-0000-0000-000000000000'] ?? 'Leitung';
+        $nameSupport = $depts['019d6666-6666-6666-6666-666666666666'] ?? 'Support';
+        $nameProd = $depts['019d1111-1111-1111-1111-111111111111'] ?? 'Produkte';
+        $nameMark = $depts['019d2222-2222-2222-2222-222222222222'] ?? 'Marketing';
+        $nameOrd = $depts['019d3333-3333-3333-3333-333333333333'] ?? 'Bestellungen';
+        $nameFin = $depts['019d4444-4444-4444-4444-444444444444'] ?? 'Buchhaltung';
+        $nameAgents = $depts['019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'] ?? 'Agenten';
+        $nameSystem = $depts['019d5555-5555-5555-5555-555555555555'] ?? 'System';
+        $nameWorld = 'Welt & Urlaub';
+
+        $categoryMap = [
+            $nameCeo => array_merge(
+                array_column(AIFunctionsRegistry::getAiHealthFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiTaskFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiRoutineFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiCalendarFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiBrainFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiContactFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name')
+            ),
+            $nameSupport => array_merge(
+                array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name')
+            ),
+            $nameProd => array_merge(
+                array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiScoutFuncsSchema(), 'name')
+            ),
+            $nameMark => array_merge(
+                array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiMarketingNewsletterFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiMarketingVoucherFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiMarketingBlogFuncsSchema(), 'name')
+            ),
+            $nameOrd => array_column(AIFunctionsRegistry::getAiOrderFuncsSchema(), 'name'),
+            $nameFin => array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
+            $nameAgents => array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
+            $nameSystem => array_column(AIFunctionsRegistry::getAiSystemFuncsSchema(), 'name'),
+            $nameWorld => array_merge(
+                array_column(AIFunctionsRegistry::getAiHolidayPlannerFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiNewsFuncsSchema(), 'name'),
+                array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name')
+            ),
+        ];
+
+        $groupedTools = [];
+        foreach (array_keys($categoryMap) as $catName) {
+            $groupedTools[$catName] = [];
+        }
+        $groupedTools['Andere'] = [];
+
+        foreach ($allTools as $tool) {
+            $matchedCategory = 'Andere';
+            foreach ($categoryMap as $category => $identifiers) {
+                if (in_array($tool->identifier, $identifiers)) {
+                    $matchedCategory = $category;
+                    break;
+                }
+            }
+            $groupedTools[$matchedCategory][] = $tool;
+        }
+
+        $groupedTools = array_filter($groupedTools, fn($tools) => count($tools) > 0);
+
+        $groupedToolsCollection = collect($groupedTools)->map(function ($toolsList, $category) use ($activeToolIds) {
+            $tools = collect($toolsList);
+            $activeCount = $tools->whereIn('id', $activeToolIds)->count();
+            return [
+                'tools' => $tools,
+                'active_count' => $activeCount,
+                'total_count' => $tools->count(),
+            ];
+        });
+
         return view('livewire.shop.ai.ai-agent-editor', [
-            'aiRoles' => \App\Models\Ai\AiRole::orderBy('name')->get()
+            'aiRoles' => AiRole::orderBy('name')->get(),
+            'currentRole' => $currentRole,
+            'activeTools' => $activeTools,
+            'activeToolIds' => $activeToolIds,
+            'groupedTools' => $groupedToolsCollection,
+            'totalToolsCount' => $allTools->count()
         ]);
     }
 }

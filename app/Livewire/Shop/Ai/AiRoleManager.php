@@ -98,6 +98,7 @@ class AiRoleManager extends Component
         $role->tools()->sync($toolIds);
 
         session()->flash('message', $roleIdToSave ? 'Rolle erfolgreich aktualisiert.' : 'Rolle erfolgreich erstellt.');
+        $this->dispatch('role-saved', roleId: $role->id);
 
         $this->cancel();
         $this->loadRoles();
@@ -112,6 +113,7 @@ class AiRoleManager extends Component
     {
         AiRole::findOrFail($id)->delete();
         session()->flash('message', 'Rolle erfolgreich gelöscht.');
+        $this->dispatch('role-saved', roleId: $id);
         $this->loadRoles();
     }
 

@@ -12,7 +12,7 @@ class AiAgentSeeder extends Seeder
 {
     public function run(): void
     {
-        $avatarDir = storage_path('app/public/agents/avatars');
+        $avatarDir = storage_path('app/public/agenten/avatars');
         if (!is_dir($avatarDir)) {
             mkdir($avatarDir, 0755, true);
         }
@@ -281,6 +281,13 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                 );
                 $toolIds[] = $tool->id;
             }
+
+            // Cleanup obsolete tools (e.g. video_* capabilities)
+            AiTool::where('identifier', 'like', 'video_%')->each(function ($tool) {
+                $tool->roles()->detach();
+                $tool->delete();
+            });
+
             if (!empty($toolIds) && isset($rolesMap['Teamleiter'])) {
 
                 // Teamleiter
@@ -295,7 +302,6 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     array_column(AIFunctionsRegistry::getAiMasterFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiTelefonyFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiAgentsFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name')
                 );
 
@@ -322,7 +328,6 @@ SPRACHMELODIE: Deine Sprachmelodie ist extrem technisch, monoton und maschinenä
                     array_column(AIFunctionsRegistry::getAiMarketingFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiCommunicationFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiMailFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiVideoGenerateFuncsSchema(), 'name'),
                     ['product_get_details']
                 ),
 

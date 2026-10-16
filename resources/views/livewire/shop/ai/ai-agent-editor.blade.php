@@ -98,15 +98,15 @@
             </div>
         </div>
 
-        <form wire:submit.prevent="save" class="space-y-10">
+        <form wire:submit.prevent="save" x-data="{ section1Open: false, section2Open: false, section3Open: false }" class="space-y-10">
 
             <!-- Identität -->
-            <section class="bg-white dark:bg-black/40 border {{ $agentId === 1 ? 'border-[var(--theme-color)] shadow-sm dark:shadow-[0_0_20px_var(--theme-color-15)]' : 'border-gray-200 dark:border-gray-800/60 shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)]' }} rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden">
+            <section class="bg-white dark:bg-black/40 border {{ $agentId === 1 ? 'border-[var(--theme-color)] shadow-sm dark:shadow-[0_0_20px_var(--theme-color-15)]' : 'border-gray-200 dark:border-gray-800/60 shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)]' }} rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden transition-all duration-300">
                 <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-gray-900/50 to-transparent pointer-events-none"></div>
                 
-                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-8">
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
+                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-6">
+                    <div class="cursor-pointer select-none flex-1" @click="section1Open = !section1Open">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-3 font-mono uppercase tracking-widest">
                             <div class="p-2 rounded-lg bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)] shadow-[0_0_10px_var(--theme-color-20)]">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" /></svg>
                             </div>
@@ -114,18 +114,95 @@
                         </h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400">Wer ist dieser Agent und was ist sein Hauptzweck (System Prompt)?</p>
                     </div>
+
                     <div class="flex items-center gap-3">
+                        <!-- Rolle verwalten Button -->
+                        <button type="button" 
+                                @click.stop="$dispatch('open-role-manager', { roleId: '{{ $ai_role_id }}' })"
+                                class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--theme-color-30)] bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] text-[var(--theme-color)] text-xs font-mono font-bold transition-all shadow-sm"
+                                title="Rolle bearbeiten oder neue Rolle anlegen">
+                            <x-heroicon-o-adjustments-horizontal class="w-4 h-4" />
+                            <span>Rolle verwalten</span>
+                        </button>
+
+                        <div class="h-6 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block"></div>
+
                         <span class="text-[10px] font-black tracking-widest uppercase transition-colors duration-300 drop-shadow-none dark:drop-shadow-md {{ $is_active ? 'text-emerald-600 dark:text-emerald-500' : 'text-red-600 dark:text-red-500' }}">
                             {{ $is_active ? 'Aktiv' : 'Inaktiv' }}
                         </span>
-                        <label class="relative inline-flex items-center cursor-pointer" title="Agent aktivieren/deaktivieren">
+                        <label class="relative inline-flex items-center cursor-pointer" title="Agent aktivieren/deaktivieren" @click.stop>
                             <input type="checkbox" wire:model.live="is_active" class="sr-only peer">
                             <div class="w-11 h-6 bg-red-500/80 border border-red-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-red-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500/80 peer-checked:border-emerald-500 peer-checked:shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.4)] dark:shadow-[0_0_15px_rgba(239,68,68,0.4)]"></div>
                         </label>
+
+                        <!-- Accordion Toggle Button -->
+                        <button type="button" @click="section1Open = !section1Open" class="p-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/60 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all ml-1" title="Bereich ein-/ausklappen">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 transition-transform duration-300" :class="{ 'rotate-180': section1Open }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
-                <div class="relative z-10 space-y-8">
+                <!-- Collapsed Preview (Kurz & Knackig) -->
+                <div x-show="!section1Open" x-collapse x-cloak class="relative z-10 cursor-pointer" @click="section1Open = true">
+                    <div class="p-4 rounded-2xl bg-gray-50/80 dark:bg-white/[0.02] border border-gray-200 dark:border-gray-800/80 hover:border-[var(--theme-color-50)] transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <!-- Avatar Thumbnail -->
+                            <div class="w-14 h-14 rounded-2xl border-2 border-[var(--theme-color-40)] overflow-hidden shrink-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center shadow-sm">
+                                @if ($profile_picture)
+                                    <img src="{{ $profile_picture->temporaryUrl() }}" class="w-full h-full object-cover">
+                                @elseif ($existing_profile_picture)
+                                    <img src="{{ \Illuminate\Support\Str::startsWith($existing_profile_picture, 'shop/') ? asset($existing_profile_picture) : Storage::url($existing_profile_picture) }}" class="w-full h-full object-cover">
+                                @else
+                                    <div class="text-[var(--theme-color)]">
+                                        <x-dynamic-component :component="'heroicon-o-' . ($icon ?: 'sparkles')" class="w-7 h-7" />
+                                    </div>
+                                @endif
+                            </div>
+
+                            <!-- Grunddaten kurz und knackig -->
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h4 class="text-base font-black text-gray-900 dark:text-white font-mono truncate">{{ $name ?: 'Neuer Agent' }}</h4>
+                                    @if($wake_word)
+                                        <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[10px] font-mono border border-gray-200 dark:border-gray-700">Wake Word: <strong class="text-[var(--theme-color)]">{{ $wake_word }}</strong></span>
+                                    @endif
+                                </div>
+                                <div class="flex items-center gap-2 flex-wrap mt-1 text-xs">
+                                    <span class="px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] text-[11px] font-mono font-bold border border-[var(--theme-color-30)] flex items-center gap-1">
+                                        <x-heroicon-o-briefcase class="w-3.5 h-3.5" />
+                                        {{ $currentRole ? $currentRole->name : 'Keine Rolle' }}
+                                    </span>
+                                    <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[11px] font-mono flex items-center gap-1.5 border border-gray-200 dark:border-gray-700">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-{{ $color }}"></span>
+                                        <x-dynamic-component :component="'heroicon-o-' . $icon" class="w-3.5 h-3.5 text-gray-400" />
+                                        <span>{{ $color }}</span>
+                                    </span>
+                                    @if(!empty($telegram_bot_token))
+                                        <span class="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-400 text-[10px] font-mono border border-sky-500/30">Telegram Bot</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 self-end md:self-center shrink-0">
+                            <button type="button" 
+                                    @click.stop="$dispatch('open-role-manager', { roleId: '{{ $ai_role_id }}' })"
+                                    class="px-3 py-1.5 rounded-xl border border-[var(--theme-color-30)] bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] text-[var(--theme-color)] text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                                    title="Rolle bearbeiten oder neue Rolle anlegen">
+                                <x-heroicon-o-adjustments-horizontal class="w-4 h-4" />
+                                <span>Rolle verwalten</span>
+                            </button>
+                            <span class="text-xs font-mono text-[var(--theme-color)] font-bold flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] transition-all">
+                                <x-heroicon-o-pencil class="w-3.5 h-3.5" /> Bearbeiten
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expanded Content -->
+                <div x-show="section1Open" x-collapse x-cloak class="relative z-10 space-y-8 pt-2">
                     
                     <!-- Avatar Upload -->
                     <div class="flex flex-col sm:flex-row gap-6 items-start">
@@ -176,16 +253,25 @@
                             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
                                 <div>
                                     <label class="block text-xs font-bold text-gray-700 dark:text-gray-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">Aufgaben-Rolle</label>
-                                    <div class="relative">
-                                        <select wire:model.live="ai_role_id" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
-                                            <option value="">-- Keine spezifische Rolle --</option>
-                                            @foreach($aiRoles as $role)
-                                                <option value="{{ $role->id }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300">{{ $role->name }}</option>
-                                            @endforeach
-                                        </select>
-                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    <div class="flex items-center gap-2">
+                                        <div class="relative flex-1">
+                                            <select wire:model.live="ai_role_id" class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)]/20 text-gray-900 dark:text-white sm:text-sm p-3 pr-10 font-mono transition-all appearance-none cursor-pointer">
+                                                <option value="">-- Keine spezifische Rolle --</option>
+                                                @foreach($aiRoles as $role)
+                                                    <option value="{{ $role->id }}" class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-300">{{ $role->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                            </div>
                                         </div>
+                                        <button type="button" 
+                                                @click="$dispatch('open-role-manager', { roleId: '{{ $ai_role_id }}' })"
+                                                class="px-3.5 py-3 rounded-xl border border-[var(--theme-color-30)] bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] text-[var(--theme-color)] text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm shrink-0"
+                                                title="{{ $ai_role_id ? 'Ausgewählte Rolle bearbeiten' : 'Rollen verwalten / Neue Rolle anlegen' }}">
+                                            <x-heroicon-o-adjustments-horizontal class="w-4 h-4" />
+                                            <span class="hidden sm:inline">Rolle verwalten</span>
+                                        </button>
                                     </div>
                                     @error('ai_role_id') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                                 </div>
@@ -374,22 +460,85 @@
             </section>
 
             <!-- Gehirn (LLM Settings) -->
-            <section class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)]">
+            <section class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)] transition-all duration-300">
                 <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-indigo-900/10 to-transparent pointer-events-none"></div>
 
-                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-8">
-                    <div>
-                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3 font-mono uppercase tracking-widest">
+                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-6">
+                    <div class="cursor-pointer select-none flex-1" @click="section2Open = !section2Open">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-3 font-mono uppercase tracking-widest">
                             <div class="p-2 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shadow-sm dark:shadow-[0_0_10px_rgba(99,102,241,0.2)]">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M11.47 3.841a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.061l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 101.061 1.06l8.69-8.689z" /><path d="M12 5.432l8.159 8.159c.03.03.06.058.091.086v6.198c0 1.035-.84 1.875-1.875 1.875H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H5.625a1.875 1.875 0 01-1.875-1.875v-6.198a2.29 2.29 0 00.091-.086L12 5.432z" /></svg>
                             </div>
                             2. Neuronales Netz (Modell)
                         </h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400">Welches LLM-Gehirn steuert diesen Agenten?</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Welches LLM-Gehirn steuert diesen Agenten und wie spricht er?</p>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <!-- Accordion Toggle Button -->
+                        <button type="button" @click="section2Open = !section2Open" class="p-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/60 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all" title="Bereich ein-/ausklappen">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 transition-transform duration-300" :class="{ 'rotate-180': section2Open }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
-                <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Collapsed Preview (Kurz & Knackig) -->
+                <div x-show="!section2Open" x-collapse x-cloak class="relative z-10 cursor-pointer" @click="section2Open = true">
+                    <div class="p-4 rounded-2xl bg-gray-50/80 dark:bg-white/[0.02] border border-gray-200 dark:border-gray-800/80 hover:border-indigo-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0">
+                                <x-heroicon-s-sparkles class="w-6 h-6" />
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h4 class="text-sm font-black text-gray-900 dark:text-white font-mono">{{ $availableModels[$model] ?? $model }}</h4>
+                                    <span class="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 text-[10px] font-mono border border-indigo-500/30">
+                                        Preset: {{ ucfirst($activePreset ?? 'Individuell') }} (T: {{ $temperature }})
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-2 flex-wrap mt-1 text-xs font-mono text-gray-500 dark:text-gray-400">
+                                    <span>Kontext: {{ $modelDetails[$model]['context'] ?? '1M Token' }}</span>
+                                    <span>•</span>
+                                    <span>Speicher: {{ number_format($contextLoad['tokens'], 0, ',', '.') }} Token</span>
+                                    <span>•</span>
+                                    <span class="flex items-center gap-1 {{ $tts_enabled ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-500' }}">
+                                        <x-heroicon-s-speaker-wave class="w-3.5 h-3.5" />
+                                        {{ $tts_enabled ? 'Stimme: ' . $this->getActiveVoiceLabel() . ' (' . number_format((float)$tts_speed, 1) . 'x)' : 'TTS Deaktiviert' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 self-end md:self-center shrink-0">
+                            @if($tts_enabled && $tts_provider !== 'none')
+                                <button type="button" 
+                                        wire:click.stop="playVoiceSample" 
+                                        wire:loading.attr="disabled"
+                                        wire:target="playVoiceSample"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs font-mono font-bold transition-all shadow-sm">
+                                    <span wire:loading.remove wire:target="playVoiceSample" class="flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd" />
+                                        </svg>
+                                        Hörprobe
+                                    </span>
+                                    <span wire:loading wire:target="playVoiceSample" class="flex items-center gap-1">
+                                        <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    </span>
+                                </button>
+                            @endif
+                            <span class="text-xs font-mono text-indigo-400 font-bold flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 transition-all">
+                                <x-heroicon-o-pencil class="w-3.5 h-3.5" /> Konfigurieren
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expanded Content -->
+                <div x-show="section2Open" x-collapse x-cloak class="relative z-10 pt-2">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <!-- Modell Select -->
                     <div x-data="{ selectedModel: $wire.entangle('model').live, details: @js($modelDetails) }">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
@@ -596,7 +745,206 @@
                             
                             <!-- Offline Hint entfernt -->
                         </div>
+                        </div>
                     </div>
+                </div>
+            </section>
+
+            <!-- 3. Skills (Fähigkeiten) -->
+            <section class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md relative overflow-hidden shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)] transition-all duration-300">
+                <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent pointer-events-none"></div>
+
+                <div class="relative z-10 flex items-center justify-between border-b border-gray-100 dark:border-gray-800/80 pb-4 mb-6">
+                    <div class="cursor-pointer select-none flex-1" @click="section3Open = !section3Open">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-1 flex items-center gap-3 font-mono uppercase tracking-widest">
+                            <div class="p-2 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-sm dark:shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+                                <x-heroicon-s-wrench-screwdriver class="w-5 h-5" />
+                            </div>
+                            3. Skills (Fähigkeiten)
+                        </h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Welche Werkzeuge & System-Funktionen kann dieser Agent autonom ausführen?</p>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button type="button" 
+                                @click.stop="$dispatch('open-role-manager', { roleId: '{{ $ai_role_id }}' })"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-mono font-bold transition-all shadow-sm"
+                                title="Rolle verwalten oder neue Rolle anlegen">
+                            <x-heroicon-o-adjustments-horizontal class="w-4 h-4" />
+                            <span>Rolle verwalten</span>
+                        </button>
+
+                        <!-- Accordion Toggle Button -->
+                        <button type="button" @click="section3Open = !section3Open" class="p-2 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/60 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all" title="Bereich ein-/ausklappen">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 transition-transform duration-300" :class="{ 'rotate-180': section3Open }" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Collapsed Preview (Kurz & Knackig) -->
+                <div x-show="!section3Open" x-collapse x-cloak class="relative z-10 cursor-pointer" @click="section3Open = true">
+                    <div class="p-4 rounded-2xl bg-gray-50/80 dark:bg-white/[0.02] border border-gray-200 dark:border-gray-800/80 hover:border-cyan-500/50 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-4 min-w-0">
+                            <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shrink-0">
+                                <x-heroicon-s-wrench-screwdriver class="w-6 h-6" />
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h4 class="text-sm font-black text-gray-900 dark:text-white font-mono">
+                                        {{ $activeTools->count() }} Fähigkeiten aktiv
+                                    </h4>
+                                    <span class="text-xs text-gray-500 font-mono">
+                                        ({{ $currentRole ? 'Rolle: ' . $currentRole->name : 'Keine Rolle zugewiesen' }})
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+                                    @forelse($activeTools->take(5) as $tool)
+                                        <span class="px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 text-[10px] font-mono border border-cyan-500/20 truncate max-w-[150px]">
+                                            {{ $tool->name }}
+                                        </span>
+                                    @empty
+                                        <span class="text-xs text-gray-400 font-mono italic">Keine Fähigkeiten aktiv. Wähle eine Rolle oder aktiviere Skills.</span>
+                                    @endforelse
+                                    @if($activeTools->count() > 5)
+                                        <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] font-mono border border-gray-200 dark:border-gray-700">
+                                            +{{ $activeTools->count() - 5 }} weitere
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 self-end md:self-center shrink-0">
+                            <button type="button" 
+                                    @click.stop="$dispatch('open-role-manager', { roleId: '{{ $ai_role_id }}' })"
+                                    class="px-3 py-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm">
+                                <x-heroicon-o-adjustments-horizontal class="w-4 h-4" />
+                                <span>Rolle verwalten</span>
+                            </button>
+                            <span class="text-xs font-mono text-cyan-400 font-bold flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 transition-all">
+                                <x-heroicon-o-pencil class="w-3.5 h-3.5" /> Skills anpassen
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expanded Content -->
+                <div x-show="section3Open" x-collapse x-cloak class="relative z-10 space-y-6 pt-2">
+                    @if(!$currentRole)
+                        <div class="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <x-heroicon-o-exclamation-triangle class="w-6 h-6 text-amber-400 shrink-0" />
+                                <div>
+                                    <h4 class="font-bold text-amber-200">Keine Rolle zugewiesen</h4>
+                                    <p class="text-xs text-amber-300/80 mt-0.5">Agenten erben ihre Fähigkeiten aus ihrer zugewiesenen Rolle. Wähle in Abschnitt 1 eine Rolle aus oder erstelle jetzt eine neue Rolle.</p>
+                                </div>
+                            </div>
+                            <button type="button" 
+                                    @click="$dispatch('open-role-manager', { roleId: null })"
+                                    class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold text-xs font-mono uppercase tracking-wider transition-all shadow-md shrink-0">
+                                Neue Rolle erstellen
+                            </button>
+                        </div>
+                    @else
+                        <!-- Rollen Info & Steuerung -->
+                        <div class="p-4 rounded-2xl bg-gray-50/50 dark:bg-black/30 border border-gray-200 dark:border-gray-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                    <x-heroicon-o-briefcase class="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-500 uppercase font-mono font-bold tracking-wider">Aktive Rolle</div>
+                                    <div class="text-sm font-bold text-gray-900 dark:text-white font-mono flex items-center gap-2">
+                                        <span>{{ $currentRole->name }}</span>
+                                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                            {{ $activeTools->count() }} von {{ $totalToolsCount }} Tools aktiv
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" 
+                                    @click="$dispatch('open-role-manager', { roleId: '{{ $ai_role_id }}' })"
+                                    class="px-3.5 py-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-sm">
+                                <x-heroicon-o-adjustments-horizontal class="w-4 h-4" />
+                                <span>Rolle im Detail bearbeiten</span>
+                            </button>
+                        </div>
+
+                        <!-- Suchfeld für Fähigkeiten -->
+                        <div class="relative">
+                            <input type="text" 
+                                   wire:model.live.debounce.300ms="searchSkill" 
+                                   placeholder="Fähigkeit durchsuchen (z.B. order, mail, voucher, sql, calendar)..." 
+                                   class="w-full bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-sm dark:shadow-inner focus:border-cyan-500 focus:ring focus:ring-cyan-500/20 text-gray-900 dark:text-white sm:text-sm p-3 pl-10 font-mono transition-all">
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400">
+                                <x-heroicon-o-magnifying-glass class="w-4 h-4" />
+                            </div>
+                            @if(!empty($searchSkill))
+                                <button type="button" wire:click="$set('searchSkill', '')" class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 hover:text-white">
+                                    <x-heroicon-o-x-mark class="w-4 h-4" />
+                                </button>
+                            @endif
+                        </div>
+
+                        <!-- Gruppierte Fähigkeiten nach Abteilung -->
+                        <div class="space-y-6">
+                            @forelse($groupedTools as $categoryName => $catData)
+                                <div class="border border-gray-200 dark:border-gray-800/80 rounded-2xl p-5 bg-gray-50/30 dark:bg-black/20">
+                                    <div class="flex items-center justify-between mb-4 border-b border-gray-200 dark:border-gray-800/50 pb-2">
+                                        <h4 class="text-xs font-bold text-gray-900 dark:text-gray-300 uppercase tracking-widest font-mono flex items-center gap-2">
+                                            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                            {{ $categoryName }}
+                                        </h4>
+                                        <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full {{ $catData['active_count'] > 0 ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-500' }}">
+                                            {{ $catData['active_count'] }} / {{ $catData['total_count'] }} aktiv
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        @foreach($catData['tools'] as $tool)
+                                            @php
+                                                $isActive = in_array((string)$tool->id, $activeToolIds);
+                                            @endphp
+                                            <div wire:click="toggleSkill('{{ $tool->id }}')" 
+                                                 class="group relative p-3 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between
+                                                 {{ $isActive 
+                                                    ? 'border-cyan-500/60 bg-cyan-500/10 text-gray-900 dark:text-white shadow-sm dark:shadow-[0_0_12px_rgba(6,182,212,0.15)]' 
+                                                    : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-black/30 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700' }}">
+                                                <div class="flex items-start justify-between gap-2 mb-1.5">
+                                                    <div class="min-w-0">
+                                                        <div class="text-xs font-bold font-mono truncate {{ $isActive ? 'text-cyan-700 dark:text-cyan-300' : 'text-gray-900 dark:text-gray-300' }}">
+                                                            {{ $tool->name }}
+                                                        </div>
+                                                        <div class="text-[10px] text-gray-500 font-mono truncate">
+                                                            {{ $tool->identifier }}
+                                                        </div>
+                                                    </div>
+                                                    <div class="shrink-0 mt-0.5">
+                                                        <div class="w-4 h-4 rounded border transition-colors flex items-center justify-center {{ $isActive ? 'bg-cyan-500 border-cyan-500 text-white' : 'border-gray-300 dark:border-gray-700 bg-transparent' }}">
+                                                            @if($isActive)
+                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" /></svg>
+                                                            @endif
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                @if($tool->description)
+                                                    <p class="text-[10px] line-clamp-2 leading-relaxed {{ $isActive ? 'text-cyan-900/80 dark:text-cyan-100/70' : 'text-gray-500' }}">
+                                                        {{ $tool->description }}
+                                                    </p>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @empty
+                                <div class="p-8 text-center text-gray-500 font-mono text-sm border border-dashed border-gray-200 dark:border-gray-800 rounded-2xl">
+                                    Keine Fähigkeiten gefunden für "{{ $searchSkill }}".
+                                </div>
+                            @endforelse
+                        </div>
+                    @endif
                 </div>
             </section>
 
@@ -655,6 +1003,48 @@
             <span class="text-emerald-400 font-bold block" x-text="message"></span>
             <span class="text-[10px] text-gray-400">Automatisch synchronisiert</span>
         </div>
-    </div>
+    @if(request()->routeIs('admin.ai-agents.editor'))
+        <div wire:ignore>
+            <!-- Role Manager Modal (Standalone Fallback) -->
+            <div x-data="{ showRoleManager: false }" 
+                 x-on:open-role-manager.window="
+                    showRoleManager = true; 
+                    if($event.detail.roleId) { 
+                        Livewire.dispatchTo('shop.ai.ai-role-manager', 'edit-role', { roleId: $event.detail.roleId }); 
+                    } else { 
+                        Livewire.dispatchTo('shop.ai.ai-role-manager', 'edit-role', { roleId: null }); 
+                    }
+                 ">
+                
+                <div x-show="showRoleManager" style="display: none;" 
+                     class="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300" 
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0">
+                    
+                    <div class="relative w-[95vw] h-[95vh] lg:w-[90vw] lg:h-[90vh] bg-white dark:bg-gray-950 border border-gray-200 dark:border-emerald-500/30 rounded-3xl overflow-auto custom-scrollbar shadow-2xl flex flex-col" 
+                         x-transition:enter="ease-out duration-300 transform"
+                         x-transition:enter-start="opacity-0 translate-y-8 scale-95"
+                         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                         x-transition:leave="ease-in duration-200 transform"
+                         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                         x-transition:leave-end="opacity-0 translate-y-8 scale-95"
+                         @click.away="showRoleManager = false">
+                        
+                        <button @click="showRoleManager = false" class="absolute top-4 right-4 z-50 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-900/50 dark:hover:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700/50 transition-colors">
+                            <x-heroicon-o-x-mark class="w-6 h-6" />
+                        </button>
+                        
+                        <div class="flex-1 w-full relative">
+                            <livewire:shop.ai.ai-role-manager />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
 </div>
