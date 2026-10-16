@@ -24,6 +24,7 @@ class AiBackgroundTaskTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Event::fake([TaskUpdated::class, \App\Events\AiFrontendEvent::class]);
     }
 
     /**
@@ -53,7 +54,7 @@ class AiBackgroundTaskTest extends TestCase
     public function test_system_dispatch_background_task_dispatches_tool_job(): void
     {
         Bus::fake([ExecuteAiBackgroundToolJob::class]);
-        Event::fake([TaskUpdated::class]);
+        Event::fake([TaskUpdated::class, \App\Events\AiFrontendEvent::class]);
 
         $response = AiSystemFuncs::executeDispatchBackgroundTask([
             'task_description' => '164 Logs im Hintergrund auf gelöst setzen',
@@ -161,7 +162,7 @@ class AiBackgroundTaskTest extends TestCase
      */
     public function test_execute_ai_background_tool_job_processes_and_completes_task(): void
     {
-        Event::fake([TaskUpdated::class]);
+        Event::fake([TaskUpdated::class, \App\Events\AiFrontendEvent::class]);
 
         $task = AiWorkspaceTask::create([
             'prompt' => 'Uhrzeit im Hintergrund abfragen',

@@ -84,7 +84,7 @@
 
                     {{-- Item 1 --}}
                     <li class="flex items-start justify-end gap-3">
-                        <span class="text-right"><strong>Mengenrabatte</strong> (ab 10 Stk.) automatisch berechnen</span>
+                        <span class="text-right"><strong>Mengenrabatte</strong> automatisch berechnen</span>
                         <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">💎</span>
                     </li>
 

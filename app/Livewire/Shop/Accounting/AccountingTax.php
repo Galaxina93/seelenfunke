@@ -30,6 +30,7 @@ class AccountingTax extends Component
     public $selectedYear;
     public $selectedMonth;
     public $submissionType = 'Erstübermittlung';
+    public int $activeStep = 1; // Schritt-für-Schritt Navigation: 1 (Zahlen/Belege), 2 (Parameter/Auth), 3 (Vorschau/Übermittlung)
     
     // NEU: Hardware-Token Integration
     public $authMethod = 'software'; // 'software' oder 'hardware'
@@ -74,7 +75,7 @@ class AccountingTax extends Component
 
     public function scanTresorCertificates()
     {
-        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
         $isAbs = str_starts_with($tresorPath, '/');
         $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
 
@@ -130,6 +131,13 @@ class AccountingTax extends Component
         $this->selectedMonth = $month;
         $this->globalLogs = []; // Logs beim Monatswechsel leeren
         $this->addLog('system', "Monat " . str_pad($month, 2, '0', STR_PAD_LEFT) . "/{$this->selectedYear} geladen. Analysiere Belege...");
+    }
+
+    public function setStep(int $step): void
+    {
+        if (in_array($step, [1, 2, 3])) {
+            $this->activeStep = $step;
+        }
     }
 
     public function loadArchivedExports()
@@ -345,7 +353,7 @@ class AccountingTax extends Component
 
         // Laufzeit-Prüfung, ob das konfigurierte Software-Zertifikat existiert!
         if ($this->authMethod === 'software') {
-            $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+            $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
             $isAbs = str_starts_with($tresorPath, '/');
             $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
             $fullCertPath = $fullPath . DIRECTORY_SEPARATOR . $this->selectedCertName;
@@ -447,7 +455,7 @@ class AccountingTax extends Component
                 $this->addLog('success', "Ein Beleg für Variablen-Ausgabe '{$issue->title}' wurde inline verknüpft.");
             }
         } elseif ($type === 'fixed') {
-            $issue = \App\Models\Financial\FinanceFixedIssue::find($itemId);
+            $issue = \App\Models\Accounting\AccountingCostItem::find($itemId);
             if ($issue) {
                 $issue->update(['contract_file_path' => $path]);
                 $this->addLog('success', "Ein Beleg für Fixkosten '{$issue->name}' wurde inline verknüpft.");
@@ -466,7 +474,7 @@ class AccountingTax extends Component
         $monthStr = $data['month_number'];
         $yearStr = $data['year'];
         
-        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+        $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
         $isAbs = str_starts_with($tresorPath, '/');
         $fullTresor = $isAbs ? $tresorPath : base_path($tresorPath);
         $tempDir = $fullTresor . "/exports/temp_export_{$monthStr}_{$yearStr}";
@@ -512,6 +520,17 @@ class AccountingTax extends Component
                 }
             }
         }
+        foreach ($data['raw_fixed'] as $fixed) {
+            if (!empty($fixed->contract_file_path)) {
+                $path = $fixed->contract_file_path;
+                $source = str_starts_with($path, 'buchhaltung/') ? storage_path('app/' . $path) : storage_path('app/buchhaltung/' . $path);
+                if (File::exists($source)) {
+                    $ext = pathinfo($source, PATHINFO_EXTENSION);
+                    File::copy($source, $receiptsDir . "/Fixkosten_" . Str::slug($fixed->name) . ".{$ext}");
+                    $copyCount++;
+                }
+            }
+        }
         $this->addLog('info', "{$copyCount} Belege in Export-Ordner kopiert.");
 
         // ZIPPEN
@@ -521,11 +540,17 @@ class AccountingTax extends Component
 
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
-            $zip->addFile($csvPath, basename($csvPath));
-            $zip->addFile($pdfPath, basename($pdfPath));
-            $files = File::files($receiptsDir);
-            foreach ($files as $file) {
-                $zip->addFile($file->getPathname(), 'Belege/' . $file->getFilename());
+            if (File::exists($csvPath)) {
+                $zip->addFile($csvPath, basename($csvPath));
+            }
+            if (File::exists($pdfPath)) {
+                $zip->addFile($pdfPath, basename($pdfPath));
+            }
+            if (File::exists($receiptsDir)) {
+                $files = File::files($receiptsDir);
+                foreach ($files as $file) {
+                    $zip->addFile($file->getPathname(), 'Belege/' . $file->getFilename());
+                }
             }
             $zip->close();
         }
@@ -573,7 +598,7 @@ class AccountingTax extends Component
         }
         
         if ($this->authMethod === 'software') {
-            $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+            $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
             $isAbs = str_starts_with($tresorPath, '/');
             $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
             $fullCertPath = $fullPath . DIRECTORY_SEPARATOR . $this->selectedCertName;
@@ -636,6 +661,18 @@ class AccountingTax extends Component
     public function downloadTaxExport($filename, \App\Services\Export\FileDownloadService $exportService)
     {
         return $exportService->downloadTaxExport($filename);
+    }
+
+    public function deleteExport(string $filename): void
+    {
+        $safeName = basename($filename);
+        $path = 'buchhaltung/tax_exports/' . $safeName;
+        if (Storage::disk('local')->exists($path)) {
+            Storage::disk('local')->delete($path);
+            $this->addLog('info', "Archivierter Export '{$safeName}' wurde gelöscht.");
+            $this->loadArchivedExports();
+            session()->flash('success', "Export '{$safeName}' erfolgreich gelöscht.");
+        }
     }
 
     public function render()

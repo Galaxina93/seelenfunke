@@ -108,14 +108,14 @@
                                 @if($inv->type === 'cancellation' && $inv->parent_id)
                                     <div class="text-[9px] text-red-400 uppercase font-black tracking-widest mt-1.5 flex items-center gap-1.5">
                                         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
-                                        Zu: {{ \App\Models\Accounting\AccountingInvoice::find($inv->parent_id)?->invoice_number ?? 'Unbekannt' }}
+                                        Zu: {{ $inv->parent?->invoice_number ?? 'Unbekannt' }}
                                     </div>
                                 @endif
                             </div>
                         </td>
                         <td class="px-4 py-5 align-middle">
                             <div class="text-gray-900 dark:text-white font-bold truncate max-w-[200px]">
-                                {{ !empty($inv->billing_address['company']) ? $inv->billing_address['company'] . ' (' . $inv->billing_address['last_name'] . ')' : $inv->billing_address['first_name'] . ' ' . $inv->billing_address['last_name'] }}
+                                {{ !empty($inv->billing_address['company']) ? ($inv->billing_address['company'] . ' (' . ($inv->billing_address['last_name'] ?? '') . ')') : (trim(($inv->billing_address['first_name'] ?? '') . ' ' . ($inv->billing_address['last_name'] ?? '')) ?: 'Kein Name') }}
                             </div>
                             <div class="text-[10px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ $inv->invoice_date->format('d.m.Y') }}</div>
                         </td>
@@ -126,7 +126,9 @@
                             {{ number_format($inv->total / 100, 2, ',', '.') }} €
                         </td>
                         <td class="px-4 py-5 text-center align-middle">
-                            @if($inv->status == 'paid' && $inv->type !== 'cancellation')
+                            @if($inv->type === 'credit_note')
+                                <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-400 border border-purple-500/30 shadow-inner">Gutschrift</span>
+                            @elseif($inv->status == 'paid' && $inv->type !== 'cancellation')
                                 <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shadow-inner">Final</span>
                             @elseif($inv->status == 'cancelled' || $inv->type === 'cancellation')
                                 <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest bg-red-500/10 text-red-400 border border-red-500/30 shadow-inner">Storniert</span>
@@ -174,24 +176,25 @@
                                     @if($inv->type === 'cancellation' && $inv->parent_id)
                                         <span class="text-[8px] text-red-400 font-black uppercase tracking-widest mt-1 flex items-center gap-1.5">
                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
-                                            Zu: {{ \App\Models\Accounting\AccountingInvoice::find($inv->parent_id)?->invoice_number }}
+                                            Zu: {{ $inv->parent?->invoice_number ?? 'Unbekannt' }}
                                         </span>
                                     @endif
                                 </div>
                                 <span @class([
                                             'px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border shadow-inner',
-                                            'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' => $inv->status == 'paid' && $inv->type !== 'cancellation',
+                                            'bg-purple-500/10 text-purple-400 border-purple-500/30' => $inv->type === 'credit_note',
+                                            'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' => $inv->status == 'paid' && !in_array($inv->type, ['cancellation', 'credit_note']),
                                             'bg-red-500/10 text-red-400 border-red-500/30' => $inv->status == 'cancelled' || $inv->type === 'cancellation',
                                             'bg-amber-500/10 text-amber-400 border-amber-500/30' => $inv->status == 'draft',
-                                            'bg-blue-500/10 text-blue-400 border-blue-500/30' => $inv->status != 'paid' && $inv->status != 'cancelled' && $inv->status != 'draft'
+                                            'bg-blue-500/10 text-blue-400 border-blue-500/30' => $inv->status != 'paid' && $inv->status != 'cancelled' && $inv->status != 'draft' && $inv->type !== 'credit_note'
                                         ])>
-                                            {{ $inv->status === 'cancelled' || $inv->type === 'cancellation' ? 'storniert' : $inv->status }}
+                                            {{ $inv->type === 'credit_note' ? 'Gutschrift' : ($inv->status === 'cancelled' || $inv->type === 'cancellation' ? 'storniert' : $inv->status) }}
                                         </span>
                             </div>
 
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mt-2">
                                 <div class="min-w-0 pr-4">
-                                    <div class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $inv->billing_address['last_name'] }}</div>
+                                    <div class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $inv->billing_address['last_name'] ?? 'Ohne Namen' }}</div>
                                     <div @class(['text-xl font-serif font-bold mt-1', 'text-[var(--theme-color)]' => $inv->total >= 0, 'text-red-400' => $inv->total < 0])>{{ number_format($inv->total / 100, 2, ',', '.') }} €</div>
                                 </div>
                                 <div class="flex flex-wrap gap-2 w-full sm:w-auto mt-2 sm:mt-0">

@@ -173,7 +173,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Haus',
                 'name'        => 'Wasser',
-                'amount'      => -18.00,
+                'amount'      => -40.00,
                 'interval'    => 1,
                 'start_date'  => '2021-09-14',
                 'provider_company' => 'LSW Energie GmbH & Co. KG',

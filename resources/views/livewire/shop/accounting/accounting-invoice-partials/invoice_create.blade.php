@@ -303,8 +303,8 @@
                             <th class="py-4 px-5 text-left w-12 rounded-tl-xl">Pos</th>
                             <th class="py-4 px-5 text-left">Bezeichnung</th>
                             <th class="py-4 px-5 text-center w-20">Menge</th>
-                            <th class="py-4 px-5 text-right w-32">Einzel (Brutto)</th>
-                            <th class="py-4 px-5 text-right w-36 rounded-tr-xl">Gesamt</th>
+                            <th class="py-4 px-5 text-right w-32">Einzel (Netto)</th>
+                            <th class="py-4 px-5 text-right w-36 rounded-tr-xl">Gesamt (Netto)</th>
                         </tr>
                         </thead>
                         <tbody class="text-sm">

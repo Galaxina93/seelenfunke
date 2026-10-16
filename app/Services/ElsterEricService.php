@@ -76,13 +76,16 @@ class ElsterEricService
         // --- HTTP GATEWAY FALLBACK / SANDBOX SIMULATION ---
 
         // Security-Prüfung: Fallback, damit nichts leeres übersendet wird
-        if (empty($this->apiUsername) || empty($this->apiPassword)) {
+        if (!$this->isTestMode && (empty($this->apiUsername) || empty($this->apiPassword))) {
             throw new \Exception("ERiC API Zugangsdaten fehlen in der .env (ERIC_API_USERNAME / ERIC_API_PASSWORD).");
         }
 
+        $authUsername = $this->apiUsername ?: 'sandbox_user';
+        $authPassword = $this->apiPassword ?: 'sandbox_pass';
+
         try {
             // Sende an die tatsächliche Datenannahme API mit Authentifizierung
-            $response = Http::withBasicAuth($this->apiUsername, $this->apiPassword)
+            $response = Http::withBasicAuth($authUsername, $authPassword)
                 ->timeout(20)
                 ->withHeaders([
                     'Content-Type' => 'application/xml; charset=UTF-8',
@@ -133,20 +136,35 @@ class ElsterEricService
         file_put_contents($tempXmlPath, $xmlPayload);
         
         // Neu: Wir nutzen den offiziellen Python-Wrapper, den wir vorhin lauffähig & headless gemacht haben!
-        $tresorConfigPath = env('ERIC_TRESOR_PATH', 'storage/app/erictresor');
+        $tresorConfigPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
         $isAbs = str_starts_with($tresorConfigPath, '/');
         $absoluteTresorPath = $isAbs ? $tresorConfigPath : base_path($tresorConfigPath);
         
         $certPath = $absoluteTresorPath . DIRECTORY_SEPARATOR . shop_setting('eric_default_cert', '');
         
         $ericBaseDir = $absoluteTresorPath . '/eric-linux/ERiC-43.4.6.0/Linux-x86_64';
+        if (!file_exists($ericBaseDir . '/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo')) {
+            $fallbackDir = storage_path('app/buchhaltung/erictresor/eric-linux/ERiC-43.4.6.0/Linux-x86_64');
+            if (file_exists($fallbackDir . '/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo')) {
+                $ericBaseDir = $fallbackDir;
+            }
+        }
         
         // Neu: Wir haben den offiziellen C++ Quellcode kompiliert, um uns von Python/Java Abhängigkeiten auf dem Linux Server zu trennen!
         $cppBinary = $ericBaseDir . '/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo';
         $libDir = $ericBaseDir . '/lib';
         
         if (!file_exists($cppBinary)) {
-            unlink($tempXmlPath);
+            if (file_exists($tempXmlPath)) unlink($tempXmlPath);
+            if ($this->isTestMode) {
+                $ticketId = "ELSTER-SIM-" . floatval(microtime(true) * 10000) . "-" . strtoupper(Str::random(6));
+                return [
+                    'success' => true,
+                    'ticket_id' => $ticketId,
+                    'xml_size' => strlen($xmlPayload),
+                    'simulated' => true
+                ];
+            }
             throw new \Exception("NATIVES ERiC GEHT NICHT: Der C++ Binary-Wapper '$cppBinary' existiert nicht. Bitte 'make all' im Ordner ausführen!");
         }
 
@@ -204,6 +222,16 @@ class ElsterEricService
                 'success' => true,
                 'ticket_id' => $ticketId,
                 'xml_size' => strlen($xmlPayload),
+            ];
+        }
+
+        if ($this->isTestMode) {
+            $ticketId = "ELSTER-SIM-" . floatval(microtime(true) * 10000) . "-" . strtoupper(Str::random(6));
+            return [
+                'success' => true,
+                'ticket_id' => $ticketId,
+                'xml_size' => strlen($xmlPayload),
+                'simulated' => true
             ];
         }
 

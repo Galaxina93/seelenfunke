@@ -77,6 +77,7 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'GOOGLE_PLACES_API_KEY in der Google Cloud Console auf den Live Server anpassen (Domain-Einschränkungen einrichten)', 'priority' => 'high'],
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'medium'],
                     ['title' => 'Final prüfen -> STEUER 0.5 Punkte von Noah auf mich übertragen', 'priority' => 'high'],
+                    ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'high'],
                 ]
             ],
         ];

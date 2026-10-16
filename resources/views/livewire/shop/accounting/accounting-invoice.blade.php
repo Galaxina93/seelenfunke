@@ -22,6 +22,32 @@
         </div>
     </div>
 
+    {{-- Session Flash Alerts --}}
+    @if (session()->has('success'))
+        <div class="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center gap-3 text-emerald-600 dark:text-emerald-400 text-xs font-bold animate-fade-in shadow-sm dark:shadow-inner">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            <span>{{ session('success') }}</span>
+        </div>
+    @endif
+    @if (session()->has('warning'))
+        <div class="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-amber-600 dark:text-amber-400 text-xs font-bold animate-fade-in shadow-sm dark:shadow-inner">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <span>{{ session('warning') }}</span>
+        </div>
+    @endif
+    @if (session()->has('info'))
+        <div class="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-2xl flex items-center gap-3 text-blue-600 dark:text-blue-400 text-xs font-bold animate-fade-in shadow-sm dark:shadow-inner">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>{{ session('info') }}</span>
+        </div>
+    @endif
+    @if (session()->has('error'))
+        <div class="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400 text-xs font-bold animate-fade-in shadow-sm dark:shadow-inner">
+            <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <span>{{ session('error') }}</span>
+        </div>
+    @endif
+
     @if($isCreatingManual)
         @include('livewire.shop.accounting.accounting-invoice-partials.invoice_create')
     @else

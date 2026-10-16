@@ -49,7 +49,8 @@ class AccountingInvoice extends Component
         'header_text' => 'Dieser Text erscheint oben auf der Rechnung unterhalb der Anschrift.',
         'footer_text' => 'Hier können Sie Zahlungsinformationen und Grußformeln hinterlegen.',
         'e_invoice' => 'Aktiviert das strukturierte XML-Format für elektronische Rechnungen.',
-        'status_draft' => 'Ein Entwurf kann später bearbeitet werden und erhält noch keine endgültige Buchung.'
+        'status_draft' => 'Ein Entwurf kann später bearbeitet werden und erhält noch keine endgültige Buchung.',
+        'variables' => 'Verfügbare Platzhalter: [%ZAHLUNGSZIEL%], [%KONTAKTPERSON%], [%RECHNUNGSNUMMER%]'
     ];
 
     public $manualInvoice = [
@@ -198,7 +199,7 @@ class AccountingInvoice extends Component
             'country' => 'DE',
             'invoice_date' => now()->format('Y-m-d'),
             'delivery_date' => now()->format('Y-m-d'),
-            'invoice_number' => 'RE-' . date('Y') . '-' . (InvoiceModel::count() + 1001),
+            'invoice_number' => app(InvoiceService::class)->getNextInvoiceNumber('RE'),
             'reference_number' => '',
             'due_days' => 14,
             'due_date' => '',
@@ -275,13 +276,40 @@ class AccountingInvoice extends Component
             ->whereDoesntHave('invoices')
             ->get();
 
-        $count = 0;
-        foreach ($orders as $order) {
-            $service->createFromOrder($order);
-            $count++;
+        if ($orders->isEmpty()) {
+            session()->flash('info', 'Keine offenen bezahlten Bestellungen ohne Rechnung gefunden.');
+            $this->dispatch('notify', ['type' => 'info', 'message' => 'Keine offenen bezahlten Bestellungen ohne Rechnung gefunden.']);
+            return;
         }
 
-        session()->flash('success', "$count Rechnungen wurden generiert.");
+        $count = 0;
+        $errors = 0;
+
+        foreach ($orders as $order) {
+            try {
+                // 1. Rechnung & PDF GoBD-konform erstellen
+                $service->createFromOrder($order);
+
+                // 2. Dokumente & E-Mail an den Kunden versenden (im Hintergrund)
+                \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
+
+                $count++;
+            } catch (\Throwable $e) {
+                $errors++;
+                $this->logInvoiceError('bulk_generate_order', $e instanceof \Exception ? $e : new \Exception($e->getMessage()), [
+                    'order_id' => $order->id,
+                    'order_number' => $order->order_number ?? null
+                ]);
+            }
+        }
+
+        if ($errors > 0) {
+            session()->flash('warning', "$count Rechnungen generiert ($errors fehlgeschlagen).");
+            $this->dispatch('notify', ['type' => 'warning', 'message' => "$count Rechnungen generiert ($errors fehlgeschlagen)."]);
+        } else {
+            session()->flash('success', "$count Rechnungen wurden erfolgreich generiert und E-Mails vorbereitet.");
+            $this->dispatch('notify', ['type' => 'success', 'message' => "$count Rechnungen wurden erfolgreich generiert und E-Mails vorbereitet."]);
+        }
     }
 
     public function saveManualInvoice($finalStatus = 'paid', $isAutoSave = false)
@@ -487,10 +515,9 @@ class AccountingInvoice extends Component
     /**
      * Erstellt die XML-Datei für die E-Rechnung.
      */
-    protected function processEInvoice(Invoice $invoice)
+    protected function processEInvoice(InvoiceModel $invoice)
     {
         try {
-            // HIER DIE ÄNDERUNG: AccountingXmlInvoiceService statt EInvoiceService
             $eInvoiceService = app(\App\Services\AccountingXmlInvoiceService::class);
 
             // XML generieren
@@ -498,7 +525,7 @@ class AccountingInvoice extends Component
 
             \Illuminate\Support\Facades\Log::info("E-Rechnung (Native) generiert: {$xmlPath}");
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error("Fehler bei E-Rechnung: " . $e->getMessage());
             // Kein Abbruch für den User!
         }
@@ -543,6 +570,7 @@ class AccountingInvoice extends Component
 
         if ($invoice->status === 'cancelled') {
             session()->flash('warning', 'Diese Rechnung ist bereits storniert.');
+            $this->dispatch('notify', ['type' => 'warning', 'message' => 'Diese Rechnung ist bereits storniert.']);
             return;
         }
 
@@ -574,6 +602,7 @@ class AccountingInvoice extends Component
             });
 
             session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');
+            $this->dispatch('notify', ['type' => 'success', 'message' => 'Rechnung wurde erfolgreich storniert.']);
         } catch (\Exception $e) {
             if (app()->environment('testing')) throw $e;
             $this->logInvoiceError('cancel_invoice', $e, ['invoice_id' => $id]);
@@ -583,18 +612,24 @@ class AccountingInvoice extends Component
 
     private function logInvoiceError($action, \Exception $e, $payload = [])
     {
-        SystemLog::create([
-            'type' => 'error',
-            'agent_id' => null,
-            'action_id' => 'admin_invoice_generation',
-            'message' => "Fehler bei Invoice Aktion ($action): " . $e->getMessage(),
-            'details' => json_encode([
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'payload' => $payload,
-                'trace' => $e->getTraceAsString()
-            ])
-        ]);
+        try {
+            SystemLog::create([
+                'type' => 'error',
+                'ai_agent_id' => null,
+                'action_id' => 'admin_invoice_generation',
+                'title' => "Invoice Fehler: $action",
+                'status' => 'failed',
+                'message' => "Fehler bei Invoice Aktion ($action): " . $e->getMessage(),
+                'payload' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'payload' => $payload,
+                    'trace' => $e->getTraceAsString()
+                ]
+            ]);
+        } catch (\Throwable $logEx) {
+            \Illuminate\Support\Facades\Log::error("SystemLog creation failed: " . $logEx->getMessage());
+        }
     }
 
     /**
@@ -615,14 +650,15 @@ class AccountingInvoice extends Component
 
     public function downloadPdfByFilename($filename)
     {
-        if (Storage::disk('local')->exists("buchhaltung/invoices/{$filename}")) {
-            return Storage::disk('local')->download("buchhaltung/invoices/{$filename}");
+        $safeName = basename($filename);
+        if (Storage::disk('local')->exists("buchhaltung/invoices/{$safeName}")) {
+            return Storage::disk('local')->download("buchhaltung/invoices/{$safeName}");
         }
     }
 
     public function render()
     {
-        $query = InvoiceModel::query()->with(['order', 'customer']);
+        $query = InvoiceModel::query()->with(['order', 'customer', 'parent']);
 
         if ($this->search) {
             $query->where(function($q) {
@@ -639,7 +675,7 @@ class AccountingInvoice extends Component
             if ($this->filterType === 'draft') {
                 $query->where('status', 'draft');
             } elseif ($this->filterType === 'cancellation') {
-                $query->where('type', 'cancellation');
+                $query->where(fn($q) => $q->where('type', 'cancellation')->orWhere('type', 'credit_note')->orWhere('status', 'cancelled'));
             } else {
                 $query->where('type', $this->filterType);
             }
@@ -664,26 +700,32 @@ class AccountingInvoice extends Component
         if($this->isCreatingManual) {
             $isSmallBusiness = (bool)shop_setting('is_small_business', false);
             foreach($this->manualInvoice['items'] as $item) {
-                $line = (float)($item['unit_price'] ?: 0) * (float)($item['quantity'] ?: 0);
-                if ($isSmallBusiness) {
-                    $totalsPreview['net'] += $line;
-                    $totalsPreview['tax'] += 0;
-                    $totalsPreview['gross'] += $line;
-                } else {
-                    $taxDiv = 1 + (($item['tax_rate'] ?: shop_setting('default_tax_rate', 19.0)) / 100);
-                    $net = $line / $taxDiv;
-                    $totalsPreview['net'] += $net;
-                    $totalsPreview['tax'] += ($line - $net);
-                    $totalsPreview['gross'] += $line;
-                }
+                $inputNetPrice = (float)($item['unit_price'] ?? 0);
+                $qty = (float)($item['quantity'] ?? 0);
+                $taxRate = $isSmallBusiness ? 0.0 : (float)($item['tax_rate'] ?? shop_setting('default_tax_rate', 19.0));
+
+                $lineNet = round($inputNetPrice * $qty, 2);
+                $lineTax = $isSmallBusiness ? 0.0 : round($lineNet * ($taxRate / 100), 2);
+                $lineGross = $lineNet + $lineTax;
+
+                $totalsPreview['net'] += $lineNet;
+                $totalsPreview['tax'] += $lineTax;
+                $totalsPreview['gross'] += $lineGross;
             }
-            $totalsPreview['gross'] += (float)$this->manualInvoice['shipping_cost'];
+
+            $shippingNet = (float)($this->manualInvoice['shipping_cost'] ?? 0);
+            $shippingTaxRate = $isSmallBusiness ? 0.0 : ((float)shop_setting('default_tax_rate', 19.0) / 100);
+            $shippingTax = $isSmallBusiness ? 0.0 : round($shippingNet * $shippingTaxRate, 2);
+            $shippingGross = $shippingNet + $shippingTax;
+
+            $totalsPreview['net'] += $shippingNet;
+            $totalsPreview['tax'] += $shippingTax;
+            $totalsPreview['gross'] += $shippingGross;
+
+            $discounts = (float)($this->manualInvoice['discount_amount'] ?? 0) + (float)($this->manualInvoice['volume_discount'] ?? 0);
+            $totalsPreview['gross'] = max(0, $totalsPreview['gross'] - $discounts);
             if ($isSmallBusiness) {
-                $totalsPreview['net'] += (float)$this->manualInvoice['shipping_cost'];
-            }
-            $totalsPreview['gross'] -= ((float)$this->manualInvoice['discount_amount'] + (float)$this->manualInvoice['volume_discount']);
-            if ($isSmallBusiness) {
-                $totalsPreview['net'] -= ((float)$this->manualInvoice['discount_amount'] + (float)$this->manualInvoice['volume_discount']);
+                $totalsPreview['net'] = max(0, $totalsPreview['net'] - $discounts);
             }
         }
 
@@ -714,7 +756,7 @@ class AccountingInvoice extends Component
             'paid_count' => InvoiceModel::where('type', 'invoice')->where('status', 'paid')->count(),
             'open_count' => InvoiceModel::where('type', 'invoice')->where('status', 'open')->count(),
             'draft_count' => InvoiceModel::where('status', 'draft')->count(),
-            'cancelled_count' => InvoiceModel::whereIn('status', ['cancelled'])->orWhere('type', 'cancellation')->count(),
+            'cancelled_count' => InvoiceModel::where(fn($q) => $q->where('status', 'cancelled')->orWhereIn('type', ['cancellation', 'credit_note']))->count(),
             'open_amount' => InvoiceModel::where('type', 'invoice')->where('status', 'open')->sum('total'),
             'paid_amount' => InvoiceModel::where('type', 'invoice')->where('status', 'paid')->sum('total'),
         ];

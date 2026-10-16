@@ -110,6 +110,7 @@ class InvoiceService
                     'volume_discount' => -1 * abs($originalInvoice->volume_discount),
                     'total' => -1 * abs($originalInvoice->total),
                     'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
+                    'custom_items' => $originalInvoice->custom_items,
                     'is_e_invoice' => $originalInvoice->is_e_invoice,
                     'is_small_business' => $originalInvoice->is_small_business ?? app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($originalInvoice->invoice_date?->year ?? now()->year),
                 ]);
@@ -253,7 +254,12 @@ class InvoiceService
         return $invoice->forceDelete();
     }
 
-    private function generateInvoiceNumber($prefix = 'RE')
+    public function getNextInvoiceNumber($prefix = 'RE')
+    {
+        return $this->generateInvoiceNumber($prefix);
+    }
+
+    public function generateInvoiceNumber($prefix = 'RE')
     {
         $year = date('Y');
         return DB::transaction(function() use ($prefix, $year) {
