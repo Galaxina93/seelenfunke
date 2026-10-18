@@ -1,5 +1,7 @@
 {{-- FIX: Wenn Context = 'edit', dann kein sticky, damit es im Warenkorb Modal scrollt! --}}
-<div class="flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $context === 'edit' ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}" x-ref="stage">
+<div :class="isMaximized ? 'configurator-studio-preview custom-scrollbar flex flex-col items-center justify-start lg:justify-center p-2 sm:p-4 lg:p-6 border-b lg:border-b-0 lg:border-r select-none {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-gray-50/50 border-gray-200' }}' : 'flex flex-col items-center z-40 border-b shadow-[0_4px_30px_rgba(0,0,0,0.03)] shrink-0 select-none pb-8 {{ $context === 'edit' ? 'relative' : 'sticky top-0' }} {{ $isDark ? 'bg-gray-950/80 backdrop-blur-xl border-gray-800' : 'bg-gray-50/30 border-gray-100' }}'"
+     :style="isMaximized ? 'min-width: 0;' : ''"
+     x-ref="stage">
 
     {{-- KUNDEN TOGGLE 2D / 3D --}}
     <div x-show="config.modelPath" class="mt-4 mb-3 sm:mb-4 p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
@@ -8,7 +10,8 @@
     </div>
 
     {{-- BLAUER HINWEIS (2D / 3D WECHSEL IN EINEM EINZIGEN CONTAINER) --}}
-    <div class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4"
+    <div x-show="!isMaximized"
+         class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4"
          :class="!config.modelPath ? 'mt-4' : ''">
         <div class="flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm transition-all duration-300 {{ $isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-blue-50/90 border-blue-200 text-blue-900' }}">
             {{-- ICON (SOFORTIGER WECHSEL OHNE VERZÖGERUNG) --}}
@@ -46,12 +49,66 @@
         </div>
     </div>
 
+    {{-- EMOJI- & SONDERZEICHEN-WARNUNG --}}
+    <div x-show="showEmojiWarning"
+         x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 -translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0"
+         x-transition:leave-end="opacity-0 -translate-y-2"
+         class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4">
+        <div class="flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm {{ $isDark ? 'bg-amber-950/40 border-amber-800/60 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : 'bg-amber-50 border-amber-200 text-amber-900' }}">
+            <div class="shrink-0 mt-0.5">
+                <x-heroicon-s-exclamation-triangle class="w-5 h-5 {{ $isDark ? 'text-amber-400' : 'text-amber-600' }}" />
+            </div>
+            <div class="text-xs sm:text-[13px] leading-relaxed flex-1">
+                <p class="font-bold uppercase tracking-wider text-[10px] sm:text-xs mb-1 {{ $isDark ? 'text-amber-300' : 'text-amber-800' }}">
+                    Hinweis zur Lasergravur
+                </p>
+                <p class="{{ $isDark ? 'text-amber-200/90' : 'text-amber-800' }}">
+                    Emojis & farbige Symbole können per Lasergravur nicht dargestellt werden und wurden automatisch entfernt. Nutzen Sie bitte unsere Symbol-Bibliothek für Gravurmotive.
+                </p>
+            </div>
+            <button @click="showEmojiWarning = false" class="text-amber-500 hover:text-amber-700 shrink-0 p-1">
+                <x-heroicon-m-x-mark class="w-4 h-4" />
+            </button>
+        </div>
+    </div>
+
     {{-- BÜHNE --}}
-    <div class="relative w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)] overflow-hidden border-[6px] group {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
-         :style="(!showDrawingBoard && config.bgPath) ? `background-image: url('${config.bgPath}'); background-size: cover; background-position: center;` : ''"
+    <div class="relative overflow-hidden border-[6px] group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
+         :class="isMaximized ? 'shadow-2xl rounded-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]'"
+         :style="isMaximized
+             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + ((!showDrawingBoard && config.bgPath) ? ` background-image: url('${config.bgPath}'); background-size: cover; background-position: center;` : '')
+             : ((!showDrawingBoard && config.bgPath) ? `background-image: url('${config.bgPath}'); background-size: cover; background-position: center;` : '')"
          x-ref="container"
          @mousedown="deselectAll($event)"
          @touchstart="deselectAll($event)">
+
+        {{-- MAXIMAL / MINIMAL TOGGLE BUTTON --}}
+        @if($context !== 'preview')
+        <div x-show="!isCapturing && context !== 'preview'" class="absolute top-3 right-3 z-30 pointer-events-auto">
+            <button type="button"
+                    @click.stop="toggleMaximize()"
+                    class="px-2.5 py-1.5 rounded-xl shadow-md border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/80 border-gray-700/80 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/80 border-gray-200/80 text-gray-700 hover:text-gray-900 hover:bg-gray-100' }}"
+                    :title="isMaximized ? 'Normalansicht (Esc)' : 'Maximal-Ansicht'">
+                <template x-if="!isMaximized">
+                    <div class="flex items-center gap-1.5">
+                        <x-heroicon-m-arrows-pointing-out class="w-4 h-4 text-primary" />
+                        <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Maximal</span>
+                    </div>
+                </template>
+                <template x-if="isMaximized">
+                    <div class="flex items-center gap-1.5">
+                        <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
+                        <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Verkleinern</span>
+                    </div>
+                </template>
+            </button>
+        </div>
+        @endif
 
         {{-- 3D Ansicht --}}
         <div wire:ignore x-show="config.modelPath" x-ref="container3d" class="absolute inset-0 w-full h-full z-10 cursor-move transition-opacity duration-500" :class="showDrawingBoard ? 'opacity-0 pointer-events-none' : 'opacity-100'"></div>
@@ -72,6 +129,28 @@
 
         {{-- 2D Ansicht & Zeichenbrett --}}
         <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full z-20 pointer-events-auto transition-opacity duration-500">
+
+            {{-- UNDO / REDO CONTROLS --}}
+            <div x-show="context !== 'preview' && !isCapturing"
+                 class="absolute top-3 left-3 z-30 flex items-center gap-1 p-1 rounded-xl shadow-md border backdrop-blur-md transition-all {{ $isDark ? 'bg-gray-900/80 border-gray-700/80' : 'bg-white/80 border-gray-200/80' }}">
+                <button type="button"
+                        @click.stop="undo()"
+                        :disabled="!canUndo"
+                        :class="canUndo ? '{{ $isDark ? 'text-gray-200 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100' }} cursor-pointer' : 'opacity-30 cursor-not-allowed text-gray-400'"
+                        class="p-1.5 rounded-lg transition-colors flex items-center justify-center"
+                        title="Rückgängig (Strg+Z)">
+                    <x-heroicon-m-arrow-uturn-left class="w-4 h-4" />
+                </button>
+                <div class="w-px h-4 {{ $isDark ? 'bg-gray-700' : 'bg-gray-200' }}"></div>
+                <button type="button"
+                        @click.stop="redo()"
+                        :disabled="!canRedo"
+                        :class="canRedo ? '{{ $isDark ? 'text-gray-200 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100' }} cursor-pointer' : 'opacity-30 cursor-not-allowed text-gray-400'"
+                        class="p-1.5 rounded-lg transition-colors flex items-center justify-center"
+                        title="Wiederholen (Strg+Y)">
+                    <x-heroicon-m-arrow-uturn-right class="w-4 h-4" />
+                </button>
+            </div>
 
             <template x-if="config.fallbackImg">
                 <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-20 mix-blend-screen filter invert brightness-0 group-hover:opacity-40' : 'opacity-40 mix-blend-multiply group-hover:opacity-60' }}">
@@ -142,7 +221,8 @@
                                                 $watch('textItem.font', () => setTimeout(() => fitTextarea(textItem.id, $el), 50));
                                                 $nextTick(() => fitTextarea(textItem.id, $el));
                                           "
-                                          @input="fitTextarea(textItem.id, $el)"
+                                          @input="handleTextInput(textItem, $el)"
+                                          @blur="recordHistory()"
                                           wrap="off"
                                           class="bg-transparent font-bold resize-none overflow-hidden block whitespace-pre p-0 m-0 border-0 outline-none shadow-none ring-0 select-none"
                                           :class="alignMap[textItem.align || 'center']"
@@ -282,7 +362,7 @@
                     <div x-show="showFontMenu" @click.outside="showFontMenu = false" class="absolute bottom-[calc(100%+12px)] left-0 w-56 rounded-2xl shadow-2xl border overflow-hidden z-[100] flex flex-col max-h-64 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
                         <div class="overflow-y-auto p-2 custom-scrollbar space-y-1">
                             <template x-for="(fontName, fontKey) in fontMap">
-                                <button @click="currentTexts[selectedIndex].font = fontKey; showFontMenu = false; updateTexture()" class="w-full text-left px-4 py-2.5 text-sm rounded-xl truncate transition-colors {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}" :style="{ fontFamily: fontName }" :class="currentTexts[selectedIndex].font === fontKey ? 'text-primary font-bold {{ $isDark ? 'bg-primary/10' : 'bg-primary/5' }}' : '{{ $isDark ? 'text-gray-300' : 'text-gray-700' }}'"><span x-text="fontKey"></span></button>
+                                <button @click="currentTexts[selectedIndex].font = fontKey; showFontMenu = false; updateTexture(); recordHistory()" class="w-full text-left px-4 py-2.5 text-sm rounded-xl truncate transition-colors {{ $isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-50' }}" :style="{ fontFamily: fontName }" :class="currentTexts[selectedIndex].font === fontKey ? 'text-primary font-bold {{ $isDark ? 'bg-primary/10' : 'bg-primary/5' }}' : '{{ $isDark ? 'text-gray-300' : 'text-gray-700' }}'"><span x-text="fontKey"></span></button>
                             </template>
                         </div>
                     </div>
@@ -298,9 +378,9 @@
                         <span class="text-[9px] font-black uppercase tracking-widest mt-1">Format</span>
                     </button>
                     <div x-show="showAlignMenu" @click.outside="showAlignMenu = false" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 rounded-2xl shadow-2xl border p-2 z-[100] flex gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-                        <button @click="currentTexts[selectedIndex].align = 'left'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
-                        <button @click="currentTexts[selectedIndex].align = 'center'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
-                        <button @click="currentTexts[selectedIndex].align = 'right'; showAlignMenu = false; updateTexture()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
+                        <button @click="currentTexts[selectedIndex].align = 'left'; showAlignMenu = false; updateTexture(); recordHistory()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
+                        <button @click="currentTexts[selectedIndex].align = 'center'; showAlignMenu = false; updateTexture(); recordHistory()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
+                        <button @click="currentTexts[selectedIndex].align = 'right'; showAlignMenu = false; updateTexture(); recordHistory()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
                     </div>
                 </div>
             </div>
@@ -321,10 +401,10 @@
                 <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-3"><span>Klein</span><span>Groß</span></div>
 
                 <template x-if="selectedType === 'text' && currentTexts[selectedIndex] !== undefined">
-                    <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                    <input type="range" min="0.1" max="5" step="0.05" x-model="currentTexts[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
                 </template>
                 <template x-if="selectedType === 'logo' && currentLogos[selectedIndex] !== undefined">
-                    <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
+                    <input type="range" min="10" max="500" step="1" x-model="currentLogos[selectedIndex].size" @change="recordHistory()" class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
                 </template>
             </div>
         </div>

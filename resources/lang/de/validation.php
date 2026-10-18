@@ -14,14 +14,24 @@ return [
         'record.profile.postal' => 'Postleitzahl',
         'record.profile.city' => 'Stadt',
         'record.profile.about' => 'Über',
+        'new_files' => 'Datei',
+        'new_files.*' => 'Datei',
+        'files' => 'Datei',
+        'files.*' => 'Datei',
         // Weitere Attributnamen und ihre Übersetzungen hinzufügen
     ],
 
     'required' => 'Das :attribute-Feld ist erforderlich.',
     'string' => 'Das :attribute-Feld muss eine Zeichenkette sein.',
     'max' => [
-                'string' => 'Das :attribute-Feld darf nicht länger als :max Zeichen sein.',
-            ],
+        'numeric' => ':attribute darf nicht größer als :max sein.',
+        'file' => ':attribute darf nicht größer als :max Kilobyte sein.',
+        'string' => 'Das :attribute-Feld darf nicht länger als :max Zeichen sein.',
+        'array' => ':attribute darf nicht mehr als :max Elemente haben.',
+    ],
+    'uploaded' => 'Die Datei :attribute konnte nicht hochgeladen werden (Datei ist möglicherweise beschädigt oder zu groß).',
+    'mimes' => ':attribute muss ein Dateityp der folgenden Formate sein: :values.',
+    'mimetypes' => ':attribute muss ein Dateityp der folgenden Formate sein: :values.',
     'unique' => 'Der Wert von :attribute ist bereits vergeben.',
     'min' => [
                 'string' => 'Das :attribute-Feld muss mindestens :min Zeichen lang sein.',

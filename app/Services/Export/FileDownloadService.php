@@ -142,23 +142,45 @@ class FileDownloadService
         $logos = $side === 'back' ? ($config['logos_back'] ?? []) : ($config['logos'] ?? []);
         $texts = $side === 'back' ? ($config['texts_back'] ?? []) : ($config['texts'] ?? []);
 
-        // Physische Maße des Glases holen (Fallback auf 100x100mm)
-        $widthMm = floatval($product->width ?? 100);
-        $heightMm = floatval($product->height ?? 100);
+        $productConfig = is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []);
+        $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
 
-        // NEU: Dynamische Abmessungen aus dem Varianten-Namen extrahieren!
+        // Physische Maße holen:
+        // 1. Priorität: Dynamisch aus dem Varianten-Namen (z.B. "180x200 mm")
+        // 2. Priorität: Aus den xTool-Parametern aus Schritt 4 (Backend Produkt-Konfiguration)
+        // 3. Fallback: Aus den Produktstammdaten ($product->width / $product->height) oder 100x100mm
+        $widthMm = null;
+        $heightMm = null;
+
         if (!empty($config['variant_name'])) {
-            // Sucht nach Mustern wie "180x200" oder "180 x 200" in "Transparent - 180x200x40 mm..."
             if (preg_match('/(\d+)\s*[xX]\s*(\d+)/', $config['variant_name'], $matches)) {
                 $widthMm = floatval($matches[1]);
                 $heightMm = floatval($matches[2]);
             }
         }
 
+        if (empty($widthMm) || empty($heightMm)) {
+            if ($overlayType === 'plane') {
+                if (!empty($productConfig['xtool_plane_width'])) {
+                    $widthMm = floatval($productConfig['xtool_plane_width']);
+                }
+                if (!empty($productConfig['xtool_plane_height'])) {
+                    $heightMm = floatval($productConfig['xtool_plane_height']);
+                }
+            } elseif ($overlayType === 'cylinder') {
+                if (!empty($productConfig['xtool_d_top'])) {
+                    $widthMm = floatval($productConfig['xtool_d_top']);
+                }
+                if (!empty($productConfig['xtool_height'])) {
+                    $heightMm = floatval($productConfig['xtool_height']);
+                }
+            }
+        }
+
+        $widthMm = $widthMm ?: floatval($product->width ?? 100);
+        $heightMm = $heightMm ?: floatval($product->height ?? 100);
+
         // Zylindrische (Runde) Flächen ausrollen: Breite (Durchmesser) zu Umfang umrechnen
-        $productConfig = is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []);
-        $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
-        
         if ($overlayType === 'cylinder') {
             $widthMm = $widthMm * pi();
         }

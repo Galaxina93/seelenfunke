@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\System\SystemLog;
 use DanHarrin\LivewireRateLimiting\WithRateLimiting;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
+use Illuminate\Validation\ValidationException;
 
 class ProductConfigurator extends Component
 {
@@ -222,9 +223,46 @@ class ProductConfigurator extends Component
     {
         return [
             'new_files.*.max' => 'Fehler: Die Datei ist zu groß! Maximal 20 MB sind erlaubt.',
-            'new_files.0' => 'Beim Hochladen ist ein Fehler aufgetreten. Ist die Datei größer als 20 MB?',
-            'new_files' => 'Beim Hochladen ist ein Fehler aufgetreten. Ist die Datei größer als 20 MB?',
+            'new_files.*.mimes' => 'Ungültiges Dateiformat. Erlaubt sind JPG, JPEG, PNG, WEBP, SVG und PDF.',
+            'new_files.*.uploaded' => 'Die Datei konnte nicht hochgeladen werden (möglicherweise beschädigt oder größer als 20 MB).',
+            'new_files.0' => 'Die Datei konnte nicht hochgeladen werden (möglicherweise beschädigt oder größer als 20 MB).',
+            'new_files' => 'Die Datei konnte nicht hochgeladen werden (möglicherweise beschädigt oder größer als 20 MB).',
         ];
+    }
+
+    public function _uploadErrored($name, $errorsInJson, $isMultiple)
+    {
+        $this->dispatch('upload:errored', name: $name)->self();
+
+        $germanMsg = 'Die Datei konnte nicht hochgeladen werden. Möglicherweise ist sie beschädigt oder überschreitet die maximale Dateigröße von 20 MB.';
+
+        if (is_null($errorsInJson)) {
+            throw ValidationException::withMessages([
+                $name => $germanMsg,
+            ]);
+        }
+
+        $decoded = json_decode($errorsInJson, true);
+        if (isset($decoded['errors']) && is_array($decoded['errors'])) {
+            $customErrors = [];
+            foreach ($decoded['errors'] as $key => $messages) {
+                $mappedKey = $isMultiple ? str_ireplace('files', $name, $key) : str_ireplace('files.0', $name, $key);
+                $customErrors[$mappedKey] = array_map(function ($msg) use ($germanMsg) {
+                    if (str_contains($msg, 'failed to upload') || str_contains($msg, 'validation.uploaded') || str_contains($msg, 'nicht hochgeladen werden')) {
+                        return $germanMsg;
+                    }
+                    if (str_contains($msg, 'larger than') || str_contains($msg, 'größer als')) {
+                        return 'Die Datei ist zu groß. Maximal 20 MB sind erlaubt.';
+                    }
+                    return $msg;
+                }, (array)$messages);
+            }
+            throw ValidationException::withMessages($customErrors);
+        }
+
+        throw ValidationException::withMessages([
+            $name => $germanMsg,
+        ]);
     }
 
     public function updated($propertyName)
@@ -535,6 +573,18 @@ class ProductConfigurator extends Component
         $this->save($cartService, $snapshotPaths);
     }
 
+    public function sanitizeLaserText(?string $text): string
+    {
+        if (empty($text)) {
+            return '';
+        }
+
+        // Emojis & farbige Sonderzeichen entfernen, die vom Laser (z. B. XCS) nicht graviert werden können
+        $cleaned = preg_replace('/[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F700}-\x{1F77F}\x{1F780}-\x{1F7FF}\x{1F800}-\x{1F8FF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FAFF}\x{1F1E0}-\x{1F1FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{2300}-\x{23FF}\x{2B00}-\x{2BFF}\x{200C}-\x{200D}\x{20E3}\x{FE00}-\x{FE0F}]/u', '', $text);
+
+        return trim($cleaned ?? $text);
+    }
+
     public function save(CartService $cartService, $snapshotPath = null)
     {
         if ($this->context === 'preview') return;
@@ -550,15 +600,29 @@ class ProductConfigurator extends Component
 
         try {
             DB::transaction(function () use ($cartService, $snapshotPath) {
+                $cleanTexts = array_map(function ($t) {
+                    if (is_array($t) && isset($t['text'])) {
+                        $t['text'] = $this->sanitizeLaserText($t['text']);
+                    }
+                    return $t;
+                }, $this->texts ?? []);
+
+                $cleanTextsBack = array_map(function ($t) {
+                    if (is_array($t) && isset($t['text'])) {
+                        $t['text'] = $this->sanitizeLaserText($t['text']);
+                    }
+                    return $t;
+                }, $this->texts_back ?? []);
+
                 $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
-                $mainText = collect($this->texts)->firstWhere('text', '!=', '')['text'] ?? '';
+                $mainText = collect($cleanTexts)->firstWhere('text', '!=', '')['text'] ?? '';
 
                 $finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;
 
                 $configData = [
-                    'texts' => $this->texts,
+                    'texts' => $cleanTexts,
                     'logos' => $this->logos,
-                    'texts_back' => $this->texts_back,
+                    'texts_back' => $cleanTextsBack,
                     'logos_back' => $this->logos_back,
                     'text' => $mainText,
                     'logo_path' => $mainLogo,

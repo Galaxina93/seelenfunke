@@ -1,4 +1,5 @@
-<div x-data="{
+<div id="frontend-action-dock"
+     x-data="{
         atTop: true,
         atBottom: false,
         vouchersOpen: false,

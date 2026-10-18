@@ -1,5 +1,5 @@
 <div>
-    <div class="p-4 sm:p-6 lg:p-10 min-h-[85vh] flex flex-col relative z-10 font-sans antialiased text-gray-700 dark:text-gray-300">
+    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-[85vh] flex flex-col relative z-10 font-sans antialiased text-gray-700 dark:text-gray-300">
 
         @if(!$hasOptedIn)
             {{-- DATENSCHUTZ OPT-IN SCREEN --}}
@@ -32,15 +32,32 @@
             {{-- RANGLISTE --}}
             <div class="max-w-6xl mx-auto w-full animate-fade-in">
 
-                <div class="text-center mb-12 sm:mb-16">
-                    <a href="{{ route('customer.dashboard') }}" class="inline-flex items-center gap-2 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest hover:text-primary transition-colors mb-6">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                        Zurück
-                    </a>
-                    <h1 class="text-4xl sm:text-5xl md:text-6xl font-serif font-black text-gray-900 dark:text-white drop-shadow-sm tracking-tight">Halle der Legenden</h1>
-                    <p class="text-amber-500 dark:text-amber-400/80 mt-3 text-xs sm:text-sm uppercase tracking-[0.3em] font-bold">Die glorreichen Top 50 der Manufaktur</p>
+                {{-- SEITEN-HEADER MIT SUB-TABS --}}
+                <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+                    <div>
+                        <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Halle der Legenden</h1>
+                        <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Die glorreichen Top 50 der Manufaktur</p>
+                    </div>
 
-                    <div class="flex flex-wrap justify-center gap-4 mt-8">
+                    {{-- SPIELE SUB-TABS --}}
+                    <div class="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-fit shrink-0">
+                        <a href="{{ route('customer.games') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800/50">
+                            <span>🧩</span>
+                            <span>Spiele</span>
+                        </a>
+                        <a href="{{ route('customer.gamification.profile') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800/50">
+                            <span>✨</span>
+                            <span>Funki-Profil</span>
+                        </a>
+                        <a href="{{ route('customer.ranking') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-primary text-gray-900 shadow-sm">
+                            <span>🏆</span>
+                            <span>Rangliste</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="text-center mb-8">
+                    <div class="flex flex-wrap justify-center gap-4 mt-2">
                         <button wire:click="$set('activeTab', 'classic')" class="px-6 py-2 rounded-full font-bold uppercase tracking-widest text-xs transition-colors border {{ $activeTab === 'classic' ? 'bg-amber-500 text-gray-900 border-amber-500 shadow-md dark:shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400' }}">Klassisch</button>
                         <button wire:click="$set('activeTab', 'funkenflug')" class="px-6 py-2 rounded-full font-bold uppercase tracking-widest text-xs transition-colors border {{ $activeTab === 'funkenflug' ? 'bg-indigo-500 text-white border-indigo-500 shadow-md dark:shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400' }}">Funkenflug Express</button>
                     </div>

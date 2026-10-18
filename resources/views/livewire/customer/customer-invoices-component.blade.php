@@ -1,13 +1,13 @@
 <div>
-    <div class="p-10 min-h-full flex flex-col relative z-10 w-full max-w-7xl mx-auto">
+    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-full flex flex-col relative z-10">
 
         {{-- HEADER --}}
-        <div class="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-fade-in-up">
+        <div class="mb-8 lg:mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
             <div>
-                <h1 class="text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-4">
+                <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
                     Rechnungs-Zentrale
                 </h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm uppercase tracking-widest font-bold">Lückenlose Dokumentation deiner Käufe</p>
+                <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Lückenlose Dokumentation deiner Käufe</p>
             </div>
 
             <a href="{{ route('customer.orders') }}" class="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 hover:text-primary transition-colors">

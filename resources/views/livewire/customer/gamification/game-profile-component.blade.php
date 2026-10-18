@@ -1,10 +1,29 @@
-<div class="p-4 sm:p-6 lg:p-10 min-h-full flex flex-col relative z-10" x-data="funkiHub('{{$modelPath}}', '{{$imagePath}}', {{$level}})" x-init="initFunki()" @funki-level-up.window="handleLevelUp($event.detail)">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-full flex flex-col relative z-10" x-data="funkiHub('{{$modelPath}}', '{{$imagePath}}', {{$level}})" x-init="initFunki()" @funki-level-up.window="handleLevelUp($event.detail)">
     {{-- OPT-IN SCREEN REMOVED, WE REDIRECT IN MOUNT IF NOT OPTED IN --}}
 
-                <div class="w-full flex flex-col items-center text-center mb-8">
-                    <h3 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white mb-2">Deine Gamification Evolution</h3>
-                    <p class="text-gray-500 dark:text-gray-400 text-sm max-w-2xl mx-auto">Betrachte deine Evolution, sammle Funken und schalte neue Erfolge frei.</p>
-                </div>
+    {{-- SEITEN-HEADER MIT SUB-TABS --}}
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+        <div>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Deine Evolution</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Funki-Hub, Level & Titel verwalten</p>
+        </div>
+
+        {{-- SPIELE SUB-TABS --}}
+        <div class="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-fit shrink-0">
+            <a href="{{ route('customer.games') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800/50">
+                <span>🧩</span>
+                <span>Spiele</span>
+            </a>
+            <a href="{{ route('customer.gamification.profile') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-primary text-gray-900 shadow-sm">
+                <span>✨</span>
+                <span>Funki-Profil</span>
+            </a>
+            <a href="{{ route('customer.ranking') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800/50">
+                <span>🏆</span>
+                <span>Rangliste</span>
+            </a>
+        </div>
+    </div>
 
 
                 <div class="relative mb-36 sm:mb-44 flex flex-col items-center mt-8 w-full max-w-[18rem] sm:max-w-md md:max-w-lg lg:max-w-xl mx-auto">

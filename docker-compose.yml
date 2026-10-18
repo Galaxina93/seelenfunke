@@ -8,6 +8,7 @@ services:
             - "8089:8081" # NEU: Port für den Gemini Live / Twilio WebSocket-Proxy!
         volumes:
             - ./:/var/www/html/
+            - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
         # Dieser Befehl ändert das Hauptverzeichnis auf /public, startet den Node-Server im Hintergrund und aktiviert mod_rewrite
         command: >
             bash -c "sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf

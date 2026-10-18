@@ -1,51 +1,6 @@
-<div class="p-6 space-y-8 max-w-2xl mx-auto {{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}"
-     x-data="{
-        activeTab: null,
-        draftExists: false,
-        isSaving: false,
-        isLoading: false,
-        storageKey: 'seelenfunke_design_draft_' + '{{ $product->id }}',
-        init() {
-            this.draftExists = localStorage.getItem(this.storageKey) !== null;
-        },
-        toggleTab(tab) {
-            this.activeTab = (this.activeTab === tab) ? null : tab;
-        },
-        saveDraft() {
-            let draft = {
-                texts: $wire.texts,
-                logos: $wire.logos,
-                texts_back: $wire.texts_back,
-                logos_back: $wire.logos_back,
-                notes: $wire.notes,
-                uploaded_files: $wire.uploaded_files
-            };
-            localStorage.setItem(this.storageKey, JSON.stringify(draft));
-            this.draftExists = true;
-
-            this.isSaving = true;
-            setTimeout(() => { this.isSaving = false; }, 2500);
-
-            $dispatch('notify', {message: 'Dein Design wurde erfolgreich auf deinem Gerät gespeichert!'});
-        },
-        loadDraft() {
-            let draft = localStorage.getItem(this.storageKey);
-            if (draft) {
-                draft = JSON.parse(draft);
-                $wire.texts = draft.texts || [];
-                $wire.logos = draft.logos || [];
-                $wire.texts_back = draft.texts_back || [];
-                $wire.logos_back = draft.logos_back || [];
-                $wire.notes = draft.notes || '';
-                $wire.uploaded_files = draft.uploaded_files || [];
-
-                this.isLoading = true;
-                setTimeout(() => { this.isLoading = false; }, 2500);
-
-                $dispatch('notify', {message: 'Gespeichertes Design erfolgreich geladen!'});
-            }
-        }
-     }">
+<div :class="isMaximized ? 'configurator-studio-form p-4 sm:p-6 space-y-6 custom-scrollbar shrink-0' : 'p-6 space-y-8 max-w-2xl mx-auto'"
+     :style="isMaximized ? 'flex-shrink: 0;' : ''"
+     class="{{ $context === 'preview' ? 'opacity-60 grayscale-[0.5] pointer-events-none' : '' }}">
 
     @if($context !== 'preview')
         {{-- HAUPT-BUTTONS (Zentriert nebeneinander) --}}
@@ -54,7 +9,7 @@
                 {{-- 1. SYMBOLE --}}
                 <button type="button"
                         @click="toggleTab('symbols')"
-                        class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-all duration-300 group select-none cursor-pointer"
+                        class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
                         :class="activeTab === 'symbols'
                             ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                             : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-gray-700 hover:text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-sm' }}'">
@@ -66,7 +21,7 @@
                     {{-- 2. EIGENE DATEIEN --}}
                     <button type="button"
                             @click="toggleTab('files')"
-                            class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-all duration-300 group select-none relative cursor-pointer"
+                            class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none relative cursor-pointer"
                             :class="activeTab === 'files'
                                 ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                                 : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-gray-700 hover:text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-sm' }}'">
@@ -83,11 +38,11 @@
                 {{-- 3. DESIGN SICHERN (DISKETTE) --}}
                 <button type="button"
                         @click="saveDraft"
-                        class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-all duration-300 group select-none cursor-pointer"
-                        :class="isSaving
+                        class="flex flex-col items-center justify-center w-24 sm:w-28 h-20 sm:h-24 p-2 rounded-2xl border transition-colors duration-200 group select-none cursor-pointer"
+                        :class="isDraftSaving
                             ? 'border-green-500 ring-2 ring-green-500/25 bg-green-500/10 text-green-600 dark:text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.15)]'
                             : '{{ $isDark ? 'border-gray-800 bg-gray-900/90 text-gray-400 hover:border-[#C5A059] hover:text-[#C5A059]' : 'border-slate-200 bg-white text-slate-600 hover:border-[#C5A059] hover:text-[#C5A059] shadow-sm' }}'">
-                    <template x-if="!isSaving">
+                    <template x-if="!isDraftSaving">
                         <div class="flex flex-col items-center">
                             <svg class="w-6 h-6 sm:w-7 sm:h-7 mb-1.5 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
@@ -97,7 +52,7 @@
                             <span class="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Design Sichern</span>
                         </div>
                     </template>
-                    <template x-if="isSaving">
+                    <template x-if="isDraftSaving">
                         <div class="flex flex-col items-center text-green-600 dark:text-green-400 animate-pulse">
                             <svg class="w-6 h-6 sm:w-7 sm:h-7 mb-1.5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -113,7 +68,7 @@
                 <button type="button"
                         @click="loadDraft"
                         class="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold transition-all shadow-sm group {{ $isDark ? 'border-[#C5A059]/40 bg-[#C5A059]/10 text-[#C5A059] hover:bg-[#C5A059]/20' : 'border-[#C5A059]/50 bg-[#C5A059]/10 text-[#C5A059] hover:bg-[#C5A059]/20 hover:shadow-md' }}">
-                    <template x-if="!isLoading">
+                    <template x-if="!isDraftLoading">
                         <span class="inline-flex items-center gap-1.5">
                             <svg class="w-4 h-4 text-[#C5A059] group-hover:-translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -121,7 +76,7 @@
                             Gespeichertes Design Laden
                         </span>
                     </template>
-                    <template x-if="isLoading">
+                    <template x-if="isDraftLoading">
                         <span class="inline-flex items-center gap-1.5 text-green-600 dark:text-green-400 font-bold animate-pulse">
                             <svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -133,16 +88,23 @@
             </div>
         </div>
 
-        {{-- AUSKLAPPBARER BEREICH: SYMBOL-BIBLIOTHEK --}}
-        <div x-show="activeTab === 'symbols'"
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 -translate-y-2 scale-98"
-             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-             x-transition:leave-end="opacity-0 -translate-y-2 scale-98"
+        {{-- AUSKLAPPBARER BEREICH: TABS CONTAINER (SYMBOLE / EIGENE DATEIEN) --}}
+        <div x-show="activeTab !== null"
              x-cloak
-             class="space-y-4 pt-2">
+             x-transition:enter="transition-opacity ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition-opacity ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="pt-2">
+
+            {{-- 1. SYMBOL-BIBLIOTHEK --}}
+            <div x-show="activeTab === 'symbols'"
+                 x-transition:enter="transition-opacity ease-out duration-150"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 class="space-y-4">
             <div class="flex items-center justify-between">
                 <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
                     <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
@@ -167,8 +129,16 @@
                     @endphp
 
                     @forelse($activeVectors as $v)
-                        <button wire:click="addStandardVector('{{ $v['file'] }}')" class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
-                            <img src="{{ asset('shop/product/configurator/vectors/'.$v['file']) }}" class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button wire:click="addStandardVector('{{ $v['file'] }}')"
+                                title="{{ $v['name'] }}"
+                                aria-label="{{ $v['name'] }}"
+                                class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group relative cursor-pointer {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
+                            <img src="{{ asset('shop/product/configurator/vectors/'.$v['file']) }}"
+                                 alt="{{ $v['name'] }}"
+                                 class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <span class="absolute -bottom-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-30 {{ $isDark ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'bg-gray-900 text-white' }}">
+                                {{ $v['name'] }}
+                            </span>
                         </button>
                     @empty
                         <div class="col-span-full text-center text-xs py-10 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
@@ -185,14 +155,10 @@
         @if($configSettings['allow_logo'])
             {{-- AUSKLAPPBARER BEREICH: EIGENE DATEIEN --}}
             <div x-show="activeTab === 'files'"
-                 x-transition:enter="transition ease-out duration-300"
-                 x-transition:enter-start="opacity-0 -translate-y-2 scale-98"
-                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-                 x-transition:leave="transition ease-in duration-200"
-                 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-                 x-transition:leave-end="opacity-0 -translate-y-2 scale-98"
-                 x-cloak
-                 class="space-y-4 pt-2">
+                 x-transition:enter="transition-opacity ease-out duration-150"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 class="space-y-4">
                 <div class="flex justify-between items-center">
                     <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
                         <span class="w-8 h-px {{ $isDark ? 'bg-gray-700' : 'bg-slate-200' }}"></span>
@@ -219,35 +185,7 @@
                     </p>
                 </div>
 
-                <div x-data="{
-                        isDropping: false,
-                        currentCount: {{ count($uploaded_files) }},
-                        uploadError: null,
-                        handleDrop(e) {
-                            this.isDropping = false;
-                            this.uploadError = null;
-                            let files = e.dataTransfer.files;
-                            if(!this.validateFiles(files)) return;
-                            this.$refs.fileInput.files = files;
-                            this.$refs.fileInput.dispatchEvent(new Event('change'));
-                        },
-                        handleInput(e) {
-                            this.uploadError = null;
-                            let files = e.target.files;
-                            if(!this.validateFiles(files)) {
-                                this.$refs.fileInput.value = '';
-                                return;
-                            }
-                        },
-                        validateFiles(files) {
-                            let newCount = files.length;
-                            if ((this.currentCount + newCount) > 10) {
-                                this.uploadError = 'Limit erreicht! Maximal 10 Dateien erlaubt.';
-                                return false;
-                            }
-                            return true;
-                        }
-                     }" class="relative">
+                <div wire:key="upload-zone-wrapper-{{ count($uploaded_files) }}" class="relative">
 
                     <div x-show="uploadError" x-cloak class="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-xs font-bold text-center animate-pulse">
                         <span x-text="uploadError"></span>
@@ -357,6 +295,7 @@
                 </div>
             </div>
         @endif
+        </div>
     @endif
 
     {{-- BESONDERE WÜNSCHE AN DIE MANUFAKTUR --}}

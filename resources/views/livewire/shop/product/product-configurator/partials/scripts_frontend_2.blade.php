@@ -58,6 +58,11 @@
                 preserveDrawingBuffer: true
             });
 
+            // Harmlosen DirectX/ANGLE Shader-Compiler-Log auf Windows unterdrücken & Initialisierung beschleunigen
+            if (this.renderer.debug) {
+                this.renderer.debug.checkShaderErrors = false;
+            }
+
             this.renderer.setSize(this.container.offsetWidth, this.container.offsetHeight);
             this.renderer.setPixelRatio(isMobile ? 1 : Math.min(window.devicePixelRatio, 2));
             this.renderer.toneMapping = window.THREE.ACESFilmicToneMapping;
@@ -500,6 +505,84 @@
             }
         }
 
+        rotateToSide(side = 'front', smooth = true) {
+            if (!this.camera || !this.controls) return;
+
+            const target = this.controls.target ? this.controls.target.clone() : new window.THREE.Vector3(0, 0, 0);
+            const currentDist = this.camera.position.distanceTo(target) || (this.defaultCamPos ? this.defaultCamPos.distanceTo(this.defaultCamTarget) : 10);
+            const targetY = this.defaultCamPos ? (target.y + (this.defaultCamPos.y - this.defaultCamTarget.y)) : this.camera.position.y;
+
+            // Front: +Z (angle 0), Back: -Z (angle PI)
+            const targetAngle = (side === 'back') ? Math.PI : 0;
+
+            const dx = this.camera.position.x - target.x;
+            const dz = this.camera.position.z - target.z;
+            const currentAngle = Math.atan2(dx, dz);
+
+            if (!smooth) {
+                this.camera.position.set(
+                    target.x + currentDist * Math.sin(targetAngle),
+                    targetY,
+                    target.z + currentDist * Math.cos(targetAngle)
+                );
+                this.camera.lookAt(target);
+                this.controls.update();
+                if (this.renderer && this.scene) this.renderer.render(this.scene, this.camera);
+                return;
+            }
+
+            if (this._rotationAnimationId) {
+                cancelAnimationFrame(this._rotationAnimationId);
+                this._rotationAnimationId = null;
+            }
+
+            let diffAngle = targetAngle - currentAngle;
+            while (diffAngle > Math.PI) diffAngle -= 2 * Math.PI;
+            while (diffAngle < -Math.PI) diffAngle += 2 * Math.PI;
+
+            if (Math.abs(diffAngle) < 0.01 && Math.abs(this.camera.position.y - targetY) < 0.01) {
+                return;
+            }
+
+            const startPos = this.camera.position.clone();
+            const startY = startPos.y;
+            const startTime = performance.now();
+            const duration = 600;
+
+            const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+            this._isRotatingToSide = true;
+
+            const step = (now) => {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease = easeInOutCubic(progress);
+
+                const angle = currentAngle + diffAngle * ease;
+                const y = startY + (targetY - startY) * ease;
+
+                this.camera.position.set(
+                    target.x + currentDist * Math.sin(angle),
+                    y,
+                    target.z + currentDist * Math.cos(angle)
+                );
+                this.camera.lookAt(target);
+                if (this.controls) this.controls.update();
+                if (this.renderer && this.scene) this.renderer.render(this.scene, this.camera);
+
+                if (progress < 1) {
+                    this._rotationAnimationId = requestAnimationFrame(step);
+                } else {
+                    this._rotationAnimationId = null;
+                    this._isRotatingToSide = false;
+                    if (this.controls) this.controls.update();
+                    if (this.renderer && this.scene) this.renderer.render(this.scene, this.camera);
+                }
+            };
+
+            this._rotationAnimationId = requestAnimationFrame(step);
+        }
+
         resize() {
             if(!this.camera || !this.renderer) return;
             this.camera.aspect = this.container.offsetWidth / this.container.offsetHeight;
@@ -508,7 +591,7 @@
         }
 
         animate() {
-            if (this.configurator && this.configurator.showDrawingBoard) {
+            if (this.configurator && this.configurator.showDrawingBoard && !this._isRotatingToSide) {
                 this._isAnimating = false;
                 return;
             }

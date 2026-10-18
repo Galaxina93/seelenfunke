@@ -53,8 +53,8 @@ class ConfiguratorService
             foreach ($allFiles as $file) {
                 if (strtolower($file->getExtension()) === 'svg') {
                     $filename = $file->getRelativePathname(); // e.g. "Floral/flower.svg"
-                    $name = str_replace('.svg', '', $file->getFilename());
-                    $name = ucwords(str_replace(['-', '_'], ' ', $name));
+                    $rawName = str_replace('.svg', '', $file->getFilename());
+                    $name = $this->formatVectorTitle($rawName);
 
                     // Kategorie aus dem relativen Pfad ermitteln
                     $relativePath = $file->getRelativePath();
@@ -71,13 +71,16 @@ class ConfiguratorService
                 }
             }
             
-            // Sortierung: Allgemein an den ANFANG, Rest alphabetisch
-            ksort($vectors);
-            if (isset($vectors['Allgemein'])) {
-                $allgemein = $vectors['Allgemein'];
-                unset($vectors['Allgemein']);
-                $vectors = array_merge(['Allgemein' => $allgemein], $vectors);
-            }
+            // Sortierung: Liebe, Familie, Tiere, Natur, Symbole, Ornamente, Feiertage, Allgemein, Rest alphabetisch
+            $order = ['Liebe', 'Familie', 'Tiere', 'Natur', 'Symbole', 'Ornamente', 'Feiertage', 'Allgemein'];
+            uksort($vectors, function ($a, $b) use ($order) {
+                $posA = array_search($a, $order, true);
+                $posB = array_search($b, $order, true);
+                if ($posA !== false && $posB !== false) return $posA <=> $posB;
+                if ($posA !== false) return -1;
+                if ($posB !== false) return 1;
+                return strcasecmp($a, $b);
+            });
         }
 
         return $vectors;
@@ -140,4 +143,44 @@ class ConfiguratorService
 
         return array_merge($this->getDefaultSettings(), $savedConfig);
     }
+
+    /**
+     * Erzeugt aus dem Roh-Dateinamen einen kundenfreundlichen deutschen Titel für Tooltips.
+     */
+    public function formatVectorTitle(string $rawName): string
+    {
+        $clean = str_replace(['-', '_'], ' ', $rawName);
+        $name = ucwords($clean);
+
+        $replacements = [
+            'Fuesse' => 'Füße',
+            'Fuss' => 'Fuß',
+            'Laecheln' => 'Lächeln',
+            'Maedchen' => 'Mädchen',
+            'Glueck' => 'Glück',
+            'Glueckskind' => 'Glückskind',
+            'Gluecksklee' => 'Glücksklee',
+            'Glueckshufeisen' => 'Glückshufeisen',
+            'Bluete' => 'Blüte',
+            'Lotusbluete' => 'Lotusblüte',
+            'Schluessel' => 'Schlüssel',
+            'Puzzlestueck' => 'Puzzlestück',
+            'Muetze' => 'Mütze',
+            'Fuer Immer' => 'Für immer',
+            'Anstoessen' => 'Anstoßen',
+            'Und' => '&',
+            'Haeschen' => 'Häschen',
+            'Amor Pfeil' => 'Amor-Pfeil',
+            'Baby Junge' => 'Baby',
+            'Baby Fuesse' => 'Baby-Füßchen',
+            'Baby Laecheln' => 'Baby-Lächeln',
+            'Baby Maedchen' => 'Baby-Mädchen',
+            'Weihnachtsmann Muetze' => 'Weihnachtsmann-Mütze',
+            'Schutz Und Geborgenheit' => 'Schutz & Geborgenheit',
+            'Sekt Anstoessen' => 'Sekt zum Anstoßen',
+        ];
+
+        return str_replace(array_keys($replacements), array_values($replacements), $name);
+    }
 }
+

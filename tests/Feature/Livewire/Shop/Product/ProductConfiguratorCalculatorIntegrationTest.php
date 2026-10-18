@@ -251,5 +251,221 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
             ->assertSee('Design Sichern')
             ->assertSee('Besondere Wünsche an die Manufaktur');
     }
+
+    #[Test]
+    public function configurator_loads_standard_vector_categories_and_items()
+    {
+        $component = Livewire::test(ProductConfigurator::class, ['product' => $this->product]);
+        $vectors = $component->get('vectors');
+
+        $this->assertArrayHasKey('Liebe', $vectors);
+        $this->assertArrayHasKey('Familie', $vectors);
+        $this->assertArrayHasKey('Tiere', $vectors);
+        $this->assertArrayHasKey('Natur', $vectors);
+        $this->assertArrayHasKey('Symbole', $vectors);
+        $this->assertArrayHasKey('Ornamente', $vectors);
+        $this->assertArrayHasKey('Feiertage', $vectors);
+
+        $this->assertGreaterThanOrEqual(10, count($vectors['Liebe']));
+        $this->assertGreaterThanOrEqual(5, count($vectors['Familie']));
+        $this->assertGreaterThanOrEqual(5, count($vectors['Tiere']));
+        $this->assertGreaterThanOrEqual(5, count($vectors['Natur']));
+        $this->assertGreaterThanOrEqual(10, count($vectors['Symbole']));
+    }
+
+    #[Test]
+    public function configurator_renders_undo_redo_controls_and_emoji_warning()
+    {
+        Livewire::test(ProductConfigurator::class, ['product' => $this->product])
+            ->assertSee('Rückgängig (Strg+Z)')
+            ->assertSee('Wiederholen (Strg+Y)')
+            ->assertSee('Hinweis zur Lasergravur')
+            ->assertSee('Emojis')
+            ->assertSee('farbige Symbole können per Lasergravur nicht dargestellt werden')
+            ->assertSee('handleKeyDown($event)', false);
+    }
+
+    #[Test]
+    public function configurator_sanitizes_emojis_from_front_and_back_texts_on_save()
+    {
+        $component = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+            'context' => 'calculator'
+        ]);
+
+        // Direct method test
+        $instance = $component->instance();
+        $this->assertEquals('Bester Papa !', $instance->sanitizeLaserText('Bester Papa ❤️🥇🎉!'));
+        $this->assertEquals('Liebe Grüße für Schöne Momente & 100% Glück!', $instance->sanitizeLaserText('Liebe Grüße für Schöne Momente & 100% Glück!'));
+
+        // Test during save
+        $component->set('texts', [
+            ['id' => 't1', 'text' => 'Alles Gute zum Geburtstag! 🎂🎁🥳', 'size' => 1, 'x' => 50, 'y' => 50]
+        ]);
+        $component->set('texts_back', [
+            ['id' => 't2', 'text' => 'In ewiger Liebe ❤️✨', 'size' => 1, 'x' => 50, 'y' => 50]
+        ]);
+        $component->set('config_confirmed', true);
+
+        $component->call('save', app(\App\Services\CartService::class));
+
+        $component->assertHasNoErrors()
+            ->assertDispatched('calculator-save', function ($event, $params) {
+                $data = $params['data'] ?? [];
+                $texts = $data['texts'] ?? [];
+                $textsBack = $data['texts_back'] ?? [];
+                return ($texts[0]['text'] ?? '') === 'Alles Gute zum Geburtstag!'
+                    && ($textsBack[0]['text'] ?? '') === 'In ewiger Liebe';
+            });
+    }
+
+    #[Test]
+    public function configurator_renders_maximize_controls_and_studio_mode()
+    {
+        // In customer add mode, maximize button is present
+        Livewire::test(ProductConfigurator::class, ['product' => $this->product])
+            ->assertSee('Maximal')
+            ->assertSee('Verkleinern')
+            ->assertSee('Normalansicht')
+            ->assertSee('Studio-Modus')
+            ->assertSee('toggleMaximize()', false)
+            ->assertSee('isMaximized', false);
+
+        // In preview mode (e.g. admin order view / customer order view), maximize button is NOT rendered
+        Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+            'context' => 'preview'
+        ])
+            ->assertDontSee('Maximal-Ansicht')
+            ->assertDontSee('Normalansicht (Esc)');
+    }
+
+    #[Test]
+    public function configurator_translates_upload_errors_to_friendly_german()
+    {
+        $component = Livewire::test(ProductConfigurator::class, ['product' => $this->product]);
+
+        $component->call('_uploadErrored', 'new_files', json_encode([
+            'errors' => ['files.0' => ['The files.0 failed to upload.']]
+        ]), true);
+
+        $component->assertHasErrors(['new_files.0']);
+        $errorMsg = $component->errors()->first('new_files.0');
+        $this->assertStringContainsString('Die Datei konnte nicht hochgeladen werden', $errorMsg);
+        $this->assertStringNotContainsString('failed to upload', $errorMsg);
+    }
+
+    private function createOrderOrder(): \App\Models\Order\OrderOrder
+    {
+        return \App\Models\Order\OrderOrder::create([
+            'order_number' => 'ORD-' . uniqid(),
+            'email' => 'test@example.com',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'payment_method' => 'stripe',
+            'total_price' => 2500,
+            'subtotal_price' => 2500,
+            'tax_amount' => 0,
+            'shipping_price' => 0,
+            'billing_address' => ['first_name' => 'Max', 'last_name' => 'Mustermann', 'city' => 'Berlin', 'postal_code' => '10115', 'country' => 'DE', 'address' => 'Teststr. 1'],
+            'shipping_address' => ['first_name' => 'Max', 'last_name' => 'Mustermann', 'city' => 'Berlin', 'zip' => '10115', 'country' => 'DE', 'street' => 'Teststr. 1'],
+        ]);
+    }
+
+    #[Test]
+    public function svg_export_prioritizes_xtool_backend_plane_dimensions()
+    {
+        $product = Product::create([
+            'name' => 'Laser Acryl Schild',
+            'slug' => 'laser-acryl-schild-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2500,
+            'width' => 50,  // fallback
+            'height' => 50, // fallback
+            'configurator_settings' => [
+                'overlay_type' => 'plane',
+                'xtool_plane_width' => 150,
+                'xtool_plane_height' => 120,
+            ],
+        ]);
+
+        $order = $this->createOrderOrder();
+
+        $orderItem = \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2500,
+            'total_price' => 2500,
+            'configuration' => [
+                'texts' => [
+                    ['id' => '1', 'text' => 'Willkommen', 'x' => 50, 'y' => 50, 'size' => 1]
+                ]
+            ],
+        ]);
+
+        $service = app(\App\Services\Export\FileDownloadService::class);
+        $response = $service->downloadLaserSvg($orderItem->id);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        ob_start();
+        $response->sendContent();
+        $content = ob_get_clean();
+
+        // Überprüfe, dass die xTool Plane Maße (150x120 mm) im SVG Header verwendet werden statt 50x50 mm
+        $this->assertStringContainsString('width="150mm"', $content);
+        $this->assertStringContainsString('height="120mm"', $content);
+        $this->assertStringContainsString('viewBox="0 0 150 120"', $content);
+    }
+
+    #[Test]
+    public function svg_export_prioritizes_xtool_backend_cylinder_dimensions()
+    {
+        $product = Product::create([
+            'name' => 'Laser Thermobecher',
+            'slug' => 'laser-thermobecher-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 3500,
+            'width' => 40,
+            'height' => 80,
+            'configurator_settings' => [
+                'overlay_type' => 'cylinder',
+                'xtool_d_top' => 70,    // Durchmesser 70mm -> Umfang = 70 * pi = 219.91mm
+                'xtool_height' => 180,  // Höhe 180mm
+            ],
+        ]);
+
+        $order = $this->createOrderOrder();
+
+        $orderItem = \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 3500,
+            'total_price' => 3500,
+            'configuration' => [
+                'texts' => [
+                    ['id' => '1', 'text' => 'Kaffee', 'x' => 50, 'y' => 50, 'size' => 1]
+                ]
+            ],
+        ]);
+
+        $service = app(\App\Services\Export\FileDownloadService::class);
+        $response = $service->downloadLaserSvg($orderItem->id);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        ob_start();
+        $response->sendContent();
+        $content = ob_get_clean();
+
+        $expectedWidth = 70 * pi();
+        $this->assertStringContainsString('width="' . $expectedWidth . 'mm"', $content);
+        $this->assertStringContainsString('height="180mm"', $content);
+    }
 }
+
 

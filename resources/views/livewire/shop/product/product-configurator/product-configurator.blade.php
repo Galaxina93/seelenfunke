@@ -8,8 +8,10 @@
 
 @endphp
 
-<div class="relative w-full h-full {{ $isDark ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-900' }}">
-    <div class="h-full flex flex-col" x-data="window.frontendConfiguratorData({
+<div :class="isMaximized ? 'configurator-studio-root overflow-hidden flex flex-col {{ $isDark ? 'bg-gray-950 text-gray-200' : 'bg-white text-gray-900' }}' : 'relative w-full h-full {{ $isDark ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-900' }}'"
+     :style="isMaximized ? 'position: fixed !important; top: 0px !important; left: 0px !important; right: 0px !important; bottom: 0px !important; width: 100vw !important; height: 100vh !important; max-width: 100vw !important; max-height: 100vh !important; z-index: 2147483647 !important; margin: 0 !important;' : ''"
+     x-data="window.frontendConfiguratorData({
+        productId: '{{ $product->id }}',
         wireModels: {
             texts: $wire.entangle('texts').live,
             logos: $wire.entangle('logos').live,
@@ -59,11 +61,130 @@
          @mousemove.window="handleMouseMove($event)"
          @mouseup.window="handleMouseUp($event)"
          @touchmove.window="handleMouseMove($event)"
-         @touchend.window="handleMouseUp($event)">
+         @touchend.window="handleMouseUp($event)"
+         @keydown.window="handleKeyDown($event)">
 
-        {{-- Varianten Auswahl ganz oben, VOR der Scroll-Area! (Jetzt für ALLE Produkttypen) --}}
+    <style>
+        /* Studio Fullscreen Mode Scoped Styles */
+        html.configurator-fullscreen-active,
+        html.configurator-fullscreen-active body {
+            overflow: hidden !important;
+            height: 100vh !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        html.configurator-fullscreen-active #navbar,
+        html.configurator-fullscreen-active header,
+        html.configurator-fullscreen-active #frontend-action-dock,
+        html.configurator-fullscreen-active [class*="action_dock"] {
+            display: none !important;
+        }
+
+        .configurator-studio-root {
+            position: fixed !important;
+            top: 0px !important;
+            left: 0px !important;
+            right: 0px !important;
+            bottom: 0px !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: 100vw !important;
+            max-height: 100vh !important;
+            margin: 0 !important;
+            z-index: 2147483647 !important;
+        }
+
+        .configurator-studio-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 0%;
+            min-height: 0;
+            overflow-y: auto;
+            width: 100%;
+            scrollbar-gutter: stable;
+        }
+
+        .custom-scrollbar {
+            scrollbar-gutter: stable;
+        }
+
+        @media (min-width: 1024px) {
+            .configurator-studio-body {
+                flex-direction: row;
+                overflow: hidden;
+            }
+
+            .configurator-studio-preview {
+                flex: 1 1 0% !important;
+                min-width: 0 !important;
+                height: 100% !important;
+                overflow-y: auto !important;
+                scrollbar-gutter: stable;
+            }
+
+            .configurator-studio-form {
+                width: 480px !important;
+                max-width: 42vw !important;
+                flex-shrink: 0 !important;
+                height: 100% !important;
+                overflow-y: auto !important;
+                scrollbar-gutter: stable;
+            }
+        }
+
+        @media (max-width: 1023px) {
+            .configurator-studio-form {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+        }
+    </style>
+
+    <div class="h-full flex flex-col flex-1 min-h-0 overflow-hidden">
+
+        {{-- MAXIMIZED STUDIO TOP BAR --}}
+        <div x-show="isMaximized" x-cloak
+             class="w-full px-4 sm:px-6 py-3 border-b flex items-center justify-between shrink-0 z-50 backdrop-blur-md {{ $isDark ? 'bg-gray-950/95 border-gray-800 text-white' : 'bg-white/95 border-gray-200 text-gray-900' }}">
+            
+            {{-- Linke Seite: Badge & Titel --}}
+            <div class="flex items-center gap-3 min-w-0">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest {{ $isDark ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-primary/10 text-primary border border-primary/20' }}">
+                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                    Studio-Modus
+                </span>
+                <h3 class="text-sm font-bold truncate hidden sm:block max-w-xs md:max-w-md">{{ $product->name }}</h3>
+            </div>
+
+            {{-- Mitte: Varianten Auswahl wenn vorhanden --}}
+            @if(!empty($this->activeVariants) && $context !== 'preview')
+                <div class="hidden md:flex items-center gap-2 max-w-xs">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 shrink-0">Ausführung:</span>
+                    <select wire:model.live="variantId" class="text-xs font-bold rounded-xl border py-1.5 px-3 truncate outline-none cursor-pointer {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
+                        @foreach($this->activeVariants as $variant)
+                            <option value="{{ $variant['id'] }}" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">
+                                {{ $variant['name'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            @endif
+
+            {{-- Rechte Seite: Verkleinern / Esc --}}
+            <div class="flex items-center gap-2">
+                <button type="button"
+                        @click="toggleMaximize()"
+                        class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-200 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200' }}">
+                    <x-heroicon-m-arrows-pointing-in class="w-4 h-4 text-primary" />
+                    <span>Normalansicht</span>
+                    <kbd class="hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-mono rounded border {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400' : 'bg-white border-gray-300 text-gray-500' }}">Esc</kbd>
+                </button>
+            </div>
+        </div>
+
+        {{-- Varianten Auswahl ganz oben, VOR der Scroll-Area! (Nur in Normalansicht anzeigen) --}}
         @if(!empty($this->activeVariants) && $context !== 'preview')
-            <div class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
+            <div x-show="!isMaximized" class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
                 <label class="block text-[10px] font-black uppercase tracking-widest text-center mb-2 {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">Ausführung wählen</label>
                 <div class="relative">
                     <select wire:model.live="variantId" class="w-full rounded-2xl border p-3.5 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-primary focus:border-primary appearance-none cursor-pointer outline-none {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
@@ -89,7 +210,7 @@
                 </div>
             </div>
         @elseif($context === 'preview' && $variantName)
-            <div class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
+            <div x-show="!isMaximized" class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
                 <div class="border p-3.5 rounded-2xl text-center {{ $isDark ? 'bg-primary/10 border-primary/20' : 'bg-primary/5 border-primary/20' }}">
                     <span class="text-[9px] font-black uppercase tracking-widest text-primary block mb-0.5">Gewählte Ausführung</span>
                     <span class="font-bold text-sm {{ $isDark ? 'text-white' : 'text-gray-900' }}">{{ $variantName }}</span>
@@ -97,7 +218,7 @@
             </div>
         @endif
 
-        <div class="flex-1 custom-scrollbar pb-20 w-full min-w-0">
+        <div :class="isMaximized ? 'configurator-studio-body' : 'flex-1 custom-scrollbar pb-20 w-full min-w-0'">
             @if(!$this->product->isPersonalizable())
                 {{-- Standard-Produkt (Nicht Personalisierbar) Layout --}}
                 <div class="p-6 sm:p-12 max-w-3xl mx-auto flex flex-col items-center justify-center text-center space-y-8 relative w-full mt-4">

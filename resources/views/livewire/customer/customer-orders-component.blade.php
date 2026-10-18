@@ -1,16 +1,16 @@
 <div>
-    <div class="p-4 sm:p-6 lg:p-10 mb-6 min-h-full flex flex-col relative z-10 text-gray-700 dark:text-gray-300">
+    <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-full flex flex-col relative z-10 text-gray-700 dark:text-gray-300">
 
         {{-- SEITEN-HEADER (Wird ausgeblendet, wenn man in der Detailansicht ist) --}}
         @if(!$selectedOrderId)
-            <div class="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6 animate-fade-in-up">
+            <div class="mb-8 lg:mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
                 <div>
                     <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Meine Bestellungen</h1>
                     <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Die Historie deiner Schätze</p>
                 </div>
 
                 {{-- SUCHE --}}
-                <div class="relative w-full sm:w-96 group">
+                <div class="relative w-full sm:w-80 md:w-96 group">
                     <div class="absolute inset-0 bg-primary/20 rounded-full blur opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                     <input wire:model.live.debounce.300ms="searchOrder" type="text" placeholder="Bestellnummer suchen..." class="relative w-full rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:border-primary focus:ring-primary text-sm px-6 py-4 pl-14 transition-all placeholder-gray-400 dark:placeholder-gray-500 font-medium tracking-wide outline-none">
                     <svg class="w-6 h-6 text-gray-400 dark:text-gray-500 absolute left-5 top-3.5 group-hover:text-primary transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
@@ -27,7 +27,7 @@
             {{-- ========================================== --}}
             {{-- DETAIL ANSICHT --}}
             {{-- ========================================== --}}
-            <div class="space-y-10 animate-fade-in-up w-full max-w-7xl mx-auto">
+            <div class="space-y-10 w-full">
 
                 {{-- NAVIGATION & BESTELLNUMMER --}}
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
@@ -476,7 +476,7 @@
             {{-- ========================================== --}}
             {{-- LISTEN ANSICHT (Übersicht aller Bestellungen) --}}
             {{-- ========================================== --}}
-            <div class="space-y-8 animate-fade-in-up delay-100 w-full max-w-7xl mx-auto">
+            <div class="space-y-8 w-full">
                 @forelse($orders as $o)
                     <div class="bg-white dark:bg-gray-900 rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden hover:border-primary/50 transition-all duration-500 group" wire:key="order-list-{{ $o->id }}">
                         <div class="px-6 sm:px-8 py-6 bg-gray-50/80 dark:bg-gray-800/40 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-6">

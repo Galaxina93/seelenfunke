@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-6 lg:p-10 min-h-[85vh] flex flex-col relative z-10 font-sans antialiased text-gray-700 dark:text-gray-300"
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-[85vh] flex flex-col relative z-10 font-sans antialiased text-gray-700 dark:text-gray-300"
      x-data="{ showCloseModal: false }"
      @close-ticket-modal-hide.window="showCloseModal = false"
      @customer-ticket-message-received.window="$wire.receiveMessage($event.detail)"
@@ -6,14 +6,10 @@
     <script type="module" src="{{ asset('vendor/emoji-picker-element/index.js') }}"></script>
 
     {{-- HEADER --}}
-    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-in-up">
+    <div class="mb-8 lg:mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
-            <a href="{{ route('customer.dashboard') }}" class="inline-flex items-center gap-2 text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest hover:text-primary transition-colors mb-4">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                Zurück zur Manufaktur
-            </a>
-            <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
-                <span class="text-primary drop-shadow-[0_0_15px_rgba(197,160,89,0.5)]">💌</span> Support Desk
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
+                Hilfe & Support
             </h1>
             <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Direkter Draht zu unseren Experten</p>
         </div>

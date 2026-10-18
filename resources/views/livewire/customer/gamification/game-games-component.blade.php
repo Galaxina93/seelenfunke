@@ -1,4 +1,4 @@
-<div class="p-4 sm:p-6 lg:p-10 min-h-full flex flex-col relative z-10" x-data="kristallKollaps3D()">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-full flex flex-col relative z-10" x-data="kristallKollaps3D()">
     @if(!$hasOptedIn)
         <div x-data="optInScreen()" :class="isWarping ? 'opacity-0 scale-95 blur-sm' : 'opacity-100 scale-100 blur-0'" class="max-w-6xl mx-auto relative p-6 sm:p-10 lg:p-20 flex flex-col lg:flex-row items-center gap-10 lg:gap-16 transition-all duration-[1500ms] ease-in-out mt-8 lg:mt-12">
             <template x-teleport="body">
@@ -79,10 +79,28 @@
     {{-- AUDIO BGM --}}
     <audio x-ref="bgmAudio" src="{{ asset('shop/customer/gamification/music/cristall_kollaps_bg_music.mp3') }}" loop preload="auto"></audio>
 
-    {{-- SEITEN-HEADER --}}
-    <div class="mb-8 sm:mb-10">
-        <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Manufaktur Spiele</h1>
-        <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Verdiene Funken durch Geschick & Taktik</p>
+    {{-- SEITEN-HEADER MIT SUB-TABS --}}
+    <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+        <div>
+            <h1 class="text-3xl sm:text-4xl md:text-5xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Manufaktur Spiele</h1>
+            <p class="text-gray-500 dark:text-gray-400 mt-2 text-xs sm:text-sm uppercase tracking-widest font-bold">Verdiene Funken durch Geschick & Taktik</p>
+        </div>
+
+        {{-- SPIELE SUB-TABS --}}
+        <div class="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl w-fit shrink-0">
+            <a href="{{ route('customer.games') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-primary text-gray-900 shadow-sm">
+                <span>🧩</span>
+                <span>Spiele</span>
+            </a>
+            <a href="{{ route('customer.gamification.profile') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800/50">
+                <span>✨</span>
+                <span>Funki-Profil</span>
+            </a>
+            <a href="{{ route('customer.ranking') }}" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-800/50">
+                <span>🏆</span>
+                <span>Rangliste</span>
+            </a>
+        </div>
     </div>
 
     {{-- SPIELAUSWAHL (Menü) --}}

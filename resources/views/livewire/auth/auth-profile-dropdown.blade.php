@@ -42,9 +42,9 @@
     </button>
 
     {{-- DESKTOP ICON DOCK (Mit Beschriftung) --}}
-    <a href="/" target="_blank" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-blue-500/5 border border-transparent hover:border-blue-500/30 text-gray-500 hover:bg-blue-500/10 hover:text-blue-500 dark:hover:text-blue-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:scale-105 group shrink-0 snap-start" title="Zur Webseite" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
-        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Webseite</span>
-        <x-heroicon-s-globe-alt class="w-6 h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
+    <a href="{{ route('shop') }}" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-blue-500/5 border border-transparent hover:border-blue-500/30 text-gray-500 hover:bg-blue-500/10 hover:text-blue-500 dark:hover:text-blue-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:scale-105 group shrink-0 snap-start" title="Zum Shop" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
+        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Shop</span>
+        <x-heroicon-s-shopping-bag class="w-6 h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </a>
 
     <button @click="showProfileModal = true; activeProfileTab = 'profile'" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-cyan-500/5 border border-transparent hover:border-cyan-500/30 text-gray-500 hover:bg-cyan-500/10 hover:text-cyan-500 dark:hover:text-cyan-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:scale-105 group shrink-0 snap-start" title="Profil" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">

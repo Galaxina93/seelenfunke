@@ -1,4 +1,4 @@
-<div class="w-full max-w-6xl mx-auto px-4 py-8 sm:px-6 lg:py-12 animate-fade-in-up">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up">
     {{-- Alerts & Profile Completion Banner --}}
     @if(count($profileSteps) > 0)
         <div class="mb-8 p-4 sm:p-5 bg-red-500/5 border border-red-500/20 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-[0_0_20px_rgba(239,68,68,0.05)]">
@@ -164,91 +164,6 @@
                     </div>
                 @endif
             </div>
-
-            {{-- Schnellzugriff Kacheln (Quick Action Grid) --}}
-            <div>
-                <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white mb-4">Schnellzugriff & Funktionen</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-
-                    {{-- Kachel: Bestellungen --}}
-                    <a href="{{ route('customer.orders') }}" class="group relative bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-[0_0_25px_rgba(197,160,89,0.08)] overflow-hidden flex flex-col justify-between min-h-[160px]">
-                        <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div class="flex items-center justify-between">
-                            <div class="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-primary flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
-                                <x-heroicon-s-shopping-bag class="w-6 h-6" />
-                            </div>
-                            <x-heroicon-m-arrow-right class="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                        </div>
-                        <div class="mt-4 relative z-10">
-                            <h4 class="text-gray-900 dark:text-white font-bold text-base">Meine Bestellungen</h4>
-                            <p class="text-gray-600 dark:text-gray-400 text-xs mt-1 leading-relaxed">Status deiner Unikate verfolgen und Bestellungen einsehen.</p>
-                        </div>
-                    </a>
-
-                    {{-- Kachel: Rechnungen --}}
-                    <a href="{{ route('customer.invoices') }}" class="group relative bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 hover:border-blue-500/40 hover:-translate-y-1 transition-all duration-300 shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-[0_0_25px_rgba(59,130,246,0.08)] overflow-hidden flex flex-col justify-between min-h-[160px]">
-                        <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div class="flex items-center justify-between">
-                            <div class="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-blue-500 dark:text-blue-400 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
-                                <x-heroicon-s-document-text class="w-6 h-6" />
-                            </div>
-                            <x-heroicon-m-arrow-right class="w-5 h-5 text-gray-400 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" />
-                        </div>
-                        <div class="mt-4 relative z-10">
-                            <h4 class="text-gray-900 dark:text-white font-bold text-base">Meine Rechnungen</h4>
-                            <p class="text-gray-600 dark:text-gray-400 text-xs mt-1 leading-relaxed">Alle PDF-Belege herunterladen und Belege verwalten.</p>
-                        </div>
-                    </a>
-
-                    {{-- Kachel: Support --}}
-                    <a href="{{ route('customer.support') }}" class="group relative bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 hover:border-amber-500/40 hover:-translate-y-1 transition-all duration-300 shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-[0_0_25px_rgba(245,158,11,0.08)] overflow-hidden flex flex-col justify-between min-h-[160px]">
-                        <div class="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div class="flex items-center justify-between">
-                            <div class="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-amber-500 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
-                                <x-heroicon-s-chat-bubble-left-right class="w-6 h-6" />
-                            </div>
-                            <x-heroicon-m-arrow-right class="w-5 h-5 text-gray-400 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
-                        </div>
-                        <div class="mt-4 relative z-10">
-                            <h4 class="text-gray-900 dark:text-white font-bold text-base">Hilfe & Support</h4>
-                            <p class="text-gray-600 dark:text-gray-400 text-xs mt-1 leading-relaxed">Direktkontakt zu uns aufnehmen und Support-Tickets einsehen.</p>
-                        </div>
-                    </a>
-
-                    {{-- Kachel: Spielmodus (Wenn aktiv oder optional) --}}
-                    @if($isGameModeActive)
-                        <a href="{{ route('customer.games') }}" class="group relative bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 hover:border-emerald-500/40 hover:-translate-y-1 transition-all duration-300 shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-[0_0_25px_rgba(16,185,129,0.08)] overflow-hidden flex flex-col justify-between min-h-[160px]">
-                            <div class="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                            <div class="flex items-center justify-between">
-                                <div class="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-emerald-500 dark:text-emerald-400 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
-                                    <x-heroicon-s-bolt class="w-6 h-6 animate-pulse" />
-                                </div>
-                                <x-heroicon-m-arrow-right class="w-5 h-5 text-gray-400 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all" />
-                            </div>
-                            <div class="mt-4 relative z-10">
-                                <h4 class="text-gray-900 dark:text-white font-bold text-base">Magisches Abenteuer</h4>
-                                <p class="text-gray-600 dark:text-gray-400 text-xs mt-1 leading-relaxed">Minispiele spielen, Funken sammeln und Rabattcodes freischalten.</p>
-                            </div>
-                        </a>
-                    @else
-                        <a href="{{ route('shop') }}" class="group relative bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 hover:border-purple-500/40 hover:-translate-y-1 transition-all duration-300 shadow-sm dark:shadow-lg hover:shadow-md dark:hover:shadow-[0_0_25px_rgba(168,85,247,0.08)] overflow-hidden flex flex-col justify-between min-h-[160px]">
-                            <div class="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                            <div class="flex items-center justify-between">
-                                <div class="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-purple-500 dark:text-purple-400 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300">
-                                    <x-heroicon-s-building-storefront class="w-6 h-6" />
-                                </div>
-                                <x-heroicon-m-arrow-right class="w-5 h-5 text-gray-400 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
-                            </div>
-                            <div class="mt-4 relative z-10">
-                                <h4 class="text-gray-900 dark:text-white font-bold text-base">Zurück zum Shop</h4>
-                                <p class="text-gray-600 dark:text-gray-400 text-xs mt-1 leading-relaxed">Weiter einkaufen, das Sortiment ansehen und Unikate entdecken.</p>
-                            </div>
-                        </a>
-                    @endif
-
-                </div>
-            </div>
-
         </div>
 
         {{-- Right Column (1/3 width on desktop) --}}
@@ -293,11 +208,30 @@
                 </div>
             </div>
 
+            {{-- Magisches Abenteuer (Spiele) --}}
+            <div class="bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden group hover:border-emerald-500/40 transition-colors">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-500/10 transition-colors"></div>
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <span class="text-lg">🎮</span> Magisches Abenteuer
+                    </h3>
+                    <span class="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                        {{ $isGameModeActive ? 'Aktiviert' : 'Interaktiv' }}
+                    </span>
+                </div>
+                <p class="text-gray-600 dark:text-gray-400 text-xs leading-relaxed mb-4">
+                    Minispiele spielen, Funken sammeln, Level aufsteigen und exklusive Gutscheine freischalten.
+                </p>
+                <a href="{{ route('customer.games') }}" class="block text-center py-2.5 bg-emerald-500 hover:bg-emerald-400 text-gray-950 font-black uppercase tracking-widest text-xs rounded-xl hover:scale-105 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                    {{ $isGameModeActive ? 'Zu den Spielen' : 'Jetzt entdecken' }}
+                </a>
+            </div>
+
             {{-- Support & Assistance Box --}}
             <div class="bg-white dark:bg-gray-900/40 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm dark:shadow-xl relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none"></div>
                 <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <x-heroicon-s-lifebuoy class="w-5 h-5 text-amber-500" /> Support & Service
+                    <x-heroicon-s-lifebuoy class="w-5 h-5 text-amber-500" /> Hilfe & Support
                 </h3>
                 <p class="text-gray-600 dark:text-gray-400 text-xs leading-relaxed mb-4">
                     Hast du Fragen zu deiner Bestellung, möchtest eine Änderung vornehmen oder hast ein technisches Problem?

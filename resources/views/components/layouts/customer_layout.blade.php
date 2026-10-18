@@ -126,123 +126,21 @@
       }"
       x-init="initGlobalEcho()"
       @clear-ticket-badge.window="hasUnreadSupport = false"
-      class="bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-white flex h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative transition-colors duration-300">
+      class="bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-white flex flex-col h-screen overflow-hidden selection:bg-primary selection:text-gray-900 font-sans relative transition-colors duration-300">
 
 {{-- HINTERGRUND UNIVERSUM --}}
 <div x-data="goldDust()" x-init="init()" class="fixed inset-0 z-0 pointer-events-none opacity-40 dark:opacity-60">
     <canvas id="gold-dust-canvas" class="w-full h-full"></canvas>
 </div>
 
-{{-- DESKTOP SIDEBAR --}}
-<aside class="hidden lg:flex flex-col w-72 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800 relative z-40 shadow-sm dark:shadow-2xl h-full shrink-0 transition-colors duration-300">
-    <div class="p-8 border-b border-gray-200 dark:border-gray-800 flex justify-center shrink-0">
-        <a href="{{ route('customer.dashboard') }}" class="block hover:scale-105 transition-transform">
-            <img src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" class="h-24 w-auto" alt="Logo">
-        </a>
-    </div>
+{{-- GLOBALER HEADER (Mit Top-Navigation auf Desktop) --}}
+<header class="h-20 lg:h-24 w-full min-w-0 bg-white/80 dark:bg-gray-900/90 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 shadow-sm dark:shadow-lg shrink-0 flex items-center relative z-40 transition-colors duration-300">
+    <livewire:customer.gamification.game-global-stats-header />
+</header>
 
-    <nav class="flex-1 p-6 space-y-3 overflow-y-auto custom-scrollbar">
-        <div x-data="{ copied: false, code: '{{ strtoupper(explode('-', $customerId)[0]) }}' }" class="mb-6 flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-primary/30 rounded-2xl shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.15)] mx-4 group">
-            <span class="text-[9px] text-gray-500 dark:text-gray-400 font-black uppercase tracking-widest flex items-center gap-2">
-                <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                </svg>
-                KundenNr.:
-            </span>
-            <div class="flex items-center gap-2">
-                <span class="text-xs font-black text-primary font-mono tracking-wider" x-text="code"></span>
-                <button type="button" @click="navigator.clipboard.writeText(code); copied = true; setTimeout(() => copied = false, 2000)" class="text-gray-400 dark:text-gray-500 hover:text-primary transition-colors focus:outline-none" title="Nummer kopieren">
-                    <svg x-show="!copied" class="w-4 h-4 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    <svg x-show="copied" style="display: none;" class="w-4 h-4 text-emerald-500 drop-shadow-[0_0_5px_rgba(16,185,129,0.8)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <div class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-4 px-4">Navigation</div>
-
-        <a href="{{ route('customer.dashboard') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.dashboard') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-            Dashboard
-        </a>
-
-        <a href="{{ route('customer.orders') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.orders') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-            Bestellungen
-        </a>
-
-        <a href="{{ route('customer.invoices') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.invoices') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Rechnungen
-        </a>
-
-        {{-- NEU: SUPPORT DESK LINK --}}
-        <a href="{{route('customer.support')}}" @click="hasUnreadSupport = false" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{request()->routeIs('customer.support')? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'}}">
-            <div class="relative">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                <span x-show="hasUnreadSupport" style="display: none;" class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-                </span>
-            </div>
-            Hilfe
-        </a>
-
-        {{-- SPIELE EXPANDABLE MENU --}}
-        @if($hasOptedIn)
-        <div x-data="{ expanded: {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'true' : 'false' }} }" class="flex flex-col">
-            <button @click="expanded = !expanded" class="w-full flex justify-between items-center px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') || request()->routeIs('customer.gamification.profile') ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.15)]' : 'text-gray-600 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-                <div class="flex items-center gap-4">
-                    <span class="text-xl">🎮</span>
-                    Spiele
-                </div>
-                <svg class="w-4 h-4 transition-transform duration-300" x-bind:class="expanded ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-            </button>
-            <div x-show="expanded" x-collapse x-cloak class="mt-2 space-y-2 pl-4">
-                <a href="{{ route('customer.gamification.profile') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold tracking-wide transition-all text-sm {{ request()->routeIs('customer.gamification.profile') ? 'bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-                    <span class="text-lg">✨</span>
-                    Profil
-                </a>
-                <a href="{{ route('customer.games') }}" class="flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold tracking-wide transition-all text-sm {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-                    <span class="text-lg">🧩</span>
-                    Manufaktur Spiele
-                </a>
-            </div>
-        </div>
-        @else
-        <a href="{{ route('customer.games') }}" class="flex items-center gap-4 px-4 py-3.5 rounded-2xl font-bold tracking-wide transition-all {{ request()->routeIs('customer.games') ? 'bg-emerald-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
-            <span class="text-xl">🎮</span>
-            Spiele
-        </a>
-        @endif
-    </nav>
-
-    <div class="p-6 border-t border-gray-200 dark:border-gray-800 shrink-0">
-        <a href="{{ route('shop') }}" target="_blank" class="w-full flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-700 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all shadow-sm">
-            Zum Shop
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-        </a>
-    </div>
-</aside>
-
-{{-- HAUPT-CONTENT BEREICH --}}
-<main class="flex-1 flex flex-col h-full relative z-30 min-w-0">
-
-    {{-- GLOBALER HEADER --}}
-    <header class="h-20 lg:h-24 w-full min-w-0 bg-white/80 dark:bg-gray-900/90 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 px-3 lg:px-8 shadow-sm dark:shadow-lg shrink-0 flex items-center transition-colors duration-300">
-        <livewire:customer.gamification.game-global-stats-header />
-    </header>
-
-    {{-- SEITEN-INHALT --}}
-    <div class="flex-1 overflow-x-hidden overflow-y-auto relative no-scrollbar pb-20 lg:pb-0">
-        {{ $slot }}
-    </div>
-
+{{-- HAUPT-CONTENT BEREICH (Volle Breite) --}}
+<main class="flex-1 overflow-x-hidden overflow-y-auto relative no-scrollbar pb-24 lg:pb-8 z-30 min-w-0">
+    {{ $slot }}
 </main>
 
 {{-- MOBILE BOTTOM NAVIGATION --}}

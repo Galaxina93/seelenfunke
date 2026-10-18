@@ -47,6 +47,38 @@
             showMessage: false,
             messageText: '',
 
+            // Vollbild / Maximal-Ansicht
+            isMaximized: false,
+
+            // Undo / Redo History
+            history: [],
+            historyIndex: -1,
+            maxHistory: 30,
+            isPerformingHistoryAction: false,
+            _historyDebounceTimeout: null,
+
+            // Emoji Warnung
+            showEmojiWarning: false,
+            _emojiWarningTimeout: null,
+
+            // Formular & Tabs
+            activeTab: null,
+            draftExists: false,
+            isDraftSaving: false,
+            isDraftLoading: false,
+            storageDraftKey: 'seelenfunke_design_draft_' + (params.productId || (params.config && params.config.productId) || 'default'),
+
+            // Upload & Dropzone States
+            uploadError: null,
+            isDropping: false,
+
+            get canUndo() {
+                return this.historyIndex > 0;
+            },
+            get canRedo() {
+                return this.historyIndex >= 0 && this.historyIndex < this.history.length - 1;
+            },
+
             get currentTexts() { return this.activeSide === 'front' ? this.texts : this.texts_back; },
             get currentLogos() { return this.activeSide === 'front' ? this.logos : this.logos_back; },
 
@@ -59,6 +91,20 @@
                     setTimeout(() => { this.saved = false; }, 15000);
                 });
 
+                window.addEventListener('beforeunload', () => {
+                    try {
+                        document.body.style.overflow = '';
+                        document.documentElement.classList.remove('configurator-fullscreen-active');
+                    } catch(e) {}
+                });
+
+                document.addEventListener('livewire:navigating', () => {
+                    try {
+                        document.body.style.overflow = '';
+                        document.documentElement.classList.remove('configurator-fullscreen-active');
+                    } catch(e) {}
+                });
+
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
                 if(typeof this.config.area_width === 'undefined') this.config.area_width = 80;
@@ -66,13 +112,16 @@
 
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
                 this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
+                this.draftExists = localStorage.getItem(this.storageDraftKey) !== null;
 
                 this.$nextTick(() => {
                     if (this.$refs.container) {
                         this._resizeObserver = new ResizeObserver((entries) => {
                             for (let entry of entries) {
-                                if (entry.contentRect.width > 0) {
-                                    this.updateScaleFactor(entry.contentRect.width);
+                                const w = entry.contentRect.width;
+                                if (w > 0 && (!this._lastObservedWidth || Math.abs(this._lastObservedWidth - w) >= 1)) {
+                                    this._lastObservedWidth = w;
+                                    this.updateScaleFactor(w);
                                 }
                             }
                         });
@@ -137,6 +186,7 @@
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
+                        this.scheduleDebouncedHistory();
                     }, {deep: true});
 
                     this.$watch('logos', () => {
@@ -144,6 +194,7 @@
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
+                        this.scheduleDebouncedHistory();
                     }, {deep: true});
 
                     this.$watch('texts_back', () => {
@@ -151,6 +202,7 @@
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
+                        this.scheduleDebouncedHistory();
                     }, {deep: true});
 
                     this.$watch('logos_back', () => {
@@ -158,17 +210,20 @@
                             this.selectedType = null; this.selectedIndex = null;
                         }
                         this.updateTexture();
+                        this.scheduleDebouncedHistory();
                     }, {deep: true});
 
                     this.$watch('activeSide', (val) => {
                         this.selectedType = null;
                         this.selectedIndex = null;
                         let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
-                        if (engine && engine.camera) {
-                            engine.camera.position.z *= -1;
-                            engine.camera.position.x *= -1;
-                            engine.controls.update();
-                            engine.applyTransforms(val);
+                        if (engine) {
+                            if (typeof engine.rotateToSide === 'function') {
+                                engine.rotateToSide(val, true);
+                            }
+                            if (typeof engine.applyTransforms === 'function') {
+                                engine.applyTransforms(val);
+                            }
                         }
                         this.updateTexture();
 
@@ -192,9 +247,15 @@
                         this.updateScaleFactor();
                         const initialUpdate = () => {
                             if (window.requestIdleCallback) {
-                                window.requestIdleCallback(() => this.updateTexture());
+                                window.requestIdleCallback(() => {
+                                    this.updateTexture();
+                                    this.recordHistory(true);
+                                });
                             } else {
-                                setTimeout(() => this.updateTexture(), 300);
+                                setTimeout(() => {
+                                    this.updateTexture();
+                                    this.recordHistory(true);
+                                }, 300);
                             }
                         };
                         initialUpdate();
@@ -213,6 +274,9 @@
                                 if (!this.modelLoaded) {
                                     if (typeof this._forceStart3D === 'function') this._forceStart3D();
                                 } else {
+                                    if (typeof engine.rotateToSide === 'function') {
+                                        engine.rotateToSide(this.activeSide, false);
+                                    }
                                     engine.animate();
                                     this.updateTexture();
                                 }
@@ -235,6 +299,7 @@
                     this.selectItem('text', this.texts_back.length - 1);
                 }
                 this.updateTexture();
+                this.recordHistory();
             },
 
             saveDesign() {
@@ -255,6 +320,100 @@
                     console.error("Konnte nicht speichern:", e);
                     this.triggerMessage('Fehler beim Speichern. Ist der private Modus aktiv?');
                 }
+            },
+
+            toggleTab(tab) {
+                this.activeTab = (this.activeTab === tab) ? null : tab;
+            },
+
+            saveDraft() {
+                const draft = {
+                    texts: JSON.parse(JSON.stringify(this.texts)),
+                    logos: JSON.parse(JSON.stringify(this.logos)),
+                    texts_back: JSON.parse(JSON.stringify(this.texts_back)),
+                    logos_back: JSON.parse(JSON.stringify(this.logos_back)),
+                    notes: (this.$wire && typeof this.$wire.notes !== 'undefined') ? this.$wire.notes : '',
+                    uploaded_files: (this.$wire && Array.isArray(this.$wire.uploaded_files)) ? this.$wire.uploaded_files : []
+                };
+
+                try {
+                    localStorage.setItem(this.storageDraftKey, JSON.stringify(draft));
+                    this.draftExists = true;
+                    this.hasSavedDesign = true;
+                    this.isDraftSaving = true;
+                    setTimeout(() => { this.isDraftSaving = false; }, 2500);
+                    this.$dispatch('notify', {message: 'Dein Design wurde erfolgreich auf deinem Gerät gespeichert!'});
+                } catch(e) {
+                    console.error("Fehler beim Speichern des Entwurfs:", e);
+                }
+            },
+
+            loadDraft() {
+                const draftStr = localStorage.getItem(this.storageDraftKey);
+                if (draftStr) {
+                    try {
+                        const draft = JSON.parse(draftStr);
+                        if (draft.texts) this.texts = draft.texts;
+                        if (draft.logos) this.logos = draft.logos;
+                        if (draft.texts_back) this.texts_back = draft.texts_back;
+                        if (draft.logos_back) this.logos_back = draft.logos_back;
+
+                        if (this.$wire) {
+                            if (draft.texts) this.$wire.texts = this.texts;
+                            if (draft.logos) this.$wire.logos = this.logos;
+                            if (draft.texts_back) this.$wire.texts_back = this.texts_back;
+                            if (draft.logos_back) this.$wire.logos_back = this.logos_back;
+                            if (typeof draft.notes !== 'undefined') this.$wire.notes = draft.notes;
+                            if (Array.isArray(draft.uploaded_files)) this.$wire.uploaded_files = draft.uploaded_files;
+                        }
+
+                        this.updateTexture();
+                        this.recordHistory();
+
+                        this.isDraftLoading = true;
+                        setTimeout(() => { this.isDraftLoading = false; }, 2500);
+                        this.$dispatch('notify', {message: 'Gespeichertes Design erfolgreich geladen!'});
+                    } catch(e) {
+                        console.error("Fehler beim Laden des Entwurfs:", e);
+                    }
+                }
+            },
+
+            handleDrop(e) {
+                this.isDropping = false;
+                this.uploadError = null;
+                const files = e.dataTransfer ? e.dataTransfer.files : null;
+                if (!files || !this.validateFiles(files)) return;
+                if (this.$refs.fileInput) {
+                    this.$refs.fileInput.files = files;
+                    this.$refs.fileInput.dispatchEvent(new Event('change'));
+                }
+            },
+
+            handleInput(e) {
+                this.uploadError = null;
+                const files = e.target.files;
+                if (!files || !this.validateFiles(files)) {
+                    if (this.$refs.fileInput) this.$refs.fileInput.value = '';
+                    return;
+                }
+            },
+
+            validateFiles(files) {
+                const currentCount = (this.$wire && Array.isArray(this.$wire.uploaded_files)) ? this.$wire.uploaded_files.length : 0;
+                const newCount = files ? files.length : 0;
+                if ((currentCount + newCount) > 10) {
+                    this.uploadError = 'Limit erreicht! Maximal 10 Dateien erlaubt.';
+                    return false;
+                }
+                for (let i = 0; i < files.length; i++) {
+                    const f = files[i];
+                    if (f.size > 20 * 1024 * 1024) {
+                        this.uploadError = 'Die Datei "' + f.name + '" ist zu groß! Maximal 20 MB pro Datei sind erlaubt.';
+                        return false;
+                    }
+                }
+                return true;
             },
 
             // NEU: Snapshot Capture vor dem Speichern in den Warenkorb mit Doppel-Klick Schutz & Mobile-Timeout
@@ -465,7 +624,7 @@
 
                             this.$nextTick(() => {
                                 this.updateScaleFactor();
-                                setTimeout(() => { this.updateTexture(); }, 100);
+                                setTimeout(() => { this.updateTexture(); this.recordHistory(true); }, 100);
                                 setTimeout(() => { this.updateTexture(); }, 300);
                             });
                         });
@@ -536,17 +695,24 @@
                 if(!width && this.$refs.container) {
                     width = this.$refs.container.getBoundingClientRect().width;
                 }
-                if(width && width > 0) this.scaleFactor = width / this.baseWidth;
+                if(!width || width <= 0) return;
 
-                this.$nextTick(() => {
-                    const ctx = this.$root || document;
-                    ctx.querySelectorAll('textarea[x-model]').forEach(el => {
-                        const textId = el.getAttribute('data-id');
-                        if(textId) {
-                            this.fitTextarea(textId, el);
-                        }
+                const newScale = width / this.baseWidth;
+                const hasChanged = !this.scaleFactor || Math.abs(this.scaleFactor - newScale) >= 0.002;
+                this.scaleFactor = newScale;
+
+                if (hasChanged || !this._hasInitialFittedTextareas) {
+                    this._hasInitialFittedTextareas = true;
+                    this.$nextTick(() => {
+                        const ctx = this.$root || document;
+                        ctx.querySelectorAll('textarea[x-model]').forEach(el => {
+                            const textId = el.getAttribute('data-id');
+                            if(textId) {
+                                this.fitTextarea(textId, el);
+                            }
+                        });
                     });
-                });
+                }
             },
 
             onWindowResize() {
@@ -606,6 +772,7 @@
                     this.selectedIndex = null;
                 }
                 this.updateTexture();
+                this.recordHistory();
             },
 
             duplicateElement() {
@@ -624,6 +791,7 @@
                 target.push(clone);
                 this.selectItem(this.selectedType, target.length - 1);
                 this.updateTexture();
+                this.recordHistory();
             },
 
             centerHorizontal() {
@@ -631,6 +799,7 @@
                 const target = (this.selectedType === 'text') ? this.currentTexts : this.currentLogos;
                 target[this.selectedIndex].x = 50;
                 this.updateTexture();
+                this.recordHistory();
             },
 
             centerVertical() {
@@ -638,6 +807,7 @@
                 const target = (this.selectedType === 'text') ? this.currentTexts : this.currentLogos;
                 target[this.selectedIndex].y = 50;
                 this.updateTexture();
+                this.recordHistory();
             },
 
             centerBoth() {
@@ -773,10 +943,15 @@
             },
 
             handleMouseUp() {
+                const wasTransforming = this.isDragging || this.isResizing || this.isRotating;
                 this.isDragging = this.isResizing = this.isRotating = false;
                 this.currentElement = null;
                 this.showGuideX = false;
                 this.showGuideY = false;
+
+                if (wasTransforming) {
+                    this.recordHistory();
+                }
             },
 
             fitTextarea(id, el) {
@@ -861,6 +1036,165 @@
                 const modalInner = document.getElementById('image-editor-modal');
                 if(modalInner) modalInner.innerHTML = '';
                 this.showImageEditor = false;
+            },
+
+            // --- UNDO / REDO & HISTORY ENGINE ---
+            getSnapshot() {
+                return JSON.stringify({
+                    texts: Alpine.raw ? Alpine.raw(this.texts) : this.texts,
+                    logos: Alpine.raw ? Alpine.raw(this.logos) : this.logos,
+                    texts_back: Alpine.raw ? Alpine.raw(this.texts_back) : this.texts_back,
+                    logos_back: Alpine.raw ? Alpine.raw(this.logos_back) : this.logos_back,
+                    activeSide: this.activeSide
+                });
+            },
+
+            recordHistory(force = false) {
+                if (this.isPerformingHistoryAction) return;
+                const snap = this.getSnapshot();
+
+                if (!force && this.historyIndex >= 0 && this.history[this.historyIndex] === snap) {
+                    return;
+                }
+
+                if (this.historyIndex < this.history.length - 1) {
+                    this.history = this.history.slice(0, this.historyIndex + 1);
+                }
+
+                this.history.push(snap);
+                if (this.history.length > this.maxHistory) {
+                    this.history.shift();
+                }
+                this.historyIndex = this.history.length - 1;
+            },
+
+            scheduleDebouncedHistory() {
+                if (this.isPerformingHistoryAction) return;
+                if (this._historyDebounceTimeout) clearTimeout(this._historyDebounceTimeout);
+                this._historyDebounceTimeout = setTimeout(() => {
+                    this.recordHistory();
+                }, 400);
+            },
+
+            applySnapshot(snapStr) {
+                if (!snapStr) return;
+                try {
+                    this.isPerformingHistoryAction = true;
+                    const data = JSON.parse(snapStr);
+
+                    this.texts = JSON.parse(JSON.stringify(data.texts || []));
+                    this.logos = JSON.parse(JSON.stringify(data.logos || []));
+                    this.texts_back = JSON.parse(JSON.stringify(data.texts_back || []));
+                    this.logos_back = JSON.parse(JSON.stringify(data.logos_back || []));
+
+                    if (data.activeSide && data.activeSide !== this.activeSide) {
+                        this.activeSide = data.activeSide;
+                    }
+
+                    this.selectedIndex = null;
+                    this.selectedType = null;
+
+                    this.$nextTick(() => {
+                        this.updateScaleFactor();
+                        this.updateTexture();
+                        setTimeout(() => {
+                            this.isPerformingHistoryAction = false;
+                        }, 60);
+                    });
+                } catch (e) {
+                    console.error("Fehler beim Wiederherstellen des Verlaufs:", e);
+                    this.isPerformingHistoryAction = false;
+                }
+            },
+
+            undo() {
+                if (!this.canUndo) return;
+                this.historyIndex--;
+                this.applySnapshot(this.history[this.historyIndex]);
+            },
+
+            redo() {
+                if (!this.canRedo) return;
+                this.historyIndex++;
+                this.applySnapshot(this.history[this.historyIndex]);
+            },
+
+            toggleMaximize() {
+                this.isMaximized = !this.isMaximized;
+                try {
+                    if (this.isMaximized) {
+                        document.body.style.overflow = 'hidden';
+                        document.documentElement.classList.add('configurator-fullscreen-active');
+                    } else {
+                        document.body.style.overflow = '';
+                        document.documentElement.classList.remove('configurator-fullscreen-active');
+                    }
+                } catch(e) {}
+
+                this.$nextTick(() => {
+                    setTimeout(() => {
+                        this.updateScaleFactor();
+                        let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                        if (engine) engine.resize();
+                    }, 50);
+                    setTimeout(() => {
+                        this.updateScaleFactor();
+                        let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                        if (engine) engine.resize();
+                    }, 200);
+                });
+            },
+
+            handleKeyDown(e) {
+                if (this.context === 'preview') return;
+
+                if (e.key === 'Escape' && this.isMaximized) {
+                    e.preventDefault();
+                    this.toggleMaximize();
+                    return;
+                }
+
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        this.redo();
+                    } else {
+                        this.undo();
+                    }
+                } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+                    e.preventDefault();
+                    this.redo();
+                }
+            },
+
+            // --- EMOJI & SONDERZEICHEN FILTER ---
+            filterEmojis(text) {
+                if (!text) return '';
+                const emojiRegex = /(\p{Extended_Pictographic}|\p{Emoji_Presentation}|[\u{1F300}-\u{1F9FF}\u{1FA00}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{FE00}-\u{FE0F}])/gu;
+                return text.replace(emojiRegex, '');
+            },
+
+            triggerEmojiWarning() {
+                this.showEmojiWarning = true;
+                if (this._emojiWarningTimeout) clearTimeout(this._emojiWarningTimeout);
+                this._emojiWarningTimeout = setTimeout(() => {
+                    this.showEmojiWarning = false;
+                }, 4500);
+            },
+
+            handleTextInput(textItem, el) {
+                if (!textItem || !el) return;
+                const rawVal = el.value;
+                const cleanVal = this.filterEmojis(rawVal);
+                if (cleanVal !== rawVal) {
+                    textItem.text = cleanVal;
+                    el.value = cleanVal;
+                    this.triggerEmojiWarning();
+                } else {
+                    textItem.text = rawVal;
+                }
+                this.fitTextarea(textItem.id, el);
+                this.scheduleDebouncedHistory();
             }
         };
     };
