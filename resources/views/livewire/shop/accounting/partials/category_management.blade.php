@@ -43,7 +43,7 @@
                     </div>
                     <button
                         wire:click="createCategory"
-                        class="bg-[var(--theme-color)]/90 border border-orange-400/50 hover:bg-[var(--theme-color)] text-white font-black uppercase tracking-widest text-[10px] py-3.5 px-8 rounded-xl shadow-sm dark:shadow-[0_0_20px_rgba(249,115,22,0.2)] transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3 whitespace-nowrap"
+                        class="bg-[var(--theme-color)] hover:brightness-105 text-gray-950 font-black uppercase tracking-widest text-[10px] py-3.5 px-8 rounded-xl shadow-sm transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2.5 whitespace-nowrap"
                     >
                         <span>Erstellen</span>
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>

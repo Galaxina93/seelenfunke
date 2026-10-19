@@ -4,8 +4,10 @@ namespace App\Livewire\Shop\Accounting;
 
 use App\Models\Accounting\AccountingCategory;
 use App\Models\Accounting\AccountingSpecialIssue;
+use App\Services\AI\ReceiptAiScannerService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -23,7 +25,7 @@ class AccountingQuickEntry extends Component
 
     public $specialCategory = '';
 
-    #[Rule('required|numeric', message: 'Bitte geben Sie einen gültigen Betrag an.')]
+    #[Rule('required', message: 'Bitte geben Sie einen gültigen Betrag an.')]
     public $specialAmount = '';
 
     #[Rule('required', message: 'Bitte wählen Sie ein Datum.')]
@@ -37,8 +39,16 @@ class AccountingQuickEntry extends Component
     public $specialInvoiceNumber = '';
 
     // Uploads Schnellerfassung
-    #[Rule(['specialFiles.*' => 'max:10240'])]
+    #[Rule(['specialFiles.*' => 'max:15360'])]
     public $specialFiles = [];
+
+    // Foto-Erfassung & KI-Scan
+    #[Rule('nullable|file|max:15360')]
+    public $specialPhoto;
+
+    public bool $autoSaveAfterScan = false;
+    public string $aiScanSuccessMessage = '';
+    public bool $isAiScanning = false;
 
     // UI Feedback für Auto-Erkennung
     public $isAutoFilled = false;
@@ -62,34 +72,127 @@ class AccountingQuickEntry extends Component
             ->pluck('name');
     }
 
-    // --- E-Rechnungs Parser (Magic Upload) ---
+    public function isPhotoPreviewable(): bool
+    {
+        if (!$this->specialPhoto) {
+            return false;
+        }
+
+        try {
+            if (method_exists($this->specialPhoto, 'isPreviewable')) {
+                return (bool) $this->specialPhoto->isPreviewable();
+            }
+
+            $ext = strtolower(pathinfo($this->specialPhoto->getClientOriginalName(), PATHINFO_EXTENSION));
+            return in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'], true);
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    // --- Beleg- & Foto-Parser (KI-Vision & E-Rechnungen) ---
 
     /**
-     * Wird automatisch von Livewire aufgerufen, wenn Dateien hochgeladen wurden.
+     * Wird aufgerufen, wenn über die Kamera oder den Foto-Upload ein Bild gewählt wird.
+     */
+    public function updatedSpecialPhoto()
+    {
+        if (!$this->specialPhoto) return;
+
+        // Foto auch zu den Beleg-Dateien hinzufügen, damit es beim Speichern in storage gesichert wird
+        if (!in_array($this->specialPhoto, $this->specialFiles, true)) {
+            $this->specialFiles[] = $this->specialPhoto;
+        }
+
+        $this->processFileWithAiOrXml($this->specialPhoto);
+    }
+
+    /**
+     * Wird automatisch von Livewire aufgerufen, wenn Dateien über das Standard-Feld hochgeladen wurden.
      */
     public function updatedSpecialFiles()
     {
+        if (empty($this->specialFiles)) return;
+
+        $lastFile = end($this->specialFiles);
+        if ($lastFile) {
+            $this->processFileWithAiOrXml($lastFile);
+        }
+    }
+
+    /**
+     * Führt zuerst E-Rechnungs-Checks (XML/ZUGFeRD) und anschließend KI-Multimodal-Vision-Scan aus.
+     */
+    public function processFileWithAiOrXml($file)
+    {
         $this->isAutoFilled = false;
+        $this->aiScanSuccessMessage = '';
+        $this->isAiScanning = true;
 
-        foreach ($this->specialFiles as $file) {
+        try {
             $mime = $file->getMimeType();
-
-            // WICHTIG: Nutzung von getRealPath() für temporäre Livewire Dateien
+            $origName = $file->getClientOriginalName();
             $content = file_get_contents($file->getRealPath());
 
             // 1. Check: Ist es eine XML Datei?
-            if (str_contains($mime, 'xml') || str_ends_with($file->getClientOriginalName(), '.xml')) {
+            if (str_contains($mime, 'xml') || str_ends_with($origName, '.xml')) {
                 if ($this->parseInvoiceXml($content)) {
-                    break;
+                    $this->isAiScanning = false;
+                    $this->aiScanSuccessMessage = "E-Rechnung (XML) erkannt: {$this->specialTitle} ({$this->specialAmount} €)";
+                    if ($this->autoSaveAfterScan) {
+                        $this->createSpecial();
+                    }
+                    return true;
                 }
             }
-            // 2. Check: Ist es eine PDF?
-            elseif (str_contains($mime, 'pdf')) {
+
+            // 2. Check: Ist es eine PDF mit eingebettetem ZUGFeRD-XML?
+            if (str_contains($mime, 'pdf')) {
                 $xmlContent = $this->extractXmlFromPdf($content);
                 if ($xmlContent && $this->parseInvoiceXml($xmlContent)) {
-                    break;
+                    $this->isAiScanning = false;
+                    $this->aiScanSuccessMessage = "E-Rechnung (ZUGFeRD PDF) erkannt: {$this->specialTitle} ({$this->specialAmount} €)";
+                    if ($this->autoSaveAfterScan) {
+                        $this->createSpecial();
+                    }
+                    return true;
                 }
             }
+
+            // 3. KI Multimodal Vision Scan (Fotos, Belege, Quittungen, normale PDFs)
+            $categories = $this->categories->toArray();
+            $aiResult = ReceiptAiScannerService::analyze($file, $categories);
+
+            if ($aiResult && !empty($aiResult['amount_abs'])) {
+                $this->applyAiResult($aiResult);
+                $this->isAiScanning = false;
+                return true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Belegscan Fehler in AccountingQuickEntry: ' . $e->getMessage());
+        }
+
+        $this->isAiScanning = false;
+        return false;
+    }
+
+    public function applyAiResult(array $res)
+    {
+        $this->specialTitle = $res['title'];
+        $this->specialAmount = $res['amount_formatted']; // z.B. -29.99
+        $this->specialCategory = $res['category'];
+        $this->specialDate = $res['date'];
+        $this->specialLocation = $res['location'];
+        $this->specialIsBusiness = $res['is_business'];
+        $this->specialTaxRate = $res['tax_rate'];
+        if (!empty($res['invoice_number'])) {
+            $this->specialInvoiceNumber = $res['invoice_number'];
+        }
+        $this->isAutoFilled = true;
+        $this->aiScanSuccessMessage = "Beleg erkannt: {$res['title']} ({$res['amount_formatted']} €)";
+
+        if ($this->autoSaveAfterScan) {
+            $this->createSpecial();
         }
     }
 
@@ -233,13 +336,20 @@ class AccountingQuickEntry extends Component
         $this->validate();
 
         $filePaths = [];
-        foreach ($this->specialFiles as $file) {
-            $path = $file->store('buchhaltung/receipts', 'local');
-            $filePaths[] = $path;
+        $filesToStore = $this->specialFiles;
+        if ($this->specialPhoto && !in_array($this->specialPhoto, $filesToStore, true)) {
+            $filesToStore[] = $this->specialPhoto;
+        }
+
+        foreach ($filesToStore as $file) {
+            if ($file instanceof \Illuminate\Http\UploadedFile) {
+                $path = $file->store('buchhaltung/receipts', 'local');
+                $filePaths[] = $path;
+            }
         }
 
         // Aufgabe 1: Betragslogik
-        $rawAmount = str_replace(',', '.', $this->specialAmount);
+        $rawAmount = str_replace(',', '.', (string) $this->specialAmount);
         $finalAmount = (float)$rawAmount;
         // Wenn kein Minus davor steht, ist es positiv (Einnahme), sonst negativ (Ausgabe)
         // Aber normalerweise sind Ausgaben negativ.
@@ -261,12 +371,19 @@ class AccountingQuickEntry extends Component
 
         $this->trackCategoryUsage($this->specialCategory);
 
-        $this->reset(['specialTitle', 'specialAmount', 'specialLocation', 'specialCategory', 'specialIsBusiness', 'specialFiles', 'specialInvoiceNumber', 'specialTaxRate', 'isAutoFilled']);
+        $savedTitle = $this->specialTitle;
+        $savedAmount = $this->specialAmount;
+
+        $this->reset([
+            'specialTitle', 'specialAmount', 'specialLocation', 'specialCategory',
+            'specialIsBusiness', 'specialFiles', 'specialPhoto', 'specialInvoiceNumber',
+            'specialTaxRate', 'isAutoFilled', 'aiScanSuccessMessage', 'isAiScanning'
+        ]);
         $this->specialDate = date('Y-m-d');
-        $this->specialIsBusiness = false; // Reset auf aus
+        $this->specialIsBusiness = false;
 
         $this->dispatch('special-issue-created');
-        session()->flash('success', 'Eintrag erfolgreich erstellt.');
+        session()->flash('success', "Eintrag '{$savedTitle}' ({$savedAmount} €) erfolgreich erstellt.");
     }
 
     private function trackCategoryUsage($categoryName)
