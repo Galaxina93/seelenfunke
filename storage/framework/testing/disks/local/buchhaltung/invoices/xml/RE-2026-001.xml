@@ -9,7 +9,7 @@
     <ram:ID>RE-2026-001</ram:ID>
     <ram:TypeCode>380</ram:TypeCode>
     <ram:IssueDateTime>
-      <udt:DateTimeString format="102">20261015</udt:DateTimeString>
+      <udt:DateTimeString format="102">20261019</udt:DateTimeString>
     </ram:IssueDateTime>
   </rsm:ExchangedDocument>
   <rsm:SupplyChainTradeTransaction>
@@ -82,11 +82,11 @@
         </ram:PostalTradeAddress>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
-        <ram:Name>Rebekah Grant</ram:Name>
+        <ram:Name>Yvonne Haley</ram:Name>
         <ram:PostalTradeAddress>
-          <ram:PostcodeCode>47288</ram:PostcodeCode>
-          <ram:LineOne>12761 Doyle Run Apt. 738</ram:LineOne>
-          <ram:CityName>Lake Valerie</ram:CityName>
+          <ram:PostcodeCode>66833</ram:PostcodeCode>
+          <ram:LineOne>947 Mante Island Apt. 419</ram:LineOne>
+          <ram:CityName>West Juanitaberg</ram:CityName>
           <ram:CountryID>DE</ram:CountryID>
         </ram:PostalTradeAddress>
       </ram:BuyerTradeParty>
@@ -94,7 +94,7 @@
     <ram:ApplicableHeaderTradeDelivery>
       <ram:ActualDeliverySupplyChainEvent>
         <ram:OccurrenceDateTime>
-          <udt:DateTimeString format="102">20261015</udt:DateTimeString>
+          <udt:DateTimeString format="102">20261019</udt:DateTimeString>
         </ram:OccurrenceDateTime>
       </ram:ActualDeliverySupplyChainEvent>
     </ram:ApplicableHeaderTradeDelivery>
