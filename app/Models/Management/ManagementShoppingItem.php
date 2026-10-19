@@ -14,6 +14,7 @@ class ManagementShoppingItem extends Model
     protected $fillable = [
         'category_id',
         'name',
+        'quantity',
         'status',
         'last_purchased_at',
         'purchase_count'

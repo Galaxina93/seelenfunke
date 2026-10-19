@@ -17,6 +17,7 @@ class ManagementShoppingList extends Component
 
     public $activeTab = 'needed'; // 'needed', 'all', 'categories'
     public $newItemName = '';
+    public $newItemQuantity = '';
     public $selectedCategoryId = ''; // Selected category for quick add
     
     public $newCategoryName = '';
@@ -80,9 +81,13 @@ class ManagementShoppingList extends Component
 
     public function addItem()
     {
-        $this->validate(['newItemName' => 'required|string|max:255']);
+        $this->validate([
+            'newItemName' => 'required|string|max:255',
+            'newItemQuantity' => 'nullable|string|max:50'
+        ]);
         
         $cleanName = trim($this->newItemName);
+        $cleanQty = !empty($this->newItemQuantity) ? trim($this->newItemQuantity) : null;
 
         $existing = ManagementShoppingItem::where('name', 'like', $cleanName)->first();
 
@@ -93,16 +98,29 @@ class ManagementShoppingList extends Component
             if ($catId) {
                 $existing->category_id = $catId;
             }
+            if ($cleanQty) {
+                $existing->quantity = $cleanQty;
+            }
             $existing->save();
         } else {
             ManagementShoppingItem::create([
                 'name' => $cleanName,
+                'quantity' => $cleanQty,
                 'category_id' => $catId,
                 'status' => 'needed',
             ]);
         }
 
         $this->newItemName = '';
+        $this->newItemQuantity = '';
+    }
+
+    public function updateItemQuantity($itemId, $quantity)
+    {
+        $item = ManagementShoppingItem::find($itemId);
+        if ($item) {
+            $item->update(['quantity' => !empty(trim($quantity)) ? trim($quantity) : null]);
+        }
     }
 
     public function addCategory()

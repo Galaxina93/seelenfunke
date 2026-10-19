@@ -20,6 +20,7 @@ class ManagementTask extends Component
     public string $themingDepartment = 'Leitung';
 
     public $search = '';
+    public $quickFilter = 'all'; // 'all', 'high_prio', 'due_today', 'with_attachments'
     public $selectedListId = null;
     public $showArchive = false;
 
@@ -301,6 +302,12 @@ class ManagementTask extends Component
                       ->orderBy('created_at', 'asc');
                 }])
                 ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
+                ->when($this->quickFilter === 'high_prio', fn($q) => $q->where('priority', 'hoch'))
+                ->when($this->quickFilter === 'due_today', fn($q) => $q->where(function($sub) {
+                    $sub->whereDate('relevant_from', '<=', now()->toDateString())
+                        ->where('is_completed', false);
+                }))
+                ->when($this->quickFilter === 'with_attachments', fn($q) => $q->whereNotNull('file_paths')->where('file_paths', '!=', '[]'))
                 ->orderBy('is_completed', 'asc')
                 ->orderByRaw("FIELD(priority, 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('position', 'asc')

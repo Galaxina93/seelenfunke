@@ -4,24 +4,96 @@ namespace App\Services\AI\Functions;
 
 use App\Models\Management\ManagementTask;
 use App\Models\Management\ManagementTaskList;
+use Illuminate\Support\Str;
 
 trait AiTaskFuncs
 {
+    /**
+     * Intelligente Erkennung und Auflösung einer Aufgabenliste (per UUID, exaktem Namen, Slug oder Teilname).
+     */
+    public static function resolveTaskListId(?string $input): ?string
+    {
+        if (empty($input)) {
+            return null;
+        }
+
+        $input = trim($input);
+
+        // 1. Direkte UUID
+        if (Str::isUuid($input)) {
+            $list = ManagementTaskList::find($input);
+            if ($list) {
+                return $list->id;
+            }
+        }
+
+        // 2. Exakter Namensabgleich (case-insensitive)
+        $list = ManagementTaskList::whereRaw('LOWER(name) = ?', [mb_strtolower($input)])->first();
+        if ($list) {
+            return $list->id;
+        }
+
+        // 3. Normalisierter Abgleich (Bindestriche, Unterstriche, Leerzeichen ignorieren)
+        // z.B. "phase_1_produkte" oder "Phase 1 Produkte" -> "phase1produkte"
+        $normalize = function ($str) {
+            return preg_replace('/[^a-z0-9]/', '', mb_strtolower($str));
+        };
+        $normalizedInput = $normalize($input);
+
+        if (!empty($normalizedInput)) {
+            $allLists = ManagementTaskList::all();
+            foreach ($allLists as $l) {
+                if ($normalize($l->name) === $normalizedInput) {
+                    return $l->id;
+                }
+            }
+
+            // 4. Substring-Matching im normalisierten Namen
+            foreach ($allLists as $l) {
+                $normListName = $normalize($l->name);
+                if (!empty($normListName) && (str_contains($normListName, $normalizedInput) || str_contains($normalizedInput, $normListName))) {
+                    return $l->id;
+                }
+            }
+        }
+
+        // 5. Standard SQL LIKE Abgleich
+        $list = ManagementTaskList::where('name', 'LIKE', '%' . $input . '%')->first();
+        if ($list) {
+            return $list->id;
+        }
+
+        return null;
+    }
+
     public static function getAiTaskFuncsSchema(): array
     {
         return [
             [
                 'name' => 'task_get_all',
-                'description' => 'Ruft alle aktuell offenen System-Aufgaben ab (inklusive verknüpfter Dateianhänge). Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
+                'description' => 'Ruft aktuell offene System-Aufgaben ab (inklusive Listenname, Teilschritte und Dateianhänge). Filterbar nach Listenname oder Suchbegriff. Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
                 'parameters' => [
                     'type' => 'object',
-                    'properties' => new \stdClass(),
+                    'properties' => [
+                        'list_name' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Filtert Aufgaben nach Listenname (z.B. "PHASE 1 - PRODUKTE", "Marketing", "Existenzgründung").'
+                        ],
+                        'task_list_id' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Exakte ID oder Name der Liste.'
+                        ],
+                        'search' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Suchbegriff im Titel der Aufgaben.'
+                        ]
+                    ],
                 ],
                 'callable' => [self::class, 'executeGetTasks']
             ],
             [
                 'name' => 'task_get_lists',
-                'description' => 'Ruft alle existierenden Aufgabenlisten (To-Do Listen Kategorien) ab. Stichworte: Welche Listen gibt es, Meine To-Do Listen, Tasklisten.',
+                'description' => 'Ruft alle existierenden Aufgabenlisten (To-Do Listen Kategorien) mit Namen und IDs ab. Stichworte: Welche Listen gibt es, Meine To-Do Listen, Tasklisten.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -30,49 +102,89 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_create',
-                'description' => 'Erstellt eine neue Aufgabe (To-Do). Stichworte: Schreib auf die Todo-Liste, Erinnere mich daran das zu tun, Neue Aufgabe anlegen, Todo erstellen. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
+                'description' => 'Erstellt eine neue Aufgabe (To-Do). Kann direkt einer Liste per Name (z.B. "Phase 1 - Produkte", "Marketing") oder ID zugewiesen werden. Stichworte: Schreib auf die Todo-Liste, Erinnere mich daran das zu tun, Neue Aufgabe anlegen, Todo erstellen. ACHTUNG: Dies ist NICHT für die Einkaufsliste.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'title' => [
                             'type' => 'string',
-                            'description' => 'Die genaue, kurze Aufgabe.'
+                            'description' => 'Die genaue Aufgabe / Titel.'
                         ],
                         'priority' => [
                             'type' => 'string',
-                            'description' => 'Priorität der Aufgabe',
+                            'description' => 'Priorität der Aufgabe (Standard: mittel)',
                             'enum' => ['hoch', 'mittel', 'niedrig']
+                        ],
+                        'list_name' => [
+                            'type' => 'string',
+                            'description' => 'Name oder Teilname der Ziel-Liste (z.B. "PHASE 1 - PRODUKTE", "Marketing", "Existenzgründung"). Kann anstelle oder zusammen mit task_list_id übergeben werden.'
                         ],
                         'task_list_id' => [
                             'type' => 'string',
-                            'description' => 'Optionale ID einer Liste (TaskList), in die die Aufgabe soll. Nutze davor task_get_lists um IDs zu finden.'
+                            'description' => 'Optionale ID, Name oder Slug der Liste (z.B. "phase_1_produkte").'
+                        ],
+                        'relevant_from' => [
+                            'type' => 'string',
+                            'description' => 'Optionales Planungs- oder Fälligkeitsdatum (z.B. "2026-10-25" oder "heute", "morgen").'
+                        ],
+                        'subtasks' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Optionale Teilschritte / Unterpunkte, die direkt mit angelegt werden sollen.'
                         ]
                     ],
-                    'required' => ['title', 'priority']
+                    'required' => ['title']
                 ],
                 'callable' => [self::class, 'executeCreateTask']
             ],
             [
-                'name' => 'task_update',
-                'description' => 'Bearbeitet den Titel, die Priorität oder die Liste einer bestehenden Aufgabe. Stichworte: Ändere die Aufgabe, setze Priorität auf hoch, verschiebe Todo.',
+                'name' => 'task_add_subtask',
+                'description' => 'Fügt einer bestehenden Aufgabe einen Teilschritt (Unterschritt) hinzu. Stichworte: Schritt hinzufügen, Teilschritt anlegen, Unterpunkt zu Aufgabe.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'task_id' => [
                             'type' => 'string',
-                            'description' => 'Die ID der zu bearbeitenden Aufgabe.'
+                            'description' => 'Die ID oder der genaue Titel der übergeordneten Hauptaufgabe.'
+                        ],
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Titel des neuen Teilschritts.'
+                        ]
+                    ],
+                    'required' => ['task_id', 'title']
+                ],
+                'callable' => [self::class, 'executeAddSubtask']
+            ],
+            [
+                'name' => 'task_update',
+                'description' => 'Bearbeitet den Titel, die Priorität, das Fälligkeitsdatum oder die Liste einer bestehenden Aufgabe. Stichworte: Ändere die Aufgabe, setze Priorität auf hoch, verschiebe Todo.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'task_id' => [
+                            'type' => 'string',
+                            'description' => 'Die ID oder der Titel der zu bearbeitenden Aufgabe.'
                         ],
                         'new_title' => [
                             'type' => 'string',
-                            'description' => 'Neuer Titel der Aufgabe (optional, leer lassen falls keine Änderung).'
+                            'description' => 'Neuer Titel der Aufgabe (optional).'
                         ],
                         'new_priority' => [
                             'type' => 'string',
-                            'description' => 'Neue Priorität der Aufgabe (optional, hoch, mittel, niedrig).'
+                            'description' => 'Neue Priorität (optional: hoch, mittel, niedrig).'
+                        ],
+                        'new_list_name' => [
+                            'type' => 'string',
+                            'description' => 'Name der neuen Ziel-Liste (optional, z.B. "Marketing", "PHASE 1 - PRODUKTE").'
                         ],
                         'new_list_id' => [
                             'type' => 'string',
-                            'description' => 'Neue Listen-ID, in die die Aufgabe verschoben werden soll (optional).'
+                            'description' => 'Neue Listen-ID oder Name (optional).'
+                        ],
+                        'new_relevant_from' => [
+                            'type' => 'string',
+                            'description' => 'Neues Planungs- oder Fälligkeitsdatum (z.B. YYYY-MM-DD).'
                         ]
                     ],
                     'required' => ['task_id']
@@ -87,7 +199,7 @@ trait AiTaskFuncs
                     'properties' => [
                         'task_id' => [
                             'type' => 'string',
-                            'description' => 'Die ID der Aufgabe.'
+                            'description' => 'Die ID oder der genaue Titel der Aufgabe.'
                         ]
                     ],
                     'required' => ['task_id']
@@ -227,13 +339,27 @@ trait AiTaskFuncs
     public static function executeGetTasks(array $args)
     {
         try {
-            $tasks = ManagementTask::where('is_completed', false)
+            $query = ManagementTask::where('is_completed', false)
                 ->where('is_archived', false)
                 ->whereNull('parent_id')
-                ->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
+                ->with(['list', 'subtasks']);
+
+            $listFilter = $args['task_list_id'] ?? $args['list_name'] ?? null;
+            if (!empty($listFilter)) {
+                $resolvedListId = self::resolveTaskListId($listFilter);
+                if ($resolvedListId) {
+                    $query->where('task_list_id', $resolvedListId);
+                }
+            }
+
+            if (!empty($args['search'])) {
+                $query->where('title', 'like', '%' . $args['search'] . '%');
+            }
+
+            $tasks = $query->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
                 ->orderBy('created_at', 'desc')
-                ->limit(15)
-                ->get(['id', 'title', 'priority', 'created_at', 'task_list_id', 'file_paths']);
+                ->limit(25)
+                ->get();
 
             $formattedTasks = $tasks->map(function ($task) {
                 $attachments = [];
@@ -245,12 +371,24 @@ trait AiTaskFuncs
                         ];
                     }
                 }
+
+                $subtasks = $task->subtasks->map(function ($sub) {
+                    return [
+                        'id' => $sub->id,
+                        'title' => $sub->title,
+                        'is_completed' => (bool) $sub->is_completed,
+                    ];
+                })->toArray();
+
                 return [
                     'id' => $task->id,
                     'title' => $task->title,
                     'priority' => $task->priority,
                     'created_at' => $task->created_at?->toDateTimeString(),
+                    'relevant_from' => $task->relevant_from?->format('Y-m-d'),
                     'task_list_id' => $task->task_list_id,
+                    'list_name' => $task->list?->name ?? 'Ohne Liste',
+                    'subtasks' => $subtasks,
                     'has_attachments' => !empty($attachments),
                     'attachments' => $attachments
                 ];
@@ -269,7 +407,12 @@ trait AiTaskFuncs
     public static function executeGetTaskLists(array $args)
     {
         try {
-            $lists = ManagementTaskList::where('is_archived', false)->get(['id', 'name', 'color', 'icon']);
+            $lists = ManagementTaskList::where('is_archived', false)
+                ->withCount(['tasks as open_tasks_count' => function ($q) {
+                    $q->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
+                }])
+                ->get(['id', 'name', 'color', 'icon']);
+
             return [
                 'status' => 'success',
                 'lists_count' => $lists->count(),
@@ -287,50 +430,178 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Es wurde kein Titel für die Aufgabe angegeben.'];
             }
 
-            $shortTitle = substr($args['title'], 0, 20);
-            $existing = ManagementTask::where('is_completed', false)
-                ->where('is_archived', false)
-                ->where('title', 'LIKE', '%' . $shortTitle . '%')
-                ->first();
+            $title = trim($args['title']);
 
-            if ($existing) {
-                return [
-                    'status' => 'success',
-                    'message' => 'Oh ich sehe gerade, das steht schon auf unserer Aufgaben Liste',
-                    'task_id' => $existing->id
-                ];
+            // 1. Ziel-Liste ermitteln
+            $targetListId = null;
+            $targetListName = null;
+            $listQuery = $args['task_list_id'] ?? $args['list_name'] ?? $args['task_list_name'] ?? null;
+
+            if (!empty($listQuery)) {
+                $targetListId = self::resolveTaskListId($listQuery);
             }
 
-            $listId = null;
-            if (!empty($args['task_list_id'])) {
-                $checkList = ManagementTaskList::find($args['task_list_id']);
-                if ($checkList) {
-                    $listId = $checkList->id;
+            if (!empty($listQuery) && !$targetListId) {
+                // Falls der Nutzer eine neue Liste benannt hat, die noch nicht existiert
+                $newList = ManagementTaskList::firstOrCreate(
+                    ['name' => trim($listQuery)],
+                    ['icon' => 'clipboard-document-list', 'color' => '#C5A059']
+                );
+                $targetListId = $newList->id;
+                $targetListName = $newList->name;
+            } elseif ($targetListId) {
+                $targetList = ManagementTaskList::find($targetListId);
+                $targetListName = $targetList?->name;
+            }
+
+            if (!$targetListId) {
+                // Fallback: Erste aktive Liste verwenden
+                $defaultList = ManagementTaskList::where('is_archived', false)
+                    ->orderBy('position', 'asc')
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+
+                if ($defaultList) {
+                    $targetListId = $defaultList->id;
+                    $targetListName = $defaultList->name;
+                } else {
+                    $list = ManagementTaskList::firstOrCreate(
+                        ['name' => 'Allgemein'],
+                        ['icon' => 'sparkles', 'color' => '#10B981']
+                    );
+                    $targetListId = $list->id;
+                    $targetListName = $list->name;
                 }
             }
 
-            if (!$listId) {
-                $list = ManagementTaskList::firstOrCreate(
-                    ['name' => 'Funkiras Empfehlungen'],
-                    ['icon' => 'sparkles', 'color' => '#10B981']
-                );
-                $listId = $list->id;
+            // 2. Exakter Duplikats-Check NUR innerhalb derselben Liste
+            $exactExisting = ManagementTask::where('task_list_id', $targetListId)
+                ->where('is_completed', false)
+                ->where('is_archived', false)
+                ->whereRaw('LOWER(TRIM(title)) = ?', [mb_strtolower($title)])
+                ->first();
+
+            if ($exactExisting) {
+                return [
+                    'status' => 'success',
+                    'message' => "Die Aufgabe '{$exactExisting->title}' existiert bereits in der Liste '{$targetListName}' und ist noch offen.",
+                    'task_id' => $exactExisting->id,
+                    'list_name' => $targetListName,
+                    'already_existed' => true
+                ];
             }
 
+            // 3. Fälligkeitsdatum / Relevanzdatum parsen
+            $relevantFrom = null;
+            if (!empty($args['relevant_from'])) {
+                try {
+                    $relString = strtolower(trim($args['relevant_from']));
+                    if ($relString === 'heute') {
+                        $relevantFrom = now()->startOfDay();
+                    } elseif ($relString === 'morgen') {
+                        $relevantFrom = now()->addDay()->startOfDay();
+                    } else {
+                        $relevantFrom = \Carbon\Carbon::parse($args['relevant_from'])->startOfDay();
+                    }
+                } catch (\Exception $e) {
+                    // Ignore parse error
+                }
+            }
+
+            // 4. Priorität normalisieren
+            $priority = strtolower($args['priority'] ?? 'mittel');
+            if (!in_array($priority, ['hoch', 'mittel', 'niedrig'])) {
+                $priority = 'mittel';
+            }
+
+            // 5. Aufgabe anlegen
             $task = ManagementTask::create([
-                'title' => substr($args['title'], 0, 255),
-                'priority' => $args['priority'] ?? 'mittel',
+                'title' => substr($title, 0, 255),
+                'priority' => $priority,
                 'is_completed' => false,
-                'task_list_id' => $listId
+                'task_list_id' => $targetListId,
+                'relevant_from' => $relevantFrom
+            ]);
+
+            // 6. Teilschritte anlegen falls übergeben
+            $subtasksCreated = [];
+            if (!empty($args['subtasks']) && is_array($args['subtasks'])) {
+                foreach ($args['subtasks'] as $subTitle) {
+                    if (!empty(trim($subTitle))) {
+                        $sub = ManagementTask::create([
+                            'title' => substr(trim($subTitle), 0, 255),
+                            'priority' => 'niedrig',
+                            'is_completed' => false,
+                            'task_list_id' => $targetListId,
+                            'parent_id' => $task->id
+                        ]);
+                        $subtasksCreated[] = $sub->title;
+                    }
+                }
+            }
+
+            $msg = "Die Aufgabe '{$task->title}' wurde erfolgreich in der Liste '{$targetListName}' mit Priorität '{$task->priority}' angelegt.";
+            if (!empty($subtasksCreated)) {
+                $msg .= " Inklusive " . count($subtasksCreated) . " Teilschritten (" . implode(', ', $subtasksCreated) . ").";
+            }
+            if ($relevantFrom) {
+                $msg .= " Fällig/Geplant ab: " . $relevantFrom->format('d.m.Y') . ".";
+            }
+
+            return [
+                'status' => 'success',
+                'message' => $msg,
+                'task_id' => $task->id,
+                'title' => $task->title,
+                'list_name' => $targetListName,
+                'list_id' => $targetListId
+            ];
+        } catch (\Exception $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Erstellen der Aufgabe: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeAddSubtask(array $args)
+    {
+        try {
+            if (empty($args['task_id'])) {
+                return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben-ID (task_id) angegeben.'];
+            }
+            if (empty($args['title'])) {
+                return ['status' => 'error', 'message' => 'Es wurde kein Titel für den Teilschritt angegeben.'];
+            }
+
+            $parentTask = null;
+            if (Str::isUuid($args['task_id'])) {
+                $parentTask = ManagementTask::find($args['task_id']);
+            }
+            if (!$parentTask) {
+                $parentTask = ManagementTask::whereNull('parent_id')
+                    ->where('is_completed', false)
+                    ->where('title', 'like', '%' . $args['task_id'] . '%')
+                    ->first();
+            }
+
+            if (!$parentTask) {
+                return ['status' => 'error', 'message' => "Übergeordnete Aufgabe '{$args['task_id']}' nicht gefunden."];
+            }
+
+            $subtask = ManagementTask::create([
+                'title' => substr(trim($args['title']), 0, 255),
+                'priority' => 'niedrig',
+                'is_completed' => false,
+                'task_list_id' => $parentTask->task_list_id,
+                'parent_id' => $parentTask->id
             ]);
 
             return [
                 'status' => 'success',
-                'message' => "Die Aufgabe '{$task->title}' wurde erfolgreich aufgenommen.",
-                'task_id' => $task->id
+                'message' => "Teilschritt '{$subtask->title}' wurde zu Aufgabe '{$parentTask->title}' hinzugefügt.",
+                'subtask_id' => $subtask->id,
+                'parent_task_id' => $parentTask->id
             ];
         } catch (\Exception $e) {
-            return ['status' => 'error', 'message' => 'Fehler beim Erstellen der Aufgabe: ' . $e->getMessage()];
+            return ['status' => 'error', 'message' => 'Fehler beim Hinzufügen des Teilschritts: ' . $e->getMessage()];
         }
     }
 
@@ -338,37 +609,73 @@ trait AiTaskFuncs
     {
         try {
             if (empty($args['task_id'])) {
-                return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID angegeben.'];
+                return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID oder Titel angegeben.'];
             }
 
-            $task = ManagementTask::find($args['task_id']);
+            $task = null;
+            if (Str::isUuid($args['task_id'])) {
+                $task = ManagementTask::find($args['task_id']);
+            }
+            if (!$task) {
+                $task = ManagementTask::where('title', 'like', '%' . $args['task_id'] . '%')->first();
+            }
+
             if (!$task) {
                 return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
             }
 
             $changed = false;
+            $updates = [];
 
             if (!empty($args['new_title'])) {
-                $task->title = substr($args['new_title'], 0, 255);
+                $task->title = substr(trim($args['new_title']), 0, 255);
                 $changed = true;
+                $updates[] = "Titel geändert";
             }
 
             if (!empty($args['new_priority'])) {
-                $task->priority = strtolower($args['new_priority']);
-                $changed = true;
+                $prio = strtolower(trim($args['new_priority']));
+                if (in_array($prio, ['hoch', 'mittel', 'niedrig'])) {
+                    $task->priority = $prio;
+                    $changed = true;
+                    $updates[] = "Priorität auf '{$prio}' gesetzt";
+                }
             }
 
-            if (!empty($args['new_list_id'])) {
-                $list = ManagementTaskList::find($args['new_list_id']);
-                if ($list) {
-                    $task->task_list_id = $list->id;
+            $newListQuery = $args['new_list_id'] ?? $args['new_list_name'] ?? null;
+            if (!empty($newListQuery)) {
+                $resolvedListId = self::resolveTaskListId($newListQuery);
+                if ($resolvedListId) {
+                    $task->task_list_id = $resolvedListId;
+                    $targetList = ManagementTaskList::find($resolvedListId);
                     $changed = true;
+                    $updates[] = "in Liste '{$targetList?->name}' verschoben";
+                }
+            }
+
+            if (isset($args['new_relevant_from'])) {
+                if (empty($args['new_relevant_from'])) {
+                    $task->relevant_from = null;
+                    $changed = true;
+                    $updates[] = "Fälligkeitsdatum entfernt";
+                } else {
+                    try {
+                        $task->relevant_from = \Carbon\Carbon::parse($args['new_relevant_from'])->startOfDay();
+                        $changed = true;
+                        $updates[] = "Fälligkeitsdatum auf " . $task->relevant_from->format('d.m.Y') . " gesetzt";
+                    } catch (\Exception $e) {
+                        // ignore parse error
+                    }
                 }
             }
 
             if ($changed) {
                 $task->save();
-                return ['status' => 'success', 'message' => "Die Aufgabe '{$task->title}' wurde erfolgreich aktualisiert."];
+                return [
+                    'status' => 'success',
+                    'message' => "Die Aufgabe '{$task->title}' wurde erfolgreich aktualisiert (" . implode(', ', $updates) . ").",
+                    'task_id' => $task->id
+                ];
             }
 
             return ['status' => 'success', 'message' => 'Es wurden keine Änderungen vorgenommen, da keine neuen Werte übergeben wurden.'];
@@ -382,20 +689,32 @@ trait AiTaskFuncs
     {
         try {
             if (empty($args['task_id'])) {
-                return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID angegeben.'];
+                return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID oder Titel angegeben.'];
             }
 
-            $task = ManagementTask::find($args['task_id']);
+            $task = null;
+            if (Str::isUuid($args['task_id'])) {
+                $task = ManagementTask::find($args['task_id']);
+            }
             if (!$task) {
-                return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
+                $task = ManagementTask::where('is_completed', false)
+                    ->where('title', 'like', '%' . $args['task_id'] . '%')
+                    ->first();
+            }
+
+            if (!$task) {
+                return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden oder bereits erledigt.'];
             }
 
             $task->is_completed = true;
             $task->save();
 
+            $listName = $task->list?->name ?? 'Deine Liste';
+
             return [
                 'status' => 'success',
-                'message' => "Die Aufgabe '{$task->title}' wurde als erledigt markiert."
+                'message' => "Die Aufgabe '{$task->title}' (aus Liste '{$listName}') wurde als erledigt markiert.",
+                'task_id' => $task->id
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Abschließen der Aufgabe: ' . $e->getMessage()];
@@ -417,7 +736,7 @@ trait AiTaskFuncs
             $query = ManagementTask::query();
 
             if (!empty($listNames)) {
-                $query->whereHas('taskList', function($q) use ($listNames) {
+                $query->whereHas('list', function($q) use ($listNames) {
                     $q->where(function($subQ) use ($listNames) {
                         foreach ($listNames as $lName) {
                             $subQ->orWhere('name', 'like', '%' . $lName . '%');

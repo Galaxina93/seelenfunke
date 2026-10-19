@@ -176,7 +176,10 @@ class ManagementLinktreeManager extends Component
     public function updateOrder($orderedIds)
     {
         foreach ($orderedIds as $index => $id) {
-            ManagementLinktree::where('id', $id['value'])->update(['sort_order' => $index]);
+            $linkId = is_array($id) ? ($id['value'] ?? $id['id'] ?? null) : $id;
+            if ($linkId) {
+                ManagementLinktree::where('id', $linkId)->update(['sort_order' => $index]);
+            }
         }
         $this->loadData();
     }

@@ -70,7 +70,7 @@
                 <div class="absolute inset-0 bg-[var(--theme-color-10)] rounded-xl md:rounded-3xl blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
                 <div class="relative flex flex-col md:flex-row bg-white dark:bg-gray-950 border-2 border-gray-200 dark:border-gray-800 rounded-xl md:rounded-3xl focus-within:ring-4 focus-within:ring-[var(--theme-color-20)] focus-within:border-[var(--theme-color)] transition-all dark:shadow-inner overflow-hidden">
                     
-                    <select wire:model.defer="selectedCategoryId" class="bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-800 px-4 py-3.5 md:py-6 outline-none focus:outline-none appearance-none cursor-pointer font-semibold min-w-[150px]">
+                    <select wire:model.defer="selectedCategoryId" class="bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-800 px-4 py-3.5 md:py-4 outline-none focus:outline-none appearance-none cursor-pointer font-semibold min-w-[150px]">
                         <option value="">Ohne Kategorie</option>
                         @foreach($categories as $cat)
                             <option value="{{ $cat->id }}">{{ $cat->name }}</option>
@@ -79,12 +79,16 @@
 
                     <input type="text" wire:model.defer="newItemName" wire:keydown.enter="addItem" 
                            placeholder="Neues Produkt (z.B. Milch)..." 
-                           class="flex-1 pl-4 md:pl-6 pr-14 md:pr-48 py-3.5 md:py-6 bg-transparent outline-none border-none text-base md:text-xl font-bold text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600">
+                           class="flex-1 pl-4 md:pl-6 pr-4 py-3.5 md:py-4 bg-transparent outline-none border-none text-base md:text-lg font-bold text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600">
+
+                    <input type="text" wire:model.defer="newItemQuantity" wire:keydown.enter="addItem" 
+                           placeholder="Menge (z.B. 2x, 500g)..." 
+                           class="w-full md:w-44 px-4 py-3.5 md:py-4 bg-gray-50/50 dark:bg-gray-900/40 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-800 outline-none text-sm md:text-base font-semibold text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-600">
                     
                     <button wire:click="addItem" 
-                            class="absolute right-1.5 md:right-2 top-1.5 md:top-2 bottom-1.5 md:bottom-2 px-4 md:px-8 bg-[var(--theme-color)] text-gray-900 rounded-lg md:rounded-2xl flex items-center justify-center hover:brightness-110 transition-all dark:shadow-lg active:scale-95 disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 dark:disabled:text-gray-600">
-                        <x-heroicon-o-plus class="w-5 h-5 md:w-8 md:h-8 stroke-[3]" />
-                        <span class="hidden sm:inline-block ml-2 font-black uppercase text-sm tracking-widest">Hinzufügen</span>
+                            class="px-6 py-3.5 md:py-4 bg-[var(--theme-color)] text-gray-900 flex items-center justify-center hover:brightness-110 transition-all font-black uppercase text-sm tracking-widest shrink-0 active:scale-95">
+                        <x-heroicon-o-plus class="w-5 h-5 stroke-[3]" />
+                        <span class="ml-1.5 hidden sm:inline-block">Hinzufügen</span>
                     </button>
                 </div>
             </div>
@@ -136,7 +140,14 @@
                                             @endif
                                         </div>
                                         <div class="flex flex-col min-w-0">
-                                            <span class="text-gray-900 dark:text-white font-semibold text-lg truncate {{ $item->status === 'stocked' ? 'line-through text-gray-400 dark:text-gray-500' : '' }}">{{ $item->name }}</span>
+                                            <div class="flex items-center gap-2 flex-wrap">
+                                                <span class="text-gray-900 dark:text-white font-semibold text-base md:text-lg truncate {{ $item->status === 'stocked' ? 'line-through text-gray-400 dark:text-gray-500' : '' }}">{{ $item->name }}</span>
+                                                @if($item->quantity)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                                        {{ $item->quantity }}
+                                                    </span>
+                                                @endif
+                                            </div>
                                             @if($activeTab === 'all' && $item->last_purchased_at)
                                                 <span class="text-[10px] text-gray-500 font-medium">Zuletzt gekauft: {{ $item->last_purchased_at->diffForHumans() }}</span>
                                             @elseif($activeTab === 'all' && !$item->last_purchased_at)

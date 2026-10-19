@@ -64,6 +64,7 @@ return new class extends Migration {
             $table->string('icon')->default('clock');
             $table->string('type')->default('general'); // food, hygiene, sport, work, sleep
             $table->integer('duration_minutes')->default(30); // Wie lange dauert das?
+            $table->string('days_of_week')->default('all'); // all, weekdays, weekend
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
@@ -137,6 +138,7 @@ return new class extends Migration {
             $table->uuid('id')->primary();
             $table->foreignUuid('category_id')->nullable()->constrained('management_shopping_categories')->nullOnDelete();
             $table->string('name');
+            $table->string('quantity')->nullable(); // z.B. 5x, 50 Stk, 2 Liter
             $table->string('status')->default('stocked'); // 'stocked', 'needed'
             $table->timestamp('last_purchased_at')->nullable();
             $table->integer('purchase_count')->default(0);

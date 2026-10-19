@@ -1,12 +1,47 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" 
-     x-data="{ mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}' }"
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" 
+     x-data="{ 
+         mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}',
+         sidebarWidth: parseInt(localStorage.getItem('admin_email_sidebar_width') || '288'),
+         isResizingSidebar: false,
+         startSidebarResize(e) {
+             this.isResizingSidebar = true;
+             const startX = e.clientX || (e.touches && e.touches[0].clientX);
+             const startW = this.sidebarWidth;
+             document.body.style.cursor = 'col-resize';
+             document.body.style.userSelect = 'none';
+
+             const onMove = (moveEvt) => {
+                 if (!this.isResizingSidebar) return;
+                 const currentX = moveEvt.clientX || (moveEvt.touches && moveEvt.touches[0].clientX);
+                 let newW = Math.max(220, Math.min(480, startW + (currentX - startX)));
+                 this.sidebarWidth = newW;
+             };
+             const onUp = () => {
+                 if (this.isResizingSidebar) {
+                     this.isResizingSidebar = false;
+                     localStorage.setItem('admin_email_sidebar_width', this.sidebarWidth);
+                     document.body.style.cursor = '';
+                     document.body.style.userSelect = '';
+                     window.removeEventListener('mousemove', onMove);
+                     window.removeEventListener('mouseup', onUp);
+                 }
+             };
+             window.addEventListener('mousemove', onMove);
+             window.addEventListener('mouseup', onUp);
+         }
+     }"
      @message-selected.window="typeof mobileView !== 'undefined' ? mobileView = 'detail' : null"
      @folder-selected.window="typeof mobileView !== 'undefined' ? mobileView = 'list' : null"
      @settings-opened.window="typeof mobileView !== 'undefined' ? mobileView = 'settings' : null"
      class="h-[calc(100vh-8rem)] flex bg-white/90 dark:bg-gray-950/50 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-gray-800 overflow-hidden dark:shadow-2xl relative w-full transition-colors duration-300">
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     {{-- COLUMN 1: Folders & Accounts --}}
-    <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full lg:w-80 bg-gray-50/90 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
+    <div class="absolute inset-0 z-30 lg:relative lg:z-10 w-full bg-gray-50/90 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shrink-0 transition-transform duration-300"
+         :style="'width: ' + (window.innerWidth >= 1024 ? sidebarWidth + 'px' : '100%')"
          :class="typeof mobileView !== 'undefined' && mobileView === 'folders' ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'">
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50/90 dark:bg-gray-900">
             <h2 class="text-gray-900 dark:text-white font-serif text-xl tracking-wide">Postfächer</h2>
@@ -131,6 +166,12 @@
                 @endforeach
             @endif
         </div>
+    </div>
+
+    {{-- RESIZER SPLITTER --}}
+    <div @mousedown="startSidebarResize($event)"
+         class="hidden lg:flex w-1.5 hover:w-2 -ml-0.5 z-30 cursor-col-resize items-center justify-center group relative select-none transition-all duration-150 shrink-0">
+        <div class="w-[2px] h-full bg-gray-200 dark:bg-gray-800 group-hover:bg-[var(--theme-color)] group-hover:w-1 group-hover:shadow-[0_0_8px_var(--theme-color)] transition-all"></div>
     </div>
 
     {{-- RIGHT SIDE WRAPPER (Inbox & Settings) --}}
@@ -338,6 +379,15 @@
                     </button>
                     <button wire:click="markAsSpam({{ $selectedMessage->id }})" class="p-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:text-orange-300 dark:hover:bg-orange-900/20 rounded-lg transition-colors" title="Als Spam markieren">
                         <x-heroicon-o-shield-exclamation class="w-5 h-5" />
+                    </button>
+                    <div class="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 my-auto"></div>
+                    <button wire:click="createTaskFromMail({{ $selectedMessage->id }})" class="p-2 text-gray-600 hover:text-emerald-600 hover:bg-emerald-50 dark:text-gray-400 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/40 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold" title="Aufgabe aus dieser E-Mail erstellen">
+                        <x-heroicon-o-check-circle class="w-5 h-5 text-emerald-500" />
+                        <span class="hidden xl:inline">Aufgabe erstellen</span>
+                    </button>
+                    <button wire:click="createContactFromMail({{ $selectedMessage->id }})" class="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-950/40 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold" title="Absender als Kontakt speichern">
+                        <x-heroicon-o-user-plus class="w-5 h-5 text-blue-500" />
+                        <span class="hidden xl:inline">Kontakt anlegen</span>
                     </button>
                 </div>
                 <div class="text-xs text-gray-500">
@@ -632,13 +682,49 @@
 
         {{-- Modal: E-Mail Schreiben / Antworten --}}
         @if($showComposeModal)
-            <div x-data="{ composePreviewFile: null }" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.call('closeCompose')">
+            <div x-data="{ 
+                composePreviewFile: null,
+                hasDraft: false,
+                draftData: null,
+                checkDraft() {
+                    const saved = localStorage.getItem('admin_email_draft');
+                    if (saved) {
+                        try {
+                            this.draftData = JSON.parse(saved);
+                            this.hasDraft = Boolean(this.draftData && (this.draftData.to || this.draftData.subject || this.draftData.body));
+                        } catch(e) {}
+                    }
+                },
+                restoreDraft() {
+                    if (!this.draftData) return;
+                    if (this.draftData.to) @this.set('composeTo', this.draftData.to);
+                    if (this.draftData.subject) @this.set('composeSubject', this.draftData.subject);
+                    if (this.draftData.body && typeof CKEDITOR !== 'undefined' && CKEDITOR.instances['composeEditor']) {
+                        CKEDITOR.instances['composeEditor'].setData(this.draftData.body);
+                        @this.set('composeBody', this.draftData.body);
+                    }
+                    this.hasDraft = false;
+                },
+                discardDraft() {
+                    localStorage.removeItem('admin_email_draft');
+                    this.hasDraft = false;
+                    this.draftData = null;
+                }
+            }" x-init="checkDraft()" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="$wire.call('closeCompose')">
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-0 w-full max-w-4xl shadow-2xl h-[80vh] flex flex-col" @keydown.escape.window="$wire.call('closeCompose')">
                     <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-gray-950 rounded-t-2xl">
                         <h3 class="text-lg font-bold text-gray-900 dark:text-white">Neue Nachricht</h3>
                         <button type="button" wire:click="closeCompose" class="text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                             <x-heroicon-o-x-mark class="w-6 h-6"/>
                         </button>
+                    </div>
+
+                    <div x-show="hasDraft" style="display: none;" class="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs text-amber-700 dark:text-amber-400">
+                        <span>Ein automatischer Entwurf wurde im Browser gespeichert.</span>
+                        <div class="flex gap-3">
+                            <button type="button" @click="restoreDraft()" class="font-bold underline hover:brightness-125">Wiederherstellen</button>
+                            <button type="button" @click="discardDraft()" class="text-gray-400 hover:text-gray-600">Verwerfen</button>
+                        </div>
                     </div>
                     <form wire:submit.prevent="sendMail" class="flex flex-col flex-1 overflow-hidden relative">
                         <div class="p-4 border-b border-gray-200 dark:border-gray-800 space-y-3 shrink-0">
@@ -760,8 +846,22 @@
                                                     ]
                                                 });
 
+                                                const saveDraft = () => {
+                                                    try {
+                                                        const draft = {
+                                                            to: @this.get('composeTo') || '',
+                                                            subject: @this.get('composeSubject') || '',
+                                                            body: editor.getData() || ''
+                                                        };
+                                                        if (draft.to || draft.subject || draft.body) {
+                                                            localStorage.setItem('admin_email_draft', JSON.stringify(draft));
+                                                        }
+                                                    } catch(e) {}
+                                                };
+
                                                 editor.on('change', function() {
                                                     @this.set('composeBody', editor.getData());
+                                                    saveDraft();
                                                 });
 
                                                 editor.setData(@this.get('composeBody'));
@@ -793,8 +893,8 @@
                                 </div>
 
                                 <div class="flex gap-3">
-                                    <button type="button" wire:click="closeCompose" class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Verwerfen</button>
-                                    <button @click="$wire.set('composeBody', CKEDITOR.instances['composeEditor'].getData())" 
+                                    <button type="button" @click="localStorage.removeItem('admin_email_draft'); $wire.call('closeCompose')" class="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors">Verwerfen</button>
+                                    <button @click="localStorage.removeItem('admin_email_draft'); $wire.set('composeBody', CKEDITOR.instances['composeEditor'].getData())" 
                                             type="submit" 
                                             {{ $limitExceeded ? 'disabled' : '' }}
                                             class="py-2.5 px-6 rounded-xl font-bold bg-[#E6C687] text-black hover:bg-[#d4b57a] hover:scale-105 active:scale-95 transition-all flex items-center gap-2 {{ $limitExceeded ? 'opacity-50 cursor-not-allowed' : '' }}">

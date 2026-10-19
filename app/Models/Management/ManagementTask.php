@@ -40,6 +40,14 @@ class ManagementTask extends Model
     }
 
     /**
+     * Alias für $this->list()
+     */
+    public function taskList(): BelongsTo
+    {
+        return $this->list();
+    }
+
+    /**
      * Falls es ein Schritt ist: Die übergeordnete Aufgabe.
      */
     public function parent(): BelongsTo

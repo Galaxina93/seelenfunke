@@ -13,7 +13,7 @@ class ManagementDayRoutine extends Model
     protected $table = 'management_day_routines';
 
     protected $fillable = [
-        'start_time', 'title', 'message', 'icon', 'type', 'duration_minutes', 'is_active'
+        'start_time', 'title', 'message', 'icon', 'type', 'duration_minutes', 'days_of_week', 'is_active'
     ];
 
     protected $casts = [

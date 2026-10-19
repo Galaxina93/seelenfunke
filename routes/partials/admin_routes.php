@@ -17,6 +17,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
     Route::get('/admin/shopping', \App\Livewire\Shop\Management\ManagementShoppingList::class)->name('admin.shopping');
     Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
+    Route::get('/admin/calendar', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calendar');
 
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
     Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');

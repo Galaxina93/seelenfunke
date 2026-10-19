@@ -559,7 +559,7 @@ class AIController extends Controller
         $voiceAllowedTools = [
             'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui', 
             'system_trigger_ui_element', 'system_switch_agent', 'system_search_web', 'system_read_web_url',
-            'task_get_all', 'task_get_lists', 'task_create', 'task_update', 'task_complete',
+            'task_get_all', 'task_get_lists', 'task_create', 'task_add_subtask', 'task_update', 'task_complete',
             'calendar_get_events', 'calendar_create_event', 'routine_get_day_routines',
             'email_send_message', 'mail_list_pending', 'mail_read',
             'contact_search', 'contact_get_all', 'system_get_health'

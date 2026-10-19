@@ -225,16 +225,17 @@ class ManagementContacts extends Component
 
         foreach ($contacts as $contact) {
             if ($contact->birthday) {
+                $bdayThisYear = $contact->birthday->copy()->year(now()->year);
                 ManagementCalendarEvent::updateOrCreate(
                     ['ics_uid' => 'contact_birthday_' . $contact->id],
                     [
                         'title' => 'Geburtstag: ' . $contact->full_name,
-                        'start_date' => $contact->birthday->copy()->startOfDay(),
-                        'end_date' => $contact->birthday->copy()->endOfDay(),
+                        'start_date' => $bdayThisYear->copy()->startOfDay(),
+                        'end_date' => $bdayThisYear->copy()->endOfDay(),
                         'is_all_day' => true,
                         'recurrence' => 'yearly',
                         'category' => 'birthday',
-                        'description' => 'Automatisch synchronisierter Geburtstag von ' . $contact->full_name,
+                        'description' => 'Automatisch synchronisierter Geburtstag von ' . $contact->full_name . ' (geb. ' . $contact->birthday->format('d.m.Y') . ')',
                     ]
                 );
                 $syncedCount++;
@@ -258,12 +259,23 @@ class ManagementContacts extends Component
 
     public function render()
     {
-        $profiles = ManagementContact::where('first_name', 'like', '%' . $this->search . '%')
-            ->orWhere('last_name', 'like', '%' . $this->search . '%')
-            ->orWhere('nickname', 'like', '%' . $this->search . '%')
-            ->orderBy('is_favorite', 'desc')
+        $query = ManagementContact::query();
+
+        if (!empty(trim($this->search))) {
+            $term = '%' . trim($this->search) . '%';
+            $query->where(function($q) use ($term) {
+                $q->where('first_name', 'like', $term)
+                  ->orWhere('last_name', 'like', $term)
+                  ->orWhere('nickname', 'like', $term)
+                  ->orWhere('email', 'like', $term)
+                  ->orWhere('phone', 'like', $term)
+                  ->orWhere('city', 'like', $term);
+            });
+        }
+
+        $profiles = $query->orderBy('is_favorite', 'desc')
             ->orderBy('first_name')
-            ->get();
+            ->paginate(25);
 
         if (!$this->activeProfileId && $profiles->isNotEmpty() && !$this->isEditing) {
             $this->activeProfileId = $profiles->first()->id;

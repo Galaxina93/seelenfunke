@@ -18,14 +18,36 @@ class ManagementRoutine extends Component
 
     public $routines;
     public $isEditing = false;
+    public $filterDays = 'all'; // 'all', 'weekdays', 'weekend'
 
     // Form fields
-    public $r_id, $r_time, $r_title, $r_message, $r_duration, $r_type = 'general';
+    public $r_id, $r_time, $r_title, $r_message, $r_duration, $r_type = 'general', $r_days_of_week = 'all';
 
     public function render()
     {
-        $this->routines = RoutineModel::orderBy('start_time')->get();
+        $query = RoutineModel::orderBy('start_time');
+
+        if ($this->filterDays === 'weekdays') {
+            $query->where(function($q) {
+                $q->whereIn('days_of_week', ['all', 'weekdays'])->orWhereNull('days_of_week');
+            });
+        } elseif ($this->filterDays === 'weekend') {
+            $query->where(function($q) {
+                $q->whereIn('days_of_week', ['all', 'weekend'])->orWhereNull('days_of_week');
+            });
+        }
+
+        $this->routines = $query->get();
         return view('livewire.shop.management.management-routine');
+    }
+
+    public function toggleActive($id)
+    {
+        $routine = RoutineModel::find($id);
+        if ($routine) {
+            $routine->is_active = !$routine->is_active;
+            $routine->save();
+        }
     }
 
     public function create()
@@ -37,12 +59,14 @@ class ManagementRoutine extends Component
     public function edit($id)
     {
         $r = RoutineModel::find($id);
+        if (!$r) return;
         $this->r_id = $r->id;
         $this->r_time = \Carbon\Carbon::parse($r->start_time)->format('H:i');
         $this->r_title = $r->title;
         $this->r_message = $r->message;
         $this->r_duration = $r->duration_minutes;
         $this->r_type = $r->type ?? 'general';
+        $this->r_days_of_week = $r->days_of_week ?? 'all';
         $this->isEditing = true;
     }
 
@@ -55,6 +79,8 @@ class ManagementRoutine extends Component
             'r_type' => 'required|string'
         ]);
 
+        $existing = $this->r_id ? RoutineModel::find($this->r_id) : null;
+
         RoutineModel::updateOrCreate(
             ['id' => $this->r_id ?? (string) Str::uuid()],
             [
@@ -63,7 +89,8 @@ class ManagementRoutine extends Component
                 'message' => $this->r_message,
                 'duration_minutes' => $this->r_duration,
                 'type' => $this->r_type,
-                'is_active' => true
+                'days_of_week' => $this->r_days_of_week ?? 'all',
+                'is_active' => $existing ? $existing->is_active : true
             ]
         );
 
@@ -86,5 +113,6 @@ class ManagementRoutine extends Component
     {
         $this->reset(['r_id', 'r_time', 'r_title', 'r_message', 'r_duration']);
         $this->r_type = 'general';
+        $this->r_days_of_week = 'all';
     }
 }

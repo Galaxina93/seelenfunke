@@ -9,6 +9,9 @@ use App\Models\Management\Mail\MailAccount;
 use App\Models\Management\Mail\MailMessage;
 use App\Models\Management\Mail\MailRule;
 use App\Models\Management\ManagementContact;
+use App\Models\Management\ManagementTask;
+use App\Models\Management\ManagementTaskList;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -78,6 +81,14 @@ class ManagementEMails extends Component
             $default = $accounts->firstWhere('is_default', true) ?? $accounts->first();
             $this->selectedAccountId = $default->id;
         }
+
+        if (request()->has('compose_to')) {
+            $this->composeTo = request()->get('compose_to');
+            $this->showComposeModal = true;
+            if ($this->selectedAccountId) {
+                $this->composeAccountId = $this->selectedAccountId;
+            }
+        }
     }
 
     public function selectAccount($id)
@@ -91,20 +102,78 @@ class ManagementEMails extends Component
     public function refreshInbox()
     {
         // Re-renders the component to display the newly fetched messages from the DB
-        // Can optionally flash a localized success message
-        // session()->flash('success_message', 'Neue Mail(s) empfangen!');
     }
 
     public function syncMails()
     {
-        Artisan::call('crm:fetch-mails');
-
-        $errorAccounts = \App\Models\Management\Mail\MailAccount::where('status', 'error')->count();
-        if ($errorAccounts > 0) {
-            session()->flash('error_message', 'Synchronisation abgeschlossen, aber bei ' . $errorAccounts . ' Postfächern gab es Verbindungsfehler! Prüfe die Passwörter.');
-        } else {
-            session()->flash('success_message', 'Synchronisation erfolgreich abgeschlossen.');
+        if (app()->runningUnitTests()) {
+            Artisan::call('crm:fetch-mails');
+            return;
         }
+
+        try {
+            $artisan = base_path('artisan');
+            exec("nohup php {$artisan} crm:fetch-mails > /dev/null 2>&1 &");
+            session()->flash('success_message', 'E-Mail Synchronisation im Hintergrund gestartet...');
+        } catch (\Throwable $e) {
+            Artisan::call('crm:fetch-mails');
+            session()->flash('success_message', 'Synchronisation abgeschlossen.');
+        }
+    }
+
+    public function createTaskFromMail($messageId)
+    {
+        $mail = MailMessage::find($messageId);
+        if (!$mail) return;
+
+        $firstList = ManagementTaskList::orderBy('position')->first();
+        $listId = $firstList ? $firstList->id : null;
+        $maxPos = ManagementTask::where('task_list_id', $listId)->max('position') ?? 0;
+
+        $bodySnippet = Str::limit(strip_tags($mail->body_plain ?: $mail->body_html), 1000);
+        $dateStr = $mail->received_at ? $mail->received_at->format('d.m.Y H:i') : now()->format('d.m.Y H:i');
+
+        ManagementTask::create([
+            'task_list_id' => $listId,
+            'title' => 'E-Mail: ' . ($mail->subject ?: 'Ohne Betreff'),
+            'ai_plan' => "Absender: {$mail->from_name} <{$mail->from_email}>\nDatum: {$dateStr}\n\n{$bodySnippet}",
+            'priority' => ($mail->priority === 'high') ? 'high' : 'medium',
+            'position' => $maxPos + 1,
+            'relevant_from' => now(),
+        ]);
+
+        session()->flash('success_message', 'Aufgabe aus dieser E-Mail erfolgreich erstellt!');
+    }
+
+    public function createContactFromMail($messageId)
+    {
+        $mail = MailMessage::find($messageId);
+        if (!$mail || empty($mail->from_email)) return;
+
+        $existing = ManagementContact::where('email', $mail->from_email)->first();
+        if ($existing) {
+            session()->flash('info_message', "Kontakt '{$existing->full_name}' existiert bereits ({$existing->email}).");
+            return;
+        }
+
+        $name = trim($mail->from_name ?: '');
+        if ($name) {
+            $parts = explode(' ', $name, 2);
+            $firstName = $parts[0];
+            $lastName = $parts[1] ?? '';
+        } else {
+            $firstName = explode('@', $mail->from_email)[0];
+            $lastName = '';
+        }
+
+        ManagementContact::create([
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $mail->from_email,
+            'relation_type' => 'business',
+        ]);
+
+        session()->flash('success_message', "Kontakt '{$firstName} {$lastName}' ({$mail->from_email}) erfolgreich angelegt!");
     }
 
     public function selectFolder($folder)

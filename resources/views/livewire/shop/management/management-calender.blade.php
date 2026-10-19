@@ -31,6 +31,7 @@
             'travel'      => ['bg' => 'bg-amber-500/15 dark:bg-amber-500/20', 'text' => 'text-amber-700 dark:text-amber-400', 'icon' => 'globe-alt', 'label' => 'Reise'],
             'project'     => ['bg' => 'bg-[var(--theme-color-20)]', 'text' => 'text-[var(--theme-color)]', 'icon' => 'briefcase', 'label' => 'Projekte'],
             'customer'    => ['bg' => 'bg-emerald-500/15 dark:bg-emerald-500/10', 'text' => 'text-emerald-700 dark:text-emerald-500', 'icon' => 'user', 'label' => 'Kunde'],
+            'task'        => ['bg' => 'bg-purple-500/15 dark:bg-purple-500/20', 'text' => 'text-purple-600 dark:text-purple-400', 'icon' => 'clipboard-document-check', 'label' => 'Aufgabe'],
             'general'     => ['bg' => 'bg-gray-100 dark:bg-gray-800', 'text' => 'text-gray-700 dark:text-gray-400', 'icon' => 'calendar', 'label' => 'Termin'],
         ];
     @endphp

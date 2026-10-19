@@ -112,6 +112,10 @@ class ManagementCalender extends Component
 
     public function editEvent($id)
     {
+        if (is_string($id) && str_starts_with($id, 'task_')) {
+            return redirect()->route('admin.tasks');
+        }
+
         $event = ManagementCalendarEvent::find($id);
         if (!$event) return;
 
@@ -348,10 +352,14 @@ class ManagementCalender extends Component
             $end = $this->currentDate->copy()->endOfMonth()->endOfWeek();
         }
 
-        // Normale Events
+        // Normale Events (inkl. Events mit end_date = null)
         $normalEvents = ManagementCalendarEvent::where(function($query) use ($start, $end) {
             $query->where('start_date', '<=', $end)
-                  ->where('end_date', '>=', $start);
+                  ->where(function($sub) use ($start) {
+                      $sub->where('end_date', '>=', $start)
+                          ->orWhereNull('end_date')
+                          ->orWhere('start_date', '>=', $start);
+                  });
         })
         ->whereNull('recurrence')
         ->get();
@@ -367,6 +375,28 @@ class ManagementCalender extends Component
 
             $simDate = $evtStart->copy();
 
+            // Optimierter Vorwärtssprung für vergangene Anfangsdaten
+            if ($simDate < $start) {
+                switch ($template->recurrence) {
+                    case 'daily':
+                        $diffDays = $simDate->diffInDays($start);
+                        if ($diffDays > 1) $simDate->addDays($diffDays - 1);
+                        break;
+                    case 'weekly':
+                        $diffWeeks = $simDate->diffInWeeks($start);
+                        if ($diffWeeks > 1) $simDate->addWeeks($diffWeeks - 1);
+                        break;
+                    case 'monthly':
+                        $diffMonths = $simDate->diffInMonths($start);
+                        if ($diffMonths > 1) $simDate->addMonths($diffMonths - 1);
+                        break;
+                    case 'yearly':
+                        $diffYears = $simDate->diffInYears($start);
+                        if ($diffYears > 1) $simDate->addYears($diffYears - 1);
+                        break;
+                }
+            }
+
             // Loop durch die Tage des View-Zeitraums
             while ($simDate <= $end) {
                 if ($simDate >= $start && $simDate <= $end) {
@@ -380,7 +410,7 @@ class ManagementCalender extends Component
                         $instance->start_date->setTimeFrom($template->start_date);
                     }
 
-                    $duration = $template->start_date->diffInSeconds($template->end_date);
+                    $duration = $template->start_date->diffInSeconds($template->end_date ?? $template->start_date->copy()->addHour());
                     $instance->end_date = $instance->start_date->copy()->addSeconds(abs($duration));
                     $instance->is_recurring_instance = true;
 
@@ -397,7 +427,33 @@ class ManagementCalender extends Component
             }
         }
 
-        return $normalEvents->toBase()->concat($generatedEvents)->sortBy('start_date')->values();
+        // Aufgaben mit Fälligkeit / Planungsdatum als Kalender-Items einbinden
+        $taskEvents = collect();
+        $tasksWithDueDate = \App\Models\Management\ManagementTask::whereNotNull('relevant_from')
+            ->whereBetween('relevant_from', [$start, $end])
+            ->where('is_archived', false)
+            ->get();
+
+        foreach ($tasksWithDueDate as $task) {
+            $taskItem = new ManagementCalendarEvent([
+                'title' => '📋 ' . $task->title,
+                'start_date' => $task->relevant_from->copy()->startOfDay(),
+                'end_date' => $task->relevant_from->copy()->endOfDay(),
+                'is_all_day' => true,
+                'category' => 'task',
+                'description' => 'Aufgabe: ' . $task->title . ($task->is_completed ? ' (Erledigt)' : ' (Offen)'),
+            ]);
+            $taskItem->id = 'task_' . $task->id;
+            $taskItem->is_task_item = true;
+            $taskItem->is_completed = $task->is_completed;
+            $taskEvents->push($taskItem);
+        }
+
+        return $normalEvents->toBase()
+            ->concat($generatedEvents)
+            ->concat($taskEvents)
+            ->sortBy('start_date')
+            ->values();
     }
 
     public function getCalendarGridProperty()

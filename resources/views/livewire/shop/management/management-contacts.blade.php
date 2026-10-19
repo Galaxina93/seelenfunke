@@ -108,6 +108,12 @@
                         </div>
                     @endforelse
                 </div>
+
+                @if($profiles->hasPages())
+                    <div class="p-3 border-t border-gray-200 dark:border-gray-800 shrink-0">
+                        {{ $profiles->links() }}
+                    </div>
+                @endif
             </div>
 
             <!-- Detail / Edit Area -->
@@ -369,10 +375,17 @@
                             </a>
                             @endif
                             @if($activeProfile->email)
-                            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-                                <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 flex items-center justify-center"><x-heroicon-o-envelope class="w-5 h-5" /></div>
-                                <div><p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold">E-Mail</p><p class="text-gray-800 dark:text-gray-300 truncate max-w-[150px]">{{ $activeProfile->email }}</p></div>
-                            </div>
+                            <a href="{{ route('admin.inbox') }}?compose_to={{ urlencode($activeProfile->email) }}" 
+                               class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex items-center gap-4 hover:border-[var(--theme-color-50)] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer group shadow-sm"
+                               title="E-Mail in Inbox verfassen">
+                                <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 flex items-center justify-center group-hover:text-[var(--theme-color)] group-hover:bg-[var(--theme-color-10)] transition-colors dark:shadow-inner">
+                                    <x-heroicon-o-envelope class="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-[var(--theme-color)] uppercase tracking-widest font-bold transition-colors">E-Mail (Schreiben)</p>
+                                    <p class="text-gray-800 dark:text-gray-200 font-medium truncate">{{ $activeProfile->email }}</p>
+                                </div>
+                            </a>
                             @endif
                             @if($activeProfile->birthday)
                             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
