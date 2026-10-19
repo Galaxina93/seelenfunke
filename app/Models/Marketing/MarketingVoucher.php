@@ -14,9 +14,9 @@ class MarketingVoucher extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'id', 'title', 'code', 'type', 'value', 'used_count', 'usage_limit',
+        'id', 'title', 'code', 'recipient_email', 'type', 'value', 'used_count', 'usage_limit',
         'min_order_value', 'valid_from', 'valid_until',
-        'usage_limit', 'used_count', 'is_active',
+        'is_active',
         'mode', 'trigger_event', 'days_offset', 'validity_days'
     ];
 

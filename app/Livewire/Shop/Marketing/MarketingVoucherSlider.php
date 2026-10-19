@@ -35,8 +35,8 @@ class MarketingVoucherSlider extends Component
 
     public function render()
     {
-        // 1. Lade alle normalen, manuellen Gutscheine, die gerade gültig sind
-        $manualVouchers = MarketingVoucher::where('mode', 'manual')->current()->get();
+        // 1. Lade alle normalen, manuellen Gutscheine, die gerade gültig sind (keine persönlichen Belohnungsgutscheine)
+        $manualVouchers = MarketingVoucher::where('mode', 'manual')->whereNull('recipient_email')->current()->get();
 
         // 2. Lade NUR den aktiven Auto-Gutschein, der für den AKTUELLEN MONAT vorgesehen ist
         $activeAutoVouchers = MarketingVoucher::where('mode', 'auto')

@@ -27,7 +27,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
     <meta property="og:image"
-          content="@yield('og_image', asset('shopverwaltung/images/logo/mein-projekt-logo.jpg'))"> {{-- Pfad zu einem schönen Produktbild anpassen --}}
+          content="@yield('og_image', asset('shop/projekt/logo/mein-seelenfunke-logo.png'))">
 
     <!-- Canonical -->
     <link rel="canonical" href="{{ url()->current() }}">
@@ -99,6 +99,56 @@
 <body class="min-h-screen overflow-x-hidden antialiased">
 
 @include('frontend.partials.action_dock')
+
+@php
+    $activeReferralCoupon = session('seelenfunke_coupon') ?: request()->cookie('seelenfunke_coupon');
+    $showReferralBanner = false;
+    $bannerHtml = '';
+
+    if ($activeReferralCoupon) {
+        $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+        $buyerEmail = $customer ? $customer->email : null;
+        $buyerCustomerId = $customer ? $customer->id : null;
+        $referralService = app(\App\Services\ReferralService::class);
+        $referralCheck = $referralService->validateReferralCode($activeReferralCoupon, $buyerEmail, $buyerCustomerId);
+
+        if ($referralCheck['is_referral']) {
+            if ($referralCheck['valid']) {
+                $showReferralBanner = true;
+                $bannerHtml = 'Dein <strong>10 % Neukundenrabatt (Code: ' . e($activeReferralCoupon) . ')</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
+            } else {
+                // Bei Eigenwerbung oder Bestandskunde: Banner nicht anzeigen & Cookie/Session bereinigen
+                session()->forget('seelenfunke_coupon');
+                \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+            }
+        } else {
+            // Regulärer Gutschein: Gültigkeit prüfen
+            $voucher = \App\Models\Marketing\MarketingVoucher::where('code', $activeReferralCoupon)->where('is_active', true)->first();
+            if ($voucher && $voucher->isValid()) {
+                $showReferralBanner = true;
+                $bannerHtml = 'Dein Gutscheincode <strong>' . e($activeReferralCoupon) . '</strong> ist aktiviert und wird im Warenkorb automatisch abgezogen!';
+            } else {
+                session()->forget('seelenfunke_coupon');
+                \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+            }
+        }
+    }
+@endphp
+@if($showReferralBanner)
+    <div id="referral-coupon-banner"
+         class="referral-coupon-banner bg-gradient-to-r from-amber-500 via-primary to-amber-600 text-white text-xs font-semibold py-2 px-4 shadow-sm relative z-40 transition-all duration-300"
+         x-data="{ show: true }"
+         x-show="show"
+         x-cloak>
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2 mx-auto sm:mx-0">
+                <span class="text-base animate-pulse">🎁</span>
+                <span>{!! $bannerHtml !!}</span>
+            </div>
+            <button @click="show = false" type="button" class="text-white/80 hover:text-white font-bold p-1 leading-none shrink-0 cursor-pointer" title="Schließen">&times;</button>
+        </div>
+    </div>
+@endif
 
 <header>
     @include('frontend.navigation.navigation')

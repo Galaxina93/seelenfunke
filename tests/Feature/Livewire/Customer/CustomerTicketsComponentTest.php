@@ -79,4 +79,28 @@ class CustomerTicketsComponentTest extends TestCase
             return $mail->hasTo('anna@example.com');
         });
     }
+
+    #[Test]
+    public function it_persists_email_notifications_toggle_across_reloads()
+    {
+        // 1. Initially true
+        $test = Livewire::actingAs($this->customer, 'customer')
+            ->test(CustomerTicketsComponent::class)
+            ->assertSet('emailNotifications', true);
+
+        // 2. Toggle to false
+        $test->set('emailNotifications', false)
+            ->assertSet('emailNotifications', false);
+
+        // Verify in DB
+        $this->assertDatabaseHas('customer_gamifications', [
+            'customer_id' => $this->customer->id,
+            'ticket_emails_enabled' => false,
+        ]);
+
+        // 3. Mount fresh instance -> must remain false!
+        Livewire::actingAs($this->customer, 'customer')
+            ->test(CustomerTicketsComponent::class)
+            ->assertSet('emailNotifications', false);
+    }
 }

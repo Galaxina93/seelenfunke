@@ -3,16 +3,38 @@
      :style="isMaximized ? 'min-width: 0;' : ''"
      x-ref="stage">
 
-    {{-- KUNDEN TOGGLE 2D / 3D --}}
-    <div x-show="config.modelPath" class="mt-4 mb-3 sm:mb-4 p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 relative z-50 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-        <button @click="showDrawingBoard = true" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
-        <button @click="showDrawingBoard = false" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
+    {{-- OBERE BEDIENLEISTE (2D/3D TOGGLE + HINWEISE TOGGLE) --}}
+    <div class="mt-4 mb-3 sm:mb-4 flex flex-wrap items-center justify-center gap-2.5 relative z-50">
+        {{-- KUNDEN TOGGLE 2D / 3D --}}
+        <div x-show="config.modelPath" class="p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
+            <button type="button" @click="showDrawingBoard = true" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
+            <button type="button" @click="showDrawingBoard = false" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
+        </div>
+
+        {{-- TOGGLE BUTTON FÜR HINWEISE (ALLGEMEIN VERFÜGBAR) --}}
+        <button type="button"
+                @click="showNotice = !showNotice"
+                class="px-4 py-2.5 rounded-full border shadow-sm text-xs font-bold transition-all duration-300 flex items-center gap-2 cursor-pointer select-none"
+                :class="showNotice
+                    ? '{{ $isDark ? 'bg-blue-950/40 border-blue-800/80 text-blue-300 shadow-[0_0_15px_rgba(59,130,246,0.15)]' : 'bg-blue-50/90 border-blue-200 text-blue-700 shadow-sm' }}'
+                    : '{{ $isDark ? 'bg-gray-900 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800' : 'bg-white border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50' }}'"
+                :title="showNotice ? 'Hinweise ausblenden' : 'Hinweise anzeigen'">
+            <span :class="showNotice ? 'text-blue-500 scale-110' : 'text-gray-400'" class="shrink-0 transition-transform duration-200 flex items-center">
+                <x-heroicon-s-information-circle class="w-4 h-4" />
+            </span>
+            <span class="text-[11px] font-black uppercase tracking-wider" x-text="showNotice ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+        </button>
     </div>
 
     {{-- BLAUER HINWEIS (2D / 3D WECHSEL IN EINEM EINZIGEN CONTAINER) --}}
-    <div x-show="!isMaximized"
-         class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4"
-         :class="!config.modelPath ? 'mt-4' : ''">
+    <div x-show="showNotice"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 -translate-y-2 scale-98"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 -translate-y-2 scale-98"
+         class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4">
         <div class="flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm transition-all duration-300 {{ $isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-blue-50/90 border-blue-200 text-blue-900' }}">
             {{-- ICON (SOFORTIGER WECHSEL OHNE VERZÖGERUNG) --}}
             <div class="shrink-0 mt-0.5">
@@ -46,6 +68,11 @@
                     </p>
                 </div>
             </div>
+
+            {{-- BUTTON ZUM AUSBLENDEN --}}
+            <button type="button" @click="showNotice = false" class="text-blue-400 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-200 shrink-0 p-1 rounded-lg transition-colors cursor-pointer" title="Hinweis ausblenden">
+                <x-heroicon-m-x-mark class="w-4 h-4" />
+            </button>
         </div>
     </div>
 

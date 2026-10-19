@@ -192,7 +192,7 @@ class MarketingVoucher extends Component
             ->get();
 
         $manualCoupons = $this->voucherSectionMode === 'manual'
-            ? VoucherModel::where('mode', 'manual')->latest()->paginate(10)
+            ? VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->latest()->paginate(10)
             : [];
 
         $giftVouchers = [];

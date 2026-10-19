@@ -57,6 +57,17 @@ class GamificationService
         });
     }
 
+    public function generateUniqueMilestoneCode(int $level): string
+    {
+        // 8 Zeichen Zufallstoken: 36^8 = 2,82 Billionen Permutationen, unerratbar
+        do {
+            $token = strtoupper(Str::random(8));
+            $code = 'FUNKI-L' . $level . '-' . $token;
+        } while (MarketingVoucher::where('code', $code)->exists());
+
+        return $code;
+    }
+
     private function checkAndIssueCoupon(CustomerGamification $profile, int $newLevel): ?string
     {
         $rewards = GameConfig::getLevelRewards();
@@ -69,13 +80,29 @@ class GamificationService
                 return null;
             }
 
+            $email = $profile->customer?->email ?? ($profile->customer_id ? Customer::where('id', $profile->customer_id)->value('email') : null);
+
+            // Prüfen, ob in DB bereits ein Coupon für diesen Kunden und dieses Level existiert
+            if ($email) {
+                $existingVoucher = MarketingVoucher::where('recipient_email', $email)
+                    ->where('code', 'like', 'FUNKI-L' . $newLevel . '-%')
+                    ->first();
+
+                if ($existingVoucher) {
+                    $unlocked[(string)$newLevel] = $existingVoucher->code;
+                    $profile->unlocked_coupons = $unlocked;
+                    $profile->save();
+                    return $rewards[$newLevel]['name'] . ' freigeschaltet!';
+                }
+            }
+
             $rewardConfig = $rewards[$newLevel];
-            $code = 'FUNKI-L' . $newLevel . '-' . strtoupper(Str::random(5));
-            $email = $profile->customer ? $profile->customer->email : 'System';
+            $code = $this->generateUniqueMilestoneCode($newLevel);
 
             MarketingVoucher::create([
-                'title'           => 'Level ' . $newLevel . ' Belohnung (' . $email . ')',
+                'title'           => 'Level ' . $newLevel . ' Belohnung (' . ($email ?: 'System') . ')',
                 'code'            => $code,
+                'recipient_email' => $email,
                 'type'            => 'percent',
                 'value'           => $rewardConfig['value'],
                 'usage_limit'     => 1,
@@ -97,20 +124,54 @@ class GamificationService
 
     public function syncUnlockedRewards(CustomerGamification $profile): void
     {
-        $rewards = GameConfig::getLevelRewards();
-        $unlocked = is_array($profile->unlocked_coupons) ? $profile->unlocked_coupons : [];
-        $changed = false;
+        \Illuminate\Support\Facades\DB::transaction(function () use ($profile) {
+            $lockedProfile = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first();
+            if (!$lockedProfile) {
+                return;
+            }
 
-        for ($i = 1; $i <= $profile->level; $i++) {
-            // Prüfen ob es für dieses Level eine Belohnung gibt und ob sie fehlt
-            if (isset($rewards[$i]) && !isset($unlocked[(string)$i]) && !isset($unlocked[$i])) {
+            $rewards = GameConfig::getLevelRewards();
+            $unlocked = is_array($lockedProfile->unlocked_coupons) ? $lockedProfile->unlocked_coupons : [];
+            $changed = false;
+            $email = $lockedProfile->customer?->email ?? ($lockedProfile->customer_id ? Customer::where('id', $lockedProfile->customer_id)->value('email') : null);
+
+            for ($i = 1; $i <= $lockedProfile->level; $i++) {
+                if (!isset($rewards[$i])) {
+                    continue;
+                }
+
+                $existingCode = $unlocked[(string)$i] ?? $unlocked[$i] ?? null;
+
+                // 1. Wenn Code im Profil steht: Prüfen, ob der Voucher in der DB wirklich existiert
+                if ($existingCode) {
+                    $voucherExists = MarketingVoucher::where('code', $existingCode)->exists();
+                    if ($voucherExists) {
+                        continue;
+                    }
+                    // Falls der Code in unlocked_coupons steht, aber in DB gelöscht/nicht existent ist -> wird unten repariert
+                }
+
+                // 2. Prüfen, ob in DB bereits ein Coupon für diesen Kunden und dieses Level existiert
+                if ($email) {
+                    $dbVoucher = MarketingVoucher::where('recipient_email', $email)
+                        ->where('code', 'like', 'FUNKI-L' . $i . '-%')
+                        ->first();
+
+                    if ($dbVoucher) {
+                        $unlocked[(string)$i] = $dbVoucher->code;
+                        $changed = true;
+                        continue;
+                    }
+                }
+
+                // 3. Neu erzeugen (atomar, kollisionssicher & unerratbar)
                 $rewardConfig = $rewards[$i];
-                $code = 'FUNKI-L' . $i . '-' . strtoupper(Str::random(5));
-                $email = $profile->customer ? $profile->customer->email : 'System';
+                $code = $this->generateUniqueMilestoneCode($i);
 
                 MarketingVoucher::create([
-                    'title'           => 'Nachgereicht: Level ' . $i . ' Belohnung (' . $email . ')',
+                    'title'           => 'Nachgereicht: Level ' . $i . ' Belohnung (' . ($email ?: 'System') . ')',
                     'code'            => $code,
+                    'recipient_email' => $email,
                     'type'            => 'percent',
                     'value'           => $rewardConfig['value'],
                     'usage_limit'     => 1,
@@ -122,12 +183,13 @@ class GamificationService
                 $unlocked[(string)$i] = $code;
                 $changed = true;
             }
-        }
 
-        if ($changed) {
-            $profile->unlocked_coupons = $unlocked;
-            $profile->save();
-        }
+            if ($changed) {
+                $lockedProfile->unlocked_coupons = $unlocked;
+                $lockedProfile->save();
+                $profile->unlocked_coupons = $unlocked;
+            }
+        });
     }
 
     public function addFunken(Customer $customer, int $amount, string $source = 'purchase'): void

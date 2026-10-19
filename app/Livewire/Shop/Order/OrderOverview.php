@@ -255,6 +255,10 @@ class OrderOverview extends Component
             DB::transaction(function () use ($order, $orderId, $newStatus) {
                 $order->update(['status' => $newStatus]);
 
+                if ($newStatus === 'completed') {
+                    $order->shipments()->where('status', '!=', 'delivered')->update(['status' => 'delivered']);
+                }
+
                 if ($this->selectedOrder && $this->selectedOrder->id == $orderId) {
                     $this->status = $newStatus;
                     $this->selectedOrder->refresh();

@@ -57,6 +57,11 @@ class AppServiceProvider extends ServiceProvider
             'management_mission' => 'App\Models\Management\ManagementMission',
             'management_linktree' => 'App\Models\Management\ManagementLinktree',
 
+            'marketing_gift_voucher' => 'App\Models\Marketing\MarketingGiftVoucher',
+            'marketing_voucher' => 'App\Models\Marketing\MarketingVoucher',
+            'marketing_referral' => 'App\Models\Marketing\MarketingReferral',
+            'marketing_gift_voucher_log' => 'App\Models\Marketing\MarketingGiftVoucherLog',
+
             // Füge hier bei Bedarf weitere Models hinzu
         ]);
 

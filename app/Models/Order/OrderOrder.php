@@ -461,6 +461,13 @@ class OrderOrder extends Model
                 }
             }
 
+            // --- FREUNDE WERBEN FREUNDE: 5 € GUTHABEN FÜR DEN EMPFEHLENDEN KUNDEN ---
+            try {
+                app(\App\Services\ReferralService::class)->processOrderReferralReward($order);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Referral reward processing error: ' . $e->getMessage());
+            }
+
             // --- HERZENSPROJEKT: AUTOMATISCHER BEITRAG IN DEN SPENDENTOPF ---
             \App\Services\HerzensprojektService::recordDonationForOrder($order);
 

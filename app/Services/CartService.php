@@ -24,6 +24,8 @@ class CartService
      */
     public function getCart(bool $createIfNotExists = true): ?Cart
     {
+        $cart = null;
+
         if (Auth::guard('customer')->check()) {
             $user = Auth::guard('customer')->user();
 
@@ -32,41 +34,67 @@ class CartService
                 if ($cart && $cart->session_id !== Session::getId()) {
                     $cart->update(['session_id' => Session::getId()]);
                 }
-                return $cart;
-            }
+            } else {
+                $cart = Cart::firstOrCreate(
+                    ['customer_id' => $user->id],
+                    ['session_id' => Session::getId()]
+                );
 
-            $cart = Cart::firstOrCreate(
-                ['customer_id' => $user->id],
-                ['session_id' => Session::getId()]
-            );
-
-            // Session ID aktuell halten
-            if ($cart->session_id !== Session::getId()) {
-                $cart->update(['session_id' => Session::getId()]);
-            }
-            return $cart;
-        }
-
-        $carts = Cart::where('session_id', Session::getId())->get();
-        if ($carts->count() > 0) {
-            $mainCart = $carts->first();
-            
-            // Lösche eventuelle leere Duplikate, die durch asynchrone Race Conditions parallel entstanden sind
-            if ($carts->count() > 1) {
-                foreach ($carts->skip(1) as $duplicate) {
-                    if ($duplicate->items()->count() === 0) {
-                        $duplicate->delete();
-                    }
+                // Session ID aktuell halten
+                if ($cart->session_id !== Session::getId()) {
+                    $cart->update(['session_id' => Session::getId()]);
                 }
             }
-            return $mainCart;
+        } else {
+            $carts = Cart::where('session_id', Session::getId())->get();
+            if ($carts->count() > 0) {
+                $cart = $carts->first();
+                
+                // Lösche eventuelle leere Duplikate, die durch asynchrone Race Conditions parallel entstanden sind
+                if ($carts->count() > 1) {
+                    foreach ($carts->skip(1) as $duplicate) {
+                        if ($duplicate->items()->count() === 0) {
+                            $duplicate->delete();
+                        }
+                    }
+                }
+            } elseif ($createIfNotExists) {
+                $cart = Cart::create(['session_id' => Session::getId()]);
+            }
         }
 
-        if (!$createIfNotExists) {
-            return null;
+        if ($cart) {
+            $this->checkAndApplyPendingCoupon($cart);
         }
 
-        return Cart::create(['session_id' => Session::getId()]);
+        return $cart;
+    }
+
+    protected function checkAndApplyPendingCoupon(Cart $cart): void
+    {
+        if (empty($cart->coupon_code)) {
+            $pendingCoupon = session('seelenfunke_coupon') ?: request()->cookie('seelenfunke_coupon');
+            if ($pendingCoupon) {
+                $customer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
+                $buyerEmail = $customer ? $customer->email : null;
+                $buyerCustomerId = $customer ? $customer->id : null;
+                $referralCheck = app(\App\Services\ReferralService::class)->validateReferralCode($pendingCoupon, $buyerEmail, $buyerCustomerId);
+                if ($referralCheck['is_referral'] && !$referralCheck['valid']) {
+                    session()->forget('seelenfunke_coupon');
+                    \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+                    return; // Nicht auto-aktivieren bei Eigenwerbung oder Bestandskunden & Cookie/Session leeren
+                }
+
+                $coupon = MarketingVoucher::where('code', $pendingCoupon)->where('is_active', true)->first();
+                if ($coupon && $coupon->isValid()) {
+                    $cart->update(['coupon_code' => $coupon->code]);
+                    $cart->coupon_code = $coupon->code;
+                } else {
+                    session()->forget('seelenfunke_coupon');
+                    \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget('seelenfunke_coupon'));
+                }
+            }
+        }
     }
 
     /**
@@ -268,15 +296,46 @@ class CartService
                 return ['success' => false, 'message' => 'Dieser Gutschein ist abgelaufen.'];
             }
 
+            // [SICHERHEIT] Persönliche Belohnungsgutscheine an das Kundenkonto binden
+            $currentBuyerEmail = Auth::guard('customer')->check() ? Auth::guard('customer')->user()->email : null;
+            if (!empty($giftVoucher->recipient_email) && str_starts_with($giftVoucher->code, 'DANKE-')) {
+                if ($currentBuyerEmail && strtolower(trim($currentBuyerEmail)) !== strtolower(trim($giftVoucher->recipient_email))) {
+                    return [
+                        'success' => false,
+                        'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $giftVoucher->recipient_email . ' gebunden.'
+                    ];
+                }
+            }
+
             $cart = $this->getCart();
             $cart->update(['coupon_code' => $giftVoucher->code]);
             return ['success' => true, 'message' => 'Geschenkgutschein erfolgreich angewendet!'];
+        }
+
+        // 2. Prüfen auf Empfehlungscode (Eigenmissbrauch- & Neukunden-Schutz)
+        $customer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
+        $buyerEmail = $customer ? $customer->email : null;
+        $buyerCustomerId = $customer ? $customer->id : null;
+        $referralService = app(\App\Services\ReferralService::class);
+        $referralCheck = $referralService->validateReferralCode($code, $buyerEmail, $buyerCustomerId);
+        if ($referralCheck['is_referral'] && !$referralCheck['valid']) {
+            return ['success' => false, 'message' => $referralCheck['message']];
         }
 
         $coupon = MarketingVoucher::where('code', $code)->first();
 
         if (!$coupon || !$coupon->isValid()) {
             return ['success' => false, 'message' => 'Gutschein ist ungültig oder abgelaufen.'];
+        }
+
+        // [SICHERHEIT] Persönliche Belohnungsgutscheine an das Kundenkonto binden
+        if (!empty($coupon->recipient_email)) {
+            if ($buyerEmail && strtolower(trim($buyerEmail)) !== strtolower(trim($coupon->recipient_email))) {
+                return [
+                    'success' => false,
+                    'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $coupon->recipient_email . ' gebunden.'
+                ];
+            }
         }
 
         $cart = $this->getCart();

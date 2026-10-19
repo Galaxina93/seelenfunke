@@ -189,17 +189,6 @@
                                 </div>
                             @endif
 
-                            {{-- Das Easter-Egg / Wusstest du schon (Variante 3) --}}
-                            <div class="mt-8 flex items-start gap-3 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
-                                <div class="mt-0.5 text-primary animate-pulse">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                                </div>
-                                <p class="text-xs text-gray-600 leading-relaxed">
-                                    <strong class="text-gray-900 block mb-0.5">Wusstest du schon?</strong>
-                                    Schau dir den Hintergrund an: Jeder einzelne Stern an unserem Himmel steht für einen verifizierten Nutzer. Leuchte mit uns und werde Teil unserer Community.
-                                </p>
-                            </div>
-
                         </form>
                     </div>
 

@@ -15,22 +15,35 @@
         </div>
 
         <div class="flex items-center gap-4">
-            <label class="flex items-center gap-3 cursor-pointer group">
-                <div class="text-right">
-                    <span class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">E-Mail Infos</span>
-                    <span class="block text-xs font-bold {{ $emailNotifications ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-600' }}">{{ $emailNotifications ? 'Aktiviert' : 'Deaktiviert' }}</span>
-                </div>
-                <div class="relative">
-                    <input type="checkbox" wire:model.live="emailNotifications" class="sr-only">
-                    <div class="block bg-gray-200 dark:bg-gray-800 w-10 h-6 rounded-full border border-gray-300 dark:border-gray-700 transition-colors {{ $emailNotifications ? '!bg-primary' : '' }}"></div>
-                    <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full shadow-sm transition-transform {{ $emailNotifications ? 'transform translate-x-4' : '' }}"></div>
-                </div>
-            </label>
+            @if($viewMode === 'create')
+                <button wire:click="setMode('list')" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                    Zurück zur Übersicht
+                </button>
+            @elseif($viewMode === 'list')
+                <label class="flex items-center gap-2.5 px-3.5 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl cursor-pointer group shadow-sm" title="E-Mail-Benachrichtigung bei Support-Antworten ein- oder ausschalten">
+                    <div class="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </div>
+                    <div class="text-left pr-1">
+                        <span class="block text-[9px] font-black uppercase tracking-wider text-gray-400">E-Mail-Updates</span>
+                        <span class="block text-[11px] font-bold {{ $emailNotifications ? 'text-emerald-500 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500' }}">{{ $emailNotifications ? 'Aktiviert' : 'Deaktiviert' }}</span>
+                    </div>
+                    <div class="relative w-9 h-5 ml-2 shrink-0">
+                        <input type="checkbox" wire:model.live="emailNotifications" class="sr-only">
+                        <div class="w-9 h-5 bg-gray-200 dark:bg-gray-800 rounded-full border border-gray-300 dark:border-gray-700 transition-colors {{ $emailNotifications ? '!bg-primary' : '' }}"></div>
+                        <div class="absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full shadow transition-transform duration-200 ease-in-out {{ $emailNotifications ? 'transform translate-x-4' : '' }}"></div>
+                    </div>
+                </label>
 
-            @if($viewMode === 'list')
-                <button wire:click="setMode('create')" class="px-6 py-3 bg-primary text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-all shadow-sm dark:shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:-translate-y-1 flex items-center gap-2">
+                <button wire:click="setMode('create')" class="px-6 py-3 bg-primary text-gray-900 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-all shadow-sm dark:shadow-[0_0_20px_rgba(197,160,89,0.3)] hover:-translate-y-1 flex items-center gap-2 cursor-pointer">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"/></svg>
-                    Ticket
+                    Neues Ticket
+                </button>
+            @elseif($viewMode === 'chat')
+                <button wire:click="setMode('list')" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-sm cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                    Alle Tickets
                 </button>
             @endif
         </div>
@@ -120,7 +133,19 @@
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Betroffene Bestellung (Optional)</label>
                         <select wire:model="newOrderId" class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-colors">
                             <option value="">Keine spezielle Bestellung</option>
-                            @foreach($orders as $o) <option value="{{ $o->id }}">Bestellung vom {{ $o->created_at->format('d.m.Y') }}</option> @endforeach
+                            @foreach($orders as $o)
+                                @php
+                                    $itemNames = $o->items->pluck('product_name')->filter()->unique();
+                                    $itemsSummary = $itemNames->take(2)->join(', ');
+                                    if ($itemNames->count() > 2) {
+                                        $itemsSummary .= ' (+' . ($itemNames->count() - 2) . ' weitere)';
+                                    }
+                                    $priceFormatted = number_format($o->total_price / 100, 2, ',', '.') . ' €';
+                                @endphp
+                                <option value="{{ $o->id }}">
+                                    #{{ $o->order_number }} · {{ $o->created_at->format('d.m.Y, H:i') }} Uhr ({{ $priceFormatted }})@if(!empty($itemsSummary)) – {{ \Illuminate\Support\Str::limit($itemsSummary, 45) }}@endif
+                                </option>
+                            @endforeach
                         </select>
                     </div>
                 </div>
@@ -134,6 +159,27 @@
                     <textarea wire:model="newMessage" rows="6" class="w-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-colors @error('newMessage') border-2 border-red-500 @else border border-gray-200 dark:border-gray-800 @enderror"></textarea>
                     @error('newMessage') <span class="text-red-500 text-xs mt-1 block font-bold">{{ $message }}</span> @enderror
                 </div>
+
+                {{-- E-Mail-Benachrichtigung Präferenz (Kontextuell & professionell platziert) --}}
+                <div class="p-4 bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 rounded-2xl flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="block text-xs font-bold text-gray-900 dark:text-white">E-Mail-Benachrichtigung bei Support-Antworten</span>
+                            <span class="block text-[11px] text-gray-500 dark:text-gray-400">Wir senden dir eine Benachrichtigung an <strong class="text-gray-700 dark:text-gray-300">{{ auth()->user()->email }}</strong>, sobald unser Team antwortet.</span>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input type="checkbox" wire:model.live="emailNotifications" class="sr-only">
+                        <div class="w-11 h-6 bg-gray-200 dark:bg-gray-800 rounded-full border border-gray-300 dark:border-gray-700 transition-colors {{ $emailNotifications ? '!bg-primary' : '' }}"></div>
+                        <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full shadow transition-transform {{ $emailNotifications ? 'transform translate-x-5' : '' }}"></div>
+                    </label>
+                </div>
+
                 <div class="pt-4 flex justify-between items-center border-t border-gray-200 dark:border-gray-800">
                     <button type="button" wire:click="setMode('list')" class="text-gray-500 dark:text-gray-400 font-bold text-xs uppercase tracking-widest hover:text-gray-900 dark:hover:text-white transition-colors">Abbrechen</button>
                     <button type="submit" class="px-8 py-4 bg-primary text-gray-900 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-all shadow-sm dark:shadow-[0_0_20px_rgba(197,160,89,0.4)]">SupportTicket absenden</button>

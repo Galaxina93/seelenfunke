@@ -175,7 +175,7 @@ class GameGamesComponent extends Component
                 $isUsed = false;
 
                 if ($dbVoucher) {
-                    $isUsed = $dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit;
+                    $isUsed = ($dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit) || !$dbVoucher->is_active;
                 }
 
                 $formattedCoupons['lvl_' . $lvl] = [

@@ -165,14 +165,19 @@
                                                 @endif
                                             </div>
                                             @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
-                                                <div x-data="{ successMsg: false }"
+                                                <div x-data="{ successMsg: false, showNotice: true }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
 
-                                                    <div class="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 flex items-start gap-3 shadow-sm">
-                                                        <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                        <p class="text-xs text-amber-700 dark:text-amber-500/90 font-medium">
-                                                            <strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.
-                                                        </p>
+                                                    <div x-show="showNotice" x-transition class="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 flex items-start justify-between gap-3 shadow-sm">
+                                                        <div class="flex items-start gap-3">
+                                                            <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <p class="text-xs text-amber-700 dark:text-amber-500/90 font-medium">
+                                                                <strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.
+                                                            </p>
+                                                        </div>
+                                                        <button type="button" @click="showNotice = false" class="text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 p-0.5 rounded cursor-pointer transition-colors" title="Hinweis ausblenden">
+                                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                        </button>
                                                     </div>
 
                                                     <template x-if="successMsg">
@@ -189,15 +194,23 @@
                                     </li>
 
                                     @if($previewItemId == $item->id && $this->previewItem)
-                                        <div class="bg-gray-50 dark:bg-gray-950 p-6 sm:p-8 border-y border-gray-200 dark:border-gray-800 animate-fade-in-down shadow-inner">
-                                            <div class="flex justify-between items-center mb-6">
+                                        <div class="bg-gray-50 dark:bg-gray-950 p-6 sm:p-8 border-y border-gray-200 dark:border-gray-800 animate-fade-in-down shadow-inner" x-data="{ showHints: true }">
+                                            <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                                                 <h4 class="text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.3em]">Manufaktur Details</h4>
-                                                @if($item->config_fingerprint)
-                                                    <span class="text-[10px] bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 rounded-full border border-green-200 dark:border-green-500/30 flex items-center gap-2 font-black uppercase tracking-widest shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                                                    Versiegelt
-                                                </span>
-                                                @endif
+                                                <div class="flex items-center gap-3">
+                                                    <button type="button"
+                                                            @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
+                                                            class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                                                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+                                                    </button>
+                                                    @if($item->config_fingerprint)
+                                                        <span class="text-[10px] bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 rounded-full border border-green-200 dark:border-green-500/30 flex items-center gap-2 font-black uppercase tracking-widest shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                                            Versiegelt
+                                                        </span>
+                                                    @endif
+                                                </div>
                                             </div>
                                             <div class="bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm dark:shadow-2xl w-full">
                                                 <livewire:shop.product.product-configurator.product-configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-prev-'.$this->previewItem->id" />
@@ -206,15 +219,23 @@
                                     @endif
 
                                     @if($editItemId == $item->id && $this->editItem)
-                                        <div class="bg-gray-50 dark:bg-gray-950 p-6 sm:p-8 border-y border-gray-200 dark:border-gray-800 animate-fade-in-down shadow-inner">
+                                        <div class="bg-gray-50 dark:bg-gray-950 p-6 sm:p-8 border-y border-gray-200 dark:border-gray-800 animate-fade-in-down shadow-inner" x-data="{ showHints: true }">
                                             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                                                 <h4 class="text-sm font-black text-cyan-600 dark:text-cyan-500 uppercase tracking-[0.3em] flex items-center gap-2">
                                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                     Artikel anpassen
                                                 </h4>
-                                                <div class="text-[10px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-widest bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-                                                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                                    Live-Änderung an der Bestellung
+                                                <div class="flex items-center gap-3">
+                                                    <button type="button"
+                                                            @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
+                                                            class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                                                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                        <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+                                                    </button>
+                                                    <div class="text-[10px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-widest bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                        Live-Änderung an der Bestellung
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div class="bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm dark:shadow-2xl w-full">
@@ -283,6 +304,35 @@
                                     <p class="text-[9px] font-black uppercase tracking-widest text-primary/70 mt-4 ml-1 leading-relaxed">
                                         Hinweis: Diese Bestellung wurde in {{ $selectedOrder->shipments->count() }} Pakete aufgeteilt.
                                     </p>
+                                @endif
+
+                                @if(session()->has('delivery_confirmed'))
+                                    <div class="mt-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-center gap-2.5">
+                                        <svg class="w-5 h-5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        <span>{{ session('delivery_confirmed') }}</span>
+                                    </div>
+                                @endif
+
+                                @if($selectedOrder->status === 'shipped')
+                                    <div class="mt-5 pt-4 border-t border-primary/20 flex flex-col sm:flex-row items-center justify-between gap-3">
+                                        <div class="text-[11px] text-amber-900/80 dark:text-primary/90 font-medium">
+                                            Paket schon erhalten?
+                                        </div>
+                                        <button wire:click="confirmDelivery('{{ $selectedOrder->id }}')"
+                                                wire:loading.attr="disabled"
+                                                wire:confirm="Möchten Sie bestätigen, dass Sie alle Pakete dieser Bestellung erhalten haben?"
+                                                class="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-gray-900 hover:bg-primary/90 text-xs font-black uppercase tracking-wider shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                            <svg class="w-4 h-4 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            <span>Erhalt bestätigen</span>
+                                        </button>
+                                    </div>
+                                @elseif($selectedOrder->status === 'completed')
+                                    <div class="mt-4 pt-3 border-t border-primary/20 flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                        <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        <span>Erfolgreich zugestellt</span>
+                                    </div>
                                 @endif
                             </div>
                         </div>
@@ -643,6 +693,20 @@
                                                     </div>
                                                 </div>
                                             @endforeach
+
+                                            @if($o->status === 'shipped')
+                                                <div class="mt-2 pt-3 border-t border-primary/20 flex items-center justify-between">
+                                                    <span class="text-[11px] text-amber-900/80 dark:text-primary/90 font-medium">Paket schon angekommen?</span>
+                                                    <button wire:click.stop="confirmDelivery('{{ $o->id }}')"
+                                                            wire:confirm="Möchten Sie bestätigen, dass Sie alle Pakete dieser Bestellung erhalten haben?"
+                                                            class="px-3.5 py-1.5 rounded-xl bg-primary text-gray-900 hover:bg-primary/90 text-[11px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
+                                                        <svg class="w-3.5 h-3.5 text-gray-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        <span>Erhalt bestätigen</span>
+                                                    </button>
+                                                </div>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>

@@ -94,6 +94,9 @@ try {
                 if ($commandClean === 'system:heartbeat') {
                     $heartbeatRegistered = true;
                 } else {
+                    if ($commandClean === 'dhl:check-delivery-status') {
+                        $dhlDeliveryStatusRegistered = true;
+                    }
                     $event->withoutOverlapping();
                     if (!isset($_GET['sync_schedule']) && getenv('SYNC_SCHEDULE') !== '1') {
                         $event->runInBackground();
@@ -162,6 +165,14 @@ try {
 // Stellt sicher, dass das Lebenszeichen immer geschrieben wird, falls in der DB noch kein Job angelegt oder aktiv ist
 if (!isset($heartbeatRegistered) || !$heartbeatRegistered) {
     Schedule::command('system:heartbeat')->everyMinute();
+}
+
+// Ausfallsicherer Fallback für DHL Sendungsstatus & Auto-Zustellung (läuft alle 2 Stunden tagsüber)
+if (!isset($dhlDeliveryStatusRegistered) || !$dhlDeliveryStatusRegistered) {
+    Schedule::command('dhl:check-delivery-status')
+        ->cron('0 8-20/2 * * *')
+        ->withoutOverlapping()
+        ->runInBackground();
 }
 
 Artisan::command('workspace:dateitrichter {--all : Verarbeitet alle Dokumente im gesamten Workspace}', function () {

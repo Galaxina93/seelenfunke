@@ -74,11 +74,29 @@
             padding: 0 !important;
         }
 
+        html.configurator-fullscreen-active #referral-coupon-banner,
+        html.configurator-fullscreen-active .referral-coupon-banner,
         html.configurator-fullscreen-active #navbar,
         html.configurator-fullscreen-active header,
+        html.configurator-fullscreen-active nav,
+        html.configurator-fullscreen-active footer,
         html.configurator-fullscreen-active #frontend-action-dock,
         html.configurator-fullscreen-active [class*="action_dock"] {
             display: none !important;
+        }
+
+        /* Verhindert, dass übergeordnete Container (z.B. in der Bestell-Detailansicht) durch transform, filter oder backdrop-filter das position:fixed einschränken */
+        html.configurator-fullscreen-active *:has(.configurator-studio-root) {
+            transform: none !important;
+            animation: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            filter: none !important;
+            perspective: none !important;
+            contain: none !important;
+            overflow: visible !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
         }
 
         .configurator-studio-root {
@@ -92,7 +110,9 @@
             max-width: 100vw !important;
             max-height: 100vh !important;
             margin: 0 !important;
+            padding: 0 !important;
             z-index: 2147483647 !important;
+            inset: 0 !important;
         }
 
         .configurator-studio-body {
@@ -170,8 +190,16 @@
                 </div>
             @endif
 
-            {{-- Rechte Seite: Verkleinern / Esc --}}
+            {{-- Rechte Seite: Verkleinern / Esc & Hinweise --}}
             <div class="flex items-center gap-2">
+                <button type="button"
+                        @click="showNotice = !showNotice"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-300 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200' }}"
+                        :title="showNotice ? 'Hinweise ausblenden' : 'Hinweise anzeigen'">
+                    <x-heroicon-s-information-circle class="w-4 h-4 text-primary" />
+                    <span x-text="showNotice ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+                </button>
+
                 <button type="button"
                         @click="toggleMaximize()"
                         class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-200 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200' }}">

@@ -13,6 +13,11 @@ class CustomerDashboardComponent extends Component
     public $profileSteps = [];
     public $recentOrders = [];
     public bool $isGameModeActive = false;
+    public $activeGiftVouchers = [];
+    public string $referralCode = '';
+    public bool $hasCompletedOrder = false;
+    public int $successfulReferralsCount = 0;
+    public int $totalReferralEarnedCents = 0;
 
     public function mount()
     {
@@ -48,6 +53,37 @@ class CustomerDashboardComponent extends Component
         // Check if game mode is active
         $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
             ->value('is_active');
+
+        // Load active store credit / gift vouchers
+        $this->activeGiftVouchers = \App\Models\Marketing\MarketingGiftVoucher::where('recipient_email', $user->email)
+            ->where('is_active', true)
+            ->where('current_balance', '>', 0)
+            ->get();
+
+        // Check if customer has at least 1 paid order
+        $this->hasCompletedOrder = \App\Models\Order\OrderOrder::where('customer_id', $user->id)
+            ->where('payment_status', 'paid')
+            ->exists();
+
+        // Resolve or create persistent personal referral code ONLY if customer has purchased
+        if ($this->hasCompletedOrder) {
+            try {
+                $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(
+                    $user->email,
+                    $user->first_name,
+                    $user->last_name,
+                    $user->id
+                );
+                $this->referralCode = $ref->code;
+                $this->successfulReferralsCount = (int) $ref->successful_referrals_count;
+                $this->totalReferralEarnedCents = $this->successfulReferralsCount * (int) ($ref->reward_cents ?? 500);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Dashboard referral resolution error: ' . $e->getMessage());
+                $this->referralCode = 'FREUNDE10';
+                $this->successfulReferralsCount = 0;
+                $this->totalReferralEarnedCents = 0;
+            }
+        }
     }
 
     private function checkProfileSteps($user)

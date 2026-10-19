@@ -92,6 +92,34 @@ class CustomerOrdersComponent extends Component
         );
     }
 
+    public function confirmDelivery($orderId)
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+
+        $order = OrderOrder::where('id', $orderId)
+            ->where('customer_id', $user->id)
+            ->first();
+
+        if (!$order) {
+            session()->flash('error', 'Bestellung nicht gefunden.');
+            return;
+        }
+
+        if ($order->status !== 'shipped') {
+            session()->flash('error', 'Die Bestellung kann nur im Status "Unterwegs" als zugestellt bestätigt werden.');
+            return;
+        }
+
+        // Alle Sendungen auf delivered setzen
+        $order->shipments()->update(['status' => 'delivered']);
+
+        // Bestellung auf completed setzen
+        $order->update(['status' => 'completed']);
+
+        session()->flash('delivery_confirmed', 'Vielen Dank! Ihre Bestellung wurde als zugestellt bestätigt. Wir wünschen Ihnen ganz viel Freude mit Ihren Seelenfunke-Unikaten! ✨');
+    }
+
     // Computed Property für die ausgewählte Bestellung
     public function getSelectedOrderProperty()
     {

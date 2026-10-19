@@ -15,13 +15,24 @@ use Stripe\Stripe;
 
 class OrderCheckoutSuccess extends Component
 {
+    public $finalOrderNumber = '';
+    public $email = '';
+    public $referralCode = '';
+
     public function mount()
     {
         $intentId = request()->query('payment_intent');
 
-        // Falls kein Intent in der URL ist, wurde der Erfolg wahrscheinlich
-        // schon via JavaScript/handlePaymentSuccess verarbeitet.
+        // Falls kein Intent in der URL ist, prüfen ob Customer eingeloggt ist für Fallback
         if (!$intentId) {
+            if (Auth::guard('customer')->check()) {
+                $order = OrderOrder::where('customer_id', Auth::guard('customer')->id())->latest()->first();
+                if ($order) {
+                    $this->finalOrderNumber = $order->order_number;
+                    $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+                    $this->resolveReferralCode($order);
+                }
+            }
             return;
         }
 
@@ -33,6 +44,10 @@ class OrderCheckoutSuccess extends Component
             Log::error("CheckoutSuccess: OrderOrder nicht gefunden für $intentId");
             return;
         }
+
+        $this->finalOrderNumber = $order->order_number;
+        $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+        $this->resolveReferralCode($order);
 
         $stripeSecret = config('services.stripe.secret');
         if (!$stripeSecret) return;
@@ -65,6 +80,23 @@ class OrderCheckoutSuccess extends Component
             }
         } catch (\Exception $e) {
             Log::error('Stripe Success Page Error: ' . $e->getMessage());
+        }
+    }
+
+    private function resolveReferralCode(OrderOrder $order): void
+    {
+        try {
+            $firstName = $order->billing_address['first_name'] ?? ($order->customer->first_name ?? '');
+            $lastName = $order->billing_address['last_name'] ?? ($order->customer->last_name ?? '');
+            $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(
+                $this->email,
+                $firstName,
+                $lastName,
+                $order->customer_id
+            );
+            $this->referralCode = $ref->code;
+        } catch (\Exception $e) {
+            Log::error('CheckoutSuccess referral resolution error: ' . $e->getMessage());
         }
     }
 

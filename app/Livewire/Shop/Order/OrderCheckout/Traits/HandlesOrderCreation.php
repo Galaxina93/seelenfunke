@@ -92,6 +92,36 @@ trait HandlesOrderCreation
                         'coupon' => 'Der verwendete Gutschein ist leider nicht mehr gültig oder aufgebraucht.'
                     ]);
                 }
+
+                // Referral-Sicherheitscheck gegen die eingegebene Checkout-E-Mail (Eigenwerbung & Neukundenschutz)
+                $checkoutCustomerId = Auth::guard('customer')->check() ? Auth::guard('customer')->id() : null;
+                $referralCheck = app(\App\Services\ReferralService::class)->validateReferralCode($cart->coupon_code, $this->email, $checkoutCustomerId);
+                if ($referralCheck['is_referral'] && !$referralCheck['valid']) {
+                    $cart->update(['coupon_code' => null]);
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'coupon' => $referralCheck['message']
+                    ]);
+                }
+
+                // [SICHERHEIT] Persönliche Belohnungsgutscheine strikt an die Checkout-E-Mail binden
+                if ($coupon instanceof \App\Models\Marketing\MarketingGiftVoucher && !empty($coupon->recipient_email) && str_starts_with($coupon->code, 'DANKE-')) {
+                    if (strtolower(trim($this->email)) !== strtolower(trim($coupon->recipient_email))) {
+                        $cart->update(['coupon_code' => null]);
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'coupon' => 'Dieser Belohnungsgutschein ist persönlich an ' . $coupon->recipient_email . ' gebunden und kann nur mit dieser E-Mail eingelöst werden.'
+                        ]);
+                    }
+                }
+
+                // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an die Checkout-E-Mail binden
+                if ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
+                    if (strtolower(trim($this->email)) !== strtolower(trim($coupon->recipient_email))) {
+                        $cart->update(['coupon_code' => null]);
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'coupon' => 'Dieser Belohnungsgutschein ist persönlich an ' . $coupon->recipient_email . ' gebunden und kann nur mit dieser E-Mail eingelöst werden.'
+                        ]);
+                    }
+                }
             }
 
             $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
@@ -206,6 +236,30 @@ trait HandlesOrderCreation
                 'express_price' => $totals['express'] ?? 0,
                 'total_price' => $totals['total'],
             ];
+
+            // UTM- und Referral-Tracking an der Bestellung festhalten
+            $referrer = session('seelenfunke_referrer') ?: request()->cookie('seelenfunke_referrer');
+            if ($referrer) {
+                $orderData['utm_campaign_last'] = 'ref:' . substr($referrer, 0, 50);
+            }
+            if (request()->hasCookie('seelenfunke_first_touch')) {
+                $ft = json_decode(request()->cookie('seelenfunke_first_touch'), true);
+                if (is_array($ft)) {
+                    $orderData['utm_source_first'] = $ft['source'] ?? null;
+                    $orderData['utm_campaign_first'] = $ft['campaign'] ?? null;
+                    $orderData['utm_medium_first'] = $ft['medium'] ?? null;
+                }
+            }
+            if (request()->hasCookie('seelenfunke_last_touch')) {
+                $lt = json_decode(request()->cookie('seelenfunke_last_touch'), true);
+                if (is_array($lt)) {
+                    $orderData['utm_source_last'] = $lt['source'] ?? null;
+                    if (empty($orderData['utm_campaign_last'])) {
+                        $orderData['utm_campaign_last'] = $lt['campaign'] ?? null;
+                    }
+                    $orderData['utm_medium_last'] = $lt['medium'] ?? null;
+                }
+            }
 
             // VERHINDERE DOPPELTE BESTELLUNGEN WENN DER USER MEHRFACH KLICKT
             $order = null;

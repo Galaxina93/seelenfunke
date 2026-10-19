@@ -97,6 +97,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->string('title'); // Z.B. "Februar Aktion"
             $table->string('code')->nullable();  // Pattern für Auto
+            $table->string('recipient_email', 191)->nullable()->index();
             $table->enum('type', ['fixed', 'percent']);
             $table->integer('value');
             $table->integer('used_count')->default(0);

@@ -136,6 +136,18 @@ trait HandlesStripePayment
 
             $this->finalOrderNumber = $order->order_number;
 
+            try {
+                $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(
+                    $order->email,
+                    $order->billing_address['first_name'] ?? ($this->first_name ?? ''),
+                    $order->billing_address['last_name'] ?? ($this->last_name ?? ''),
+                    $order->customer_id
+                );
+                $this->referralCode = $ref->code;
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Referral code resolution error: ' . $e->getMessage());
+            }
+
             // --- VERKNÜPFUNG ZUM ANGEBOT (QUOTE) ---
             if (Session::has('checkout_from_quote_id')) {
                 $quoteId = Session::get('checkout_from_quote_id');

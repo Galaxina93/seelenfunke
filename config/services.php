@@ -70,6 +70,15 @@ return [
         'credentials_file' => env('FIREBASE_CREDENTIALS_PATH', storage_path('app/firebase-service-account.json')),
     ],
 
+    'dhl' => [
+        'api_key' => env('DHL_API_KEY'),
+        'api_user' => env('DHL_API_USER'),
+        'api_signature' => env('DHL_API_SIGNATURE'),
+        'ekp' => env('DHL_EKP', '3333333333'),
+        'sandbox' => env('DHL_SANDBOX', true),
+        'tracking_api_key' => env('DHL_TRACKING_API_KEY', env('DHL_API_KEY')),
+    ],
+
 ];
 
 

@@ -54,6 +54,7 @@ class OrderCheckout extends Component
     // --- UI STATE ---
     public $isFinished = false;
     public $finalOrderNumber = '';
+    public $referralCode = '';
 
     /**
      * Schöne Namen für die Felder definieren

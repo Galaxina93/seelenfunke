@@ -57,9 +57,10 @@
             isPerformingHistoryAction: false,
             _historyDebounceTimeout: null,
 
-            // Emoji Warnung
+            // Emoji Warnung & Hinweise
             showEmojiWarning: false,
             _emojiWarningTimeout: null,
+            showNotice: true,
 
             // Formular & Tabs
             activeTab: null,
@@ -91,19 +92,37 @@
                     setTimeout(() => { this.saved = false; }, 15000);
                 });
 
-                window.addEventListener('beforeunload', () => {
-                    try {
-                        document.body.style.overflow = '';
-                        document.documentElement.classList.remove('configurator-fullscreen-active');
-                    } catch(e) {}
+                window.addEventListener('toggle-configurator-hints', (e) => {
+                    if (e.detail && typeof e.detail.show !== 'undefined') {
+                        this.showNotice = e.detail.show;
+                    } else {
+                        this.showNotice = !this.showNotice;
+                    }
                 });
 
-                document.addEventListener('livewire:navigating', () => {
+                const cleanupFullscreen = () => {
                     try {
                         document.body.style.overflow = '';
                         document.documentElement.classList.remove('configurator-fullscreen-active');
+                        if (this._neutralizedParents && this._neutralizedParents.length) {
+                            this._neutralizedParents.forEach(item => {
+                                item.el.style.transform = item.transform || '';
+                                item.el.style.animation = item.animation || '';
+                                item.el.style.backdropFilter = item.backdropFilter || '';
+                                item.el.style.webkitBackdropFilter = item.webkitBackdropFilter || '';
+                                item.el.style.filter = item.filter || '';
+                                item.el.style.overflow = item.overflow || '';
+                                item.el.style.overflowX = item.overflowX || '';
+                                item.el.style.overflowY = item.overflowY || '';
+                                item.el.style.borderRadius = item.borderRadius || '';
+                            });
+                            this._neutralizedParents = [];
+                        }
                     } catch(e) {}
-                });
+                };
+
+                window.addEventListener('beforeunload', cleanupFullscreen);
+                document.addEventListener('livewire:navigating', cleanupFullscreen);
 
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
@@ -1119,17 +1138,76 @@
                 this.applySnapshot(this.history[this.historyIndex]);
             },
 
+            _neutralizedParents: [],
+
             toggleMaximize() {
                 this.isMaximized = !this.isMaximized;
                 try {
                     if (this.isMaximized) {
                         document.body.style.overflow = 'hidden';
                         document.documentElement.classList.add('configurator-fullscreen-active');
+                        const banner = document.getElementById('referral-coupon-banner');
+                        if (banner) banner.style.setProperty('display', 'none', 'important');
+
+                        // Trap-Release: Deaktiviert alle Eltern-Stile, die ein containing-block für fixed erzwingen
+                        this._neutralizedParents = [];
+                        let p = this.$el ? this.$el.parentElement : null;
+                        while (p && p !== document.body && p !== document.documentElement) {
+                            const cs = window.getComputedStyle(p);
+                            const hasTransform = cs.transform !== 'none' || (cs.animationName && cs.animationName !== 'none');
+                            const hasBackdrop = (cs.backdropFilter && cs.backdropFilter !== 'none') || (cs.webkitBackdropFilter && cs.webkitBackdropFilter !== 'none');
+                            const hasFilter = cs.filter && cs.filter !== 'none';
+                            const hasOverflow = cs.overflow !== 'visible' || cs.overflowX !== 'visible' || cs.overflowY !== 'visible';
+
+                            if (hasTransform || hasBackdrop || hasFilter || hasOverflow) {
+                                this._neutralizedParents.push({
+                                    el: p,
+                                    transform: p.style.transform,
+                                    animation: p.style.animation,
+                                    backdropFilter: p.style.backdropFilter,
+                                    webkitBackdropFilter: p.style.webkitBackdropFilter,
+                                    filter: p.style.filter,
+                                    overflow: p.style.overflow,
+                                    overflowX: p.style.overflowX,
+                                    overflowY: p.style.overflowY,
+                                    borderRadius: p.style.borderRadius,
+                                });
+                                p.style.setProperty('transform', 'none', 'important');
+                                p.style.setProperty('animation', 'none', 'important');
+                                p.style.setProperty('backdrop-filter', 'none', 'important');
+                                p.style.setProperty('-webkit-backdrop-filter', 'none', 'important');
+                                p.style.setProperty('filter', 'none', 'important');
+                                p.style.setProperty('overflow', 'visible', 'important');
+                                p.style.setProperty('overflow-x', 'visible', 'important');
+                                p.style.setProperty('overflow-y', 'visible', 'important');
+                            }
+                            p = p.parentElement;
+                        }
                     } else {
                         document.body.style.overflow = '';
                         document.documentElement.classList.remove('configurator-fullscreen-active');
+                        const banner = document.getElementById('referral-coupon-banner');
+                        if (banner) banner.style.removeProperty('display');
+
+                        // Stelle die ursprünglichen Eltern-Stile wieder her
+                        if (this._neutralizedParents && this._neutralizedParents.length) {
+                            this._neutralizedParents.forEach(item => {
+                                item.el.style.transform = item.transform || '';
+                                item.el.style.animation = item.animation || '';
+                                item.el.style.backdropFilter = item.backdropFilter || '';
+                                item.el.style.webkitBackdropFilter = item.webkitBackdropFilter || '';
+                                item.el.style.filter = item.filter || '';
+                                item.el.style.overflow = item.overflow || '';
+                                item.el.style.overflowX = item.overflowX || '';
+                                item.el.style.overflowY = item.overflowY || '';
+                                item.el.style.borderRadius = item.borderRadius || '';
+                            });
+                            this._neutralizedParents = [];
+                        }
                     }
-                } catch(e) {}
+                } catch(e) {
+                    console.error('toggleMaximize error:', e);
+                }
 
                 this.$nextTick(() => {
                     setTimeout(() => {

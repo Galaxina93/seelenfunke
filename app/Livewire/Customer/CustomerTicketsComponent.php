@@ -55,10 +55,11 @@ class CustomerTicketsComponent extends Component
         // Als String sichern für Livewire
         $this->customerId = (string) Auth::guard('customer')->id();
 
-        $profile = CustomerGamification::where('customer_id', $this->customerId)->first();
-        if ($profile) {
-            $this->emailNotifications = $profile->ticket_emails_enabled;
-        }
+        $profile = CustomerGamification::firstOrCreate(
+            ['customer_id' => $this->customerId],
+            ['ticket_emails_enabled' => true]
+        );
+        $this->emailNotifications = (bool) $profile->ticket_emails_enabled;
     }
 
     public function setRating($stars) {
@@ -99,11 +100,11 @@ class CustomerTicketsComponent extends Component
 
     public function updatedEmailNotifications()
     {
-        $profile = CustomerGamification::where('customer_id', $this->customerId)->first();
-        if ($profile) {
-            $profile->update(['ticket_emails_enabled' => $this->emailNotifications]);
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Benachrichtigungs-Einstellung gespeichert.']);
-        }
+        $profile = CustomerGamification::firstOrCreate(
+            ['customer_id' => $this->customerId]
+        );
+        $profile->update(['ticket_emails_enabled' => (bool) $this->emailNotifications]);
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Benachrichtigungs-Einstellung gespeichert.']);
     }
 
     public function updatedNewAttachments() { $this->processUploads('attachments', 'newAttachments'); }
@@ -289,7 +290,7 @@ class CustomerTicketsComponent extends Component
     public function render()
     {
         $tickets = SupportTicket::where('customer_id', $this->customerId)->with('order')->orderBy('updated_at', 'desc')->get();
-        $orders = OrderOrder::where('customer_id', $this->customerId)->orderBy('created_at', 'desc')->get();
+        $orders = OrderOrder::where('customer_id', $this->customerId)->with('items')->orderBy('created_at', 'desc')->get();
         $activeTicket = $this->viewMode === 'chat' && $this->activeTicketId ? SupportTicket::with('messages', 'order')->where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->first() : null;
 
         return view('livewire.customer.customer-tickets-component', ['tickets' => $tickets, 'orders' => $orders, 'activeTicket' => $activeTicket]);
