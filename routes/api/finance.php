@@ -167,7 +167,7 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
 
     $aiResult = \App\Services\AI\ReceiptAiScannerService::analyze($file, $categories);
 
-    if (!$aiResult || empty($aiResult['amount_abs'])) {
+    if (!$aiResult) {
         return response()->json([
             'success' => false,
             'message' => 'Beleg konnte nicht automatisch erkannt werden. Bitte manuell erfassen.'

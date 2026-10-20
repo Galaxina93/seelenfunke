@@ -79,6 +79,7 @@ class FinanceViewModel : ViewModel() {
                 .onFailure { error ->
                     _isAiScanning.value = false
                     _actionResult.value = Result.failure(error)
+                    onScanComplete(null)
                 }
         }
     }

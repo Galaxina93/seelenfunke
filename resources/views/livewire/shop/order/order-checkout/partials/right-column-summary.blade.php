@@ -2,16 +2,12 @@
      x-data="{
         isProcessing: false,
         terms: @entangle('terms_accepted'),
-        privacy: @entangle('privacy_accepted'),
-        get funkiState() {
-            if (this.terms && this.privacy) return 'party';
-            return 'normal';
-        }
+        privacy: @entangle('privacy_accepted')
      }"
      @checkout-processing-done.window="isProcessing = false"
      @checkout-processing.window="isProcessing = true">
 
-    <div class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-lg transition-all duration-300">
+    <div class="bg-white p-5 sm:p-6 rounded-2xl border border-gray-150 shadow-md transition-all duration-300">
 
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
             <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-64 h-64 sm:w-80 sm:h-80 mx-auto">
@@ -30,7 +26,7 @@
         </div>
 
         <div x-show="!isProcessing" class="animate-fade-in">
-            <h2 class="text-lg font-medium text-gray-900 mb-6">Bestellübersicht</h2>
+            <h2 class="text-base sm:text-lg font-bold text-gray-900 mb-4">Bestellübersicht</h2>
 
             @php
                 $threshold = (int) shop_setting('shipping_free_threshold', 5000);
@@ -57,23 +53,23 @@
             @endphp
 
             @if($country === 'DE' && $hasPhysical)
-                <div class="mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div class="mb-4 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
                     @if($isFree)
                         <div class="flex items-center gap-2 text-green-600 font-bold text-sm animate-fade-in">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                             Glückwunsch! Versandkostenfrei.
                         </div>
                     @else
-                        <p class="text-sm text-gray-700 font-medium mb-2">
+                        <p class="text-sm text-gray-700 font-medium mb-1.5">
                             Noch <span class="text-primary font-bold">{{ number_format($missing / 100, 2, ',', '.') }} €</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
                         </p>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div class="bg-primary h-2.5 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
                         </div>
                     @endif
                 </div>
             @elseif(!$hasPhysical)
-                <div class="mb-6 bg-blue-50 p-4 rounded-xl border border-blue-100 text-blue-800 text-sm flex gap-3 shadow-sm">
+                <div class="mb-4 bg-blue-50 p-3 rounded-xl border border-blue-100 text-blue-800 text-xs sm:text-sm flex gap-3 shadow-2xs">
                     <svg class="w-5 h-5 flex-shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     <span>Zustellung per E-Mail / Download (Versandfrei)</span>
                 </div>
@@ -82,7 +78,7 @@
             <div class="max-h-96 overflow-y-auto pr-2 custom-scrollbar">
                 <ul role="list" class="divide-y divide-gray-200 text-sm font-medium text-gray-900">
                     @foreach($cart->items as $item)
-                        <li class="flex items-start py-6 space-x-4">
+                        <li class="flex items-start py-4 space-x-3">
                             @php
                                 $snapshotFront = null;
                                 $snapshotBack = null;
@@ -232,16 +228,16 @@
                 </div>
             @endif
 
-            <div class="mt-6 pt-6 border-t border-gray-100">
+            <div class="mt-4 pt-4 border-t border-gray-100">
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>
 
-            <div class="space-y-4 bg-gray-50 p-4 rounded-xl mt-6">
+            <div class="space-y-3 bg-gray-50/90 p-3.5 rounded-xl mt-4 border border-gray-150">
                 <div class="flex items-start">
                     <div class="flex h-5 items-center">
                         <input id="terms" wire:model.live="terms_accepted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer">
                     </div>
-                    <div class="ml-3 text-sm">
+                    <div class="ml-3 text-xs sm:text-sm">
                         <label for="terms" class="font-medium text-gray-700 cursor-pointer select-none">
                             Ich habe die <a href="/agb" target="_blank" class="text-primary underline hover:text-primary-dark">AGB</a> gelesen und akzeptiere diese. <span class="text-red-500">*</span>
                         </label>
@@ -251,19 +247,19 @@
                     <div class="flex h-5 items-center">
                         <input id="privacy" wire:model.live="privacy_accepted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer">
                     </div>
-                    <div class="ml-3 text-sm">
+                    <div class="ml-3 text-xs sm:text-sm">
                         <label for="privacy" class="font-medium text-gray-700 cursor-pointer select-none">
                             Ich habe die <a href="/datenschutz" target="_blank" class="text-primary underline hover:text-primary-dark">Datenschutzerklärung</a> zur Kenntnis genommen. <span class="text-red-500">*</span>
                         </label>
                     </div>
                 </div>
                 @if($errors->has('terms_accepted') || $errors->has('privacy_accepted'))
-                    <div class="text-red-500 text-xs mt-2 font-bold">Bitte stimme den rechtlichen Bedingungen zu.</div>
+                    <div class="text-red-500 text-xs mt-1 font-bold">Bitte stimme den rechtlichen Bedingungen zu.</div>
                 @endif
             </div>
 
             {{-- EU-Gewährleistung Hinweis (Aufklappbar vor dem Bestell-Button) --}}
-            <div x-data="{ openWarranty: false, zoomModal: false }" class="mt-4 border border-gray-200 bg-gray-50/80 rounded-xl overflow-hidden transition-all duration-200">
+            <div x-data="{ openWarranty: false, zoomModal: false }" class="mt-3 border border-gray-200 bg-gray-50/80 rounded-xl overflow-hidden transition-all duration-200">
                 <button type="button"
                         @click="openWarranty = !openWarranty"
                         class="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-xs font-medium text-gray-900 hover:bg-gray-100/70 transition-colors focus:outline-none select-none">
@@ -354,11 +350,11 @@
                 </div>
             </div>
 
-            <div class="mt-8">
+            <div class="mt-5">
                 <button id="submit-button"
                         type="submit"
                         x-bind:disabled="!terms || !privacy"
-                        class="w-full rounded-full border border-transparent bg-gray-900 py-4 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-1">
+                        class="w-full rounded-full border border-transparent bg-gray-900 py-3.5 px-4 text-base font-bold text-white shadow-lg shadow-gray-900/20 hover:bg-black focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform enabled:hover:-translate-y-0.5">
                     <span id="button-text">Zahlungspflichtig bestellen</span>
                     <div id="spinner" class="hidden flex items-center justify-center gap-2">
                         <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -368,48 +364,39 @@
                         Verarbeite...
                     </div>
                 </button>
-                <p class="text-xs text-gray-400 text-center mt-4">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
+                <p class="text-[11px] text-gray-400 text-center mt-2.5">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
 
-                {{-- Sinnstiftung: Freude schenken & Soziales leisten mit goldenem Herz --}}
-                <div class="mt-5 pt-4 border-t border-gray-150 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-center">
-                    <div class="flex items-center gap-2">
-                        <svg class="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" viewBox="0 0 24 24">
-                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        <span class="text-xs font-bold text-gray-800">Freude schenken</span>
+                {{-- Sinnstiftung: Freude schenken & Soziales leisten --}}
+                <div class="mt-4 pt-3.5 border-t border-gray-100">
+                    <div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-200/60 p-3 shadow-2xs">
+                        <div class="flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
+                            <div class="flex items-center gap-2.5">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shrink-0">
+                                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                    </svg>
+                                </span>
+                                <div>
+                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Freude schenken</p>
+                                    <p class="text-[11px] text-amber-900/80 font-medium leading-none mt-0.5">Mit Herz gefertigt</p>
+                                </div>
+                            </div>
+
+                            <div class="hidden sm:block w-px h-6 bg-amber-200/80"></div>
+
+                            <div class="flex items-center gap-2.5">
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shrink-0">
+                                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                                    </svg>
+                                </span>
+                                <div>
+                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Soziales leisten</p>
+                                    <p class="text-[11px] text-amber-900/80 font-medium leading-none mt-0.5">Kinder aktiv unterstützen</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <svg class="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" viewBox="0 0 24 24">
-                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        <span class="text-xs font-bold text-gray-800">Soziales leisten <span class="text-gray-500 font-medium">(Kinder unterstützen)</span></span>
-                    </div>
-                </div>
-            </div>
-
-
-            <div class="flex justify-center items-center py-6">
-                <div class="relative w-48 h-48 sm:w-64 sm:h-64">
-                    <img x-show="funkiState === 'normal'"
-                         x-transition:enter="transition ease-out duration-500"
-                         x-transition:enter-start="opacity-0 scale-95"
-                         x-transition:enter-end="opacity-100 scale-100"
-                         x-transition:leave="transition ease-in duration-300"
-                         x-transition:leave-start="opacity-100"
-                         x-transition:leave-end="opacity-0"
-                         src="{{ asset('shop/projekt/funki/checkout/funki_unhappy.webp') }}"
-                         class="absolute inset-0 w-full h-full object-contain"
-                         alt="Funki wartet">
-                    <img x-show="funkiState === 'party'"
-                         x-transition:enter="transition ease-out duration-500"
-                         x-transition:enter-start="opacity-0 scale-105"
-                         x-transition:enter-end="opacity-100 scale-100"
-                         x-transition:leave="transition ease-in duration-300"
-                         x-transition:leave-start="opacity-100"
-                         x-transition:leave-end="opacity-0"
-                         src="{{ asset('shop/projekt/funki/checkout/funki_happy.webp') }}"
-                         class="absolute inset-0 w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,215,0,0.5)]"
-                         alt="Funki feiert">
                 </div>
             </div>
         </div>

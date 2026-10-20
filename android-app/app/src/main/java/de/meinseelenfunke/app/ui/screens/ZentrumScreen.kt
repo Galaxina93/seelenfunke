@@ -322,6 +322,7 @@ fun DashboardContent(
     // 2. Collapsible Quick Entry Card
     var isQuickEntryExpanded by remember { mutableStateOf(false) }
     val isUploading by viewModel.isUploading.collectAsState()
+    val isAiScanning by viewModel.isAiScanning.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
     val categories = listOf("Lebensmittel", "Miete/Wohnen", "Transport", "Freizeit/Hobby", "Versicherungen", "Investitionen", "Sonstiges")
 
@@ -379,9 +380,15 @@ fun DashboardContent(
                 QuickEntryForm(
                     categories = categories,
                     isUploading = isUploading,
+                    isAiScanning = isAiScanning,
                     showCard = false,
                     showTitle = false,
                     onDismiss = { isQuickEntryExpanded = false },
+                    onScanReceipt = { bytes, fileName, mime, autoSave, onResult ->
+                        viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
+                            scanData?.let { onResult(it) }
+                        }
+                    },
                     onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->
                         viewModel.submitQuickEntry(title, amt, cat, isBiz, date, loc, bytes, name, mime)
                     }

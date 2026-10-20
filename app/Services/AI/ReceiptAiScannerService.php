@@ -129,7 +129,7 @@ PROMPT;
 
                             $json = json_decode($cleaned, true);
 
-                            if (json_last_error() === JSON_ERROR_NONE && is_array($json) && isset($json['amount'])) {
+                            if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
                                 return self::normalizeResult($json);
                             }
                         }
@@ -153,7 +153,12 @@ PROMPT;
      */
     protected static function normalizeResult(array $raw): array
     {
-        $amount = abs((float) ($raw['amount'] ?? 0.0));
+        $rawAmount = $raw['amount'] ?? $raw['total'] ?? $raw['sum'] ?? 0.0;
+        if (is_string($rawAmount)) {
+            $rawAmount = str_ireplace(['€', 'EUR', 'eur', ' '], '', $rawAmount);
+            $rawAmount = str_replace(',', '.', $rawAmount);
+        }
+        $amount = abs((float) $rawAmount);
 
         // Datum validieren oder Fallback auf heute
         $date = date('Y-m-d');

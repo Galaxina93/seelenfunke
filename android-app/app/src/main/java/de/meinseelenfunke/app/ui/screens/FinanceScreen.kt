@@ -253,8 +253,8 @@ fun FinanceScreen(
                     onDismiss = { showQuickEntryDialog = false },
                     onScanReceipt = { bytes, fileName, mime, autoSave, onResult ->
                         viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
-                            scanData?.let { onResult(it) }
-                            if (autoSave) {
+                            onResult(scanData)
+                            if (autoSave && scanData != null) {
                                 showQuickEntryDialog = false
                             }
                         }
@@ -1658,7 +1658,7 @@ fun QuickEntryForm(
         fileName: String,
         mimeType: String,
         autoSave: Boolean,
-        onSuccess: (ReceiptAiScanData) -> Unit
+        onComplete: (ReceiptAiScanData?) -> Unit
     ) -> Unit = { _, _, _, _, _ -> },
     onSubmit: (
         title: String,
@@ -1684,7 +1684,9 @@ fun QuickEntryForm(
     // AI Scan options & state
     var autoScanWithAi by remember { mutableStateOf(true) }
     var autoSaveOnScan by remember { mutableStateOf(false) }
+    var localIsScanning by remember { mutableStateOf(false) }
     var aiScanResultNote by remember { mutableStateOf<String?>(null) }
+    var cameraTempUriString by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     
     // File upload details
     var pickedFileUri by remember { mutableStateOf<Uri?>(null) }
@@ -1693,25 +1695,31 @@ fun QuickEntryForm(
     var pickedFileMime by remember { mutableStateOf<String?>(null) }
 
     val triggerAiScan: (ByteArray, String, String) -> Unit = { bytes, name, mime ->
+        localIsScanning = true
         aiScanResultNote = null
         onScanReceipt(bytes, name, mime, autoSaveOnScan) { scanData ->
-            if (scanData.title.isNotBlank()) title = scanData.title
-            if (scanData.amount_abs > 0.0) {
-                amountText = String.format(Locale.US, "%.2f", scanData.amount_abs)
-            } else if (scanData.amount_formatted.isNotBlank()) {
-                amountText = scanData.amount_formatted
-            }
-            scanData.category?.let { cat ->
-                if (cat.isNotBlank()) {
-                    val matched = categories.firstOrNull { c -> c.equals(cat, ignoreCase = true) } ?: cat
-                    selectedCategory = matched
+            localIsScanning = false
+            if (scanData != null) {
+                if (scanData.title.isNotBlank()) title = scanData.title
+                if (scanData.amount_abs > 0.0) {
+                    amountText = String.format(Locale.US, "%.2f", scanData.amount_abs)
+                } else if (scanData.amount_formatted.isNotBlank()) {
+                    amountText = scanData.amount_formatted.replace("-", "").trim()
                 }
+                scanData.category?.let { cat ->
+                    if (cat.isNotBlank()) {
+                        val matched = categories.firstOrNull { c -> c.equals(cat, ignoreCase = true) } ?: cat
+                        selectedCategory = matched
+                    }
+                }
+                scanData.date?.let { if (it.isNotBlank()) executionDate = it }
+                val loc = scanData.merchant ?: scanData.location
+                loc?.let { if (it.isNotBlank() && location.isBlank()) location = it }
+                if (scanData.is_business) isBusiness = true
+                aiScanResultNote = "✨ KI-Foto-Analyse: ${scanData.title} | ${scanData.amount_formatted} € (automatisch befüllt)"
+            } else {
+                aiScanResultNote = "⚠️ Beleg konnte nicht automatisch erkannt werden."
             }
-            scanData.date?.let { if (it.isNotBlank()) executionDate = it }
-            val loc = scanData.merchant ?: scanData.location
-            loc?.let { if (it.isNotBlank() && location.isBlank()) location = it }
-            if (scanData.is_business) isBusiness = true
-            aiScanResultNote = "✨ KI-Foto-Analyse: ${scanData.title} | ${scanData.amount_formatted} € (automatisch befüllt)"
         }
     }
 
@@ -1785,13 +1793,13 @@ fun QuickEntryForm(
         }
     }
 
-    var cameraTempUri by remember { mutableStateOf<android.net.Uri?>(null) }
-
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success) {
-            cameraTempUri?.let { uri ->
+            val uri = cameraTempUriString?.let { Uri.parse(it) }
+            if (uri != null) {
+                localIsScanning = true
                 try {
                     val compressedBytes = de.meinseelenfunke.app.util.ImageUtils.compressImageUri(context, uri)
                     if (compressedBytes != null) {
@@ -1810,11 +1818,18 @@ fun QuickEntryForm(
 
                     if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
                         triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
+                    } else {
+                        localIsScanning = false
                     }
                 } catch (e: Exception) {
+                    localIsScanning = false
                     e.printStackTrace()
                 }
+            } else {
+                localIsScanning = false
             }
+        } else {
+            localIsScanning = false
         }
     }
 
@@ -1998,7 +2013,7 @@ fun QuickEntryForm(
                                         "de.meinseelenfunke.app.fileprovider",
                                         tempFile
                                     )
-                                    cameraTempUri = uri
+                                    cameraTempUriString = uri.toString()
                                     cameraLauncher.launch(uri)
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -2096,55 +2111,67 @@ fun QuickEntryForm(
                 }
             }
 
+            val scanningActive = isAiScanning || localIsScanning
+
             // AI Scanning indicator banner
-            if (isAiScanning) {
+            if (scanningActive) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0x33C5A059)),
                     border = BorderStroke(1.dp, Gold),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         CircularProgressIndicator(
                             color = Gold,
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.5.dp
                         )
-                        Text(
-                            text = "🤖 Gemini Vision scannt Beleg...",
-                            color = Gold,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
+                        Column {
+                            Text(
+                                text = "✨ KI analysiert Belegfoto...",
+                                color = Gold,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = "Betrag, Händler & Kategorie werden automatisch eingetragen",
+                                color = AppTheme.colors.textMuted,
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }
 
             // AI Scan Result Note banner
-            if (aiScanResultNote != null && !isAiScanning) {
+            if (aiScanResultNote != null && !scanningActive) {
+                val isError = aiScanResultNote?.startsWith("⚠️") == true
+                val bannerColor = if (isError) Color(0x22EF4444) else Color(0x2210B981)
+                val borderColor = if (isError) Color(0xFFEF4444) else Emerald500
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0x2210B981)),
-                    border = BorderStroke(1.dp, Emerald500),
+                    colors = CardDefaults.cardColors(containerColor = bannerColor),
+                    border = BorderStroke(1.dp, borderColor),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(8.dp),
+                        modifier = Modifier.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Check,
+                            imageVector = if (isError) Icons.Default.Info else Icons.Default.Check,
                             contentDescription = null,
-                            tint = Emerald500,
-                            modifier = Modifier.size(15.dp)
+                            tint = borderColor,
+                            modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = aiScanResultNote ?: "",
                             color = AppTheme.colors.textPrimary,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
