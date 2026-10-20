@@ -156,29 +156,29 @@
 
                 @if(count($recentOrders) > 0)
                     <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
+                        <table class="w-full text-left border-collapse min-w-[540px]">
                             <thead>
                                 <tr class="border-b border-gray-200 dark:border-gray-800/60 pb-3">
-                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3">Bestellung</th>
-                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3">Datum</th>
-                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3">Betrag</th>
-                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3">Status</th>
-                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3 text-right">Aktion</th>
+                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3 pl-4 pr-3">Bestellung</th>
+                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3 px-3">Datum</th>
+                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3 px-3">Betrag</th>
+                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3 px-3">Status</th>
+                                    <th class="text-gray-500 text-[9px] font-black uppercase tracking-wider pb-3 pl-3 pr-4 sm:pr-5 text-right">Aktion</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100 dark:divide-gray-800/40">
                                 @foreach($recentOrders as $order)
-                                    <tr class="group hover:bg-gray-50 dark:hover:bg-gray-800/10 transition-colors">
-                                        <td class="py-3.5 pr-3">
+                                    <tr class="group hover:bg-gray-50/80 dark:hover:bg-gray-800/20 transition-colors rounded-xl">
+                                        <td class="py-3.5 pl-4 pr-3 rounded-l-xl">
                                             <span class="text-gray-900 dark:text-white font-mono text-xs font-bold">#{{ $order->order_number }}</span>
                                         </td>
-                                        <td class="py-3.5 pr-3">
+                                        <td class="py-3.5 px-3">
                                             <span class="text-gray-600 dark:text-gray-400 text-xs">{{ $order->created_at->format('d.m.Y') }}</span>
                                         </td>
-                                        <td class="py-3.5 pr-3">
+                                        <td class="py-3.5 px-3">
                                             <span class="text-primary font-mono text-xs font-bold">{{ number_format($order->total_price / 100, 2, ',', '.') }} €</span>
                                         </td>
-                                        <td class="py-3.5 pr-3">
+                                        <td class="py-3.5 px-3">
                                             @php
                                                 $statusClass = match($order->status) {
                                                     'pending' => 'bg-yellow-500/10 border-yellow-500/20 text-yellow-600 dark:text-yellow-500',
@@ -203,8 +203,8 @@
                                                 {{ $statusLabel }}
                                             </span>
                                         </td>
-                                        <td class="py-3.5 text-right">
-                                            <a href="{{ route('customer.orders') }}" class="inline-flex items-center justify-center p-1.5 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary/30 transition-colors">
+                                        <td class="py-3.5 pl-3 pr-4 sm:pr-5 text-right rounded-r-xl">
+                                            <a href="{{ route('customer.orders', ['order' => $order->id]) }}" title="Bestellung ansehen" class="inline-flex items-center justify-center p-1.5 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg text-gray-500 dark:text-gray-400 hover:text-primary hover:border-primary/30 transition-colors">
                                                 <x-heroicon-m-eye class="w-4 h-4" />
                                             </a>
                                         </td>

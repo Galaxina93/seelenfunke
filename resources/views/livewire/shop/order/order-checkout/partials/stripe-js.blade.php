@@ -182,9 +182,16 @@
                 });
             }
 
-            // 2. STANDARD PAYMENT ELEMENT LADEN
+            // 2. STANDARD PAYMENT ELEMENT LADEN (Link & Wallets deaktiviert, da Express Checkout oben bereits Apple/Google Pay anbietet)
             if(container) {
-                paymentElement = elements.create("payment", { layout: "tabs" });
+                paymentElement = elements.create("payment", {
+                    layout: "tabs",
+                    wallets: {
+                        link: 'never',
+                        applePay: 'never',
+                        googlePay: 'never'
+                    }
+                });
                 paymentElement.mount("#payment-element");
             }
         }
