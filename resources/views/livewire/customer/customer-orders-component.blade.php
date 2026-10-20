@@ -249,12 +249,14 @@
                                             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                                                 <h4 class="text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.3em]">Manufaktur Details</h4>
                                                 <div class="flex items-center gap-3">
-                                                    <button type="button"
-                                                            @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
-                                                            class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
-                                                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                        <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
-                                                    </button>
+                                                    @if($item->product && !$item->product->isDigital() && !$item->product->isService())
+                                                        <button type="button"
+                                                                @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
+                                                                class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                                                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+                                                        </button>
+                                                    @endif
                                                     @if($item->config_fingerprint)
                                                         <span class="text-[10px] bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 rounded-full border border-green-200 dark:border-green-500/30 flex items-center gap-2 font-black uppercase tracking-widest shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
                                                             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -277,12 +279,14 @@
                                                     Artikel anpassen
                                                 </h4>
                                                 <div class="flex items-center gap-3">
-                                                    <button type="button"
-                                                            @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
-                                                            class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
-                                                        <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                        <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
-                                                    </button>
+                                                    @if($item->product && !$item->product->isDigital() && !$item->product->isService())
+                                                        <button type="button"
+                                                                @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
+                                                                class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                                                            <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+                                                        </button>
+                                                    @endif
                                                     <div class="text-[10px] text-gray-600 dark:text-gray-400 font-bold uppercase tracking-widest bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
                                                         <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                                                         Live-Änderung an der Bestellung

@@ -192,6 +192,7 @@
 
             {{-- Rechte Seite: Verkleinern / Esc & Hinweise --}}
             <div class="flex items-center gap-2">
+                @if(!$isDigital && !$isService)
                 <button type="button"
                         @click="showNotice = !showNotice"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-300 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200' }}"
@@ -199,6 +200,7 @@
                     <x-heroicon-s-information-circle class="w-4 h-4 text-primary" />
                     <span x-text="showNotice ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
                 </button>
+                @endif
 
                 <button type="button"
                         @click="toggleMaximize()"
