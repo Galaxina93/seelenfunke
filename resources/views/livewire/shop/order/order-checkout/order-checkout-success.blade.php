@@ -1,6 +1,7 @@
 <div x-data
      x-init="window.scrollTo({ top: 0, behavior: 'instant' })"
-     class="max-w-5xl mx-auto px-4 pt-28 sm:pt-32 lg:pt-36 pb-12 sm:pb-16 animate-fade-in"
+     class="checkout-success-container max-w-5xl mx-auto px-4 w-full animate-fade-in"
+     style="box-sizing: border-box !important; padding-top: 140px !important; padding-top: max(140px, calc((100vh - 460px) / 2)) !important; padding-bottom: 40px !important;"
      wire:key="checkout-success-container">
 
     <style>
@@ -10,6 +11,18 @@
         }
         .animate-float-gentle {
             animation: floatGentle 3.5s ease-in-out infinite;
+        }
+        .checkout-success-container {
+            box-sizing: border-box !important;
+            padding-top: 140px !important;
+            padding-top: max(140px, calc((100vh - 460px) / 2)) !important;
+            padding-bottom: 40px !important;
+        }
+        @media (max-width: 1023px) {
+            .checkout-success-container {
+                padding-top: 130px !important;
+                padding-bottom: 50px !important;
+            }
         }
     </style>
 
