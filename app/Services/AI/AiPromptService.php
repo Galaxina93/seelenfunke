@@ -30,6 +30,10 @@ class AiPromptService
                                  "Rollen-Beschreibung: " . ($agent->role->description ?? 'Keine spezifische Beschreibung definiert.') . "\n" .
                                  "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
+
+        // Buchhaltungs-Regel für Ausgaben
+        $systemPromptText .= "\n\n[BUCHHALTUNG & FINANZEN REGEL]\n" .
+                             "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
         
         // Check if this is a Support agent
         $isSupportAgent = ($agent->department && $agent->department->name === 'Support') || $agent->name === 'Funki';

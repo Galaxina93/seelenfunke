@@ -1895,6 +1895,10 @@ trait AiFinanceFuncs
             $adminId = self::getAdminId();
 
             $amount = (float) str_replace(',', '.', (string) $args['amount']);
+            // WICHTIG: Sonderausgaben / Belegkosten sind im System stets negativ!
+            if ($amount > 0) {
+                $amount = -$amount;
+            }
 
             $categoryName = $args['category'] ?: 'Sonstiges';
 

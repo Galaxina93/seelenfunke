@@ -1702,9 +1702,10 @@ fun QuickEntryForm(
             if (scanData != null) {
                 if (scanData.title.isNotBlank()) title = scanData.title
                 if (scanData.amount_abs > 0.0) {
-                    amountText = String.format(Locale.US, "%.2f", scanData.amount_abs)
+                    amountText = String.format(Locale.US, "-%.2f", scanData.amount_abs)
                 } else if (scanData.amount_formatted.isNotBlank()) {
-                    amountText = scanData.amount_formatted.replace("-", "").trim()
+                    val raw = scanData.amount_formatted.trim()
+                    amountText = if (raw.startsWith("-")) raw else "-$raw"
                 }
                 scanData.category?.let { cat ->
                     if (cat.isNotBlank()) {
@@ -1875,7 +1876,7 @@ fun QuickEntryForm(
                     label = { Text("Betrag (€)") },
                     singleLine = true,
                     modifier = Modifier.weight(0.9f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Gold,
                         unfocusedBorderColor = AppTheme.colors.inputBorder,
@@ -2192,7 +2193,8 @@ fun QuickEntryForm(
                 Spacer(modifier = Modifier.width(6.dp))
                 Button(
                     onClick = {
-                        val amount = amountText.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val rawParsed = amountText.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val amount = if (rawParsed > 0) -rawParsed else rawParsed
                         onSubmit(
                             title,
                             amount,

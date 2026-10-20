@@ -1,6 +1,6 @@
 <div x-data
      x-init="window.scrollTo({ top: 0, behavior: 'instant' })"
-     class="max-w-5xl mx-auto px-4 py-4 sm:py-6 animate-fade-in"
+     class="max-w-5xl mx-auto px-4 pt-28 sm:pt-32 lg:pt-36 pb-12 sm:pb-16 animate-fade-in"
      wire:key="checkout-success-container">
 
     <style>

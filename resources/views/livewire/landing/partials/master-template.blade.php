@@ -70,7 +70,7 @@
                 <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] h-[110%] bg-radial-gradient from-gray-100 to-transparent opacity-60 blur-3xl -z-10" aria-hidden="true"></div>
 
                 <div class="relative w-full aspect-square md:aspect-auto md:h-full rounded-3xl overflow-hidden shadow-2xl shadow-gray-200/50 border border-gray-100 bg-white p-2 md:p-4 transform transition-transform duration-700 hover:scale-[1.02]">
-                    
+
                     {{-- Badges --}}
                     <div class="absolute top-8 left-8 z-30 flex flex-col gap-2 pointer-events-none">
                         @if($landingPage->product->type === 'digital')
@@ -206,7 +206,7 @@
                     </dl>
                 </div>
                 @endif
-                
+
                 <div class="mt-8 flex items-start gap-3">
                     <svg class="w-5 h-5 text-gray-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <p class="text-xs text-gray-400 italic">
@@ -296,10 +296,10 @@
             <p class="text-gray-400 text-lg font-light">Erlebe die Faszination von {{ $landingPage->product->name }} aus jeder Perspektive.</p>
         </div>
         <div class="relative w-full aspect-video rounded-3xl overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.6)] border border-gray-800">
-            <video 
-                src="{{ asset('storage/' . $videoMedia['path']) }}" 
+            <video
+                src="{{ asset('storage/' . $videoMedia['path']) }}"
                 class="w-full h-full object-cover"
-                controls 
+                controls
                 muted
                 autoplay
                 loop

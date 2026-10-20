@@ -31,7 +31,7 @@
             @php
                 $threshold = (int) shop_setting('shipping_free_threshold', 5000);
                 $currentValue = $totals['subtotal_gross'];
-                
+
                 // Ein Item benötigt physischen Versand, wenn es vom Typ physical ist oder ein postalisch versendeter Gutschein
                 $hasPhysical = $cart->items->contains(function($item) {
                     $type = $item->product->type ?? 'physical';
@@ -268,7 +268,7 @@
                             🇪🇺
                         </span>
                         <span>
-                            <strong class="font-semibold text-gray-900">Gesetzliche Gewährleistung:</strong> 
+                            <strong class="font-semibold text-gray-900">Gesetzliche Gewährleistung:</strong>
                             <span class="text-gray-600">Mind. 2 Jahre EU-Schutz</span>
                         </span>
                     </span>
@@ -285,8 +285,8 @@
                         <div class="w-16 h-22 flex-shrink-0 bg-white border border-gray-200 rounded p-1 shadow-xs cursor-pointer hover:border-primary hover:shadow-md transition-all group"
                              @click="zoomModal = true"
                              title="Zum Vergrößern klicken">
-                            <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}" 
-                                 alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung" 
+                            <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}"
+                                 alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung"
                                  class="w-full h-full object-contain group-hover:scale-105 transition-transform">
                         </div>
                         <div class="space-y-1 flex-1">
@@ -297,15 +297,15 @@
                                 Für Waren in der EU gilt eine gesetzliche Gewährleistungsfrist von mindestens <strong>zwei Jahren</strong> ab Lieferung (kostenlose Reparatur, Neulieferung oder Kaufpreiserstattung bei Mängeln).
                             </p>
                             <div class="flex flex-wrap items-center gap-3 pt-1 text-[11px]">
-                                <button type="button" 
-                                        @click="zoomModal = true" 
+                                <button type="button"
+                                        @click="zoomModal = true"
                                         class="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-dark underline cursor-pointer transition-colors">
                                     <svg class="w-3 h-3 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                     EU-Label vergrößern
                                 </button>
-                                <a href="https://europa.eu/youreurope/garantien" 
-                                   target="_blank" 
-                                   rel="noopener noreferrer" 
+                                <a href="https://europa.eu/youreurope/garantien"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
                                    class="inline-flex items-center gap-1 font-semibold text-primary hover:text-primary-dark underline transition-colors">
                                     <span>Offizielle EU-Infos</span>
                                     <svg class="w-3.5 h-3.5 text-primary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
@@ -315,7 +315,7 @@
                     </div>
 
                     {{-- Modal zur Großansicht des offiziellen EU-Hinweises --}}
-                    <div x-show="zoomModal" 
+                    <div x-show="zoomModal"
                          x-cloak
                          class="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs"
                          @click.self="zoomModal = false"
@@ -332,8 +332,8 @@
                                 </button>
                             </div>
                             <div class="p-4 overflow-y-auto flex justify-center bg-gray-100/60 max-h-[75vh]">
-                                <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}" 
-                                     alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung" 
+                                <img src="{{ asset('shop/frontend/legal/eu_gewaehrleistung_notice_de.svg') }}"
+                                     alt="EU Harmonisierte Mitteilung über die gesetzliche Gewährleistung"
                                      class="max-w-full h-auto rounded-lg shadow-sm border border-gray-200">
                             </div>
                             <div class="p-3 border-t border-gray-100 bg-white flex justify-between items-center text-xs">

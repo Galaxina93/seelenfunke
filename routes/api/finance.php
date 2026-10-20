@@ -112,6 +112,10 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     ]);
 
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
+    // WICHTIG: Sonderausgaben / Belegkosten sind im System stets negativ!
+    if ($amount > 0) {
+        $amount = -$amount;
+    }
 
     $issue = AccountingSpecialIssue::create([
         'id' => Str::uuid(),
@@ -177,11 +181,16 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
     if ($autoSave) {
         $path = $file->store('buchhaltung/receipts', 'local');
 
+        $amount = (float)$aiResult['amount_formatted'];
+        if ($amount > 0) {
+            $amount = -$amount;
+        }
+
         $issue = AccountingSpecialIssue::create([
             'id' => Str::uuid(),
             'admin_id' => $request->user()->id,
             'title' => $aiResult['title'],
-            'amount' => (float)$aiResult['amount_formatted'],
+            'amount' => $amount,
             'category' => $aiResult['category'] ?: 'Sonstiges',
             'execution_date' => $aiResult['date'] ?: now()->format('Y-m-d'),
             'is_business' => $aiResult['is_business'],

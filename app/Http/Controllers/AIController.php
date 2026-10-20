@@ -480,6 +480,9 @@ class AIController extends Controller
             "WICHTIG ZU HINTERGRUND-AUFGABEN & MASSEN-AKTIONEN:\n" .
             "- Wenn der Benutzer dir zeitaufwändige Aufgaben, Massen-Operationen oder Hintergrundjobs erteilt, bestätige dem Nutzer SOFORT in 1 kurzen Satz, dass die Aufgabe im Hintergrund läuft.\n\n" .
             "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap . "\n\n" .
+            "BUCHHALTUNGS-REGEL FÜR AUSGABEN (HÖCHSTE PRIORITÄT):\n" .
+            "- Alle Sonderausgaben, Kosten, Belege und Rechnungen (z.B. Zahnarzt, Material, Tanken, Software etc.) sind im Buchhaltungs-System ZWINGEND als NEGATIVER Betrag mit Minuszeichen (z.B. -110.32) zu verbuchen.\n" .
+            "- Positive Beträge gelten im System als Einnahmen. Eine Ausgabe MUSS daher stets als Minusbetrag an `finance_create_expense` übergeben werden!\n\n" .
             "STRIKTES GEBOT: Antworte und sprich AUSSCHLIESSLICH auf Deutsch!";
 
         // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert

@@ -319,7 +319,7 @@ class ProductSeeder extends Seeder
         $p3->categories()->sync($catIds5);
 
         // --- PRODUKT 4: KI-Agenten im E-Commerce (Digital) ---
-        $p4 = Product::updateOrCreate(['slug' => 'ki-agenten-ecommerce-playbook'], [
+/*        $p4 = Product::updateOrCreate(['slug' => 'ki-agenten-ecommerce-playbook'], [
             'name' => 'KI-Agenten im E-Commerce: Der Solo-Entwickler-Praxisbericht',
             'type' => 'digital',
             'description' => 'Der ultimative, unzensierte Praxisbericht für Entwickler, Softwarearchitekten und Tech-Entrepreneure. Auf 176 Seiten dokumentieren wir Schritt für Schritt die 4-monatige Entwicklungsreise eines autonomen Multi-Agenten-ERP-Systems. Kein theoretisches KI-Marketing-Geschwätz, sondern pure, produktionsreife Realität für dein eigenes Business.
@@ -372,7 +372,7 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
         ]);
 
         $catIds3 = ProductCategory::whereIn('name', ['E-Books & Guides'])->pluck('id');
-        $p4->categories()->sync($catIds3);
+        $p4->categories()->sync($catIds3);*/
 
         // --- PRODUKT 5: Geschenkgutschein (Digital / Konfigurierbar) ---
         $p5 = Product::updateOrCreate(['slug' => 'geschenkgutschein'], [
