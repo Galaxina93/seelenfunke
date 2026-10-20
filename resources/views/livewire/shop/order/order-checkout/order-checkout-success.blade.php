@@ -1,10 +1,13 @@
 <div x-data
      x-init="window.scrollTo({ top: 0, behavior: 'instant' })"
      class="checkout-success-container max-w-5xl mx-auto px-4 w-full animate-fade-in"
-     style="box-sizing: border-box !important; padding-top: 140px !important; padding-top: max(140px, calc((100vh - 460px) / 2)) !important; padding-bottom: 40px !important;"
+     style="box-sizing: border-box !important; padding-top: var(--checkout-success-pt, 92px) !important; padding-bottom: 35px !important;"
      wire:key="checkout-success-container">
 
     <style>
+        :root {
+            --checkout-success-pt: 92px;
+        }
         @keyframes floatGentle {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-5px); }
@@ -14,14 +17,25 @@
         }
         .checkout-success-container {
             box-sizing: border-box !important;
-            padding-top: 140px !important;
-            padding-top: max(140px, calc((100vh - 460px) / 2)) !important;
-            padding-bottom: 40px !important;
+            padding-top: var(--checkout-success-pt, 92px) !important;
+            padding-bottom: 35px !important;
         }
         @media (max-width: 1023px) {
+            :root {
+                --checkout-success-pt: 92px;
+            }
             .checkout-success-container {
-                padding-top: 130px !important;
-                padding-bottom: 50px !important;
+                padding-top: 92px !important;
+                padding-bottom: 35px !important;
+            }
+        }
+        @media (min-width: 1024px) {
+            :root {
+                --checkout-success-pt: max(140px, calc((100vh - 460px) / 2));
+            }
+            .checkout-success-container {
+                padding-top: max(140px, calc((100vh - 460px) / 2)) !important;
+                padding-bottom: 40px !important;
             }
         }
     </style>
