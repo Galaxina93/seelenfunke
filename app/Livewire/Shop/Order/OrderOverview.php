@@ -48,6 +48,17 @@ class OrderOverview extends Component
     // STATUS FÜR DAS SICHERHEITS-MODAL
     public $confirmingShipmentId = null;
 
+    // FOTO-MANGEL MODAL STATE
+    public $isPhotoIssueModalOpen = false;
+    public $photoIssueItemId = null;
+    public $photoIssueFilePath = null;
+    public $photoIssueFileName = null;
+    public $photoIssueProductName = null;
+    public $photoIssueReasonKey = 'resolution';
+    public $photoIssueCustomNote = '';
+    public $photoIssueSetPending = true;
+    public $photoIssueSendMail = true;
+
     // DHL MODAL STATE
     public $dhlModalOrderId = null;
     public $dhlPackageCount = 1;
@@ -361,6 +372,138 @@ class OrderOverview extends Component
         $this->confirmingShipmentId = null;
         if ($this->selectedOrder) {
             $this->status = $this->selectedOrder->status;
+        }
+    }
+
+    public function openPhotoIssueModal($itemId, $filePath, $fileName)
+    {
+        $item = OrderOrderItem::find($itemId);
+        if (!$item) return;
+
+        $this->photoIssueItemId = $itemId;
+        $this->photoIssueFilePath = $filePath;
+        $this->photoIssueFileName = $fileName;
+        $this->photoIssueProductName = $item->product_name ?? 'Artikel';
+        $this->photoIssueReasonKey = 'resolution';
+        $this->photoIssueCustomNote = '';
+        $this->photoIssueSetPending = true;
+        $this->photoIssueSendMail = true;
+        $this->isPhotoIssueModalOpen = true;
+    }
+
+    public function closePhotoIssueModal()
+    {
+        $this->isPhotoIssueModalOpen = false;
+        $this->photoIssueItemId = null;
+        $this->photoIssueFilePath = null;
+        $this->photoIssueFileName = null;
+    }
+
+    public function submitPhotoIssue()
+    {
+        if (!$this->photoIssueItemId) return;
+
+        $item = OrderOrderItem::find($this->photoIssueItemId);
+        if (!$item) {
+            session()->flash('error', 'Artikel nicht gefunden.');
+            return;
+        }
+
+        $order = $item->order;
+        if (!$order) {
+            session()->flash('error', 'Zugehörige Bestellung nicht gefunden.');
+            return;
+        }
+
+        $reasons = [
+            'resolution' => 'Zu geringe Bildauflösung / unscharf / verpixelt',
+            'contrast' => 'Zu dunkel / überbelichtet (fehlender Kontrast für Lasergravur)',
+            'crop' => 'Wichtiges Motiv ungünstig abgeschnitten / Gesichter am Rand',
+            'other' => 'Sonstige Anmerkung der Manufaktur (siehe Notiz)',
+        ];
+        $reasonText = $reasons[$this->photoIssueReasonKey] ?? 'Qualität für Lasergravur nicht optimal';
+
+        try {
+            DB::transaction(function () use ($order, $item, $reasonText) {
+                // 1. In Item-Konfiguration hinterlegen
+                $config = $item->configuration ?? [];
+                $config['photo_issue'] = [
+                    'file' => $this->photoIssueFilePath,
+                    'file_name' => $this->photoIssueFileName,
+                    'reason' => $reasonText,
+                    'reason_key' => $this->photoIssueReasonKey,
+                    'note' => trim($this->photoIssueCustomNote),
+                    'flagged_at' => now()->toDateTimeString(),
+                    'resolved' => false,
+                ];
+                $item->update(['configuration' => $config]);
+
+                // 2. Status auf "pending" (Wartend) setzen, falls gewünscht
+                if ($this->photoIssueSetPending) {
+                    $order->update(['status' => 'pending']);
+                    if ($this->selectedOrder && $this->selectedOrder->id == $order->id) {
+                        $this->status = 'pending';
+                    }
+                }
+
+                // 3. Notiz im Bestellverlauf vermerken
+                $noteLog = "\n[" . now()->format('d.m.Y H:i') . " Manufaktur-Rückfrage zum Foto]: " . $reasonText;
+                if (!empty($this->photoIssueCustomNote)) {
+                    $noteLog .= " (Hinweis: " . trim($this->photoIssueCustomNote) . ")";
+                }
+                $order->update([
+                    'notes' => trim(($order->notes ?? '') . $noteLog)
+                ]);
+
+                // 4. E-Mail an Kunden senden, falls gewünscht
+                if ($this->photoIssueSendMail && !empty($order->email)) {
+                    $billingAddress = is_array($order->billing_address) ? $order->billing_address : [];
+                    $firstName = $billingAddress['first_name'] ?? ($order->customer->first_name ?? 'Kunde');
+
+                    $mailData = [
+                        'order_id' => $order->id,
+                        'order_number' => $order->order_number,
+                        'item_id' => $item->id,
+                        'product_name' => $item->product_name,
+                        'file_name' => $this->photoIssueFileName,
+                        'reason' => $reasonText,
+                        'note' => trim($this->photoIssueCustomNote),
+                        'first_name' => $firstName,
+                        'edit_url' => route('customer.orders', ['order' => $order->id, 'edit' => $item->id]),
+                    ];
+
+                    Mail::to($order->email)->send(new \App\Mail\OrderPhotoIssueMailToCustomer($mailData));
+                }
+
+                if ($this->selectedOrder && $this->selectedOrder->id == $order->id) {
+                    $this->selectedOrder->refresh();
+                }
+
+                session()->flash('success', 'Nachbesserung erfolgreich angefordert! ' . ($this->photoIssueSendMail ? 'Kunde wurde per E-Mail benachrichtigt.' : ''));
+            });
+        } catch (\Exception $e) {
+            $this->logAdminOrderError('submit_photo_issue', $e, ['item_id' => $item->id, 'order_id' => $order->id]);
+            session()->flash('error', 'Fehler beim Anfordern der Nachbesserung: ' . $e->getMessage());
+        }
+
+        $this->isPhotoIssueModalOpen = false;
+    }
+
+    public function resolvePhotoIssue($itemId)
+    {
+        $item = OrderOrderItem::find($itemId);
+        if (!$item) return;
+
+        $config = $item->configuration ?? [];
+        if (isset($config['photo_issue'])) {
+            $config['photo_issue']['resolved'] = true;
+            $config['photo_issue']['resolved_at'] = now()->toDateTimeString();
+            $item->update(['configuration' => $config]);
+
+            if ($this->selectedOrder) {
+                $this->selectedOrder->refresh();
+            }
+            session()->flash('success', 'Foto-Mangel als erledigt markiert.');
         }
     }
 

@@ -310,6 +310,9 @@
     {{-- VERSAND-MODAL --}}
     @include("livewire.shop.order.order-overview-partials.shipping-modal")
 
+    {{-- FOTO-BEANSTANDUNG / NACHBESSERUNGS-MODAL --}}
+    @include("livewire.shop.order.order-overview-partials.photo-issue-modal")
+
     {{-- DHL MEHRPAKET MODAL --}}
     @if($dhlModalOrderId)
         <div class="fixed inset-0 z-[100] flex items-start sm:items-center justify-center bg-black/50 dark:bg-black/60 backdrop-blur-sm p-4 pt-[8vh] sm:pt-4 overflow-y-auto animate-fade-in">

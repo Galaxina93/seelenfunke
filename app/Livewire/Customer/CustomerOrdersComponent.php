@@ -20,6 +20,23 @@ class CustomerOrdersComponent extends Component
     public $editItemId = null;
     public $showSuccessMessageFor = null;
 
+    public function mount()
+    {
+        if (request()->has('order')) {
+            $orderId = request()->get('order');
+            $user = Auth::guard('customer')->user();
+            if ($user) {
+                $order = OrderOrder::where('id', $orderId)->where('customer_id', $user->id)->first();
+                if ($order) {
+                    $this->selectedOrderId = $order->id;
+                }
+            }
+        }
+        if (request()->has('edit')) {
+            $this->editItemId = request()->get('edit');
+        }
+    }
+
     // Wenn gesucht wird, springen wir zurück auf Seite 1
     public function updatingSearchOrder()
     {

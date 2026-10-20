@@ -298,7 +298,8 @@
                             $allFiles[] = [
                                 'label' => 'Kunden-Logo',
                                 'path' => $logoPath,
-                                'ext' => pathinfo($logoPath, PATHINFO_EXTENSION)
+                                'ext' => pathinfo($logoPath, PATHINFO_EXTENSION),
+                                'is_customer_file' => true,
                             ];
                         }
 
@@ -307,7 +308,8 @@
                             $allFiles[] = [
                                 'label' => basename($f),
                                 'path' => $f,
-                                'ext' => pathinfo($f, PATHINFO_EXTENSION)
+                                'ext' => pathinfo($f, PATHINFO_EXTENSION),
+                                'is_customer_file' => true,
                             ];
                         }
                         
@@ -319,39 +321,108 @@
                                     array_unshift($allFiles, [
                                         'label' => $label,
                                         'path' => $s,
-                                        'ext' => pathinfo($s, PATHINFO_EXTENSION)
+                                        'ext' => pathinfo($s, PATHINFO_EXTENSION),
+                                        'is_customer_file' => false,
                                     ]);
                                 }
                             } else {
                                 array_unshift($allFiles, [
                                     'label' => 'Sicherung (Konfiguration)',
                                     'path' => $snapshotPath,
-                                    'ext' => pathinfo($snapshotPath, PATHINFO_EXTENSION)
+                                    'ext' => pathinfo($snapshotPath, PATHINFO_EXTENSION),
+                                    'is_customer_file' => false,
                                 ]);
                             }
                         }
                     @endphp
 
                     @forelse($allFiles as $fileObj)
-                        <div class="flex items-center justify-between p-3.5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700 transition-colors group shadow-sm dark:shadow-inner">
+                        @php
+                            $isOrder = ($model instanceof \App\Models\Order\OrderOrder);
+                            $isCustomerFile = !empty($fileObj['is_customer_file']);
+                            $filePath = $fileObj['path'] ?? '';
+                            $fileLabel = $fileObj['label'] ?? '';
+                            
+                            $photoIssue = $previewItem->configuration['photo_issue'] ?? null;
+                            $hasIssue = false;
+                            $isResolved = false;
+                            
+                            if ($isCustomerFile && $photoIssue) {
+                                if (($photoIssue['file'] ?? '') === $filePath || ($photoIssue['file_name'] ?? '') === $fileLabel) {
+                                    $hasIssue = true;
+                                    $isResolved = !empty($photoIssue['resolved']);
+                                }
+                            }
+                        @endphp
+                        <div class="flex items-center justify-between p-3.5 rounded-2xl border transition-colors group shadow-sm dark:shadow-inner {{ $hasIssue && !$isResolved ? 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/20' : ($isResolved ? 'border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/10' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700') }}">
                             <div class="flex items-center gap-4 min-w-0">
-                                <div class="h-12 w-12 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-xl flex items-center justify-center shrink-0 shadow-sm">
+                                <div class="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm {{ $hasIssue && !$isResolved ? 'bg-amber-500/10 text-amber-500 border border-amber-500/30' : ($isResolved ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20') }}">
                                     <span class="text-[11px] font-black uppercase tracking-wider">{{ $fileObj['ext'] }}</span>
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $fileObj['label'] }}</p>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $fileObj['label'] }}</p>
+                                        @if($hasIssue && !$isResolved)
+                                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                                                Nachbesserung angefordert
+                                            </span>
+                                        @elseif($isResolved)
+                                            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0">
+                                                ✓ Nachgebessert
+                                            </span>
+                                        @endif
+                                    </div>
                                     <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5">
                                         Hinterlegt am {{ isset($fileObj['created_at']) ? $fileObj['created_at']->format('d.m.Y') : $model->created_at->format('d.m.Y') }}
                                     </p>
+                                    @if($hasIssue && !$isResolved)
+                                        <p class="text-[11px] text-amber-800 dark:text-amber-300 mt-1 font-medium">
+                                            <strong>Mangel:</strong> {{ $photoIssue['reason'] ?? '' }}
+                                            @if(!empty($photoIssue['note']))
+                                                <span class="opacity-80 italic">({{ $photoIssue['note'] }})</span>
+                                            @endif
+                                        </p>
+                                    @endif
                                 </div>
                             </div>
-                            <a href="{{ $fileObj['download_url'] ?? asset('storage/'.$fileObj['path']) }}"
-                               @if(empty($fileObj['download_url'])) download="{{ $fileObj['label'] . '.' . $fileObj['ext'] }}" @endif
-                               target="_blank"
-                               class="ml-4 p-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl hover:bg-[var(--theme-color)] hover:text-gray-900 shadow-sm dark:shadow-inner transition-all"
-                               title="Herunterladen">
-                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                            </a>
+
+                            <div class="flex items-center gap-2 ml-4 shrink-0">
+                                @if($isCustomerFile && $isOrder)
+                                    @if($hasIssue && !$isResolved)
+                                        <button wire:click="openPhotoIssueModal('{{ $previewItem->id }}', '{{ $fileObj['path'] }}', '{{ $fileObj['label'] }}')"
+                                                type="button"
+                                                class="p-3 bg-amber-500 hover:bg-amber-600 text-gray-950 font-bold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-1.5 text-xs"
+                                                title="Mangel bearbeiten / Erinnerung senden">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                            <span class="hidden sm:inline">Mangel</span>
+                                        </button>
+                                        <button wire:click="resolvePhotoIssue('{{ $previewItem->id }}')"
+                                                type="button"
+                                                class="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-xl border border-emerald-200 dark:border-emerald-800 transition-all shadow-sm cursor-pointer"
+                                                title="Mangel als erledigt markieren">
+                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    @else
+                                        <button wire:click="openPhotoIssueModal('{{ $previewItem->id }}', '{{ $fileObj['path'] }}', '{{ $fileObj['label'] }}')"
+                                                type="button"
+                                                class="p-3 bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-xl transition-all shadow-sm dark:shadow-inner cursor-pointer"
+                                                title="Foto bemängeln / Nachbesserung anfordern">
+                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                                            </svg>
+                                        </button>
+                                    @endif
+                                @endif
+
+                                <a href="{{ $fileObj['download_url'] ?? asset('storage/'.$fileObj['path']) }}"
+                                   @if(empty($fileObj['download_url'])) download="{{ $fileObj['label'] . '.' . $fileObj['ext'] }}" @endif
+                                   target="_blank"
+                                   class="p-3 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl hover:bg-[var(--theme-color)] hover:text-gray-900 shadow-sm dark:shadow-inner transition-all"
+                                   title="Herunterladen">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                </a>
+                            </div>
                         </div>
                     @empty
                         <div class="py-6 text-center">

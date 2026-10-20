@@ -157,9 +157,15 @@
                                                     </button>
                                                 @endif
 
+                                                @php
+                                                    $photoIssue = $item->configuration['photo_issue'] ?? null;
+                                                    $hasPhotoIssue = $photoIssue && empty($photoIssue['resolved']);
+                                                    $isPhotoIssueResolved = $photoIssue && !empty($photoIssue['resolved']);
+                                                @endphp
+
                                                 @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
-                                                    <button wire:click="openEdit('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-200 dark:border-cyan-500/30' }}">
-                                                        <span>{{ $editItemId == $item->id ? 'Abbrechen' : 'Artikel anpassen' }}</span>
+                                                    <button wire:click="openEdit('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : ($hasPhotoIssue ? 'bg-amber-500 text-gray-950 hover:bg-amber-600 shadow-md ring-2 ring-amber-400/50' : 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-200 dark:border-cyan-500/30') }}">
+                                                        <span>{{ $editItemId == $item->id ? 'Abbrechen' : ($hasPhotoIssue ? 'Foto jetzt nachbessern' : 'Artikel anpassen') }}</span>
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     </button>
                                                 @endif
@@ -168,17 +174,62 @@
                                                 <div x-data="{ successMsg: false, showNotice: true }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
 
-                                                    <div x-show="showNotice" x-transition class="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 flex items-start justify-between gap-3 shadow-sm">
-                                                        <div class="flex items-start gap-3">
-                                                            <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                            <p class="text-xs text-amber-700 dark:text-amber-500/90 font-medium">
-                                                                <strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.
+                                                    {{-- MANUFAKTUR-RÜCKFRAGE HINWEISBOX --}}
+                                                    @if($hasPhotoIssue)
+                                                        <div class="mt-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-600 rounded-2xl p-4 shadow-sm">
+                                                            <div class="flex items-start gap-3.5">
+                                                                <div class="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                                                                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                                    </svg>
+                                                                </div>
+                                                                <div class="flex-1 min-w-0">
+                                                                    <div class="flex items-center justify-between gap-2">
+                                                                        <h5 class="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                                                            📸 Manufaktur-Rückfrage: Foto bitte nachbessern
+                                                                        </h5>
+                                                                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                                                                            Aktion erforderlich
+                                                                        </span>
+                                                                    </div>
+                                                                    <p class="text-xs text-amber-800 dark:text-amber-300 mt-1 font-medium">
+                                                                        <strong>Beanstandung:</strong> {{ $photoIssue['reason'] ?? 'Qualität nicht optimal' }}
+                                                                    </p>
+                                                                    @if(!empty($photoIssue['note']))
+                                                                        <p class="text-xs text-amber-700 dark:text-amber-400 mt-1.5 p-2.5 rounded-xl bg-white/80 dark:bg-gray-900/80 border border-amber-200 dark:border-amber-800/60 italic">
+                                                                            💬 „{{ $photoIssue['note'] }}“
+                                                                        </p>
+                                                                    @endif
+                                                                    <p class="text-[11px] text-amber-700/90 dark:text-amber-400/90 mt-2 leading-relaxed">
+                                                                        Klicke oben auf <strong>„Foto jetzt nachbessern“</strong>, um dein Bild im Konfigurator auszutauschen. Sobald du speicherst, starten wir umgehend mit der Gravur!
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @elseif($isPhotoIssueResolved)
+                                                        <div class="mt-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                                                            <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                            <p class="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                                                                <strong>Danke!</strong> Dein Foto wurde aktualisiert. Unser Manufaktur-Team prüft die neue Datei und setzt die Fertigung fort.
                                                             </p>
                                                         </div>
-                                                        <button type="button" @click="showNotice = false" class="text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 p-0.5 rounded cursor-pointer transition-colors" title="Hinweis ausblenden">
-                                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                                        </button>
-                                                    </div>
+                                                    @endif
+
+                                                    @if(!$hasPhotoIssue)
+                                                        <div x-show="showNotice" x-transition class="mt-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3 flex items-start justify-between gap-3 shadow-sm">
+                                                            <div class="flex items-start gap-3">
+                                                                <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                <p class="text-xs text-amber-700 dark:text-amber-500/90 font-medium">
+                                                                    <strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.
+                                                                </p>
+                                                            </div>
+                                                            <button type="button" @click="showNotice = false" class="text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 p-0.5 rounded cursor-pointer transition-colors" title="Hinweis ausblenden">
+                                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                            </button>
+                                                        </div>
+                                                    @endif
 
                                                     <template x-if="successMsg">
                                                         <div x-transition class="mt-2 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl p-3 flex items-center gap-3 shadow-sm">

@@ -284,10 +284,44 @@
                                 </button>
                             </div>
 
-                            <template x-if="{{ $isActive ? 'true' : 'false' }} && '{{ $ext }}' !== 'svg' && (width > 0 && (width < 877 || height < 877))">
-                                <div class="mt-2 border p-2 rounded-xl text-[9px] font-medium flex items-center gap-2 {{ $isDark ? 'bg-blue-950/30 border-blue-900/40 text-blue-300' : 'bg-blue-50/80 border-blue-200 text-blue-800' }}">
-                                    <x-heroicon-s-information-circle class="w-3.5 h-3.5 shrink-0 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
-                                    <span>Hinweis: Datei ist einsatzbereit. Optimale Ergebnisse ab 877×877px empfohlen (Aktuell: <span x-text="width + 'x' + height"></span>px).</span>
+                            {{-- SMARTES AMPEL-SYSTEM FÜR BILDQUALITÄT --}}
+                            {{-- 1. Gute Auflösung (Kürzeste Seite >= 350px oder Fläche >= 200.000px) --}}
+                            <template x-if="{{ $isActive ? 'true' : 'false' }} && '{{ $ext }}' !== 'svg' && width > 0 && (Math.min(width, height) >= 350 || (width * height) >= 200000)">
+                                <div class="mt-2 border p-2 rounded-xl text-[9px] font-medium flex items-center justify-between gap-2 {{ $isDark ? 'bg-emerald-950/30 border-emerald-900/40 text-emerald-300' : 'bg-emerald-50/80 border-emerald-200 text-emerald-800' }}">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <svg class="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                                        </svg>
+                                        <span class="truncate font-semibold">✓ Bildqualität für Gravur geeignet</span>
+                                    </div>
+                                    <span class="text-[8px] opacity-75 shrink-0 hidden sm:inline">Manuelle Prüfung vor Gravur</span>
+                                </div>
+                            </template>
+
+                            {{-- 2. Geringe Auflösung (Kürzeste Seite < 350px) --}}
+                            <template x-if="{{ $isActive ? 'true' : 'false' }} && '{{ $ext }}' !== 'svg' && width > 0 && Math.min(width, height) < 350 && (width * height) < 200000">
+                                <div class="mt-2 border p-2.5 rounded-xl text-[9px] font-medium flex items-start gap-2 {{ $isDark ? 'bg-amber-950/30 border-amber-900/40 text-amber-300' : 'bg-amber-50/90 border-amber-200 text-amber-900' }}">
+                                    <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-bold">💡 Tipp für beste Laserschärfe:</p>
+                                        <p class="mt-0.5 opacity-90 leading-tight">Dieses Foto hat eine eher geringe Auflösung (<span x-text="width + '×' + height"></span>px). Für ein gestochen scharfes Ergebnis empfehlen wir ein größeres Originalfoto direkt aus deiner Galerie.</p>
+                                        <p class="text-[8px] opacity-75 mt-1">Keine Sorge: Unser Team prüft jedes Bild vor dem Gravieren noch einmal persönlich.</p>
+                                    </div>
+                                </div>
+                            </template>
+
+                            {{-- 3. SVG Vektorgrafik --}}
+                            <template x-if="{{ $isActive ? 'true' : 'false' }} && '{{ $ext }}' === 'svg'">
+                                <div class="mt-2 border p-2 rounded-xl text-[9px] font-medium flex items-center justify-between gap-2 {{ $isDark ? 'bg-purple-950/30 border-purple-900/40 text-purple-300' : 'bg-purple-50/80 border-purple-200 text-purple-800' }}">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <svg class="w-3.5 h-3.5 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                        <span class="truncate font-semibold">✓ Vektorgrafik (Verlustfrei skalierbar)</span>
+                                    </div>
+                                    <span class="text-[8px] opacity-75 shrink-0 hidden sm:inline">Optimale Laserschärfe</span>
                                 </div>
                             </template>
                         </div>

@@ -686,6 +686,21 @@ class ProductConfigurator extends Component
                         }
                     }
 
+                    // Wenn zuvor ein Foto-Mangel beanstandet wurde, markiere diesen automatisch als nachgebessert!
+                    if (!empty($orderItem->configuration['photo_issue'])) {
+                        $configData['photo_issue'] = array_merge($orderItem->configuration['photo_issue'], [
+                            'resolved' => true,
+                            'resolved_at' => now()->toDateTimeString(),
+                        ]);
+
+                        // Vermerke die Nachbesserung in den Bestellnotizen
+                        if ($orderItem->order) {
+                            $orderItem->order->update([
+                                'notes' => trim(($orderItem->order->notes ?? '') . "\n[" . now()->format('d.m.Y H:i') . " Kunde]: Foto für " . $orderItem->product_name . " wurde erfolgreich nachgebessert.")
+                            ]);
+                        }
+                    }
+
                     $orderItem->update([
                         'configuration' => $configData,
                         // Preis- oder Mengenänderungen sind streng verboten in diesem Status.
