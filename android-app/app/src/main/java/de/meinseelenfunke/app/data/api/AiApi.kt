@@ -71,9 +71,29 @@ data class CameraSnapshotResponse(
     val url: String? = null
 )
 
+data class ChatHistoryItem(
+    val id: String?,
+    val role: String,
+    val content: String,
+    val agent_name: String?,
+    val created_at: String?
+)
+
+data class ChatHistoryResponse(
+    val status: String,
+    val session_id: String?,
+    val messages: List<ChatHistoryItem>
+)
+
 interface AiApi {
     @POST("ai/chat")
     suspend fun chat(@Body request: ChatRequest): ChatResponse
+
+    @GET("ai/history")
+    suspend fun getChatHistory(
+        @Query("chat_session_id") sessionId: String? = null,
+        @Query("limit") limit: Int = 30
+    ): ChatHistoryResponse
 
     @GET("ai/live-credentials")
     suspend fun getLiveCredentials(

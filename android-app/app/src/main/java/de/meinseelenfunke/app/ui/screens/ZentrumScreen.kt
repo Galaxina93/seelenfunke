@@ -118,7 +118,7 @@ fun ZentrumScreen(
             Image(
                 painter = painterResource(id = R.drawable.mein_seelenfunke_logo),
                 contentDescription = "Seelenfunke Logo",
-                modifier = Modifier.height(40.dp),
+                modifier = Modifier.height(54.dp),
                 contentScale = ContentScale.Fit
             )
             Row(
@@ -379,6 +379,8 @@ fun DashboardContent(
                 QuickEntryForm(
                     categories = categories,
                     isUploading = isUploading,
+                    showCard = false,
+                    showTitle = false,
                     onDismiss = { isQuickEntryExpanded = false },
                     onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->
                         viewModel.submitQuickEntry(title, amt, cat, isBiz, date, loc, bytes, name, mime)

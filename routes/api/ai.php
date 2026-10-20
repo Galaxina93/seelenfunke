@@ -29,6 +29,9 @@ Route::prefix('ai')->group(function () {
     // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
     Route::post('/chat', [AIController::class, 'chat'])->middleware(['web', 'auth:sanctum,web,admin']);
 
+    // Endpunkt zum Abrufen der Chat-Historie
+    Route::get('/history', [AIController::class, 'history'])->middleware(['web', 'auth:sanctum,web,admin']);
+
     // Endpunkt für den Multimodal Live API Mode (WebSockets)
     Route::get('/live-credentials', [AIController::class, 'liveCredentials'])->middleware(['web', 'auth:sanctum,web,admin']);
 

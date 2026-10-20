@@ -1,0 +1,131 @@
+<?php
+
+namespace Tests\Feature\Services;
+
+use Tests\TestCase;
+use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderOrderItem;
+use App\Models\Product\Product;
+use App\Services\Export\FileDownloadService;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
+class LaserSvgExportTest extends TestCase
+{
+    /**
+     * Test xTool laser SVG export for Order ORD-2026-D6SCCX if present in DB.
+     */
+    public function test_laser_svg_export_for_ord_2026_d6sccx(): void
+    {
+        $order = OrderOrder::where('order_number', 'ORD-2026-D6SCCX')->first();
+
+        if (!$order) {
+            $order = new OrderOrder();
+            $order->order_number = 'ORD-2026-D6SCCX';
+
+            $product = new Product();
+            $product->width = 100;
+            $product->height = 100;
+
+            $item = new OrderOrderItem();
+            $item->id = 'test-ord-2026-d6sccx-item';
+            $item->setRelation('order', $order);
+            $item->setRelation('product', $product);
+            $item->configuration = [
+                'logos' => [
+                    [
+                        'url' => 'http://127.0.0.1/shop/product/configurator/vectors/baby_black.svg',
+                        'x' => 50,
+                        'y' => 50,
+                        'size' => 120,
+                        'rotation' => 0
+                    ]
+                ],
+                'texts' => [
+                    [
+                        'text' => 'Baby Glück',
+                        'x' => 50,
+                        'y' => 85,
+                        'size' => 1.2,
+                        'font' => 'Arial'
+                    ]
+                ]
+            ];
+        } else {
+            $item = $order->items()->first();
+        }
+
+        $this->assertNotNull($item, 'Order has at least one item');
+
+        $downloadService = new FileDownloadService();
+        $response = $downloadService->downloadLaserSvg($item, 'front');
+
+        $this->assertInstanceOf(StreamedResponse::class, $response);
+
+        ob_start();
+        $response->sendContent();
+        $svgContent = ob_get_clean();
+
+        $this->assertNotEmpty($svgContent);
+        $this->assertStringContainsString('<svg', $svgContent);
+        // The baby_black vector must be inlined as path, not a broken image tag pointing to localhost
+        $this->assertStringContainsString('<path fill="#000000"', $svgContent);
+        $this->assertStringNotContainsString('<image href="http://127.0.0.1/shop/product/configurator/vectors/baby_black.svg"', $svgContent, 'Vector should be inlined, not referenced as external image');
+    }
+
+    /**
+     * Test synthetic OrderItem with vector fallback resolution and path inlining.
+     */
+    public function test_laser_svg_export_with_vector_fallback(): void
+    {
+        $order = new OrderOrder();
+        $order->order_number = 'TEST-ORD-LASER';
+
+        $product = new Product();
+        $product->width = 100;
+        $product->height = 100;
+
+        $item = new OrderOrderItem();
+        $item->id = 99999;
+        $item->setRelation('order', $order);
+        $item->setRelation('product', $product);
+
+        // Configure a logo pointing to a vector file with an arbitrary host URL
+        $item->configuration = [
+            'front' => [
+                'logos' => [
+                    [
+                        'url' => 'http://example.com/some/path/baby_black.svg',
+                        'x' => 50,
+                        'y' => 50,
+                        'size' => 150,
+                        'rotation' => 0
+                    ]
+                ],
+                'texts' => [
+                    [
+                        'text' => 'Hallo Laser',
+                        'x' => 50,
+                        'y' => 80,
+                        'size' => 1.5,
+                        'font' => 'Arial',
+                        'align' => 'center'
+                    ]
+                ]
+            ]
+        ];
+
+        $downloadService = new FileDownloadService();
+        $response = $downloadService->downloadLaserSvg($item, 'front');
+
+        $this->assertInstanceOf(StreamedResponse::class, $response);
+
+        ob_start();
+        $response->sendContent();
+        $svgContent = ob_get_clean();
+
+        $this->assertNotEmpty($svgContent);
+        // The fallback resolver should have located baby_black.svg in configurator/vectors and inlined it
+        $this->assertStringContainsString('<path fill="#000000"', $svgContent);
+        $this->assertStringContainsString('Hallo Laser', $svgContent);
+    }
+}

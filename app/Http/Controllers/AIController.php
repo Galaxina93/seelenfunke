@@ -594,10 +594,18 @@ class AIController extends Controller
             'user_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
         ], now()->addMinutes(5));
 
+        $configuredWsUrl = config('services.gemini.proxy_ws_url');
+        $requestHost = request()->getHost();
+        if ($configuredWsUrl && !in_array($requestHost, ['127.0.0.1', 'localhost', '::1']) && (str_contains($configuredWsUrl, '127.0.0.1') || str_contains($configuredWsUrl, 'localhost'))) {
+            $wsUrl = str_replace(['127.0.0.1', 'localhost'], $requestHost, $configuredWsUrl);
+        } else {
+            $wsUrl = $configuredWsUrl ?: 'ws://' . $requestHost . ':8089/gemini-live';
+        }
+
         return response()->json([
             'token' => $token,
             'chat_session_id' => $sessionId,
-            'ws_url' => config('services.gemini.proxy_ws_url') ?: 'ws://' . request()->getHost() . ':8089/gemini-live',
+            'ws_url' => $wsUrl,
             'system_instruction' => $systemInstruction,
             'voice_name' => $voiceName,
             'agent_id' => $aiAgent ? $aiAgent->id : null,
@@ -758,6 +766,55 @@ class AIController extends Controller
             'status' => 'created',
             'id' => $memory->id,
             'content' => $memory->content
+        ]);
+    }
+
+    /**
+     * Return recent chat history for the authenticated user / session.
+     */
+    public function history(Request $request)
+    {
+        $userId = auth()->id();
+        $sessionId = $request->input('chat_session_id');
+
+        if (!$sessionId && $userId) {
+            $lastSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)
+                ->orderBy('updated_at', 'desc')
+                ->first();
+            if ($lastSession) {
+                $sessionId = $lastSession->id;
+            }
+        }
+
+        if (!$sessionId) {
+            $sessionId = session()->getId();
+        }
+
+        $limit = min(100, max(5, intval($request->input('limit', 30))));
+        $messages = [];
+
+        if ($sessionId) {
+            $records = AiChatMemory::where('session_id', $sessionId)
+                ->orderBy('created_at', 'desc')
+                ->take($limit)
+                ->get()
+                ->reverse();
+
+            foreach ($records as $rec) {
+                $messages[] = [
+                    'id' => (string) $rec->id,
+                    'role' => $rec->role,
+                    'content' => $rec->content,
+                    'agent_name' => $rec->context_data['name'] ?? null,
+                    'created_at' => $rec->created_at ? $rec->created_at->toIso8601String() : null,
+                ];
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'session_id' => $sessionId,
+            'messages' => $messages
         ]);
     }
 }

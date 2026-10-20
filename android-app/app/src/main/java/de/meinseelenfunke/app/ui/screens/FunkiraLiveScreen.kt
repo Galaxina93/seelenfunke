@@ -4,6 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -76,6 +81,8 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import de.meinseelenfunke.app.ui.theme.Emerald500
+import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
@@ -98,6 +105,7 @@ fun FunkiraLiveScreen(
     val error by viewModel.error.collectAsState()
     val amplitude by viewModel.voiceAmplitude.collectAsState()
     val liveLogs by viewModel.liveLogs.collectAsState()
+    val liveSubtitle by viewModel.liveSubtitle.collectAsState()
     val agents by viewModel.agents.collectAsState()
     val selectedAgent by viewModel.selectedAgent.collectAsState()
 
@@ -320,24 +328,61 @@ fun FunkiraLiveScreen(
                 }
             }
 
-            // Morphing Glow Visualizer Orb
-            Box(
+            // Morphing Glow Visualizer Orb & Live Subtitle Banner
+            Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .clickable(
-                        enabled = !isConnected && !isConnecting,
-                        onClick = {
-                            viewModel.startLiveChat()
-                        }
-                    ),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                MorphingOrb(
-                    amplitude = amplitude,
-                    agentColor = activeAgentColor,
-                    isConnected = isConnected
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .clickable(
+                            enabled = !isConnected && !isConnecting,
+                            onClick = {
+                                viewModel.startLiveChat()
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MorphingOrb(
+                        amplitude = amplitude,
+                        agentColor = activeAgentColor,
+                        isConnected = isConnected
+                    )
+                }
+
+                // Live Subtitle Banner
+                AnimatedVisibility(
+                    visible = !liveSubtitle.isNullOrBlank(),
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Slate900.copy(alpha = 0.85f))
+                            .border(1.dp, activeAgentColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = liveSubtitle ?: "",
+                            color = Slate50,
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
 
             // Call Actions Control Bar
@@ -469,12 +514,17 @@ fun FunkiraLiveScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(liveLogs) { log ->
+                            val textColor = when {
+                                log.contains("Fehler", ignoreCase = true) || log.contains("Getrennt") || log.contains("failed", ignoreCase = true) || log.contains("Verbindung geschlossen") -> Rose500
+                                log.startsWith("Du:") -> Color(0xFF60A5FA)
+                                log.startsWith("Funkira:") || log.startsWith("Funki:") || log.contains("[Transkript gesichert]") -> Emerald500
+                                log.contains("[Aktion]") || log.contains("[Aktion-Ergebnis]") -> Gold
+                                log.contains("[WS-Setup]") || log.contains("[System]") -> Color(0xFF38BDF8)
+                                else -> Slate50
+                            }
                             Text(
                                 text = log,
-                                color = if (log.contains("Fehler") || log.contains("Getrennt") || log.contains("failed") || log.contains("geschlossen")) Color.Red
-                                        else if (log.contains("[Empfangen]")) Color.Cyan
-                                        else if (log.contains("[WS-Setup]")) Gold
-                                        else Slate50,
+                                color = textColor,
                                 fontSize = 11.sp,
                                 modifier = Modifier.fillMaxWidth()
                             )

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -734,10 +735,10 @@ fun FixedExpensesPieChart(
 ) {
     val groupStats = remember(groups) {
         val palette = listOf(
-            Gold,                   // 0xFFC5A059
             SpaceBlue,              // 0xFF6496FF
             Copper,                 // 0xFFD97753
             Emerald500,             // 0xFF10B981
+            Gold,                   // 0xFFC5A059
             Color(0xFF8B5CF6),      // Purple
             Color(0xFFEC4899),      // Pink
             Color(0xFF14B8A6),      // Teal
@@ -745,16 +746,23 @@ fun FixedExpensesPieChart(
             Color(0xFF06B6D4),      // Cyan
             Color(0xFFE11D48)       // Rose
         )
-        val validGroups = groups.filter { it.items.isNotEmpty() }
-        val allMonthly = validGroups.sumOf { g ->
+        // Only include cost/expense groups for the Fixkosten (Fixed Cost) chart!
+        val expenseGroups = groups.filter { g ->
+            !g.type.equals("income", ignoreCase = true) && 
+            !g.name.contains("Einnahme", ignoreCase = true) && 
+            g.items.isNotEmpty()
+        }
+        val allMonthly = expenseGroups.sumOf { g ->
             g.items.sumOf { item ->
-                if (item.interval_months > 0) item.amount / item.interval_months else item.amount
+                val amt = kotlin.math.abs(item.amount)
+                if (item.interval_months > 0) amt / item.interval_months else amt
             }
         }
 
-        validGroups.mapIndexed { idx, g ->
+        expenseGroups.mapIndexed { idx, g ->
             val monthly = g.items.sumOf { item ->
-                if (item.interval_months > 0) item.amount / item.interval_months else item.amount
+                val amt = kotlin.math.abs(item.amount)
+                if (item.interval_months > 0) amt / item.interval_months else amt
             }
             val percentage = if (allMonthly > 0.0) (monthly / allMonthly).toFloat() else 0f
             Triple(g, monthly, percentage) to palette[idx % palette.size]
@@ -1642,6 +1650,8 @@ fun QuickEntryForm(
     categories: List<String>,
     isUploading: Boolean,
     isAiScanning: Boolean = false,
+    showCard: Boolean = true,
+    showTitle: Boolean = false,
     onDismiss: () -> Unit,
     onScanReceipt: (
         fileBytes: ByteArray,
@@ -1727,7 +1737,6 @@ fun QuickEntryForm(
             pickedFileUri = it
             pickedFileMime = contentResolver.getType(it)
             
-            // Extract filename
             val cursor = contentResolver.query(it, null, null, null, null)
             cursor?.use { c ->
                 val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -1740,7 +1749,6 @@ fun QuickEntryForm(
                 pickedFileName = "beleg_${System.currentTimeMillis()}.$ext"
             }
 
-            // Extract bytes
             try {
                 val isImage = pickedFileMime?.startsWith("image/") == true
                 var compressedBytes: ByteArray? = null
@@ -1762,12 +1770,10 @@ fun QuickEntryForm(
                             "$name.jpg"
                         }
                     }
-                    android.util.Log.d("FinanceScreen", "Compressed image picked, size: ${compressedBytes.size}")
                 } else {
                     contentResolver.openInputStream(it)?.use { input ->
                         pickedFileBytes = input.readBytes()
                     }
-                    android.util.Log.d("FinanceScreen", "Raw file bytes read, size: ${pickedFileBytes?.size}")
                 }
 
                 if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
@@ -1814,48 +1820,32 @@ fun QuickEntryForm(
 
     var dropdownExpanded by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 500.dp)
-            .padding(16.dp),
-        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
-        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+    val formBody = @Composable {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Schnelleintrag hinzufügen", color = AppTheme.colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Titel") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Gold,
-                    unfocusedBorderColor = AppTheme.colors.inputBorder,
-                    focusedTextColor = AppTheme.colors.textPrimary,
-                    unfocusedTextColor = AppTheme.colors.textPrimary
+            if (showTitle) {
+                Text(
+                    text = "Schnelleintrag hinzufügen",
+                    color = AppTheme.colors.textPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            )
+            }
 
+            // Zeile 1: Titel (1.3f) + Betrag (0.9f)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Betrag (€)") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Titel") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1.3f),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Gold,
                         unfocusedBorderColor = AppTheme.colors.inputBorder,
@@ -1864,22 +1854,100 @@ fun QuickEntryForm(
                     )
                 )
 
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it },
+                    label = { Text("Betrag (€)") },
+                    singleLine = true,
+                    modifier = Modifier.weight(0.9f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary
+                    )
+                )
+            }
+
+            // Zeile 2: Kategorie (1.2f) + Datum (0.9f)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val filteredCategories = remember(selectedCategory, categories) {
+                    categories.filter { it.contains(selectedCategory, ignoreCase = true) }
+                }
+                ExposedDropdownMenuBox(
+                    expanded = dropdownExpanded && filteredCategories.isNotEmpty(),
+                    onExpandedChange = { dropdownExpanded = it },
+                    modifier = Modifier.weight(1.2f)
+                ) {
+                    OutlinedTextField(
+                        readOnly = false,
+                        value = selectedCategory,
+                        onValueChange = { 
+                            selectedCategory = it
+                            dropdownExpanded = true
+                        },
+                        singleLine = true,
+                        label = { Text("Kategorie") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = dropdownExpanded && filteredCategories.isNotEmpty(),
+                        onDismissRequest = { dropdownExpanded = false }
+                    ) {
+                        filteredCategories.forEach { selection ->
+                            val isSelected = selectedCategory == selection
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = selection,
+                                        color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                },
+                                onClick = {
+                                    selectedCategory = selection
+                                    dropdownExpanded = false
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(if (isSelected) Gold else Color.Transparent)
+                            )
+                        }
+                    }
+                }
+
                 // Date Picker field
                 Box(
                     modifier = Modifier
-                        .weight(1f)
+                        .weight(0.9f)
                         .clickable { datePickerDialog.show() }
                 ) {
                     OutlinedTextField(
                         readOnly = true,
                         value = executionDate,
                         onValueChange = {},
+                        singleLine = true,
                         label = { Text("Datum") },
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Default.DateRange,
                                 contentDescription = "Datum wählen",
-                                tint = Gold
+                                tint = Gold,
+                                modifier = Modifier.size(18.dp)
                             )
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -1894,7 +1962,6 @@ fun QuickEntryForm(
                         ),
                         enabled = false
                     )
-                    // Transparent overlay to capture clicks
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -1904,167 +1971,108 @@ fun QuickEntryForm(
                 }
             }
 
-            // Category Dropdown (Editable Combobox)
-            val filteredCategories = remember(selectedCategory, categories) {
-                categories.filter { it.contains(selectedCategory, ignoreCase = true) }
-            }
-            ExposedDropdownMenuBox(
-                expanded = dropdownExpanded && filteredCategories.isNotEmpty(),
-                onExpandedChange = { dropdownExpanded = it }
-            ) {
-                OutlinedTextField(
-                    readOnly = false,
-                    value = selectedCategory,
-                    onValueChange = { 
-                        selectedCategory = it
-                        dropdownExpanded = true
-                    },
-                    label = { Text("Kategorie") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Gold,
-                        unfocusedBorderColor = AppTheme.colors.inputBorder,
-                        focusedTextColor = AppTheme.colors.textPrimary,
-                        unfocusedTextColor = AppTheme.colors.textPrimary
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor()
-                )
-                ExposedDropdownMenu(
-                    expanded = dropdownExpanded && filteredCategories.isNotEmpty(),
-                    onDismissRequest = { dropdownExpanded = false }
-                ) {
-                    filteredCategories.forEach { selection ->
-                        val isSelected = selectedCategory == selection
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = selection,
-                                    color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            onClick = {
-                                selectedCategory = selection
-                                dropdownExpanded = false
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(if (isSelected) Gold else Color.Transparent)
-                        )
-                    }
-                }
-            }
-
-            // Business Switch
+            // Zeile 3: Beleg Buttons (Kamera / Datei) & Gewerblich Switch
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Gewerbliche Ausgabe?", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
-                Switch(
-                    checked = isBusiness,
-                    onCheckedChange = { isBusiness = it },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Gold,
-                        checkedTrackColor = Color(0x33C5A059)
-                    )
-                )
-            }
-
-            OutlinedTextField(
-                value = location,
-                onValueChange = { location = it },
-                label = { Text("Ort (optional)") },
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Gold,
-                    unfocusedBorderColor = AppTheme.colors.inputBorder,
-                    focusedTextColor = AppTheme.colors.textPrimary,
-                    unfocusedTextColor = AppTheme.colors.textPrimary
-                )
-            )
-
-            // Receipt File attachment indicator
-            Text("Beleg hinzufügen", color = AppTheme.colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // File picker button
                 Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppTheme.colors.glassSurface)
-                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
-                        .clickable { filePickerLauncher.launch("*/*") }
-                        .padding(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AttachFile,
-                        contentDescription = "Anhang",
-                        tint = Gold,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Datei", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-
-                // Camera launcher button
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppTheme.colors.glassSurface)
-                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
-                        .clickable {
-                            try {
-                                val cacheDir = context.cacheDir
-                                val tempFile = java.io.File.createTempFile("camera_temp_", ".jpg", cacheDir).apply {
-                                    deleteOnExit()
+                    // Kamera Button
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                            .clickable {
+                                try {
+                                    val cacheDir = context.cacheDir
+                                    val tempFile = java.io.File.createTempFile("camera_temp_", ".jpg", cacheDir).apply {
+                                        deleteOnExit()
+                                    }
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "de.meinseelenfunke.app.fileprovider",
+                                        tempFile
+                                    )
+                                    cameraTempUri = uri
+                                    cameraLauncher.launch(uri)
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
-                                val uri = androidx.core.content.FileProvider.getUriForFile(
-                                    context,
-                                    "de.meinseelenfunke.app.fileprovider",
-                                    tempFile
-                                )
-                                cameraTempUri = uri
-                                cameraLauncher.launch(uri)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
                             }
-                        }
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoCamera,
+                            contentDescription = "Kamera",
+                            tint = Gold,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("Kamera", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Datei Button
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                            .clickable { filePickerLauncher.launch("*/*") }
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Anhang",
+                            tint = Gold,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("Datei", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Business Switch (kompakt)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { isBusiness = !isBusiness }
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.PhotoCamera,
-                        contentDescription = "Kamera",
-                        tint = Gold,
-                        modifier = Modifier.size(16.dp)
+                    Text("Gewerblich", color = AppTheme.colors.textPrimary, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Switch(
+                        checked = isBusiness,
+                        onCheckedChange = { isBusiness = it },
+                        modifier = Modifier.scale(0.85f),
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Gold,
+                            checkedTrackColor = Color(0x33C5A059)
+                        )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Kamera", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
+            // Ausgewählte Datei Badge
             if (pickedFileName != null) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0x11C5A059), RoundedCornerShape(4.dp))
-                        .padding(8.dp),
+                        .background(Color(0x11C5A059), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Ausgewählt: $pickedFileName",
+                        text = "📎 $pickedFileName",
                         color = Gold,
                         fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     Text(
@@ -2083,74 +2091,6 @@ fun QuickEntryForm(
                 }
             }
 
-            // AI Scan options
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                androidx.compose.material3.Checkbox(
-                    checked = autoScanWithAi,
-                    onCheckedChange = { autoScanWithAi = it },
-                    colors = androidx.compose.material3.CheckboxDefaults.colors(
-                        checkedColor = Gold,
-                        checkmarkColor = SpaceBlack
-                    )
-                )
-                Text(
-                    "🤖 Belege automatisch mit KI scannen",
-                    color = AppTheme.colors.textPrimary,
-                    fontSize = 12.sp,
-                    modifier = Modifier.clickable { autoScanWithAi = !autoScanWithAi }
-                )
-            }
-
-            if (autoScanWithAi) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.Checkbox(
-                        checked = autoSaveOnScan,
-                        onCheckedChange = { autoSaveOnScan = it },
-                        colors = androidx.compose.material3.CheckboxDefaults.colors(
-                            checkedColor = Gold,
-                            checkmarkColor = SpaceBlack
-                        )
-                    )
-                    Text(
-                        "⚡ Nach KI-Scan direkt speichern",
-                        color = AppTheme.colors.textMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.clickable { autoSaveOnScan = !autoSaveOnScan }
-                    )
-                }
-            }
-
-            // Manual scan button if file attached
-            if (pickedFileBytes != null && pickedFileName != null && pickedFileMime != null && !isAiScanning) {
-                Button(
-                    onClick = {
-                        triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0x33C5A059),
-                        contentColor = Gold
-                    ),
-                    border = BorderStroke(1.dp, Gold)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("🤖 Beleg mit Gemini KI analysieren", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-
             // AI Scanning indicator banner
             if (isAiScanning) {
                 Card(
@@ -2159,28 +2099,21 @@ fun QuickEntryForm(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         CircularProgressIndicator(
                             color = Gold,
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.5.dp
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
                         )
-                        Column {
-                            Text(
-                                text = "🤖 Gemini Vision analysiert Belegfoto...",
-                                color = Gold,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = "Extrahieren von Betrag, Datum, Händler & Kategorie...",
-                                color = AppTheme.colors.textMuted,
-                                fontSize = 11.sp
-                            )
-                        }
+                        Text(
+                            text = "🤖 Gemini Vision scannt Beleg...",
+                            color = Gold,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
@@ -2193,15 +2126,15 @@ fun QuickEntryForm(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = null,
                             tint = Emerald500,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Text(
                             text = aiScanResultNote ?: "",
@@ -2213,15 +2146,18 @@ fun QuickEntryForm(
                 }
             }
 
+            // Zeile 4: Aktionen (Abbrechen / Eintragen)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = onDismiss, enabled = !isUploading && !isAiScanning) {
-                    Text("Abbrechen", color = AppTheme.colors.textMuted)
+                    Text("Abbrechen", color = AppTheme.colors.textMuted, fontSize = 13.sp)
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Button(
                     onClick = {
                         val amount = amountText.replace(',', '.').toDoubleOrNull() ?: 0.0
@@ -2238,15 +2174,35 @@ fun QuickEntryForm(
                         )
                     },
                     enabled = !isUploading && !isAiScanning && title.isNotBlank() && amountText.replace(',', '.').toDoubleOrNull() != null,
-                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
+                    colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     if (isUploading || isAiScanning) {
                         CircularProgressIndicator(color = SpaceBlack, modifier = Modifier.size(16.dp))
                     } else {
-                        Text("Speichern")
+                        Text("Eintragen", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
             }
+        }
+    }
+
+    if (showCard) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Box(modifier = Modifier.padding(14.dp)) {
+                formBody()
+            }
+        }
+    } else {
+        Box(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            formBody()
         }
     }
 }

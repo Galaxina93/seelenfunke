@@ -62,6 +62,27 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    suspend fun getChatHistory(sessionId: String? = null, limit: Int = 30): Result<List<ChatMessage>> {
+        return try {
+            val response = serviceLocator.getAiApi().getChatHistory(sessionId, limit)
+            if (response.status == "success") {
+                val list = response.messages.map { item ->
+                    ChatMessage(
+                        role = item.role,
+                        content = item.content
+                    )
+                }
+                Result.success(list)
+            } else {
+                Result.success(emptyList())
+            }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.error(serviceLocator.context, "AiRepo", "getChatHistory failed", e)
+            Result.failure(e)
+        }
+    }
+
     // Run a prompt locally on-device using Google Gemini SDK (Gemini Nano / Flash)
     suspend fun generateLocalResponse(
         prompt: String,

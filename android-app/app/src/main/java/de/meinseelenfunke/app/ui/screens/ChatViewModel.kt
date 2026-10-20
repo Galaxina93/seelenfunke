@@ -40,6 +40,28 @@ class ChatViewModel : ViewModel() {
 
     init {
         loadAgents()
+        loadChatHistory()
+    }
+
+    fun loadChatHistory() {
+        viewModelScope.launch {
+            aiRepository.getChatHistory(limit = 40)
+                .onSuccess { list ->
+                    if (list.isNotEmpty()) {
+                        val cleanedList = list.map { msg ->
+                            val cleanContent = msg.content
+                                .replace(Regex("<speak>", RegexOption.IGNORE_CASE), "")
+                                .replace(Regex("</speak>", RegexOption.IGNORE_CASE), "")
+                                .trim()
+                            ChatMessage(role = msg.role, content = cleanContent)
+                        }
+                        _messages.value = cleanedList
+                    }
+                }
+                .onFailure {
+                    // Silently keep default greeting on initial history failure
+                }
+        }
     }
 
     fun loadAgents() {
@@ -48,7 +70,7 @@ class ChatViewModel : ViewModel() {
                 .onSuccess { list ->
                     _agents.value = list
                     val defaultAgent = list.find { it.name.equals("Funkira", ignoreCase = true) } ?: list.firstOrNull()
-                    defaultAgent?.let { selectAgent(it) }
+                    defaultAgent?.let { selectAgent(it, updateGreeting = false) }
                 }
                 .onFailure { err ->
                     _error.value = "Fehler beim Laden der Agenten: ${err.localizedMessage}"
@@ -56,7 +78,7 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    fun selectAgent(agent: de.meinseelenfunke.app.data.api.AiAgent) {
+    fun selectAgent(agent: de.meinseelenfunke.app.data.api.AiAgent, updateGreeting: Boolean = true) {
         if (_selectedAgent.value?.id == agent.id) return
         
         if (_selectedAgent.value != null) {
@@ -66,8 +88,10 @@ class ChatViewModel : ViewModel() {
         stopAudio()
         _selectedAgent.value = agent
         
-        val greeting = "Hallo Alina! Ich bin ${agent.name}. ${agent.role_description ?: "Wie kann ich dir heute helfen?"}"
-        _messages.value = listOf(ChatMessage("assistant", greeting))
+        if (updateGreeting && _messages.value.size <= 1) {
+            val greeting = "Hallo Alina! Ich bin ${agent.name}. ${agent.role_description ?: "Wie kann ich dir heute helfen?"}"
+            _messages.value = listOf(ChatMessage("assistant", greeting))
+        }
     }
 
     private val _selectedFile = MutableStateFlow<SelectedFile?>(null)
@@ -113,36 +137,41 @@ class ChatViewModel : ViewModel() {
 
         viewModelScope.launch {
             _isLoading.value = true
-            
-            // Build cleaned request history for the Laravel API structure
-            val apiHistory = _messages.value.mapIndexed { index, msg ->
-                if (index == _messages.value.lastIndex) {
-                    ChatMessage(role = msg.role, content = formattedContent)
-                } else {
-                    ChatMessage(role = msg.role, content = msg.content)
-                }
-            }
-
-            aiRepository.sendChatMessage(
-                prompt = formattedContent,
-                history = apiHistory,
-                agentId = _selectedAgent.value?.id
-            )
-                .onSuccess { chatResponse ->
-                    val assistantResponseText = chatResponse.response ?: "Keine Antwort erhalten."
-                    _messages.value = _messages.value + ChatMessage("assistant", assistantResponseText)
-
-                    // If base64 TTS audio exists, play it!
-                    chatResponse.audio?.let { audioBase64 ->
-                        playTtsAudio(audioBase64)
+            try {
+                // Build cleaned request history for the Laravel API structure
+                val apiHistory = _messages.value.mapIndexed { index, msg ->
+                    if (index == _messages.value.lastIndex) {
+                        ChatMessage(role = msg.role, content = formattedContent)
+                    } else {
+                        ChatMessage(role = msg.role, content = msg.content)
                     }
                 }
-                .onFailure { err ->
-                    _error.value = "Verbindungsfehler: ${err.localizedMessage}"
-                    _messages.value = _messages.value + ChatMessage("assistant", "[Fehler beim Laden der Antwort]")
-                }
-            
-            _isLoading.value = false
+
+                aiRepository.sendChatMessage(
+                    prompt = formattedContent,
+                    history = apiHistory,
+                    agentId = _selectedAgent.value?.id
+                )
+                    .onSuccess { chatResponse ->
+                        val rawResponse = chatResponse.response ?: "Keine Antwort erhalten."
+                        val cleanResponse = rawResponse
+                            .replace(Regex("<speak>", RegexOption.IGNORE_CASE), "")
+                            .replace(Regex("</speak>", RegexOption.IGNORE_CASE), "")
+                            .trim()
+                        _messages.value = _messages.value + ChatMessage("assistant", cleanResponse)
+
+                        // If base64 TTS audio exists, play it!
+                        chatResponse.audio?.let { audioBase64 ->
+                            playTtsAudio(audioBase64)
+                        }
+                    }
+                    .onFailure { err ->
+                        _error.value = "Verbindungsfehler: ${err.localizedMessage}"
+                        _messages.value = _messages.value + ChatMessage("assistant", "[Fehler beim Laden der Antwort]")
+                    }
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 

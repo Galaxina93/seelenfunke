@@ -70,16 +70,16 @@ object ServiceLocator {
     private val _userTypeState = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val userTypeState = _userTypeState.asStateFlow()
 
-    private val _themeModeState = MutableStateFlow(ThemeMode.DARK)
+    private val _themeModeState = MutableStateFlow(ThemeMode.LIGHT)
     val themeModeState = _themeModeState.asStateFlow()
 
     fun getThemeMode(): ThemeMode {
-        if (!::sharedPreferences.isInitialized) return ThemeMode.DARK
-        val saved = sharedPreferences.getString(KEY_THEME_MODE, ThemeMode.DARK.name)
+        if (!::sharedPreferences.isInitialized) return ThemeMode.LIGHT
+        val saved = sharedPreferences.getString(KEY_THEME_MODE, ThemeMode.LIGHT.name)
         return try {
-            ThemeMode.valueOf(saved ?: ThemeMode.DARK.name)
+            ThemeMode.valueOf(saved ?: ThemeMode.LIGHT.name)
         } catch (e: Exception) {
-            ThemeMode.DARK
+            ThemeMode.LIGHT
         }
     }
 

@@ -135,12 +135,16 @@ class FileDownloadService
 
     public function downloadLaserSvg($itemId, $side = 'front')
     {
-        $item = OrderOrderItem::findOrFail($itemId); // Ggf. Namespace anpassen
+        $item = ($itemId instanceof OrderOrderItem) ? $itemId : OrderOrderItem::findOrFail($itemId);
         $product = $item->product;
-        $config = $item->configuration;
+        $config = $item->configuration ?? [];
 
-        $logos = $side === 'back' ? ($config['logos_back'] ?? []) : ($config['logos'] ?? []);
-        $texts = $side === 'back' ? ($config['texts_back'] ?? []) : ($config['texts'] ?? []);
+        $logos = $side === 'back' 
+            ? ($config['logos_back'] ?? $config['back']['logos'] ?? []) 
+            : ($config['logos'] ?? $config['front']['logos'] ?? []);
+        $texts = $side === 'back' 
+            ? ($config['texts_back'] ?? $config['back']['texts'] ?? []) 
+            : ($config['texts'] ?? $config['front']['texts'] ?? []);
 
         $productConfig = is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []);
         $overlayType = $config['overlay_type'] ?? ($productConfig['overlay_type'] ?? 'plane');
@@ -239,12 +243,22 @@ class FileDownloadService
                 // Skalierungs-Logik identisch zum JS Canvas
                 $logoWidth = (($logo['size'] ?? 100) / 500) * $widthMm;
 
-                $url = $logo['url'];
-                $localPath = null;
+                $url = $logo['url'] ?? $logo['value'] ?? $logo['src'] ?? null;
+                if (!$url) continue;
 
-                // Falls es keine Base64-URL ist, sondern ein lokaler Pfad, wandeln wir es für die SVG um
-                if (!str_starts_with($url, 'data:image')) {
-                    $urlPath = parse_url($url, PHP_URL_PATH);
+                $localPath = null;
+                $data = null;
+                $ext = null;
+
+                // Falls es eine Base64-URL ist
+                if (str_starts_with($url, 'data:image')) {
+                    if (preg_match('/^data:image\/([a-zA-Z0-9\+\-]+);base64,(.*)$/', $url, $matches)) {
+                        $ext = strtolower($matches[1]);
+                        if ($ext === 'svg+xml') $ext = 'svg';
+                        $data = base64_decode($matches[2]);
+                    }
+                } else {
+                    $urlPath = parse_url($url, PHP_URL_PATH) ?? $url;
 
                     if (str_contains($urlPath, '/storage/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
@@ -260,82 +274,121 @@ class FileDownloadService
                         $localPath = public_path(ltrim($urlPath, '/'));
                     }
 
+                    // Fallback-Suche: Falls Datei nicht am direkten Pfad liegt (z.B. verschoben oder alter Pfad)
+                    if (!$localPath || !file_exists($localPath)) {
+                        $baseName = basename($urlPath);
+                        $vectorPath = public_path('shop/product/configurator/vectors/' . $baseName);
+                        if (file_exists($vectorPath)) {
+                            $localPath = $vectorPath;
+                        } else {
+                            // Rekursive Suche im Vektoren-Verzeichnis (Unterordner wie Familie, Feiertage, etc.)
+                            $vectorsDir = public_path('shop/product/configurator/vectors');
+                            if (File::isDirectory($vectorsDir)) {
+                                $allVectors = File::allFiles($vectorsDir);
+                                foreach ($allVectors as $vFile) {
+                                    if ($vFile->getFilename() === $baseName) {
+                                        $localPath = $vFile->getPathname();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if ($localPath && file_exists($localPath)) {
                         $ext = strtolower(pathinfo($localPath, PATHINFO_EXTENSION));
                         $data = file_get_contents($localPath);
-
-                        if ($ext === 'svg') {
-                            // SVG inlinen, aber OHNE <svg> Tag, da XCS verschachtelte SVGs ignoriert!
-                            $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $data);
-                            $innerSvg = preg_replace('/<!--.*?-->/is', '', $innerSvg);
-                            $innerSvg = preg_replace('/<!DOCTYPE.*?>/is', '', $innerSvg);
-
-                            $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
-                            if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {
-                                $vParts = preg_split('/[\s,]+/', trim($m[1]));
-                                if (count($vParts) >= 4) {
-                                    $vX = floatval($vParts[0]);
-                                    $vY = floatval($vParts[1]);
-                                    $viewBoxW = floatval($vParts[2]);
-                                    $viewBoxH = floatval($vParts[3]);
+                    } elseif (filter_var($url, FILTER_VALIDATE_URL) && !str_contains($url, '127.0.0.1') && !str_contains($url, 'localhost')) {
+                        try {
+                            $resp = \Illuminate\Support\Facades\Http::timeout(5)->get($url);
+                            if ($resp->successful()) {
+                                $data = $resp->body();
+                                $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
+                                if (!$ext && $resp->header('Content-Type')) {
+                                    $ct = $resp->header('Content-Type');
+                                    if (str_contains($ct, 'svg')) $ext = 'svg';
+                                    elseif (str_contains($ct, 'png')) $ext = 'png';
+                                    elseif (str_contains($ct, 'jpeg') || str_contains($ct, 'jpg')) $ext = 'jpg';
                                 }
-                            } elseif (preg_match('/<svg[^>]*width="([0-9\.]+)[a-z]*"/i', $innerSvg, $mw) && preg_match('/<svg[^>]*height="([0-9\.]+)[a-z]*"/i', $innerSvg, $mh)) {
-                                $viewBoxW = floatval($mw[1]);
-                                $viewBoxH = floatval($mh[1]);
                             }
-
-                            // Nur den echten Vektor-Inhalt extrahieren
-                            if (preg_match('/<svg[^>]*>(.*?)<\/svg>/is', $innerSvg, $m)) {
-                                $innerSvg = $m[1];
-                            } else {
-                                $innerSvg = preg_replace('/<svg[^>]*>/is', '', $innerSvg);
-                                $innerSvg = str_replace('</svg>', '', $innerSvg);
-                            }
-
-                            // XCS KOMPATIBILITÄT: Alles aggressiv auf SCHWARZ mappen und störende Elemente entfernen!
-                            // Entferne <style>, <defs> und <title> Blöcke komplett, da XCS sie oft als Artefakte interpretiert
-                            $innerSvg = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $innerSvg);
-                            $innerSvg = preg_replace('/<defs[^>]*>.*?<\/defs>/is', '', $innerSvg);
-                            $innerSvg = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $innerSvg);
-                            
-                            // Entferne id, class, data-* Attribute die ggf. Styles laden
-                            $innerSvg = preg_replace('/\s(?:id|class|data-[a-zA-Z0-9\-]+)="[^"]*"/i', '', $innerSvg);
-
-                            // Entferne alte fill/stroke Attribute komplett, damit wir saubere Elemente haben
-                            $innerSvg = preg_replace('/\sfill="[^"]*"/i', '', $innerSvg);
-                            $innerSvg = preg_replace('/\sstroke="[^"]*"/i', '', $innerSvg);
-
-                            // XCS INHERITANCE BUG FIX: 
-                            // XCS liest fill="#000000" auf dem <g> Tag oft nicht richtig aus. 
-                            // Wir müssen JEDES einzelne grafische Element hartcodiert auf schwarz zwingen!
-                            $innerSvg = preg_replace(
-                                '/<(path|circle|rect|ellipse|polygon|polyline)([^>]*)>/i', 
-                                '<$1 fill="#000000"$2>', 
-                                $innerSvg
-                            );
-
-                            $fillAttr = ''; // Wird nicht mehr als Failsafe auf <g> benötigt
-
-                            $scaleS = $logoWidth / max(1, $viewBoxW);
-                            $cx = $vX + ($viewBoxW / 2);
-                            $cy = $vY + ($viewBoxH / 2);
-
-                            $svg .= '  <g transform="translate('.number_format($x,4,'.','').', '.number_format($y,4,'.','').') rotate('.number_format($rot,4,'.','').')">' . "\n";
-                            $svg .= '    <g transform="scale('.number_format($scaleS,6,'.','').') translate('.number_format(-$cx,6,'.','').', '.number_format(-$cy,6,'.','').')"' . $fillAttr . '>' . "\n";
-                            $svg .= $innerSvg . "\n";
-                            $svg .= '    </g>' . "\n";
-                            $svg .= '  </g>' . "\n";
-
-                            continue; // base64 <image> wird übersprungen
-                        } else {
-                            $type = ($ext === 'jpg') ? 'jpeg' : $ext;
-                            $url = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                        } catch (\Exception $e) {
+                            \Illuminate\Support\Facades\Log::warning("Could not fetch remote logo for SVG export: " . $url . " - " . $e->getMessage());
                         }
                     }
                 }
 
+                if ($data !== null) {
+                    if ($ext === 'svg') {
+                        // SVG inlinen, aber OHNE <svg> Tag, da XCS verschachtelte SVGs ignoriert!
+                        $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $data);
+                        $innerSvg = preg_replace('/<!--.*?-->/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/<!DOCTYPE.*?>/is', '', $innerSvg);
+
+                        $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
+                        if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {
+                            $vParts = preg_split('/[\s,]+/', trim($m[1]));
+                            if (count($vParts) >= 4) {
+                                $vX = floatval($vParts[0]);
+                                $vY = floatval($vParts[1]);
+                                $viewBoxW = floatval($vParts[2]);
+                                $viewBoxH = floatval($vParts[3]);
+                            }
+                        } elseif (preg_match('/<svg[^>]*width="([0-9\.]+)[a-z]*"/i', $innerSvg, $mw) && preg_match('/<svg[^>]*height="([0-9\.]+)[a-z]*"/i', $innerSvg, $mh)) {
+                            $viewBoxW = floatval($mw[1]);
+                            $viewBoxH = floatval($mh[1]);
+                        }
+
+                        // Nur den echten Vektor-Inhalt extrahieren
+                        if (preg_match('/<svg[^>]*>(.*?)<\/svg>/is', $innerSvg, $m)) {
+                            $innerSvg = $m[1];
+                        } else {
+                            $innerSvg = preg_replace('/<svg[^>]*>/is', '', $innerSvg);
+                            $innerSvg = str_replace('</svg>', '', $innerSvg);
+                        }
+
+                        // XCS KOMPATIBILITÄT: Alles aggressiv auf SCHWARZ mappen und störende Elemente entfernen!
+                        // Entferne <style>, <defs> und <title> Blöcke komplett, da XCS sie oft als Artefakte interpretiert
+                        $innerSvg = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/<defs[^>]*>.*?<\/defs>/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/<title[^>]*>.*?<\/title>/is', '', $innerSvg);
+                        
+                        // Entferne id, class, data-* Attribute die ggf. Styles laden
+                        $innerSvg = preg_replace('/\s(?:id|class|data-[a-zA-Z0-9\-]+)="[^"]*"/i', '', $innerSvg);
+
+                        // Entferne alte fill/stroke Attribute komplett, damit wir saubere Elemente haben
+                        $innerSvg = preg_replace('/\sfill="[^"]*"/i', '', $innerSvg);
+                        $innerSvg = preg_replace('/\sstroke="[^"]*"/i', '', $innerSvg);
+
+                        // XCS INHERITANCE BUG FIX: 
+                        // XCS liest fill="#000000" auf dem <g> Tag oft nicht richtig aus. 
+                        // Wir müssen JEDES einzelne grafische Element hartcodiert auf schwarz zwingen!
+                        $innerSvg = preg_replace(
+                            '/<(path|circle|rect|ellipse|polygon|polyline)([^>]*)>/i', 
+                            '<$1 fill="#000000"$2>', 
+                            $innerSvg
+                        );
+
+                        $fillAttr = ''; // Wird nicht mehr als Failsafe auf <g> benötigt
+
+                        $scaleS = $logoWidth / max(1, $viewBoxW);
+                        $cx = $vX + ($viewBoxW / 2);
+                        $cy = $vY + ($viewBoxH / 2);
+
+                        $svg .= '  <g transform="translate('.number_format($x,4,'.','').', '.number_format($y,4,'.','').') rotate('.number_format($rot,4,'.','').')">' . "\n";
+                        $svg .= '    <g transform="scale('.number_format($scaleS,6,'.','').') translate('.number_format(-$cx,6,'.','').', '.number_format(-$cy,6,'.','').')"' . $fillAttr . '>' . "\n";
+                        $svg .= $innerSvg . "\n";
+                        $svg .= '    </g>' . "\n";
+                        $svg .= '  </g>' . "\n";
+
+                        continue; // base64 <image> wird übersprungen
+                    } else {
+                        $type = ($ext === 'jpg') ? 'jpeg' : ($ext ?: 'png');
+                        $url = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                    }
+                }
+
                 $svg .= '  <g transform="translate('.$x.', '.$y.') rotate('.$rot.')">' . "\n";
-                $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" height="'.$logoWidth.'" href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
+                $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" height="'.$logoWidth.'" href="'.$url.'" xlink:href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
                 $svg .= '  </g>' . "\n";
             }
         }

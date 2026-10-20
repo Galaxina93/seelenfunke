@@ -51,6 +51,12 @@ class FunkiraLiveViewModel : ViewModel() {
     private val _liveLogs = MutableStateFlow<List<String>>(emptyList())
     val liveLogs: StateFlow<List<String>> = _liveLogs.asStateFlow()
 
+    private val _liveSubtitle = MutableStateFlow<String?>(null)
+    val liveSubtitle: StateFlow<String?> = _liveSubtitle.asStateFlow()
+
+    private val aiTurnTranscript = java.lang.StringBuilder()
+    private val userTurnTranscript = java.lang.StringBuilder()
+
     private val _agents = MutableStateFlow<List<de.meinseelenfunke.app.data.api.AiAgent>>(emptyList())
     val agents: StateFlow<List<de.meinseelenfunke.app.data.api.AiAgent>> = _agents.asStateFlow()
 
@@ -167,6 +173,9 @@ class FunkiraLiveViewModel : ViewModel() {
         shouldEndCall = false
         isAiSpeaking = false
         _shouldCloseScreen.value = false
+        _liveSubtitle.value = null
+        aiTurnTranscript.clear()
+        userTurnTranscript.clear()
         // Set live call active immediately to yield microphone from background service
         de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = true
         addLog("Sitzungsdaten werden geladen...")
@@ -181,7 +190,13 @@ class FunkiraLiveViewModel : ViewModel() {
                     val parsedUri = try { java.net.URI(baseUrl) } catch(e: java.lang.Exception) { null }
                     val host = parsedUri?.host ?: "10.0.2.2"
                     val fallbackWsUrl = "ws://$host:8089/gemini-live"
-                    val wsUrl = creds.ws_url ?: fallbackWsUrl
+                    var rawWsUrl = creds.ws_url ?: fallbackWsUrl
+                    if (host != "127.0.0.1" && host != "localhost") {
+                        rawWsUrl = rawWsUrl
+                            .replace("127.0.0.1", host)
+                            .replace("localhost", host)
+                    }
+                    val wsUrl = rawWsUrl
                     establishWebSocket(creds.token ?: "", wsUrl, creds.system_instruction, creds.voice_name, creds.tools?.toString())
                 }
                 .onFailure { err ->
@@ -324,6 +339,15 @@ class FunkiraLiveViewModel : ViewModel() {
             val root = gson.fromJson(jsonText, JsonObject::class.java) ?: return
             val agentName = _selectedAgent.value?.name ?: "Funkira"
 
+            // Check if server sent a persisted transcript notice
+            if (root.has("type") && root.get("type").asString == "liveTranscriptPersisted") {
+                val role = root.get("role")?.asString ?: "system"
+                val content = root.get("content")?.asString ?: ""
+                val speaker = if (role == "user") "Du" else agentName
+                addLog("[Transkript gesichert]: $speaker: $content")
+                return
+            }
+
             // Check for server-side error
             if (root.has("error")) {
                 val errorObj = root.getAsJsonObject("error")
@@ -345,11 +369,38 @@ class FunkiraLiveViewModel : ViewModel() {
             if (root.has("serverContent")) {
                 val serverContent = root.getAsJsonObject("serverContent")
                 
+                // Transcription deltas from Gemini Live API
+                val otObj = when {
+                    serverContent.has("outputTranscription") -> serverContent.getAsJsonObject("outputTranscription")
+                    serverContent.has("outputAudioTranscription") -> serverContent.getAsJsonObject("outputAudioTranscription")
+                    else -> null
+                }
+                if (otObj != null && otObj.has("text")) {
+                    val delta = otObj.get("text").asString
+                    aiTurnTranscript.append(delta)
+                    _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
+                }
+
+                val itObj = when {
+                    serverContent.has("inputTranscription") -> serverContent.getAsJsonObject("inputTranscription")
+                    serverContent.has("inputAudioTranscription") -> serverContent.getAsJsonObject("inputAudioTranscription")
+                    else -> null
+                }
+                if (itObj != null && itObj.has("text")) {
+                    val delta = itObj.get("text").asString
+                    userTurnTranscript.append(delta)
+                    _liveSubtitle.value = "Du: ${userTurnTranscript.toString().trim()}"
+                }
+
                 // Handle interruption/barge-in
                 if (serverContent.has("interrupted") && serverContent.get("interrupted").asBoolean) {
                     addLog("[System]: Unterbrechung erkannt.")
                     isAiSpeaking = false
                     flushAudioPlayback()
+                    if (aiTurnTranscript.isNotBlank()) {
+                        addLog("$agentName (unterbrochen): ${aiTurnTranscript.toString().trim()}")
+                        aiTurnTranscript.clear()
+                    }
                 }
 
                 // Handle turnComplete for end_call
@@ -357,6 +408,14 @@ class FunkiraLiveViewModel : ViewModel() {
                     viewModelScope.launch {
                         delay(300)
                         isAiSpeaking = false
+                    }
+                    if (userTurnTranscript.isNotBlank()) {
+                        addLog("Du: ${userTurnTranscript.toString().trim()}")
+                        userTurnTranscript.clear()
+                    }
+                    if (aiTurnTranscript.isNotBlank()) {
+                        addLog("$agentName: ${aiTurnTranscript.toString().trim()}")
+                        aiTurnTranscript.clear()
                     }
                     if (shouldEndCall) {
                         shouldEndCall = false
@@ -380,7 +439,8 @@ class FunkiraLiveViewModel : ViewModel() {
                             // Check text transcript
                             if (partObj.has("text")) {
                                 val textPart = partObj.get("text").asString
-                                addLog("$agentName: $textPart")
+                                aiTurnTranscript.append(textPart)
+                                _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
                             }
 
                             // Check audio data
@@ -795,6 +855,16 @@ class FunkiraLiveViewModel : ViewModel() {
         connectJob = null
         stopRecording()
         releaseAudioTrack()
+        if (aiTurnTranscript.isNotBlank()) {
+            val agentName = _selectedAgent.value?.name ?: "Funkira"
+            addLog("$agentName: ${aiTurnTranscript.toString().trim()}")
+            aiTurnTranscript.clear()
+        }
+        if (userTurnTranscript.isNotBlank()) {
+            addLog("Du: ${userTurnTranscript.toString().trim()}")
+            userTurnTranscript.clear()
+        }
+        _liveSubtitle.value = null
         addLog("[System]: Getrennt ($reason)")
     }
 
