@@ -21,6 +21,7 @@ Am 20. Oktober 2026 wurde ein umfangreiches Paket an Optimierungen, Fehlerbehebu
    - Neuer administrativer Mängelrüge-Workflow: Mängel-Modal in der Bestellverwaltung, automatischer Statuswechsel auf `pending`, Versand der E-Mail [`OrderPhotoIssueMailToCustomer`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Mail/OrderPhotoIssueMailToCustomer.php), Warnbanner im Kundenportal und automatische Freigabe auf `processing` nach Upload eines neuen Fotos.
 3. **Kunden-Dashboard & UI-Feinschliff:**
    - Behebung des Spacing-Problems in der Tabelle „Letzte Bestellungen“: Das Aktions-Auge-Icon klebt nicht mehr am rechten Kartenrand, Spalten verfügen über ausgewogene Innenabstände (`px-3` / `px-4`), abgerundete Hover-Zustände und direkte Verlinkung zur Einzelbestellung.
+   - **Digitale Produkte:** Der Schalter *„Hinweise ausblenden/einblenden“* wird bei digitalen Artikeln (z.B. Geschenkgutscheine, Sofort-Downloads) und Dienstleistungen komplett ausgeblendet, da dort keine Laser-/Manufakturhinweise existieren.
    - Standard-Theme fest auf **Hell** (Light Mode) definiert.
    - Header-Logo vergrößert, Schnelleintrag platzsparend optimiert und Schmetterlings-Icon aus der Symbol-Bibliothek entfernt.
 4. **Finanzen & Android KI-Integration:**
