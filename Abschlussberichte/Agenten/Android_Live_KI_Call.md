@@ -194,3 +194,19 @@ Sollte es in Zukunft zu Problemen beim Live-Call kommen, prüfe folgende Punkte:
    ```powershell
    adb logcat -v time *:S FunkiraLive:D FunkiraLive-Payload:D AudioRecord:E AudioTrack:E OkHttp:D
    ```
+
+---
+
+## 6. Sprachkonsistenz, Chat-Synchronisation & Biometrie (20. Oktober 2026)
+
+### 6.1 Deutschsprachige Antworten (System Instruction Fix)
+* **Problem:** Bei Sprachinteraktionen oder KI-Anfragen antwortete die Agentin Funkira gelegentlich in englischer Sprache, wenn Standard-System-Prompts von Google Gemini gegriffen haben.
+* **Lösung:** In den `systemInstruction`-Konfigurationen und Backend-Prompts wurde die Anweisung strikt auf Deutsch fixiert:
+  > *„Du bist Funkira, die herzliche, empathische KI-Assistentin von Seelenfunke. Du sprichst und antwortest ausnahmslos auf natürlichem, sympathischem Deutsch.“*
+
+### 6.2 Chat-Synchronisation in der App
+* Die Antworten des KI-Modells wurden mit der UI der Android-App synchronisiert, sodass Antworten des Modells in Echtzeit im Chatfenster gerendert und in der lokalen Chat-Historie persistent hinterlegt werden.
+
+### 6.3 Biometrische Authentifizierung beim Kaltstart
+* Der Authentifizierungsfluss beim Neustart der Android-App wurde verifiziert. Die biometrische Abfrage (BiometricPrompt / Fingerabdruck / Face Unlock) wird beim Kaltstart der App zuverlässig initiiert, um sensible Finanz- und Bestelldaten zu schützen.
+

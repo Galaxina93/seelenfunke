@@ -74,3 +74,20 @@ Mitarbeiter können über `downloadMergedLabels()` alle Labels der aktuellen Fil
 * Es werden alle Pfade zu den verknüpften PDF-Dateien aus dem Speicher geladen.
 * Mittels der FPDI-Bibliothek (`setasign\Fpdi\Fpdi`) werden alle Einzelseiten dynamisch importiert, das Format (Hoch- oder Querformat) ausgelesen und zu einer PDF-Datei zusammengefügt.
 * Dies spart erhebliche Zeit beim Ausdrucken an der Packstation.
+
+### 5. Reklamations- & Nachbesserungsprozess für Kundendateien (Foto bemängeln)
+Wenn bei der Arbeitsvorbereitung (z. B. vor dem Laserauftrag) auffällt, dass ein vom Kunden hochgeladenes Foto unscharf, verpixelt, kontrastarm oder ungünstig beschnitten ist:
+1. **Admin-Mängelrüge (`openPhotoIssueModal`)**:
+   - In der Bestellungsdetailansicht befindet sich neben jedem Kunden-Upload unter „Dateien & Downloads“ ein Kamera-Mängel-Button.
+   - Ein Klick öffnet das [`photo-issue-modal.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-overview-partials/photo-issue-modal.blade.php).
+   - Der Administrator wählt die Fehlerursache aus vordefinierten Textbausteinen (z.B. „Bild ist zu unscharf/verpixelt“, „Kontrast zu schwach“, „Bildinhalt abgeschnitten“) und kann eine persönliche Hilfestellung ergänzen.
+2. **Automatischer Produktionsstopp**:
+   - Der Bestellstatus wechselt auf `pending` (Wartend), um eine versehentliche Produktion der mangelhaften Vorlage zu verhindern.
+   - Der Mangel und die Notiz werden im Datenfeld `item_configuration['photo_issue']` der Position hinterlegt.
+3. **Kundenbenachrichtigung & Portal-Führung**:
+   - Das System versendet die Mailable [`OrderPhotoIssueMailToCustomer`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Mail/OrderPhotoIssueMailToCustomer.php) mit Vorlage [`order_photo_issue_mail_to_customer.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/global/mails/order_photo_issue_mail_to_customer.blade.php).
+   - In der E-Mail sowie im Kundenportal ([`customer-orders-component.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/customer/customer-orders-component.blade.php)) leuchtet ein auffälliger Hinweis mit dem Direktlink *„Foto jetzt nachbessern“* auf.
+4. **Automatischer Wiederanlauf (Auto-Resolve)**:
+   - Der Kunde gelangt direkt in den Produktkonfigurator, lädt ein optimiertes Bild hoch und speichert.
+   - [`ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php) erkennt die Nachbesserung, entfernt die Mängelnotiz und setzt den Auftragsstatus automatisch wieder auf `processing` (In Bearbeitung).
+

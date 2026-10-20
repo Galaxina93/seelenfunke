@@ -224,3 +224,26 @@ PASS  Tests\Feature\Livewire\Shop\Product\QuoteMailPdfImageRenderingTest (4 Test
 Tests:    27 passed (146 assertions)
 Duration: 17.92s
 ```
+
+---
+
+## 8. Intelligente Foto-Qualitätsampel (20. Oktober 2026)
+
+### 8.1 Problemstellung: Starre Pixel-Warnung
+Bisher enthielt der Dateiupload-Bereich im Konfigurator ([`formluar.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/formluar.blade.php)) eine starre Abfrage auf `width < 877 || height < 877`. Diese führte zu folgenden Problemen:
+1. **Fehlalarme bei Vektordateien:** SVGs haben keine festen Pixelmaße, erhielten aber dieselbe Warnung, obwohl sie für Lasergravuren unendlich scharf und perfekt geeignet sind.
+2. **Kundenverunsicherung bei Breitformaten:** Ein Foto mit z. B. 2000×600 Pixeln besitzt exzellente Schärfe, wurde aber wegen der Höhe von < 877 px mit einer Warnung versehen.
+
+### 8.2 Lösungsarchitektur: Das Ampelsystem
+In [`formluar.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-configurator/partials/formluar.blade.php) wurde ein dreistufiges, kundenfreundliches Ampelsystem implementiert:
+1. **Vektorgrafiken (SVG):**
+   - Sofortiges Erkennen von `image/svg+xml`.
+   - Darstellung eines violetten Qualitäts-Badges: *„Vektordatei – Höchste Schärfe für Laserarbeiten“*.
+2. **Optimal geeignete Rasterbilder (Grüne Ampel):**
+   - Kriterium: Bildbreite und -höhe mindestens 350 px **oder** Gesamtpixelzahl >= 200.000 px.
+   - Grünes Prüfsiegel mit Haken: *„Datei ist einsatzbereit und optimal für die Gravur geeignet.“*
+3. **Sehr kleine Dateien (Gelbe Ampel / Hilfestellung):**
+   - Nur wenn beide Dimensionen unter 350 px liegen, wird ein gelber, konstruktiver Tipp eingeblendet:
+     *„Tipp für beste Ergebnisse: Das Bild ist recht klein. Für ein gestochen scharfes Laserergebnis empfehlen wir eine höhere Auflösung.“*
+   - Der Upload wird nicht blockiert, sondern der Kunde freundlich beraten.
+

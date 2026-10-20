@@ -77,3 +77,16 @@ sequenceDiagram
     DB-->>UI: Erfolgsmeldung
     UI-->>Admin: Zeige aktualisiertes UI mit Änderungsverlauf
 ```
+
+---
+
+## 5. Android Finanz-Sync & Diagramm-Segmentierung (20. Oktober 2026)
+
+### 5.1 Fixkosten Donut-Chart (Segmentfarben)
+* **Problem:** In der Finanzübersicht der Android-App wurde das Donut-Diagramm für Fixkosten nur in einer einzigen Einheitsfarbe dargestellt. Dadurch waren die prozentualen Anteile der Fixkostengruppen (z. B. Miete, Software, Versicherungen) visuell nicht unterscheidbar.
+* **Lösung:** Die Farbzuweisungslogik der Datensätze wurde korrigiert. Jede `AccountingGroup` liefert nun über die API eine dedizierte Hex-Farbe, sodass der Donut-Chart sauber nach Gruppenfarben aufgeteilt wird und die prozentuale Kostenverteilung sofort erkennbar ist.
+
+### 5.2 KI-Beleg-Scan: Vorzeichenlogik für Ausgaben
+* **Problem:** Beim automatischen Beleg-Scan (Fotoanalyse von Quittungen und Kassenbons) verbuchte der KI-Agent die Beträge teilweise positiv als Einnahme statt als Ausgabe.
+* **Lösung:** Die System-Prompt-Vorgaben und die Zuordnungsfunktionen wurden angepasst, sodass Ausgabenbelege konsequent als negative Werte (Minus-Buchung) in den variablen Kosten bzw. im Journal verbucht werden. Zudem wurden die Lade-Animation und der Auto-Fill-Ablauf stabilisiert.
+

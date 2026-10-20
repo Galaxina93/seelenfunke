@@ -60,16 +60,39 @@ Um die Conversion-Rate weiter zu steigern, wurden folgende drei Hebel integriert
   - Die rechte Spalte (Bestellübersicht, Kostenaufstellung, rechtliche Checkboxen) erhält einen edlen, warmen Creme-Hintergrund (`bg-[#FCFAF7]`), der sich nahtlos an den rechten Bildschirmrand anpasst.
   - Getrennt werden beide Spalten durch eine feine Trennlinie in Sandgold-Optik (`border-[#F3EDE2]`).
 
-### 2.3 Punkt 3: Sicherheits- und Trust-Badges
-* **Konzept:** Reduzierung der letzten Kaufbarrieren und Stärkung des Kundenvertrauens direkt vor dem Klick auf „Zahlungspflichtig bestellen“.
+### 2.3 Punkt 3: Soziale Werte statt technischer Trust-Badges (Refactoring am 20. Oktober 2026)
+* **Konzept:** Anstelle rein technischer Standard-Badges (SSL, 256-bit, BGB), die im modernen E-Commerce als selbstverständlich gelten und den Checkout optisch überfrachten, wird der emotionale und soziale Mehrwert des Unternehmens hervorgehoben.
 * **Umsetzung:**
-  - Integration von drei dezenten, stilvollen Trust-Badges direkt unter der Kaufvereinbarung in der Bestellübersicht:
-    1. **SSL-Schutz**: Bestätigung der 256-Bit verschlüsselten Verbindung.
-    2. **Sichere Kasse**: Stripe PCI-zertifizierte Abwicklung.
-    3. **3 Jahre Gültigkeit**: Gesetzliche Absicherung der Seelenfunke-Gutscheine nach BGB.
+  - Die drei technischen Trust-Badges sowie die obere Kachel „Ein Funke, der Gutes tut“ wurden entfernt.
+  - Integration von zwei prägnanten, herzerwärmenden Botschaften mit goldenem Herz-Icon:
+    1. **Freude schenken**: Personalisierte Unikate mit Herzensbotschaft.
+    2. **Soziales leisten (Kinder unterstützen)**: Transparenter Hinweis auf den sozialen Beitrag jeder Bestellung.
+  - Entfernung störender Bildvorschauen bei den AGB- und Datenschutz-Checkboxen für eine saubere, aufgeräumte Kasse.
 
 ---
 
-## 3. Qualitätssicherung & Tests
-- Alle Änderungen am Bestell- und Zahlungsprozess wurden durch automatisierte Feature-Tests in [GiftVoucherTest.php](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/GiftVoucherTest.php) verifiziert.
+## 3. Stripe Link Deaktivierung & Checkout Success Redesign (20. Oktober 2026)
+
+### 3.1 Stripe Link Deaktivierung & Fokus-Korrektur
+* **Problem:** Nach Eingabe des CVC-Sicherheitscodes sprang der Fokus des Browsers innerhalb des Stripe-Iframes automatisch in das E-Mail-Feld von *„Meine Daten speichern für eine schnellere Kaufabwicklung“* (Stripe Link). Dies verunsicherte Kunden und wirkte unaufgeräumt.
+* **Lösung:** In [`stripe-js.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-checkout/partials/stripe-js.blade.php) wurde das Standard Payment Element konfiguriert mit:
+  ```javascript
+  wallets: {
+      link: 'never',
+      applePay: 'never',
+      googlePay: 'never'
+  }
+  ```
+* **Wirkung:** Stripe Link wird vollständig ausgeblendet. Der CVC ist das finale Feld des Kartenformulars und es erfolgt kein unerwünschter Sprung in ein E-Mail-Feld mehr. Apple Pay und Google Pay verbleiben exklusiv im oberen Express Checkout Element.
+
+### 3.2 Checkout Success Redesign
+* **Maskottchen:** Anzeige von `funki_happy.webp` als freundlicher Bestätigungs-Hero.
+* **Scrollfreiheit Desktop:** Vertikales Zentrieren via `max(140px, calc((100vh - 460px) / 2))`.
+* **Mobile Spacing:** Sauberer oberer Abstand mit `pt-[92px]` direkt unter der mobilen Navbar.
+* **Referral-Kachel:** Kompaktes, dezentes Redesign des Bereichs „Freude teilen & 5 € Guthaben erhalten!“.
+
+---
+
+## 4. Qualitätssicherung & Tests
+- Alle Änderungen am Bestell- und Zahlungsprozess wurden durch automatisierte Feature-Tests in [OrderOverviewTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Order/OrderOverviewTest.php), [OrderShoppingCartsTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Order/OrderShoppingCartsTest.php) und [GiftVoucherTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/GiftVoucherTest.php) verifiziert.
 - Es traten keine Regressionen im Stripe-Zahlungsprozess oder der Gutschein-Fulfillment-Logik auf.
