@@ -57,6 +57,10 @@ import de.meinseelenfunke.app.ui.theme.Slate400
 import kotlinx.coroutines.launch
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import de.meinseelenfunke.app.ui.screens.BiometricLockScreen
+import de.meinseelenfunke.app.util.BiometricHelper
 import de.meinseelenfunke.app.util.SoundManager
 import de.meinseelenfunke.app.R
 
@@ -73,12 +77,24 @@ sealed class Screen(val route: String, val title: String = "", val icon: ImageVe
 
 @Composable
 fun AppNavigation(
-    navController: NavHostController = rememberNavController(),
-    startDestination: String = if (ServiceLocator.authRepository.isLoggedIn()) "main" else Screen.Login.route
+    navController: NavHostController = rememberNavController()
 ) {
+    val context = LocalContext.current
+    val isLoggedIn = ServiceLocator.authRepository.isLoggedIn()
+    val isBiometricEnabled = ServiceLocator.isBiometricEnabled()
+    val isBiometricAvailable = remember(context) { BiometricHelper.isBiometricAvailable(context) }
+    val requiresBiometricUnlock = isLoggedIn && isBiometricEnabled && isBiometricAvailable
+
+    // On cold app restart, if user has an active session and biometric is enabled, require fingerprint unlock!
+    var isBiometricUnlocked by rememberSaveable {
+        mutableStateOf(!requiresBiometricUnlock)
+    }
+
+    android.util.Log.d("BiometricDebug", "isLoggedIn: $isLoggedIn, isBiometricEnabled: $isBiometricEnabled, isBiometricAvailable: $isBiometricAvailable, requiresBiometricUnlock: $requiresBiometricUnlock, isBiometricUnlocked: $isBiometricUnlocked")
+
     LaunchedEffect(navController) {
         de.meinseelenfunke.app.util.NavigationBridge.wakeWordTrigger.collect {
-            if (ServiceLocator.authRepository.isLoggedIn()) {
+            if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
                 try {
                     val currentRoute = navController.currentDestination?.route
                     if (currentRoute != Screen.LiveVoice.route) {
@@ -95,7 +111,7 @@ fun AppNavigation(
     LaunchedEffect(navController) {
         navController.currentBackStackEntryFlow.collect { backStackEntry ->
             if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
-                if (ServiceLocator.authRepository.isLoggedIn()) {
+                if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
                     if (backStackEntry.destination.route != Screen.LiveVoice.route) {
                         de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
                         navController.navigate(Screen.LiveVoice.route)
@@ -105,35 +121,54 @@ fun AppNavigation(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startDestination
-    ) {
-        composable(Screen.Login.route) {
-            LoginScreen(
-                onLoginSuccess = {
-                    navController.navigate("main") {
-                        popUpTo(Screen.Login.route) { inclusive = true }
-                    }
+    if (isLoggedIn && !isBiometricUnlocked) {
+        BiometricLockScreen(
+            onUnlockSuccess = {
+                isBiometricUnlocked = true
+            },
+            onUsePassword = {
+                ServiceLocator.authRepository.logout()
+                isBiometricUnlocked = true
+                navController.navigate(Screen.Login.route) {
+                    popUpTo(0) { inclusive = true }
                 }
-            )
-        }
-        composable("main") {
-            MainTabbedScreen(
-                navController = navController,
-                onNavigateToLiveChat = { navController.navigate(Screen.LiveVoice.route) },
-                onLogout = {
-                    ServiceLocator.authRepository.logout()
-                    navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+            }
+        )
+    } else {
+        val startDestination = if (isLoggedIn) "main" else Screen.Login.route
+
+        NavHost(
+            navController = navController,
+            startDestination = startDestination
+        ) {
+            composable(Screen.Login.route) {
+                LoginScreen(
+                    onLoginSuccess = {
+                        isBiometricUnlocked = true
+                        navController.navigate("main") {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
                     }
-                }
-            )
-        }
-        composable(Screen.LiveVoice.route) {
-            FunkiraLiveScreen(
-                onBack = { navController.popBackStack() }
-            )
+                )
+            }
+            composable("main") {
+                MainTabbedScreen(
+                    navController = navController,
+                    onNavigateToLiveChat = { navController.navigate(Screen.LiveVoice.route) },
+                    onLogout = {
+                        ServiceLocator.authRepository.logout()
+                        isBiometricUnlocked = false
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+            composable(Screen.LiveVoice.route) {
+                FunkiraLiveScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

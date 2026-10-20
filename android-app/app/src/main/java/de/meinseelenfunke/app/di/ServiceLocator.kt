@@ -314,7 +314,7 @@ object ServiceLocator {
     }
 
     fun isRememberMeEnabled(): Boolean {
-        return sharedPreferences.getBoolean(KEY_REMEMBER_ME, false)
+        return sharedPreferences.getBoolean(KEY_REMEMBER_ME, true)
     }
 
     fun saveRememberMeEnabled(enabled: Boolean) {

@@ -128,6 +128,13 @@ class FunkiraLiveViewModel : ViewModel() {
         _liveLogs.value = emptyList()
     }
 
+    private fun sanitizeAiTranscript(raw: String): String {
+        return raw
+            .replace(Regex("""(?i)\*?\*?Confirming Operational Context\*?\*?.*?(?:API\.*|$)"""), "")
+            .replace(Regex("""(?i)I acknowledge I am operating within.*?(?:API\.*|$)"""), "")
+            .trim()
+    }
+
     private fun sanitizeJson(json: String): String {
         try {
             val element = gson.fromJson(json, com.google.gson.JsonElement::class.java)
@@ -247,7 +254,12 @@ class FunkiraLiveViewModel : ViewModel() {
                         add("systemInstruction", JsonObject().apply {
                             add("parts", JsonArray().apply {
                                 add(JsonObject().apply {
-                                    addProperty("text", systemInstruction)
+                                    val strictPrompt = if (!systemInstruction.contains("STRIKTE SPRACHREGEL")) {
+                                        "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Gib NIEMALS englische Statusmeldungen, Bestätigungen oder Floskeln wie 'Confirming Operational Context' oder 'I acknowledge...' aus. Antworte sofort direkt und natürlich auf Deutsch.\n\n" + systemInstruction
+                                    } else {
+                                        systemInstruction
+                                    }
+                                    addProperty("text", strictPrompt)
                                 })
                             })
                         })
@@ -378,7 +390,10 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (otObj != null && otObj.has("text")) {
                     val delta = otObj.get("text").asString
                     aiTurnTranscript.append(delta)
-                    _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
+                    val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
+                    if (cleanText.isNotBlank()) {
+                        _liveSubtitle.value = "$agentName: $cleanText"
+                    }
                 }
 
                 val itObj = when {
@@ -398,7 +413,10 @@ class FunkiraLiveViewModel : ViewModel() {
                     isAiSpeaking = false
                     flushAudioPlayback()
                     if (aiTurnTranscript.isNotBlank()) {
-                        addLog("$agentName (unterbrochen): ${aiTurnTranscript.toString().trim()}")
+                        val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
+                        if (cleanText.isNotBlank()) {
+                            addLog("$agentName (unterbrochen): $cleanText")
+                        }
                         aiTurnTranscript.clear()
                     }
                 }
@@ -414,7 +432,10 @@ class FunkiraLiveViewModel : ViewModel() {
                         userTurnTranscript.clear()
                     }
                     if (aiTurnTranscript.isNotBlank()) {
-                        addLog("$agentName: ${aiTurnTranscript.toString().trim()}")
+                        val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
+                        if (cleanText.isNotBlank()) {
+                            addLog("$agentName: $cleanText")
+                        }
                         aiTurnTranscript.clear()
                     }
                     if (shouldEndCall) {

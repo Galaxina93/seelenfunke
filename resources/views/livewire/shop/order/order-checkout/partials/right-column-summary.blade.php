@@ -236,22 +236,6 @@
                 <x-shop.cost-summary :totals="$totals" :country="$country" :showTitle="false" />
             </div>
 
-            {{-- HERZENSPROJEKT: REGIONALER SPENDEN-HINWEIS --}}
-            <div class="mt-5 p-3.5 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-xl flex items-center gap-3.5 shadow-xs">
-                <div class="w-9 h-9 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 text-base shadow-inner">
-                    ❤️
-                </div>
-                <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-bold text-gray-900">Ein Funke, der Gutes tut</span>
-                        <span class="text-[9px] font-mono font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">Für Kinder vor Ort</span>
-                    </div>
-                    <p class="text-[11px] text-gray-600 leading-snug mt-0.5">
-                        Mit dieser Bestellung fließt automatisch ein fester Betrag in unseren Spenden-Topf für regionale Kindergärten & Kinder-Projekte.
-                    </p>
-                </div>
-            </div>
-
             <div class="space-y-4 bg-gray-50 p-4 rounded-xl mt-6">
                 <div class="flex items-start">
                     <div class="flex h-5 items-center">
@@ -386,28 +370,19 @@
                 </button>
                 <p class="text-xs text-gray-400 text-center mt-4">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
 
-                {{-- Trust Badges --}}
-                <div class="mt-6 pt-6 border-t border-gray-150 grid grid-cols-3 gap-2 text-center">
-                    <div class="flex flex-col items-center">
-                        <svg class="w-5 h-5 text-primary mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                {{-- Sinnstiftung: Freude schenken & Soziales leisten mit goldenem Herz --}}
+                <div class="mt-5 pt-4 border-t border-gray-150 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-center">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" viewBox="0 0 24 24">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                         </svg>
-                        <span class="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">SSL-Schutz</span>
-                        <span class="text-[9px] text-gray-400 block mt-0.5 leading-tight">256-bit Verschlüsselt</span>
+                        <span class="text-xs font-bold text-gray-800">Freude schenken</span>
                     </div>
-                    <div class="flex flex-col items-center">
-                        <svg class="w-5 h-5 text-primary mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" viewBox="0 0 24 24">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                         </svg>
-                        <span class="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">Sichere Kasse</span>
-                        <span class="text-[9px] text-gray-400 block mt-0.5 leading-tight">Stripe PCI-zertifiziert</span>
-                    </div>
-                    <div class="flex flex-col items-center">
-                        <svg class="w-5 h-5 text-primary mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                        </svg>
-                        <span class="text-[10px] font-bold text-gray-700 uppercase tracking-wider block">3 Jahre</span>
-                        <span class="text-[9px] text-gray-400 block mt-0.5 leading-tight">Gültigkeit nach BGB</span>
+                        <span class="text-xs font-bold text-gray-800">Soziales leisten <span class="text-gray-500 font-medium">(Kinder unterstützen)</span></span>
                     </div>
                 </div>
             </div>

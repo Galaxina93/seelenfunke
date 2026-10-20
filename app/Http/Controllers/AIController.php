@@ -467,7 +467,11 @@ class AIController extends Controller
             $navMap .= "- " . $name . " => " . $path . "\n";
         }
 
-        $systemInstruction = "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
+        $systemInstruction = "STRIKTE SPRACHREGEL & OPERATIVES VERHALTEN (HÖCHSTE PRIORITÄT):\n" .
+            "- Du sprichst und antwortest ZU 100% AUSSCHLIESSLICH AUF DEUTSCH mit der Nutzerin (Alina).\n" .
+            "- Gib NIEMALS englische Sätze, Systemmeldungen, Statusbestätigungen oder Einleitungen aus (z.B. STRENG VERBOTEN: 'Confirming Operational Context', 'I acknowledge...', 'Understood').\n" .
+            "- Bestätige NIEMALS deine Anweisungen, Prompt oder Systemrolle! Fange sofort direkt und freundlich auf Deutsch an zu sprechen.\n\n" .
+            "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
             "WICHTIG FÜR DEN ECHTZEIT-SPRACHMODUS (wie in der mobilen Google Gemini App):\n" .
             "- Du führst ein flüssiges, direktes Sprachgespräch in Echtzeit.\n" .
             "- Antworte extrem schnell, direkt und prägnant (meist 1 bis 3 kurze Sätze auf den Punkt).\n" .
@@ -475,7 +479,8 @@ class AIController extends Controller
             "- Rufe Werkzeuge nur auf, wenn der Benutzer dich explizit um eine konkrete Aktion bittet.\n\n" .
             "WICHTIG ZU HINTERGRUND-AUFGABEN & MASSEN-AKTIONEN:\n" .
             "- Wenn der Benutzer dir zeitaufwändige Aufgaben, Massen-Operationen oder Hintergrundjobs erteilt, bestätige dem Nutzer SOFORT in 1 kurzen Satz, dass die Aufgabe im Hintergrund läuft.\n\n" .
-            "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap;
+            "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap . "\n\n" .
+            "STRIKTES GEBOT: Antworte und sprich AUSSCHLIESSLICH auf Deutsch!";
 
         // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert
         $sessionId = $request->input('chat_session_id');

@@ -13,6 +13,7 @@ object BiometricHelper {
         val result = biometricManager.canAuthenticate(
             BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
         )
+        android.util.Log.d("BiometricHelper", "canAuthenticate returned: $result (BIOMETRIC_SUCCESS = ${BiometricManager.BIOMETRIC_SUCCESS})")
         return result == BiometricManager.BIOMETRIC_SUCCESS
     }
 

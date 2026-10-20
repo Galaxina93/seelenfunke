@@ -1711,7 +1711,7 @@ fun QuickEntryForm(
             val loc = scanData.merchant ?: scanData.location
             loc?.let { if (it.isNotBlank() && location.isBlank()) location = it }
             if (scanData.is_business) isBusiness = true
-            aiScanResultNote = "Erkannt: ${scanData.title} | ${scanData.amount_formatted} €"
+            aiScanResultNote = "✨ KI-Foto-Analyse: ${scanData.title} | ${scanData.amount_formatted} € (automatisch befüllt)"
         }
     }
 
@@ -1981,12 +1981,12 @@ fun QuickEntryForm(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Kamera Button
+                    // KI Foto Scan Button
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(AppTheme.colors.glassSurface)
-                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                            .background(Color(0x22C5A059))
+                            .border(1.dp, Gold, RoundedCornerShape(8.dp))
                             .clickable {
                                 try {
                                     val cacheDir = context.cacheDir
@@ -2009,12 +2009,17 @@ fun QuickEntryForm(
                     ) {
                         Icon(
                             imageVector = Icons.Default.PhotoCamera,
-                            contentDescription = "Kamera",
+                            contentDescription = "KI-Foto-Scan",
                             tint = Gold,
                             modifier = Modifier.size(15.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text("Kamera", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "✨ KI-Foto-Scan",
+                            color = Gold,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
                     // Datei Button
@@ -2030,11 +2035,11 @@ fun QuickEntryForm(
                         Icon(
                             imageVector = Icons.Default.AttachFile,
                             contentDescription = "Anhang",
-                            tint = Gold,
+                            tint = AppTheme.colors.textMuted,
                             modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text("Datei", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Datei", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
 
