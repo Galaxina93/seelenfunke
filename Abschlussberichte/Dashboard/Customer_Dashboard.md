@@ -47,7 +47,29 @@ In [`customer-dashboard-component.blade.php`](file://wsl.localhost/Ubuntu/home/u
 
 ---
 
-## 3. UI-Standards & Theme-Vorgaben
+## 3. Kompaktes 2-Ebenen-Layout & 3-Kachel-Design (Scroll-Freiheit auf Desktop & Tablet)
+
+### 3.1 Problemstellung
+Zuvor war das Kunden-Dashboard in eine 2/3-Spalte (nur „Letzte Bestellungen“) und eine extrem lange 1/3-Spalte unterteilt, in der „Profildaten“, „Freunde werben“, „Magisches Abenteuer“ und „Hilfe & Support“ untereinander aufgereiht waren. Dadurch entstand eine enorme vertikale Asymmetrie: Kunden mussten insbesondere auf Tablets und Desktop-Bildschirmen weit nach unten scrollen, um Aktionen durchzuführen. Zudem nahm der obere Header-Bereich („Hallo, ...“) viel vertikale Höhe ein.
+
+### 3.2 Lösungsarchitektur
+1. **Verschlankter Begrüßungs-Header („Mitgliederbereich“):**
+   - Reduzierung des vertikalen Innenabstands auf `py-4 sm:py-5` (zuvor `py-10`).
+   - Kompakte Avatar-Abmessungen (`w-14 h-14 sm:w-16 sm:h-16`) und dezente Schnellübersichts-Kacheln (`px-3.5 py-2`).
+   - Spart ca. 120–150 px vertikalen Raum im ersten Viewport.
+2. **Obere Zeile: Kerninformationen nebeneinander (Grid 2/3 + 1/3):**
+   - **Links (2/3):** „Letzte Bestellungen“ mit direkter Bestellübersicht.
+   - **Rechts (1/3):** „Profildaten“ mit Name, E-Mail, Anschrift und Bearbeiten-Button.
+3. **Untere Zeile: 3-Kachel-Design nebeneinander (`grid-cols-1 md:grid-cols-3`):**
+   - **Kachel 1 (Freunde werben):** Kompakte Rabattcode-Box, Kopier-Button und Direkt-Share via WhatsApp.
+   - **Kachel 2 (Magisches Abenteuer):** Gamification-Teaser, Belohnungs-Hinweise und Aktions-Button zu den Minispielen.
+   - **Kachel 3 (Hilfe & Support):** Support-Garantie (&lt; 24 Std.), Hilfethemen und direkter Absprung zum Ticket-System.
+4. **Ergebnis:**
+   - Auf Standard-Desktops und Tablets im Querformat ist das gesamte Kunden-Dashboard vollständig und ohne Scrollen im ersten Viewport erfassbar.
+
+---
+
+## 4. UI-Standards & Theme-Vorgaben
 
 * **Standard-Modus:** Der „Hell“-Modus (Light Mode) ist im gesamten Frontend als verbindlicher Standard definiert.
 * **Header-Logo:** Vergrößerte Darstellung für eine stärkere visuelle Markenpräsenz.
