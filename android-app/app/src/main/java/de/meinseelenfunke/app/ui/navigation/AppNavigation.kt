@@ -49,6 +49,7 @@ import de.meinseelenfunke.app.ui.screens.LoginScreen
 import de.meinseelenfunke.app.ui.screens.OrganizerScreen
 import de.meinseelenfunke.app.ui.screens.ZentrumScreen
 import de.meinseelenfunke.app.ui.screens.OrdersTabContent
+import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.ui.theme.GlassWhite10
@@ -252,8 +253,8 @@ fun MainTabbedScreen(
     Scaffold(
         bottomBar = {
             NavigationBar(
-                containerColor = SpaceBlack,
-                modifier = Modifier.border(1.dp, GlassWhite10, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                containerColor = AppTheme.colors.bottomBarBackground,
+                modifier = Modifier.border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             ) {
                 bottomNavItems.forEachIndexed { index, screen ->
                     val selected = pagerState.currentPage == index
@@ -269,12 +270,12 @@ fun MainTabbedScreen(
                                 Icon(
                                     imageVector = it,
                                     contentDescription = screen.title,
-                                    tint = if (selected) Gold else Slate400
+                                    tint = if (selected) Gold else AppTheme.colors.textMuted
                                 )
                             }
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = Color(0x11C5A059)
+                            indicatorColor = if (AppTheme.colors.isDark) Color(0x22C5A059) else Color(0x33C5A059)
                         )
                     )
                 }

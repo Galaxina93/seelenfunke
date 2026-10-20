@@ -50,8 +50,38 @@ class FinanceViewModel : ViewModel() {
     private val _isUploading = MutableStateFlow(false)
     val isUploading: StateFlow<Boolean> = _isUploading.asStateFlow()
 
+    private val _isAiScanning = MutableStateFlow(false)
+    val isAiScanning: StateFlow<Boolean> = _isAiScanning.asStateFlow()
+
     private val _actionResult = MutableStateFlow<Result<String>?>(null)
     val actionResult: StateFlow<Result<String>?> = _actionResult.asStateFlow()
+
+    fun scanReceipt(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        autoSave: Boolean,
+        onScanComplete: (de.meinseelenfunke.app.data.api.ReceiptAiScanData?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isAiScanning.value = true
+            financeRepository.scanReceipt(bytes, fileName, mimeType, autoSave)
+                .onSuccess { response ->
+                    _isAiScanning.value = false
+                    if (response.auto_saved) {
+                        _actionResult.value = Result.success(response.message ?: "Beleg erfolgreich erfasst & gebucht!")
+                        loadAllFinanceData(showLoading = false)
+                        onScanComplete(null)
+                    } else {
+                        onScanComplete(response.data)
+                    }
+                }
+                .onFailure { error ->
+                    _isAiScanning.value = false
+                    _actionResult.value = Result.failure(error)
+                }
+        }
+    }
 
     init {
         loadAllFinanceData()

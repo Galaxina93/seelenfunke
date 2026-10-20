@@ -476,14 +476,28 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    suspend fun addShoppingItem(name: String, categoryId: String? = null): Result<ManagementShoppingItem> {
+    suspend fun addShoppingItem(name: String, categoryId: String? = null, quantity: Int = 1): Result<ManagementShoppingItem> {
         return try {
-            val response = serviceLocator.getOrganizerApi().addShoppingItem(name, categoryId)
+            val response = serviceLocator.getOrganizerApi().addShoppingItem(name, categoryId, quantity)
             if (response.success) {
                 addCachedItem(response.data)
                 Result.success(response.data)
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht hinzufügen."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateShoppingItemQuantity(id: String, quantity: Int): Result<ManagementShoppingItem> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().updateShoppingItemQuantity(id, quantity)
+            if (response.success) {
+                updateCachedItem(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Konnte Stückzahl nicht ändern."))
             }
         } catch (e: Exception) {
             Result.failure(e)

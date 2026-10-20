@@ -4,12 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import de.meinseelenfunke.app.ui.navigation.AppNavigation
 import de.meinseelenfunke.app.ui.theme.SeelenfunkeTheme
 import de.meinseelenfunke.app.util.SoundManager
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+import androidx.fragment.app.FragmentActivity
+
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -17,7 +21,14 @@ class MainActivity : ComponentActivity() {
         SoundManager.playSound(R.raw.open_project_brain)
 
         setContent {
-            SeelenfunkeTheme {
+            val themeMode by de.meinseelenfunke.app.di.ServiceLocator.themeModeState.collectAsState()
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDark = when (themeMode) {
+                de.meinseelenfunke.app.di.ThemeMode.DARK -> true
+                de.meinseelenfunke.app.di.ThemeMode.LIGHT -> false
+                else -> isSystemDark
+            }
+            SeelenfunkeTheme(darkTheme = isDark) {
                 AppNavigation()
             }
         }

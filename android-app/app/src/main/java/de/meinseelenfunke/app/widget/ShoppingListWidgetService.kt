@@ -65,14 +65,16 @@ class ShoppingListWidgetViewsFactory(private val context: Context) : RemoteViews
             views.setImageViewResource(R.id.item_checkbox, R.drawable.ic_checkbox_unchecked)
         }
 
+        val displayName = if (item.quantity > 1) "${item.name} (${item.quantity}x)" else item.name
+
         // Set Item Name (with strikethrough if stocked)
         if (isStocked) {
-            val spannable = SpannableString(item.name)
-            spannable.setSpan(StrikethroughSpan(), 0, item.name.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            val spannable = SpannableString(displayName)
+            spannable.setSpan(StrikethroughSpan(), 0, displayName.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             views.setTextViewText(R.id.item_name, spannable)
             views.setTextColor(R.id.item_name, 0xFF94A3B8.toInt()) // Dimmed Slate400
         } else {
-            views.setTextViewText(R.id.item_name, item.name)
+            views.setTextViewText(R.id.item_name, displayName)
             views.setTextColor(R.id.item_name, 0xFFF8FAFC.toInt()) // Bright White
         }
 

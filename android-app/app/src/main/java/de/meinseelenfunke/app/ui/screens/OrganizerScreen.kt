@@ -144,15 +144,11 @@ import de.meinseelenfunke.app.data.api.ManagementDayRoutine
 import de.meinseelenfunke.app.data.api.ManagementShoppingItem
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
+import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
-import de.meinseelenfunke.app.ui.theme.GlassWhite10
-import de.meinseelenfunke.app.ui.theme.Slate400
-import de.meinseelenfunke.app.ui.theme.Slate300
-import de.meinseelenfunke.app.ui.theme.Slate50
-import de.meinseelenfunke.app.ui.theme.Slate900
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -212,7 +208,7 @@ fun OrganizerScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(SpaceBlack, Slate900)
+                    colors = AppTheme.colors.bgGradient
                 )
             )
     ) {
@@ -230,18 +226,18 @@ fun OrganizerScreen(
                         CircularProgressIndicator(color = Gold)
                         Text(
                             text = "Verarbeite Kalenderdatei...",
-                            color = Slate50,
+                            color = AppTheme.colors.textPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Bitte schließe die App nicht.",
-                            color = Slate400,
+                            color = AppTheme.colors.textMuted,
                             fontSize = 12.sp
                         )
                     }
                 },
-                containerColor = SpaceBlack,
+                containerColor = AppTheme.colors.cardBackground,
                 shape = RoundedCornerShape(16.dp)
             )
         }
@@ -258,7 +254,7 @@ fun OrganizerScreen(
                 Text(
                     text = "Behalte deinen Tag im Blick",
                     fontSize = 12.sp,
-                    color = Slate400
+                    color = AppTheme.colors.textMuted
                 )
             }
 
@@ -266,7 +262,7 @@ fun OrganizerScreen(
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
-                contentColor = Slate50,
+                contentColor = AppTheme.colors.textPrimary,
                 indicator = { tabPositions ->
                     if (pagerState.currentPage < tabPositions.size) {
                         TabRowDefaults.SecondaryIndicator(
@@ -284,6 +280,8 @@ fun OrganizerScreen(
                                 pagerState.animateScrollToPage(index)
                             }
                         },
+                        selectedContentColor = Gold,
+                        unselectedContentColor = AppTheme.colors.textMuted,
                         text = {
                             Text(
                                 text = title,
@@ -396,9 +394,10 @@ fun OrganizerScreen(
                                 ) {
                                     ShoppingTabContent(
                                         items = shoppingItems,
-                                        onAddItem = { viewModel.addShoppingItem(it) },
+                                        onAddItem = { name, qty -> viewModel.addShoppingItem(name, qty) },
                                         onToggleItem = { viewModel.toggleShoppingItem(it) },
-                                        onDeleteItem = { viewModel.deleteShoppingItem(it) }
+                                        onDeleteItem = { viewModel.deleteShoppingItem(it) },
+                                        onUpdateQuantity = { id, qty -> viewModel.updateShoppingItemQuantity(id, qty) }
                                     )
                                     Spacer(modifier = Modifier.height(80.dp))
                                 }
@@ -465,7 +464,8 @@ fun TasksTabContent(
             if (isAddingList) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+                    colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
@@ -478,8 +478,13 @@ fun TasksTabContent(
                             label = { Text("Name der Liste...") },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Gold,
-                                unfocusedTextColor = Slate50,
-                                focusedLabelColor = Gold
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                focusedTextColor = AppTheme.colors.textPrimary,
+                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground,
+                                focusedLabelColor = Gold,
+                                unfocusedLabelColor = AppTheme.colors.textMuted
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
@@ -493,7 +498,7 @@ fun TasksTabContent(
                                 isAddingList = false
                                 newListName = ""
                             }) {
-                                Text("Abbrechen", color = Slate400)
+                                Text("Abbrechen", color = AppTheme.colors.textMuted)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
@@ -517,8 +522,8 @@ fun TasksTabContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { isAddingList = true },
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    border = BorderStroke(1.dp, GlassWhite10),
+                    colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
+                    border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
@@ -548,7 +553,7 @@ fun TasksTabContent(
             if (taskLists.isEmpty()) {
                 Text(
                     "Keine Aufgabenlisten vorhanden.",
-                    color = Slate400,
+                    color = AppTheme.colors.textMuted,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(top = 32.dp)
@@ -565,7 +570,8 @@ fun TasksTabContent(
                                 android.util.Log.d("TasksTabContent", "Clicked card: ${list.id}")
                                 selectedListId = list.id
                             },
-                        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
@@ -597,12 +603,12 @@ fun TasksTabContent(
                                         text = list.name,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Slate50
+                                        color = AppTheme.colors.textPrimary
                                     )
                                     Text(
                                         text = if (activeCount == 1) "1 offene Aufgabe" else "$activeCount offene Aufgaben",
                                         fontSize = 12.sp,
-                                        color = Slate400
+                                        color = AppTheme.colors.textMuted
                                     )
                                 }
                             }
@@ -638,7 +644,7 @@ fun TasksTabContent(
                                 Icon(
                                     imageVector = Icons.Default.KeyboardArrowRight,
                                     contentDescription = "Öffnen",
-                                    tint = Slate400,
+                                    tint = AppTheme.colors.textMuted,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -651,8 +657,8 @@ fun TasksTabContent(
         if (listToDelete != null) {
             AlertDialog(
                 onDismissRequest = { listToDelete = null },
-                title = { Text(text = "Liste löschen", color = Slate50, fontWeight = FontWeight.Bold) },
-                text = { Text(text = "Wirklich löschen?", color = Slate300) },
+                title = { Text(text = "Liste löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+                text = { Text(text = "Wirklich löschen?", color = AppTheme.colors.textSecondary) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -665,19 +671,19 @@ fun TasksTabContent(
                 },
                 dismissButton = {
                     TextButton(onClick = { listToDelete = null }) {
-                        Text("Abbrechen", color = Slate400)
+                        Text("Abbrechen", color = AppTheme.colors.textMuted)
                     }
                 },
-                containerColor = SpaceBlack,
-                titleContentColor = Slate50,
-                textContentColor = Slate300
+                containerColor = AppTheme.colors.cardBackground,
+                titleContentColor = AppTheme.colors.textPrimary,
+                textContentColor = AppTheme.colors.textSecondary
             )
         }
 
         if (listToRename != null) {
             AlertDialog(
                 onDismissRequest = { listToRename = null },
-                title = { Text(text = "Liste umbenennen", color = Slate50, fontWeight = FontWeight.Bold) },
+                title = { Text(text = "Liste umbenennen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
                 text = {
                     OutlinedTextField(
                         value = renameListName,
@@ -685,8 +691,13 @@ fun TasksTabContent(
                         label = { Text("Name der Liste...") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
-                            unfocusedTextColor = Slate50,
-                            focusedLabelColor = Gold
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                            focusedLabelColor = Gold,
+                            unfocusedLabelColor = AppTheme.colors.textMuted
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -708,12 +719,12 @@ fun TasksTabContent(
                 },
                 dismissButton = {
                     TextButton(onClick = { listToRename = null }) {
-                        Text("Abbrechen", color = Slate400)
+                        Text("Abbrechen", color = AppTheme.colors.textMuted)
                     }
                 },
-                containerColor = SpaceBlack,
-                titleContentColor = Slate50,
-                textContentColor = Slate300
+                containerColor = AppTheme.colors.cardBackground,
+                titleContentColor = AppTheme.colors.textPrimary,
+                textContentColor = AppTheme.colors.textSecondary
             )
         }
     } else {
@@ -754,7 +765,7 @@ fun TasksTabContent(
                     text = selectedList.name,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Slate50,
+                    color = AppTheme.colors.textPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = {
@@ -773,7 +784,8 @@ fun TasksTabContent(
             // Create New Task Input Form
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
@@ -787,8 +799,13 @@ fun TasksTabContent(
                         label = { Text("Neue Aufgabe...") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = listColor,
-                            unfocusedTextColor = Slate50,
-                            focusedLabelColor = listColor
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                            focusedLabelColor = listColor,
+                            unfocusedLabelColor = AppTheme.colors.textMuted
                         ),
                         modifier = Modifier.weight(1f)
                     )
@@ -814,7 +831,7 @@ fun TasksTabContent(
             if (listTasks.isEmpty()) {
                 Text(
                     "Keine Aufgaben in dieser Liste.",
-                    color = Slate400,
+                    color = AppTheme.colors.textMuted,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
@@ -873,7 +890,8 @@ fun TaskRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { isExpanded = !isExpanded },
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -892,7 +910,7 @@ fun TaskRow(
                         colors = CheckboxDefaults.colors(
                             checkedColor = listColor,
                             checkmarkColor = SpaceBlack,
-                            uncheckedColor = Slate400
+                            uncheckedColor = AppTheme.colors.textMuted
                         )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -905,12 +923,14 @@ fun TaskRow(
                                 value = editedTitle,
                                 onValueChange = { editedTitle = it },
                                 modifier = Modifier.weight(1f),
-                                textStyle = TextStyle(color = Slate50, fontSize = 14.sp),
+                                textStyle = TextStyle(color = AppTheme.colors.textPrimary, fontSize = 14.sp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = listColor,
-                                    unfocusedBorderColor = Slate400,
-                                    focusedTextColor = Slate50,
-                                    unfocusedTextColor = Slate50
+                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                                    focusedContainerColor = AppTheme.colors.inputBackground,
+                                    unfocusedContainerColor = AppTheme.colors.inputBackground
                                 ),
                                 singleLine = true
                             )
@@ -934,7 +954,7 @@ fun TaskRow(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Abbrechen",
-                                    tint = Slate400,
+                                    tint = AppTheme.colors.textMuted,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -943,7 +963,7 @@ fun TaskRow(
                         Column(modifier = Modifier.weight(1f)) {
                             LinkableText(
                                 text = task.title,
-                                baseColor = if (task.is_completed) Slate400 else Slate50,
+                                baseColor = if (task.is_completed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
                                 textDecoration = if (task.is_completed) TextDecoration.LineThrough else TextDecoration.None,
                                 fontWeight = FontWeight.Bold
                             )
@@ -966,7 +986,7 @@ fun TaskRow(
                                 Text(
                                     text = "$completedSubtasksCount von ${subtasks.size} Teilschritten",
                                     fontSize = 11.sp,
-                                    color = Slate400,
+                                    color = AppTheme.colors.textMuted,
                                     modifier = Modifier.padding(top = 2.dp)
                                 )
                             }
@@ -1013,7 +1033,7 @@ fun TaskRow(
                             Icon(
                                 imageVector = Icons.Default.CalendarToday,
                                 contentDescription = "Startdatum festlegen",
-                                tint = if (task.relevant_from.isNullOrBlank()) Slate400 else Gold,
+                                tint = if (task.relevant_from.isNullOrBlank()) AppTheme.colors.textMuted else Gold,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -1024,7 +1044,7 @@ fun TaskRow(
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Aufgabe bearbeiten",
-                                tint = Slate400,
+                                tint = AppTheme.colors.textMuted,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -1074,14 +1094,14 @@ fun TaskRow(
                                         colors = CheckboxDefaults.colors(
                                             checkedColor = listColor,
                                             checkmarkColor = SpaceBlack,
-                                            uncheckedColor = Slate400
+                                            uncheckedColor = AppTheme.colors.textMuted
                                         ),
                                         modifier = Modifier.scale(0.85f)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     LinkableText(
                                         text = subtask.title,
-                                        baseColor = if (subtask.is_completed) Slate400 else Slate50,
+                                        baseColor = if (subtask.is_completed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
                                         textDecoration = if (subtask.is_completed) TextDecoration.LineThrough else TextDecoration.None,
                                         fontSize = 13.sp
                                     )
@@ -1115,8 +1135,13 @@ fun TaskRow(
                             label = { Text("Neuer Teilschritt...", fontSize = 11.sp) },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = listColor,
-                                unfocusedTextColor = Slate50,
-                                focusedLabelColor = listColor
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                focusedTextColor = AppTheme.colors.textPrimary,
+                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground,
+                                focusedLabelColor = listColor,
+                                unfocusedLabelColor = AppTheme.colors.textMuted
                             ),
                             modifier = Modifier.weight(1f),
                             singleLine = true
@@ -1131,14 +1156,15 @@ fun TaskRow(
                             modifier = Modifier
                                 .size(48.dp)
                                 .background(
-                                    if (newSubtaskTitle.isNotBlank()) listColor else GlassWhite10,
+                                    if (newSubtaskTitle.isNotBlank()) listColor else AppTheme.colors.glassSurface,
                                     shape = RoundedCornerShape(8.dp)
                                 )
+                                .border(1.dp, if (newSubtaskTitle.isNotBlank()) Color.Transparent else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "Teilschritt hinzufügen",
-                                tint = if (newSubtaskTitle.isNotBlank()) SpaceBlack else Slate400,
+                                tint = if (newSubtaskTitle.isNotBlank()) SpaceBlack else AppTheme.colors.textMuted,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1203,14 +1229,15 @@ fun TaskRow(
                                     "xls", "xlsx", "ods", "csv" -> Color(0xFF10B981) // Emerald/Green
                                     "png", "jpg", "jpeg", "gif", "webp", "svg" -> Color(0xFFA855F7) // Purple
                                     "zip", "rar", "7z", "tar", "gz" -> Gold
-                                    else -> Slate400
+                                    else -> AppTheme.colors.textMuted
                                 }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(GlassWhite10, RoundedCornerShape(8.dp))
+                                        .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
+                                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Row(
@@ -1236,7 +1263,7 @@ fun TaskRow(
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = fileName,
-                                            color = Slate50,
+                                            color = AppTheme.colors.textPrimary,
                                             fontSize = 12.sp,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -1266,7 +1293,7 @@ fun TaskRow(
                     ) {
                         Button(
                             onClick = { filePickerLauncher.launch("*/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10, contentColor = Gold),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface, contentColor = Gold),
                             border = BorderStroke(1.dp, Gold.copy(alpha = 0.3f)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.height(36.dp)
@@ -1297,8 +1324,8 @@ fun TaskRow(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(text = "Aufgabe löschen", color = Slate50, fontWeight = FontWeight.Bold) },
-            text = { Text(text = "Möchtest du diese Aufgabe wirklich löschen?", color = Slate300) },
+            title = { Text(text = "Aufgabe löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text(text = "Möchtest du diese Aufgabe wirklich löschen?", color = AppTheme.colors.textSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1311,20 +1338,20 @@ fun TaskRow(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Abbrechen", color = Slate400)
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
                 }
             },
-            containerColor = SpaceBlack,
-            titleContentColor = Slate50,
-            textContentColor = Slate300
+            containerColor = AppTheme.colors.cardBackground,
+            titleContentColor = AppTheme.colors.textPrimary,
+            textContentColor = AppTheme.colors.textSecondary
         )
     }
 
     if (subtaskDeleteConfirmId != null) {
         AlertDialog(
             onDismissRequest = { subtaskDeleteConfirmId = null },
-            title = { Text(text = "Unteraufgabe löschen", color = Slate50, fontWeight = FontWeight.Bold) },
-            text = { Text(text = "Möchtest du diese Unteraufgabe wirklich löschen?", color = Slate300) },
+            title = { Text(text = "Unteraufgabe löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text(text = "Möchtest du diese Unteraufgabe wirklich löschen?", color = AppTheme.colors.textSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1337,12 +1364,12 @@ fun TaskRow(
             },
             dismissButton = {
                 TextButton(onClick = { subtaskDeleteConfirmId = null }) {
-                    Text("Abbrechen", color = Slate400)
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
                 }
             },
-            containerColor = SpaceBlack,
-            titleContentColor = Slate50,
-            textContentColor = Slate300
+            containerColor = AppTheme.colors.cardBackground,
+            titleContentColor = AppTheme.colors.textPrimary,
+            textContentColor = AppTheme.colors.textSecondary
         )
     }
 }
@@ -1457,7 +1484,8 @@ fun CalendarTabContent(
                     // Month Selector Header
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1500,7 +1528,8 @@ fun CalendarTabContent(
                     // Calendar Grid Card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
                     ) {
                         Column(
                             modifier = Modifier.padding(8.dp),
@@ -1511,7 +1540,7 @@ fun CalendarTabContent(
                                 weekdays.forEach { day ->
                                     Text(
                                         text = day,
-                                        color = Slate400,
+                                        color = AppTheme.colors.textMuted,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         textAlign = TextAlign.Center,
@@ -1527,7 +1556,7 @@ fun CalendarTabContent(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(1.dp)
-                                            .background(GlassWhite10.copy(alpha = 0.3f))
+                                            .background(AppTheme.colors.cardBorder.copy(alpha = 0.4f))
                                     )
                                 }
 
@@ -1572,8 +1601,8 @@ fun CalendarTabContent(
                                                         text = day.dayNumber.toString(),
                                                         color = if (isSelected) SpaceBlack 
                                                                 else if (isToday) Gold
-                                                                else if (day.isCurrentMonth) Slate50 
-                                                                else Slate400.copy(alpha = 0.4f),
+                                                                else if (day.isCurrentMonth) AppTheme.colors.textPrimary 
+                                                                else AppTheme.colors.textMuted.copy(alpha = 0.4f),
                                                         fontSize = 11.sp,
                                                         fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
                                                     )
@@ -1690,7 +1719,7 @@ fun CalendarTabContent(
 
                         Button(
                             onClick = { icsImportLauncher.launch("*/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10, contentColor = Gold),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface, contentColor = Gold),
                             border = BorderStroke(1.dp, Gold.copy(alpha = 0.3f)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
@@ -1700,7 +1729,7 @@ fun CalendarTabContent(
 
                         Button(
                             onClick = { onExportIcs() },
-                            colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10, contentColor = Gold),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface, contentColor = Gold),
                             border = BorderStroke(1.dp, Gold.copy(alpha = 0.3f)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.weight(1f)
@@ -1728,7 +1757,7 @@ fun CalendarTabContent(
                                 text = sdfSelected.format(selectedDate),
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Slate50
+                                color = AppTheme.colors.textPrimary
                             )
                         }
 
@@ -1757,7 +1786,7 @@ fun CalendarTabContent(
                         val sdfSelected = SimpleDateFormat("EEEE, d. MMMM yyyy", Locale.GERMAN)
                         Text(
                             text = sdfSelected.format(selectedDate),
-                            color = Slate50,
+                            color = AppTheme.colors.textPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f)
@@ -1773,9 +1802,9 @@ fun CalendarTabContent(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 12.dp),
-                            colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, Gold.copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, Gold.copy(alpha = 0.4f))
                         ) {
                             Column(
                                 modifier = Modifier.padding(12.dp),
@@ -1810,7 +1839,7 @@ fun CalendarTabContent(
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Schließen",
-                                            tint = Slate400,
+                                            tint = AppTheme.colors.textMuted,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -1822,9 +1851,13 @@ fun CalendarTabContent(
                                     label = { Text("Titel") },
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Gold,
+                                        unfocusedBorderColor = AppTheme.colors.inputBorder,
                                         focusedLabelColor = Gold,
-                                        unfocusedTextColor = Slate50,
-                                        focusedTextColor = Slate50
+                                        unfocusedLabelColor = AppTheme.colors.textMuted,
+                                        unfocusedTextColor = AppTheme.colors.textPrimary,
+                                        focusedTextColor = AppTheme.colors.textPrimary,
+                                        focusedContainerColor = AppTheme.colors.inputBackground,
+                                        unfocusedContainerColor = AppTheme.colors.inputBackground
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1841,16 +1874,20 @@ fun CalendarTabContent(
                                         label = { Text("Beschreibung (optional)") },
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = Gold,
+                                            unfocusedBorderColor = AppTheme.colors.inputBorder,
                                             focusedLabelColor = Gold,
-                                            unfocusedTextColor = Slate50,
-                                            focusedTextColor = Slate50
+                                            unfocusedLabelColor = AppTheme.colors.textMuted,
+                                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                                            focusedTextColor = AppTheme.colors.textPrimary,
+                                            focusedContainerColor = AppTheme.colors.inputBackground,
+                                            unfocusedContainerColor = AppTheme.colors.inputBackground
                                         ),
                                         modifier = Modifier.fillMaxWidth(),
                                         maxLines = 2
                                     )
 
                                     // Category Row
-                                    Text("Kategorie", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
+                                    Text("Kategorie", fontSize = 11.sp, color = AppTheme.colors.textMuted, fontWeight = FontWeight.Bold)
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -1859,9 +1896,9 @@ fun CalendarTabContent(
                                             val cat = categories[index]
                                             val isSelected = selectedCategory == cat.first
                                             val style = getCategoryStyle(cat.first)
-                                            val chipBg = if (isSelected) style.bg else GlassWhite10
-                                            val chipText = if (isSelected) style.text else Slate400
-                                            val chipBorder = if (isSelected) BorderStroke(1.dp, style.text) else BorderStroke(1.dp, Color.Transparent)
+                                            val chipBg = if (isSelected) style.bg else AppTheme.colors.glassSurface
+                                            val chipText = if (isSelected) style.text else AppTheme.colors.textMuted
+                                            val chipBorder = if (isSelected) BorderStroke(1.dp, style.text) else BorderStroke(1.dp, AppTheme.colors.glassBorder)
 
                                             Surface(
                                                 onClick = { selectedCategory = cat.first },
@@ -1903,9 +1940,13 @@ fun CalendarTabContent(
                                             label = { Text("Beginn Datum") },
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = Gold,
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
                                                 focusedLabelColor = Gold,
-                                                unfocusedTextColor = Slate50,
-                                                focusedTextColor = Slate50
+                                                unfocusedLabelColor = AppTheme.colors.textMuted,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                                unfocusedContainerColor = AppTheme.colors.inputBackground
                                             ),
                                             modifier = Modifier.weight(1f)
                                         )
@@ -1917,9 +1958,13 @@ fun CalendarTabContent(
                                                 label = { Text("Uhrzeit") },
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = Gold,
+                                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
                                                     focusedLabelColor = Gold,
-                                                    unfocusedTextColor = Slate50,
-                                                    focusedTextColor = Slate50
+                                                    unfocusedLabelColor = AppTheme.colors.textMuted,
+                                                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                                    focusedContainerColor = AppTheme.colors.inputBackground,
+                                                    unfocusedContainerColor = AppTheme.colors.inputBackground
                                                 ),
                                                 modifier = Modifier.weight(1f)
                                             )
@@ -1936,9 +1981,13 @@ fun CalendarTabContent(
                                             label = { Text("Ende Datum") },
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = Gold,
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
                                                 focusedLabelColor = Gold,
-                                                unfocusedTextColor = Slate50,
-                                                focusedTextColor = Slate50
+                                                unfocusedLabelColor = AppTheme.colors.textMuted,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                                unfocusedContainerColor = AppTheme.colors.inputBackground
                                             ),
                                             modifier = Modifier.weight(1f)
                                         )
@@ -1950,9 +1999,13 @@ fun CalendarTabContent(
                                                 label = { Text("Uhrzeit") },
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = Gold,
+                                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
                                                     focusedLabelColor = Gold,
-                                                    unfocusedTextColor = Slate50,
-                                                    focusedTextColor = Slate50
+                                                    unfocusedLabelColor = AppTheme.colors.textMuted,
+                                                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                                    focusedContainerColor = AppTheme.colors.inputBackground,
+                                                    unfocusedContainerColor = AppTheme.colors.inputBackground
                                                 ),
                                                 modifier = Modifier.weight(1f)
                                             )
@@ -1969,7 +2022,7 @@ fun CalendarTabContent(
                                             colors = CheckboxDefaults.colors(checkedColor = Gold)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Ganztägig", color = Slate50, fontSize = 13.sp)
+                                        Text("Ganztägig", color = AppTheme.colors.textPrimary, fontSize = 13.sp)
                                     }
  
                                     Row(
@@ -1982,11 +2035,11 @@ fun CalendarTabContent(
                                             colors = CheckboxDefaults.colors(checkedColor = Gold)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("E-Mail versenden", color = Slate50, fontSize = 13.sp)
+                                        Text("E-Mail versenden", color = AppTheme.colors.textPrimary, fontSize = 13.sp)
                                     }
 
                                     // Priority, Recurrence, Reminder
-                                    Text("Priorität", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
+                                    Text("Priorität", fontSize = 11.sp, color = AppTheme.colors.textMuted, fontWeight = FontWeight.Bold)
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1994,16 +2047,16 @@ fun CalendarTabContent(
                                         listOf("low" to "Niedrig", "medium" to "Mittel", "high" to "Hoch").forEach { prio ->
                                             val isSelected = priority == prio.first
                                             val bg = when(prio.first) {
-                                                "low" -> if(isSelected) Color.Gray.copy(alpha = 0.3f) else GlassWhite10
-                                                "medium" -> if(isSelected) Color.Yellow.copy(alpha = 0.3f) else GlassWhite10
-                                                else -> if(isSelected) Color.Red.copy(alpha = 0.3f) else GlassWhite10
+                                                "low" -> if(isSelected) Color.Gray.copy(alpha = 0.3f) else AppTheme.colors.glassSurface
+                                                "medium" -> if(isSelected) Color.Yellow.copy(alpha = 0.3f) else AppTheme.colors.glassSurface
+                                                else -> if(isSelected) Color.Red.copy(alpha = 0.3f) else AppTheme.colors.glassSurface
                                             }
                                             val textCol = when(prio.first) {
-                                                "low" -> if(isSelected) Color.White else Slate400
-                                                "medium" -> if(isSelected) Color.Yellow else Slate400
-                                                else -> if(isSelected) Color.Red else Slate400
+                                                "low" -> if(isSelected) Color.White else AppTheme.colors.textMuted
+                                                "medium" -> if(isSelected) Color.Yellow else AppTheme.colors.textMuted
+                                                else -> if(isSelected) Color.Red else AppTheme.colors.textMuted
                                             }
-                                            val border = if (isSelected) BorderStroke(1.dp, textCol) else BorderStroke(1.dp, Color.Transparent)
+                                            val border = if (isSelected) BorderStroke(1.dp, textCol) else BorderStroke(1.dp, AppTheme.colors.glassBorder)
 
                                             Surface(
                                                 onClick = { priority = prio.first },
@@ -2019,7 +2072,7 @@ fun CalendarTabContent(
                                         }
                                     }
 
-                                    Text("Wiederholung", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
+                                    Text("Wiederholung", fontSize = 11.sp, color = AppTheme.colors.textMuted, fontWeight = FontWeight.Bold)
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -2034,9 +2087,9 @@ fun CalendarTabContent(
                                         items(recurrences.size) { index ->
                                             val rec = recurrences[index]
                                             val isSelected = recurrence == rec.first
-                                            val chipBg = if (isSelected) Gold.copy(alpha = 0.2f) else GlassWhite10
-                                            val chipText = if (isSelected) Gold else Slate400
-                                            val chipBorder = if (isSelected) BorderStroke(1.dp, Gold) else BorderStroke(1.dp, Color.Transparent)
+                                            val chipBg = if (isSelected) Gold.copy(alpha = 0.2f) else AppTheme.colors.glassSurface
+                                            val chipText = if (isSelected) Gold else AppTheme.colors.textMuted
+                                            val chipBorder = if (isSelected) BorderStroke(1.dp, Gold) else BorderStroke(1.dp, AppTheme.colors.glassBorder)
 
                                             Surface(
                                                 onClick = { recurrence = rec.first },
@@ -2052,7 +2105,7 @@ fun CalendarTabContent(
                                         }
                                     }
 
-                                    Text("Erinnerung", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
+                                    Text("Erinnerung", fontSize = 11.sp, color = AppTheme.colors.textMuted, fontWeight = FontWeight.Bold)
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.fillMaxWidth()
@@ -2067,9 +2120,9 @@ fun CalendarTabContent(
                                         items(reminders.size) { index ->
                                             val rem = reminders[index]
                                             val isSelected = reminderMinutes == rem.first
-                                            val chipBg = if (isSelected) Gold.copy(alpha = 0.2f) else GlassWhite10
-                                            val chipText = if (isSelected) Gold else Slate400
-                                            val chipBorder = if (isSelected) BorderStroke(1.dp, Gold) else BorderStroke(1.dp, Color.Transparent)
+                                            val chipBg = if (isSelected) Gold.copy(alpha = 0.2f) else AppTheme.colors.glassSurface
+                                            val chipText = if (isSelected) Gold else AppTheme.colors.textMuted
+                                            val chipBorder = if (isSelected) BorderStroke(1.dp, Gold) else BorderStroke(1.dp, AppTheme.colors.glassBorder)
 
                                             Surface(
                                                 onClick = { reminderMinutes = rem.first },
@@ -2090,7 +2143,7 @@ fun CalendarTabContent(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Kategorie:", fontSize = 11.sp, color = Slate400, fontWeight = FontWeight.Bold)
+                                        Text("Kategorie:", fontSize = 11.sp, color = AppTheme.colors.textMuted, fontWeight = FontWeight.Bold)
                                         LazyRow(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                                             modifier = Modifier.weight(1f)
@@ -2099,9 +2152,9 @@ fun CalendarTabContent(
                                                 val cat = categories[index]
                                                 val isSelected = selectedCategory == cat.first
                                                 val style = getCategoryStyle(cat.first)
-                                                val chipBg = if (isSelected) style.bg else GlassWhite10
-                                                val chipText = if (isSelected) style.text else Slate400
-                                                val chipBorder = if (isSelected) BorderStroke(1.dp, style.text) else BorderStroke(1.dp, Color.Transparent)
+                                                val chipBg = if (isSelected) style.bg else AppTheme.colors.glassSurface
+                                                val chipText = if (isSelected) style.text else AppTheme.colors.textMuted
+                                                val chipBorder = if (isSelected) BorderStroke(1.dp, style.text) else BorderStroke(1.dp, AppTheme.colors.glassBorder)
 
                                                 Surface(
                                                     onClick = { selectedCategory = cat.first },
@@ -2203,7 +2256,7 @@ fun CalendarTabContent(
                     if (selectedDayEvents.isEmpty()) {
                         Text(
                             "Keine Termine an diesem Tag.",
-                            color = Slate400,
+                            color = AppTheme.colors.textMuted,
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -2270,13 +2323,13 @@ fun CalendarTabContent(
                                                             text = ev.title,
                                                             fontSize = 13.sp,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = Slate50
+                                                            color = AppTheme.colors.textPrimary
                                                         )
                                                         if (!ev.description.isNullOrBlank()) {
                                                             Text(
                                                                 text = ev.description,
                                                                 fontSize = 11.sp,
-                                                                color = Slate400,
+                                                                color = AppTheme.colors.textMuted,
                                                                 modifier = Modifier.padding(top = 2.dp)
                                                             )
                                                         }
@@ -2331,7 +2384,7 @@ fun CalendarTabContent(
                                             ) {
                                                 Text(
                                                     text = "${h.toString().padStart(2, '0')}:00",
-                                                    color = Slate400,
+                                                    color = AppTheme.colors.textMuted,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     modifier = Modifier.padding(end = 8.dp, top = 6.dp)
@@ -2358,7 +2411,7 @@ fun CalendarTabContent(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .height(1.dp)
-                                                            .background(GlassWhite10.copy(alpha = 0.2f))
+                                                            .background(AppTheme.colors.cardBorder.copy(alpha = 0.35f))
                                                     )
                                                 }
                                             }
@@ -2367,7 +2420,7 @@ fun CalendarTabContent(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .height(1.dp)
-                                                    .background(GlassWhite10.copy(alpha = 0.2f))
+                                                    .background(AppTheme.colors.cardBorder.copy(alpha = 0.35f))
                                             )
                                         }
 
@@ -2459,7 +2512,7 @@ fun CalendarTabContent(
                                                             if (timeStr.isNotEmpty() && durationDp >= 35f) {
                                                                 Text(
                                                                     text = timeStr,
-                                                                    color = Slate400,
+                                                                    color = AppTheme.colors.textMuted,
                                                                     fontSize = 9.sp,
                                                                     maxLines = 1
                                                                 )
@@ -2605,7 +2658,7 @@ fun RoutinesTabContent(
         if (routines.isEmpty()) {
             Text(
                 "Keine aktiven Routinen vorhanden.",
-                color = Slate400,
+                color = AppTheme.colors.textMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 32.dp)
@@ -2618,9 +2671,9 @@ fun RoutinesTabContent(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isCurrentlyRunning) Gold.copy(alpha = 0.05f) else GlassWhite10
+                        containerColor = if (isCurrentlyRunning) Gold.copy(alpha = 0.08f) else AppTheme.colors.cardBackground
                     ),
-                    border = if (isCurrentlyRunning) BorderStroke(1.5.dp, Gold) else null
+                    border = BorderStroke(if (isCurrentlyRunning) 1.5.dp else 1.dp, if (isCurrentlyRunning) Gold else AppTheme.colors.cardBorder)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(
@@ -2653,7 +2706,7 @@ fun RoutinesTabContent(
                                             text = routine.title,
                                             fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = Slate50,
+                                            color = AppTheme.colors.textPrimary,
                                             modifier = Modifier.weight(1f, fill = false),
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -2678,7 +2731,7 @@ fun RoutinesTabContent(
                                     Text(
                                         text = "Start: ${routine.start_time.take(5)} Uhr • ${routine.duration_minutes} Min.",
                                         fontSize = 11.sp,
-                                        color = Slate400
+                                        color = AppTheme.colors.textMuted
                                     )
                                 }
                             }
@@ -2696,7 +2749,7 @@ fun RoutinesTabContent(
                                     Icon(
                                         imageVector = Icons.Default.Edit,
                                         contentDescription = "Routine bearbeiten",
-                                        tint = Slate400,
+                                        tint = AppTheme.colors.textMuted,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -2730,14 +2783,15 @@ fun RoutinesTabContent(
                                     "Schritte der Routine:",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Slate400
+                                    color = AppTheme.colors.textMuted
                                 )
                                 routine.steps.forEach { step ->
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(GlassWhite10)
+                                            .background(AppTheme.colors.glassSurface)
+                                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(6.dp))
                                             .padding(8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
@@ -2750,13 +2804,13 @@ fun RoutinesTabContent(
                                                 modifier = Modifier.size(14.dp)
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
-                                            Text(step.title, fontSize = 13.sp, color = Slate50)
+                                            Text(step.title, fontSize = 13.sp, color = AppTheme.colors.textPrimary)
                                         }
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 text = "${step.duration_minutes} Min",
                                                 fontSize = 11.sp,
-                                                color = Slate400
+                                                color = AppTheme.colors.textMuted
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             IconButton(
@@ -2791,8 +2845,13 @@ fun RoutinesTabContent(
                                         label = { Text("Neuer Schritt...", fontSize = 11.sp) },
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = Gold,
-                                            unfocusedTextColor = Slate50,
-                                            focusedLabelColor = Gold
+                                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                            focusedTextColor = AppTheme.colors.textPrimary,
+                                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                                            focusedContainerColor = AppTheme.colors.inputBackground,
+                                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                                            focusedLabelColor = Gold,
+                                            unfocusedLabelColor = AppTheme.colors.textMuted
                                         ),
                                         modifier = Modifier.weight(1f),
                                         singleLine = true
@@ -2803,8 +2862,13 @@ fun RoutinesTabContent(
                                         label = { Text("Min.", fontSize = 11.sp) },
                                         colors = OutlinedTextFieldDefaults.colors(
                                             focusedBorderColor = Gold,
-                                            unfocusedTextColor = Slate50,
-                                            focusedLabelColor = Gold
+                                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                            focusedTextColor = AppTheme.colors.textPrimary,
+                                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                                            focusedContainerColor = AppTheme.colors.inputBackground,
+                                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                                            focusedLabelColor = Gold,
+                                            unfocusedLabelColor = AppTheme.colors.textMuted
                                         ),
                                         modifier = Modifier.width(70.dp),
                                         singleLine = true
@@ -2841,7 +2905,7 @@ fun RoutinesTabContent(
             title = {
                 Text(
                     text = if (editingRoutine == null) "Routine erstellen" else "Routine bearbeiten",
-                    color = Slate50,
+                    color = AppTheme.colors.textPrimary,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -2853,8 +2917,13 @@ fun RoutinesTabContent(
                         label = { Text("Titel") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
-                            unfocusedTextColor = Slate50,
-                            focusedLabelColor = Gold
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                            focusedLabelColor = Gold,
+                            unfocusedLabelColor = AppTheme.colors.textMuted
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2864,8 +2933,13 @@ fun RoutinesTabContent(
                         label = { Text("Beschreibung (optional)") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
-                            unfocusedTextColor = Slate50,
-                            focusedLabelColor = Gold
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                            focusedLabelColor = Gold,
+                            unfocusedLabelColor = AppTheme.colors.textMuted
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -2881,8 +2955,13 @@ fun RoutinesTabContent(
                             label = { Text("Startzeit (z.B. 08:00)") },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Gold,
-                                unfocusedTextColor = Slate50,
-                                focusedLabelColor = Gold
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                focusedTextColor = AppTheme.colors.textPrimary,
+                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground,
+                                focusedLabelColor = Gold,
+                                unfocusedLabelColor = AppTheme.colors.textMuted
                             ),
                             modifier = Modifier.weight(1f),
                             readOnly = true
@@ -2915,15 +2994,20 @@ fun RoutinesTabContent(
                         label = { Text("Dauer (Minuten)") },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
-                            unfocusedTextColor = Slate50,
-                            focusedLabelColor = Gold
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground,
+                            focusedLabelColor = Gold,
+                            unfocusedLabelColor = AppTheme.colors.textMuted
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     // Icon selector
                     Column {
-                        Text("Icon auswählen:", fontSize = 12.sp, color = Slate400, modifier = Modifier.padding(bottom = 6.dp))
+                        Text("Icon auswählen:", fontSize = 12.sp, color = AppTheme.colors.textMuted, modifier = Modifier.padding(bottom = 6.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -2934,12 +3018,12 @@ fun RoutinesTabContent(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selected) Gold.copy(alpha = 0.3f) else GlassWhite10)
-                                        .border(1.dp, if (selected) Gold else Color.Transparent, RoundedCornerShape(8.dp))
+                                        .background(if (selected) Gold.copy(alpha = 0.3f) else AppTheme.colors.glassSurface)
+                                        .border(1.dp, if (selected) Gold else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                                         .clickable { routineIcon = name },
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(imageVector = vector, contentDescription = null, tint = if (selected) Gold else Slate400)
+                                    Icon(imageVector = vector, contentDescription = null, tint = if (selected) Gold else AppTheme.colors.textMuted)
                                 }
                             }
                         }
@@ -2965,12 +3049,12 @@ fun RoutinesTabContent(
             },
             dismissButton = {
                 TextButton(onClick = { showRoutineDialog = false }) {
-                    Text("Abbrechen", color = Slate400)
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
                 }
             },
-            containerColor = SpaceBlack,
-            titleContentColor = Slate50,
-            textContentColor = Slate300
+            containerColor = AppTheme.colors.cardBackground,
+            titleContentColor = AppTheme.colors.textPrimary,
+            textContentColor = AppTheme.colors.textSecondary
         )
     }
 
@@ -2978,8 +3062,8 @@ fun RoutinesTabContent(
     if (routineToDelete != null) {
         AlertDialog(
             onDismissRequest = { routineToDelete = null },
-            title = { Text(text = "Routine löschen", color = Slate50, fontWeight = FontWeight.Bold) },
-            text = { Text(text = "Möchtest du die Routine '${routineToDelete?.title}' wirklich löschen? Alle darin enthaltenen Schritte werden ebenfalls unwiderruflich gelöscht.", color = Slate300) },
+            title = { Text(text = "Routine löschen", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = { Text(text = "Möchtest du die Routine '${routineToDelete?.title}' wirklich löschen? Alle darin enthaltenen Schritte werden ebenfalls unwiderruflich gelöscht.", color = AppTheme.colors.textSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -2992,12 +3076,12 @@ fun RoutinesTabContent(
             },
             dismissButton = {
                 TextButton(onClick = { routineToDelete = null }) {
-                    Text("Abbrechen", color = Slate400)
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
                 }
             },
-            containerColor = SpaceBlack,
-            titleContentColor = Slate50,
-            textContentColor = Slate300
+            containerColor = AppTheme.colors.cardBackground,
+            titleContentColor = AppTheme.colors.textPrimary,
+            textContentColor = AppTheme.colors.textSecondary
         )
     }
 }
@@ -3006,16 +3090,19 @@ fun RoutinesTabContent(
 @Composable
 fun ShoppingTabContent(
     items: List<ManagementShoppingItem>,
-    onAddItem: (String) -> Unit,
+    onAddItem: (String, Int) -> Unit,
     onToggleItem: (String) -> Unit,
-    onDeleteItem: (String) -> Unit
+    onDeleteItem: (String) -> Unit,
+    onUpdateQuantity: (String, Int) -> Unit
 ) {
     var newItemName by remember { mutableStateOf("") }
+    var newQuantity by remember { mutableIntStateOf(1) }
 
     // Input form
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -3026,14 +3113,59 @@ fun ShoppingTabContent(
                 value = newItemName,
                 onValueChange = { newItemName = it },
                 label = { Text("Neuer Artikel") },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                    focusedTextColor = AppTheme.colors.textPrimary,
+                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                    focusedContainerColor = AppTheme.colors.inputBackground,
+                    unfocusedContainerColor = AppTheme.colors.inputBackground,
+                    focusedLabelColor = Gold,
+                    unfocusedLabelColor = AppTheme.colors.textMuted
+                ),
                 modifier = Modifier.weight(1f)
             )
 
+            // Quantity stepper for new item
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
+                    .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 4.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    "-",
+                    color = if (newQuantity > 1) Gold else AppTheme.colors.textMuted,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable(enabled = newQuantity > 1) { newQuantity-- }
+                        .padding(horizontal = 6.dp)
+                )
+                Text(
+                    "${newQuantity}x",
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 2.dp)
+                )
+                Text(
+                    "+",
+                    color = Gold,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable { newQuantity++ }
+                        .padding(horizontal = 6.dp)
+                )
+            }
+
             Button(
                 onClick = {
-                    onAddItem(newItemName)
+                    onAddItem(newItemName, newQuantity)
                     newItemName = ""
+                    newQuantity = 1
                 },
                 enabled = newItemName.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
@@ -3050,7 +3182,7 @@ fun ShoppingTabContent(
     if (items.isEmpty()) {
         Text(
             "Einkaufsliste ist leer.",
-            color = Slate400,
+            color = AppTheme.colors.textMuted,
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 32.dp)
@@ -3071,7 +3203,7 @@ fun ShoppingTabContent(
                         letterSpacing = 1.sp
                     )
                     neededItems.forEach { item ->
-                        ShoppingItemRow(item = item, onToggle = onToggleItem, onDelete = onDeleteItem)
+                        ShoppingItemRow(item = item, onToggle = onToggleItem, onDelete = onDeleteItem, onUpdateQuantity = onUpdateQuantity)
                     }
                 }
             }
@@ -3083,11 +3215,11 @@ fun ShoppingTabContent(
                         text = "BEREITS GEKAUFT",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Slate400,
+                        color = AppTheme.colors.textMuted,
                         letterSpacing = 1.sp
                     )
                     stockedItems.forEach { item ->
-                        ShoppingItemRow(item = item, onToggle = onToggleItem, onDelete = onDeleteItem)
+                        ShoppingItemRow(item = item, onToggle = onToggleItem, onDelete = onDeleteItem, onUpdateQuantity = onUpdateQuantity)
                     }
                 }
             }
@@ -3099,11 +3231,13 @@ fun ShoppingTabContent(
 fun ShoppingItemRow(
     item: ManagementShoppingItem,
     onToggle: (String) -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onUpdateQuantity: (String, Int) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -3120,7 +3254,7 @@ fun ShoppingItemRow(
                     colors = CheckboxDefaults.colors(
                         checkedColor = Gold,
                         checkmarkColor = SpaceBlack,
-                        uncheckedColor = Slate400
+                        uncheckedColor = AppTheme.colors.textMuted
                     )
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -3128,22 +3262,68 @@ fun ShoppingItemRow(
                     Text(
                         text = item.name,
                         fontSize = 14.sp,
-                        color = if (item.status == "stocked") Slate400 else Slate50,
+                        color = if (item.status == "stocked") AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
                         textDecoration = if (item.status == "stocked") TextDecoration.LineThrough else TextDecoration.None
                     )
                     item.category?.let {
-                        Text(it.name, fontSize = 11.sp, color = Slate400)
+                        Text(it.name, fontSize = 11.sp, color = AppTheme.colors.textMuted)
                     }
                 }
             }
 
-            IconButton(onClick = { onDelete(item.id) }) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Löschen",
-                    tint = Color.Red.copy(alpha = 0.7f),
-                    modifier = Modifier.size(18.dp)
-                )
+            // Quantity stepper and delete action
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (item.status == "needed") {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(AppTheme.colors.glassSurface, RoundedCornerShape(4.dp))
+                            .border(0.5.dp, AppTheme.colors.glassBorder, RoundedCornerShape(4.dp))
+                            .clickable { if (item.quantity > 1) onUpdateQuantity(item.id, item.quantity - 1) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("-", color = AppTheme.colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Text(
+                        "${item.quantity}x",
+                        color = Gold,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 2.dp)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(AppTheme.colors.glassSurface, RoundedCornerShape(4.dp))
+                            .border(0.5.dp, AppTheme.colors.glassBorder, RoundedCornerShape(4.dp))
+                            .clickable { onUpdateQuantity(item.id, item.quantity + 1) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("+", color = AppTheme.colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Text(
+                        "${item.quantity}x",
+                        color = AppTheme.colors.textMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+
+                IconButton(onClick = { onDelete(item.id) }, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Löschen",
+                        tint = Color.Red.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

@@ -20,6 +20,11 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.MutableStateFlow
+
+enum class ThemeMode {
+    DARK, LIGHT, SYSTEM
+}
 
 object ServiceLocator {
 
@@ -58,9 +63,38 @@ object ServiceLocator {
     private const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
     private const val KEY_FCM_TOKEN = "fcm_token"
     private const val KEY_USER_TYPE = "user_type"
+    private const val KEY_THEME_MODE = "theme_mode"
+    private const val KEY_SAVED_PASSWORD = "saved_password"
+    private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
 
     private val _userTypeState = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val userTypeState = _userTypeState.asStateFlow()
+
+    private val _themeModeState = MutableStateFlow(ThemeMode.DARK)
+    val themeModeState = _themeModeState.asStateFlow()
+
+    fun getThemeMode(): ThemeMode {
+        if (!::sharedPreferences.isInitialized) return ThemeMode.DARK
+        val saved = sharedPreferences.getString(KEY_THEME_MODE, ThemeMode.DARK.name)
+        return try {
+            ThemeMode.valueOf(saved ?: ThemeMode.DARK.name)
+        } catch (e: Exception) {
+            ThemeMode.DARK
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit().putString(KEY_THEME_MODE, mode.name).apply()
+        }
+        _themeModeState.value = mode
+    }
+
+    fun toggleTheme() {
+        val current = _themeModeState.value
+        val next = if (current == ThemeMode.DARK) ThemeMode.LIGHT else ThemeMode.DARK
+        setThemeMode(next)
+    }
 
     fun getUserType(): String? {
         return sharedPreferences.getString(KEY_USER_TYPE, null)
@@ -103,18 +137,21 @@ object ServiceLocator {
     }
 
     fun getDynamicDefaultBaseUrl(): String {
-        return if (isEmulator()) "http://10.0.2.2/api/" else "http://127.0.0.1:8081/api/"
+        return if (isEmulator()) "http://10.0.2.2/api/" else "http://192.168.188.119/api/"
     }
 
     fun init(context: Context) {
         this.context = context.applicationContext
         this.sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         _userTypeState.value = sharedPreferences.getString(KEY_USER_TYPE, null)
+        _themeModeState.value = getThemeMode()
         
         val defaultUrl = getDynamicDefaultBaseUrl()
         val currentUrl = sharedPreferences.getString(KEY_BASE_URL, null)
         if (currentUrl == null 
             || (currentUrl == "http://10.0.2.2/api/" && !isEmulator())
+            || currentUrl.contains("8081")
+            || currentUrl.contains("127.0.0.1")
         ) {
             sharedPreferences.edit().putString(KEY_BASE_URL, defaultUrl).apply()
         }
@@ -290,5 +327,21 @@ object ServiceLocator {
 
     fun saveSavedEmail(email: String) {
         sharedPreferences.edit().putString(KEY_SAVED_EMAIL, email).apply()
+    }
+
+    fun getSavedPassword(): String {
+        return sharedPreferences.getString(KEY_SAVED_PASSWORD, "") ?: ""
+    }
+
+    fun saveSavedPassword(password: String) {
+        sharedPreferences.edit().putString(KEY_SAVED_PASSWORD, password).apply()
+    }
+
+    fun isBiometricEnabled(): Boolean {
+        return sharedPreferences.getBoolean(KEY_BIOMETRIC_ENABLED, true)
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
     }
 }

@@ -58,14 +58,17 @@ Route::prefix('funki/shopping')->group(function () {
     Route::post('/items', function (Request $request) {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'category_id' => 'nullable|uuid'
+            'category_id' => 'nullable|uuid',
+            'quantity' => 'nullable|integer|min:1'
         ]);
 
         $cleanName = trim($data['name']);
+        $quantity = $data['quantity'] ?? 1;
         $existing = ManagementShoppingItem::where('name', 'like', $cleanName)->first();
 
         if ($existing) {
             $existing->status = 'needed';
+            $existing->quantity = $quantity;
             if (isset($data['category_id'])) {
                 $existing->category_id = $data['category_id'];
             }
@@ -75,11 +78,53 @@ Route::prefix('funki/shopping')->group(function () {
             $item = ManagementShoppingItem::create([
                 'name' => $cleanName,
                 'category_id' => $data['category_id'] ?? null,
+                'quantity' => $quantity,
                 'status' => 'needed',
             ]);
         }
 
         $item->load('category');
+        return response()->json(['success' => true, 'data' => $item]);
+    });
+
+    Route::put('/items/{id}', function (Request $request, $id) {
+        $item = ManagementShoppingItem::findOrFail($id);
+        $data = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'quantity' => 'sometimes|integer|min:1',
+            'category_id' => 'nullable|uuid'
+        ]);
+
+        if (isset($data['name'])) {
+            $item->name = trim($data['name']);
+        }
+        if (isset($data['quantity'])) {
+            $item->quantity = max(1, (int)$data['quantity']);
+        }
+        if (array_key_exists('category_id', $data)) {
+            $item->category_id = $data['category_id'];
+        }
+        $item->save();
+        $item->load('category');
+
+        return response()->json(['success' => true, 'data' => $item]);
+    });
+
+    Route::patch('/items/{id}/quantity', function (Request $request, $id) {
+        $item = ManagementShoppingItem::findOrFail($id);
+        $data = $request->validate([
+            'delta' => 'sometimes|integer',
+            'quantity' => 'sometimes|integer|min:1'
+        ]);
+
+        if (isset($data['delta'])) {
+            $item->quantity = max(1, ($item->quantity ?: 1) + (int)$data['delta']);
+        } elseif (isset($data['quantity'])) {
+            $item->quantity = max(1, (int)$data['quantity']);
+        }
+        $item->save();
+        $item->load('category');
+
         return response()->json(['success' => true, 'data' => $item]);
     });
 

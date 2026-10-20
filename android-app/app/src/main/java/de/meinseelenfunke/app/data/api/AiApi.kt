@@ -1,9 +1,12 @@
 package de.meinseelenfunke.app.data.api
 
 import com.google.gson.JsonElement
+import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Query
 
 data class ChatMessage(
@@ -62,6 +65,12 @@ data class ExecuteToolResponse(
     val result: JsonElement?
 )
 
+data class CameraSnapshotResponse(
+    val status: String,
+    val file_path: String? = null,
+    val url: String? = null
+)
+
 interface AiApi {
     @POST("ai/chat")
     suspend fun chat(@Body request: ChatRequest): ChatResponse
@@ -77,5 +86,9 @@ interface AiApi {
 
     @POST("ai/execute")
     suspend fun executeTool(@Body request: ExecuteToolRequest): ExecuteToolResponse
+
+    @Multipart
+    @POST("ai/camera/snapshot")
+    suspend fun uploadSnapshot(@Part image: MultipartBody.Part): CameraSnapshotResponse
 }
 

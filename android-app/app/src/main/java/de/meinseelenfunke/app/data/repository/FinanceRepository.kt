@@ -120,6 +120,30 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    suspend fun scanReceipt(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        autoSave: Boolean
+    ): Result<de.meinseelenfunke.app.data.api.ReceiptAiScanResponse> {
+        return try {
+            val mediaType = mimeType.toMediaTypeOrNull() ?: "image/jpeg".toMediaTypeOrNull()
+            val requestFile = fileBytes.toRequestBody(mediaType)
+            val filePart = MultipartBody.Part.createFormData("file", fileName, requestFile)
+            val autoSaveBody = autoSave.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val response = serviceLocator.getFinanceApi().scanReceipt(filePart, autoSaveBody)
+            if (response.success) {
+                Result.success(response)
+            } else {
+                Result.failure(Exception(response.message ?: "Beleg-Scan fehlgeschlagen."))
+            }
+        } catch (e: Exception) {
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "scanReceipt failed: fileName=$fileName", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun updateVariableItem(
         id: String,
         title: String,

@@ -35,6 +35,17 @@ class LoginViewModel : ViewModel() {
 
     fun isRememberMeEnabled(): Boolean = ServiceLocator.isRememberMeEnabled()
     fun getSavedEmail(): String = ServiceLocator.getSavedEmail()
+    fun getSavedPassword(): String = ServiceLocator.getSavedPassword()
+    fun isBiometricEnabled(): Boolean = ServiceLocator.isBiometricEnabled()
+    fun setBiometricEnabled(enabled: Boolean) = ServiceLocator.setBiometricEnabled(enabled)
+
+    fun loginWithSavedCredentials() {
+        val email = getSavedEmail()
+        val password = getSavedPassword()
+        if (email.isNotBlank() && password.isNotBlank()) {
+            login(email, password, rememberMe = true)
+        }
+    }
 
     fun clearPasswordResetState() {
         _passwordResetState.value = null
@@ -53,8 +64,10 @@ class LoginViewModel : ViewModel() {
                     ServiceLocator.saveRememberMeEnabled(rememberMe)
                     if (rememberMe) {
                         ServiceLocator.saveSavedEmail(email)
+                        ServiceLocator.saveSavedPassword(password)
                     } else {
                         ServiceLocator.saveSavedEmail("")
+                        ServiceLocator.saveSavedPassword("")
                     }
                     _loginState.value = LoginState.Success
                 }

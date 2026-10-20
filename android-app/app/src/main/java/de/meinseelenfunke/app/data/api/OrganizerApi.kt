@@ -8,6 +8,7 @@ import retrofit2.http.FormUrlEncoded
 import retrofit2.http.GET
 import retrofit2.http.HTTP
 import retrofit2.http.Multipart
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -62,6 +63,7 @@ data class ManagementShoppingCategory(
 data class ManagementShoppingItem(
     val id: String,
     val name: String,
+    val quantity: Int = 1,
     val category_id: String?,
     val status: String, // "needed" or "stocked"
     val last_purchased_at: String?,
@@ -195,7 +197,15 @@ interface OrganizerApi {
     @POST("funki/shopping/items")
     suspend fun addShoppingItem(
         @Field("name") name: String,
-        @Field("category_id") categoryId: String? = null
+        @Field("category_id") categoryId: String? = null,
+        @Field("quantity") quantity: Int = 1
+    ): ShoppingItemDetailResponse
+
+    @FormUrlEncoded
+    @PATCH("funki/shopping/items/{id}/quantity")
+    suspend fun updateShoppingItemQuantity(
+        @Path("id") id: String,
+        @Field("quantity") quantity: Int
     ): ShoppingItemDetailResponse
 
     @DELETE("funki/shopping/items/{id}")

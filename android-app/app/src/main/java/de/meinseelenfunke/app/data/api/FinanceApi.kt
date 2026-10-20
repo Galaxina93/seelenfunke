@@ -76,6 +76,28 @@ data class FixedItemRequest(
     @SerializedName("is_business") val is_business: Boolean
 )
 
+data class ReceiptAiScanData(
+    val title: String,
+    val merchant: String? = null,
+    val description: String? = null,
+    val amount_abs: Double = 0.0,
+    val amount_formatted: String = "0.00",
+    val date: String? = null,
+    val location: String? = null,
+    val category: String? = null,
+    val is_business: Boolean = false,
+    val tax_rate: Double? = 19.0,
+    val invoice_number: String? = null
+)
+
+data class ReceiptAiScanResponse(
+    val success: Boolean,
+    val auto_saved: Boolean = false,
+    val data: ReceiptAiScanData? = null,
+    val entry: FinanceSpecialIssue? = null,
+    val message: String? = null
+)
+
 interface FinanceApi {
     @GET("funki/financials/kpis")
     suspend fun getKpis(): FinanceKpis
@@ -97,6 +119,13 @@ interface FinanceApi {
         @Part("location") location: RequestBody?,
         @Part file: MultipartBody.Part?
     ): SimpleSuccessResponse
+
+    @Multipart
+    @POST("funki/financials/scan-receipt")
+    suspend fun scanReceipt(
+        @Part file: MultipartBody.Part,
+        @Part("auto_save") autoSave: RequestBody
+    ): ReceiptAiScanResponse
 
     @PUT("funki/financials/variable/{id}")
     suspend fun updateVariableItem(

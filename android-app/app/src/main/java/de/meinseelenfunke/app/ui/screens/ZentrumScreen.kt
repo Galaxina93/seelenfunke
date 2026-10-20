@@ -75,16 +75,15 @@ import de.meinseelenfunke.app.data.api.CalendarEvent
 import de.meinseelenfunke.app.data.api.FinanceKpis
 import de.meinseelenfunke.app.data.api.ManagementDayRoutine
 import de.meinseelenfunke.app.data.api.ManagementTask
+import de.meinseelenfunke.app.ui.theme.AppTheme
+import de.meinseelenfunke.app.di.ServiceLocator
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.GoldGlow
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
-import de.meinseelenfunke.app.ui.theme.GlassWhite10
-import de.meinseelenfunke.app.ui.theme.GlassWhite20
-import de.meinseelenfunke.app.ui.theme.Slate400
-import de.meinseelenfunke.app.ui.theme.Slate50
-import de.meinseelenfunke.app.ui.theme.Slate900
 import java.util.Locale
 
 import androidx.compose.material.icons.filled.ExitToApp
@@ -103,65 +102,95 @@ fun ZentrumScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(SpaceBlack, Slate900)
-                )
-            )
+            .background(Brush.verticalGradient(AppTheme.colors.bgGradient))
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Upper Title Header with Logo and Action Icons
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = painterResource(id = R.drawable.mein_seelenfunke_logo),
                 contentDescription = "Seelenfunke Logo",
-                modifier = Modifier.height(88.dp),
+                modifier = Modifier.height(40.dp),
                 contentScale = ContentScale.Fit
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onNavigateToLiveChat,
+                // Theme Toggle
+                Box(
                     modifier = Modifier
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(GlassWhite10)
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                        .clickable { ServiceLocator.toggleTheme() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (AppTheme.colors.isDark) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = "Design wechseln",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                // Mic
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                        .clickable { onNavigateToLiveChat() },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Mic,
-                        contentDescription = "Sprachchat starten",
-                        tint = Gold
+                        contentDescription = "Sprachchat",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                IconButton(
-                    onClick = { viewModel.loadDashboardData() },
+                // Refresh
+                Box(
                     modifier = Modifier
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(GlassWhite10)
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                        .clickable { viewModel.loadDashboardData() },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "Aktualisieren",
-                        tint = Gold
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                IconButton(
-                    onClick = onLogout,
+                // Logout
+                Box(
                     modifier = Modifier
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(GlassWhite10)
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                        .clickable { onLogout() },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.ExitToApp,
                         contentDescription = "Ausloggen",
-                        tint = Rose500
+                        tint = Rose500,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -253,7 +282,7 @@ fun LiveVoiceCallBanner(onClick: () -> Unit) {
                 Text(
                     text = "Echtzeit-Sprachassistent starten",
                     fontSize = 12.sp,
-                    color = Slate400,
+                    color = AppTheme.colors.textMuted,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
@@ -310,8 +339,8 @@ fun DashboardContent(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -335,7 +364,7 @@ fun DashboardContent(
                         text = "Schnelleintrag hinzufügen",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Slate50
+                        color = AppTheme.colors.textPrimary
                     )
                 }
                 Icon(
@@ -371,8 +400,9 @@ fun FinanceDashboardCard(kpis: FinanceKpis?, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -385,7 +415,7 @@ fun FinanceDashboardCard(kpis: FinanceKpis?, onClick: () -> Unit) {
                     text = "Finanzen",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Slate50
+                    color = AppTheme.colors.textPrimary
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -422,7 +452,7 @@ fun FinanceDashboardCard(kpis: FinanceKpis?, onClick: () -> Unit) {
             Text(
                 text = "Verfügbares Guthaben (${kpis?.month_label ?: "Aktueller Monat"})",
                 fontSize = 10.sp,
-                color = Slate400
+                color = AppTheme.colors.textMuted
             )
 
             AnimatedVisibility(visible = showDetails) {
@@ -468,13 +498,13 @@ fun FinanceSubKpi(title: String, value: Double, color: Color, icon: ImageVector)
                 modifier = Modifier.size(12.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
-            Text(title, fontSize = 11.sp, color = Slate400)
+            Text(title, fontSize = 11.sp, color = AppTheme.colors.textMuted)
         }
         Text(
             text = String.format(Locale.GERMANY, "%,.2f €", value),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = Slate50,
+            color = AppTheme.colors.textPrimary,
             modifier = Modifier.padding(top = 2.dp)
         )
     }
@@ -485,8 +515,9 @@ fun RoutineWidget(routine: ManagementDayRoutine, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
@@ -513,12 +544,12 @@ fun RoutineWidget(routine: ManagementDayRoutine, onClick: () -> Unit) {
                     text = "Routine: ${routine.title}",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Slate50
+                    color = AppTheme.colors.textPrimary
                 )
                 Text(
                     text = "Startet um ${routine.start_time.take(5)} Uhr • ${routine.steps.size} Schritte",
                     fontSize = 12.sp,
-                    color = Slate400
+                    color = AppTheme.colors.textMuted
                 )
             }
             Icon(
@@ -536,8 +567,9 @@ fun CalendarWidget(events: List<CalendarEvent>, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -554,7 +586,7 @@ fun CalendarWidget(events: List<CalendarEvent>, onClick: () -> Unit) {
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Anstehende Termine", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Slate50)
+                    Text("Anstehende Termine", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
                 }
                 Icon(
                     imageVector = Icons.Default.ArrowForward,
@@ -577,7 +609,7 @@ fun CalendarWidget(events: List<CalendarEvent>, onClick: () -> Unit) {
                                 text = ev.title,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Slate50
+                                color = AppTheme.colors.textPrimary
                             )
                             val startTimeText = if (ev.start.length >= 16) {
                                 ev.start.substring(11, 16) + " Uhr"
@@ -587,7 +619,7 @@ fun CalendarWidget(events: List<CalendarEvent>, onClick: () -> Unit) {
                             Text(
                                 text = "Start: $startTimeText",
                                 fontSize = 11.sp,
-                                color = Slate400
+                                color = AppTheme.colors.textMuted
                             )
                         }
                         if (ev.category.isNotEmpty()) {

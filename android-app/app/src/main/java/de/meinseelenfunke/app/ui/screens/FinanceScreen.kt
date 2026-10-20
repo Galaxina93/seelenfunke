@@ -42,6 +42,17 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -91,15 +102,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.meinseelenfunke.app.data.api.FinanceGroup
 import de.meinseelenfunke.app.data.api.FinanceSpecialIssue
+import de.meinseelenfunke.app.data.api.ReceiptAiScanData
+import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Copper
 import de.meinseelenfunke.app.ui.theme.SpaceBlue
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
-import de.meinseelenfunke.app.ui.theme.GlassWhite10
-import de.meinseelenfunke.app.ui.theme.GlassWhite20
-import de.meinseelenfunke.app.ui.theme.Slate400
-import de.meinseelenfunke.app.ui.theme.Slate50
-import de.meinseelenfunke.app.ui.theme.Slate900
 import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.Emerald500
 import kotlinx.coroutines.launch
@@ -117,6 +125,7 @@ fun FinanceScreen(
     val fixedGroups by viewModel.fixedGroups.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val isUploading by viewModel.isUploading.collectAsState()
+    val isAiScanning by viewModel.isAiScanning.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
 
     val context = LocalContext.current
@@ -152,7 +161,7 @@ fun FinanceScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(SpaceBlack, Slate900)
+                    colors = AppTheme.colors.bgGradient
                 )
             )
     ) {
@@ -176,7 +185,7 @@ fun FinanceScreen(
                     Text(
                         text = "Verwalte deine Buchungen & Verträge",
                         fontSize = 12.sp,
-                        color = Slate400
+                        color = AppTheme.colors.textMuted
                     )
                 }
 
@@ -201,11 +210,13 @@ fun FinanceScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                        modifier = Modifier
+                            .weight(1f)
+                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(14.dp)),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Guthaben", fontSize = 11.sp, color = Slate400)
+                            Text("Guthaben", fontSize = 11.sp, color = AppTheme.colors.textMuted)
                             Text(
                                 String.format(Locale.GERMANY, "%,.2f €", it.available),
                                 fontSize = 18.sp,
@@ -215,11 +226,13 @@ fun FinanceScreen(
                         }
                     }
                     Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                        modifier = Modifier
+                            .weight(1f)
+                            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(14.dp)),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Variable Ausgaben", fontSize = 11.sp, color = Slate400)
+                            Text("Variable Ausgaben", fontSize = 11.sp, color = AppTheme.colors.textMuted)
                             Text(
                                 String.format(Locale.GERMANY, "%,.2f €", it.special_expenses),
                                 fontSize = 18.sp,
@@ -235,7 +248,16 @@ fun FinanceScreen(
                 QuickEntryForm(
                     categories = categories,
                     isUploading = isUploading,
+                    isAiScanning = isAiScanning,
                     onDismiss = { showQuickEntryDialog = false },
+                    onScanReceipt = { bytes, fileName, mime, autoSave, onResult ->
+                        viewModel.scanReceipt(bytes, fileName, mime, autoSave) { scanData ->
+                            scanData?.let { onResult(it) }
+                            if (autoSave) {
+                                showQuickEntryDialog = false
+                            }
+                        }
+                    },
                     onSubmit = { title, amt, cat, isBiz, date, loc, bytes, name, mime ->
                         viewModel.submitQuickEntry(title, amt, cat, isBiz, date, loc, bytes, name, mime)
                         showQuickEntryDialog = false
@@ -249,7 +271,7 @@ fun FinanceScreen(
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
-                contentColor = Slate50,
+                contentColor = AppTheme.colors.textPrimary,
                 indicator = { tabPositions ->
                     TabRowDefaults.SecondaryIndicator(
                         Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
@@ -264,7 +286,13 @@ fun FinanceScreen(
                             pagerState.animateScrollToPage(0)
                         }
                     },
-                    text = { Text("Variable Ausgaben", fontWeight = FontWeight.SemiBold) }
+                    text = { 
+                        Text(
+                            text = "Variable Ausgaben",
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (pagerState.currentPage == 0) Gold else AppTheme.colors.textMuted
+                        ) 
+                    }
                 )
                 Tab(
                     selected = pagerState.currentPage == 1,
@@ -273,7 +301,13 @@ fun FinanceScreen(
                             pagerState.animateScrollToPage(1)
                         }
                     },
-                    text = { Text("Fixkosten Verträge", fontWeight = FontWeight.SemiBold) }
+                    text = { 
+                        Text(
+                            text = "Fixkosten",
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (pagerState.currentPage == 1) Gold else AppTheme.colors.textMuted
+                        ) 
+                    }
                 )
             }
 
@@ -363,7 +397,7 @@ fun VariableExpensesList(
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("Keine variablen Ausgaben eingetragen.", color = Slate400, textAlign = TextAlign.Center)
+            Text("Keine variablen Ausgaben eingetragen.", color = AppTheme.colors.textMuted, textAlign = TextAlign.Center)
         }
     } else {
         Column(
@@ -377,8 +411,11 @@ fun VariableExpensesList(
                 val isEditing = editingItemId == item.id
 
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(14.dp)),
+                    colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     if (isEditing) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -389,7 +426,12 @@ fun VariableExpensesList(
                                 onValueChange = { editTitle = it },
                                 label = { Text("Titel") },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Gold,
+                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                    unfocusedTextColor = AppTheme.colors.textPrimary
+                                )
                             )
 
                             OutlinedTextField(
@@ -398,7 +440,12 @@ fun VariableExpensesList(
                                 label = { Text("Betrag (€)") },
                                 modifier = Modifier.fillMaxWidth(),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Gold,
+                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                    unfocusedTextColor = AppTheme.colors.textPrimary
+                                )
                             )
 
                             // Date picker Trigger
@@ -443,10 +490,12 @@ fun VariableExpensesList(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = Gold,
-                                        unfocusedTextColor = Slate50,
-                                        disabledBorderColor = Slate400,
-                                        disabledLabelColor = Slate400,
-                                        disabledTextColor = Slate50
+                                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                        focusedTextColor = AppTheme.colors.textPrimary,
+                                        unfocusedTextColor = AppTheme.colors.textPrimary,
+                                        disabledBorderColor = AppTheme.colors.inputBorder,
+                                        disabledLabelColor = AppTheme.colors.textMuted,
+                                        disabledTextColor = AppTheme.colors.textPrimary
                                     ),
                                     enabled = false
                                 )
@@ -475,7 +524,12 @@ fun VariableExpensesList(
                                     },
                                     label = { Text("Kategorie") },
                                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = editDropdownExpanded) },
-                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Gold,
+                                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                        focusedTextColor = AppTheme.colors.textPrimary,
+                                        unfocusedTextColor = AppTheme.colors.textPrimary
+                                    ),
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .menuAnchor()
@@ -490,7 +544,7 @@ fun VariableExpensesList(
                                             text = {
                                                 Text(
                                                     text = selection,
-                                                    color = if (isSelected) SpaceBlack else Slate50,
+                                                    color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                 )
                                             },
@@ -511,7 +565,12 @@ fun VariableExpensesList(
                                 onValueChange = { editLocation = it },
                                 label = { Text("Ort / Geschäft (optional)") },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Gold,
+                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                    unfocusedTextColor = AppTheme.colors.textPrimary
+                                )
                             )
 
                             Row(
@@ -519,7 +578,7 @@ fun VariableExpensesList(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Gewerbliche Ausgabe?", color = Slate50, fontSize = 14.sp)
+                                Text("Gewerbliche Ausgabe?", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
                                 Switch(
                                     checked = editIsBusiness,
                                     onCheckedChange = { editIsBusiness = it },
@@ -536,7 +595,7 @@ fun VariableExpensesList(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 TextButton(onClick = { editingItemId = null }) {
-                                    Text("Abbrechen", color = Slate400)
+                                    Text("Abbrechen", color = AppTheme.colors.textMuted)
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
@@ -564,7 +623,7 @@ fun VariableExpensesList(
                                         text = item.title,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Slate50
+                                        color = AppTheme.colors.textPrimary
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     if (item.is_business) {
@@ -604,7 +663,7 @@ fun VariableExpensesList(
                                 Text(
                                     text = "${(item.category ?: "").uppercase(Locale.getDefault())} • ${formatDateString(item.execution_date)}",
                                     fontSize = 11.sp,
-                                    color = Slate400,
+                                    color = AppTheme.colors.textMuted,
                                     modifier = Modifier.padding(top = 2.dp)
                                 )
                                 if (!item.location.isNullOrBlank()) {
@@ -615,11 +674,11 @@ fun VariableExpensesList(
                                         Icon(
                                             imageVector = Icons.Default.Map,
                                             contentDescription = null,
-                                            tint = Slate400,
+                                            tint = AppTheme.colors.textMuted,
                                             modifier = Modifier.size(10.dp)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text(item.location, fontSize = 10.sp, color = Slate400)
+                                        Text(item.location, fontSize = 10.sp, color = AppTheme.colors.textMuted)
                                     }
                                 }
                             }
@@ -667,6 +726,265 @@ fun VariableExpensesList(
     }
 }
 
+@Composable
+fun FixedExpensesPieChart(
+    groups: List<FinanceGroup>,
+    selectedGroupId: String?,
+    onSelectGroup: (String?) -> Unit
+) {
+    val groupStats = remember(groups) {
+        val palette = listOf(
+            Gold,                   // 0xFFC5A059
+            SpaceBlue,              // 0xFF6496FF
+            Copper,                 // 0xFFD97753
+            Emerald500,             // 0xFF10B981
+            Color(0xFF8B5CF6),      // Purple
+            Color(0xFFEC4899),      // Pink
+            Color(0xFF14B8A6),      // Teal
+            Color(0xFFF59E0B),      // Amber
+            Color(0xFF06B6D4),      // Cyan
+            Color(0xFFE11D48)       // Rose
+        )
+        val validGroups = groups.filter { it.items.isNotEmpty() }
+        val allMonthly = validGroups.sumOf { g ->
+            g.items.sumOf { item ->
+                if (item.interval_months > 0) item.amount / item.interval_months else item.amount
+            }
+        }
+
+        validGroups.mapIndexed { idx, g ->
+            val monthly = g.items.sumOf { item ->
+                if (item.interval_months > 0) item.amount / item.interval_months else item.amount
+            }
+            val percentage = if (allMonthly > 0.0) (monthly / allMonthly).toFloat() else 0f
+            Triple(g, monthly, percentage) to palette[idx % palette.size]
+        }
+    }
+
+    val totalMonthly = remember(groupStats) {
+        groupStats.sumOf { it.first.second }
+    }
+
+    val animProgress = remember { Animatable(0f) }
+    LaunchedEffect(groups) {
+        animProgress.snapTo(0f)
+        animProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing)
+        )
+    }
+
+    val selectedStat = groupStats.firstOrNull { it.first.first.id == selectedGroupId }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(20.dp)),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PieChart,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Fixkosten Analyse",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Monatlicher Anteil",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AppTheme.colors.textMuted
+                    )
+                }
+            }
+
+            if (groupStats.isEmpty() || totalMonthly <= 0.0) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Keine aktiven Fixkosten für Auswertung erfasst.",
+                        color = AppTheme.colors.textMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            } else {
+                // Donut Chart with Center KPI Display
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(190.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val trackColor = if (AppTheme.colors.isDark) Color(0x1AFFFFFF) else Color(0x12000000)
+
+                    Canvas(modifier = Modifier.size(175.dp)) {
+                        val strokeWidth = 22.dp.toPx()
+                        val selectedStrokeWidth = 28.dp.toPx()
+
+                        // Background track
+                        drawCircle(
+                            color = trackColor,
+                            style = Stroke(width = strokeWidth)
+                        )
+
+                        var startAngle = -90f
+                        groupStats.forEach { (stat, color) ->
+                            val (group, _, percentage) = stat
+                            val isSelected = group.id == selectedGroupId
+                            val sweepAngle = percentage * 360f * animProgress.value
+
+                            if (sweepAngle > 0.5f) {
+                                drawArc(
+                                    color = color,
+                                    startAngle = startAngle,
+                                    sweepAngle = sweepAngle - (if (groupStats.size > 1) 2f else 0f),
+                                    useCenter = false,
+                                    style = Stroke(
+                                        width = if (isSelected) selectedStrokeWidth else strokeWidth,
+                                        cap = StrokeCap.Round
+                                    )
+                                )
+                            }
+                            startAngle += sweepAngle
+                        }
+                    }
+
+                    // Center Content Info
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .size(115.dp)
+                            .padding(4.dp)
+                    ) {
+                        if (selectedStat != null) {
+                            Text(
+                                text = selectedStat.first.first.name,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = String.format(Locale.GERMANY, "%,.2f €", selectedStat.first.second),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = selectedStat.second
+                            )
+                            Text(
+                                text = String.format(Locale.GERMANY, "%.1f %% Anteil", selectedStat.first.third * 100f),
+                                fontSize = 10.sp,
+                                color = AppTheme.colors.textMuted
+                            )
+                        } else {
+                            Text(
+                                text = "Gesamt Fix / M.",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppTheme.colors.textMuted
+                            )
+                            Text(
+                                text = String.format(Locale.GERMANY, "%,.2f €", totalMonthly * animProgress.value),
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Gold
+                            )
+                            Text(
+                                text = "${groupStats.size} Gruppen",
+                                fontSize = 10.sp,
+                                color = AppTheme.colors.textMuted
+                            )
+                        }
+                    }
+                }
+
+                // Interactive Legend Chips
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    groupStats.forEach { (stat, color) ->
+                        val (group, monthly, percentage) = stat
+                        val isSelected = group.id == selectedGroupId
+
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) color.copy(alpha = 0.18f) else AppTheme.colors.glassSurface)
+                                .border(
+                                    1.dp,
+                                    if (isSelected) color else AppTheme.colors.glassBorder,
+                                    RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    onSelectGroup(if (isSelected) null else group.id)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(color, CircleShape)
+                            )
+                            Text(
+                                text = group.name,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) color else AppTheme.colors.textPrimary
+                            )
+                            Text(
+                                text = String.format(Locale.GERMANY, "%.0f%%", percentage * 100f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textMuted
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FixedExpensesList(
@@ -678,6 +996,7 @@ fun FixedExpensesList(
     var expandedGroupIds by remember { mutableStateOf(setOf<String>()) }
     var editingCostId by remember { mutableStateOf<String?>(null) }
     var addingToGroupId by remember { mutableStateOf<String?>(null) }
+    var selectedChartGroupId by remember { mutableStateOf<String?>(null) }
 
     // States for editing/adding
     var nameInput by remember { mutableStateOf("") }
@@ -696,7 +1015,7 @@ fun FixedExpensesList(
                 .padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("Keine Fixkosten-Gruppen vorhanden.", color = Slate400, textAlign = TextAlign.Center)
+            Text("Keine Fixkosten-Gruppen vorhanden.", color = AppTheme.colors.textMuted, textAlign = TextAlign.Center)
         }
     } else {
         Column(
@@ -706,6 +1025,18 @@ fun FixedExpensesList(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Visual Analytics Pie/Donut Chart for Fixed Expenses
+            FixedExpensesPieChart(
+                groups = groups,
+                selectedGroupId = selectedChartGroupId,
+                onSelectGroup = { id ->
+                    selectedChartGroupId = id
+                    if (id != null) {
+                        expandedGroupIds = expandedGroupIds + id
+                    }
+                }
+            )
+
             groups.forEach { group ->
                 val isExpanded = expandedGroupIds.contains(group.id)
                 val isAddingHere = addingToGroupId == group.id
@@ -743,8 +1074,11 @@ fun FixedExpensesList(
                             val isEditing = editingCostId == cost.id
 
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(12.dp)),
+                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                                shape = RoundedCornerShape(12.dp)
                             ) {
                                 if (isEditing) {
                                     // Cost Edit Form
@@ -759,7 +1093,12 @@ fun FixedExpensesList(
                                             onValueChange = { nameInput = it },
                                             label = { Text("Name") },
                                             modifier = Modifier.fillMaxWidth(),
-                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Gold,
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary
+                                            )
                                         )
 
                                         OutlinedTextField(
@@ -768,7 +1107,12 @@ fun FixedExpensesList(
                                             label = { Text("Betrag (€)") },
                                             modifier = Modifier.fillMaxWidth(),
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Gold,
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary
+                                            )
                                         )
 
                                         // Interval Selection Dropdown
@@ -784,7 +1128,12 @@ fun FixedExpensesList(
                                                 onValueChange = {},
                                                 label = { Text("Intervall") },
                                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = intervalDropdownExpanded) },
-                                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = Gold,
+                                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                                    unfocusedTextColor = AppTheme.colors.textPrimary
+                                                ),
                                                 modifier = Modifier.fillMaxWidth().menuAnchor()
                                             )
                                             ExposedDropdownMenu(
@@ -797,7 +1146,7 @@ fun FixedExpensesList(
                                                         text = {
                                                             Text(
                                                                 text = label,
-                                                                color = if (isSelected) SpaceBlack else Slate50,
+                                                                color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                             )
                                                         },
@@ -855,10 +1204,12 @@ fun FixedExpensesList(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 colors = OutlinedTextFieldDefaults.colors(
                                                     focusedBorderColor = Gold,
-                                                    unfocusedTextColor = Slate50,
-                                                    disabledBorderColor = Slate400,
-                                                    disabledLabelColor = Slate400,
-                                                    disabledTextColor = Slate50
+                                                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                                                    disabledBorderColor = AppTheme.colors.inputBorder,
+                                                    disabledLabelColor = AppTheme.colors.textMuted,
+                                                    disabledTextColor = AppTheme.colors.textPrimary
                                                 ),
                                                 enabled = false
                                             )
@@ -875,7 +1226,12 @@ fun FixedExpensesList(
                                             onValueChange = { descriptionInput = it },
                                             label = { Text("Beschreibung (optional)") },
                                             modifier = Modifier.fillMaxWidth(),
-                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Gold,
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary
+                                            )
                                         )
 
                                         Row(
@@ -883,7 +1239,7 @@ fun FixedExpensesList(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("Gewerblich?", color = Slate50, fontSize = 14.sp)
+                                            Text("Gewerblich?", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
                                             Switch(
                                                 checked = isBusinessInput,
                                                 onCheckedChange = { isBusinessInput = it },
@@ -900,7 +1256,7 @@ fun FixedExpensesList(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             TextButton(onClick = { editingCostId = null }) {
-                                                Text("Abbrechen", color = Slate400)
+                                                Text("Abbrechen", color = AppTheme.colors.textMuted)
                                             }
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Button(
@@ -938,7 +1294,7 @@ fun FixedExpensesList(
                                                     text = cost.name,
                                                     fontSize = 14.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Slate50
+                                                    color = AppTheme.colors.textPrimary
                                                 )
                                                 if (cost.is_business) {
                                                     Spacer(modifier = Modifier.width(6.dp))
@@ -984,14 +1340,14 @@ fun FixedExpensesList(
                                             Text(
                                                 text = "$intervalText • Erstzahlung: ${formatDateString(cost.first_payment_date)}",
                                                 fontSize = 11.sp,
-                                                color = Slate400,
+                                                color = AppTheme.colors.textMuted,
                                                 modifier = Modifier.padding(top = 2.dp)
                                             )
                                             if (!cost.description.isNullOrBlank()) {
                                                 Text(
                                                     text = cost.description,
                                                     fontSize = 10.sp,
-                                                    color = Slate400,
+                                                    color = AppTheme.colors.textMuted,
                                                     modifier = Modifier.padding(top = 2.dp)
                                                 )
                                             }
@@ -1039,8 +1395,10 @@ fun FixedExpensesList(
                         // Add Cost Item Row / Button inside Group
                         if (isAddingHere) {
                             Card(
-                                modifier = Modifier.fillMaxWidth().border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
-                                colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, Gold.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground)
                             ) {
                                 Column(
                                     modifier = Modifier.padding(14.dp),
@@ -1053,7 +1411,12 @@ fun FixedExpensesList(
                                         onValueChange = { nameInput = it },
                                         label = { Text("Name") },
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Gold,
+                                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                            focusedTextColor = AppTheme.colors.textPrimary,
+                                            unfocusedTextColor = AppTheme.colors.textPrimary
+                                        )
                                     )
 
                                     OutlinedTextField(
@@ -1062,7 +1425,12 @@ fun FixedExpensesList(
                                         label = { Text("Betrag (€)") },
                                         modifier = Modifier.fillMaxWidth(),
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Gold,
+                                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                            focusedTextColor = AppTheme.colors.textPrimary,
+                                            unfocusedTextColor = AppTheme.colors.textPrimary
+                                        )
                                     )
 
                                     // Interval Selector Dropdown
@@ -1078,7 +1446,12 @@ fun FixedExpensesList(
                                             onValueChange = {},
                                             label = { Text("Intervall") },
                                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = addingDropdownExpanded) },
-                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Gold,
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary
+                                            ),
                                             modifier = Modifier.fillMaxWidth().menuAnchor()
                                         )
                                         ExposedDropdownMenu(
@@ -1091,7 +1464,7 @@ fun FixedExpensesList(
                                                     text = {
                                                         Text(
                                                             text = label,
-                                                            color = if (isSelected) SpaceBlack else Slate50,
+                                                            color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                                         )
                                                     },
@@ -1143,10 +1516,12 @@ fun FixedExpensesList(
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = Gold,
-                                                unfocusedTextColor = Slate50,
-                                                disabledBorderColor = Slate400,
-                                                disabledLabelColor = Slate400,
-                                                disabledTextColor = Slate50
+                                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                                focusedTextColor = AppTheme.colors.textPrimary,
+                                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                                disabledBorderColor = AppTheme.colors.inputBorder,
+                                                disabledLabelColor = AppTheme.colors.textMuted,
+                                                disabledTextColor = AppTheme.colors.textPrimary
                                             ),
                                             enabled = false
                                         )
@@ -1163,7 +1538,12 @@ fun FixedExpensesList(
                                         onValueChange = { descriptionInput = it },
                                         label = { Text("Beschreibung (optional)") },
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = Gold,
+                                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                            focusedTextColor = AppTheme.colors.textPrimary,
+                                            unfocusedTextColor = AppTheme.colors.textPrimary
+                                        )
                                     )
 
                                     Row(
@@ -1171,7 +1551,7 @@ fun FixedExpensesList(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Gewerblich?", color = Slate50, fontSize = 14.sp)
+                                        Text("Gewerblich?", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
                                         Switch(
                                             checked = isBusinessInput,
                                             onCheckedChange = { isBusinessInput = it },
@@ -1188,7 +1568,7 @@ fun FixedExpensesList(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         TextButton(onClick = { addingToGroupId = null }) {
-                                            Text("Abbrechen", color = Slate400)
+                                            Text("Abbrechen", color = AppTheme.colors.textMuted)
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Button(
@@ -1228,7 +1608,7 @@ fun FixedExpensesList(
                                         addingToGroupId = group.id
                                         editingCostId = null
                                     }
-                                    .border(1.dp, GlassWhite10, RoundedCornerShape(8.dp))
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
                                     .padding(vertical = 12.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
@@ -1261,7 +1641,15 @@ fun FixedExpensesList(
 fun QuickEntryForm(
     categories: List<String>,
     isUploading: Boolean,
+    isAiScanning: Boolean = false,
     onDismiss: () -> Unit,
+    onScanReceipt: (
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        autoSave: Boolean,
+        onSuccess: (ReceiptAiScanData) -> Unit
+    ) -> Unit = { _, _, _, _, _ -> },
     onSubmit: (
         title: String,
         amount: Double,
@@ -1279,6 +1667,14 @@ fun QuickEntryForm(
     var selectedCategory by remember { mutableStateOf("") }
     var isBusiness by remember { mutableStateOf(false) }
     var location by remember { mutableStateOf("") }
+
+    val today = java.time.LocalDate.now().toString()
+    var executionDate by remember { mutableStateOf(today) }
+
+    // AI Scan options & state
+    var autoScanWithAi by remember { mutableStateOf(true) }
+    var autoSaveOnScan by remember { mutableStateOf(false) }
+    var aiScanResultNote by remember { mutableStateOf<String?>(null) }
     
     // File upload details
     var pickedFileUri by remember { mutableStateOf<Uri?>(null) }
@@ -1286,8 +1682,28 @@ fun QuickEntryForm(
     var pickedFileBytes by remember { mutableStateOf<ByteArray?>(null) }
     var pickedFileMime by remember { mutableStateOf<String?>(null) }
 
-    val today = java.time.LocalDate.now().toString()
-    var executionDate by remember { mutableStateOf(today) }
+    val triggerAiScan: (ByteArray, String, String) -> Unit = { bytes, name, mime ->
+        aiScanResultNote = null
+        onScanReceipt(bytes, name, mime, autoSaveOnScan) { scanData ->
+            if (scanData.title.isNotBlank()) title = scanData.title
+            if (scanData.amount_abs > 0.0) {
+                amountText = String.format(Locale.US, "%.2f", scanData.amount_abs)
+            } else if (scanData.amount_formatted.isNotBlank()) {
+                amountText = scanData.amount_formatted
+            }
+            scanData.category?.let { cat ->
+                if (cat.isNotBlank()) {
+                    val matched = categories.firstOrNull { c -> c.equals(cat, ignoreCase = true) } ?: cat
+                    selectedCategory = matched
+                }
+            }
+            scanData.date?.let { if (it.isNotBlank()) executionDate = it }
+            val loc = scanData.merchant ?: scanData.location
+            loc?.let { if (it.isNotBlank() && location.isBlank()) location = it }
+            if (scanData.is_business) isBusiness = true
+            aiScanResultNote = "Erkannt: ${scanData.title} | ${scanData.amount_formatted} €"
+        }
+    }
 
     val context = LocalContext.current
     val contentResolver = context.contentResolver
@@ -1353,6 +1769,10 @@ fun QuickEntryForm(
                     }
                     android.util.Log.d("FinanceScreen", "Raw file bytes read, size: ${pickedFileBytes?.size}")
                 }
+
+                if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
+                    triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -1381,6 +1801,10 @@ fun QuickEntryForm(
                         pickedFileName = "beleg_kamera_${System.currentTimeMillis()}.jpg"
                         pickedFileUri = null
                     }
+
+                    if (autoScanWithAi && pickedFileBytes != null && pickedFileName != null && pickedFileMime != null) {
+                        triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -1393,10 +1817,11 @@ fun QuickEntryForm(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(max = 480.dp)
+            .heightIn(max = 500.dp)
             .padding(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Slate900),
-        border = BorderStroke(1.dp, GlassWhite20)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+        shape = RoundedCornerShape(16.dp)
     ) {
         Column(
             modifier = Modifier
@@ -1405,14 +1830,19 @@ fun QuickEntryForm(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Schnelleintrag hinzufügen", color = Slate50, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Schnelleintrag hinzufügen", color = AppTheme.colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
 
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Titel") },
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                    focusedTextColor = AppTheme.colors.textPrimary,
+                    unfocusedTextColor = AppTheme.colors.textPrimary
+                )
             )
 
             Row(
@@ -1426,7 +1856,12 @@ fun QuickEntryForm(
                     label = { Text("Betrag (€)") },
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary
+                    )
                 )
 
                 // Date Picker field
@@ -1449,11 +1884,13 @@ fun QuickEntryForm(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Gold, 
-                            unfocusedTextColor = Slate50,
-                            disabledBorderColor = Slate400,
-                            disabledLabelColor = Slate400,
-                            disabledTextColor = Slate50
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            disabledBorderColor = AppTheme.colors.inputBorder,
+                            disabledLabelColor = AppTheme.colors.textMuted,
+                            disabledTextColor = AppTheme.colors.textPrimary
                         ),
                         enabled = false
                     )
@@ -1484,7 +1921,12 @@ fun QuickEntryForm(
                     },
                     label = { Text("Kategorie") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Gold,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor()
@@ -1499,7 +1941,7 @@ fun QuickEntryForm(
                             text = {
                                 Text(
                                     text = selection,
-                                    color = if (isSelected) SpaceBlack else Slate50,
+                                    color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             },
@@ -1521,7 +1963,7 @@ fun QuickEntryForm(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Gewerbliche Ausgabe?", color = Slate50, fontSize = 14.sp)
+                Text("Gewerbliche Ausgabe?", color = AppTheme.colors.textPrimary, fontSize = 14.sp)
                 Switch(
                     checked = isBusiness,
                     onCheckedChange = { isBusiness = it },
@@ -1537,11 +1979,16 @@ fun QuickEntryForm(
                 onValueChange = { location = it },
                 label = { Text("Ort (optional)") },
                 modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, unfocusedTextColor = Slate50)
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                    focusedTextColor = AppTheme.colors.textPrimary,
+                    unfocusedTextColor = AppTheme.colors.textPrimary
+                )
             )
 
             // Receipt File attachment indicator
-            Text("Beleg hinzufügen", color = Slate400, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            Text("Beleg hinzufügen", color = AppTheme.colors.textMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1550,7 +1997,9 @@ fun QuickEntryForm(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .border(1.dp, GlassWhite20, RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                         .clickable { filePickerLauncher.launch("*/*") }
                         .padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1562,14 +2011,16 @@ fun QuickEntryForm(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Datei", color = Slate50, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Datei", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
                 // Camera launcher button
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .border(1.dp, GlassWhite20, RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AppTheme.colors.glassSurface)
+                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                         .clickable {
                             try {
                                 val cacheDir = context.cacheDir
@@ -1597,7 +2048,7 @@ fun QuickEntryForm(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Kamera", color = Slate50, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Kamera", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1626,8 +2077,139 @@ fun QuickEntryForm(
                             pickedFileBytes = null
                             pickedFileMime = null
                             pickedFileUri = null
+                            aiScanResultNote = null
                         }
                     )
+                }
+            }
+
+            // AI Scan options
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.Checkbox(
+                    checked = autoScanWithAi,
+                    onCheckedChange = { autoScanWithAi = it },
+                    colors = androidx.compose.material3.CheckboxDefaults.colors(
+                        checkedColor = Gold,
+                        checkmarkColor = SpaceBlack
+                    )
+                )
+                Text(
+                    "🤖 Belege automatisch mit KI scannen",
+                    color = AppTheme.colors.textPrimary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { autoScanWithAi = !autoScanWithAi }
+                )
+            }
+
+            if (autoScanWithAi) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.Checkbox(
+                        checked = autoSaveOnScan,
+                        onCheckedChange = { autoSaveOnScan = it },
+                        colors = androidx.compose.material3.CheckboxDefaults.colors(
+                            checkedColor = Gold,
+                            checkmarkColor = SpaceBlack
+                        )
+                    )
+                    Text(
+                        "⚡ Nach KI-Scan direkt speichern",
+                        color = AppTheme.colors.textMuted,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable { autoSaveOnScan = !autoSaveOnScan }
+                    )
+                }
+            }
+
+            // Manual scan button if file attached
+            if (pickedFileBytes != null && pickedFileName != null && pickedFileMime != null && !isAiScanning) {
+                Button(
+                    onClick = {
+                        triggerAiScan(pickedFileBytes!!, pickedFileName!!, pickedFileMime!!)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0x33C5A059),
+                        contentColor = Gold
+                    ),
+                    border = BorderStroke(1.dp, Gold)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("🤖 Beleg mit Gemini KI analysieren", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // AI Scanning indicator banner
+            if (isAiScanning) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0x33C5A059)),
+                    border = BorderStroke(1.dp, Gold),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            color = Gold,
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.5.dp
+                        )
+                        Column {
+                            Text(
+                                text = "🤖 Gemini Vision analysiert Belegfoto...",
+                                color = Gold,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "Extrahieren von Betrag, Datum, Händler & Kategorie...",
+                                color = AppTheme.colors.textMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // AI Scan Result Note banner
+            if (aiScanResultNote != null && !isAiScanning) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0x2210B981)),
+                    border = BorderStroke(1.dp, Emerald500),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Emerald500,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = aiScanResultNote ?: "",
+                            color = AppTheme.colors.textPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
@@ -1636,8 +2218,8 @@ fun QuickEntryForm(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onDismiss, enabled = !isUploading) {
-                    Text("Abbrechen", color = Slate400)
+                TextButton(onClick = onDismiss, enabled = !isUploading && !isAiScanning) {
+                    Text("Abbrechen", color = AppTheme.colors.textMuted)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -1655,10 +2237,10 @@ fun QuickEntryForm(
                             pickedFileMime
                         )
                     },
-                    enabled = !isUploading && title.isNotBlank() && amountText.replace(',', '.').toDoubleOrNull() != null,
+                    enabled = !isUploading && !isAiScanning && title.isNotBlank() && amountText.replace(',', '.').toDoubleOrNull() != null,
                     colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
                 ) {
-                    if (isUploading) {
+                    if (isUploading || isAiScanning) {
                         CircularProgressIndicator(color = SpaceBlack, modifier = Modifier.size(16.dp))
                     } else {
                         Text("Speichern")

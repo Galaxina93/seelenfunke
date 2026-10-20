@@ -202,10 +202,19 @@ class OrganizerViewModel : ViewModel() {
         }
     }
 
-    fun addShoppingItem(name: String) {
+    fun addShoppingItem(name: String, quantity: Int = 1) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            repository.addShoppingItem(name).onSuccess {
+            repository.addShoppingItem(name, quantity = quantity).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+            }
+        }
+    }
+
+    fun updateShoppingItemQuantity(id: String, quantity: Int) {
+        if (quantity < 1) return
+        viewModelScope.launch {
+            repository.updateShoppingItemQuantity(id, quantity).onSuccess {
                 loadAllOrganizerData(showLoading = false)
             }
         }

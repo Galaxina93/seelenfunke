@@ -64,15 +64,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.meinseelenfunke.app.data.api.ChatMessage
+import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.Cyan500
 import de.meinseelenfunke.app.ui.theme.Emerald500
-import de.meinseelenfunke.app.ui.theme.GlassWhite10
-import de.meinseelenfunke.app.ui.theme.GlassWhite20
+import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Rose500
-import de.meinseelenfunke.app.ui.theme.Slate400
-import de.meinseelenfunke.app.ui.theme.Slate50
-import de.meinseelenfunke.app.ui.theme.Slate800
-import de.meinseelenfunke.app.ui.theme.Slate900
+import de.meinseelenfunke.app.ui.theme.SpaceBlack
 
 fun parseAgentColor(colorName: String?): Color {
     return when (colorName) {
@@ -121,7 +118,7 @@ fun ChatScreen(
                 .padding(innerPadding)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Slate900, Color(0xFF020617))
+                        colors = AppTheme.colors.bgGradient
                     )
                 )
         ) {
@@ -173,17 +170,17 @@ fun ChatScreen(
                                     modifier = Modifier
                                         .size(48.dp)
                                         .clip(CircleShape)
-                                        .background(if (isSelected) agentColor else GlassWhite10)
+                                        .background(if (isSelected) agentColor else AppTheme.colors.glassSurface)
                                         .border(
                                             width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) Color.White else agentColor.copy(alpha = 0.5f),
+                                            color = if (isSelected) Gold else agentColor.copy(alpha = 0.5f),
                                             shape = CircleShape
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = agent.name.take(2).uppercase(),
-                                        color = if (isSelected) Slate900 else Slate50,
+                                        color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -193,7 +190,7 @@ fun ChatScreen(
 
                                 Text(
                                     text = agent.name,
-                                    color = if (isSelected) Slate50 else Slate400,
+                                    color = if (isSelected) Gold else AppTheme.colors.textMuted,
                                     fontSize = 10.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
@@ -254,7 +251,7 @@ fun ChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Slate800.copy(alpha = 0.9f))
+                        .background(AppTheme.colors.cardBackground)
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .border(1.dp, activeAgentColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                         .padding(8.dp),
@@ -275,14 +272,14 @@ fun ChatScreen(
                         Column {
                             Text(
                                 text = file.name,
-                                color = Slate50,
+                                color = AppTheme.colors.textPrimary,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1
                             )
                             Text(
                                 text = "${file.mimeType} • ${(file.sizeBytes / 1024.0).toInt()} KB",
-                                color = Slate400,
+                                color = AppTheme.colors.textMuted,
                                 fontSize = 11.sp
                             )
                         }
@@ -305,7 +302,8 @@ fun ChatScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Slate800)
+                    .background(AppTheme.colors.cardBackground)
+                    .border(1.dp, AppTheme.colors.cardBorder)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -332,15 +330,15 @@ fun ChatScreen(
                 OutlinedTextField(
                     value = textInput,
                     onValueChange = { textInput = it },
-                    placeholder = { Text("Schreibe...") },
+                    placeholder = { Text("Schreibe...", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.weight(1f),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = activeAgentColor,
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = Slate50,
-                        unfocusedTextColor = Slate50,
-                        focusedPlaceholderColor = Slate400,
-                        unfocusedPlaceholderColor = Slate400
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary,
+                        focusedPlaceholderColor = AppTheme.colors.textMuted,
+                        unfocusedPlaceholderColor = AppTheme.colors.textMuted
                     ),
                     maxLines = 4,
                     shape = RoundedCornerShape(24.dp)
@@ -362,7 +360,7 @@ fun ChatScreen(
                     Icon(
                         imageVector = Icons.Default.Send,
                         contentDescription = "Senden",
-                        tint = Slate900
+                        tint = SpaceBlack
                     )
                 }
             }
@@ -373,8 +371,8 @@ fun ChatScreen(
 @Composable
 fun ChatMessageRow(message: ChatMessage, activeAgentName: String, activeAgentColor: Color) {
     val isUser = message.role == "user"
-    val bubbleColor = if (isUser) activeAgentColor else GlassWhite10
-    val textColor = if (isUser) Slate900 else Slate50
+    val bubbleColor = if (isUser) activeAgentColor else AppTheme.colors.cardBackground
+    val textColor = if (isUser) SpaceBlack else AppTheme.colors.textPrimary
     val alignment = if (isUser) Alignment.End else Alignment.Start
 
     Column(
@@ -394,6 +392,16 @@ fun ChatMessageRow(message: ChatMessage, activeAgentName: String, activeAgentCol
                     )
                 )
                 .background(bubbleColor)
+                .border(
+                    width = if (isUser) 0.dp else 1.dp,
+                    color = if (isUser) Color.Transparent else AppTheme.colors.cardBorder,
+                    shape = RoundedCornerShape(
+                        topStart = 16.dp,
+                        topEnd = 16.dp,
+                        bottomStart = if (isUser) 16.dp else 4.dp,
+                        bottomEnd = if (isUser) 4.dp else 16.dp
+                    )
+                )
                 .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Text(
@@ -407,7 +415,7 @@ fun ChatMessageRow(message: ChatMessage, activeAgentName: String, activeAgentCol
         Text(
             text = if (isUser) "Du" else activeAgentName,
             fontSize = 10.sp,
-            color = Slate400,
+            color = AppTheme.colors.textMuted,
             modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp)
         )
     }

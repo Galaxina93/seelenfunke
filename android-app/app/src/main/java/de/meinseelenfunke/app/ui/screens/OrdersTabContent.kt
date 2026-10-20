@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Brush
 import de.meinseelenfunke.app.data.api.OrderDetail
 import de.meinseelenfunke.app.data.api.OrderSummary
 import de.meinseelenfunke.app.ui.theme.*
@@ -68,28 +70,30 @@ fun OrdersTabContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(SpaceBlack)
+            .background(Brush.verticalGradient(AppTheme.colors.bgGradient))
     ) {
         // Search bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { viewModel.setSearchQuery(it) },
-            placeholder = { Text("Bestellungen durchsuchen...", color = Slate400) },
+            placeholder = { Text("Bestellungen durchsuchen...", color = AppTheme.colors.textMuted) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Suchen", tint = Gold) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                        Icon(Icons.Default.Close, contentDescription = "Löschen", tint = Slate400)
+                        Icon(Icons.Default.Close, contentDescription = "Löschen", tint = AppTheme.colors.textMuted)
                     }
                 }
             },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Gold,
-                unfocusedBorderColor = GlassWhite10,
+                unfocusedBorderColor = AppTheme.colors.inputBorder,
                 focusedLabelColor = Gold,
-                unfocusedLabelColor = Slate400,
-                focusedTextColor = Slate50,
-                unfocusedTextColor = Slate50,
+                unfocusedLabelColor = AppTheme.colors.textMuted,
+                focusedTextColor = AppTheme.colors.textPrimary,
+                unfocusedTextColor = AppTheme.colors.textPrimary,
+                focusedContainerColor = AppTheme.colors.inputBackground,
+                unfocusedContainerColor = AppTheme.colors.inputBackground,
                 cursorColor = Gold
             ),
             modifier = Modifier
@@ -117,7 +121,7 @@ fun OrdersTabContent(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Filter: " + (statusList.find { it.first == statusFilter }?.second ?: "Alle"),
-                    color = Slate50,
+                    color = AppTheme.colors.textPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -138,20 +142,21 @@ fun OrdersTabContent(
                 Box {
                     Button(
                         onClick = { showFilterMenu = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),
+                        border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Text("Status ändern", color = Slate50, fontSize = 12.sp)
+                        Text("Status ändern", color = AppTheme.colors.textPrimary, fontSize = 12.sp)
                     }
                     DropdownMenu(
                         expanded = showFilterMenu,
                         onDismissRequest = { showFilterMenu = false },
-                        modifier = Modifier.background(Slate900)
+                        modifier = Modifier.background(AppTheme.colors.cardBackground)
                     ) {
                         statusList.forEach { (statusVal, statusLabel) ->
                             DropdownMenuItem(
-                                text = { Text(statusLabel, color = Slate50) },
+                                text = { Text(statusLabel, color = AppTheme.colors.textPrimary) },
                                 onClick = {
                                     viewModel.setStatusFilter(statusVal)
                                     showFilterMenu = false
@@ -215,7 +220,7 @@ fun OrdersTabContent(
                             ) {
                                 Text(
                                     text = "Keine Bestellungen gefunden.",
-                                    color = Slate400,
+                                    color = AppTheme.colors.textMuted,
                                     fontSize = 14.sp
                                 )
                             }
@@ -265,7 +270,7 @@ fun PriorityTaskCard(
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .clickable(onClick = onClick)
             .border(1.dp, if (order.is_express == true) Color(0xFFEF4444) else Gold, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = Slate900),
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -292,7 +297,7 @@ fun PriorityTaskCard(
                 text = "Bestellung #${order.order_number} von ${order.customer_name}",
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                color = Slate50
+                color = AppTheme.colors.textPrimary
             )
             Spacer(modifier = Modifier.height(8.dp))
             
@@ -303,13 +308,13 @@ fun PriorityTaskCard(
             }
             
             Surface(
-                color = GlassWhite10,
+                color = AppTheme.colors.glassSurface,
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = tipText,
-                    color = Slate300,
+                    color = AppTheme.colors.textSecondary,
                     fontSize = 12.sp,
                     lineHeight = 16.sp,
                     modifier = Modifier.padding(10.dp)
@@ -326,8 +331,8 @@ fun OrderCard(
 ) {
     val isActive = order.status != "completed" && order.status != "cancelled" && order.status != "refunded"
     val isExpressActive = order.is_express == true && isActive
-    val cardBorderColor = if (isExpressActive) Gold else GlassWhite10
-    val cardBgColor = if (isExpressActive) Color(0x15C5A059) else Slate900
+    val cardBorderColor = if (isExpressActive) Gold else AppTheme.colors.cardBorder
+    val cardBgColor = if (isExpressActive) Color(0x15C5A059) else AppTheme.colors.cardBackground
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val alpha by infiniteTransition.animateFloat(
@@ -398,17 +403,17 @@ fun OrderCard(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = order.customer_name,
-                color = Slate50,
+                color = AppTheme.colors.textPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = order.email,
-                color = Slate400,
+                color = AppTheme.colors.textMuted,
                 fontSize = 12.sp
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Divider(color = GlassWhite10)
+            Divider(color = AppTheme.colors.cardBorder)
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -418,12 +423,12 @@ fun OrderCard(
                 Column {
                     Text(
                         text = "Datum: " + formatDateString(order.created_at),
-                        color = Slate400,
+                        color = AppTheme.colors.textMuted,
                         fontSize = 11.sp
                     )
                     Text(
                         text = "${order.item_count} Artikel • ${order.payment_method}",
-                        color = Slate400,
+                        color = AppTheme.colors.textMuted,
                         fontSize = 11.sp
                     )
                 }
@@ -470,8 +475,8 @@ fun OrderDetailDialog(
         Surface(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SpaceBlack),
-            color = SpaceBlack
+                .background(Brush.verticalGradient(AppTheme.colors.bgGradient)),
+            color = Color.Transparent
         ) {
             Column(
                 modifier = Modifier
@@ -487,7 +492,7 @@ fun OrderDetailDialog(
                     Column {
                         Text(
                             text = "Bestellung Details",
-                            color = Slate400,
+                            color = AppTheme.colors.textMuted,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -503,13 +508,14 @@ fun OrderDetailDialog(
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
-                            .background(GlassWhite10, RoundedCornerShape(12.dp))
+                            .background(AppTheme.colors.glassSurface, RoundedCornerShape(12.dp))
+                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(12.dp))
                             .size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Schließen",
-                            tint = Slate50
+                            tint = AppTheme.colors.textPrimary
                         )
                     }
                 }
@@ -527,8 +533,8 @@ fun OrderDetailDialog(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-                            colors = CardDefaults.cardColors(containerColor = Slate900),
+                                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -538,18 +544,18 @@ fun OrderDetailDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("KUNDE", color = Slate400, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
-                                        Text(order.customer_name, color = Slate50, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text(order.email, color = Slate400, fontSize = 12.sp)
+                                        Text("KUNDE", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text(order.customer_name, color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text(order.email, color = AppTheme.colors.textMuted, fontSize = 12.sp)
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text("BESTELLWERT", color = Slate400, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text("BESTELLWERT", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                         Text(formatPrice(order.total_price), color = Gold, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                                     }
                                 }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Divider(color = GlassWhite10)
+                                Divider(color = AppTheme.colors.cardBorder)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
                                 Row(
@@ -558,14 +564,14 @@ fun OrderDetailDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("ZAHLUNG", color = Slate400, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text("ZAHLUNG", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.padding(top = 4.dp)
                                         ) {
                                             StatusBadge(status = order.payment_status, statusColorHex = order.payment_status_color)
                                             Spacer(modifier = Modifier.width(8.dp))
-                                            Text(order.payment_method.uppercase(), color = Slate50, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            Text(order.payment_method.uppercase(), color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                     if (order.is_express == true) {
@@ -586,7 +592,7 @@ fun OrderDetailDialog(
                                 }
 
                                 Spacer(modifier = Modifier.height(16.dp))
-                                Divider(color = GlassWhite10)
+                                Divider(color = AppTheme.colors.cardBorder)
                                 Spacer(modifier = Modifier.height(16.dp))
 
                                 // Status management
@@ -596,7 +602,7 @@ fun OrderDetailDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("STATUS", color = Slate400, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                        Text("STATUS", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                         Spacer(modifier = Modifier.height(4.dp))
                                         if (isUpdatingStatus) {
                                             CircularProgressIndicator(color = Gold, modifier = Modifier.size(24.dp))
@@ -617,11 +623,11 @@ fun OrderDetailDialog(
                                         DropdownMenu(
                                             expanded = dropdownExpanded,
                                             onDismissRequest = { dropdownExpanded = false },
-                                            modifier = Modifier.background(Slate900)
+                                            modifier = Modifier.background(AppTheme.colors.cardBackground)
                                         ) {
                                             statusOptions.forEach { (statusVal, statusLabel) ->
                                                 DropdownMenuItem(
-                                                    text = { Text(statusLabel, color = Slate50) },
+                                                    text = { Text(statusLabel, color = AppTheme.colors.textPrimary) },
                                                     onClick = {
                                                         onUpdateStatus(statusVal)
                                                         dropdownExpanded = false
@@ -649,14 +655,14 @@ fun OrderDetailDialog(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-                                colors = CardDefaults.cardColors(containerColor = Slate900),
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Text(
                                         text = "DHL VERSANDSCHEINE & VERFOLGUNG",
-                                        color = Slate400,
+                                        color = AppTheme.colors.textMuted,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.5.sp
@@ -673,7 +679,7 @@ fun OrderDetailDialog(
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
                                                         text = "Paket ${idx + 1}: ${shipment.carrier ?: "DHL"}",
-                                                        color = Slate50,
+                                                        color = AppTheme.colors.textPrimary,
                                                         fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
@@ -696,7 +702,7 @@ fun OrderDetailDialog(
                                                     if (!shipment.status.isNullOrEmpty()) {
                                                         Text(
                                                             text = "Status: ${shipment.status}",
-                                                            color = Slate400,
+                                                            color = AppTheme.colors.textMuted,
                                                             fontSize = 11.sp,
                                                             fontWeight = FontWeight.Medium
                                                         )
@@ -715,7 +721,8 @@ fun OrderDetailDialog(
                                                                 } catch (e: Exception) {}
                                                             }
                                                         },
-                                                        colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),
+                                                        border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
                                                         shape = RoundedCornerShape(8.dp),
                                                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                                     ) {
@@ -724,7 +731,7 @@ fun OrderDetailDialog(
                                                 }
                                             }
                                             if (idx < shipments.size - 1) {
-                                                Divider(color = GlassWhite10, modifier = Modifier.padding(vertical = 8.dp))
+                                                Divider(color = AppTheme.colors.cardBorder, modifier = Modifier.padding(vertical = 8.dp))
                                             }
                                         }
                                         Spacer(modifier = Modifier.height(16.dp))
@@ -740,7 +747,7 @@ fun OrderDetailDialog(
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 CircularProgressIndicator(color = Gold, modifier = Modifier.size(20.dp))
-                                                Text("DHL Label wird generiert...", color = Slate300, fontSize = 12.sp)
+                                                Text("DHL Label wird generiert...", color = AppTheme.colors.textSecondary, fontSize = 12.sp)
                                             }
                                         }
                                     } else {
@@ -801,16 +808,16 @@ fun OrderDetailDialog(
                             Card(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-                                colors = CardDefaults.cardColors(containerColor = Slate900),
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Rechnungsadresse", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                    Text("Rechnungsadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = formatAddress(order.billing_address),
-                                        color = Slate100,
+                                        color = AppTheme.colors.textPrimary,
                                         fontSize = 13.sp,
                                         lineHeight = 18.sp,
                                         fontWeight = FontWeight.Medium
@@ -820,16 +827,16 @@ fun OrderDetailDialog(
                             Card(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-                                colors = CardDefaults.cardColors(containerColor = Slate900),
+                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Lieferadresse", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                    Text("Lieferadresse", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = formatAddress(order.shipping_address),
-                                        color = Slate100,
+                                        color = AppTheme.colors.textPrimary,
                                         fontSize = 13.sp,
                                         lineHeight = 18.sp,
                                         fontWeight = FontWeight.Medium
@@ -844,12 +851,12 @@ fun OrderDetailDialog(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-                            colors = CardDefaults.cardColors(containerColor = Slate900),
+                                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Bestellte Artikel", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                Text("Bestellte Artikel", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 
                                 order.items.forEachIndexed { index, item ->
@@ -866,7 +873,7 @@ fun OrderDetailDialog(
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     text = item.product_name, 
-                                                    color = Slate50, 
+                                                    color = AppTheme.colors.textPrimary, 
                                                     fontSize = 14.sp, 
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -877,12 +884,12 @@ fun OrderDetailDialog(
                                             Column(horizontalAlignment = Alignment.End) {
                                                 Text(
                                                     text = "${item.quantity}x ${formatPrice(item.unit_price)}",
-                                                    color = Slate400,
+                                                    color = AppTheme.colors.textMuted,
                                                     fontSize = 12.sp
                                                 )
                                                 Text(
                                                     text = formatPrice(item.total_price),
-                                                    color = Slate50,
+                                                    color = AppTheme.colors.textPrimary,
                                                     fontSize = 14.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -903,15 +910,15 @@ fun OrderDetailDialog(
                                                     val url = resolveImageUrl(path)
                                                     if (url != null) {
                                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                            Text("Vorderseite", color = Slate400, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                            Text("Vorderseite", color = AppTheme.colors.textMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                                             Spacer(modifier = Modifier.height(4.dp))
                                                             AsyncImage(
                                                                 model = url,
                                                                 contentDescription = "Vorderseite Vorschau",
                                                                 modifier = Modifier
                                                                     .size(80.dp)
-                                                                    .border(1.dp, GlassWhite10, RoundedCornerShape(8.dp))
-                                                                    .background(GlassWhite10, RoundedCornerShape(8.dp))
+                                                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
+                                                                    .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
                                                                     .clickable { zoomImageUrl = url }
                                                                     .padding(2.dp),
                                                                 contentScale = ContentScale.Crop
@@ -923,15 +930,15 @@ fun OrderDetailDialog(
                                                     val url = resolveImageUrl(path)
                                                     if (url != null) {
                                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                            Text("Rückseite", color = Slate400, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                            Text("Rückseite", color = AppTheme.colors.textMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                                                             Spacer(modifier = Modifier.height(4.dp))
                                                             AsyncImage(
                                                                 model = url,
                                                                 contentDescription = "Rückseite Vorschau",
                                                                 modifier = Modifier
                                                                     .size(80.dp)
-                                                                    .border(1.dp, GlassWhite10, RoundedCornerShape(8.dp))
-                                                                    .background(GlassWhite10, RoundedCornerShape(8.dp))
+                                                                    .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(8.dp))
+                                                                    .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
                                                                     .clickable { zoomImageUrl = url }
                                                                     .padding(2.dp),
                                                                 contentScale = ContentScale.Crop
@@ -950,7 +957,7 @@ fun OrderDetailDialog(
                                         if (!logoStoragePath.isNullOrEmpty() || !uploadedFiles.isNullOrEmpty()) {
                                             val context = androidx.compose.ui.platform.LocalContext.current
                                             Spacer(modifier = Modifier.height(12.dp))
-                                            Text("KUNDENDATEIEN:", color = Slate400, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                            Text("KUNDENDATEIEN:", color = AppTheme.colors.textMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                             Spacer(modifier = Modifier.height(6.dp))
                                             
                                             if (!logoStoragePath.isNullOrEmpty()) {
@@ -958,7 +965,8 @@ fun OrderDetailDialog(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .padding(vertical = 4.dp)
-                                                        .background(GlassWhite10, RoundedCornerShape(8.dp))
+                                                        .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
+                                                        .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                                                         .clickable {
                                                             val url = resolveImageUrl(logoStoragePath)
                                                             if (url != null) {
@@ -975,7 +983,7 @@ fun OrderDetailDialog(
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         Text("🖼️", fontSize = 14.sp)
                                                         Spacer(modifier = Modifier.width(8.dp))
-                                                        Text("Kunden-Logo", color = Slate200, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                                        Text("Kunden-Logo", color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                                     }
                                                     Text("Öffnen", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                 }
@@ -989,7 +997,8 @@ fun OrderDetailDialog(
                                                          modifier = Modifier
                                                              .fillMaxWidth()
                                                              .padding(vertical = 4.dp)
-                                                             .background(GlassWhite10, RoundedCornerShape(8.dp))
+                                                             .background(AppTheme.colors.glassSurface, RoundedCornerShape(8.dp))
+                                                             .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                                                              .clickable {
                                                                  val url = resolveImageUrl(filePath)
                                                                  if (url != null) {
@@ -1006,7 +1015,7 @@ fun OrderDetailDialog(
                                                          Row(verticalAlignment = Alignment.CenterVertically) {
                                                              Text("📄", fontSize = 14.sp)
                                                              Spacer(modifier = Modifier.width(8.dp))
-                                                             Text(fileName, color = Slate200, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                                                             Text(fileName, color = AppTheme.colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                                                          }
                                                          Text("Öffnen", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                      }
@@ -1043,7 +1052,8 @@ fun OrderDetailDialog(
                                                             } catch (e: Exception) {}
                                                         },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),
+                                                        border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
                                                         shape = RoundedCornerShape(8.dp),
                                                         contentPadding = PaddingValues(vertical = 8.dp)
                                                     ) {
@@ -1061,7 +1071,8 @@ fun OrderDetailDialog(
                                                             } catch (e: Exception) {}
                                                         },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = GlassWhite10),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.glassSurface),
+                                                        border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
                                                         shape = RoundedCornerShape(8.dp),
                                                         contentPadding = PaddingValues(vertical = 8.dp)
                                                     ) {
@@ -1072,7 +1083,7 @@ fun OrderDetailDialog(
                                         }
                                     }
                                     if (index < order.items.size - 1) {
-                                        Divider(color = GlassWhite10, modifier = Modifier.padding(vertical = 8.dp))
+                                        Divider(color = AppTheme.colors.cardBorder, modifier = Modifier.padding(vertical = 8.dp))
                                     }
                                 }
                             }
@@ -1084,12 +1095,12 @@ fun OrderDetailDialog(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
-                            colors = CardDefaults.cardColors(containerColor = Slate900),
+                                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
+                            colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Übersicht", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                                Text("Übersicht", color = AppTheme.colors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                                 Spacer(modifier = Modifier.height(12.dp))
                                 
                                 val prices = mutableListOf<Pair<String, Long>>()
@@ -1106,19 +1117,19 @@ fun OrderDetailDialog(
                                             .padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text(label, color = Slate400, fontSize = 13.sp)
-                                        Text(formatPrice(value), color = Slate200, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        Text(label, color = AppTheme.colors.textMuted, fontSize = 13.sp)
+                                        Text(formatPrice(value), color = AppTheme.colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                     }
                                 }
 
-                                Divider(color = GlassWhite10, modifier = Modifier.padding(vertical = 10.dp))
+                                Divider(color = AppTheme.colors.cardBorder, modifier = Modifier.padding(vertical = 10.dp))
                                 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("Gesamtsumme", color = Slate50, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                    Text("Gesamtsumme", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                     Text(formatPrice(order.total_price), color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                                 }
                             }
@@ -1132,7 +1143,7 @@ fun OrderDetailDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .border(1.dp, Color(0x33C5A059), RoundedCornerShape(16.dp)),
-                                colors = CardDefaults.cardColors(containerColor = Slate900),
+                                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
@@ -1153,7 +1164,7 @@ fun OrderDetailDialog(
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = order.notes, 
-                                        color = Slate100, 
+                                        color = AppTheme.colors.textPrimary, 
                                         fontSize = 13.sp,
                                         lineHeight = 18.sp,
                                         fontWeight = FontWeight.Medium
@@ -1364,14 +1375,14 @@ fun TextDetailRow(label: String, value: String) {
     ) {
         Text(
             text = "$label: ",
-            color = Slate400,
+            color = AppTheme.colors.textMuted,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.widthIn(min = 120.dp)
         )
         Text(
             text = value,
-            color = Slate300,
+            color = AppTheme.colors.textPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.Normal
         )
@@ -1410,9 +1421,9 @@ fun DhlCreateDialog(
             modifier = Modifier
                 .width(320.dp)
                 .wrapContentHeight()
-                .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp)),
+                .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp)),
             shape = RoundedCornerShape(16.dp),
-            color = Slate900
+            color = AppTheme.colors.cardBackground
         ) {
             Column(
                 modifier = Modifier
@@ -1431,12 +1442,16 @@ fun DhlCreateDialog(
                 OutlinedTextField(
                     value = packageCountText,
                     onValueChange = { packageCountText = it },
-                    label = { Text("Anzahl Pakete", color = Slate400) },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                    label = { Text("Anzahl Pakete", color = AppTheme.colors.textMuted) },
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Gold,
-                        unfocusedBorderColor = GlassWhite10,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
                         focusedLabelColor = Gold,
-                        unfocusedLabelColor = Slate400,
+                        unfocusedLabelColor = AppTheme.colors.textMuted,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary,
+                        focusedContainerColor = AppTheme.colors.inputBackground,
+                        unfocusedContainerColor = AppTheme.colors.inputBackground,
                         cursorColor = Gold
                     ),
                     modifier = Modifier.fillMaxWidth(),
@@ -1447,12 +1462,16 @@ fun DhlCreateDialog(
                 OutlinedTextField(
                     value = weightText,
                     onValueChange = { weightText = it },
-                    label = { Text("Gewicht pro Paket (kg)", color = Slate400) },
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                    label = { Text("Gewicht pro Paket (kg)", color = AppTheme.colors.textMuted) },
+                    colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Gold,
-                        unfocusedBorderColor = GlassWhite10,
+                        unfocusedBorderColor = AppTheme.colors.inputBorder,
                         focusedLabelColor = Gold,
-                        unfocusedLabelColor = Slate400,
+                        unfocusedLabelColor = AppTheme.colors.textMuted,
+                        focusedTextColor = AppTheme.colors.textPrimary,
+                        unfocusedTextColor = AppTheme.colors.textPrimary,
+                        focusedContainerColor = AppTheme.colors.inputBackground,
+                        unfocusedContainerColor = AppTheme.colors.inputBackground,
                         cursorColor = Gold
                     ),
                     modifier = Modifier.fillMaxWidth(),
@@ -1471,7 +1490,7 @@ fun DhlCreateDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Abbrechen", color = Slate400)
+                        Text("Abbrechen", color = AppTheme.colors.textSecondary)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(

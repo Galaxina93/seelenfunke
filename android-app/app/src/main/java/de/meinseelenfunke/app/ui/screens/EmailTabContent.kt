@@ -41,12 +41,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import de.meinseelenfunke.app.data.api.EmailAccount
 import de.meinseelenfunke.app.data.api.EmailMessage
+import de.meinseelenfunke.app.ui.theme.AppTheme
 import de.meinseelenfunke.app.ui.theme.GlassWhite10
 import de.meinseelenfunke.app.ui.theme.Gold
 import de.meinseelenfunke.app.ui.theme.Slate300
 import de.meinseelenfunke.app.ui.theme.Slate400
 import de.meinseelenfunke.app.ui.theme.Slate50
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
+import androidx.compose.foundation.BorderStroke
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -108,7 +110,7 @@ fun EmailTabContent(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0F172A), Color(0xFF020617)) // Slate900 to very dark
+                    colors = AppTheme.colors.bgGradient
                 )
             )
             .padding(16.dp)
@@ -214,7 +216,7 @@ fun EmailTabContent(
                     ) {
                         Text(
                             text = "Keine E-Mail-Konten eingerichtet.",
-                            color = Slate400,
+                            color = AppTheme.colors.textMuted,
                             fontSize = 14.sp
                         )
                         Button(
@@ -248,7 +250,8 @@ fun EmailTabContent(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) Gold else GlassWhite10)
+                                    .background(if (isSelected) Gold else AppTheme.colors.glassSurface)
+                                    .border(1.dp, if (isSelected) Gold else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                                     .clickable { viewModel.selectFolder(folderKey) }
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -260,14 +263,14 @@ fun EmailTabContent(
                                     Icon(
                                         imageVector = icon,
                                         contentDescription = label,
-                                        tint = if (isSelected) SpaceBlack else Slate300,
+                                        tint = if (isSelected) SpaceBlack else AppTheme.colors.textSecondary,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = label,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) SpaceBlack else Slate300,
+                                        color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                                         maxLines = 1
                                     )
                                     
@@ -277,7 +280,7 @@ fun EmailTabContent(
                                         Icon(
                                             imageVector = Icons.Default.Close,
                                             contentDescription = "Ordner löschen",
-                                            tint = if (isSelected) SpaceBlack.copy(alpha = 0.6f) else Slate400,
+                                            tint = if (isSelected) SpaceBlack.copy(alpha = 0.6f) else AppTheme.colors.textMuted,
                                             modifier = Modifier
                                                 .size(14.dp)
                                                 .clickable {
@@ -296,7 +299,8 @@ fun EmailTabContent(
                         IconButton(
                             onClick = { showCreateFolderDialog = true },
                             modifier = Modifier
-                                .background(GlassWhite10, shape = RoundedCornerShape(8.dp))
+                                .background(AppTheme.colors.glassSurface, shape = RoundedCornerShape(8.dp))
+                                .border(1.dp, AppTheme.colors.glassBorder, shape = RoundedCornerShape(8.dp))
                                 .size(36.dp)
                         ) {
                             Icon(
@@ -318,14 +322,16 @@ fun EmailTabContent(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("E-Mails suchen...", color = Slate400, fontSize = 13.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Suchen", tint = Slate400) },
+                        placeholder = { Text("E-Mails suchen...", color = AppTheme.colors.textMuted, fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Suchen", tint = AppTheme.colors.textMuted) },
                         modifier = Modifier.weight(1f),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
-                            unfocusedBorderColor = GlassWhite10,
-                            focusedTextColor = Slate50,
-                            unfocusedTextColor = Slate300
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
                         ),
                         shape = RoundedCornerShape(10.dp)
                     )
@@ -334,13 +340,14 @@ fun EmailTabContent(
                     IconButton(
                         onClick = { viewModel.setUnreadOnly(!unreadOnly) },
                         modifier = Modifier
-                            .background(if (unreadOnly) Gold else GlassWhite10, shape = RoundedCornerShape(10.dp))
+                            .background(if (unreadOnly) Gold else AppTheme.colors.glassSurface, shape = RoundedCornerShape(10.dp))
+                            .border(1.dp, if (unreadOnly) Gold else AppTheme.colors.glassBorder, shape = RoundedCornerShape(10.dp))
                             .size(48.dp)
                     ) {
                         Icon(
                             imageVector = if (unreadOnly) Icons.Default.Mail else Icons.Default.Drafts,
                             contentDescription = "Ungelesene filtern",
-                            tint = if (unreadOnly) SpaceBlack else Slate300
+                            tint = if (unreadOnly) SpaceBlack else AppTheme.colors.textSecondary
                         )
                     }
                 }
@@ -393,7 +400,7 @@ fun EmailTabContent(
                             ) {
                                 Text(
                                     text = "Keine E-Mails gefunden.",
-                                    color = Slate400,
+                                    color = AppTheme.colors.textMuted,
                                     fontSize = 14.sp
                                 )
                             }
@@ -467,7 +474,7 @@ fun EmailTabContent(
 
             AlertDialog(
                 onDismissRequest = { showCreateFolderDialog = false },
-                containerColor = Color(0xFF0F172A),
+                containerColor = AppTheme.colors.cardBackground,
                 shape = RoundedCornerShape(16.dp),
                 title = {
                     Text("Neuen Ordner erstellen", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -476,11 +483,14 @@ fun EmailTabContent(
                     OutlinedTextField(
                         value = newFolderName,
                         onValueChange = { newFolderName = it },
-                        label = { Text("Ordnername") },
+                        label = { Text("Ordnername", color = AppTheme.colors.textMuted) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Gold,
-                            focusedTextColor = Slate50,
-                            unfocusedTextColor = Slate300
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -513,7 +523,7 @@ fun EmailTabContent(
                 },
                 dismissButton = {
                     TextButton(onClick = { showCreateFolderDialog = false }) {
-                        Text("Abbrechen", color = Slate300)
+                        Text("Abbrechen", color = AppTheme.colors.textSecondary)
                     }
                 }
             )
@@ -524,13 +534,13 @@ fun EmailTabContent(
                 var isDeletingFolder by remember { mutableStateOf(false) }
                 AlertDialog(
                     onDismissRequest = { showDeleteFolderDialog = false },
-                    containerColor = Color(0xFF0F172A),
+                    containerColor = AppTheme.colors.cardBackground,
                     shape = RoundedCornerShape(16.dp),
                     title = {
                         Text("Ordner löschen", color = Gold, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     },
                     text = {
-                        Text("Möchtest du den Ordner '$label' wirklich löschen? Alle E-Mails darin werden in den Posteingang (INBOX) verschoben.", color = Slate300, fontSize = 14.sp)
+                        Text("Möchtest du den Ordner '$label' wirklich löschen? Alle E-Mails darin werden in den Posteingang (INBOX) verschoben.", color = AppTheme.colors.textSecondary, fontSize = 14.sp)
                     },
                     confirmButton = {
                         Button(
@@ -558,7 +568,7 @@ fun EmailTabContent(
                     },
                     dismissButton = {
                         TextButton(onClick = { showDeleteFolderDialog = false }) {
-                            Text("Abbrechen", color = Slate300)
+                            Text("Abbrechen", color = AppTheme.colors.textSecondary)
                         }
                     }
                 )
@@ -579,7 +589,8 @@ fun AccountChip(
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(if (isSelected) Gold else GlassWhite10)
+            .background(if (isSelected) Gold else AppTheme.colors.cardBackground)
+            .border(1.dp, if (isSelected) Gold else AppTheme.colors.cardBorder, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
@@ -590,7 +601,7 @@ fun AccountChip(
         ) {
             Text(
                 text = account.email,
-                color = if (isSelected) SpaceBlack else Slate50,
+                color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -622,7 +633,8 @@ fun EmailMessageRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = GlassWhite10)
+        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
     ) {
         Column(
             modifier = Modifier.padding(12.dp)
@@ -646,7 +658,7 @@ fun EmailMessageRow(
                     }
                     Text(
                         text = message.from,
-                        color = if (message.isRead) Slate300 else Slate50,
+                        color = if (message.isRead) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
                         fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold,
                         fontSize = 14.sp,
                         maxLines = 1,
@@ -655,7 +667,7 @@ fun EmailMessageRow(
                 }
                 Text(
                     text = formatEmailDate(message.receivedAt),
-                    color = Slate400,
+                    color = AppTheme.colors.textMuted,
                     fontSize = 11.sp
                 )
             }
@@ -664,7 +676,7 @@ fun EmailMessageRow(
 
             Text(
                 text = message.subject.orEmpty().ifBlank { "(Kein Betreff)" },
-                color = if (message.isRead) Slate300 else Slate50,
+                color = if (message.isRead) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
                 fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.Bold,
                 fontSize = 13.sp,
                 maxLines = 1,
@@ -675,7 +687,7 @@ fun EmailMessageRow(
 
             Text(
                 text = (message.body ?: message.htmlBody ?: "").trim().take(100),
-                color = Slate400,
+                color = AppTheme.colors.textMuted,
                 fontSize = 12.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
@@ -731,8 +743,8 @@ fun ComposeEmailInline(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A), shape = RoundedCornerShape(16.dp))
-            .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp))
+            .background(AppTheme.colors.cardBackground, shape = RoundedCornerShape(16.dp))
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
         // Header
@@ -748,7 +760,7 @@ fun ComposeEmailInline(
                 fontSize = 18.sp
             )
             IconButton(onClick = onDismiss, enabled = !isSending) {
-                Icon(Icons.Default.Close, contentDescription = "Verwerfen", tint = Slate300)
+                Icon(Icons.Default.Close, contentDescription = "Verwerfen", tint = AppTheme.colors.textSecondary)
             }
         }
 
@@ -762,7 +774,7 @@ fun ComposeEmailInline(
         ) {
             Text(
                 text = "Von: ${fromAccount?.email ?: ""}",
-                color = Slate300,
+                color = AppTheme.colors.textSecondary,
                 fontSize = 13.sp
             )
 
@@ -782,7 +794,7 @@ fun ComposeEmailInline(
         // Selected Attachments List
         if (composeAttachments.isNotEmpty()) {
             Spacer(modifier = Modifier.height(6.dp))
-            Text("Anhänge:", color = Slate300, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Anhänge:", color = AppTheme.colors.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -794,7 +806,8 @@ fun ComposeEmailInline(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(GlassWhite10)
+                            .background(AppTheme.colors.glassSurface)
+                            .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
@@ -805,7 +818,7 @@ fun ComposeEmailInline(
                         )
                         Text(
                             text = fileName,
-                            color = Slate50,
+                            color = AppTheme.colors.textPrimary,
                             fontSize = 10.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -814,7 +827,7 @@ fun ComposeEmailInline(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Entfernen",
-                            tint = Slate400,
+                            tint = AppTheme.colors.textMuted,
                             modifier = Modifier
                                 .size(14.dp)
                                 .clickable { viewModel.removeComposeAttachment(uri) }
@@ -831,11 +844,14 @@ fun ComposeEmailInline(
             OutlinedTextField(
                 value = to,
                 onValueChange = { to = it },
-                label = { Text("An (Empfänger)") },
+                label = { Text("An (Empfänger)", color = AppTheme.colors.textMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Gold,
-                    focusedTextColor = Slate50,
-                    unfocusedTextColor = Slate300
+                    unfocusedBorderColor = AppTheme.colors.inputBorder,
+                    focusedTextColor = AppTheme.colors.textPrimary,
+                    unfocusedTextColor = AppTheme.colors.textPrimary,
+                    focusedContainerColor = AppTheme.colors.inputBackground,
+                    unfocusedContainerColor = AppTheme.colors.inputBackground
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -850,7 +866,7 @@ fun ComposeEmailInline(
                 properties = PopupProperties(focusable = false),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1E293B))
+                    .background(AppTheme.colors.cardBackground)
                     .border(1.dp, Gold, RoundedCornerShape(8.dp))
             ) {
                 filteredContacts.forEach { contact ->
@@ -867,8 +883,8 @@ fun ComposeEmailInline(
                     DropdownMenuItem(
                         text = {
                             Column {
-                                Text(displayName, color = Slate50, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text(contact.email ?: "", color = Slate400, fontSize = 12.sp)
+                                Text(displayName, color = AppTheme.colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(contact.email ?: "", color = AppTheme.colors.textMuted, fontSize = 12.sp)
                             }
                         },
                         onClick = {
@@ -886,11 +902,14 @@ fun ComposeEmailInline(
         OutlinedTextField(
             value = subject,
             onValueChange = { subject = it },
-            label = { Text("Betreff") },
+            label = { Text("Betreff", color = AppTheme.colors.textMuted) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Gold,
-                focusedTextColor = Slate50,
-                unfocusedTextColor = Slate300
+                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                focusedTextColor = AppTheme.colors.textPrimary,
+                unfocusedTextColor = AppTheme.colors.textPrimary,
+                focusedContainerColor = AppTheme.colors.inputBackground,
+                unfocusedContainerColor = AppTheme.colors.inputBackground
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -901,11 +920,14 @@ fun ComposeEmailInline(
         OutlinedTextField(
             value = body,
             onValueChange = { body = it },
-            label = { Text("Nachricht") },
+            label = { Text("Nachricht", color = AppTheme.colors.textMuted) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Gold,
-                focusedTextColor = Slate50,
-                unfocusedTextColor = Slate300
+                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                focusedTextColor = AppTheme.colors.textPrimary,
+                unfocusedTextColor = AppTheme.colors.textPrimary,
+                focusedContainerColor = AppTheme.colors.inputBackground,
+                unfocusedContainerColor = AppTheme.colors.inputBackground
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -923,7 +945,7 @@ fun ComposeEmailInline(
             TextButton(
                 onClick = onDismiss,
                 enabled = !isSending,
-                colors = ButtonDefaults.textButtonColors(contentColor = Slate300)
+                colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.textSecondary)
             ) {
                 Text("Abbrechen")
             }
@@ -959,8 +981,8 @@ fun AccountManagerInline(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A), shape = RoundedCornerShape(16.dp))
-            .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp))
+            .background(AppTheme.colors.cardBackground, shape = RoundedCornerShape(16.dp))
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
         // Header
@@ -976,7 +998,7 @@ fun AccountManagerInline(
                 fontSize = 18.sp
             )
             IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Schließen", tint = Slate300)
+                Icon(Icons.Default.Close, contentDescription = "Schließen", tint = AppTheme.colors.textSecondary)
             }
         }
 
@@ -1002,7 +1024,7 @@ fun AccountManagerInline(
             ) {
                 Text(
                     text = "Keine E-Mail-Konten eingerichtet.",
-                    color = Slate400,
+                    color = AppTheme.colors.textMuted,
                     fontSize = 14.sp
                 )
             }
@@ -1013,7 +1035,8 @@ fun AccountManagerInline(
             ) {
                 items(accounts) { account ->
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = GlassWhite10),
+                        colors = CardDefaults.cardColors(containerColor = AppTheme.colors.glassSurface),
+                        border = BorderStroke(1.dp, AppTheme.colors.glassBorder),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1025,13 +1048,13 @@ fun AccountManagerInline(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = account.name ?: "Unbenanntes Konto",
-                                    color = Slate50,
+                                    color = AppTheme.colors.textPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp
                                 )
                                 Text(
                                     text = account.email,
-                                    color = Slate400,
+                                    color = AppTheme.colors.textMuted,
                                     fontSize = 12.sp
                                 )
                             }
@@ -1134,8 +1157,8 @@ fun AddEditAccountInline(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A), shape = RoundedCornerShape(16.dp))
-            .border(1.dp, GlassWhite10, RoundedCornerShape(16.dp))
+            .background(AppTheme.colors.cardBackground, shape = RoundedCornerShape(16.dp))
+            .border(1.dp, AppTheme.colors.cardBorder, RoundedCornerShape(16.dp))
             .padding(16.dp)
     ) {
         // Header
@@ -1151,7 +1174,7 @@ fun AddEditAccountInline(
                 fontSize = 18.sp
             )
             IconButton(onClick = onDismiss, enabled = !isSaving) {
-                Icon(Icons.Default.Close, contentDescription = "Schließen", tint = Slate300)
+                Icon(Icons.Default.Close, contentDescription = "Schließen", tint = AppTheme.colors.textSecondary)
             }
         }
 
@@ -1164,7 +1187,7 @@ fun AddEditAccountInline(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Anbieter Voreinstellung:", color = Slate400, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("Anbieter Voreinstellung:", color = AppTheme.colors.textMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -1175,12 +1198,13 @@ fun AddEditAccountInline(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) Gold else GlassWhite10)
+                            .background(if (isSelected) Gold else AppTheme.colors.glassSurface)
+                            .border(1.dp, if (isSelected) Gold else AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
                             .clickable { selectedPreset = preset }
                             .padding(vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(preset, color = if (isSelected) SpaceBlack else Slate300, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(preset, color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1195,11 +1219,22 @@ fun AddEditAccountInline(
                 )
             }
 
+            val fieldColors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Gold,
+                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                focusedTextColor = AppTheme.colors.textPrimary,
+                unfocusedTextColor = AppTheme.colors.textPrimary,
+                focusedContainerColor = AppTheme.colors.inputBackground,
+                unfocusedContainerColor = AppTheme.colors.inputBackground,
+                focusedLabelColor = Gold,
+                unfocusedLabelColor = AppTheme.colors.textMuted
+            )
+
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Name (Anzeigename)") },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                colors = fieldColors,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -1207,7 +1242,7 @@ fun AddEditAccountInline(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("E-Mail Adresse") },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                colors = fieldColors,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -1215,7 +1250,7 @@ fun AddEditAccountInline(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text(if (account == null) "Passwort" else "Passwort (leer lassen zum Beibehalten)") },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                colors = fieldColors,
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -1236,14 +1271,14 @@ fun AddEditAccountInline(
                     value = imapHost,
                     onValueChange = { imapHost = it },
                     label = { Text("IMAP-Server") },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                    colors = fieldColors,
                     modifier = Modifier.weight(2f)
                 )
                 OutlinedTextField(
                     value = imapPort,
                     onValueChange = { imapPort = it },
                     label = { Text("Port") },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                    colors = fieldColors,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1253,7 +1288,7 @@ fun AddEditAccountInline(
                 onValueChange = { imapUsername = it },
                 label = { Text("IMAP-Benutzername (falls abweichend)") },
                 placeholder = { Text(email) },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                colors = fieldColors,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -1263,14 +1298,14 @@ fun AddEditAccountInline(
                     value = smtpHost,
                     onValueChange = { smtpHost = it },
                     label = { Text("SMTP-Server") },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                    colors = fieldColors,
                     modifier = Modifier.weight(2f)
                 )
                 OutlinedTextField(
                     value = smtpPort,
                     onValueChange = { smtpPort = it },
                     label = { Text("Port") },
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                    colors = fieldColors,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1280,7 +1315,7 @@ fun AddEditAccountInline(
                 onValueChange = { smtpUsername = it },
                 label = { Text("SMTP-Benutzername (falls abweichend)") },
                 placeholder = { Text(email) },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                colors = fieldColors,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -1289,7 +1324,7 @@ fun AddEditAccountInline(
                 value = signature,
                 onValueChange = { signature = it },
                 label = { Text("Signatur") },
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Gold, focusedTextColor = Slate50, unfocusedTextColor = Slate300),
+                colors = fieldColors,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -1300,7 +1335,7 @@ fun AddEditAccountInline(
                     colors = CheckboxDefaults.colors(checkedColor = Gold)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Als Standardpostfach festlegen", color = Slate300, fontSize = 13.sp)
+                Text("Als Standardpostfach festlegen", color = AppTheme.colors.textPrimary, fontSize = 13.sp)
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1310,7 +1345,7 @@ fun AddEditAccountInline(
                     colors = CheckboxDefaults.colors(checkedColor = Gold)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Geschäftliches Konto", color = Slate300, fontSize = 13.sp)
+                Text("Geschäftliches Konto", color = AppTheme.colors.textPrimary, fontSize = 13.sp)
             }
         }
 
@@ -1322,7 +1357,7 @@ fun AddEditAccountInline(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(onClick = onDismiss, enabled = !isSaving) {
-                Text("Abbrechen", color = Slate300)
+                Text("Abbrechen", color = AppTheme.colors.textSecondary)
             }
             Spacer(modifier = Modifier.width(8.dp))
             Button(
@@ -1401,7 +1436,7 @@ fun EmailDetailDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF0F172A),
+        containerColor = AppTheme.colors.cardBackground,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxHeight(0.85f),
         title = {
@@ -1411,7 +1446,7 @@ fun EmailDetailDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Schließen", tint = Slate50)
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Schließen", tint = AppTheme.colors.textPrimary)
                 }
 
                 Row(
@@ -1421,7 +1456,7 @@ fun EmailDetailDialog(
                     IconButton(onClick = {
                         onReply()
                     }) {
-                        Icon(Icons.Default.Reply, contentDescription = "Antworten", tint = Slate50)
+                        Icon(Icons.Default.Reply, contentDescription = "Antworten", tint = AppTheme.colors.textPrimary)
                     }
 
                     IconButton(onClick = {
@@ -1431,7 +1466,7 @@ fun EmailDetailDialog(
                         Icon(
                             imageVector = if (message.isRead) Icons.Default.Mail else Icons.Default.Drafts,
                             contentDescription = if (message.isRead) "Als ungelesen markieren" else "Als gelesen markieren",
-                            tint = Slate50
+                            tint = AppTheme.colors.textPrimary
                         )
                     }
 
@@ -1439,13 +1474,13 @@ fun EmailDetailDialog(
                     var showMoveMenu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { showMoveMenu = true }) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = "Verschieben", tint = Slate50)
+                            Icon(Icons.Default.FolderOpen, contentDescription = "Verschieben", tint = AppTheme.colors.textPrimary)
                         }
                         DropdownMenu(
                             expanded = showMoveMenu,
                             onDismissRequest = { showMoveMenu = false },
                             modifier = Modifier
-                                .background(Color(0xFF1E293B))
+                                .background(AppTheme.colors.cardBackground)
                                 .border(1.dp, Gold, RoundedCornerShape(8.dp))
                         ) {
                             availableFolders.forEach { (key, label, icon) ->
@@ -1457,7 +1492,7 @@ fun EmailDetailDialog(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Icon(icon, contentDescription = null, tint = Gold, modifier = Modifier.size(16.dp))
-                                                Text(label, color = Slate50, fontSize = 14.sp)
+                                                Text(label, color = AppTheme.colors.textPrimary, fontSize = 14.sp)
                                             }
                                         },
                                         onClick = {
@@ -1476,7 +1511,7 @@ fun EmailDetailDialog(
                             onArchive()
                             onDismiss()
                         }) {
-                            Icon(Icons.Default.Archive, contentDescription = "Archivieren", tint = Slate50)
+                            Icon(Icons.Default.Archive, contentDescription = "Archivieren", tint = AppTheme.colors.textPrimary)
                         }
                     }
 
@@ -1485,7 +1520,7 @@ fun EmailDetailDialog(
                             onDelete()
                             onDismiss()
                         }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = Slate50)
+                            Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = AppTheme.colors.textPrimary)
                         }
                     }
                 }
@@ -1506,42 +1541,44 @@ fun EmailDetailDialog(
                     fontSize = 18.sp
                 )
 
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(GlassWhite10))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(AppTheme.colors.cardBorder))
 
                 // Sender, Receiver, Date Details
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = "Von: ${message.from}",
-                        color = Slate50,
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = "An: ${message.to}",
-                        color = Slate300,
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 11.sp
                     )
                     Text(
                         text = "Datum: ${formatDetailedEmailDate(message.receivedAt)}",
-                        color = Slate400,
+                        color = AppTheme.colors.textMuted,
                         fontSize = 11.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(GlassWhite10))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(AppTheme.colors.cardBorder))
 
                 // HTML or Plain Text Content
                 val htmlContent = message.htmlBody
+                val textColor = if (AppTheme.colors.isDark) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#0F172A")
                 if (!htmlContent.isNullOrBlank()) {
                     AndroidView(
                         factory = { context ->
                             android.widget.TextView(context).apply {
-                                setTextColor(android.graphics.Color.WHITE)
+                                setTextColor(textColor)
                                 setTextSize(14f)
                                 movementMethod = android.text.method.LinkMovementMethod.getInstance()
                             }
                         },
                         update = { textView ->
+                            textView.setTextColor(textColor)
                             textView.text = HtmlCompat.fromHtml(htmlContent, HtmlCompat.FROM_HTML_MODE_LEGACY)
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -1549,7 +1586,7 @@ fun EmailDetailDialog(
                 } else {
                     Text(
                         text = message.body ?: "",
-                        color = Slate50,
+                        color = AppTheme.colors.textPrimary,
                         fontSize = 14.sp
                     )
                 }

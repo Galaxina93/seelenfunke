@@ -149,6 +149,73 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     return response()->json(['success' => true, 'entry' => $issue]);
 });
 
+Route::post('/funki/financials/scan-receipt', function (Request $request) {
+    if (!$request->hasFile('file')) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Keine Belegdatei hochgeladen.'
+        ], 400);
+    }
+
+    $file = $request->file('file');
+    $autoSave = filter_var($request->input('auto_save', false), FILTER_VALIDATE_BOOLEAN);
+
+    $categories = AccountingCategory::where('admin_id', $request->user()->id)
+        ->orderBy('usage_count', 'desc')
+        ->pluck('name')
+        ->toArray();
+
+    $aiResult = \App\Services\AI\ReceiptAiScannerService::analyze($file, $categories);
+
+    if (!$aiResult || empty($aiResult['amount_abs'])) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Beleg konnte nicht automatisch erkannt werden. Bitte manuell erfassen.'
+        ], 422);
+    }
+
+    if ($autoSave) {
+        $path = $file->store('buchhaltung/receipts', 'local');
+
+        $issue = AccountingSpecialIssue::create([
+            'id' => Str::uuid(),
+            'admin_id' => $request->user()->id,
+            'title' => $aiResult['title'],
+            'amount' => (float)$aiResult['amount_formatted'],
+            'category' => $aiResult['category'] ?: 'Sonstiges',
+            'execution_date' => $aiResult['date'] ?: now()->format('Y-m-d'),
+            'is_business' => $aiResult['is_business'],
+            'location' => $aiResult['location'] ?: 'App Beleg-Scan',
+            'tax_rate' => $aiResult['is_business'] ? $aiResult['tax_rate'] : null,
+            'invoice_number' => $aiResult['is_business'] ? $aiResult['invoice_number'] : null,
+            'file_paths' => [$path]
+        ]);
+
+        if (!empty($aiResult['category'])) {
+            $cat = AccountingCategory::firstOrCreate(
+                ['admin_id' => $request->user()->id, 'name' => $aiResult['category']],
+                ['usage_count' => 0]
+            );
+            $cat->increment('usage_count');
+        }
+
+        return response()->json([
+            'success' => true,
+            'auto_saved' => true,
+            'data' => $aiResult,
+            'entry' => $issue,
+            'message' => "Beleg '{$aiResult['title']}' ({$aiResult['amount_formatted']} €) wurde automatisch erfasst und gebucht."
+        ]);
+    }
+
+    return response()->json([
+        'success' => true,
+        'auto_saved' => false,
+        'data' => $aiResult,
+        'message' => "Beleg '{$aiResult['title']}' erkannt."
+    ]);
+});
+
 Route::get('/funki/financials/variable', function (Request $request) {
     // Wir lesen das Limit aus der URL, Standard ist 50
     $limit = $request->query('limit', 50);
