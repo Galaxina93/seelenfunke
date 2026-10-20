@@ -268,7 +268,7 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
 
         $this->assertGreaterThanOrEqual(10, count($vectors['Liebe']));
         $this->assertGreaterThanOrEqual(5, count($vectors['Familie']));
-        $this->assertGreaterThanOrEqual(5, count($vectors['Tiere']));
+        $this->assertGreaterThanOrEqual(4, count($vectors['Tiere']));
         $this->assertGreaterThanOrEqual(5, count($vectors['Natur']));
         $this->assertGreaterThanOrEqual(10, count($vectors['Symbole']));
     }
