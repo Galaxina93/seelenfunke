@@ -9,6 +9,7 @@ use App\Models\Ai\AiMetric;
 use App\Models\Ai\AiToolUsage;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -18,6 +19,13 @@ class AiAnalytics extends Component
     use WithDepartmentTheming;
 
     public string $themingDepartment = 'Agenten';
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function render()
     {

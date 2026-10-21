@@ -50,6 +50,10 @@ class ProductPackagingConfigurator extends Component
 
     public function addMaterial()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $this->validate();
 
         $product = $this->product;
@@ -80,6 +84,10 @@ class ProductPackagingConfigurator extends Component
 
     public function saveEdit()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $this->validate([
             'editWeightGrams' => 'required|numeric|min:1'
         ]);
@@ -104,6 +112,10 @@ class ProductPackagingConfigurator extends Component
 
     public function deleteMaterial($id)
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $product = $this->product;
         if (!$product) return;
 

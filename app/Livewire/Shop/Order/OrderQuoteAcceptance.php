@@ -93,8 +93,8 @@ class OrderQuoteAcceptance extends Component
         if (!$this->editingItem || !$this->isValidAction() || !$this->quote->isValid()) return;
         if ($this->editingItem->quote_request_id !== $this->quote->id) return;
 
-        // 1. Konfiguration & Menge updaten (Mindestmenge 1 absichern)
-        $qty = max(1, (int) ($data['qty'] ?? 1));
+        // 1. Konfiguration & Menge updaten (Mindestmenge 1, Max 10.000 absichern)
+        $qty = min(10000, max(1, (int) ($data['qty'] ?? 1)));
         $data['qty'] = $qty;
 
         $this->editingItem->quantity = $qty;

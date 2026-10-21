@@ -541,6 +541,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Autorisierungsprüfungen (`admin` oder `employee`) in `mount()` und allen Aktionsmethoden integriert.
 * **Testabdeckung:** [`tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php) (3 Tests, 8 Assertions).
 
+### 2.81 [CEO MASTER-DASHBOARD & OPERATIVE KONTROLLEN] Admin-Only Autorisierungsschutz für MasterAnalytics
+* **Dateien:** [`app/Livewire/Shop/Master/MasterAnalytics.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterAnalytics.php)
+* **Befund:** In `MasterAnalytics` (dem zentralen CEO Dashboard) fehlte in `mount()` sowie in allen operativen Kontrollmethoden (`updateStock()`, `uploadContract()`, `uploadSpecialReceipt()`, `approveReview()`, `rejectReview()`, `clearSecurityLogs()`, `blockIpAddress()`, `unblockIpAddress()`, `triggerAiSecurityThreatAudit()`, `flushFailedJobs()`, `fixSystem()`) der Autorisierungsschutz. Unbefugte konnten Unternehmens-Kennzahlen, Server-Health-Checks und Sicherheitswarnungen einsehen, IP-Adressen sperren, System-Reparaturen auslösen oder Queue-Jobs wipen.
+* **Lösung:** Striktes Admin-Only Gate (`Auth::guard('admin')->check()`) in `mount()` und allen operativen Mutations- und Kontrollmethoden implementiert.
+* **Testabdeckung:** [`tests/Feature/Master/MasterAnalyticsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Master/MasterAnalyticsSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.82 [KI-ANALYTICS & METRIKEN] Autorisierungsschutz für AiAnalytics Dashboard
+* **Dateien:** [`app/Livewire/Shop/Ai/AiAnalytics.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiAnalytics.php)
+* **Befund:** `AiAnalytics` besaß keine `mount()`-Methode und war für jeden unauthentifizierten Gast frei aufrufbar. Dadurch wurden Token-Verbräuche, LLM-Inference-Kosten, Fehlerraten und Chat-Statistiken offengelegt.
+* **Lösung:** Autorisierungsprüfung (`admin` oder `employee`) in `mount()` integriert (`abort(403)` für Gäste und Kunden).
+* **Testabdeckung:** [`tests/Feature/Ai/AiAnalyticsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAnalyticsSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.83 [LIEFERZEITEN-FEEDBACK & BLADE-NULL-SAFETY] Whitelisting von Feedback-Typen & Null-Sicherheit bei Produktanzeige
+* **Dateien:** [`app/Livewire/Shop/System/SystemDeliveryDisplay.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemDeliveryDisplay.php), [`resources/views/livewire/shop/system/system-delivery-display.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-delivery-display.blade.php)
+* **Befund:** In `SystemDeliveryDisplay::sendFeedback()` wurde der `$type`-Parameter ungeprüft in die Datenbank geschrieben (`DeliveryFeedback::create()`), wodurch beliebige String-Injections möglich waren. Im zugehörigen Blade-Template führte der Aufruf ohne `$product`-Model zu 500er-Fehlern (`Attempt to read property 'track_quantity' on null`).
+* **Lösung:** Strikte Whitelist für `$type` (`['vacation', 'sick']`). Null-sicherer Blade-Zugriff (`@if($product && $product->track_quantity)` und `@if($product && $product->sku)`).
+* **Testabdeckung:** [`tests/Feature/System/SystemDeliveryDisplaySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemDeliveryDisplaySecurityTest.php) (3 Tests, 3 Assertions).
+
+### 2.84 [VERPACKUNGSMATERIAL-MANAGEMENT] Method-Level Autorisierungsschutz für Verpackungskonfiguration
+* **Dateien:** [`app/Livewire/Shop/Product/ProductPackagingConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductPackagingConfigurator.php)
+* **Befund:** In `ProductPackagingConfigurator` waren `addMaterial()`, `saveEdit()` und `deleteMaterial()` nicht auf Methodenebene abgesichert, wodurch bei Livewire-Komponentenaufrufen ohne erneutes Mounten Manipulationsrisiken bestanden.
+* **Lösung:** Autorisierungsprüfungen (`admin` oder `employee`) direkt in `addMaterial()`, `saveEdit()` und `deleteMaterial()` integriert.
+* **Testabdeckung:** [`tests/Feature/Product/ProductPackagingConfiguratorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductPackagingConfiguratorSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.85 [ANGEBOTS-ANNAHME & MENGENBEGRENZUNG] Integer-Overflow- und DoS-Schutz bei Angebotskalkulation
+* **Dateien:** [`app/Livewire/Shop/Order/OrderQuoteAcceptance.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderQuoteAcceptance.php)
+* **Befund:** In `OrderQuoteAcceptance::saveItem()` wurde die Positionsmenge lediglich mit `max(1, ...)` nach unten begrenzt. Extreme Stückzahlen führten zu Integer-Overflows, unkontrollierten Staffelrabatten und potenziellen DoS-Zuständen bei der Neuberechnung von Versand- und Steueranteilen.
+* **Lösung:** Mengenbegrenzung auf Maximalwert 10.000 Einheiten geklammert (`min(10000, max(1, (int) $data['qty']))`).
+* **Testabdeckung:** [`tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php) (1 Test, 2 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -726,13 +756,29 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`tests/Feature/Ai/AiKnowledgeBaseSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiKnowledgeBaseSecurityTest.php) | Neue Testsuite: Zugriffsschutz, MIME-Whitelisting & Traversal-Sperre in Wissensdatenbank |
 | [`tests/Feature/Ai/AiKnowledgeBaseTaxonomySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiKnowledgeBaseTaxonomySecurityTest.php) | Neue Testsuite: Zugriffsschutz für Taxonomie (Kategorien & Tags) |
 | [`tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php) | Neue Testsuite: Zugriffsschutz für KI-Agenten-Editor & Methoden-Monitoring |
+| [`app/Livewire/Shop/Master/MasterAnalytics.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterAnalytics.php) | Admin-Only-Guard in `mount()` und allen operativen Kontrollmethoden (IP-Sperren, Logs, System-Repair, Jobs) |
+| [`app/Livewire/Shop/Ai/AiAnalytics.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiAnalytics.php) | Autorisierungsschutz in `mount()` für Token-Metriken & Inferenz-Kosten |
+| [`app/Livewire/Shop/System/SystemDeliveryDisplay.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemDeliveryDisplay.php) | Feedback-Typen Whitelisting (`vacation, sick`) & Null-Sicherheit |
+| [`resources/views/livewire/shop/system/system-delivery-display.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-delivery-display.blade.php) | Null-sichere Blade-Dereferenzierung für `$product` (`track_quantity`, `sku`) |
+| [`app/Livewire/Shop/Product/ProductPackagingConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductPackagingConfigurator.php) | Method-Level Autorisierungsschutz in `addMaterial()`, `saveEdit()`, `deleteMaterial()` |
+| [`app/Livewire/Shop/Order/OrderQuoteAcceptance.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderQuoteAcceptance.php) | Stückzahl-Sanitization & Overflow-Schutz (`min:1, max:10000`) |
+| [`tests/Feature/Master/MasterAnalyticsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Master/MasterAnalyticsSecurityTest.php) | Neue Testsuite: Striktes Admin-Only Gate für CEO Master Dashboard & System-Health |
+| [`tests/Feature/Ai/AiAnalyticsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAnalyticsSecurityTest.php) | Neue Testsuite: Autorisierungsschutz für KI-Analytics & Token-Metriken |
+| [`tests/Feature/System/SystemDeliveryDisplaySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemDeliveryDisplaySecurityTest.php) | Neue Testsuite: Feedback-Whitelisting & Null-Safe Blade Rendering |
+| [`tests/Feature/Product/ProductPackagingConfiguratorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductPackagingConfiguratorSecurityTest.php) | Neue Testsuite: Method-Level Zugriffsschutz für Verpackungsmaterial |
+| [`tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php) | Neue Testsuite: Overflow- & DoS-Schutz bei Angebotsannahme-Stückzahlen |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 215 Tests bestanden (618 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 228 Tests bestanden (635 Assertions, 0 Fehler)
+  * `MasterAnalyticsSecurityTest`: 3/3 bestanden (Striktes Admin-Only Gate für CEO Dashboard & Kontrollaktionen)
+  * `AiAnalyticsSecurityTest`: 3/3 bestanden (Autorisierung für KI-Metriken & LLM-Kosten)
+  * `SystemDeliveryDisplaySecurityTest`: 3/3 bestanden (Feedback-Typen Whitelist & Null-Safety)
+  * `ProductPackagingConfiguratorSecurityTest`: 3/3 bestanden (Method-Level Autorisierung für Verpackungsdaten)
+  * `OrderQuoteAcceptanceQuantitySecurityTest`: 1/1 bestanden (Mengen-Clamping auf max 10.000 Einheiten)
   * `AiCompanyStructureSecurityTest`: 3/3 bestanden (Autorisierung für Abteilungen & Agenten-Verschiebung)
   * `AiRoleManagerSecurityTest`: 3/3 bestanden (Autorisierung für Rollen & Tool-Zuweisung)
   * `AiKnowledgeBaseSecurityTest`: 3/3 bestanden (Autorisierung, MIME-Whitelist & Traversal-Sperre)

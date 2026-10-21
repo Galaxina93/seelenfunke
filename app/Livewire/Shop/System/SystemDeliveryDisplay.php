@@ -41,6 +41,10 @@ class SystemDeliveryDisplay extends Component
 
     public function sendFeedback($type)
     {
+        if (!in_array($type, ['vacation', 'sick'], true)) {
+            return;
+        }
+
         if (!auth()->guard('customer')->check()) {
             return;
         }

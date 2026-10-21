@@ -16,139 +16,163 @@ class ManagementDayRoutineSeeder extends Seeder
     {
         $routines = [
             [
-                'time' => '09:00',
-                'title' => 'Morgenroutine & Vorbereitung',
+                'time' => '07:00',
+                'title' => 'Aufstehen & Frischestart',
                 'icon' => 'sparkles',
                 'type' => 'hygiene',
                 'duration' => 30,
-                'message' => 'Ein erfolgreicher Tag beginnt mit einer starken Basis. Keine Kompromisse bei der eigenen Pflege. Richte dich her, nimm deine Medikamente und mach dich mental bereit für den Tag. Wer sich gut fühlt, arbeitet auch so!',
+                'message' => 'Guten Morgen! Nicht lange überlegen: Raus aus den Federn, Gesicht mit frischem Wasser wecken, Kälteschutz drauf und rein in die Sportsachen.',
                 'steps' => [
-                    ['title' => 'Haare hoch machen', 'min' => 1],
-                    ['title' => 'Aufs Klo gehen', 'min' => 4],
-                    ['title' => 'Intim waschen', 'min' => 2],
-                    ['title' => 'Hormone drauf machen', 'min' => 2],
-                    ['title' => 'Gesicht waschen', 'min' => 2],
-                    ['title' => 'Tabletten nehmen', 'min' => 1],
-                    ['title' => 'Rasieren', 'min' => 5],
-                    ['title' => 'Eincremen', 'min' => 3],
-                    ['title' => 'Schminken', 'min' => 5],
-                    ['title' => 'Haare waschen / richten', 'min' => 3],
-                    ['title' => 'Zähne putzen', 'min' => 2],
+                    ['title' => 'Aufstehen & Wasser ins Gesicht', 'min' => 5],
+                    ['title' => 'Aufs Klo gehen', 'min' => 5],
+                    ['title' => 'Kälteschutz / Gesichtscreme auftragen', 'min' => 5],
+                    ['title' => 'In Sportkleidung werfen & Schuhe anziehen', 'min' => 10],
+                    ['title' => 'Großes Glas Wasser trinken', 'min' => 5],
                 ]
             ],
             [
-                'time' => '09:30',
-                'title' => 'Frühstück & Fokus',
-                'icon' => 'cake',
-                'type' => 'food',
-                'duration' => 30,
-                'message' => 'Treibstoff für deinen Körper und deinen Kopf. Nimm dir diese 30 Minuten, um in Ruhe anzukommen. Leg das Handy weg, atme tief durch und fokussiere dich auf dein wichtigstes Tagesziel.',
+                'time' => '07:30',
+                'title' => 'Morgensport: Laufen & Ganzkörper-Workout',
+                'icon' => 'trophy',
+                'type' => 'sport',
+                'duration' => 75,
+                'message' => 'Der einzige Sportblock des Tages! Zieh es jetzt durch und du hast für den restlichen Tag frei von Sport. Erst frische Luft und Schritte sammeln, danach gezielte Übungen für Rücken und Körper.',
                 'steps' => [
-                    ['title' => 'In die Küche gehen / Hinsetzen', 'min' => 5],
-                    ['title' => 'Shake trinken', 'min' => 10],
-                    ['title' => 'Kleine Pause & Durchatmen', 'min' => 15],
+                    ['title' => 'Morgenrunde laufen / walken (anfangs kürzere Wege testen)', 'min' => 45],
+                    ['title' => 'Dehnübungen & Mobilität (Warmdown Laufen / Warmup Workout)', 'min' => 10],
+                    ['title' => 'Rücken- & Rumpfübungen (Schutz vor Schreibtisch-Schmerzen)', 'min' => 10],
+                    ['title' => 'Bauch-, Bein- & Po-Übungen', 'min' => 10],
+                ]
+            ],
+            [
+                'time' => '08:45',
+                'title' => 'Bad, Styling & Hormone',
+                'icon' => 'sparkles',
+                'type' => 'hygiene',
+                'duration' => 75,
+                'message' => 'Jetzt ohne Zeitdruck frisch machen. Warm duschen, Hormone auftragen, stylen und zurechtmachen. Nimm dir die Zeit, dich wohl in deiner Haut zu fühlen.',
+                'steps' => [
+                    ['title' => 'Ausgiebig duschen & abtrocknen', 'min' => 15],
+                    ['title' => 'Hormone auftragen & einziehen lassen', 'min' => 5],
+                    ['title' => 'Hautpflege & Eincremen', 'min' => 10],
+                    ['title' => 'Haare machen & stylen', 'min' => 15],
+                    ['title' => 'Schminken & Make-up', 'min' => 15],
+                    ['title' => 'Zähne putzen', 'min' => 5],
+                    ['title' => 'Tagesoutfit anziehen', 'min' => 10],
                 ]
             ],
             [
                 'time' => '10:00',
-                'title' => 'Deep Work Phase',
+                'title' => 'Frühstück & Mentaler Fokus',
+                'icon' => 'cake',
+                'type' => 'food',
+                'duration' => 30,
+                'message' => 'Treibstoff für Kopf und Körper. Nimm dir diese Zeit, um in Ruhe anzukommen, zu frühstücken und das wichtigste Tagesziel für den ersten Fokusblock festzulegen.',
+                'steps' => [
+                    ['title' => 'Frühstück / Shake zubereiten', 'min' => 10],
+                    ['title' => 'In Ruhe frühstücken & Kaffee/Tee trinken', 'min' => 15],
+                    ['title' => 'Tagesziel & Kernaufgabe visualisieren', 'min' => 5],
+                ]
+            ],
+            [
+                'time' => '10:30',
+                'title' => 'Deep Work Block I: Fokusprojekt',
                 'icon' => 'briefcase',
                 'type' => 'work',
-                'duration' => 165, // Bis 12:45
-                'message' => 'Jetzt wird abgeliefert! Keine Ausreden, keine Ablenkungen, kein Social Media. Das ist der wichtigste Block des Tages. Erledige die härtesten und wichtigsten Aufgaben (Eat the Frog). In dieser Zeit wächst dein Unternehmen.',
+                'duration' => 120, // 2,0 Stunden (bis 12:30)
+                'message' => 'Eat the Frog! Jetzt wird abgeliefert: Keine Ablenkungen, kein Social Media, voller Fokus auf das wichtigste Projekt (z.B. Coden oder Content produzieren).',
                 'steps' => [
-                    ['title' => 'Fokus-Arbeit: Das Wichtigste zuerst', 'min' => 165],
+                    ['title' => 'Fokus-Arbeit: Kernprojekt & Deep Work', 'min' => 120],
                 ]
             ],
             [
-                'time' => '12:45',
-                'title' => 'Frische Luft & Reset',
-                'icon' => 'sun',
-                'type' => 'break',
-                'duration' => 15,
-                'message' => 'Cut! Steh sofort auf, verlass den Schreibtisch und geh kurz an die frische Luft. Dein Gehirn braucht jetzt zwingend Sauerstoff, um am Nachmittag wieder auf 100% laufen zu können.',
-                'steps' => [
-                    ['title' => 'Rausgehen, Atmen, Bewegen', 'min' => 15],
-                ]
-            ],
-            [
-                'time' => '13:00',
+                'time' => '12:30',
                 'title' => 'Mittagspause & Regeneration',
                 'icon' => 'fire',
                 'type' => 'food',
-                'duration' => 60,
-                'message' => 'Mahlzeit! Koche dir etwas Vernünftiges. Du bist eine Maschine, die gute Energie braucht. Und ganz wichtig: Nimm dir bewusst die Zeit, Gloria eine Runde Aufmerksamkeit zu schenken. Das erdet dich.',
+                'duration' => 75, // Bis 13:45
+                'message' => 'Cut! Verlass den Schreibtisch. Koche dir etwas Leckeres, schenke Gloria Aufmerksamkeit und schalte komplett vom Monitor ab.',
                 'steps' => [
-                    ['title' => 'Essen kochen', 'min' => 20],
-                    ['title' => 'Tisch decken', 'min' => 5],
-                    ['title' => 'Gloria hallo sagen', 'min' => 5],
+                    ['title' => 'Mittagessen kochen / zubereiten', 'min' => 25],
                     ['title' => 'In Ruhe essen', 'min' => 20],
-                    ['title' => 'Durchatmen', 'min' => 5],
-                    ['title' => 'Zähne putzen', 'min' => 5],
+                    ['title' => 'Gloria hallo sagen & Zeit schenken', 'min' => 10],
+                    ['title' => 'Verdauungspause, Durchatmen & Zähne putzen', 'min' => 20],
                 ]
             ],
             [
-                'time' => '14:00',
-                'title' => 'Work Session II (Operations)',
+                'time' => '13:45',
+                'title' => 'Work Block II: Operations & Business',
                 'icon' => 'computer-desktop',
                 'type' => 'work',
-                'duration' => 300, // Bis 19:00
-                'message' => 'Der zweite große Block gehört dem Tagesgeschäft. Abarbeiten von Bestellungen, E-Mails beantworten, Kundensupport und operative Projekte vorantreiben. Bleib diszipliniert – die saubere Arbeit von heute verhindert das Chaos von morgen.',
+                'duration' => 150, // 2,5 Stunden (bis 16:15)
+                'message' => 'Zweiter und letzter Arbeitsblock des Tages! Abarbeiten von E-Mails, Marketing-Videos schneiden/planen, Bestellungen und Support. Bleib dran – um 16:15 Uhr ist Feierabend!',
                 'steps' => [
-                    ['title' => 'Produktivität: Bestellungen, Mails & Laser-Arbeiten', 'min' => 300],
+                    ['title' => 'Tagesgeschäft: Videos, Mails & operative Aufgaben', 'min' => 150],
                 ]
             ],
             [
-                'time' => '19:00',
-                'title' => 'Sport & Ausgleich',
-                'icon' => 'trophy',
-                'type' => 'sport',
-                'duration' => 60,
-                'message' => 'Dein Körper ist dein wertvollstes Kapital. Keine Diskussionen jetzt, zieh dein Workout durch! Der physische Stress baut den mentalen Stress ab. Schweiß ist Schwäche, die den Körper verlässt.',
+                'time' => '16:15',
+                'title' => 'Feierabend-Reset & Übergang',
+                'icon' => 'sun',
+                'type' => 'break',
+                'duration' => 45, // Bis 17:00
+                'message' => 'Feierabend! Schließe alle Tabs, räume den Schreibtisch auf und ziehe einen klaren mentalen Schlussstrich unter den Arbeitstag.',
                 'steps' => [
-                    ['title' => 'Dehnübungen (Warmup)', 'min' => 10],
-                    ['title' => 'Untere Rückenübungen', 'min' => 10],
-                    ['title' => 'Bauchübungen', 'min' => 10],
-                    ['title' => 'Beinübungen', 'min' => 15],
-                    ['title' => 'Poübungen', 'min' => 15],
+                    ['title' => 'Schreibtisch aufräumen & Rechner herunterfahren', 'min' => 10],
+                    ['title' => 'Beine hochlegen, durchatmen & entspannen', 'min' => 20],
+                    ['title' => 'Musik hören / Gedanken sortieren', 'min' => 15],
                 ]
             ],
             [
-                'time' => '20:00',
-                'title' => 'Abendessen & Feierabend',
+                'time' => '17:00',
+                'title' => 'Abendbrot & Abendpflege',
                 'icon' => 'moon',
-                'type' => 'food',
-                'duration' => 90, // Bis 21:30
-                'message' => 'Der anstrengende Teil des Tages ist geschafft. Mach dir dein Essen, fahr das System in deinem Kopf langsam herunter und genieße deinen absolut wohlverdienten Feierabend. Arbeit ist jetzt tabu!',
+                'type' => 'hygiene',
+                'duration' => 90, // Bis 18:30
+                'message' => 'Gemütlich Abendbrot essen und danach ab ins Bad: kurz abduschen, rasieren, eincremen und in bequeme Kleidung schlüpfen – bereit für einen entspannten Abend.',
                 'steps' => [
-                    ['title' => 'Brot mit Aufstrich zubereiten', 'min' => 15],
-                    ['title' => 'Essen & Feierabend genießen', 'min' => 75],
+                    ['title' => 'Abendbrot zubereiten', 'min' => 15],
+                    ['title' => 'Gemütlich essen & trinken', 'min' => 25],
+                    ['title' => 'Küche kurz aufräumen', 'min' => 10],
+                    ['title' => 'Kurz abduschen & frisch machen', 'min' => 10],
+                    ['title' => 'Rasieren & Eincremen', 'min' => 20],
+                    ['title' => 'Bequeme Wohlfühlkleidung anziehen', 'min' => 10],
                 ]
             ],
             [
-                'time' => '21:30',
-                'title' => 'Abendroutine & Pflege',
-                'icon' => 'star',
-                'type' => 'hygiene',
-                'duration' => 30,
-                'message' => 'Der Tag neigt sich dem Ende zu. Wasch den Stress des Tages im Bad ab, pflege deine Haut und bereite dich mental und körperlich auf eine tiefe Ruhephase vor.',
+                'time' => '18:30',
+                'title' => 'Freizeit & Me-Time',
+                'icon' => 'sparkles',
+                'type' => 'break',
+                'duration' => 210, // 3,5 Stunden (bis 22:00)
+                'message' => 'Wohlverdienter Feierabend! Jetzt gehört die Zeit komplett dir. Zocken, Filme schauen, Serien streamen oder einfach nichts tun – völlig ohne schlechtes Gewissen.',
                 'steps' => [
-                    ['title' => 'Duschen (waschen)', 'min' => 10],
-                    ['title' => 'Zähne putzen', 'min' => 3],
-                    ['title' => 'Hormone drauf machen', 'min' => 2],
-                    ['title' => 'Schlafanzug anziehen', 'min' => 5],
-                    ['title' => 'Abschminken & Pflege', 'min' => 10],
+                    ['title' => 'Zocken, Filme, Hobbys & Seele baumeln lassen', 'min' => 210],
                 ]
             ],
             [
                 'time' => '22:00',
+                'title' => 'Bettfertig & Runterfahren',
+                'icon' => 'star',
+                'type' => 'hygiene',
+                'duration' => 30, // Bis 22:30
+                'message' => 'Den Tag in Ruhe beschließen. Zähne putzen, letzte Kleinigkeiten im Bad erledigen, Handy weglegen und zur Ruhe kommen.',
+                'steps' => [
+                    ['title' => 'Zähne putzen & Mundspülung', 'min' => 5],
+                    ['title' => 'Kleinigkeiten Körperpflege & Klo', 'min' => 10],
+                    ['title' => 'Schlafanzug an & Schlafzimmer lüften', 'min' => 10],
+                    ['title' => 'Handy weglegen & Licht aus', 'min' => 5],
+                ]
+            ],
+            [
+                'time' => '22:30',
                 'title' => 'Nachtruhe & Regeneration',
                 'icon' => 'moon',
                 'type' => 'sleep',
-                'duration' => 600, // 11 Stunden (Bis 08:00 Uhr)
-                'message' => 'Schlaf ist nicht verhandelbar! Er ist deine absolut wichtigste Regenerationsquelle. Leg das Handy sofort weit weg, mach die Augen zu. Nur wer tief schläft, kann morgen wieder auf Hochtouren performen. Gute Nacht!',
+                'duration' => 510, // 8,5 Stunden (Bis 07:00 Uhr)
+                'message' => 'Schlaf ist nicht verhandelbar! Er ist deine wichtigste Regenerationsquelle für Körper und Geist. Gute Nacht und träum was Schönes!',
                 'steps' => [
-                    ['title' => 'Handy weg, Augen zu, Träumen', 'min' => 600],
+                    ['title' => 'Augen zu, tiefer Schlaf & Erholung', 'min' => 510],
                 ]
             ],
         ];

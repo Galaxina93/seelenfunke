@@ -84,7 +84,7 @@
     @endif
 
     {{-- Lagerbestand --}}
-    @if($product->track_quantity)
+    @if($product && $product->track_quantity)
         @if($product->quantity > 0)
             <span class="inline-flex items-center gap-1.5 text-green-700 font-medium">
                 <span class="relative flex h-2.5 w-2.5">
@@ -124,7 +124,7 @@
             }
         @endphp
 
-        <div x-data="{ showInfo: false }" class="flex flex-col w-full sm:w-auto @if($product->track_quantity) sm:border-l border-gray-200 sm:pl-4 @endif">
+        <div x-data="{ showInfo: false }" class="flex flex-col w-full sm:w-auto @if($product && $product->track_quantity) sm:border-l border-gray-200 sm:pl-4 @endif">
             <div class="{{ $timeColorClass }} flex flex-wrap items-center gap-1.5 font-bold">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 {{ $iconColorClass }} shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -146,7 +146,7 @@
         </div>
     @endif
 
-    @if($product->sku)
+    @if($product && $product->sku)
         <span class="text-gray-400 sm:border-l border-gray-200 sm:pl-4">Art.-Nr.: {{ $product->sku }}</span>
     @endif
 </div>

@@ -12,6 +12,7 @@ use App\Models\System\SystemBlockedIp;
 use App\Services\AnalyticsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -69,6 +70,10 @@ class MasterAnalytics extends Component
 
     public function mount(AnalyticsService $service)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         // Hole für das CEO Master Dashboard primär die KI-Agenten, 
         // wobei der Leitungsagent (ohne zugewiesenes Department = Stabsstelle) ganz oben steht.
         $this->availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)
@@ -735,6 +740,10 @@ class MasterAnalytics extends Component
 
     public function updateStock($productId, AnalyticsService $service)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $newQty = $this->stockUpdate[$productId] ?? null;
         if ($newQty === null || $newQty < 0) return;
 
@@ -749,6 +758,10 @@ class MasterAnalytics extends Component
 
     public function uploadContract($itemId, AnalyticsService $service)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $item = AccountingCostItem::find($itemId);
         if ($item) {
@@ -762,6 +775,10 @@ class MasterAnalytics extends Component
 
     public function uploadSpecialReceipt($issueId, AnalyticsService $service)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $issue = AccountingSpecialIssue::find($issueId);
         if ($issue) {
@@ -777,6 +794,10 @@ class MasterAnalytics extends Component
 
     public function approveReview($id, AnalyticsService $service)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         if (class_exists(\App\Models\Product\ProductReview::class)) {
             $review = \App\Models\Product\ProductReview::find($id);
             if ($review) {
@@ -790,6 +811,10 @@ class MasterAnalytics extends Component
 
     public function rejectReview($id, AnalyticsService $service)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         if (class_exists(\App\Models\Product\ProductReview::class)) {
             $review = \App\Models\Product\ProductReview::find($id);
             if ($review) {
@@ -1020,6 +1045,10 @@ class MasterAnalytics extends Component
 
     public function clearSecurityLogs()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $service = app(AnalyticsService::class);
         if (class_exists(\App\Models\System\SystemLog::class)) {
             // SICHERHEIT: Nur Security-Logs löschen, NIEMALS alle SystemLog-Datensätze!
@@ -1034,6 +1063,10 @@ class MasterAnalytics extends Component
 
     public function blockIpAddress(string $ip, int $hours = 24)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         if (empty($ip)) return;
         SystemBlockedIp::blockIp($ip, 'Über Threat Monitor gesperrt', $hours, auth()->user()?->email ?? 'Admin');
         session()->flash('success', "IP-Adresse {$ip} wurde für {$hours} Stunden gesperrt.");
@@ -1041,6 +1074,10 @@ class MasterAnalytics extends Component
 
     public function unblockIpAddress(string $ip)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         if (empty($ip)) return;
         SystemBlockedIp::unblockIp($ip);
         session()->flash('success', "IP-Adresse {$ip} wurde entsperrt.");
@@ -1048,6 +1085,10 @@ class MasterAnalytics extends Component
 
     public function triggerAiSecurityThreatAudit()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         try {
             $result = \App\Services\AI\Functions\AiSystemFuncs::executeAnalyzeSecurityThreats(['send_email' => false]);
             if (($result['status'] ?? '') === 'success') {
@@ -1075,6 +1116,10 @@ class MasterAnalytics extends Component
 
     public function flushFailedJobs()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->repairLogs = [];
         $this->addRepairLog("--- WIPE FEHLGESCHLAGENER JOBS ---", 'info');
         
@@ -1093,6 +1138,11 @@ class MasterAnalytics extends Component
 
     public function fixSystem($service = null)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        // Start des Repair-Logs
         // Start des Repair-Logs
         $this->repairLogs = [];
         $this->addRepairLog("--- SYSTEM HEALING INITIERT ---", 'info');
