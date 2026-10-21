@@ -490,7 +490,8 @@ class AccountingBank extends Component
                     foreach ($json['mappings'] as $mapping) {
                         $currentTx = $uniqueTxs->values()->firstWhere('id', $mapping['tx_id'] ?? null);
                         if ($currentTx) {
-                            $catId = empty($mapping['product_category_id']) ? null : $mapping['product_category_id'];
+                            $rawCatId = $mapping['category_id'] ?? $mapping['product_category_id'] ?? null;
+                            $catId = empty($rawCatId) ? null : $rawCatId;
                             $costId = empty($mapping['cost_item_id']) ? null : $mapping['cost_item_id'];
                             
                             // Prevent array syntax passing logic errors
