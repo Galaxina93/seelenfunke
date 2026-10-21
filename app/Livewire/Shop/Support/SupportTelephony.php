@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Support;
 
 use App\Models\Ai\AiCall;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Carbon\Carbon;
@@ -15,6 +16,13 @@ class SupportTelephony extends Component
     public string $themingDepartment = 'Support';
 
     public $currentTab = 'calls'; // calls, contacts, settings
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     #[On('refreshTelephony')]
     #[On('echo:telephony,SupportTelephonyUpdated')]

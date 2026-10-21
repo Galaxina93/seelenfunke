@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Ai\PartialsAiWorkspace;
 use Livewire\Component;
 use App\Models\System\SystemCronjob;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
 
@@ -12,6 +13,13 @@ class TabCronjobs extends Component
 {
     public $editingJobId = null;
     public $editingSchedule = '';
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
 
     #[Computed]
     public function cronjobs()
@@ -36,6 +44,9 @@ class TabCronjobs extends Component
 
     public function saveSchedule()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
         if (!$this->editingJobId) return;
         
         $job = SystemCronjob::find($this->editingJobId);
@@ -54,6 +65,9 @@ class TabCronjobs extends Component
 
     public function toggleCronjob($id)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
         $job = SystemCronjob::find($id);
         if ($job) {
             $job->is_active = !$job->is_active;
@@ -68,6 +82,9 @@ class TabCronjobs extends Component
 
     public function runNow($id)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
         $job = SystemCronjob::find($id);
         if ($job) {
             $job->update(['status' => 'running']);

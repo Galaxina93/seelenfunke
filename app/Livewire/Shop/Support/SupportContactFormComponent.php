@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Support;
 use App\Livewire\Traits\WithDepartmentTheming;
 
 use App\Models\Support\SupportContactRequest;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Layout;
@@ -24,6 +25,13 @@ class SupportContactFormComponent extends Component
     public $search = '';
     public $selectedRequestId = null;
     public $replyMessage = '';
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function updatingSearch()
     {

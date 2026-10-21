@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Accounting;
 
 use App\Models\Accounting\AccountingInvoice;
 use App\Services\InvoiceService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Component;
 
@@ -13,6 +14,13 @@ class AccountingInvoicePreview extends Component
     public $showModal = false;
 
     protected $listeners = ['openInvoicePreview' => 'loadInvoice'];
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function loadInvoice($id)
     {
@@ -28,6 +36,10 @@ class AccountingInvoicePreview extends Component
 
     public function cancelInvoice(InvoiceService $service)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $invoice = AccountingInvoice::find($this->invoiceId);
         if(!$invoice || $invoice->status === 'cancelled') return;
 
@@ -47,6 +59,10 @@ class AccountingInvoicePreview extends Component
      */
     public function downloadPdf(InvoiceService $service)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $invoice = AccountingInvoice::findOrFail($this->invoiceId);
 
         // Prüfung auf physisches Archiv ( storage/app/invoices )

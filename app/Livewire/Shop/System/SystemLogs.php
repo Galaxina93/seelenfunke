@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\System;
 
 use App\Models\System\SystemLog;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -18,6 +19,13 @@ class SystemLogs extends Component
     public $agentFilter = '';
     public $domainFilter = '';
     
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
+
     protected $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => ''],
@@ -40,6 +48,10 @@ class SystemLogs extends Component
 
     public function toggleStatus($logId)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $log = SystemLog::find($logId);
         if ($log) {
             if ($log->status === 'error') {
@@ -59,6 +71,10 @@ class SystemLogs extends Component
 
     public function deleteLog($logId)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $log = SystemLog::find($logId);
         if ($log) {
             $log->delete();

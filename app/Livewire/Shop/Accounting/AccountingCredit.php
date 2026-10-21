@@ -7,6 +7,7 @@ use Livewire\Attributes\Layout;
 use App\Models\Customer\Customer;
 use App\Models\Accounting\AccountingInvoice;
 use App\Services\InvoiceService;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
@@ -43,6 +44,10 @@ class AccountingCredit extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->addCreditItem(); // Start with at least one item
     }
 

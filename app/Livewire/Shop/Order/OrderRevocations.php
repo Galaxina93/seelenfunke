@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Order;
 
 use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Order\OrderRevocation;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -15,8 +16,19 @@ class OrderRevocations extends Component
 
     public string $themingDepartment = 'Bestellungen';
 
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function markAsProcessed($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $revocation = OrderRevocation::findOrFail($id);
         $revocation->update([
             'status' => 'processed'
@@ -26,11 +38,12 @@ class OrderRevocations extends Component
         $order = $revocation->linked_order;
         $orderCancelled = false;
         if ($order && $order->status !== 'cancelled') {
-            $order->update([
-                'status' => 'cancelled',
-                'payment_status' => $order->payment_status === 'paid' ? 'refunded' : $order->payment_status,
-                'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt'
-            ]);
+            $order->handleCancellation('Widerruf akzeptiert und abgewickelt');
+            $updateData = ['status' => 'cancelled'];
+            if ($order->payment_status === 'paid') {
+                $updateData['payment_status'] = 'refunded';
+            }
+            $order->update($updateData);
             $orderCancelled = true;
         }
 
@@ -117,6 +130,10 @@ class OrderRevocations extends Component
 
     public function deleteRevocation($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $revocation = OrderRevocation::findOrFail($id);
         
         if (!empty($revocation->attachments)) {

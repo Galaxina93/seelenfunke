@@ -7,6 +7,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Logistics\LogisticsShippingRate;
 use App\Models\Logistics\LogisticsShippingZone;
 use App\Models\Logistics\LogisticsShippingZoneCountry;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 class SystemShipping extends Component
@@ -19,6 +20,13 @@ class SystemShipping extends Component
     public $view = 'list'; // 'list', 'edit', 'create'
     public $activeZoneId = null;
     public bool $showArchived = false;
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     // --- FORM DATA (Zone Edit) ---
     public $zoneName;

@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\System;
 use Livewire\Attributes\Layout;
 
 use App\Models\System\SystemSetting;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -152,6 +153,10 @@ class SystemShopConfig extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $dbSettings = SystemSetting::whereIn('key', $this->configKeys)
             ->pluck('value', 'key')
             ->toArray();
@@ -233,6 +238,10 @@ class SystemShopConfig extends Component
 
     public function save()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->validate([
             'settings.default_tax_rate' => 'required|numeric',
             'settings.owner_email' => 'required|email',
@@ -419,12 +428,17 @@ class SystemShopConfig extends Component
 
     public function saveUploads()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->validate([
-            'uploads.*' => 'file|max:10240', // 10MB max per file
+            'uploads.*' => 'file|max:10240|mimes:txt,log,md,pdf,json',
         ]);
 
         foreach ($this->uploads as $file) {
-            $filename = $file->getClientOriginalName();
+            $filename = basename($file->getClientOriginalName());
+            $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
             // Store directly in our updates folder
             $file->storeAs('shopverwaltung/reports/laravel-updates', $filename);
         }
@@ -437,9 +451,16 @@ class SystemShopConfig extends Component
 
     public function deleteReport($filename)
     {
-        if (Storage::exists($filename)) {
-            Storage::delete($filename);
-            $this->selectedReports = array_diff($this->selectedReports, [$filename]);
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $base = basename($filename);
+        $safePath = 'shopverwaltung/reports/laravel-updates/' . $base;
+
+        if (Storage::exists($safePath)) {
+            Storage::delete($safePath);
+            $this->selectedReports = array_diff($this->selectedReports, [$filename, $safePath]);
             $this->loadReports();
             session()->flash('message', 'Bericht gelöscht.');
         }
@@ -447,8 +468,15 @@ class SystemShopConfig extends Component
 
     public function getReportContent($filename)
     {
-        if (Storage::exists($filename)) {
-            return Storage::get($filename);
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $base = basename($filename);
+        $safePath = 'shopverwaltung/reports/laravel-updates/' . $base;
+
+        if (Storage::exists($safePath)) {
+            return Storage::get($safePath);
         }
         return 'Fehler: Bericht nicht gefunden.';
     }

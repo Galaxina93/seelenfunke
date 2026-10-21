@@ -7,6 +7,7 @@ use App\Models\Customer\Customer;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use App\Models\Order\OrderQuoteRequestItem;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -31,6 +32,13 @@ class OrderQuoteRequests extends Component
     // Detail View State
     public $selectedQuoteId = null;
     public $selectedQuoteItemId = null; // NEU: Für die Vorschau rechts
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function render()
     {
@@ -102,6 +110,10 @@ class OrderQuoteRequests extends Component
      */
     public function convertToOrder($quoteId, $type = 'invoice')
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $quote = OrderQuoteRequest::with('items')->find($quoteId);
 
         // Sicherheitscheck: Existiert das Angebot und ist es nicht schon umgewandelt?
@@ -263,11 +275,17 @@ class OrderQuoteRequests extends Component
     }
 
     public function markAsRejected($id) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
         OrderQuoteRequest::where('id', $id)->update(['status' => 'rejected']);
         $this->closeDetail();
     }
 
     public function markAsOpen($id) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
         $quote = OrderQuoteRequest::find($id);
         if ($quote && $quote->status === 'rejected') {
             $quote->update(['status' => 'open']);
@@ -277,6 +295,9 @@ class OrderQuoteRequests extends Component
 
     public function downloadLaserFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
         return $exportService->downloadLaserSvg($itemId, $side);
     }
 }

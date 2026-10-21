@@ -8,6 +8,7 @@ use Livewire\Component;
 use App\Models\Delivery\DeliveryTime;
 use App\Models\Delivery\DeliverySetting;
 use App\Models\Delivery\DeliveryFeedback;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Computed;
 
 class SystemDeliveryTimes extends Component
@@ -29,6 +30,10 @@ class SystemDeliveryTimes extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $setting = DeliverySetting::firstOrCreate(['id' => 1], [
             'is_vacation_mode' => false,
             'is_sick_mode' => false,

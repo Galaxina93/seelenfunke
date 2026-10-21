@@ -23,8 +23,8 @@ class AuthProfileDropdown extends Component
     use handleTwoFactorTrait;
 
     public $photo;
-    public object $user;
-    public string $guard;
+    public ?object $user = null;
+    public ?string $guard = null;
     public bool $isGameModeActive = false;
 
     public string $firstName = '';
@@ -56,19 +56,21 @@ class AuthProfileDropdown extends Component
         $this->guard = (new UserHelper)->getGuard();
         $this->user = Auth::guard($this->guard)->user();
 
-        if ($this->user) {
-            $this->mountUserProfileData();
-            $this->country = $this->user->profile->country ?? 'DE';
+        if (!$this->user) {
+            abort(403);
+        }
 
-            $this->twoFactorActive = $this->user->profile->two_factor_is_active ?? false;
-            if (!$this->twoFactorActive) {
-                $google2fa = new Google2FA();
-                $this->secretKey = $google2fa->generateSecretKey();
-            }
+        $this->mountUserProfileData();
+        $this->country = $this->user->profile->country ?? 'DE';
 
-            if ($this->guard === 'customer') {
-                $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->value('is_active');
-            }
+        $this->twoFactorActive = $this->user->profile->two_factor_is_active ?? false;
+        if (!$this->twoFactorActive) {
+            $google2fa = new Google2FA();
+            $this->secretKey = $google2fa->generateSecretKey();
+        }
+
+        if ($this->guard === 'customer') {
+            $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $this->user->id)->value('is_active');
         }
     }
 

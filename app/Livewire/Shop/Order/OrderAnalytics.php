@@ -6,6 +6,7 @@ use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use App\Models\Order\OrderRevocation;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -34,6 +35,10 @@ class OrderAnalytics extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->calculateMetrics();
     }
 

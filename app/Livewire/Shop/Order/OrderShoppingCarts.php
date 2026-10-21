@@ -10,6 +10,7 @@ use Livewire\Attributes\Computed;
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
 use App\Mail\AbandonedCartReminder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -32,6 +33,10 @@ class OrderShoppingCarts extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->cartYellowLimit = (int) shop_setting('cart_abandoned_yellow_hours', 3);
         $this->cartRedLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
         $this->cartRequireConsent = (bool) shop_setting('cart_abandoned_require_consent', true);
