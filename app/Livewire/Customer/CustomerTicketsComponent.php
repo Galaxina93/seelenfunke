@@ -248,7 +248,8 @@ class CustomerTicketsComponent extends Component
     public function sendReply()
     {
         $this->validate([
-            'chatMessage' => 'required|min:1'
+            'chatMessage' => 'required|min:1',
+            'chatAttachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:5120',
         ], [
             'chatMessage.required' => 'Bitte schreibe eine Nachricht.',
             'chatMessage.min' => 'Die Nachricht darf nicht leer sein.'

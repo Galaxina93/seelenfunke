@@ -211,6 +211,11 @@ Route::group(['middleware' => [function ($request, $next) {
                 }
             }
         }
+
+        // Herzensprojekt: Spendenbeitrag bei Storno oder Erstattung zurückbuchen
+        if (in_array($data['status'], ['cancelled', 'refunded'], true)) {
+            \App\Services\HerzensprojektService::reverseDonationForOrder($order, 'API-Statusänderung');
+        }
         
         return response()->json([
             'success' => true,

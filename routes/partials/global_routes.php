@@ -234,11 +234,11 @@ Route::get('/email/verify-customer/{id}/{hash}', [\App\Http\Controllers\Customer
     ->middleware(['signed'])
     ->name('customer.verification.verify');
 
-// Resend-Link, falls die E-Mail nicht ankam (erfordert eingeloggten Zustand)
+// Resend-Link, falls die E-Mail nicht ankam (erfordert eingeloggten Zustand als Web-User oder Kunde)
 Route::post('/email/verification-notification', function (\Illuminate\Http\Request $request) {
     $request->user()->sendEmailVerificationNotification();
     return back()->with('message', 'Verifizierungs-Link gesendet!');
-})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
+})->middleware(['auth:web,customer', 'throttle:6,1'])->name('verification.send');
 
 // --- 6. Rechnungsdownload Route ---
 Route::get('/invoice/{invoice}/download', [\App\Http\Controllers\Accounting\InvoiceDownloadController::class, 'download'])

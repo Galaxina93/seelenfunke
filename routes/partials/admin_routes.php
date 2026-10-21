@@ -24,10 +24,21 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/linktree', \App\Livewire\Backend\Management\ManagementLinktreeManager::class)->name('admin.linktree');
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
-        if (\Illuminate\Support\Facades\Storage::exists($attachment->path)) {
-            return response()->file(\Illuminate\Support\Facades\Storage::path($attachment->path), [
-                'Content-Type' => $attachment->content_type,
-                'Content-Disposition' => 'inline; filename="' . $attachment->filename . '"'
+        $path = $attachment->path;
+        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            abort(403, 'Ungültiger Dateipfad.');
+        }
+
+        if (\Illuminate\Support\Facades\Storage::exists($path)) {
+            $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+            $contentType = $attachment->content_type ?: 'application/octet-stream';
+            $disposition = in_array(strtolower($contentType), $safeMimes, true) ? 'inline' : 'attachment';
+            $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($attachment->filename ?: 'attachment'));
+
+            return response()->file(\Illuminate\Support\Facades\Storage::path($path), [
+                'Content-Type' => $contentType,
+                'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
+                'X-Content-Type-Options' => 'nosniff',
             ]);
         }
         abort(404);
@@ -39,10 +50,13 @@ Route::middleware(['auth:admin'])->group(function () {
             abort(403);
         }
         if (\Illuminate\Support\Facades\Storage::exists($path)) {
-            $mime = \Illuminate\Support\Facades\Storage::mimeType($path);
+            $mime = \Illuminate\Support\Facades\Storage::mimeType($path) ?: 'application/octet-stream';
+            $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+            $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
             return response()->file(\Illuminate\Support\Facades\Storage::path($path), [
                 'Content-Type' => $mime,
-                'Content-Disposition' => 'inline'
+                'Content-Disposition' => $disposition,
+                'X-Content-Type-Options' => 'nosniff',
             ]);
         }
         abort(404);

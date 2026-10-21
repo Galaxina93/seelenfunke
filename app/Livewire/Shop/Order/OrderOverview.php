@@ -227,6 +227,9 @@ class OrderOverview extends Component
                         'cancellation_reason' => $this->cancellationReason
                     ]);
 
+                    // Herzensprojekt: Spendenbeitrag bei Storno sicher zurückbuchen
+                    \App\Services\HerzensprojektService::reverseDonationForOrder($this->selectedOrder, $this->cancellationReason ?: 'Stornierung');
+
                     $this->selectedOrder->refresh();
                     session()->flash('success', 'Bestellung storniert.');
 
@@ -238,6 +241,11 @@ class OrderOverview extends Component
                         'notes' => $this->notes,
                         'cancellation_reason' => null
                     ]);
+
+                    // Herzensprojekt: Spendenbeitrag bei Rückerstattung zurückbuchen
+                    if ($this->status === 'refunded') {
+                        \App\Services\HerzensprojektService::reverseDonationForOrder($this->selectedOrder, 'Erstattung');
+                    }
 
                     $this->selectedOrder->refresh();
                     

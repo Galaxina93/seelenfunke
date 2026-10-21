@@ -90,7 +90,10 @@ class SupportTicket extends Component
 
     public function sendReply()
     {
-        $this->validate(['replyMessage' => 'required|min:1']);
+        $this->validate([
+            'replyMessage' => 'required|min:1',
+            'replyAttachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:10240',
+        ]);
 
         $ticket = SupportTicketModel::with('customer')->findOrFail($this->activeTicketId);
 

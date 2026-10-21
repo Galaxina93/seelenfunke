@@ -235,10 +235,15 @@ class ReferralService
             return null;
         }
 
-        // Neukunden-Schutz: Belohnung nur bei Erstbestellern ausstellen
-        $paidOrdersCount = OrderOrder::where('email', strtolower(trim($order->email)))
-            ->where('payment_status', 'paid')
-            ->count();
+        // Neukunden-Schutz: Belohnung nur bei Erstbestellern ausstellen (Prüfung über E-Mail und Customer-ID)
+        $paidOrdersCount = OrderOrder::where(function ($query) use ($order) {
+            $query->where('email', strtolower(trim($order->email)));
+            if (!empty($order->customer_id)) {
+                $query->orWhere('customer_id', $order->customer_id);
+            }
+        })
+        ->where('payment_status', 'paid')
+        ->count();
         if ($paidOrdersCount > 1) {
             Log::warning("Referral Reward abgewiesen: Käufer {$order->email} ist kein Neukunde (hat bereits {$paidOrdersCount} bezahlte Bestellungen).");
             return null;

@@ -551,7 +551,7 @@ class ManagementEMails extends Component
     public function updatedUploadedFiles()
     {
         $this->validate([
-            'uploadedFiles.*' => 'file|max:20480', // limit of 20MB per file
+            'uploadedFiles.*' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,svg,zip,tar,gz,txt,json,xml', // limit of 20MB per file
         ]);
 
         foreach ($this->uploadedFiles as $file) {

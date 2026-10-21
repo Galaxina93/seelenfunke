@@ -108,17 +108,28 @@ class FileDownloadService
     {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
         
-        // Security check is done by injecting the service in authenticated components natively
         $path = $attachment->path;
+        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+            abort(403, 'Ungültiger Dateipfad.');
+        }
+
         if (!Storage::exists($path)) {
             abort(404, 'Datei im Tresor nicht gefunden.');
         }
 
+        $safeMimes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'
+        ];
+        $contentType = $attachment->content_type ?: 'application/octet-stream';
+        $disposition = in_array(strtolower($contentType), $safeMimes, true) ? 'inline' : 'attachment';
+        $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($attachment->filename ?: 'attachment'));
+
         return response()->streamDownload(function () use ($path) {
             echo Storage::get($path);
-        }, $attachment->filename, [
-            'Content-Type' => $attachment->content_type,
-            'Content-Disposition' => 'inline; filename="' . $attachment->filename . '"'
+        }, $cleanFilename, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 

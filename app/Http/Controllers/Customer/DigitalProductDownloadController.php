@@ -21,10 +21,12 @@ class DigitalProductDownloadController extends Controller
         $item = OrderOrderItem::with(['order', 'product'])->findOrFail($itemId);
 
         // 2. Authorization check
-        if (AiAuthHelper::isAdmin()) {
+        if (AiAuthHelper::isAdmin() || auth()->guard('admin')->check() || auth()->guard('employee')->check()) {
             // OK
         } elseif (AiAuthHelper::isCustomer() && AiAuthHelper::getCustomerId() === $item->order->customer_id) {
             // OK
+        } elseif (request()->hasValidSignature()) {
+            // OK via signed route
         } else {
             abort(403, 'Zugriff verweigert.');
         }
