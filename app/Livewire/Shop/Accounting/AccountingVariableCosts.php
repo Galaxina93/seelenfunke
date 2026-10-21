@@ -151,8 +151,8 @@ class AccountingVariableCosts extends Component
     {
         $this->validate(['targetCategoryId' => 'required']);
 
-        $oldCat = AccountingCategory::find($this->categoryToDeleteId);
-        $newCat = AccountingCategory::find($this->targetCategoryId);
+        $oldCat = AccountingCategory::where('admin_id', $this->getAdminId())->find($this->categoryToDeleteId);
+        $newCat = AccountingCategory::where('admin_id', $this->getAdminId())->find($this->targetCategoryId);
 
         if ($oldCat && $newCat) {
             AccountingSpecialIssue::where('admin_id', $this->getAdminId())
@@ -185,13 +185,31 @@ class AccountingVariableCosts extends Component
 
     public function updateSpecialField($id, $field, $value)
     {
+        $allowedFields = ['title', 'category', 'amount', 'is_business', 'execution_date', 'location', 'invoice_number', 'tax_rate'];
+        if (!in_array($field, $allowedFields, true)) {
+            return;
+        }
+
         $special = AccountingSpecialIssue::where('admin_id', $this->getAdminId())->find($id);
         if ($special) {
             if ($field === 'amount') {
                 $value = (float) str_replace(',', '.', $value);
-            }
-            if ($field === 'is_business') {
+            } elseif ($field === 'is_business') {
                 $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+            } elseif ($field === 'tax_rate') {
+                $value = is_numeric($value) ? max(0, min(100, (float)$value)) : 0;
+            } elseif ($field === 'execution_date') {
+                if (!empty($value)) {
+                    try {
+                        $value = \Carbon\Carbon::parse($value)->format('Y-m-d');
+                    } catch (\Throwable $e) {
+                        return;
+                    }
+                } else {
+                    $value = null;
+                }
+            } else {
+                $value = is_string($value) ? trim(strip_tags($value)) : $value;
             }
 
             $special->update([$field => $value]);

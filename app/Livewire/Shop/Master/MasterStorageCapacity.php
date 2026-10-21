@@ -30,6 +30,10 @@ class MasterStorageCapacity extends Component
 
     public function mount()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $this->threshold1 = (int) Cache::get('storage_capacity_threshold_1', SystemSetting::where('key', 'storage_capacity_threshold_1')->value('value') ?? 70);
         $this->threshold2 = (int) Cache::get('storage_capacity_threshold_2', SystemSetting::where('key', 'storage_capacity_threshold_2')->value('value') ?? 85);
         $this->threshold3 = (int) Cache::get('storage_capacity_threshold_3', SystemSetting::where('key', 'storage_capacity_threshold_3')->value('value') ?? 95);

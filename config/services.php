@@ -98,6 +98,11 @@ return [
         'key' => env('SCRAPER_API_KEY'),
     ],
 
+    'system' => [
+        'cron_secret' => env('SYSTEM_CRON_SECRET'),
+        'cache_secret' => env('SYSTEM_CACHE_SECRET'),
+    ],
+
 ];
 
 

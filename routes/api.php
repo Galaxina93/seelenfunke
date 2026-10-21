@@ -46,7 +46,7 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
     } catch (\Exception $e) {
         return response()->json(['status' => 'error'], 500);
     }
-});
+})->middleware('throttle:10,1');
 
 // --- WebSocket Bridge Error & Status Tracking ---
 Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
@@ -69,42 +69,46 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
             'finished_at' => now(),
         ]);
 
-        // --- E-Mail Benachrichtigung an Admin bei Fehlern/Crashes oder abnormalen Abbrüchen ---
+        // --- E-Mail Benachrichtigung an Admin bei Fehlern/Crashes oder abnormalen Abbrüchen (mit Throttling gegen Mail-Bombing) ---
         $isError = in_array($data['type'], ['crash', 'error']);
         $isAbnormalDisconnect = ($data['type'] === 'warning' && isset($data['payload']['code']) && !in_array((int)$data['payload']['code'], [1000, 1001, 1005, 1006]));
 
         if ($isError || $isAbnormalDisconnect) {
-            try {
-                $recipient = 'kontakt@mein-seelenfunke.de';
-                if (function_exists('shop_setting')) {
-                    $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
+            $mailThrottleKey = 'ws_error_mail_throttle_' . md5($data['message'] ?? 'ws_error');
+            if (!\Illuminate\Support\Facades\Cache::has($mailThrottleKey)) {
+                \Illuminate\Support\Facades\Cache::put($mailThrottleKey, true, now()->addMinutes(15));
+                try {
+                    $recipient = 'kontakt@mein-seelenfunke.de';
+                    if (function_exists('shop_setting')) {
+                        $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
+                    }
+
+                    $subject = "⚠️ WEBSOCKET BRÜCKEN-FEHLER: " . ucfirst($data['type']);
+                    if ($isAbnormalDisconnect) {
+                        $subject = "⚠️ WEBSOCKET VERBINDUNGSABBRUCH: Code " . $data['payload']['code'];
+                    }
+
+                    $body = "Hallo Admin,\n\n";
+                    $body .= "Es wurde ein technisches Problem auf der WebSocket-Audiobrücke festgestellt.\n\n";
+                    $body .= "--- Details ---\n";
+                    $body .= "Typ: " . strtoupper($data['type']) . "\n";
+                    $body .= "Zeit: " . now()->format('d.m.Y H:i:s') . " Uhr\n";
+                    $body .= "Nachricht: " . $data['message'] . "\n\n";
+
+                    if (!empty($data['payload'])) {
+                        $body .= "--- Systemdaten (Payload) ---\n";
+                        $body .= json_encode($data['payload'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n\n";
+                    }
+
+                    $body .= "Bitte prüfe die Systemlogs und starte ggf. die Node.js-Audiobrücke neu.\n\n";
+                    $body .= "Herzliche Grüße,\nFunkira ✨ (System-Überwachung)";
+
+                    \Illuminate\Support\Facades\Mail::to($recipient)->send(
+                        new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, 'Funkira', [], 'generic')
+                    );
+                } catch (\Exception $mailEx) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send WebSocket error mail: " . $mailEx->getMessage());
                 }
-
-                $subject = "⚠️ WEBSOCKET BRÜCKEN-FEHLER: " . ucfirst($data['type']);
-                if ($isAbnormalDisconnect) {
-                    $subject = "⚠️ WEBSOCKET VERBINDUNGSABBRUCH: Code " . $data['payload']['code'];
-                }
-
-                $body = "Hallo Admin,\n\n";
-                $body .= "Es wurde ein technisches Problem auf der WebSocket-Audiobrücke festgestellt.\n\n";
-                $body .= "--- Details ---\n";
-                $body .= "Typ: " . strtoupper($data['type']) . "\n";
-                $body .= "Zeit: " . now()->format('d.m.Y H:i:s') . " Uhr\n";
-                $body .= "Nachricht: " . $data['message'] . "\n\n";
-
-                if (!empty($data['payload'])) {
-                    $body .= "--- Systemdaten (Payload) ---\n";
-                    $body .= json_encode($data['payload'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n\n";
-                }
-
-                $body .= "Bitte prüfe die Systemlogs und starte ggf. die Node.js-Audiobrücke neu.\n\n";
-                $body .= "Herzliche Grüße,\nFunkira ✨ (System-Überwachung)";
-
-                \Illuminate\Support\Facades\Mail::to($recipient)->send(
-                    new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, 'Funkira', [], 'generic')
-                );
-            } catch (\Exception $mailEx) {
-                \Illuminate\Support\Facades\Log::error("Failed to send WebSocket error mail: " . $mailEx->getMessage());
             }
         }
 
@@ -112,7 +116,7 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
     } catch (\Exception $e) {
         return response()->json(['status' => 'error', 'error' => $e->getMessage()], 500);
     }
-});
+})->middleware('throttle:10,1');
 
 // --- Telegram Webhooks ---
 Route::post('/telegram/webhook/{telegram_token}', [\App\Http\Controllers\Api\TelegramAgentController::class, 'handleWebhook'])
@@ -144,7 +148,7 @@ Route::get('/flights', function (\Illuminate\Http\Request $request) {
     } catch (\Exception $e) {
         return response()->json(['error' => 'Flight API Proxy failed'], 500);
     }
-});
+})->middleware('throttle:30,1');
 
 // --- Secure File View for Mobile App (allows query parameter token authentication) ---
 Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $request) {
@@ -171,13 +175,26 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
         abort(404, 'Path missing or invalid');
     }
 
+    $fullPath = null;
     if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-        return response()->file(storage_path('app/' . $path));
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+    } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
     }
-    if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-        return response()->file(storage_path('app/public/' . $path));
+
+    if (!$fullPath || !file_exists($fullPath)) {
+        abort(404, 'File not found');
     }
-    abort(404, 'File not found');
+
+    $mime = mime_content_type($fullPath) ?: 'application/octet-stream';
+    $safeInlineMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    $disposition = in_array($mime, $safeInlineMimes, true) ? 'inline' : 'attachment';
+
+    return response()->file($fullPath, [
+        'Content-Type' => $mime,
+        'Content-Disposition' => $disposition . '; filename="' . basename($fullPath) . '"',
+        'X-Content-Type-Options' => 'nosniff',
+    ]);
 });
 
 // --- Secure Laser SVG Download for Mobile App ---

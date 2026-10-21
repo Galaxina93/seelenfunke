@@ -30,6 +30,10 @@ class MasterShopCapacity extends Component
 
     public function mount()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         // Settings laden
         $this->dailyWorkingHours = (float) Cache::get('shop_daily_working_hours', SystemSetting::where('key', 'shop_daily_working_hours')->value('value') ?? 7);
         $this->minutesPerOrder = (float) Cache::get('shop_minutes_per_order', SystemSetting::where('key', 'shop_minutes_per_order')->value('value') ?? 10);

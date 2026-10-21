@@ -317,12 +317,67 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Befund:** Der Endpoint `/admin/accounting/receipt` lieferte Belege und Verträge über `response()->file()` ohne MIME-Typ-Validierung aus. Wurden manipulierte Dateien (HTML, SVG mit Scripten) hinterlegt, konnte beim Betrachten im Admin-Kontext Stored XSS ausgelöst werden.
 * **Lösung:** MIME-Whitelisting (`safeMimes`), Forcierung von `Content-Disposition: attachment` für potentiell gefährliche Dateiformate und Auslieferung mit `X-Content-Type-Options: nosniff`.
 
+### 2.51 [HERZENSPROJEKT SETTINGS-BUG & VALIDIERUNG] Fehlerhafte Konfigurationsspeicherung & unvalidierte Spendenbeträge behoben
+* **Dateien:** [`app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php)
+* **Befund:** In `saveSettings()` wurde die Klasse `\App\Models\System\ShopConfig` referenziert, welche im System gar nicht existiert (`class_exists` lieferte `false`). Einstellungen für `herzensprojekt_cents_per_order` wurden daher stillschweigend verworfen. Zudem fehlte eine Authentifizierungsprüfung in `mount()` und `saveDeposit()` sowie `saveSettings()` besaßen keine Server-Validierung gegen negative Werte oder Eingabefehler.
+* **Lösung:** 
+  1. `mount()` mit `Auth::guard('admin')->check()` gegen unberechtigte Aufrufe abgesichert.
+  2. Speicherung der Konfiguration auf das existierende Model `SystemSetting::updateOrCreate(['key' => 'herzensprojekt_cents_per_order'], ...)` umgestellt und globalen Shop-Cache via `Cache::forget('global_shop_settings')` invalidiert.
+  3. Serverseitige Validierungsregeln für Einzahlungsbeträge (`depositAmountEuro => min:0.01|max:100000`) und Spenden je Bestellung (`centsPerOrder => min:0|max:100000`) implementiert.
+* **Testabdeckung:** [`tests/Feature/Marketing/MarketingHerzensprojekteSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingHerzensprojekteSecurityTest.php) (3 Tests, 7 Assertions).
+
+### 2.52 [WARTUNGS-ROUTEN HÄRTUNG & PRODUCTION BACKDOOR REMOVAL] Beseitigung hartcodierter Secret-Routen
+* **Dateien:** [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php), [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php)
+* **Befund:** In den öffentlichen Routen existierten hartcodierte Pfade (`/system/cronjob/run-secret-847294` und `/system/cache/clear-secret-847294`). Wurde in der Produktivumgebung `php artisan config:cache` ausgeführt, lieferte `env()` außerhalb der Configs `null` zurück, sodass der statische Default-Secret griff und jeder Internetnutzer den Cache leeren (`optimize:clear`) oder Cronjobs anstoßen konnte.
+* **Lösung:** Statische Backdoor-Routen vollständig entfernt. Parameter-Routen `/system/cronjob/{token}` und `/system/cache/clear/{token}` lesen Geheimnisse nun aus `config('services.system.cron_secret')` bzw. `config('services.system.cache_secret')`. Ist kein Secret konfiguriert oder leer, wird der Aufruf ausnahmslos mit HTTP 403 Forbidden abgewiesen.
+* **Testabdeckung:** [`tests/Feature/System/SystemMaintenanceSecretRouteTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemMaintenanceSecretRouteTest.php) (3 Tests, 7 Assertions).
+
+### 2.53 [MASS-ASSIGNMENT & MANDANTEN-ISOLATION] Schutz variabler Kosten vor unberechtigter Spaltenüberschreibung
+* **Dateien:** [`app/Livewire/Shop/Accounting/AccountingVariableCosts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingVariableCosts.php)
+* **Befund:** 
+  1. In `updateSpecialField($id, $field, $value)` wurde der Spaltenname `$field` ohne Whitelist direkt an Eloquent `$special->update([$field => $value])` übergeben. Da `AccountingSpecialIssue` mit `protected $guarded = []` ungeschützt war, hätten Fremdschlüssel (`admin_id`), IDs oder Systemdaten beliebig überschrieben werden können.
+  2. In `confirmDeleteCategory()` wurden `$oldCat` und `$newCat` ohne Prüfung der `admin_id` geladen, wodurch Kategorien anderer Admins gelöscht oder manipuliert werden konnten.
+* **Lösung:** 
+  1. Strikte Whitelist für erlaubte Felder (`title`, `category`, `amount`, `is_business`, `execution_date`, `location`, `invoice_number`, `tax_rate`) mit Typprüfung, Datumsformatierung und Sanitization.
+  2. Bindung aller Kategorie-Abfragen an `where('admin_id', $this->getAdminId())`.
+* **Testabdeckung:** [`tests/Feature/Accounting/AccountingVariableCostsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingVariableCostsSecurityTest.php) (3 Tests, 6 Assertions).
+
+### 2.54 [AUTORISIERUNGSSCHUTZ INFRASTRUKTUR-CONTROLLER] Absicherung von Kapazitäts- & Speicherverwaltung
+* **Dateien:** [`app/Livewire/Shop/Master/MasterShopCapacity.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterShopCapacity.php), [`app/Livewire/Shop/Master/MasterStorageCapacity.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterStorageCapacity.php)
+* **Befund:** Beide Livewire-Komponenten besitzen mächtige Systemfunktionen (Umschalten des Shop-Autopiloten, Löschen von Laravel-Serverlogs, Leeren temporärer Uploads und Blade-View-Caches). Sie besaßen in `mount()` jedoch keinerlei Authentifizierungsprüfung, sodass unberechtigte Nutzer über Livewire-Update-Payloads administrative Systemaktionen auslösen konnten.
+* **Lösung:** Beide Komponenten verifizieren in `mount()` zwingend `Auth::guard('admin')->check()` und brechen bei fehlenden Admin-Rechten sofort mit HTTP 403 Forbidden ab.
+* **Testabdeckung:** [`tests/Feature/Master/MasterCapacityAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Master/MasterCapacityAuthorizationTest.php) (5 Tests, 6 Assertions).
+
+### 2.55 [DOS-, MAIL-BOMBING & RECEIPT-XSS-SCHUTZ] Härtung öffentlicher Telemetrie- und mobiler Beleg-Endpunkte
+* **Dateien:** [`routes/api.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api.php)
+* **Befund:** 
+  1. `/api/log/frontend-error` und `/api/log/websocket` waren ungeschützt und besaßen kein Rate-Limiting. Bei `/api/log/websocket` wurde bei jedem Request mit `type: error` unmittelbar eine E-Mail an den Admin versandt, was triviales Mail-Bombing und Quota-Erschöpfung ermöglichte.
+  2. Die Flug-Proxy-Route `/flights` war ohne Rate-Limiting öffentlich erreichbar.
+  3. Der Endpunkt `/api/funki/financials/receipt` lieferte Belege ohne MIME-Prüfung aus und nutzte statische `storage_path('app/...')`-Pfade anstelle der flexiblen Laravel Storage Disks.
+* **Lösung:** 
+  1. Rate-Limiting `throttle:10,1` für Logging-Endpunkte und Cache-gestütztes E-Mail-Throttling (maximal 1 Benachrichtigung pro 15 Minuten bei WebSocket-Fehlern).
+  2. Rate-Limiting `throttle:30,1` für den `/flights`-Proxy.
+  3. Dynamische Pfadauflösung über `Storage::disk('local')->path($path)`, strikte Inline-Begrenzung auf sichere Bild- und PDF-Formate sowie Forcierung von `attachment` mit `X-Content-Type-Options: nosniff`.
+* **Testabdeckung:** [`tests/Feature/Api/ApiLoggingAndReceiptSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/ApiLoggingAndReceiptSecurityTest.php) (4 Tests, 12 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php) | Admin-Autorisierung in `mount()`, Speicherung via `SystemSetting` + Cache-Clearing, serverseitige Validierung |
+| [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php) | Entfernung hartcodierter Secret-Routen; sichere Parameter-Routen mit `config()` und 403-Fallback |
+| [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) | Registrierung von `system.cron_secret` und `system.cache_secret` für reibungsloses Config-Caching |
+| [`app/Livewire/Shop/Accounting/AccountingVariableCosts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingVariableCosts.php) | Whitelist & Validierung bei `updateSpecialField` gegen Mass-Assignment; Admin-Scoping bei `confirmDeleteCategory` |
+| [`app/Livewire/Shop/Master/MasterShopCapacity.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterShopCapacity.php) | Admin-Autorisierungsprüfung in `mount()` (`Auth::guard('admin')->check()`) |
+| [`app/Livewire/Shop/Master/MasterStorageCapacity.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Master/MasterStorageCapacity.php) | Admin-Autorisierungsprüfung in `mount()` (`Auth::guard('admin')->check()`) |
+| [`routes/api.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api.php) | Rate-Limiter für Logs & Proxy, Mail-Throttling (15 Min), Storage-Disk-Pfadauflösung & MIME-Whitelisting für Belege |
+| [`tests/Feature/Marketing/MarketingHerzensprojekteSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingHerzensprojekteSecurityTest.php) | Neue Testsuite: Herzensprojekt Admin-Guard, Settings-Persistenz & Einzahlungs-Validierung |
+| [`tests/Feature/System/SystemMaintenanceSecretRouteTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemMaintenanceSecretRouteTest.php) | Neue Testsuite: Ablehnung alter statischer Secret-Tokens & sichere Token-Verifikation |
+| [`tests/Feature/Accounting/AccountingVariableCostsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingVariableCostsSecurityTest.php) | Neue Testsuite: Mass-Assignment-Schutz für Buchungsfelder & Mandanten-Isolation |
+| [`tests/Feature/Master/MasterCapacityAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Master/MasterCapacityAuthorizationTest.php) | Neue Testsuite: Admin-Zugriffsschutz für Kapazitäts- und Speichermanagement |
+| [`tests/Feature/Api/ApiLoggingAndReceiptSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/ApiLoggingAndReceiptSecurityTest.php) | Neue Testsuite: Mail-Bombing-Throttling, Beleg-MIME-Whitelisting (`nosniff`) & Auth-Gates |
 | [`app/Livewire/Shop/System/SystemUserManagement.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemUserManagement.php) | Admin-Lockout-Schutz (Selbst-Archivierung & Löschung des letzten Admins gesperrt) & `email_verified_at` Sync für Kunden |
 | [`resources/views/livewire/shop/system/system-user-management.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-user-management.blade.php) | Fehler-Toast Anzeige (`session('error')`) |
 | [`app/Livewire/Shop/Accounting/AccountingInvoice.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingInvoice.php) | Storno-Synchronisation mit Bestellung (`handleCancellation`) & XML-Dateinamen-Bereinigung |
@@ -421,46 +476,16 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 118 Tests bestanden (388 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 136 Tests bestanden (426 Assertions, 0 Fehler)
+  * `MarketingHerzensprojekteSecurityTest`: 3/3 bestanden (Herzensprojekt Admin-Guard, Settings-Persistenz & Einzahlungs-Validierung)
+  * `SystemMaintenanceSecretRouteTest`: 3/3 bestanden (Ablehnung alter statischer Secret-Tokens & sichere Token-Verifikation)
+  * `AccountingVariableCostsSecurityTest`: 3/3 bestanden (Mass-Assignment-Schutz für Buchungsfelder & Mandanten-Isolation)
+  * `MasterCapacityAuthorizationTest`: 5/5 bestanden (Admin-Zugriffsschutz für Kapazitäts- und Speichermanagement)
+  * `ApiLoggingAndReceiptSecurityTest`: 4/4 bestanden (Mail-Bombing-Throttling, Beleg-MIME-Whitelisting `nosniff` & Auth-Gates)
   * `SystemUserManagementSecurityTest`: 5/5 bestanden (Admin-Lockout-Schutz & Kundenverifizierungs-Sync)
   * `AccountingInvoiceCancellationOrderSyncTest`: 1/1 bestanden (Rechnungsstorno-Sync, Standardwaren-Bestandsrestore & Gutschein-Saldo-Restore; Laserware verbleibt unberührt)
   * `CustomerTicketSecurityTest`: 3/3 bestanden (Ticket-Rate-Limiter, Fremdbestellungs-IDOR-Schutz & tägliche Funkenbelohnungs-Deckelung)
   * `CheckoutPaymentSecurityTest`: 2/2 bestanden (Schutz vor unberechtigter Zahlungsbestätigung & Intent-Mismatch im Checkout)
-  * `CartServiceSecurityTest`: 1/1 bestanden (Warenkorb-Isolation gegen fremde Item-Manipulation)
-  * `ConfiguratorOrderEditSecurityTest`: 2/2 bestanden (IDOR-Schutz bei Konfigurator-Bestelländerungen)
-  * `AccountingTaxReceiptSecurityTest`: 3/3 bestanden (MIME-Whitelist, Mandanten-Isolation & Export-Löschschutz)
-  * `CheckoutAuthSecurityTest`: 3/3 bestanden (IP-Sperren, Rate-Limiting & Session-Regeneration)
-  * `AiToolAuthorizationTest`: 1/1 bestanden (Unbefugte Tool-Ausführung für KI-Agenten unterbunden)
-  * `OrderCancellationComprehensiveTest`: 3/3 bestanden (Gutschein-Saldo-Restore, Geschenkgutschein-Sperre & Referral-Reversal)
-  * `InvoiceStoragePrivacyTest`: 1/1 bestanden (Private Storage Verifikation)
-  * `OrderCancellationStockTest`: 2/2 bestanden (Standard- vs. Gelasertes Produkt Bestandsprüfung)
-  * `OrderApiCancellationStockTest`: 1/1 bestanden (API Bestandsprüfung bei Storno)
-  * `HerzensprojektDonationReversalTest`: 1/1 bestanden (Spenden-Rückbuchung bei Storno)
-  * `ReferralCustomerProtectionTest`: 1/1 bestanden (Neukunden-Schutz über Customer-ID)
-  * `MailAttachmentSecurityTest`: 2/2 bestanden (Stored XSS & Path Traversal Sperre)
-  * `OrderRevocationSecurityTest`: 3/3 bestanden (Honeypot, legitimer Widerruf, Rate-Limiter)
-  * `AccountingBankSecurityTest`: 5/5 bestanden (Traversal, Whitelist, Multi-Tenancy IDOR)
-  * `StealthCrawlerSecurityTest`: 2/2 bestanden (Kein Key-Leak, Graceful API-Handling)
-  * `AuthApiSecurityTest`: 2/2 bestanden (Enumeration-Schutz)
-  * `FinanceApiSecurityTest`: 3/3 bestanden (Multi-Tenancy IDOR-Schutz)
-  * `AdminAccountProtectionTest`: 2/2 bestanden (Lockout-Schutz für letzten Admin)
-  * `BackOfficeApiSecurityTest`: 4/4 bestanden
-  * `TaxExportSecurityTest`: 3/3 bestanden
-  * `GoogleAuthFillableTest`: 2/2 bestanden
-  * `LandingPageSecurityTest`: 3/3 bestanden
-  * `AiWidgetLiveModeTest`: 8/8 bestanden
-  * `GiftVoucherTest`: 21/21 bestanden
-  * `EmergencyProtocolTest`: 4/4 bestanden
-  * `CustomerOrdersSecurityTest`: 4/4 bestanden
-  * `CustomerTicketsSecurityTest`: 3/3 bestanden
-  * `CartQuantitySecurityTest`: 2/2 bestanden
-  * `NewsletterSecurityTest`: 3/3 bestanden
-  * `ProductReviewSecurityTest`: 2/2 bestanden
-  * `OrderQuoteSecurityTest`: 3/3 bestanden
-  * `DeleteUnverifiedUsersTest`: 3/3 bestanden
-  * `ContactFormSecurityTest`: 2/2 bestanden
-* **Regressionstests:** Keine Regressionen in Bestandsmodulen festgestellt.
-* **PHP Static Lint:** 0 Syntaxfehler in allen Routen, Modellen und Controllern.
   * `CartServiceSecurityTest`: 1/1 bestanden (Warenkorb-Isolation gegen fremde Item-Manipulation)
   * `ConfiguratorOrderEditSecurityTest`: 2/2 bestanden (IDOR-Schutz bei Konfigurator-Bestelländerungen)
   * `AccountingTaxReceiptSecurityTest`: 3/3 bestanden (MIME-Whitelist, Mandanten-Isolation & Export-Löschschutz)

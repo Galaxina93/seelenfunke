@@ -26,8 +26,8 @@ use Illuminate\Auth\Events\Verified;
 
 /*Cronjob & System-Wartung*/
 Route::get('/system/cronjob/{token}', function ($token) {
-    $expected = env('SYSTEM_CRON_SECRET', 'run-secret-847294');
-    if (!hash_equals($expected, $token)) {
+    $expected = config('services.system.cron_secret') ?: env('SYSTEM_CRON_SECRET');
+    if (empty($expected) || !hash_equals((string)$expected, (string)$token)) {
         abort(403, 'Ungültiger Sicherheitstoken.');
     }
 
@@ -42,40 +42,8 @@ Route::get('/system/cronjob/{token}', function ($token) {
 });
 
 Route::get('/system/cache/clear/{token}', function ($token) {
-    $expected = env('SYSTEM_CACHE_SECRET', 'clear-secret-847294');
-    if (!hash_equals($expected, $token)) {
-        abort(403, 'Ungültiger Sicherheitstoken.');
-    }
-
-    $throttleKey = 'cache_clear_' . request()->ip();
-    if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 3)) {
-        abort(429, 'Zu viele Cache-Leerungsversuche.');
-    }
-    \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
-
-    Artisan::call('optimize:clear');
-    return 'Cache erfolgreich geleert und optimiert.';
-});
-
-Route::get('/system/cronjob/run-secret-847294', function () {
-    $expected = env('SYSTEM_CRON_SECRET', 'run-secret-847294');
-    if (!hash_equals($expected, 'run-secret-847294')) {
-        abort(403, 'Ungültiger Sicherheitstoken.');
-    }
-
-    $throttleKey = 'cronjob_run_' . request()->ip();
-    if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 60)) {
-        abort(429, 'Zu viele Aufrufe.');
-    }
-    \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 60);
-
-    Artisan::call('schedule:run');
-    return 'Cronjob erfolgreich ausgeführt.';
-});
-
-Route::get('/system/cache/clear-secret-847294', function () {
-    $expected = env('SYSTEM_CACHE_SECRET', 'clear-secret-847294');
-    if (!hash_equals($expected, 'clear-secret-847294')) {
+    $expected = config('services.system.cache_secret') ?: env('SYSTEM_CACHE_SECRET');
+    if (empty($expected) || !hash_equals((string)$expected, (string)$token)) {
         abort(403, 'Ungültiger Sicherheitstoken.');
     }
 

@@ -53,6 +53,9 @@ class MarketingHerzensprojekte extends Component
 
     public function mount()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403);
+        }
         $this->centsPerOrder = (string) shop_setting('herzensprojekt_cents_per_order', 200);
     }
 
@@ -189,6 +192,11 @@ class MarketingHerzensprojekte extends Component
 
     public function saveDeposit()
     {
+        $this->validate([
+            'depositAmountEuro' => 'required|numeric|min:0.01|max:100000',
+            'depositNote' => 'nullable|string|max:255',
+        ]);
+
         $cents = (int) round(((float) str_replace(',', '.', $this->depositAmountEuro)) * 100);
         if ($cents <= 0) {
             return;
@@ -209,18 +217,17 @@ class MarketingHerzensprojekte extends Component
 
     public function saveSettings()
     {
-        $cents = (int) $this->centsPerOrder;
-        if ($cents < 0) {
-            $cents = 0;
-        }
+        $this->validate([
+            'centsPerOrder' => 'required|integer|min:0|max:100000',
+        ]);
 
-        // Save in ShopConfig if helper exists, otherwise session/env
-        if (class_exists(\App\Models\System\ShopConfig::class)) {
-            \App\Models\System\ShopConfig::updateOrCreate(
-                ['key' => 'herzensprojekt_cents_per_order'],
-                ['value' => (string) $cents]
-            );
-        }
+        $cents = (int) $this->centsPerOrder;
+
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'herzensprojekt_cents_per_order'],
+            ['value' => (string) $cents]
+        );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
 
         $this->dispatch('notify', [
             'type' => 'success',
