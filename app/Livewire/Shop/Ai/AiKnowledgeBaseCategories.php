@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Ai;
 
 use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
 
 class AiKnowledgeBaseCategories extends Component
 {
@@ -17,6 +18,10 @@ class AiKnowledgeBaseCategories extends Component
 
     public function mount($selectedCategoryId = null)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->selectedCategoryId = $selectedCategoryId;
     }
 
@@ -37,6 +42,10 @@ class AiKnowledgeBaseCategories extends Component
 
     public function createCategory()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate(['newCategoryName' => 'required|string|max:100|unique:ai_knowledge_base_categories,name']);
 
         $cat = \App\Models\Ai\AiKnowledgeBaseCategory::create([
@@ -63,6 +72,10 @@ class AiKnowledgeBaseCategories extends Component
 
     public function updateCategory()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate(['editingCategoryName' => 'required|string|max:100|unique:ai_knowledge_base_categories,name,' . $this->editingCategoryId]);
 
         $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($this->editingCategoryId);
@@ -78,6 +91,10 @@ class AiKnowledgeBaseCategories extends Component
 
     public function deleteCategory($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($id);
         if ($cat) {
             $cat->delete();

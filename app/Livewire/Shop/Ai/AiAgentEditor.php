@@ -12,6 +12,7 @@ use App\Services\AI\AIFunctionsRegistry;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 
 #[Layout('components.layouts.backend_layout')]
@@ -178,6 +179,10 @@ class AiAgentEditor extends Component
 
     public function toggleSkill($toolId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         if (!$this->ai_role_id) {
             return;
         }
@@ -193,6 +198,10 @@ class AiAgentEditor extends Component
 
     public function mount($id = 'new')
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->agentId = $id;
 
         if ($id !== 'new') {
@@ -336,6 +345,10 @@ class AiAgentEditor extends Component
 
     public function autoSaveModelOrVoice()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $voiceLabel = $this->getActiveVoiceLabel();
 
         if ($this->agentId && $this->agentId !== 'new') {
@@ -416,6 +429,10 @@ class AiAgentEditor extends Component
 
     public function save()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate([
             'ai_role_id' => 'nullable|exists:ai_roles,id',
             'name' => 'required|string|max:255',
@@ -488,6 +505,10 @@ class AiAgentEditor extends Component
 
     public function deleteProfilePicture()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         if ($this->agentId !== 'new') {
             $agent = AiAgent::findOrFail($this->agentId);
             if ($agent->profile_picture && Storage::disk('public')->exists($agent->profile_picture)) {

@@ -11,6 +11,7 @@ use App\Models\Ai\AiRole;
 use App\Models\Ai\AiAgent;
 use App\Models\Ai\AiTool;
 use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
 
 #[Layout('components.layouts.backend_layout')]
 class AiCompanyStructure extends Component
@@ -50,6 +51,10 @@ class AiCompanyStructure extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->loadStructure();
     }
 
@@ -94,6 +99,10 @@ class AiCompanyStructure extends Component
 
     public function saveDepartment($close = true)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate(['deptName' => 'required|string|max:255']);
         $dept = AiDepartment::updateOrCreate(['id' => $this->editingId], [
             'name' => $this->deptName,
@@ -119,6 +128,10 @@ class AiCompanyStructure extends Component
 
     public function deleteDepartment($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $dept = AiDepartment::findOrFail($id);
         
         $dept->delete();
@@ -144,6 +157,10 @@ class AiCompanyStructure extends Component
 
     public function editAgent($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         return redirect()->route('admin.ai-agents.editor', ['id' => $id]);
     }
     // DRAG & DROP HANDLERS
@@ -151,6 +168,10 @@ class AiCompanyStructure extends Component
 
     public function updateDepartmentOrder($orderedIds)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         foreach ($orderedIds as $index => $id) {
             AiDepartment::where('id', $id)->update(['order_index' => $index]);
         }
@@ -159,6 +180,10 @@ class AiCompanyStructure extends Component
 
     public function moveAgent($agentId, $targetDeptId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         AiAgent::where('id', $agentId)->update(['ai_department_id' => $targetDeptId]);
         $this->loadStructure();
         $this->dispatch('structure-updated');

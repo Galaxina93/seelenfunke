@@ -7,6 +7,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Ai\AiRole;
 use App\Models\Ai\AiTool;
 use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
 
 use Livewire\Attributes\Layout;
 
@@ -32,6 +33,10 @@ class AiRoleManager extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->loadRoles();
         $this->loadTopTools();
     }
@@ -80,6 +85,10 @@ class AiRoleManager extends Component
 
     public function save()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -111,6 +120,10 @@ class AiRoleManager extends Component
 
     public function delete($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         AiRole::findOrFail($id)->delete();
         session()->flash('message', 'Rolle erfolgreich gelöscht.');
         $this->dispatch('role-saved', roleId: $id);

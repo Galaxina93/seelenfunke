@@ -8,6 +8,7 @@ use App\Models\Ai\AiKnowledgeBase as KB;
 use App\Models\Ai\AiKnowledgeBaseCategory;
 use App\Models\Ai\AiKnowledgeBaseTag;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -42,6 +43,15 @@ class AiKnowledgeBase extends Component
         'search' => ['except' => ''],
         'selectedCategoryId' => ['except' => null],
     ];
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
+        $this->loadUploadedFiles();
+    }
 
     #[On('ai-knowledge-base-category-selected')]
     public function setFormCategory($id)
@@ -111,6 +121,10 @@ class AiKnowledgeBase extends Component
 
     public function saveArticle()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate();
 
         if ($this->editForm['id']) {
@@ -142,6 +156,10 @@ class AiKnowledgeBase extends Component
 
     public function deleteArticle($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $article = KB::findOrFail($id);
         $article->delete();
 
@@ -153,20 +171,20 @@ class AiKnowledgeBase extends Component
         session()->flash('success', 'Eintrag wurde gelöscht.');
     }
 
-    public function mount()
-    {
-        $this->loadUploadedFiles();
-    }
-
     public function updatedWikiFiles()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate([
-            'wikiFiles.*' => 'max:10240', // 10MB Max per file
+            'wikiFiles.*' => 'required|file|mimes:pdf,txt,md,docx,png,jpg,jpeg|max:10240',
         ]);
 
         foreach ($this->wikiFiles as $file) {
-            $filename = $file->getClientOriginalName();
-            $file->storeAs('support/wiki', $filename, 'public');
+            $cleanName = basename($file->getClientOriginalName());
+            $safeName = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $cleanName);
+            $file->storeAs('support/wiki', $safeName, 'public');
         }
 
         $this->wikiFiles = []; // Clear current selection
@@ -177,8 +195,13 @@ class AiKnowledgeBase extends Component
 
     public function deleteWikiFile($filename)
     {
-        if (Storage::disk('public')->exists('support/wiki/' . $filename)) {
-            Storage::disk('public')->delete('support/wiki/' . $filename);
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
+        $cleanFilename = basename($filename);
+        if (Storage::disk('public')->exists('support/wiki/' . $cleanFilename)) {
+            Storage::disk('public')->delete('support/wiki/' . $cleanFilename);
             $this->loadUploadedFiles();
             session()->flash('message', 'Datei erfolgreich gelöscht.');
         }

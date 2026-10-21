@@ -511,6 +511,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Autorisierungsprüfungen (`admin` oder `employee`) in `mount()` und allen Aktionsmethoden integriert.
 * **Testabdeckung:** [`tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php) (3 Tests, 4 Assertions).
 
+### 2.76 [KI-ORGANISATION & ABTEILUNGEN] Autorisierungsschutz für AiCompanyStructure
+* **Dateien:** [`app/Livewire/Shop/Ai/AiCompanyStructure.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiCompanyStructure.php)
+* **Befund:** In `AiCompanyStructure` fehlte in `mount()` sowie in Mutationsmethoden (`saveDepartment()`, `deleteDepartment()`, `updateDepartmentOrder()`, `moveAgent()`, `editAgent()`) die Autorisierungsprüfung. Dadurch konnten unbefugte Dritte Unternehmensabteilungen modifizieren, löschen, umsortieren oder KI-Agenten verschieben.
+* **Lösung:** Autorisierungsprüfung (`admin` oder `employee`) in `mount()` und allen Mutation-Methoden integriert.
+* **Testabdeckung:** [`tests/Feature/Ai/AiCompanyStructureSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiCompanyStructureSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.77 [KI-ROLLEN & TOOL-ASSIGNMENT] Absicherung der Rollen- und Werkzeug-Konfiguration
+* **Dateien:** [`app/Livewire/Shop/Ai/AiRoleManager.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiRoleManager.php)
+* **Befund:** In `AiRoleManager` fehlten Autorisierungsprüfungen in `mount()`, `save()` und `delete()`. Unbefugte konnten Rollen manipulieren oder sensible System- und Finanztools beliebigen Rollen zuweisen.
+* **Lösung:** Autorisierungsprüfungen für Administratoren und Mitarbeiter in `mount()`, `save()` und `delete()` implementiert.
+* **Testabdeckung:** [`tests/Feature/Ai/AiRoleManagerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiRoleManagerSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.78 [KI-WISSENSDATENBANK & DATEI-SICHERHEIT] Autorisierung, MIME-Whitelisting und Directory-Traversal-Schutz
+* **Dateien:** [`app/Livewire/Shop/Ai/AiKnowledgeBase.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBase.php)
+* **Befund:** `AiKnowledgeBase` besaß keine Autorisierungsprüfung in `mount()`, `saveArticle()`, `deleteArticle()`, `updatedWikiFiles()` und `deleteWikiFile()`. In `deleteWikiFile()` war durch fehlende Pfadbereinigung Directory Traversal möglich. Beim Dateiupload (`updatedWikiFiles()`) fehlte die Validierung von Dateitypen und MIME-Types.
+* **Lösung:** Autorisierungsprüfung in `mount()` und allen Aktionen. Strikte Whitelist für MIME-Types (`pdf, txt, md, docx, png, jpg, jpeg`) und `basename()`-Sanitization bei Upload und Löschung.
+* **Testabdeckung:** [`tests/Feature/Ai/AiKnowledgeBaseSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiKnowledgeBaseSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.79 [KI-TAXONOMIE] Autorisierung für Knowledge-Base-Kategorien und Tags
+* **Dateien:** [`app/Livewire/Shop/Ai/AiKnowledgeBaseCategories.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBaseCategories.php), [`app/Livewire/Shop/Ai/AiKnowledgeBaseTags.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBaseTags.php)
+* **Befund:** `AiKnowledgeBaseCategories` und `AiKnowledgeBaseTags` besaßen keine Autorisierungsprüfungen in `mount()`, `createCategory()`, `updateCategory()`, `deleteCategory()`, `createTag()`, `updateTag()` und `deleteTag()`.
+* **Lösung:** Autorisierungsprüfung (`admin` oder `employee`) in beiden Komponenten und allen Mutationsmethoden implementiert.
+* **Testabdeckung:** [`tests/Feature/Ai/AiKnowledgeBaseTaxonomySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiKnowledgeBaseTaxonomySecurityTest.php) (3 Tests, 8 Assertions).
+
+### 2.80 [KI-AGENTEN-EDITOR & METHODEN] Absicherung von Agenten-Konfiguration und Methoden-Monitoring
+* **Dateien:** [`app/Livewire/Shop/Ai/AiAgentEditor.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiAgentEditor.php), [`app/Livewire/Shop/Ai/AiMethod.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiMethod.php)
+* **Befund:** `AiAgentEditor` besaß keine Autorisierung in `mount()`, `save()`, `toggleSkill()`, `deleteProfilePicture()` und `autoSaveModelOrVoice()`. Gäste oder Kunden konnten Prompts, Token, Modellkonfigurationen und Telegram-Tokens verändern. `AiMethod` besaß keine `mount()`-Methode zum Schutz vor unberechtigter Einsicht von System-Funktionsstatistiken.
+* **Lösung:** Autorisierungsprüfungen (`admin` oder `employee`) in `mount()` und allen Aktionsmethoden integriert.
+* **Testabdeckung:** [`tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php) (3 Tests, 8 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -684,19 +714,35 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`tests/Feature/System/SystemNeuralAnalysisSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemNeuralAnalysisSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Neurale Architekturanalyse |
 | [`tests/Feature/Product/ProductControlReviewsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductControlReviewsSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Produktbewertungs-Moderation |
 | [`tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php) | Neue Testsuite: Zugriffsschutz für dynamische Marketing-Landingpages |
+| [`app/Livewire/Shop/Ai/AiCompanyStructure.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiCompanyStructure.php) | Autorisierungsschutz in `mount()` und Mutationsmethoden für Abteilungen und Agenten |
+| [`app/Livewire/Shop/Ai/AiRoleManager.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiRoleManager.php) | Autorisierungsschutz für Rollen-Konfiguration und Tool-Zuweisung |
+| [`app/Livewire/Shop/Ai/AiKnowledgeBase.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBase.php) | Autorisierungsschutz, MIME-Whitelisting (`pdf, txt, md, docx, png, jpg, jpeg`) & Traversal-Schutz |
+| [`app/Livewire/Shop/Ai/AiKnowledgeBaseCategories.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBaseCategories.php) | Autorisierungsschutz für Wissensdatenbank-Kategorien |
+| [`app/Livewire/Shop/Ai/AiKnowledgeBaseTags.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBaseTags.php) | Autorisierungsschutz für Wissensdatenbank-Tags |
+| [`app/Livewire/Shop/Ai/AiAgentEditor.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiAgentEditor.php) | Autorisierungsschutz in `mount()`, Speicherung, Löschung, Prompt- & Token-Modifikation |
+| [`app/Livewire/Shop/Ai/AiMethod.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiMethod.php) | Autorisierungsschutz in `mount()` für Funktionsstatistiken |
+| [`tests/Feature/Ai/AiCompanyStructureSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiCompanyStructureSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Unternehmensabteilungen & Agenten-Hierarchie |
+| [`tests/Feature/Ai/AiRoleManagerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiRoleManagerSecurityTest.php) | Neue Testsuite: Zugriffsschutz für KI-Rollenverwaltung & Werkzeug-Zuweisung |
+| [`tests/Feature/Ai/AiKnowledgeBaseSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiKnowledgeBaseSecurityTest.php) | Neue Testsuite: Zugriffsschutz, MIME-Whitelisting & Traversal-Sperre in Wissensdatenbank |
+| [`tests/Feature/Ai/AiKnowledgeBaseTaxonomySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiKnowledgeBaseTaxonomySecurityTest.php) | Neue Testsuite: Zugriffsschutz für Taxonomie (Kategorien & Tags) |
+| [`tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAgentEditorAndMethodSecurityTest.php) | Neue Testsuite: Zugriffsschutz für KI-Agenten-Editor & Methoden-Monitoring |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 200 Tests bestanden (590 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 215 Tests bestanden (618 Assertions, 0 Fehler)
+  * `AiCompanyStructureSecurityTest`: 3/3 bestanden (Autorisierung für Abteilungen & Agenten-Verschiebung)
+  * `AiRoleManagerSecurityTest`: 3/3 bestanden (Autorisierung für Rollen & Tool-Zuweisung)
+  * `AiKnowledgeBaseSecurityTest`: 3/3 bestanden (Autorisierung, MIME-Whitelist & Traversal-Sperre)
+  * `AiKnowledgeBaseTaxonomySecurityTest`: 3/3 bestanden (Autorisierung für Kategorien & Tags)
+  * `AiAgentEditorAndMethodSecurityTest`: 3/3 bestanden (Autorisierung für Agenten-Editor & Methodenüberwachung)
   * `SystemBackupsSecurityTest`: 3/3 bestanden (Striktes Admin-Only Gate für Backup-Dumps, Download & Löschung)
   * `ManagementLinktreeSecurityTest`: 3/3 bestanden (Autorisierung für Linktree-Verwaltung & System-Settings)
   * `SystemNeuralAnalysisSecurityTest`: 3/3 bestanden (Autorisierung für neuronale Architekturanalysen)
   * `ProductControlReviewsSecurityTest`: 3/3 bestanden (Autorisierung für Moderation, Freigabe & Löschung von Reviews)
   * `MarketingLandingPagesSecurityTest`: 3/3 bestanden (Autorisierung für Landingpage-Generierung, Edit & Löschung)
-  * `SystemShopConfigSecurityTest`: 4/4 bestanden (Secrets-Leakage, Path-Traversal & Admin-Only-Guard)
   * `SystemShopConfigSecurityTest`: 4/4 bestanden (Secrets-Leakage, Path-Traversal & Admin-Only-Guard)
   * `OrderRevocationProcessingStockTest`: 2/2 bestanden (Widerrufs-Autorisierung, Standardartikel-Restore & strikte Laser-Ausschussgarantie)
   * `AccountingCreditAndInvoicePreviewSecurityTest`: 3/3 bestanden (Autorisierung für Gutschriften & Rechnungs-PDFs)

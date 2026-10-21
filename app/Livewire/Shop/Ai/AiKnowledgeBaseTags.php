@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Ai;
 
 use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
 
 class AiKnowledgeBaseTags extends Component
 {
@@ -17,6 +18,10 @@ class AiKnowledgeBaseTags extends Component
 
     public function mount($selectedTagIds = null)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->selectedTagIds = is_array($selectedTagIds) ? $selectedTagIds : (!empty($selectedTagIds) ? [$selectedTagIds] : []);
     }
 
@@ -37,6 +42,10 @@ class AiKnowledgeBaseTags extends Component
 
     public function createTag()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate(['newTagName' => 'required|string|max:100|unique:ai_knowledge_base_tags,name']);
 
         $tag = \App\Models\Ai\AiKnowledgeBaseTag::create([
@@ -63,6 +72,10 @@ class AiKnowledgeBaseTags extends Component
 
     public function updateTag()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate(['editingTagName' => 'required|string|max:100|unique:ai_knowledge_base_tags,name,' . $this->editingTagId]);
 
         $tag = \App\Models\Ai\AiKnowledgeBaseTag::find($this->editingTagId);
@@ -78,6 +91,10 @@ class AiKnowledgeBaseTags extends Component
 
     public function deleteTag($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $tag = \App\Models\Ai\AiKnowledgeBaseTag::find($id);
         if ($tag) {
             $tag->delete();

@@ -6,11 +6,19 @@ use App\Models\Ai\AiToolUsage;
 use App\Services\AI\AIFunctionsRegistry;
 use Carbon\Carbon;
 use Livewire\Component;
+use Illuminate\Support\Facades\Auth;
 
 class AiMethod extends Component
 {
     public string $themingDepartment = 'Agenten';
     public $search = '';
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function getToolUsageStatsProperty()
     {
