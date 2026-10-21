@@ -45,6 +45,11 @@ class FirebaseService
      */
     public function sendPushNotification(string $deviceToken, string $title, string $body, array $data = []): bool
     {
+        $deviceToken = trim($deviceToken);
+        if (empty($deviceToken)) {
+            return false;
+        }
+
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
             return false;
@@ -52,14 +57,23 @@ class FirebaseService
 
         $url = "https://fcm.googleapis.com/v1/projects/{$this->projectId}/messages:send";
 
+        // Clean and safe FCM data values (must be strings)
+        $sanitizedData = [];
+        foreach ($data as $k => $v) {
+            $sanitizedData[(string)$k] = is_array($v) ? json_encode($v, JSON_UNESCAPED_UNICODE) : (string)$v;
+        }
+
         // Build the FCM payload
         $message = [
             'token' => $deviceToken,
-            'data' => array_map('strval', $data), // FCM data values must be strings
+            'data' => $sanitizedData,
             'android' => [
                 'priority' => 'high',
             ],
         ];
+
+        $title = mb_substr(trim($title), 0, 120);
+        $body = mb_substr(trim($body), 0, 500);
 
         if (!empty($title) || !empty($body)) {
             $message['notification'] = [
@@ -82,7 +96,8 @@ class FirebaseService
         ];
 
         try {
-            $response = Http::withToken($accessToken)
+            $response = Http::timeout(5)
+                ->withToken($accessToken)
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post($url, $payload);
 
@@ -104,23 +119,27 @@ class FirebaseService
      */
     public function sendToAdmins(string $title, string $body, array $data = []): int
     {
-        // Find all admins
-        $admins = \App\Models\Admin\Admin::all();
+        // Find all non-deleted admins
+        $adminIds = \App\Models\Admin\Admin::pluck('id');
+        if ($adminIds->isEmpty()) {
+            return 0;
+        }
+
+        // Efficient single-query lookup for admin devices
+        $devices = \App\Models\System\SystemUserDevice::whereIn('userable_id', $adminIds)
+            ->where(function($q) {
+                $q->where('userable_type', \App\Models\Admin\Admin::class)
+                  ->orWhere('userable_type', 'admin');
+            })
+            ->whereNotNull('fcm_token')
+            ->where('fcm_token', '!=', '')
+            ->get();
+
         $sentCount = 0;
-
-        foreach ($admins as $admin) {
-            // Find devices for this admin
-            $devices = \App\Models\System\SystemUserDevice::where('userable_id', $admin->id)
-                ->where('userable_type', get_class($admin))
-                ->get();
-
-            foreach ($devices as $device) {
-                if ($device->fcm_token) {
-                    $success = $this->sendPushNotification($device->fcm_token, $title, $body, $data);
-                    if ($success) {
-                        $sentCount++;
-                    }
-                }
+        foreach ($devices as $device) {
+            $success = $this->sendPushNotification($device->fcm_token, $title, $body, $data);
+            if ($success) {
+                $sentCount++;
             }
         }
 

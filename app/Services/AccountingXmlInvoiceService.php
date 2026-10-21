@@ -35,7 +35,8 @@ class AccountingXmlInvoiceService
         $this->addElement($header, 'ram:ID', $invoice->invoice_number);
         $this->addElement($header, 'ram:TypeCode', $invoice->isCreditNote() ? '381' : '380'); // 380 = Rechnung
         $dateObj = $this->addElement($header, 'ram:IssueDateTime');
-        $this->addElement($dateObj, 'udt:DateTimeString', $invoice->invoice_date->format('Ymd'), ['format' => '102']);
+        $invoiceDate = $invoice->invoice_date ?? now();
+        $this->addElement($dateObj, 'udt:DateTimeString', $invoiceDate->format('Ymd'), ['format' => '102']);
 
         // 5. Transaktion (Der eigentliche Inhalt)
         $transaction = $this->addElement($root, 'rsm:SupplyChainTradeTransaction');
@@ -52,7 +53,7 @@ class AccountingXmlInvoiceService
         $delivery = $this->addElement($transaction, 'ram:ApplicableHeaderTradeDelivery');
         $event = $this->addElement($delivery, 'ram:ActualDeliverySupplyChainEvent');
         $occurrence = $this->addElement($event, 'ram:OccurrenceDateTime');
-        $deliveryDate = $invoice->delivery_date ?? $invoice->invoice_date;
+        $deliveryDate = $invoice->delivery_date ?? $invoice->invoice_date ?? now();
         $this->addElement($occurrence, 'udt:DateTimeString', $deliveryDate->format('Ymd'), ['format' => '102']);
 
         // D) Summen & Steuern (Settlement)
@@ -65,7 +66,8 @@ class AccountingXmlInvoiceService
             Storage::disk('local')->makeDirectory('buchhaltung/invoices/xml');
         }
 
-        $filename = 'buchhaltung/invoices/xml/' . $invoice->invoice_number . '.xml';
+        $safeInvoiceNum = preg_replace('/[^A-Za-z0-9_\-]/', '_', $invoice->invoice_number ?: (string)$invoice->id);
+        $filename = 'buchhaltung/invoices/xml/' . $safeInvoiceNum . '.xml';
         Storage::disk('local')->put($filename, $xmlContent);
 
         return $filename;
@@ -253,11 +255,12 @@ class AccountingXmlInvoiceService
     {
         $element = $this->dom->createElement($name);
         if ($value !== null) {
-            $element->nodeValue = htmlspecialchars($value);
+            $textNode = $this->dom->createTextNode((string)$value);
+            $element->appendChild($textNode);
         }
 
         foreach ($attributes as $key => $val) {
-            $element->setAttribute($key, $val);
+            $element->setAttribute($key, (string)$val);
         }
 
         $parent->appendChild($element);

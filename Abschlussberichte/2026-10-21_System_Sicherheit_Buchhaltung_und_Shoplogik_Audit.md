@@ -776,10 +776,40 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Testabdeckung:** [`tests/Feature/Ai/AiNewsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiNewsFuncsSecurityTest.php) (2 Tests, 7 Assertions).
 
 ### 2.120 [KI-PERSONA & OSINT] SSRF-Schutz für Bild- und Web-Extraktion, E-Mail-Header-Validierung & DomPDF-Härtung
-* **Dateien:** [`app/Services/AI/Functions/AiPersonaFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiPersonaFuncs.php)
+* **Dateien:** [`app/Services/AI/Functions/AiPersonaFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina\meine-projekte\seelenfunke\app\Services\AI\Functions\AiPersonaFuncs.php)
 * **Befund:** In `processPersonaImage()` und `executePersonaFetchUrl()` wurden beliebige externe URLs ohne Überprüfung heruntergeladen, wodurch Angreifer über Server-Side Request Forgery (SSRF) auf interne Docker-Container (`db`, `redis`, `mein_php_server`), Localhost-Dienste oder Cloud-Metadatendienste (`169.254.169.254`) zugreifen konnten. In `executePersonaGeneratePdf()` fehlte die E-Mail-Validierung und DomPDF erlaubte Remote-Assets. In `executePersonaDeleteIntel()` konnten leere Titel angefragt werden.
 * **Lösung:** Implementierung von `isSafeExternalUrl()` zur strikten Blockierung von Loopback-, privaten (`FILTER_FLAG_NO_PRIV_RANGE`) und reservierten (`FILTER_FLAG_NO_RES_RANGE`) IP-Adressen sowie Docker-Hostnamen, E-Mail-RFC-Validierung und CRLF-Sanitization bei Dossier-Versand, Deaktivierung von DomPDF Remote-Ressourcen (`isRemoteEnabled => false`) und Titelvalidierung bei der Wissenslöschung.
 * **Testabdeckung:** [`tests/Feature/Ai/AiPersonaFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiPersonaFuncsSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.121 [PUSH-NOTIFICATIONS & SYSTEM-ADMINS] Filterung auf aktive Admins, N+1-Query-Bereinigung & Push-Timeout im FirebaseService
+* **Dateien:** [`app/Services/FirebaseService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/FirebaseService.php)
+* **Befund:** In `sendToAdmins()` wurden über `Admin::all()` und anschließende Einzelschleifen N+1 Datenbankabfragen ausgeführt und Push-Benachrichtigungen auch an soft-gelöschte oder inaktive Administratoren versendet. In `sendPushNotification()` fehlte ein HTTP-Timeout (Gefahr von Worker-Hangs bei Google-FCM-Ausfall) und verschachtelte `$data`-Arrays warfen `Array to string conversion`-Exceptions.
+* **Lösung:** Eingrenzung auf aktive Admins (`Admin::pluck('id')`), Einmal-Abfrage aller registrierten FCM-Tokens via `whereIn('userable_id', $adminIds)`, rekursive/sichere Serialisierung verschachtelter Payload-Daten (`json_encode`), Truncation von Titel (120 Zeichen) und Body (500 Zeichen) sowie `Http::timeout(5)`.
+* **Testabdeckung:** [`tests/Feature/System/FirebaseServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/FirebaseServiceSecurityTest.php) (2 Tests, 4 Assertions).
+
+### 2.122 [GOOGLE REVIEWS & MARKETING] Aktivierung der echten Places-API-Anbindung, 24h-Cache & Resilienz im GoogleReviewsService
+* **Dateien:** [`app/Services/GoogleReviewsService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/GoogleReviewsService.php)
+* **Befund:** Der Dienst befand sich in einem temporären statischen Testmodus; die echte Google Places API-Anbindung war auskommentiert, sodass im Live-Shop ausschließlich veraltete Mock-Bewertungen angezeigt wurden. Zudem fehlten Timeouts und eine saubere Fallback-Struktur im Fehlerfall.
+* **Lösung:** Vollständige Aktivierung der Google Places API-Integration mit `Http::timeout(5)`, automatischem 24h-Caching (`Cache::remember('google_reviews', 86400)`), Auslesen konfigurierter Keys und robuster Auslagerung in `getFallbackReviews()`, falls Google-Credentials nicht gesetzt sind oder die API fehlschlägt.
+* **Testabdeckung:** [`tests/Feature/Marketing/GoogleReviewsServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/GoogleReviewsServiceSecurityTest.php) (2 Tests, 9 Assertions).
+
+### 2.123 [STEUER-ENGINE & RECHTSFORM-WECHSEL] Division-by-Zero-Schutz & transaktionssichere Status-Umschaltung im TaxSettingService
+* **Dateien:** [`app/Services/Tax/TaxSettingService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Tax/TaxSettingService.php)
+* **Befund:** In `calculateRetroactiveVat()` führte ein Steuersatz von `<= -100%` (oder ungültige numerische Eingaben) zu einem Division-by-Zero-Fatal-Error (`1 + ($taxRate / 100) == 0`). In `applyTransition()` wurden mehrere `SystemSetting`-Einträge ohne Datenbank-Transaktion geschrieben; bei einem Zwischenfehler drohte ein inkonsistenter Steuerstatus.
+* **Lösung:** Clamping des Steuersatzes auf 0–100%, Spezialbehandlung von 0% ohne Division, Absicherung der Bruttowerte (`max(0, $grossCents)`) und Kapselung der Statusumschaltung in `DB::transaction()` mit Whitelisting des Transition-Modus (`immediate_retroactive`, `next_year`).
+* **Testabdeckung:** [`tests/Feature/Tax/TaxSettingServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Tax/TaxSettingServiceSecurityTest.php) (2 Tests, 8 Assertions).
+
+### 2.124 [E-RECHNUNG & XML-SICHERHEIT] Path-Traversal-Schutz, Null-Safety & saubere XML-Text-Nodes im AccountingXmlInvoiceService
+* **Dateien:** [`app/Services/AccountingXmlInvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AccountingXmlInvoiceService.php)
+* **Befund:** Beim Speichern von ZUGFeRD/XRechnung-XMLs (`Storage::disk('local')->put(...)`) wurde die Rechnungsnummer ungefiltert im Dateipfad verwendet; Rechnungsnummern mit Slashes (`RE/2026/01`) oder Punkten führten zu Dateisystemfehlern oder Directory-Traversal. In `addElement()` verursachte `htmlspecialchars()` auf `nodeValue` bei Sonderzeichen (`&`, `<`) Doppel-Kodierungen (`&amp;amp;`). Zudem brachen Null-Werte bei `invoice_date` oder `delivery_date` mit Exceptions ab.
+* **Lösung:** Sanitization des Rechnungs-Dateinamens (`preg_replace('/[^A-Za-z0-9_\-]/', '_', ...)`), Umstellung auf native DOMDocument-Text-Nodes (`createTextNode((string)$value)`) für sauberes XML-Escaping und Null-Safe-Fallbacks (`$invoice->invoice_date ?? now()`).
+* **Testabdeckung:** [`tests/Feature/Accounting/AccountingXmlInvoiceServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingXmlInvoiceServiceSecurityTest.php) (1 Test, 5 Assertions).
+
+### 2.125 [KI-MAPS & GEODATEN] RFC-Validierung & CRLF-Header-Injection-Schutz für Map-PDF-Mails sowie DomPDF-Härtung in AiMapControlFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiMapControlFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMapControlFuncs.php)
+* **Befund:** In `executeMapGeneratePdfSummary()` und `executeMapGeneratePlacesPdf()` wurde `recipient_email` ohne strikte E-Mail-Validierung an den Mailer übergeben; Eingaben mit CRLF (`\r\n`) ermöglichten Mail-Header-Injections. In beiden PDF-Generatoren fehlte die Deaktivierung von Remote-Ressourcen in DomPDF (`isRemoteEnabled`). Bei externen Mapbox- und Nominatim-Aufrufen fehlten HTTP-Timeouts.
+* **Lösung:** Strikte RFC-Validierung (`filter_var`), CRLF-Prüfung (`preg_match('/[\r\n]/')`), DomPDF-Härtung mit `isRemoteEnabled => false` und Ergänzung von `Http::timeout(5)` für externe Geocoding-APIs.
+* **Testabdeckung:** [`tests/Feature/Ai/AiMapControlFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMapControlFuncsSecurityTest.php) (2 Tests, 5 Assertions).
 
 ---
 
@@ -787,6 +817,16 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Services/FirebaseService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/FirebaseService.php) | Admin-Filterung (`Admin::pluck('id')`), Massen-Abfrage für FCM-Tokens, rekursive Daten-Serialisierung & Push-Timeout |
+| [`app/Services/GoogleReviewsService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/GoogleReviewsService.php) | Aktivierung der Google Places API, 24h-Caching, `Http::timeout(5)` & Fallback-Handling |
+| [`app/Services/Tax/TaxSettingService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Tax/TaxSettingService.php) | Division-by-Zero-Schutz, Raten-Clamping (0..100%), Nicht-Negativ-Garantie & DB-Transaktion bei Wechsel |
+| [`app/Services/AccountingXmlInvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AccountingXmlInvoiceService.php) | Dateinamens-Sanitization (`preg_replace`), Null-Safe Dates & native DOM-Text-Nodes gegen Doppelkodierung |
+| [`app/Services/AI/Functions/AiMapControlFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMapControlFuncs.php) | Strikte RFC-Validierung & CRLF-Schutz für Mailings, DomPDF SSRF-Deaktivierung & HTTP-Timeouts |
+| [`tests/Feature/System/FirebaseServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/FirebaseServiceSecurityTest.php) | Neue Testsuite: Push-Token-Prüfung, verschachtelte Daten & Admin-Geräte-Filter |
+| [`tests/Feature/Marketing/GoogleReviewsServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/GoogleReviewsServiceSecurityTest.php) | Neue Testsuite: Fallback-Reviews, Google Places Caching & Resilienz |
+| [`tests/Feature/Tax/TaxSettingServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Tax/TaxSettingServiceSecurityTest.php) | Neue Testsuite: Division-by-Zero-Schutz & transaktionssichere Status-Umschaltung |
+| [`tests/Feature/Accounting/AccountingXmlInvoiceServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingXmlInvoiceServiceSecurityTest.php) | Neue Testsuite: XML-Dateinamens-Sanitization & Sonderzeichen-Encoding |
+| [`tests/Feature/Ai/AiMapControlFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMapControlFuncsSecurityTest.php) | Neue Testsuite: RFC-E-Mail-Validierung & CRLF-Injection-Schutz bei Map-PDFs |
 | [`app/Services/AI/Functions/AiMarketingFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingFuncs.php) | Wertebereichs-Clamping (Prozent 1–100%, Festbeträge max 100.000 €), Code-Sanitization, Limit-Behandlung & Kollisionsschutz |
 | [`app/Services/AI/Functions/AiMasterFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMasterFuncs.php) | Dynamische Maintenance-Secrets, striktes Aktions-Whitelisting (`down`, `up`) & Timeframe-Absicherung |
 | [`app/Services/AI/Functions/AiScoutFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiScoutFuncs.php) | Korrektur Spaltenname `total_price`, Mindestlänge für Kundensuche & SQL-Wildcard-Escaping |
@@ -1063,7 +1103,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 294 Tests bestanden (915 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 303 Tests bestanden (946 Assertions, 0 Fehler)
+  * `FirebaseServiceSecurityTest`: 2/2 bestanden (Push-Token-Prüfung, verschachtelte Daten & Admin-Geräte-Filter)
+  * `GoogleReviewsServiceSecurityTest`: 2/2 bestanden (Fallback-Reviews, Google Places Caching & Resilienz)
+  * `TaxSettingServiceSecurityTest`: 2/2 bestanden (Division-by-Zero-Schutz & transaktionssichere Status-Umschaltung)
+  * `AccountingXmlInvoiceServiceSecurityTest`: 1/1 bestanden (XML-Dateinamens-Sanitization & Sonderzeichen-Encoding)
+  * `AiMapControlFuncsSecurityTest`: 2/2 bestanden (RFC-E-Mail-Validierung & CRLF-Injection-Schutz bei Map-PDFs)
   * `AiMarketingFuncsSecurityTest`: 2/2 bestanden (Wertebereichs-Clamping, Code-Sanitization & Kollisionssicherheit)
   * `AiMasterFuncsSecurityTest`: 2/2 bestanden (Maintenance-Passphrase, Whitelisting & dynamisches Secret)
   * `AiScoutFuncsSecurityTest`: 2/2 bestanden (Mindestlänge, Wildcard-Escaping & `total_price`-Berechnung)

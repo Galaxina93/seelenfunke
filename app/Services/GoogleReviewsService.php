@@ -8,9 +8,45 @@ use Illuminate\Support\Facades\Log;
 
 class GoogleReviewsService
 {
-    public function getReviews()
+    public function getReviews(): array
     {
-        // --- TEMPORÄRER TEST-MODUS (Löschen, sobald Google freigeschaltet ist) ---
+        $apiKey = config('services.google.places_key');
+        $placeId = config('services.google.place_id');
+
+        if (!$apiKey || !$placeId) {
+            return $this->getFallbackReviews();
+        }
+
+        try {
+            return Cache::remember('google_reviews', 86400, function () use ($apiKey, $placeId) {
+                $response = Http::timeout(5)->get('https://maps.googleapis.com/maps/api/place/details/json', [
+                    'place_id' => $placeId,
+                    'fields' => 'reviews,rating,user_ratings_total',
+                    'key' => $apiKey,
+                    'language' => 'de'
+                ]);
+
+                if ($response->successful()) {
+                    $result = $response->json()['result'] ?? [];
+
+                    return [
+                        'reviews' => $result['reviews'] ?? [],
+                        'rating' => $result['rating'] ?? 0,
+                        'total_ratings' => $result['user_ratings_total'] ?? 0,
+                    ];
+                }
+
+                Log::warning('Google Places API Fehler: ' . $response->status());
+                return $this->getFallbackReviews();
+            });
+        } catch (\Exception $e) {
+            Log::error('Google Reviews Exception: ' . $e->getMessage());
+            return $this->getFallbackReviews();
+        }
+    }
+
+    public function getFallbackReviews(): array
+    {
         return [
             'rating' => 4.9,
             'total_ratings' => 128,
@@ -73,48 +109,5 @@ class GoogleReviewsService
                 ],
             ]
         ];
-
-
-        /* // Wir cachen die Antwort für 24 Stunden (86400 Sekunden)
-         return Cache::remember('google_reviews', 86400, function () {
-
-             $apiKey = config('services.google.places_key');
-             $placeId = config('services.google.place_id');
-
-             if (!$apiKey || !$placeId) {
-                 return [];
-             }
-
-             try {
-                 // Wir nutzen die Places Details API
-                 // fields=reviews ruft die Bewertungen ab
-                 // fields=rating ruft die Durchschnittsbewertung ab
-                 // fields=user_ratings_total ruft die Anzahl der Bewertungen ab
-                 $response = Http::get('https://maps.googleapis.com/maps/api/place/details/json', [
-                     'place_id' => $placeId,
-                     'fields' => 'reviews,rating,user_ratings_total',
-                     'key' => $apiKey,
-                     'language' => 'de' // Bewertungen auf Deutsch bevorzugen
-                 ]);
-
-                 if ($response->successful()) {
-                     $result = $response->json()['result'] ?? [];
-
-                     // Wir geben ein Array zurück mit den Reviews und der Gesamtbewertung
-                     return [
-                         'reviews' => $result['reviews'] ?? [],
-                         'rating' => $result['rating'] ?? 0,
-                         'total_ratings' => $result['user_ratings_total'] ?? 0,
-                     ];
-                 }
-
-                 Log::error('Google Places API Fehler: ' . $response->body());
-                 return [];
-
-             } catch (\Exception $e) {
-                 Log::error('Google Reviews Exception: ' . $e->getMessage());
-                 return [];
-             }
-         });*/
     }
 }

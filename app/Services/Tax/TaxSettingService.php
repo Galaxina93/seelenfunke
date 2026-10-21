@@ -94,14 +94,26 @@ class TaxSettingService
      */
     public function calculateRetroactiveVat(int|float $grossCents, float $taxRate = 19.0): array
     {
-        $netCents = (int)round($grossCents / (1 + ($taxRate / 100)));
+        $grossCents = max(0, (int)$grossCents);
+        $clampedRate = max(0.0, min(100.0, $taxRate));
+
+        if ($clampedRate == 0.0) {
+            return [
+                'gross_cents' => $grossCents,
+                'net_cents'   => $grossCents,
+                'vat_cents'   => 0,
+                'rate'        => 0.0,
+            ];
+        }
+
+        $netCents = (int)round($grossCents / (1 + ($clampedRate / 100)));
         $vatCents = (int)($grossCents - $netCents);
 
         return [
-            'gross_cents' => (int)$grossCents,
+            'gross_cents' => $grossCents,
             'net_cents'   => $netCents,
             'vat_cents'   => $vatCents,
-            'rate'        => $taxRate,
+            'rate'        => $clampedRate,
         ];
     }
 
@@ -113,34 +125,41 @@ class TaxSettingService
      */
     public function applyTransition(bool $enableSmallBusiness, string $transitionMode = 'immediate_retroactive'): void
     {
+        $allowedModes = ['immediate_retroactive', 'next_year'];
+        if (!in_array($transitionMode, $allowedModes, true)) {
+            $transitionMode = 'immediate_retroactive';
+        }
+
         $currentYear = (int)now()->year;
 
-        if (!$enableSmallBusiness) {
-            // DEAKTIVIERUNG der Kleinunternehmerregelung -> Wechsel zur Regelbesteuerung
-            if ($transitionMode === 'next_year') {
-                // Wechsel zum 01.01. des Folgejahres
-                // Bleibt dieses Jahr noch Kleinunternehmer
+        \Illuminate\Support\Facades\DB::transaction(function () use ($enableSmallBusiness, $transitionMode, $currentYear) {
+            if (!$enableSmallBusiness) {
+                // DEAKTIVIERUNG der Kleinunternehmerregelung -> Wechsel zur Regelbesteuerung
+                if ($transitionMode === 'next_year') {
+                    // Wechsel zum 01.01. des Folgejahres
+                    // Bleibt dieses Jahr noch Kleinunternehmer
+                    SystemSetting::updateOrCreate(['key' => 'is_small_business'], ['value' => 'true']);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_scheduled_end_year'], ['value' => (string)$currentYear]);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_end_year'], ['value' => '']);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_switched_year'], ['value' => '']);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_switched_at'], ['value' => '']);
+                } else {
+                    // Unterjähriger sofortiger Wechsel (rückwirkend für das gesamte Steuerjahr)
+                    SystemSetting::updateOrCreate(['key' => 'is_small_business'], ['value' => 'false']);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_end_year'], ['value' => (string)($currentYear - 1)]);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_switched_year'], ['value' => (string)$currentYear]);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_switched_at'], ['value' => now()->toDateTimeString()]);
+                    SystemSetting::updateOrCreate(['key' => 'small_business_scheduled_end_year'], ['value' => '']);
+                }
+            } else {
+                // AKTIVIERUNG der Kleinunternehmerregelung
                 SystemSetting::updateOrCreate(['key' => 'is_small_business'], ['value' => 'true']);
-                SystemSetting::updateOrCreate(['key' => 'small_business_scheduled_end_year'], ['value' => (string)$currentYear]);
                 SystemSetting::updateOrCreate(['key' => 'small_business_end_year'], ['value' => '']);
+                SystemSetting::updateOrCreate(['key' => 'small_business_scheduled_end_year'], ['value' => '']);
                 SystemSetting::updateOrCreate(['key' => 'small_business_switched_year'], ['value' => '']);
                 SystemSetting::updateOrCreate(['key' => 'small_business_switched_at'], ['value' => '']);
-            } else {
-                // Unterjähriger sofortiger Wechsel (rückwirkend für das gesamte Steuerjahr)
-                SystemSetting::updateOrCreate(['key' => 'is_small_business'], ['value' => 'false']);
-                SystemSetting::updateOrCreate(['key' => 'small_business_end_year'], ['value' => (string)($currentYear - 1)]);
-                SystemSetting::updateOrCreate(['key' => 'small_business_switched_year'], ['value' => (string)$currentYear]);
-                SystemSetting::updateOrCreate(['key' => 'small_business_switched_at'], ['value' => now()->toDateTimeString()]);
-                SystemSetting::updateOrCreate(['key' => 'small_business_scheduled_end_year'], ['value' => '']);
             }
-        } else {
-            // AKTIVIERUNG der Kleinunternehmerregelung
-            SystemSetting::updateOrCreate(['key' => 'is_small_business'], ['value' => 'true']);
-            SystemSetting::updateOrCreate(['key' => 'small_business_end_year'], ['value' => '']);
-            SystemSetting::updateOrCreate(['key' => 'small_business_scheduled_end_year'], ['value' => '']);
-            SystemSetting::updateOrCreate(['key' => 'small_business_switched_year'], ['value' => '']);
-            SystemSetting::updateOrCreate(['key' => 'small_business_switched_at'], ['value' => '']);
-        }
+        });
 
         Cache::forget('global_shop_settings');
 

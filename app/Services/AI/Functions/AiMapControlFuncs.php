@@ -355,14 +355,24 @@ trait AiMapControlFuncs
     // [AREA: EXPORT & REPORTING]
     public static function executeMapGeneratePdfSummary(array $args, $agent = null)
     {
-        $title = $args['title'] ?? 'Zusammenfassung der Orte';
-        $description = $args['description'] ?? '';
+        $title = trim((string)($args['title'] ?? 'Zusammenfassung der Orte'));
+        $description = trim((string)($args['description'] ?? ''));
         $locations = $args['locations'] ?? [];
-        $action = $args['target_action'] ?? 'download';
-        $recipient = $args['recipient_email'] ?? null;
-        if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
-            $recipient = null;
+        $action = strtolower(trim((string)($args['target_action'] ?? 'download')));
+        $rawRecipient = $args['recipient_email'] ?? null;
+        $recipient = null;
+
+        if (!empty($rawRecipient) && is_string($rawRecipient) && strtolower($rawRecipient) !== 'null') {
+            $trimmed = trim($rawRecipient);
+            if (preg_match('/[\r\n]/', $rawRecipient) || !filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                if ($action === 'email') {
+                    return ['status' => 'error', 'message' => "Ungültige Empfänger-E-Mail-Adresse: '$rawRecipient'"];
+                }
+            } else {
+                $recipient = $trimmed;
+            }
         }
+
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
 
         try {
@@ -372,6 +382,7 @@ trait AiMapControlFuncs
                 'description' => $description,
                 'locations' => $locations
             ]);
+            $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
             $dir = storage_path('app/public/maps');
             if (!file_exists($dir)) {
@@ -434,7 +445,7 @@ trait AiMapControlFuncs
 
         try {
             $url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($query) . ".json";
-            $response = Http::get($url, [
+            $response = Http::timeout(5)->get($url, [
                 'access_token' => $token,
                 'limit' => 3, // Hole bis zu 3 Ergebnisse
                 'language' => 'de'
@@ -559,7 +570,7 @@ trait AiMapControlFuncs
 
         try {
             $url = "https://nominatim.openstreetmap.org/search";
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
+            $response = \Illuminate\Support\Facades\Http::timeout(5)->withHeaders([
                 'User-Agent' => 'Seelenfunke/1.0 (AI Agent)'
             ])->get($url, [
                 'q' => $query,
@@ -617,14 +628,24 @@ trait AiMapControlFuncs
 
     public static function executeMapGeneratePlacesPdf(array $args, $agent = null)
     {
-        $title = $args['title'] ?? 'Ortsliste';
-        $description = $args['description'] ?? '';
+        $title = trim((string)($args['title'] ?? 'Ortsliste'));
+        $description = trim((string)($args['description'] ?? ''));
         $places = $args['places'] ?? [];
-        $action = $args['target_action'] ?? 'download';
-        $recipient = $args['recipient_email'] ?? null;
-        if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
-            $recipient = null;
+        $action = strtolower(trim((string)($args['target_action'] ?? 'download')));
+        $rawRecipient = $args['recipient_email'] ?? null;
+        $recipient = null;
+
+        if (!empty($rawRecipient) && is_string($rawRecipient) && strtolower($rawRecipient) !== 'null') {
+            $trimmed = trim($rawRecipient);
+            if (preg_match('/[\r\n]/', $rawRecipient) || !filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                if ($action === 'email') {
+                    return ['status' => 'error', 'message' => "Ungültige Empfänger-E-Mail-Adresse: '$rawRecipient'"];
+                }
+            } else {
+                $recipient = $trimmed;
+            }
         }
+
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'Globi');
 
         try {
@@ -633,6 +654,7 @@ trait AiMapControlFuncs
                 'description' => $description,
                 'places' => $places
             ]);
+            $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
             $dir = storage_path('app/public/places');
             if (!file_exists($dir)) {
