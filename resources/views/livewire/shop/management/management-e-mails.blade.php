@@ -876,10 +876,10 @@
                                                         padding: 2rem !important;
                                                         margin: 0 !important;
                                                         caret-color: ${isDark ? '#E6C687' : '#1f2937'} !important;
-                                                        cursor: ${isDark ? \"url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'16\\' height=\\'24\\' viewBox=\\'0 0 16 24\\'%3E%3Cpath d=\\'M5 3h6M8 3v18M5 21h6\\' stroke=\\'%23ffffff\\' stroke-width=\\'2.2\\' stroke-linecap=\\'round\\' filter=\\'drop-shadow(0 0 1.2px %23000000)\\'/%3E%3C/svg%3E') 8 12, text\" : \"text\"} !important;
+                                                        cursor: text !important;
                                                     }
                                                     p, div, span, h1, h2, h3, h4, h5, h6, li, blockquote, a {
-                                                        cursor: inherit !important;
+                                                        cursor: text !important;
                                                     }
                                                     ::selection { background: var(--theme-color-30) !important; color: #ffffff !important; }
                                                     p { margin-bottom: 1.2em !important; }
