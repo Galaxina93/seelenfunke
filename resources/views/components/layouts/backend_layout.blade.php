@@ -76,6 +76,33 @@
     </script>
 
     @include("components.layouts.partials.frontend-error-tracker")
+
+    <style>
+        html.dark {
+            color-scheme: dark;
+        }
+        html.light {
+            color-scheme: light;
+        }
+        /* Universelle Sichtbarkeit des Mauszeigers & Carets in Input- und Textarea-Feldern */
+        input, textarea, [contenteditable="true"] {
+            caret-color: currentColor;
+        }
+        html.dark input,
+        html.dark textarea,
+        html.dark [contenteditable="true"],
+        html.dark select {
+            color-scheme: dark;
+            caret-color: #E6C687;
+        }
+        /* Dual-Tone High-Contrast I-Beam Cursor für dunkle Eingabefelder (verhindert unsichtbare Maus auf Windows) */
+        html.dark input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not(:disabled),
+        html.dark textarea:not(:disabled),
+        html.dark [contenteditable="true"],
+        html.dark .cursor-text {
+            cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' filter='drop-shadow(0 0 1.2px %23000000)'/%3E%3C/svg%3E") 8 12, text !important;
+        }
+    </style>
 </head>
 <body class="min-h-screen bg-slate-100 dark:bg-gray-950 font-sans text-gray-800 dark:text-gray-300 antialiased relative overflow-x-hidden transition-colors duration-300" x-data="universeLayout()" x-init="init()">
 

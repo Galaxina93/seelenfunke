@@ -759,7 +759,7 @@
                             @endif
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500 text-sm w-16">An:</span>
-                                <input type="email" wire:model="composeTo" list="contact-emails-list" class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0" required>
+                                <input type="email" wire:model="composeTo" list="contact-emails-list" class="compose-input flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0" required>
                                 <div class="flex items-center gap-1 shrink-0 text-xs font-semibold">
                                     <button type="button" @click="showCc = !showCc" :class="showCc ? 'text-[var(--theme-color)] bg-[var(--theme-color)]/10 font-bold' : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'" class="px-2 py-0.5 rounded transition-colors" title="CC (Kopie) hinzufügen">CC</button>
                                     <button type="button" @click="showBcc = !showBcc" :class="showBcc ? 'text-[var(--theme-color)] bg-[var(--theme-color)]/10 font-bold' : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'" class="px-2 py-0.5 rounded transition-colors" title="BCC (Blindkopie) hinzufügen">BCC</button>
@@ -777,7 +777,7 @@
                             {{-- CC Zeile --}}
                             <div x-show="showCc" x-cloak class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/60 animate-fade-in">
                                 <span class="text-gray-500 text-sm w-16">CC:</span>
-                                <input type="text" wire:model="composeCc" list="contact-emails-list" placeholder="Kopie an (mehrere mit Komma trennen)..." class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm placeholder-gray-400">
+                                <input type="text" wire:model="composeCc" list="contact-emails-list" placeholder="Kopie an (mehrere mit Komma trennen)..." class="compose-input flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm placeholder-gray-400">
                                 <button type="button" @click="showCc = false; $wire.set('composeCc', '')" class="text-gray-400 hover:text-red-500 p-0.5 transition-colors" title="CC-Feld schließen & leeren">
                                     <x-heroicon-o-x-mark class="w-4 h-4"/>
                                 </button>
@@ -786,7 +786,7 @@
                             {{-- BCC Zeile --}}
                             <div x-show="showBcc" x-cloak class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/60 animate-fade-in">
                                 <span class="text-gray-500 text-sm w-16">BCC:</span>
-                                <input type="text" wire:model="composeBcc" list="contact-emails-list" placeholder="Blindkopie an (mehrere mit Komma trennen)..." class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm placeholder-gray-400">
+                                <input type="text" wire:model="composeBcc" list="contact-emails-list" placeholder="Blindkopie an (mehrere mit Komma trennen)..." class="compose-input flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm placeholder-gray-400">
                                 <button type="button" @click="showBcc = false; $wire.set('composeBcc', '')" class="text-gray-400 hover:text-red-500 p-0.5 transition-colors" title="BCC-Feld schließen & leeren">
                                     <x-heroicon-o-x-mark class="w-4 h-4"/>
                                 </button>
@@ -795,7 +795,7 @@
                             <div class="h-px bg-gray-200 dark:bg-gray-800"></div>
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500 text-sm w-16">Betreff:</span>
-                                <input type="text" wire:model="composeSubject" class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 font-bold" required>
+                                <input type="text" wire:model="composeSubject" class="compose-input flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 font-bold" required>
                             </div>
                             @if ($errors->any())
                                 <div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 text-xs rounded-lg border border-red-200 dark:border-red-900/50 mt-2">
@@ -809,6 +809,17 @@
                             <style>
                                 .cke_notification_warning { display: none !important; }
                                 .cke_notifications_area { display: none !important; }
+
+                                /* Eingabefelder im Compose Modal & CKEditor: Mauszeiger und Caret immer sichtbar */
+                                .compose-input {
+                                    caret-color: var(--theme-color, #C5A059);
+                                    cursor: text !important;
+                                }
+                                :is(.dark) .compose-input {
+                                    color-scheme: dark;
+                                    caret-color: #E6C687 !important;
+                                    cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' viewBox='0 0 16 24'%3E%3Cpath d='M5 3h6M8 3v18M5 21h6' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' filter='drop-shadow(0 0 1.2px %23000000)'/%3E%3C/svg%3E") 8 12, text !important;
+                                }
 
                                 /* Rahmen und Basis */
                                 .cke_chrome { border: none !important; border-top: 1px solid #e5e7eb !important; border-radius: 0 !important; overflow: hidden; background: #ffffff !important; height: 100% !important; display: flex !important; flex-direction: column !important; }
@@ -853,6 +864,9 @@
 
                                                 const isDark = document.documentElement.classList.contains('dark');
                                                 CKEDITOR.addCss(`
+                                                    html, body {
+                                                        color-scheme: ${isDark ? 'dark' : 'light'} !important;
+                                                    }
                                                     body.cke_editable {
                                                         background-color: ${isDark ? '#030712' : '#ffffff'} !important;
                                                         color: ${isDark ? '#d1d5db' : '#1f2937'} !important;
@@ -861,6 +875,11 @@
                                                         line-height: 1.8 !important;
                                                         padding: 2rem !important;
                                                         margin: 0 !important;
+                                                        caret-color: ${isDark ? '#E6C687' : '#1f2937'} !important;
+                                                        cursor: ${isDark ? \"url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'16\\' height=\\'24\\' viewBox=\\'0 0 16 24\\'%3E%3Cpath d=\\'M5 3h6M8 3v18M5 21h6\\' stroke=\\'%23ffffff\\' stroke-width=\\'2.2\\' stroke-linecap=\\'round\\' filter=\\'drop-shadow(0 0 1.2px %23000000)\\'/%3E%3C/svg%3E') 8 12, text\" : \"text\"} !important;
+                                                    }
+                                                    p, div, span, h1, h2, h3, h4, h5, h6, li, blockquote, a {
+                                                        cursor: inherit !important;
                                                     }
                                                     ::selection { background: var(--theme-color-30) !important; color: #ffffff !important; }
                                                     p { margin-bottom: 1.2em !important; }
