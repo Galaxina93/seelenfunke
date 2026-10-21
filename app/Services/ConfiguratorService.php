@@ -133,7 +133,7 @@ class ConfiguratorService
 
     /**
      * Stellt sicher, dass keine JS-Fehler im Frontend/Backend entstehen,
-     * weil ein Wert im Array fehlt.
+     * weil ein Wert im Array fehlt oder ungültige Werte/Extreme übergeben werden.
      */
     public function mergeWithDefaults(?array $savedConfig): array
     {
@@ -141,7 +141,37 @@ class ConfiguratorService
             $savedConfig = [];
         }
 
-        return array_merge($this->getDefaultSettings(), $savedConfig);
+        $merged = array_merge($this->getDefaultSettings(), $savedConfig);
+
+        // Clamp 2D coordinates and dimensions (0..100%, width/height min 1%)
+        $merged['area_left'] = max(0, min(100, is_numeric($merged['area_left'] ?? null) ? (float)$merged['area_left'] : 10));
+        $merged['area_top'] = max(0, min(100, is_numeric($merged['area_top'] ?? null) ? (float)$merged['area_top'] : 10));
+        $merged['area_width'] = max(1, min(100, is_numeric($merged['area_width'] ?? null) ? (float)$merged['area_width'] : 80));
+        $merged['area_height'] = max(1, min(100, is_numeric($merged['area_height'] ?? null) ? (float)$merged['area_height'] : 80));
+
+        // Clamp 3D model & engraving scales (10% bis 1000% verhindert WebGL Matrix-Inversions- und Pufferfehler)
+        $merged['model_scale'] = max(10, min(1000, is_numeric($merged['model_scale'] ?? null) ? (float)$merged['model_scale'] : 100));
+        $merged['engraving_scale'] = max(10, min(1000, is_numeric($merged['engraving_scale'] ?? null) ? (float)$merged['engraving_scale'] : 100));
+
+        // Validate and clamp custom_points
+        if (isset($merged['custom_points']) && is_array($merged['custom_points'])) {
+            $sanitizedPoints = [];
+            foreach ($merged['custom_points'] as $pt) {
+                if (is_array($pt) && isset($pt['x'], $pt['y']) && is_numeric($pt['x']) && is_numeric($pt['y'])) {
+                    $sanitizedPoints[] = [
+                        'x' => max(0, min(100, (float)$pt['x'])),
+                        'y' => max(0, min(100, (float)$pt['y'])),
+                    ];
+                }
+            }
+            if (!empty($sanitizedPoints)) {
+                $merged['custom_points'] = $sanitizedPoints;
+            } else {
+                $merged['custom_points'] = $this->getDefaultSettings()['custom_points'];
+            }
+        }
+
+        return $merged;
     }
 
     /**

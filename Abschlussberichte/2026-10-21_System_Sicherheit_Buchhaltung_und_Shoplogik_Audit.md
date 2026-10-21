@@ -691,6 +691,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Umstellung auf exakten Namensvergleich (`=`), Truncation von Produktnamen auf 100 Zeichen und Kategorienamen auf 50 Zeichen.
 * **Testabdeckung:** [`tests/Feature/Ai/AiShoppingListFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiShoppingListFuncsSecurityTest.php) (1 Test, 4 Assertions).
 
+### 2.106 [DATEIBEREINIGUNG & WARENKORB] SQL-Wildcard-Escaping, Chunking & Pfad-Normalisierung im CartFileCleanupService
+* **Dateien:** [`app/Services/CartFileCleanupService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartFileCleanupService.php)
+* **Befund:** In `isFileUsedInOrders()`, `isFileUsedInQuotes()` und `isFileUsedInCarts()` wurden Dateinamen ohne Escaping in `LIKE '%...%'` eingebunden. Dateinamen mit `%` oder `_` führten zu False-Positives und blockierten die Bereinigung unbeteiligter Uploads. In `cleanupAbandonedCarts()` lud `get()` alle verlassenen Warenkörbe unbegrenzt in den Arbeitsspeicher (Gefahr von Memory Exhaustion). In `isManagedPath()` und `deleteFileSafely()` fehlte die Normalisierung von Windows-Backslashes.
+* **Lösung:** Escaping aller SQL-Wildcards mit `addcslashes($basename, '%_\\')`, Umstellung auf speicherschonendes `chunkById(100)` und einheitliche Pfad-Normalisierung (`str_replace('\\', '/', trim($path, " \t\n\r\0\x0B/"))`).
+* **Testabdeckung:** [`tests/Feature/Cart/CartFileCleanupServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Cart/CartFileCleanupServiceSecurityTest.php) (3 Tests, 9 Assertions).
+
+### 2.107 [KONFIGURATOR & 3D/2D-STABILITÄT] Wertebereichs- & Koordinaten-Clamping gegen WebGL- & Canvas-Crashes
+* **Dateien:** [`app/Services/ConfiguratorService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php)
+* **Befund:** In `mergeWithDefaults()` wurden gespeicherte Konfigurationen ungeprüft mit den Standardwerten zusammengeführt. Extreme, negative oder fehlerhafte Werte für Gravurbereiche (`area_left`, `area_top`, `area_width <= 0`, `area_height <= 0`) sowie Skalierungsfaktoren (`model_scale <= 0`, `engraving_scale`) führten im Frontend zu Three.js-Matrix-Inversionsfehlern, Divisionen durch Null und WebGL-Renderabbrüchen.
+* **Lösung:** Serverseitiges Clamping von 2D-Koordinaten (`area_left`, `area_top` auf 0–100%, `area_width`, `area_height` auf 1–100%), Begrenzung von 3D-Skalierungen (`model_scale`, `engraving_scale` auf 10–1000%) und Validierung der `custom_points`-Koordinaten.
+* **Testabdeckung:** [`tests/Feature/Configurator/ConfiguratorServiceBoundsTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Configurator/ConfiguratorServiceBoundsTest.php) (2 Tests, 10 Assertions).
+
+### 2.108 [ANALYTICS & DATENBANK-SCHUTZ] Stringlängen-Sanitization & Integer-Overflow-Schutz im ProductTrackingService
+* **Dateien:** [`app/Services/ProductTrackingService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ProductTrackingService.php)
+* **Befund:** In `ProductTrackingService::track()` wurden `source`, `event_name`, `product_id` und `template_id` ohne Längenbegrenzung entgegengenommen. Überlange Eingaben verursachten SQL-Fehler (`Data too long for column 'source'`). Zudem konnten extreme Werte bei `value_cents` zu 32-Bit-Integer-Überläufen führen.
+* **Lösung:** Truncation von `source` (max 30 Zeichen), `event_name` (max 60 Zeichen), `product_id` / `template_id` (max 36 Zeichen), Clamping von `step` (0–255) sowie Begrenzung von `value_cents` (`0 <= val <= 2147483647`).
+* **Testabdeckung:** [`tests/Feature/Analytics/ProductTrackingServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Analytics/ProductTrackingServiceSecurityTest.php) (2 Tests, 9 Assertions).
+
+### 2.109 [KI-KALENDER & INTEGRITÄT] Wildcard-Schutz vor Terminlöschung & Chronologische Validierung in AiCalendarFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiCalendarFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiCalendarFuncs.php)
+* **Befund:** In `executeDeleteCalendarEvent()` erlaubte `title_suche` das Übergeben von `%` oder unzureichenden Einzelbuchstaben, was zum Löschen des ersten besten Kalendertermins führte. In `executeGetCalendarEvents()` fehlte Wildcard-Escaping im Suchbegriff und eine Begrenzung von `limit`. In `executeCreateCalendarEvent()` und `executeUpdateCalendarEvent()` konnte ein `end_date` vor `start_date` liegen, was negative Termindauern erzeugte.
+* **Lösung:** Mindestlänge von 3 Zeichen und `addcslashes` für `title_suche`, Begrenzung von `limit` auf 1–100, Wildcard-Escaping und automatische Korrektur von `end_date` auf `start_date + 1 Stunde`, falls das Enddatum vor dem Startdatum liegt.
+* **Testabdeckung:** [`tests/Feature/Ai/AiCalendarFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiCalendarFuncsSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.110 [KI-GESUNDHEITSAKTE & DSGVO] IDOR-Prävention für Behandlungspläne/Protokolle & Speicherschutz sensibler PDF-Exporte
+* **Dateien:** [`app/Services/AI/Functions/AiHealthFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiHealthFuncs.php)
+* **Befund:** In `executeUpdateTreatmentPlan()` und `executeCompleteTreatmentPlan()` fehlte die Authentifizierungs- und Mandantenprüfung; jeder Nutzer konnte über beliebige Plan-IDs fremde medizinische Behandlungspläne manipulieren oder abschließen. In `executeExportTreatmentPlan()` und `executeExportProtocol()` wurden hochsensible medizinische PDF-Dokumente (§ 9 DSGVO) im öffentlich zugänglichen `public`-Storage abgelegt und unberechtigt exportierbar gemacht.
+* **Lösung:** Zwingende Authentifizierungsprüfung (`Auth::user()` / Notfall-Admin) und striktes Scoping auf `user_id` des aktuellen Nutzers bei Update, Abschluss und Export. Verlagerung der generierten medizinischen PDFs ausschließlich auf die private `workspace`-Disk mit Deaktivierung externer Ressourcen in DomPDF (`isRemoteEnabled => false`).
+* **Testabdeckung:** [`tests/Feature/Ai/AiHealthFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiHealthFuncsSecurityTest.php) (3 Tests, 11 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -698,6 +728,16 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | Datei | Art der Änderung |
 |---|---|
 | [`app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php) | Sichere Produkt-Existenzprüfung, Stückzahl-Sanitization (`min:1, max:10000`), IP-Rate-Limiter (`calculator-submit`, 5/10min) & Negativpreis-Schutz |
+| [`app/Services/CartFileCleanupService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartFileCleanupService.php) | SQL-Wildcard-Escaping mit `addcslashes`, speicherschonendes `chunkById(100)` für verlassene Warenkörbe & Pfad-Normalisierung |
+| [`app/Services/ConfiguratorService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php) | Serverseitiges Clamping von 2D-Bereichen (0–100%) und 3D-Skalierungen (10–1000%) gegen WebGL/Three.js-Crashes |
+| [`app/Services/ProductTrackingService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ProductTrackingService.php) | Stringlängen-Truncation (`source`, `event_name`, UUIDs) und INT-Overflow-Schutz bei Tracking-Events |
+| [`app/Services/AI/Functions/AiCalendarFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiCalendarFuncs.php) | Wildcard-Schutz vor Terminlöschung, Mindestlänge für Titelsuche (>= 3 Zeichen) und automatische Enddatum-Korrektur |
+| [`app/Services/AI/Functions/AiHealthFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiHealthFuncs.php) | Mandanten-Isolation & IDOR-Prävention für Behandlungspläne/Protokolle sowie privater Storage-Export (§ 9 DSGVO) |
+| [`tests/Feature/Cart/CartFileCleanupServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Cart/CartFileCleanupServiceSecurityTest.php) | Neue Testsuite: Pfadtraversal-Schutz, Wildcard-Escaping & chunked Löschung alter Warenkörbe |
+| [`tests/Feature/Configurator/ConfiguratorServiceBoundsTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Configurator/ConfiguratorServiceBoundsTest.php) | Neue Testsuite: Koordinaten- & Skalierungs-Clamping im Konfigurator |
+| [`tests/Feature/Analytics/ProductTrackingServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Analytics/ProductTrackingServiceSecurityTest.php) | Neue Testsuite: Stringlängen-Sanitization & Wertebereichsvalidierung im Tracking |
+| [`tests/Feature/Ai/AiCalendarFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiCalendarFuncsSecurityTest.php) | Neue Testsuite: Wildcard-Löschschutz, Such-Mindestlänge & chronologische Validierung |
+| [`tests/Feature/Ai/AiHealthFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiHealthFuncsSecurityTest.php) | Neue Testsuite: IDOR-Schutz bei Aktualisierung, Abschluss & Export medizinischer Akten |
 | [`app/Livewire/Shop/Product/ProductVariants.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductVariants.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Bereinigung von Preisen (`min:0`) und Beständen |
 | [`app/Livewire/Shop/Product/ProductTax.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTax.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Whitelist für Steuerklassen (`standard, reduced, zero`) |
 | [`resources/views/livewire/shop/product/product-variants.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-variants.blade.php) | Null-sicherer Blade-Zugriff auf Variantenattribute (`$variant['attributes'] ?? []`) |
@@ -941,7 +981,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 268 Tests bestanden (792 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 273 Tests bestanden (810 Assertions, 0 Fehler)
+  * `CartFileCleanupServiceSecurityTest`: 3/3 bestanden (Pfadtraversal-Schutz, Wildcard-Escaping & chunked Löschung verlassener Warenkörbe)
+  * `ConfiguratorServiceBoundsTest`: 2/2 bestanden (2D-Koordinaten- & 3D-Skalierungs-Clamping gegen WebGL/Canvas-Crashes)
+  * `ProductTrackingServiceSecurityTest`: 2/2 bestanden (Stringlängen-Truncation & INT-Overflow-Schutz bei Tracking-Events)
+  * `AiCalendarFuncsSecurityTest`: 2/2 bestanden (Wildcard-Löschschutz, Such-Mindestlänge & chronologische Validierung)
+  * `AiHealthFuncsSecurityTest`: 3/3 bestanden (IDOR-Schutz bei Aktualisierung, Abschluss & privater Export medizinischer Akten)
   * `PriceCalcServiceSecurityTest`: 2/2 bestanden (Division-by-Zero-Schutz & Steuersatzberechnung)
   * `ShippingCalculatorSecurityTest`: 2/2 bestanden (Ländercode-Normalisierung, Schwellenwerte & Versandkosten-Clamping)
   * `FinancialServiceTaxExportSecurityTest`: 1/1 bestanden (Privater Speicherort für Steuerexporte & Beleg-Integration)

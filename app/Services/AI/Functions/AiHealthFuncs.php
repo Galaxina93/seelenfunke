@@ -395,9 +395,15 @@ trait AiHealthFuncs
             }
             if (!$user) return ['error' => true, 'message' => 'Kein Admin/CEO authentifiziert.'];
 
+            $agentId = session('current_ai_agent_id');
+            if (!$agentId) {
+                $firstAgent = \App\Models\Ai\AiAgent::first();
+                $agentId = $firstAgent ? $firstAgent->id : (string) \Illuminate\Support\Str::uuid();
+            }
+
             $plan = AiHealthTreatmentPlan::create([
                 'user_id' => $user->id,
-                'ai_agent_id' => session('current_ai_agent_id'),
+                'ai_agent_id' => $agentId,
                 'title' => $args['title'],
                 'diagnosis_summary' => $args['diagnosis_summary'],
                 'start_date' => $args['start_date'] ?? null,
@@ -429,7 +435,23 @@ trait AiHealthFuncs
     public static function executeUpdateTreatmentPlan(array $args)
     {
         try {
-            $plan = AiHealthTreatmentPlan::findOrFail($args['plan_id']);
+            $user = Auth::user();
+            if (!$user && session('emergency_access_granted')) {
+                $user = \App\Models\Admin\Admin::first();
+            }
+            if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+
+            if (empty($args['plan_id'])) {
+                return ['error' => true, 'message' => 'Plan-ID fehlt.'];
+            }
+
+            $plan = AiHealthTreatmentPlan::where('id', $args['plan_id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$plan) {
+                return ['error' => true, 'message' => 'Behandlungsplan nicht gefunden oder keine Berechtigung.'];
+            }
             
             $updateData = [];
             if (isset($args['title'])) $updateData['title'] = $args['title'];
@@ -468,10 +490,27 @@ trait AiHealthFuncs
     public static function executeCompleteTreatmentPlan(array $args)
     {
         try {
-            $plan = AiHealthTreatmentPlan::findOrFail($args['plan_id']);
+            $user = Auth::user();
+            if (!$user && session('emergency_access_granted')) {
+                $user = \App\Models\Admin\Admin::first();
+            }
+            if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+
+            if (empty($args['plan_id'])) {
+                return ['error' => true, 'message' => 'Plan-ID fehlt.'];
+            }
+
+            $plan = AiHealthTreatmentPlan::where('id', $args['plan_id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$plan) {
+                return ['error' => true, 'message' => 'Behandlungsplan nicht gefunden oder keine Berechtigung.'];
+            }
+
             $plan->update([
                 'status' => 'completed',
-                'result_evaluation' => $args['result_evaluation']
+                'result_evaluation' => $args['result_evaluation'] ?? ''
             ]);
 
             return ['success' => true, 'message' => "Plan als durchgeführt markiert."];
@@ -736,29 +775,37 @@ trait AiHealthFuncs
             }
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
-            $plan = AiHealthTreatmentPlan::with('items', 'user', 'agent')->findOrFail($args['plan_id']);
-            
-            // Create target folder (Gesundheit/Nachweise)
-            $folderPath = 'agenten/workspace/Gesundheit/Nachweise';
-            if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($folderPath)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($folderPath);
+            if (empty($args['plan_id'])) {
+                return ['error' => true, 'message' => 'Plan-ID fehlt.'];
             }
-            if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($folderPath)) {
-                \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($folderPath);
+
+            $plan = AiHealthTreatmentPlan::with('items', 'user', 'agent')
+                ->where('id', $args['plan_id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$plan) {
+                return ['error' => true, 'message' => 'Behandlungsplan nicht gefunden oder keine Zugriffsberechtigung.'];
+            }
+            
+            // Create target folder in private workspace disk (Gesundheit/Nachweise)
+            $folderPath = 'agenten/workspace/Gesundheit/Nachweise';
+            $disk = \Illuminate\Support\Facades\Storage::disk('workspace');
+            if (!$disk->exists($folderPath)) {
+                $disk->makeDirectory($folderPath);
             }
 
             // Generate File Name
             $safeTitle = preg_replace('/[^A-Za-z0-9\-]/', '_', $plan->title);
             $fileName = 'Behandlungsplan_' . $safeTitle . '_' . now()->format('Ymd_Hi') . '.pdf';
             $filePath = $folderPath . '/' . $fileName;
-            $absolutePath = \Illuminate\Support\Facades\Storage::disk('public')->path($filePath);
+            $absolutePath = $disk->path($filePath);
 
-            // Generate PDF
+            // Generate PDF with remote assets disabled
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-treatment-plan', [
                 'plan' => $plan
-            ]);
+            ])->setOptions(['isRemoteEnabled' => false]);
             $pdf->save($absolutePath);
-            \Illuminate\Support\Facades\Storage::disk('workspace')->put($filePath, file_get_contents($absolutePath));
 
             // Send Email if requested
             if (isset($args['send_email']) && $args['send_email']) {
@@ -796,28 +843,36 @@ trait AiHealthFuncs
             }
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
-            $protocol = AiHealthProtocol::with('user', 'agent')->findOrFail($args['protocol_id']);
-            
-            // Create target folder (Gesundheit/Nachweise)
-            $folderPath = 'agenten/workspace/Gesundheit/Nachweise';
-            if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($folderPath)) {
-                \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory($folderPath);
+            if (empty($args['protocol_id'])) {
+                return ['error' => true, 'message' => 'Protokoll-ID fehlt.'];
             }
-            if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($folderPath)) {
-                \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($folderPath);
+
+            $protocol = AiHealthProtocol::with('user', 'agent')
+                ->where('id', $args['protocol_id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$protocol) {
+                return ['error' => true, 'message' => 'Protokoll nicht gefunden oder keine Zugriffsberechtigung.'];
+            }
+            
+            // Create target folder in private workspace disk (Gesundheit/Nachweise)
+            $folderPath = 'agenten/workspace/Gesundheit/Nachweise';
+            $disk = \Illuminate\Support\Facades\Storage::disk('workspace');
+            if (!$disk->exists($folderPath)) {
+                $disk->makeDirectory($folderPath);
             }
 
             // Generate File Name
             $fileName = 'Protokoll_' . $protocol->created_at->format('Ymd_Hi') . '.pdf';
             $filePath = $folderPath . '/' . $fileName;
-            $absolutePath = \Illuminate\Support\Facades\Storage::disk('public')->path($filePath);
+            $absolutePath = $disk->path($filePath);
 
-            // Generate PDF
+            // Generate PDF with remote assets disabled
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.health-protocol', [
                 'protocol' => $protocol
-            ]);
+            ])->setOptions(['isRemoteEnabled' => false]);
             $pdf->save($absolutePath);
-            \Illuminate\Support\Facades\Storage::disk('workspace')->put($filePath, file_get_contents($absolutePath));
 
             // Send Email if requested
             if (isset($args['send_email']) && $args['send_email']) {

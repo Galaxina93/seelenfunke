@@ -19,17 +19,30 @@ class ProductTrackingService
             $sessionHash = self::getSessionHash();
             $deviceType = self::detectDeviceType();
 
+            $sanitizedSource = substr(trim($source), 0, 30);
+            $sanitizedEventName = substr(trim($eventName), 0, 60);
+            $productId = isset($params['product_id']) && is_string($params['product_id']) ? substr(trim($params['product_id']), 0, 36) : null;
+            $templateId = isset($params['template_id']) && is_string($params['template_id']) ? substr(trim($params['template_id']), 0, 36) : null;
+            $step = isset($params['step']) && is_numeric($params['step']) ? max(0, min(255, (int)$params['step'])) : null;
+
+            $valueCents = null;
+            if (isset($params['value_cents']) && is_numeric($params['value_cents'])) {
+                $valueCents = max(0, min(2147483647, (int)$params['value_cents']));
+            }
+
+            $metaData = isset($params['meta_data']) && is_array($params['meta_data']) ? $params['meta_data'] : null;
+
             return ProductAnalyticsEvent::create([
                 'session_hash'    => $sessionHash,
-                'source'          => $source,
-                'event_name'      => $eventName,
-                'step'            => $params['step'] ?? null,
-                'product_id'      => $params['product_id'] ?? null,
-                'template_id'     => $params['template_id'] ?? null,
+                'source'          => $sanitizedSource,
+                'event_name'      => $sanitizedEventName,
+                'step'            => $step,
+                'product_id'      => $productId,
+                'template_id'     => $templateId,
                 'item_identifier' => isset($params['item_identifier']) ? substr((string)$params['item_identifier'], 0, 190) : null,
-                'value_cents'     => isset($params['value_cents']) ? (int)$params['value_cents'] : null,
+                'value_cents'     => $valueCents,
                 'device_type'     => $deviceType,
-                'meta_data'       => $params['meta_data'] ?? null,
+                'meta_data'       => $metaData,
                 'created_at'      => now(),
             ]);
         } catch (\Throwable $e) {

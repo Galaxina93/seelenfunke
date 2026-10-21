@@ -140,14 +140,17 @@ trait AiCalendarFuncs
             }
 
             if ($keyword) {
-                $query->where(function($q) use ($keyword) {
-                    $q->where('title', 'like', "%{$keyword}%")
-                      ->orWhere('description', 'like', "%{$keyword}%");
-                });
+                $escapedKeyword = addcslashes(trim((string)$keyword), '%_\\');
+                if ($escapedKeyword !== '') {
+                    $query->where(function($q) use ($escapedKeyword) {
+                        $q->where('title', 'like', "%{$escapedKeyword}%")
+                          ->orWhere('description', 'like', "%{$escapedKeyword}%");
+                    });
+                }
             }
 
             if ($limit) {
-                $query->limit($limit);
+                $query->limit(max(1, min(100, (int)$limit)));
             } else {
                 // Hardcap, um zu viele Daten zu verhindern
                 $query->limit(50);
@@ -203,6 +206,9 @@ trait AiCalendarFuncs
 
             if (!empty($args['end_date'])) {
                  $end = Carbon::parse($args['end_date']);
+                 if ($end->lessThan($start)) {
+                     $end = $start->copy()->addHour();
+                 }
             } else {
                  $end = $start->copy()->addHour(); // Default 1 Hour
                  if ($isAllDay) $end = $start->copy()->endOfDay();
@@ -243,7 +249,13 @@ trait AiCalendarFuncs
 
             if (!empty($args['title'])) $event->title = substr($args['title'], 0, 255);
             if (!empty($args['start_date'])) $event->start_date = Carbon::parse($args['start_date']);
-            if (!empty($args['end_date'])) $event->end_date = Carbon::parse($args['end_date']);
+            if (!empty($args['end_date'])) {
+                $parsedEnd = Carbon::parse($args['end_date']);
+                if ($event->start_date && $parsedEnd->lessThan($event->start_date)) {
+                    $parsedEnd = Carbon::parse($event->start_date)->copy()->addHour();
+                }
+                $event->end_date = $parsedEnd;
+            }
 
             $event->save();
 
@@ -268,7 +280,12 @@ trait AiCalendarFuncs
             if (!empty($args['event_id'])) {
                 $event = ManagementCalendarEvent::find($args['event_id']);
             } elseif (!empty($args['title_suche'])) {
-                $event = ManagementCalendarEvent::where('title', 'LIKE', '%' . $args['title_suche'] . '%')->first();
+                $titleSuche = trim((string)$args['title_suche']);
+                if (mb_strlen($titleSuche) < 3) {
+                    return ['status' => 'error', 'message' => 'Der Suchbegriff für title_suche muss mindestens 3 Zeichen lang sein.'];
+                }
+                $escapedTitle = addcslashes($titleSuche, '%_\\');
+                $event = ManagementCalendarEvent::where('title', 'LIKE', '%' . $escapedTitle . '%')->first();
             }
 
             if (!$event) {

@@ -37,7 +37,7 @@ class CartFileCleanupService
 
             // Check if file is still used by another active cart item
             $usedInOtherCartItem = CartItem::where('id', '!=', $item->id)
-                ->where('configuration', 'LIKE', '%' . $basename . '%')
+                ->where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
                 ->exists();
 
             if ($usedInOtherCartItem) {
@@ -160,18 +160,20 @@ class CartFileCleanupService
     public function cleanupAbandonedCarts(int $olderThanDays = 14): int
     {
         $cutoff = now()->subDays($olderThanDays);
-
-        $abandonedCarts = Cart::where('updated_at', '<', $cutoff)->with('items')->get();
         $deletedCartsCount = 0;
 
-        foreach ($abandonedCarts as $cart) {
-            foreach ($cart->items as $item) {
-                $this->cleanupCartItemFiles($item);
-                $item->delete();
-            }
-            $cart->delete();
-            $deletedCartsCount++;
-        }
+        Cart::where('updated_at', '<', $cutoff)
+            ->with('items')
+            ->chunkById(100, function ($abandonedCarts) use (&$deletedCartsCount) {
+                foreach ($abandonedCarts as $cart) {
+                    foreach ($cart->items as $item) {
+                        $this->cleanupCartItemFiles($item);
+                        $item->delete();
+                    }
+                    $cart->delete();
+                    $deletedCartsCount++;
+                }
+            });
 
         return $deletedCartsCount;
     }
@@ -182,7 +184,7 @@ class CartFileCleanupService
     public function isFileUsedInOrders(string $basename): bool
     {
         if (empty($basename)) return false;
-        return OrderOrderItem::where('configuration', 'LIKE', '%' . $basename . '%')->exists();
+        return OrderOrderItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
     }
 
     /**
@@ -191,7 +193,7 @@ class CartFileCleanupService
     public function isFileUsedInQuotes(string $basename): bool
     {
         if (empty($basename)) return false;
-        return OrderQuoteRequestItem::where('configuration', 'LIKE', '%' . $basename . '%')->exists();
+        return OrderQuoteRequestItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
     }
 
     /**
@@ -200,7 +202,7 @@ class CartFileCleanupService
     public function isFileUsedInCarts(string $basename): bool
     {
         if (empty($basename)) return false;
-        return CartItem::where('configuration', 'LIKE', '%' . $basename . '%')->exists();
+        return CartItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
     }
 
     /**
@@ -269,12 +271,15 @@ class CartFileCleanupService
      */
     public function isManagedPath(string $path): bool
     {
-        if (str_contains($path, '..')) {
+        $normalized = str_replace('\\', '/', trim($path, " \t\n\r\0\x0B/"));
+
+        if (str_contains($normalized, '..')) {
             return false;
         }
 
         foreach ($this->managedDirectories as $dir) {
-            if (str_starts_with($path, $dir . '/')) {
+            $normalizedDir = str_replace('\\', '/', trim($dir, " \t\n\r\0\x0B/"));
+            if (str_starts_with($normalized, $normalizedDir . '/') || $normalized === $normalizedDir) {
                 return true;
             }
         }
@@ -291,15 +296,16 @@ class CartFileCleanupService
             return false;
         }
 
+        $normalized = str_replace('\\', '/', trim($path, " \t\n\r\0\x0B/"));
         $disk = Storage::disk('public');
 
-        if ($disk->exists($path)) {
-            return $disk->delete($path);
+        if ($disk->exists($normalized)) {
+            return $disk->delete($normalized);
         }
 
         // If path is missing 'system/' prefix or vice versa, check both
-        if (str_starts_with($path, 'snapshots/')) {
-            $altPath = 'system/' . $path;
+        if (str_starts_with($normalized, 'snapshots/')) {
+            $altPath = 'system/' . $normalized;
             if ($disk->exists($altPath)) {
                 return $disk->delete($altPath);
             }
