@@ -139,11 +139,11 @@ class ProductAnalytics extends Component
 
         // 4. Lieferanten Risiko (Doughnut - Active Products count by supplier)
         $products = Product::where('status', 'active')->where('type', 'physical')->with('supplier')->get();
-        $suppGrouped = $products->groupBy('supplier_id');
+        $suppGrouped = $products->groupBy('product_supplier_id');
         $suppLabels = [];
         $suppData = [];
         foreach ($suppGrouped as $sId => $items) {
-            $suppName = $items->first()->supplier->name ?? 'Ohne Lieferant';
+            $suppName = $items->first()->supplier?->name ?? 'Ohne Lieferant';
             $suppLabels[] = $suppName;
             $suppData[] = $items->count();
         }

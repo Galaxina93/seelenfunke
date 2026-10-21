@@ -37,8 +37,9 @@ Das Lieferanten-Modul verwaltet alle Stammdaten der Großhändler und Hersteller
 ## 3. Kernfunktionen & Datenfluss
 
 ### 3.1 Zuweisung und Bestandsreichweite
-- Jedes physische Produkt (`Product`) kann mit einem `ProductSupplier` verknüpft werden.
+- Jedes physische Produkt (`Product`) ist über den Fremdschlüssel `product_supplier_id` mit einem `ProductSupplier` verknüpft (`$product->belongsTo(ProductSupplier::class, 'product_supplier_id')`).
 - In den Produktanalysen (`ProductAnalytics`) wird die Lieferzeit des zugewiesenen Lieferanten basierend auf dessen gewählter Versandart (`shipping_method`) geladen (z. B. `lead_time_sea_days` bei Überseelieferungen).
+- Im Chart „Lieferanten Klumpenrisiko“ wird die Anzahl aktiver physischer Produkte pro Lieferant über `product_supplier_id` gruppiert dargestellt.
 - Ist die geschätzte Bestandsreichweite des Produkts kleiner als diese Lieferzeit, wechselt der Produktstatus automatisch auf `critical`, um dem Einkauf eine sofortige Nachbestellung zu signalisieren.
 
 ### 3.2 Dynamic Links
