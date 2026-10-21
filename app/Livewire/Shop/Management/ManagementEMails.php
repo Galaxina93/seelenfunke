@@ -68,6 +68,8 @@ class ManagementEMails extends Component
     // Compose / Reply
     public $showComposeModal = false;
     public $composeTo = '';
+    public $composeCc = '';
+    public $composeBcc = '';
     public $composeSubject = '';
     public $composeBody = '';
     public $composeAccountId = null;
@@ -510,6 +512,8 @@ class ManagementEMails extends Component
         $signature = $account ? "<br><br>" . $account->signature : '';
         $this->composeAttachments = [];
         $this->uploadedFiles = [];
+        $this->composeCc = '';
+        $this->composeBcc = '';
 
         if ($type === 'reply' && $messageId) {
             $msg = MailMessage::find($messageId);
@@ -585,7 +589,31 @@ class ManagementEMails extends Component
         }
         $this->composeAttachments = [];
         $this->uploadedFiles = [];
+        $this->composeCc = '';
+        $this->composeBcc = '';
         $this->showComposeModal = false;
+    }
+
+    public function parseEmailList(?string $input): array
+    {
+        if (empty($input)) {
+            return [];
+        }
+
+        $emails = preg_split('/[,;]+/', $input, -1, PREG_SPLIT_NO_EMPTY);
+        $clean = [];
+
+        foreach ($emails as $email) {
+            $t = trim($email);
+            if (preg_match('/<([^>]+)>/', $t, $matches)) {
+                $t = trim($matches[1]);
+            }
+            if (filter_var($t, FILTER_VALIDATE_EMAIL)) {
+                $clean[] = $t;
+            }
+        }
+
+        return array_values(array_unique($clean));
     }
 
     public function sendMail()
@@ -596,6 +624,34 @@ class ManagementEMails extends Component
             'composeBody' => 'required|string',
             'composeAccountId' => 'required'
         ]);
+
+        if (!empty(trim($this->composeCc))) {
+            $rawCc = preg_split('/[,;]+/', $this->composeCc, -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($rawCc as $item) {
+                $trimmed = trim($item);
+                if (preg_match('/<([^>]+)>/', $trimmed, $matches)) {
+                    $trimmed = trim($matches[1]);
+                }
+                if (!filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                    $this->addError('composeCc', "Ungültige CC-E-Mail-Adresse: {$trimmed}");
+                    return;
+                }
+            }
+        }
+
+        if (!empty(trim($this->composeBcc))) {
+            $rawBcc = preg_split('/[,;]+/', $this->composeBcc, -1, PREG_SPLIT_NO_EMPTY);
+            foreach ($rawBcc as $item) {
+                $trimmed = trim($item);
+                if (preg_match('/<([^>]+)>/', $trimmed, $matches)) {
+                    $trimmed = trim($matches[1]);
+                }
+                if (!filter_var($trimmed, FILTER_VALIDATE_EMAIL)) {
+                    $this->addError('composeBcc', "Ungültige BCC-E-Mail-Adresse: {$trimmed}");
+                    return;
+                }
+            }
+        }
 
         $totalSize = collect($this->composeAttachments)->sum('size');
         if ($totalSize > 20 * 1024 * 1024) {
@@ -639,30 +695,31 @@ class ManagementEMails extends Component
                 $attachmentDataParams[] = $att;
             }
 
+            $ccList = $this->parseEmailList($this->composeCc);
+            $bccList = $this->parseEmailList($this->composeBcc);
+
+            $mailable = new \App\Mail\CrmOutgoingMailToCustomer(
+                $this->composeSubject,
+                $bodyHtml,
+                $signatureHtml,
+                $account->email,
+                $account->name,
+                $attachmentDataParams
+            );
+
             // Senden ausführen
-            if (app()->environment('testing')) {
-                Mail::to($this->composeTo)->send(
-                    new \App\Mail\CrmOutgoingMailToCustomer(
-                        $this->composeSubject,
-                        $bodyHtml,
-                        $signatureHtml,
-                        $account->email,
-                        $account->name,
-                        $attachmentDataParams
-                    )
-                );
-            } else {
-                Mail::mailer('dynamic')->to($this->composeTo)->send(
-                    new \App\Mail\CrmOutgoingMailToCustomer(
-                        $this->composeSubject,
-                        $bodyHtml,
-                        $signatureHtml,
-                        $account->email,
-                        $account->name,
-                        $attachmentDataParams
-                    )
-                );
+            $pendingMail = app()->environment('testing')
+                ? Mail::to($this->composeTo)
+                : Mail::mailer('dynamic')->to($this->composeTo);
+
+            if (!empty($ccList)) {
+                $pendingMail->cc($ccList);
             }
+            if (!empty($bccList)) {
+                $pendingMail->bcc($bccList);
+            }
+
+            $pendingMail->send($mailable);
 
             // Kopie im lokalen System ablegen (Ordner: Sent)
             $sentMessage = MailMessage::create([
@@ -673,6 +730,8 @@ class ManagementEMails extends Component
                 'from_name' => $account->name,
                 'from_email' => $account->email,
                 'to_email' => $this->composeTo,
+                'cc_email' => !empty($ccList) ? implode(', ', $ccList) : null,
+                'bcc_email' => !empty($bccList) ? implode(', ', $bccList) : null,
                 'body_plain' => $this->composeBody,
                 'body_html' => view('global.mails.crm_outgoing_mail_to_customer', compact('bodyHtml', 'signatureHtml'))->render(),
                 'is_read' => true,
@@ -693,6 +752,8 @@ class ManagementEMails extends Component
 
             $this->composeAttachments = [];
             $this->uploadedFiles = [];
+            $this->composeCc = '';
+            $this->composeBcc = '';
             $this->showComposeModal = false;
             session()->flash('success_message', 'E-Mail wurde via SMTP erfolgreich gesendet!');
 

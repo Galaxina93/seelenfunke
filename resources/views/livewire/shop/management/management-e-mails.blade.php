@@ -406,6 +406,12 @@
                         <div class="min-w-0 flex-1">
                             <div class="text-gray-900 dark:text-white font-medium truncate">{{ $selectedMessage->from_name ?: $selectedMessage->from_email }}</div>
                             <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">&lt;{{ $selectedMessage->from_email }}&gt; an {{ $selectedMessage->to_email }}</div>
+                            @if(!empty($selectedMessage->cc_email))
+                                <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5"><span class="font-semibold text-gray-600 dark:text-gray-300">CC:</span> {{ $selectedMessage->cc_email }}</div>
+                            @endif
+                            @if(!empty($selectedMessage->bcc_email))
+                                <div class="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5"><span class="font-semibold text-gray-600 dark:text-gray-300">BCC:</span> {{ $selectedMessage->bcc_email }}</div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -686,18 +692,30 @@
                 composePreviewFile: null,
                 hasDraft: false,
                 draftData: null,
+                showCc: false,
+                showBcc: false,
                 checkDraft() {
                     const saved = localStorage.getItem('admin_email_draft');
                     if (saved) {
                         try {
                             this.draftData = JSON.parse(saved);
-                            this.hasDraft = Boolean(this.draftData && (this.draftData.to || this.draftData.subject || this.draftData.body));
+                            this.hasDraft = Boolean(this.draftData && (this.draftData.to || this.draftData.subject || this.draftData.body || this.draftData.cc || this.draftData.bcc));
                         } catch(e) {}
                     }
+                    if (@this.get('composeCc')) this.showCc = true;
+                    if (@this.get('composeBcc')) this.showBcc = true;
                 },
                 restoreDraft() {
                     if (!this.draftData) return;
                     if (this.draftData.to) @this.set('composeTo', this.draftData.to);
+                    if (this.draftData.cc) {
+                        this.showCc = true;
+                        @this.set('composeCc', this.draftData.cc);
+                    }
+                    if (this.draftData.bcc) {
+                        this.showBcc = true;
+                        @this.set('composeBcc', this.draftData.bcc);
+                    }
                     if (this.draftData.subject) @this.set('composeSubject', this.draftData.subject);
                     if (this.draftData.body && typeof CKEDITOR !== 'undefined' && CKEDITOR.instances['composeEditor']) {
                         CKEDITOR.instances['composeEditor'].setData(this.draftData.body);
@@ -742,6 +760,10 @@
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500 text-sm w-16">An:</span>
                                 <input type="email" wire:model="composeTo" list="contact-emails-list" class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0" required>
+                                <div class="flex items-center gap-1 shrink-0 text-xs font-semibold">
+                                    <button type="button" @click="showCc = !showCc" :class="showCc ? 'text-[var(--theme-color)] bg-[var(--theme-color)]/10 font-bold' : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'" class="px-2 py-0.5 rounded transition-colors" title="CC (Kopie) hinzufügen">CC</button>
+                                    <button type="button" @click="showBcc = !showBcc" :class="showBcc ? 'text-[var(--theme-color)] bg-[var(--theme-color)]/10 font-bold' : 'text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'" class="px-2 py-0.5 rounded transition-colors" title="BCC (Blindkopie) hinzufügen">BCC</button>
+                                </div>
                                 <datalist id="contact-emails-list">
                                     @foreach($accounts as $acc)
                                         <option value="{{ $acc->email }}">{{ $acc->name }} (Eigenes Postfach)</option>
@@ -751,6 +773,25 @@
                                     @endforeach
                                 </datalist>
                             </div>
+
+                            {{-- CC Zeile --}}
+                            <div x-show="showCc" x-cloak class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/60 animate-fade-in">
+                                <span class="text-gray-500 text-sm w-16">CC:</span>
+                                <input type="text" wire:model="composeCc" list="contact-emails-list" placeholder="Kopie an (mehrere mit Komma trennen)..." class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm placeholder-gray-400">
+                                <button type="button" @click="showCc = false; $wire.set('composeCc', '')" class="text-gray-400 hover:text-red-500 p-0.5 transition-colors" title="CC-Feld schließen & leeren">
+                                    <x-heroicon-o-x-mark class="w-4 h-4"/>
+                                </button>
+                            </div>
+
+                            {{-- BCC Zeile --}}
+                            <div x-show="showBcc" x-cloak class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800/60 animate-fade-in">
+                                <span class="text-gray-500 text-sm w-16">BCC:</span>
+                                <input type="text" wire:model="composeBcc" list="contact-emails-list" placeholder="Blindkopie an (mehrere mit Komma trennen)..." class="flex-1 bg-transparent border-none text-gray-900 dark:text-white focus:ring-0 p-0 text-sm placeholder-gray-400">
+                                <button type="button" @click="showBcc = false; $wire.set('composeBcc', '')" class="text-gray-400 hover:text-red-500 p-0.5 transition-colors" title="BCC-Feld schließen & leeren">
+                                    <x-heroicon-o-x-mark class="w-4 h-4"/>
+                                </button>
+                            </div>
+
                             <div class="h-px bg-gray-200 dark:bg-gray-800"></div>
                             <div class="flex items-center gap-2">
                                 <span class="text-gray-500 text-sm w-16">Betreff:</span>
@@ -758,7 +799,9 @@
                             </div>
                             @if ($errors->any())
                                 <div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 text-xs rounded-lg border border-red-200 dark:border-red-900/50 mt-2">
-                                    Bitte alle Felder korrekt ausfüllen (Empfänger & Nachricht).
+                                    @foreach ($errors->all() as $error)
+                                        <div>{{ $error }}</div>
+                                    @endforeach
                                 </div>
                             @endif
                         </div>
@@ -850,10 +893,12 @@
                                                     try {
                                                         const draft = {
                                                             to: @this.get('composeTo') || '',
+                                                            cc: @this.get('composeCc') || '',
+                                                            bcc: @this.get('composeBcc') || '',
                                                             subject: @this.get('composeSubject') || '',
                                                             body: editor.getData() || ''
                                                         };
-                                                        if (draft.to || draft.subject || draft.body) {
+                                                        if (draft.to || draft.subject || draft.body || draft.cc || draft.bcc) {
                                                             localStorage.setItem('admin_email_draft', JSON.stringify(draft));
                                                         }
                                                     } catch(e) {}

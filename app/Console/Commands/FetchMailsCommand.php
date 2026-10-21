@@ -96,6 +96,19 @@ class FetchMailsCommand extends Command
                     $toObj = $message->getTo()[0] ?? null;
                     $toEmail = $toObj ? $toObj->mail : $account->email;
 
+                    $ccEmails = [];
+                    if (method_exists($message, 'getCc')) {
+                        $ccObjs = $message->getCc();
+                        if ($ccObjs) {
+                            foreach ($ccObjs as $ccObj) {
+                                if (!empty($ccObj->mail)) {
+                                    $ccEmails[] = $ccObj->mail;
+                                }
+                            }
+                        }
+                    }
+                    $ccEmail = !empty($ccEmails) ? implode(', ', array_unique($ccEmails)) : null;
+
                     // Execute Auto-Routing Rules here (Spam/Folders)
                     $targetFolder = 'INBOX';
                     $routingRule = \App\Models\Management\Mail\MailRule::where('mail_account_id', $account->id)
@@ -123,6 +136,7 @@ class FetchMailsCommand extends Command
                         'from_name' => str_replace('"', '', $fromName),
                         'from_email' => $fromEmail,
                         'to_email' => $toEmail,
+                        'cc_email' => $ccEmail,
                         'body_plain' => $bodyText,
                         'body_html' => $bodyHtml,
                         'is_read' => false,

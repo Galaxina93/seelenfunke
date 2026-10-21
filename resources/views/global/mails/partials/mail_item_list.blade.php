@@ -78,9 +78,13 @@
                             <tr>
                             @foreach($imgUrls as $key => $imgUrl)
                                 <td style="padding-right: 10px; vertical-align: top;">
-                                    <div style="width: 80px; height: 80px; border: 1px solid #e5e5e5; border-radius: 4px; background-color: #f9f9f9; text-align: center; vertical-align: middle;">
-                                        <img src="{{ $imgUrl }}" style="max-width: 78px; max-height: 78px; display: inline-block; margin-top: 1px;" alt="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
-                                    </div>
+                                    <table cellpadding="0" cellspacing="0" border="0" style="width: 80px; height: 80px; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #ffffff; border-collapse: separate; table-layout: fixed;">
+                                        <tr>
+                                            <td align="center" valign="middle" style="width: 80px; height: 80px; text-align: center; vertical-align: middle; padding: 2px;">
+                                                <img src="{{ $imgUrl }}" style="max-width: 76px; max-height: 76px; width: auto; height: auto; display: block; margin: 0 auto; border: 0;" alt="{{ $key === 'back' ? 'Rückseite' : 'Vorderseite' }}">
+                                            </td>
+                                        </tr>
+                                    </table>
                                 </td>
                             @endforeach
                             </tr>

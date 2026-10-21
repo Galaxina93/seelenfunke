@@ -322,6 +322,64 @@ class ManagementEMailsTest extends TestCase
         });
     }
 
+    public function test_can_compose_email_with_cc_and_bcc()
+    {
+        Mail::fake();
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->assertSet('showComposeModal', true)
+            ->set('composeTo', 'recipient@test.com')
+            ->set('composeCc', 'cc1@test.com, cc2@test.com')
+            ->set('composeBcc', 'secret@test.com')
+            ->set('composeSubject', 'Hello with CC/BCC')
+            ->set('composeBody', 'Testing CC and BCC capabilities.')
+            ->call('sendMail')
+            ->assertSet('showComposeModal', false)
+            ->assertHasNoErrors();
+
+        Mail::assertSent(\App\Mail\CrmOutgoingMailToCustomer::class, function ($mail) {
+            return $mail->hasTo('recipient@test.com')
+                && $mail->hasCc('cc1@test.com')
+                && $mail->hasCc('cc2@test.com')
+                && $mail->hasBcc('secret@test.com');
+        });
+
+        $this->assertDatabaseHas('mail_messages', [
+            'folder' => 'Sent',
+            'to_email' => 'recipient@test.com',
+            'cc_email' => 'cc1@test.com, cc2@test.com',
+            'bcc_email' => 'secret@test.com',
+        ]);
+    }
+
+    public function test_validates_invalid_cc_or_bcc_email_address()
+    {
+        Mail::fake();
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->set('composeTo', 'valid@test.com')
+            ->set('composeCc', 'invalid-email-address')
+            ->set('composeSubject', 'Invalid CC')
+            ->set('composeBody', 'Test')
+            ->call('sendMail')
+            ->assertHasErrors(['composeCc'])
+            ->assertSet('showComposeModal', true);
+
+        Livewire::test(CrmInbox::class)
+            ->call('openCompose', 'new')
+            ->set('composeTo', 'valid@test.com')
+            ->set('composeBcc', 'not-an-email')
+            ->set('composeSubject', 'Invalid BCC')
+            ->set('composeBody', 'Test')
+            ->call('sendMail')
+            ->assertHasErrors(['composeBcc'])
+            ->assertSet('showComposeModal', true);
+
+        Mail::assertNothingSent();
+    }
+
 
     public function test_can_open_and_close_account_settings_for_new_account()
     {
