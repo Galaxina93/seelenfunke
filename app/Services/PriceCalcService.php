@@ -10,7 +10,10 @@ class PriceCalcService
      */
     public function getNetFromGross(int $grossPrice, float $taxRate): int
     {
-        if ($taxRate == 0) {
+        $grossPrice = max(0, $grossPrice);
+        $taxRate = max(0.0, min(100.0, $taxRate));
+
+        if ($taxRate <= 0.0) {
             return $grossPrice;
         }
         // Formel: Brutto / (1 + Steuersatz/100)
@@ -23,7 +26,10 @@ class PriceCalcService
      */
     public function getGrossFromNet(int $netPrice, float $taxRate): int
     {
-        if ($taxRate == 0) {
+        $netPrice = max(0, $netPrice);
+        $taxRate = max(0.0, min(100.0, $taxRate));
+
+        if ($taxRate <= 0.0) {
             return $netPrice;
         }
         // Formel: Netto * (1 + Steuersatz/100)
@@ -35,6 +41,7 @@ class PriceCalcService
      */
     public function getTaxAmountFromNet(int $netPrice, float $taxRate): int
     {
+        $netPrice = max(0, $netPrice);
         return $this->getGrossFromNet($netPrice, $taxRate) - $netPrice;
     }
 
@@ -43,6 +50,7 @@ class PriceCalcService
      */
     public function getTaxAmountFromGross(int $grossPrice, float $taxRate): int
     {
+        $grossPrice = max(0, $grossPrice);
         return $grossPrice - $this->getNetFromGross($grossPrice, $taxRate);
     }
 }

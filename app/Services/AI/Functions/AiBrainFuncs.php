@@ -88,19 +88,21 @@ trait AiBrainFuncs
     public static function executeUpdateBrainEntry(array $args)
     {
         try {
-            $query = strtolower(trim($args['search_query'] ?? ''));
-            $newContent = $args['new_content'] ?? '';
+            $query = trim($args['search_query'] ?? '');
+            $newContent = trim($args['new_content'] ?? '');
 
             if (empty($query) || empty($newContent)) {
                 return ['status' => 'error', 'message' => 'Suchbegriff und neuer Inhalt sind erforderlich.'];
             }
 
-            // Wiki Update
-            $kb = AiKnowledgeBase::where('title', 'like', "%{$query}%")
-                               ->orWhere('content', 'like', "%{$query}%")
-                               ->first();
+            // Prioritize title match first to prevent broad content match collision
+            $kb = AiKnowledgeBase::where('title', 'like', "%{$query}%")->first();
+            if (!$kb && strlen($query) >= 4) {
+                $kb = AiKnowledgeBase::where('content', 'like', "%{$query}%")->first();
+            }
+
             if ($kb) {
-                $kb->content = $newContent;
+                $kb->content = substr($newContent, 0, 50000);
                 $kb->save();
                 return ['status' => 'success', 'message' => "Der Wiki-Eintrag '{$kb->title}' wurde erfolgreich aktualisiert."];
             }
@@ -113,16 +115,18 @@ trait AiBrainFuncs
     public static function executeDeleteBrainEntry(array $args)
     {
         try {
-            $query = strtolower(trim($args['search_query'] ?? ''));
+            $query = trim($args['search_query'] ?? '');
 
             if (empty($query)) {
                 return ['status' => 'error', 'message' => 'Suchbegriff zum Löschen ist erforderlich.'];
             }
 
-            // Wiki Delete
-            $kb = AiKnowledgeBase::where('title', 'like', "%{$query}%")
-                               ->orWhere('content', 'like', "%{$query}%")
-                               ->first();
+            // Wiki Delete: Prioritize title match, only fall back to content if query is specific (>= 4 chars)
+            $kb = AiKnowledgeBase::where('title', 'like', "%{$query}%")->first();
+            if (!$kb && strlen($query) >= 4) {
+                $kb = AiKnowledgeBase::where('content', 'like', "%{$query}%")->first();
+            }
+
             if ($kb) {
                 $title = $kb->title;
                 $kb->delete();
@@ -141,12 +145,18 @@ trait AiBrainFuncs
                 return ['status' => 'error', 'message' => 'Titel und Inhalt sind für das Speichern erforderlich.'];
             }
 
+            $title = trim(substr((string)$args['title'], 0, 255));
+            $content = trim(substr((string)$args['content'], 0, 50000));
             $tags = $args['tags'] ?? [];
 
-            // Anti-Duplikat Check für AiKnowledgeBase
-            $existingKb = AiKnowledgeBase::where('content', 'like', '%' . $args['content'] . '%')
-                                       ->orWhere('title', $args['title'])
-                                       ->exists();
+            // Anti-Duplikat Check: Exakter Titel-Match oder exakter Inhalts-Match (nur bei substantieller Länge)
+            $existingKb = AiKnowledgeBase::where('title', $title)
+                ->orWhere(function($q) use ($content) {
+                    if (strlen($content) > 30) {
+                        $q->where('content', $content);
+                    }
+                })->exists();
+
             if ($existingKb) {
                 return [
                     'status' => 'success',
@@ -161,10 +171,10 @@ trait AiBrainFuncs
             )->id;
 
             $kb = AiKnowledgeBase::create([
-                'title' => substr($args['title'], 0, 255),
-                'slug' => \Illuminate\Support\Str::slug(substr($args['title'], 0, 255)) . '-' . rand(1000, 9999),
+                'title' => $title,
+                'slug' => \Illuminate\Support\Str::slug($title) . '-' . rand(1000, 9999),
                 'ai_knowledge_base_category_id' => $catId,
-                'content' => $args['content'],
+                'content' => $content,
                 'is_published' => true
             ]);
 

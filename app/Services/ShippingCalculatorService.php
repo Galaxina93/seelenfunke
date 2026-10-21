@@ -68,6 +68,10 @@ class ShippingCalculatorService
      */
     public function calculateShippingCost($items, int $cartValueCents, float $totalWeight, string $countryCode = 'DE'): array
     {
+        $countryCode = strtoupper(trim($countryCode)) ?: 'DE';
+        $cartValueCents = max(0, $cartValueCents);
+        $totalWeight = max(0.0, $totalWeight);
+
         // SCHRITT 0: Brauchen wir überhaupt Versand?
         if (!$this->needsShipping($items)) {
             return [

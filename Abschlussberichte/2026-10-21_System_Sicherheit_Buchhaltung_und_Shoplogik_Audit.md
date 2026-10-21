@@ -661,6 +661,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Mapping von `address` auf die korrekte Spalte `street`. Clamping der Vorlaufzeiten auf 0 bis 3.650 Tage. Whitelisting von `shipping_method` (`land`, `air`, `sea`, `train`). Hinzufügen einer relationalen Integritätsprüfung vor dem Löschen (`Product` & `ProductLoss`).
 * **Testabdeckung:** [`tests/Feature/Ai/AiSuppliersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSuppliersSecurityTest.php) (2 Tests, 11 Assertions).
 
+### 2.101 [PREISBERECHNUNG & BUCHHALTUNG] Division-by-Zero-Schutz & Wertebereichsprüfung im PriceCalcService
+* **Dateien:** [`app/Services/PriceCalcService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/PriceCalcService.php)
+* **Befund:** In `PriceCalcService` fehlte eine Wertebereichsvalidierung für Steuersätze und Beträge. Ein Steuersatz von `<= -100%` führte zu einer unbehandelten `DivisionByZeroError`-Exception (`1 + (-100/100) = 0`). Zudem führten negative Preise zu fehlerhaften Steuerdifferenzen.
+* **Lösung:** Clamping des Steuersatzes auf `max(0.0, min(100.0, $taxRate))` und der Beträge auf `max(0, $price)`. Dadurch wird Division durch Null mathematisch ausgeschlossen und die Buchhaltungsintegrität gewahrt.
+* **Testabdeckung:** [`tests/Feature/Price/PriceCalcServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Price/PriceCalcServiceSecurityTest.php) (2 Tests, 9 Assertions).
+
+### 2.102 [VERSANDKOSTEN & CHECKOUT] Ländercode-Normalisierung & Wertebereichsabsicherung im ShippingCalculator
+* **Dateien:** [`app/Services/ShippingCalculatorService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ShippingCalculatorService.php)
+* **Befund:** In `calculateShippingCost()` wurde `$countryCode === 'DE'` strikt case-sensitiv verglichen. Übergaben von kleingeschriebenen Ländercodes (z.B. `'de'` aus Frontend- oder API-Payloads) führten dazu, dass Kunden aus Deutschland trotz Erreichen des Schwellenwerts keinen kostenlosen Versand erhielten und in teure Auslands-Fallbacks gerieten. Zudem waren negative Warenkorbwerte und Gewichte unbereinigt.
+* **Lösung:** Automatische Normalisierung des Ländercodes (`strtoupper(trim($countryCode))`) sowie Clamping von Warenkorbwert (`max(0, ...)`) und Gesamtgewicht (`max(0.0, ...)`).
+* **Testabdeckung:** [`tests/Feature/Shipping/ShippingCalculatorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shipping/ShippingCalculatorSecurityTest.php) (2 Tests, 8 Assertions).
+
+### 2.103 [STEUEREXPORT & DATENSCHUTZ] Öffentlicher Download-Leak von Finanzdaten & DomPDF-Härtung
+* **Dateien:** [`app/Services/FinancialService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/FinancialService.php)
+* **Befund:** In `FinancialService::generateTaxExport()` wurde das vollständige Steuerexport-ZIP-Archiv (inkl. aller Banktransaktionen, Kundenrechnungen, Einnahmen und Belegen) im öffentlich erreichbaren Web-Pfad `app/public/systemsteuerung/exports/` abgelegt. Dadurch konnte jeder externe Angreifer über vorhersehbare Dateinamen (`Finanzbericht_YYYY_M.zip`) hochsensible Unternehmensdaten herunterladen. Zudem wurden Belege nur von der `public`-Disk gelesen und DomPDF-Assets waren nicht gegen SSRF gehärtet.
+* **Lösung:** Verlagerung des Zielpfads in den privaten Speicher (`app/private/exports/`), Durchsuchung beider Disks (`local` & `public`) nach Belegen, Validierung von Monat (1–12) und Jahr (2000–2100) sowie Deaktivierung von Remote-Assets in DomPDF (`isRemoteEnabled => false`).
+* **Testabdeckung:** [`tests/Feature/Accounting/FinancialServiceTaxExportSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/FinancialServiceTaxExportSecurityTest.php) (1 Test, 3 Assertions).
+
+### 2.104 [KI-WIKI & DATENINTEGRITÄT] Falsche Duplikatserkennung & versehentliches Löschen im AiBrain
+* **Dateien:** [`app/Services/AI/Functions/AiBrainFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiBrainFuncs.php)
+* **Befund:** In `executeDeleteBrainEntry()` suchte die Löschabfrage per `%query%` über die gesamte `content`-Spalte aller Wiki-Einträge. Häufige Füllwörter oder kurze Suchanfragen führten zum unbeabsichtigten Löschen völlig unbeteiligter Wissenseinträge. In `executeSaveToBrain()` prüfte der Duplikat-Check `content like %content%` in umgekehrter Substring-Richtung, wodurch kurze Notizen fälschlicherweise als Duplikate langer Artikel abgewiesen wurden.
+* **Lösung:** Priorisierung des Titel-Matches bei Löschung und Mindestlänge (>= 4 Zeichen) für Content-Suchen. Präzisierung der Duplikatsprüfung auf Titel und exakten Inhalt bei substantieller Länge. Längenbegrenzung für Titel (255) und Inhalt (50.000).
+* **Testabdeckung:** [`tests/Feature/Ai/AiBrainFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiBrainFuncsSecurityTest.php) (2 Tests, 5 Assertions).
+
+### 2.105 [EINKAUFSLISTE & SQL-WILDCARDS] Wildcard-Injektion & Längenbeschränkung in Shopping-Funktionen
+* **Dateien:** [`app/Services/AI/Functions/AiShoppingListFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiShoppingListFuncs.php)
+* **Befund:** In `executeAddShoppingItem()` wurde die Existenzprüfung mittels `where('name', 'like', $args['name'])` durchgeführt. Die Übergabe von `%` oder `_` matchte und manipulierte ungewollt den ersten existierenden Einkaufsartikel in der Datenbank. Zudem fehlten Längenbegrenzungen für Artikel- und Kategorienamen.
+* **Lösung:** Umstellung auf exakten Namensvergleich (`=`), Truncation von Produktnamen auf 100 Zeichen und Kategorienamen auf 50 Zeichen.
+* **Testabdeckung:** [`tests/Feature/Ai/AiShoppingListFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiShoppingListFuncsSecurityTest.php) (1 Test, 4 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -895,19 +925,33 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`tests/Feature/Ai/AiLaserAndHolidaySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiLaserAndHolidaySecurityTest.php) | Neue Testsuite: DomPDF SSRF-Schutz & E-Mail-Validierung |
 | [`tests/Feature/Ai/AiMailAndContactSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMailAndContactSecurityTest.php) | Neue Testsuite: Mail-Header-Injection & Kontakt-String-Limits |
 | [`tests/Feature/Ai/AiSuppliersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSuppliersSecurityTest.php) | Neue Testsuite: Lieferanten-Vorlaufzeiten, Adress-Spalte & Lösch-Integrität |
+| [`app/Services/PriceCalcService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/PriceCalcService.php) | Division-by-Zero-Schutz & Steuersatz-Clamping (0-100%) sowie Wertebereichsbereinigung |
+| [`app/Services/ShippingCalculatorService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ShippingCalculatorService.php) | Case-Normalisierung von Ländercodes (`strtoupper`) & Clamping von Warenkorbwerten |
+| [`app/Services/FinancialService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/FinancialService.php) | Privater Export-Speicherpfad (`app/private/exports`), Dual-Disk-Belegsuche & DomPDF SSRF-Schutz |
+| [`app/Services/AI/Functions/AiBrainFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiBrainFuncs.php) | Präzise Duplikatsprüfung & Titel-Priorisierung bei Wiki-Löschung gegen Broad-Matches |
+| [`app/Services/AI/Functions/AiShoppingListFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiShoppingListFuncs.php) | Exakter Namensabgleich (`=`) gegen SQL-Wildcard-Injektionen & Feldlängen-Limits |
+| [`tests/Feature/Price/PriceCalcServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Price/PriceCalcServiceSecurityTest.php) | Neue Testsuite: Division-by-Zero-Schutz & Steuersatzberechnung |
+| [`tests/Feature/Shipping/ShippingCalculatorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shipping/ShippingCalculatorSecurityTest.php) | Neue Testsuite: Ländercode-Normalisierung & Versandkosten-Clamping |
+| [`tests/Feature/Accounting/FinancialServiceTaxExportSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/FinancialServiceTaxExportSecurityTest.php) | Neue Testsuite: Privater Speicherort für Steuerexporte |
+| [`tests/Feature/Ai/AiBrainFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiBrainFuncsSecurityTest.php) | Neue Testsuite: Duplikaterkennung & selektives Löschen im Wiki |
+| [`tests/Feature/Ai/AiShoppingListFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiShoppingListFuncsSecurityTest.php) | Neue Testsuite: Schutz vor SQL-Wildcard-Injektion bei Einkaufsartikeln |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 260 Tests bestanden (763 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 268 Tests bestanden (792 Assertions, 0 Fehler)
+  * `PriceCalcServiceSecurityTest`: 2/2 bestanden (Division-by-Zero-Schutz & Steuersatzberechnung)
+  * `ShippingCalculatorSecurityTest`: 2/2 bestanden (Ländercode-Normalisierung, Schwellenwerte & Versandkosten-Clamping)
+  * `FinancialServiceTaxExportSecurityTest`: 1/1 bestanden (Privater Speicherort für Steuerexporte & Beleg-Integration)
+  * `AiBrainFuncsSecurityTest`: 2/2 bestanden (Duplikaterkennung & selektives Löschen im Wiki)
+  * `AiShoppingListFuncsSecurityTest`: 1/1 bestanden (Schutz vor SQL-Wildcard-Injektion bei Einkaufsartikeln)
   * `CustomerVerificationSyncSecurityTest`: 1/1 bestanden (Verifikations-Synchronisation zwischen Customer & Profile)
   * `AiLiveTranscriptSecurityTest`: 3/3 bestanden (Payload-Validierung & Kollisionsschutz bei Snapshots)
   * `AiLaserAndHolidaySecurityTest`: 2/2 bestanden (DomPDF SSRF-Schutz & E-Mail-Validierung)
   * `AiMailAndContactSecurityTest`: 2/2 bestanden (Mail-Header-Injection & Kontakt-String-Limits)
   * `AiSuppliersSecurityTest`: 2/2 bestanden (Lieferanten-Vorlaufzeiten, Adress-Spalte & Lösch-Integrität)
-  * `AiOrderFuncsSecurityTest`: 2/2 bestanden (KI-Status-Stornierung, Standardwaren-Restoration & strikter Schutz von Laser-Ausschussware)
   * `AiOrderFuncsSecurityTest`: 2/2 bestanden (KI-Status-Stornierung, Standardwaren-Restoration & strikter Schutz von Laser-Ausschussware)
   * `AiMarketingVoucherFuncsSecurityTest`: 2/2 bestanden (SQL-Spaltenkorrektur `total_price` & Wertebereichsvalidierung für Gutscheine)
   * `GoogleAuthControllerSecurityTest`: 2/2 bestanden (Avatar SSRF-Prävention, Unverified-Email-Block & Session-Regeneration)

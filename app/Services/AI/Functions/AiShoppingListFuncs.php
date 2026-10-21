@@ -253,20 +253,23 @@ trait AiShoppingListFuncs
     public static function executeAddShoppingItem(array $args)
     {
         try {
-            if (empty($args['name'])) {
+            $name = trim(substr((string) ($args['name'] ?? ''), 0, 100));
+            if (empty($name)) {
                 return ['status' => 'error', 'message' => 'Der Name des Produkts fehlt.'];
             }
 
             $category_id = null;
             if (!empty($args['category_name'])) {
+                $categoryName = trim(substr((string) $args['category_name'], 0, 50));
                 $category = ManagementShoppingCategory::firstOrCreate(
-                    ['name' => $args['category_name']],
+                    ['name' => $categoryName],
                     ['sort_order' => ManagementShoppingCategory::max('sort_order') + 1]
                 );
                 $category_id = $category->id;
             }
 
-            $item = ManagementShoppingItem::where('name', 'like', $args['name'])->first();
+            // Exakter Match statt fehleranfälligem 'like' mit Wildcard-Gefahr
+            $item = ManagementShoppingItem::where('name', $name)->first();
 
             if ($item) {
                 $item->status = 'needed';
@@ -278,7 +281,7 @@ trait AiShoppingListFuncs
             }
 
             $item = ManagementShoppingItem::create([
-                'name' => $args['name'],
+                'name' => $name,
                 'category_id' => $category_id,
                 'status' => 'needed',
             ]);

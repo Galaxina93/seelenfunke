@@ -403,6 +403,9 @@ class FinancialService
 
     public function generateTaxExport($adminId, $month, $year)
     {
+        $month = max(1, min(12, (int) $month));
+        $year = max(2000, min(2100, (int) $year));
+
         $specials = AccountingSpecialIssue::where('admin_id', $adminId)
             ->whereYear('execution_date', $year)
             ->whereMonth('execution_date', $month)
@@ -478,13 +481,15 @@ class FinancialService
             ];
         }
 
+        $dir = storage_path('app/private/exports');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
         $zipFileName = "Finanzbericht_{$year}_{$month}.zip";
-        $zipPath = storage_path("app/public/systemsteuerung/exports/{$zipFileName}");
-
-        if(!is_dir(storage_path("app/public/systemsteuerung/exports"))) mkdir(storage_path("app/public/systemsteuerung/exports"), 0755, true);
+        $zipPath = $dir . '/' . $zipFileName;
 
         $zip = new ZipArchive;
-        if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
 
             $csvHandle = fopen('php://temp', 'r+');
             fprintf($csvHandle, chr(0xEF).chr(0xBB).chr(0xBF));
@@ -501,11 +506,15 @@ class FinancialService
 
                 if($s->file_paths) {
                     foreach($s->file_paths as $index => $filePath) {
-                        if(Storage::disk('public')->exists($filePath)) {
-                            $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-                            $cleanTitle = \Illuminate\Support\Str::slug($s->title);
+                        $sourcePath = Storage::disk('local')->exists($filePath)
+                            ? Storage::disk('local')->path($filePath)
+                            : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
+
+                        if($sourcePath && file_exists($sourcePath)) {
+                            $ext = pathinfo($sourcePath, PATHINFO_EXTENSION);
+                            $cleanTitle = \Illuminate\Support\Str::slug($s->title) ?: 'Beleg';
                             $newName = "Belege/{$s->execution_date->format('Y-m-d')}_{$cleanTitle}_{$index}.{$ext}";
-                            $zip->addFile(storage_path("app/public/{$filePath}"), $newName);
+                            $zip->addFile($sourcePath, $newName);
                         }
                     }
                 }
@@ -522,12 +531,16 @@ class FinancialService
 
                 if($tx->file_paths) {
                     foreach($tx->file_paths as $index => $filePath) {
-                        if(Storage::disk('public')->exists($filePath)) {
-                            $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-                            $cleanTitle = \Illuminate\Support\Str::slug($title);
+                        $sourcePath = Storage::disk('local')->exists($filePath)
+                            ? Storage::disk('local')->path($filePath)
+                            : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
+
+                        if($sourcePath && file_exists($sourcePath)) {
+                            $ext = pathinfo($sourcePath, PATHINFO_EXTENSION);
+                            $cleanTitle = \Illuminate\Support\Str::slug($title) ?: 'Beleg_Bank';
                             $dateStr = \Carbon\Carbon::parse($tx->transaction_date)->format('Y-m-d');
                             $newName = "Belege_Bank/{$dateStr}_{$cleanTitle}_{$index}.{$ext}";
-                            $zip->addFile(storage_path("app/public/{$filePath}"), $newName);
+                            $zip->addFile($sourcePath, $newName);
                         }
                     }
                 }
@@ -556,7 +569,7 @@ class FinancialService
                 'liquidityPreview' => $liquidityPreview,
                 'statsBrutto' => $this->getMonthlyStats($adminId, $month, $year, false),
                 'statsNetto' => $this->getMonthlyStats($adminId, $month, $year, true)
-            ]);
+            ])->setOption(['isRemoteEnabled' => false]);
             $zip->addFromString("Liquiditaets_und_Finanzbericht_{$year}_{$month}.pdf", $pdf->output());
 
             $zip->close();
