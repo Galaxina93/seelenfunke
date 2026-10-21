@@ -751,12 +751,52 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Enforcing einer Mindestzeichenlänge (Aufgabentitel >= 3 Zeichen, Listennamen >= 2 Zeichen), Verbot leerer oder reiner Wildcard-Suchfilter in `executeDeleteTask()`, Escaping aller SQL-Wildcards mit `addcslashes` und Validierung übergeordneter Hauptaufgaben.
 * **Testabdeckung:** [`tests/Feature/Ai/AiTaskFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiTaskFuncsSecurityTest.php) (2 Tests, 9 Assertions).
 
+### 2.116 [KI-MARKETING & GUTSCHEINE] Wertebereichs-Clamping, Code-Sanitization & Kollisionssicherheit in AiMarketingFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiMarketingFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingFuncs.php)
+* **Befund:** In `executeCreateCoupon()` und `executeUpdateCoupon()` fehlte eine Wertebereichsvalidierung: Rabattsätze konnten negativ oder über 100% angegeben werden (was zu Negativpreisen führte), Gutscheincodes wurden ungefiltert und ohne Längenbegrenzung gespeichert, und bei der Umbenennung eines bestehenden Gutscheins fehlte eine Eindeutigkeitsprüfung (was SQL-Integrity-Exceptions bei Kollisionen auslöste). Ungültige Nutzungslimits (`<= 0`) wurden unplausibel interpretiert.
+* **Lösung:** Clamping von Rabatten (Prozent 1–100%, Festbeträge 0,01–100.000 €), Code-Sanitization (`[A-Za-z0-9_\-]`, max 50 Zeichen), Behandlung von Nutzungslimits `<= 0` als unbegrenzt (`null`), strikte Kollisionsprüfung bei Code-Updates sowie Trim/Uppercase in `executeDeleteCoupon()`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiMarketingFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingFuncsSecurityTest.php) (2 Tests, 9 Assertions).
+
+### 2.117 [KI-MASTER & SHOP-WARTUNG] Beseitigung statischer Bypass-Tokens & striktes Aktions-Whitelisting in AiMasterFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiMasterFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMasterFuncs.php)
+* **Befund:** In `executeToggleMaintenance()` wurde beim Aktivieren des Wartungsmodus ein fest einprogrammiertes Bypass-Token (`['--secret' => 'funkira-maintenance']`) verwendet, was den in Issue 93 behobenen Sicherheitsstandard untergrub. Zudem führte jede fehlerhafte oder beliebige Zeichenkette außer `"down"` unvalidiert zum Aufruf von `Artisan::call('up')`. In `executeGetCoreKpis()` fehlte die Absicherung gegen ungültige Timeframes.
+* **Lösung:** Dynamische Generierung des Maintenance-Tokens über `config('app.maintenance_secret')` bzw. gehashten Salt, striktes Whitelisting der Aktionen (`['down', 'up']`) und Absicherung der Timeframe-Parameter in `executeGetCoreKpis()`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiMasterFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMasterFuncsSecurityTest.php) (2 Tests, 5 Assertions).
+
+### 2.118 [KI-SCOUT & KUNDENANALYTICS] Behebung von Spaltennamens-Crashes & Wildcard-Dump-Schutz in AiScoutFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiScoutFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiScoutFuncs.php)
+* **Befund:** In `executeSearchCustomers()` brach die Berechnung des Kundenumsatzes mit einer fatalen SQL-Exception ab (`Unknown column 'total_amount' in 'field list'`), da das Schema von `order_orders` das Feld `total_price` verwendet. Zudem fehlte eine Mindestlänge für den Suchbegriff, und unmaskierte `%`- bzw. `_`-Wildcards führten zum unkontrollierten Auslesen sensibler Kundendatensätze.
+* **Lösung:** Korrektur des Spaltennamens auf `total_price`, Abfrage von abgeschlossenen und bezahlten Bestellungen, Erzwingen einer Mindestlänge von 2 Zeichen und Escaping aller SQL-Wildcards mit `addcslashes`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiScoutFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiScoutFuncsSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.119 [KI-NEWS & MULTIMEDIA] Beseitigung blockierender I/O-Hangs & Information-Leakage-Schutz in AiNewsFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiNewsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiNewsFuncs.php)
+* **Befund:** In `searchYoutubeVideo()` wurde `@file_get_contents` ohne HTTP-Socket-Timeout synchron aufgerufen, was bei YouTube-Drosselungen oder Netzwerkverzögerungen zum Blockieren des PHP-Workers führte. In `searchGlobalNews()` wurden ungefilterte `sortBy`-Parameter an die externe NewsAPI durchgereicht und interne HTTP-Fehlertexte (`$response->body()`) ungefiltert zurückgegeben.
+* **Lösung:** Umstellung auf `Http::timeout(5)` mit kontrolliertem Header-Management und Regex-Extraktion von Video-IDs, Whitelisting des Sortierparameters (`['publishedAt', 'relevancy', 'popularity']`), Längenbeschränkung der Suchanfragen und Maskierung externer API-Fehler in generische Statusmeldungen.
+* **Testabdeckung:** [`tests/Feature/Ai/AiNewsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiNewsFuncsSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.120 [KI-PERSONA & OSINT] SSRF-Schutz für Bild- und Web-Extraktion, E-Mail-Header-Validierung & DomPDF-Härtung
+* **Dateien:** [`app/Services/AI/Functions/AiPersonaFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiPersonaFuncs.php)
+* **Befund:** In `processPersonaImage()` und `executePersonaFetchUrl()` wurden beliebige externe URLs ohne Überprüfung heruntergeladen, wodurch Angreifer über Server-Side Request Forgery (SSRF) auf interne Docker-Container (`db`, `redis`, `mein_php_server`), Localhost-Dienste oder Cloud-Metadatendienste (`169.254.169.254`) zugreifen konnten. In `executePersonaGeneratePdf()` fehlte die E-Mail-Validierung und DomPDF erlaubte Remote-Assets. In `executePersonaDeleteIntel()` konnten leere Titel angefragt werden.
+* **Lösung:** Implementierung von `isSafeExternalUrl()` zur strikten Blockierung von Loopback-, privaten (`FILTER_FLAG_NO_PRIV_RANGE`) und reservierten (`FILTER_FLAG_NO_RES_RANGE`) IP-Adressen sowie Docker-Hostnamen, E-Mail-RFC-Validierung und CRLF-Sanitization bei Dossier-Versand, Deaktivierung von DomPDF Remote-Ressourcen (`isRemoteEnabled => false`) und Titelvalidierung bei der Wissenslöschung.
+* **Testabdeckung:** [`tests/Feature/Ai/AiPersonaFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiPersonaFuncsSecurityTest.php) (2 Tests, 7 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Services/AI/Functions/AiMarketingFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingFuncs.php) | Wertebereichs-Clamping (Prozent 1–100%, Festbeträge max 100.000 €), Code-Sanitization, Limit-Behandlung & Kollisionsschutz |
+| [`app/Services/AI/Functions/AiMasterFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMasterFuncs.php) | Dynamische Maintenance-Secrets, striktes Aktions-Whitelisting (`down`, `up`) & Timeframe-Absicherung |
+| [`app/Services/AI/Functions/AiScoutFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiScoutFuncs.php) | Korrektur Spaltenname `total_price`, Mindestlänge für Kundensuche & SQL-Wildcard-Escaping |
+| [`app/Services/AI/Functions/AiNewsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiNewsFuncs.php) | Timeout `Http::timeout(5)` für YouTube, SortBy-Whitelisting & Maskierung von API-Fehlern |
+| [`app/Services/AI/Functions/AiPersonaFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiPersonaFuncs.php) | SSRF-Schutz (`isSafeExternalUrl`), E-Mail-RFC-Validierung, DomPDF Remote-Deaktivierung & Titelprüfung |
+| [`tests/Feature/Ai/AiMarketingFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingFuncsSecurityTest.php) | Neue Testsuite: Wertebereichs-Clamping, Code-Sanitization & Kollisionssicherheit |
+| [`tests/Feature/Ai/AiMasterFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMasterFuncsSecurityTest.php) | Neue Testsuite: Maintenance-Passphrase, Whitelisting & dynamisches Secret |
+| [`tests/Feature/Ai/AiScoutFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiScoutFuncsSecurityTest.php) | Neue Testsuite: Mindestlänge, Wildcard-Escaping & `total_price`-Berechnung |
+| [`tests/Feature/Ai/AiNewsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiNewsFuncsSecurityTest.php) | Neue Testsuite: News-Validierung, Error-Masking & YouTube-Extraktion |
+| [`tests/Feature/Ai/AiPersonaFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiPersonaFuncsSecurityTest.php) | Neue Testsuite: SSRF-Schutz, E-Mail-Validierung & Titelprüfung |
 | [`app/Services/AI/Functions/AiMarketingBlogFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingBlogFuncs.php) | Admin-UUID-Zuordnung statt integer 1, automatische Slug-Kollisionsauflösung (`-1`, `-2`), Status-Whitelisting & Wildcard-Escaping |
 | [`app/Services/AI/Functions/AiMarketingNewsletterFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingNewsletterFuncs.php) | Boolean-Parsing, Clamping von `days_offset` (0–365), String-Truncation & Wildcard-Escaping |
 | [`app/Models/Marketing/MarketingNewsletter.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Marketing/MarketingNewsletter.php) | Boolean-Casting für `is_active` (`$casts`) |
@@ -1023,7 +1063,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 284 Tests bestanden (866 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 294 Tests bestanden (915 Assertions, 0 Fehler)
+  * `AiMarketingFuncsSecurityTest`: 2/2 bestanden (Wertebereichs-Clamping, Code-Sanitization & Kollisionssicherheit)
+  * `AiMasterFuncsSecurityTest`: 2/2 bestanden (Maintenance-Passphrase, Whitelisting & dynamisches Secret)
+  * `AiScoutFuncsSecurityTest`: 2/2 bestanden (Mindestlänge, Wildcard-Escaping & `total_price`-Berechnung)
+  * `AiNewsFuncsSecurityTest`: 2/2 bestanden (News-Validierung, Error-Masking & YouTube-Extraktion)
+  * `AiPersonaFuncsSecurityTest`: 2/2 bestanden (SSRF-Schutz, E-Mail-Validierung & Titelprüfung)
   * `AiMarketingBlogFuncsSecurityTest`: 2/2 bestanden (Foreign-Key-Korrektur, Slug-Kollisionsauflösung & Wildcard-Escaping)
   * `AiMarketingNewsletterFuncsSecurityTest`: 2/2 bestanden (Offset-Clamping, String-Truncation & Boolean-Archive-Toggle)
   * `AiTelefonyFuncsSecurityTest`: 2/2 bestanden (Status-Whitelisting, Mass-Assignment & Search-Clamping)

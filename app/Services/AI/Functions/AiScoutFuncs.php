@@ -99,13 +99,17 @@ trait AiScoutFuncs
     public static function executeSearchCustomers(array $args)
     {
         try {
-            if (empty($args['search_query'])) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
-            $term = $args['search_query'];
+            $term = trim((string)($args['search_query'] ?? ''));
+            if (mb_strlen($term) < 2) {
+                return ['status' => 'error', 'message' => 'Der Suchbegriff muss mindestens 2 Zeichen lang sein.'];
+            }
 
-            $customers = Customer::where('first_name', 'like', "%{$term}%")
-                ->orWhere('last_name', 'like', "%{$term}%")
-                ->orWhere('email', 'like', "%{$term}%")
-                ->take(3)->get();
+            $escapedTerm = addcslashes($term, '%_\\');
+
+            $customers = Customer::where('first_name', 'like', "%{$escapedTerm}%")
+                ->orWhere('last_name', 'like', "%{$escapedTerm}%")
+                ->orWhere('email', 'like', "%{$escapedTerm}%")
+                ->take(5)->get();
 
             if ($customers->isEmpty()) {
                 return ['status' => 'success', 'message' => "Kunde '$term' nicht gefunden."];
@@ -114,10 +118,17 @@ trait AiScoutFuncs
             $formatted = [];
             foreach ($customers as $c) {
                 $orderCount = \App\Models\Order\OrderOrder::where('customer_id', $c->id)->count();
-                $spentCents = \App\Models\Order\OrderOrder::where('customer_id', $c->id)->where('status', 'completed')->sum('total_amount');
+                $spentCents = (int) \App\Models\Order\OrderOrder::where('customer_id', $c->id)
+                    ->where(function($q) {
+                        $q->where('status', 'completed')
+                          ->orWhere('payment_status', 'paid');
+                    })
+                    ->sum('total_price');
                 
+                $fullName = trim(($c->first_name ?? '') . ' ' . ($c->last_name ?? '')) ?: 'Kunde';
+
                 $formatted[] = [
-                    'name' => $c->first_name . ' ' . $c->last_name,
+                    'name' => $fullName,
                     'email' => $c->email,
                     'registered_since' => $c->created_at ? $c->created_at->format('d.m.Y') : '-',
                     'total_orders' => $orderCount,

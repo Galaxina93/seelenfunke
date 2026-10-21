@@ -359,6 +359,46 @@ trait AiPersonaFuncs
         ];
     }
 
+    // [AREA: SECURITY HELPER]
+    private static function isSafeExternalUrl(string $url): bool
+    {
+        if (empty($url)) {
+            return false;
+        }
+
+        $parsed = parse_url($url);
+        if (!$parsed || empty($parsed['scheme']) || empty($parsed['host'])) {
+            return false;
+        }
+
+        $scheme = strtolower($parsed['scheme']);
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = strtolower($parsed['host']);
+        $blockedHosts = [
+            'localhost', '127.0.0.1', '::1', '0.0.0.0',
+            'db', 'redis', 'mailhog', 'mein_php_server', 'meine_datenbank',
+            'host.docker.internal', 'metadata.google.internal'
+        ];
+
+        if (in_array($host, $blockedHosts, true)) {
+            return false;
+        }
+
+        $ip = filter_var($host, FILTER_VALIDATE_IP) ? $host : @gethostbyname($host);
+        if (!$ip || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            return false;
+        }
+
+        if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+
+        return true;
+    }
+
     // [AREA: IMAGE PROCESSING]
     private static function processPersonaImage($url, $name)
     {
@@ -369,10 +409,15 @@ trait AiPersonaFuncs
             return $url;
         }
 
+        if (!self::isSafeExternalUrl($url)) {
+            \Log::warning("SSRF Blocked in processPersonaImage: Untrusted or private URL '$url'");
+            return null;
+        }
+
         try {
             $response = \Illuminate\Support\Facades\Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-            ])->timeout(15)->get($url);
+            ])->timeout(10)->get($url);
 
             if ($response->successful()) {
                 $imgContent = $response->body();
@@ -402,7 +447,7 @@ trait AiPersonaFuncs
         }
 
         // FALLBACK: Wenn Wikipedia-Link kaputt war oder 404, hole das Bild über die Wikipedia API
-        if (str_contains($url, 'wikipedia') || str_contains($url, 'wikimedia') || empty($url)) {
+        if (str_contains($url, 'wikipedia') || str_contains($url, 'wikimedia')) {
             try {
                 // Suche per Wikipedia API nach dem echten Namen und hole das Thumbnail
                 $wikiUrl = "https://de.wikipedia.org/w/api.php?action=query&titles=" . urlencode($name) . "&prop=pageimages&format=json&pithumbsize=400";
@@ -414,8 +459,9 @@ trait AiPersonaFuncs
                         foreach ($wikiData['query']['pages'] as $page) {
                             if (isset($page['thumbnail']['source'])) {
                                 $thumbnailUrl = $page['thumbnail']['source'];
-                                // Wir rufen die Funktion rekursiv mit der neuen Thumbnail URL auf, um sie zu speichern!
-                                return self::processPersonaImage($thumbnailUrl, $name . '_wiki');
+                                if (self::isSafeExternalUrl($thumbnailUrl)) {
+                                    return self::processPersonaImage($thumbnailUrl, $name . '_wiki');
+                                }
                             }
                         }
                     }
@@ -450,12 +496,20 @@ trait AiPersonaFuncs
     // [AREA: PDF GENERATION]
     public static function executePersonaGeneratePdf(array $args, $agent = null)
     {
-        $name = $args['name'] ?? 'Unbekannt';
-        $action = $args['target_action'] ?? 'download';
-        $recipient = $args['recipient_email'] ?? null;
-        if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
-            $recipient = null;
+        $name = trim((string)($args['name'] ?? 'Unbekannt'));
+        $action = strtolower(trim((string)($args['target_action'] ?? 'download')));
+        $rawRecipient = $args['recipient_email'] ?? null;
+        $recipient = null;
+
+        if (!empty($rawRecipient) && is_string($rawRecipient) && strtolower($rawRecipient) !== 'null') {
+            $cleaned = str_replace(["\r", "\n", "\t"], '', trim($rawRecipient));
+            if (filter_var($cleaned, FILTER_VALIDATE_EMAIL)) {
+                $recipient = $cleaned;
+            } elseif ($action === 'email') {
+                return ['status' => 'error', 'message' => "Ungültige Empfänger-E-Mail-Adresse: '$rawRecipient'"];
+            }
         }
+
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
 
         // Robust image download
@@ -469,6 +523,7 @@ trait AiPersonaFuncs
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.persona_dossier', [
                 'persona' => $args
             ]);
+            $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
             $dir = storage_path('app/public/dossiers');
             if (!file_exists($dir)) {
@@ -772,7 +827,10 @@ trait AiPersonaFuncs
 
     public static function executePersonaDeleteIntel(array $args)
     {
-        $title = $args['title'] ?? '';
+        $title = trim((string)($args['title'] ?? ''));
+        if (empty($title)) {
+            return ['status' => 'error', 'message' => 'Titel des zu löschenden Eintrags fehlt.'];
+        }
 
         try {
             $kb = AiKnowledgeBase::where('title', $title)->first();
@@ -789,9 +847,14 @@ trait AiPersonaFuncs
 
     public static function executePersonaFetchUrl(array $args)
     {
-        $url = $args['url'] ?? '';
+        $url = trim((string)($args['url'] ?? ''));
         if (empty($url)) {
             return ['status' => 'error', 'message' => 'Keine URL angegeben.'];
+        }
+
+        if (!self::isSafeExternalUrl($url)) {
+            \Log::warning("SSRF Blocked in executePersonaFetchUrl: '$url'");
+            return ['status' => 'error', 'message' => 'Die angegebene URL ist aus Sicherheitsgründen nicht erlaubt (SSRF-Schutz).'];
         }
 
         try {

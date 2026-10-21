@@ -60,7 +60,11 @@ trait AiMasterFuncs
     public static function executeGetCoreKpis(array $args)
     {
         try {
-            $timeframe = $args['timeframe'] ?? 'this_month';
+            $allowedTimeframes = ['this_month', 'last_month', 'this_year', 'last_year'];
+            $timeframe = strtolower(trim($args['timeframe'] ?? 'this_month'));
+            if (!in_array($timeframe, $allowedTimeframes, true)) {
+                $timeframe = 'this_month';
+            }
             
             $start = match($timeframe) {
                 'last_month' => now()->subMonth()->startOfMonth()->format('Y-m-d'),
@@ -131,17 +135,25 @@ trait AiMasterFuncs
 
     public static function executeToggleMaintenance(array $args)
     {
-        $action = $args['action'] ?? '';
         $pass = $args['secret_passphrase'] ?? '';
         
         if ($pass !== 'CONFIRM_CEO_OVERRIDE') {
             return ['status' => 'error', 'message' => 'Autorisierung fehlgeschlagen. Ungültige Passphrase.'];
         }
+
+        $action = strtolower(trim($args['action'] ?? ''));
+        if (!in_array($action, ['down', 'up'], true)) {
+            return ['status' => 'error', 'message' => "Ungültige Aktion '{$args['action']}'. Erlaubt sind nur 'down' oder 'up'."];
+        }
         
         try {
             if ($action === 'down') {
-                Artisan::call('down', ['--secret' => 'funkira-maintenance']);
-                return ['status' => 'success', 'message' => 'Der Store wurde erfolgreich in den Wartungsmodus versetzt. (Bypass-Url: /funkira-maintenance)'];
+                $secretToken = config('app.maintenance_secret')
+                    ?: (function_exists('shop_setting') ? shop_setting('maintenance_bypass_token') : null)
+                    ?: substr(hash('sha256', (config('app.key') ?: 'seelenfunke') . '_maintenance_salt'), 0, 32);
+
+                Artisan::call('down', ['--secret' => $secretToken]);
+                return ['status' => 'success', 'message' => "Der Store wurde erfolgreich in den Wartungsmodus versetzt. (Bypass-Url: /{$secretToken})"];
             } else {
                 Artisan::call('up');
                 return ['status' => 'success', 'message' => 'Der Store wurde wieder LIVE geschaltet.'];

@@ -109,27 +109,43 @@ trait AiMarketingFuncs
 
     public static function executeCreateCoupon(array $args): array
     {
-        $code = strtoupper($args['code'] ?? '');
-        $type = $args['type'] ?? 'percent';
-        $value = $args['value'] ?? 0;
+        $rawCode = trim($args['code'] ?? '');
+        $code = strtoupper(preg_replace('/[^A-Za-z0-9_\-]/', '', $rawCode));
         
         if (empty($code)) {
-            return ['status' => 'error', 'message' => 'Gutscheincode fehlt.'];
+            return ['status' => 'error', 'message' => 'Gutscheincode fehlt oder enthält ungültige Zeichen.'];
+        }
+
+        if (strlen($code) > 50) {
+            $code = substr($code, 0, 50);
+        }
+
+        $allowedTypes = ['fixed', 'percent'];
+        $type = strtolower($args['type'] ?? 'percent');
+        if (!in_array($type, $allowedTypes, true)) {
+            $type = 'percent';
+        }
+
+        $value = (float)($args['value'] ?? 0);
+        if ($type === 'percent') {
+            $dbValue = max(1, min(100, (int)$value));
+        } else {
+            $dbValue = (int)round(max(0.01, min(100000, $value)) * 100);
         }
         
         if (MarketingVoucher::where('code', $code)->exists()) {
             return ['status' => 'error', 'message' => "Der Gutscheincode '$code' existiert bereits! Wähle einen anderen Namen."];
         }
 
-        $dbValue = ($type === 'fixed') ? (int)($value * 100) : (int)$value;
-        $dbMinOrder = isset($args['min_order_value']) ? (int)($args['min_order_value'] * 100) : null;
+        $dbMinOrder = isset($args['min_order_value']) ? max(0, (int)round((float)$args['min_order_value'] * 100)) : null;
+        $usageLimit = (isset($args['usage_limit']) && (int)$args['usage_limit'] > 0) ? (int)$args['usage_limit'] : null;
 
         $voucher = MarketingVoucher::create([
             'code' => $code,
             'title' => 'Manueller Code: ' . $code,
             'type' => $type,
             'is_active' => true,
-            'usage_limit' => $args['usage_limit'] ?? null,
+            'usage_limit' => $usageLimit,
             'valid_until' => $args['valid_until'] ?? null,
             'value' => $dbValue,
             'min_order_value' => $dbMinOrder,
@@ -167,15 +183,40 @@ trait AiMarketingFuncs
             return ['status' => 'error', 'message' => 'Saisonale Auto-Gutscheine können nicht manuell bearbeitet werden. Nur manuell angelegte Gutscheine können geändert werden.'];
         }
 
-        if (isset($args['code'])) $voucher->code = strtoupper($args['code']);
-        if (isset($args['type'])) $voucher->type = $args['type'];
-        
-        if (isset($args['value'])) {
-             $voucher->value = ($voucher->type === 'fixed') ? (int)($args['value'] * 100) : (int)$args['value'];
+        if (isset($args['code'])) {
+            $newCode = strtoupper(preg_replace('/[^A-Za-z0-9_\-]/', '', trim($args['code'])));
+            if (!empty($newCode)) {
+                if (strlen($newCode) > 50) $newCode = substr($newCode, 0, 50);
+                if ($newCode !== $voucher->code && MarketingVoucher::where('code', $newCode)->where('id', '!=', $voucher->id)->exists()) {
+                    return ['status' => 'error', 'message' => "Der Gutscheincode '$newCode' existiert bereits!"];
+                }
+                $voucher->code = $newCode;
+            }
         }
 
-        if (isset($args['is_active'])) $voucher->is_active = $args['is_active'];
-        if (array_key_exists('usage_limit', $args)) $voucher->usage_limit = $args['usage_limit'];
+        if (isset($args['type'])) {
+            $newType = strtolower($args['type']);
+            if (in_array($newType, ['fixed', 'percent'], true)) {
+                $voucher->type = $newType;
+            }
+        }
+        
+        if (isset($args['value'])) {
+            $val = (float)$args['value'];
+            if ($voucher->type === 'percent') {
+                $voucher->value = max(1, min(100, (int)$val));
+            } else {
+                $voucher->value = (int)round(max(0.01, min(100000, $val)) * 100);
+            }
+        }
+
+        if (isset($args['is_active'])) {
+            $voucher->is_active = filter_var($args['is_active'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (array_key_exists('usage_limit', $args)) {
+            $voucher->usage_limit = (!is_null($args['usage_limit']) && (int)$args['usage_limit'] > 0) ? (int)$args['usage_limit'] : null;
+        }
 
         $voucher->save();
 
@@ -221,8 +262,8 @@ trait AiMarketingFuncs
 
     public static function executeDeleteCoupon(array $args): array
     {
-        $code = $args['code'] ?? null;
-        if (!$code) {
+        $code = strtoupper(trim($args['code'] ?? ''));
+        if (empty($code)) {
              return ['status' => 'error', 'message' => 'Kein Gutscheincode angegeben.'];
         }
 

@@ -95,9 +95,24 @@ trait AiNewsFuncs
      */
     public static function searchGlobalNews(array $args): array
     {
-        $query = $args['query'] ?? '';
-        $language = $args['language'] ?? 'de';
+        $query = trim((string)($args['query'] ?? ''));
+        if (empty($query)) {
+            return ['status' => 'error', 'message' => 'Suchbegriff für Nachrichten fehlt.'];
+        }
+        if (mb_strlen($query) > 100) {
+            $query = mb_substr($query, 0, 100);
+        }
+
+        $language = strtolower(trim((string)($args['language'] ?? 'de')));
+        if (!preg_match('/^[a-z]{2}$/', $language)) {
+            $language = 'de';
+        }
+
+        $allowedSort = ['publishedAt', 'relevancy', 'popularity'];
         $sortBy = $args['sortBy'] ?? 'publishedAt';
+        if (!in_array($sortBy, $allowedSort, true)) {
+            $sortBy = 'publishedAt';
+        }
         
         $apiKey = env('NEWS_API_KEY');
         
@@ -109,7 +124,7 @@ trait AiNewsFuncs
         }
 
         try {
-            $response = Http::get('https://newsapi.org/v2/everything', [
+            $response = Http::timeout(6)->get('https://newsapi.org/v2/everything', [
                 'q' => $query,
                 'language' => $language,
                 'sortBy' => $sortBy,
@@ -159,9 +174,10 @@ trait AiNewsFuncs
                 ];
             }
 
+            Log::warning("News API HTTP Error: " . $response->status() . " Body: " . $response->body());
             return [
                 'status' => 'error',
-                'message' => 'Fehler beim Abruf der Nachrichten: ' . $response->body()
+                'message' => 'Fehler beim Abruf der Nachrichten vom externen Dienst (Status: ' . $response->status() . ').'
             ];
 
         } catch (\Exception $e) {
@@ -207,20 +223,42 @@ trait AiNewsFuncs
 
     public static function searchYoutubeVideo(array $args): array
     {
-        $query = $args['query'] ?? '';
-        $title = $args['title'] ?? 'YouTube Video';
+        $query = trim((string)($args['query'] ?? ''));
+        $title = trim((string)($args['title'] ?? 'YouTube Video'));
+
+        if (empty($query)) {
+            return ['status' => 'error', 'message' => 'Suchbegriff für YouTube fehlt.'];
+        }
+
+        if (mb_strlen($query) > 100) {
+            $query = mb_substr($query, 0, 100);
+        }
+        if (mb_strlen($title) > 255) {
+            $title = mb_substr($title, 0, 255);
+        }
         
-        $html = @file_get_contents('https://www.youtube.com/results?search_query=' . urlencode($query));
         $videoId = null;
-        
-        if ($html && preg_match('/"videoId":"([^"]+)"/', $html, $matches)) {
-            $videoId = $matches[1];
+        try {
+            $response = Http::timeout(5)
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                ])
+                ->get('https://www.youtube.com/results?search_query=' . urlencode($query));
+
+            if ($response->successful()) {
+                $html = $response->body();
+                if (preg_match('/"videoId":"([a-zA-Z0-9_\-]{11})"/', $html, $matches)) {
+                    $videoId = $matches[1];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("YouTube search request timed out or failed: " . $e->getMessage());
         }
         
         if (!$videoId) {
             return [
                 'status' => 'error',
-                'message' => 'Es konnte kein passendes YouTube Video für "' . $query . '" gefunden werden.'
+                'message' => 'Es konnte kein passendes YouTube Video für "' . htmlspecialchars($query, ENT_QUOTES, 'UTF-8') . '" gefunden werden.'
             ];
         }
 
