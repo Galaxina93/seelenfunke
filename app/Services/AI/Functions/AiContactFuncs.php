@@ -127,7 +127,7 @@ trait AiContactFuncs
 
     public static function executeContactGetAll(array $args)
     {
-        $profiles = ManagementContact::all();
+        $profiles = ManagementContact::limit(100)->get();
         if ($profiles->isEmpty()) {
             return ['status' => 'success', 'message' => 'Es sind aktuell gar keine Personenprofile gespeichert.'];
         }
@@ -204,10 +204,14 @@ trait AiContactFuncs
             return ['status' => 'error', 'message' => 'Vorname ist erforderlich.'];
         }
 
+        $firstName = trim(substr((string) $args['first_name'], 0, 100));
+        $lastName = isset($args['last_name']) ? trim(substr((string) $args['last_name'], 0, 100)) : null;
+        $relationType = isset($args['relation_type']) ? trim(substr((string) $args['relation_type'], 0, 50)) : 'Unbekannt';
+
         $p = ManagementContact::create([
-            'first_name' => $args['first_name'],
-            'last_name' => $args['last_name'] ?? null,
-            'relation_type' => $args['relation_type'] ?? 'Unbekannt',
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'relation_type' => $relationType,
             'is_active' => true
         ]);
 
@@ -227,8 +231,9 @@ trait AiContactFuncs
         if (!$p) return ['status' => 'error', 'message' => 'Person zum Hinzufügen von Wissen nicht gefunden.'];
 
         $dateStr = now()->format('d.m.Y');
-        $titleStr = !empty($args['title']) ? " (Notiz: {$args['title']})" : '';
-        $newEntry = "\n[{$dateStr}] {$args['content']}{$titleStr}";
+        $content = substr(trim((string) $args['content']), 0, 5000);
+        $titleStr = !empty($args['title']) ? " (Notiz: " . substr(trim((string) $args['title']), 0, 100) . ")" : '';
+        $newEntry = "\n[{$dateStr}] {$content}{$titleStr}";
 
         $p->ai_learned_facts = ($p->ai_learned_facts ?? '') . $newEntry;
         $p->save();

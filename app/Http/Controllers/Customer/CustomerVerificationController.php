@@ -28,10 +28,14 @@ class CustomerVerificationController extends Controller
 
         $needsEvent = ! $user->hasVerifiedEmail();
 
-        // SICHERHEITS-FIX: Wir updaten gezielt alle Profile dieses Kunden,
-        // falls durch alte Tests Duplikate in der Datenbank hängen!
-        CustomerProfile::where('customer_id', $user->id)
-            ->update(['email_verified_at' => now()]);
+        // 1. Customer-Datensatz direkt verifizieren
+        $user->update(['email_verified_at' => now()]);
+
+        // 2. Profil synchronisieren bzw. initial anlegen
+        CustomerProfile::updateOrCreate(
+            ['customer_id' => $user->id],
+            ['email_verified_at' => now()]
+        );
 
         if ($needsEvent) {
             event(new Verified($user));

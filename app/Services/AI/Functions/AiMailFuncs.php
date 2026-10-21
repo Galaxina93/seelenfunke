@@ -199,8 +199,13 @@ trait AiMailFuncs
                 return ['status' => 'error', 'message' => 'Keine Empfänger-E-Mail angegeben und keine Standard-E-Mail im System (company_email, owner_email oder mail.from.address) hinterlegt.'];
             }
 
-            $subject = $args['subject'];
-            $body = $args['body'];
+            if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+                return ['status' => 'error', 'message' => "Ungültiges E-Mail-Format für Empfänger: '{$to}'."];
+            }
+
+            // Strip CR/LF to prevent header injection
+            $subject = str_replace(["\r", "\n"], '', trim($args['subject']));
+            $body = substr((string)$args['body'], 0, 200000);
             $agentName = $agent ? $agent->name : ($args['agent_name'] ?? 'System-Agent');
             $design = $args['design'] ?? 'seelenfunke';
 

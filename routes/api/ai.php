@@ -18,10 +18,10 @@ use App\Http\Controllers\AIController;
 
 Route::prefix('ai')->group(function () {
     // Endpunkt zur Verifizierung von WebSockets-Tokens (nur für internen Node-Server)
-    Route::post('/verify-token', [AIController::class, 'verifyToken']);
+    Route::post('/verify-token', [AIController::class, 'verifyToken'])->middleware('throttle:60,1');
 
     // Endpunkt zum Persistieren von Live-Transkripten (für internen Node-Server)
-    Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript']);
+    Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript'])->middleware('throttle:120,1');
 
     // Admin & Mitarbeiter geschützte KI-Endpunkte
     Route::group(['middleware' => ['web', 'auth:sanctum,web,admin', function ($request, $next) {

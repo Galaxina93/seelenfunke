@@ -415,7 +415,7 @@ class AIController extends Controller
             \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($dir);
         }
 
-        $filename = 'snapshot_' . date('Y-m-d_H-i-s') . '.jpg';
+        $filename = 'snapshot_' . date('Y-m-d_H-i-s') . '_' . \Illuminate\Support\Str::random(8) . '.jpg';
         $path = $file->storeAs($dir, $filename, 'public');
         \Illuminate\Support\Facades\Storage::disk('workspace')->put($path, file_get_contents($file->getRealPath()));
         
@@ -649,15 +649,23 @@ class AIController extends Controller
      */
     public function saveLiveTranscript(Request $request)
     {
-        $sessionId = $request->input('session_id');
-        $role = $request->input('role', 'assistant');
-        $content = trim($request->input('content', ''));
+        $sessionId = (string) $request->input('session_id', '');
+        $role = (string) $request->input('role', 'assistant');
+        $content = trim((string) $request->input('content', ''));
         $agentId = $request->input('agent_id');
         $agentName = $request->input('agent_name');
         $userId = $request->input('user_id');
 
         if (empty($content) || empty($sessionId)) {
             return response()->json(['error' => 'Missing session_id or content'], 400);
+        }
+
+        if (strlen($content) > 50000 || strlen($sessionId) > 100) {
+            return response()->json(['error' => 'Payload limits exceeded (content max 50000 chars, session_id max 100 chars)'], 422);
+        }
+
+        if (!in_array($role, ['user', 'assistant', 'system'], true)) {
+            $role = 'assistant';
         }
 
         // Deduplication check: inspect recent messages for this session

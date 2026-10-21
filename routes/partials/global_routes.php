@@ -208,7 +208,7 @@ Route::get('/email/verify', function () {
 
 // NEU: Unsere maßgeschneiderte, ungeschützte Gast-Route für die E-Mail-Verifizierung
 Route::get('/email/verify-customer/{id}/{hash}', [\App\Http\Controllers\Customer\CustomerVerificationController::class, 'verify'])
-    ->middleware(['signed'])
+    ->middleware(['signed', 'throttle:30,1'])
     ->name('customer.verification.verify');
 
 // Resend-Link, falls die E-Mail nicht ankam (erfordert eingeloggten Zustand als Web-User oder Kunde)

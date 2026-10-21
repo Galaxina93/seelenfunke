@@ -631,6 +631,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Deaktivierung von `isRemoteEnabled` (`false`) im DomPDF-Service. Validierung des Newsletter-Tokens (String, min. 16 Zeichen). Hinzufügen von Throttling (`throttle:30,1` für Widerrufs-PDF, Abmeldung & Newsletter-Verifikation sowie `throttle:60,1` für Stripe-Webhooks).
 * **Testabdeckung:** [`tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php) (3 Tests, 11 Assertions).
 
+### 2.96 [KUNDENVERIFIZIERUNG & SYNC] Fehlende User-Tabellen-Aktualisierung & DoS-Schutz bei E-Mail-Bestätigung
+* **Dateien:** [`app/Http/Controllers/Customer/CustomerVerificationController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Customer/CustomerVerificationController.php), [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php)
+* **Befund:** In `CustomerVerificationController::verify()` wurde bei erfolgreicher Bestätigung lediglich `customer_profiles.email_verified_at` aktualisiert, nicht aber `$user->email_verified_at` in der Tabelle `customers`. Sofern ein Profil-Datensatz fehlte, blieb der Kunde unbestätigt und war durch den Cronjob `system:delete-unverified-users` von unberechtigter Löschung bedroht. Zudem fehlte auf der Gast-Route `/email/verify-customer/{id}/{hash}` ein Rate-Limiter.
+* **Lösung:** Gleichzeitiges Update von `$user->update(['email_verified_at' => now()])` und Synchronisierung via `CustomerProfile::updateOrCreate(...)` sowie Ergänzung des `throttle:30,1`-Middlewares auf der Verifizierungsroute.
+* **Testabdeckung:** [`tests/Feature/Customer/CustomerVerificationSyncSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerVerificationSyncSecurityTest.php) (1 Test, 8 Assertions).
+
+### 2.97 [KI-LIVE-API & WEBSOCKETS] Ungeschützte Transcript-Endpunkte, DoS-Payloads & Snapshot-Überschreibungen
+* **Dateien:** [`app/Http/Controllers/AIController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/AIController.php), [`routes/api/ai.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/ai.php)
+* **Befund:** In `saveLiveTranscript()` fehlte eine Längenbegrenzung für Textübertragungen (Gefahr von Memory-Exhaustion und Flooding in `ai_chat_memories`) sowie eine Validierung der Rolle (`role`), wodurch beliebige String-Injektionen und unkontrollierte Echo-Broadcasts möglich waren. Auf `/api/ai/verify-token` und `/api/ai/save-live-transcript` fehlte Rate-Limiting. In `saveCameraSnapshot()` führte die rein sekundengenaue Dateibenennung bei gleichzeitigen Snapshots zu Race-Conditions und Dateiüberschreibungen.
+* **Lösung:** Längenbeschränkung (`content` max. 50.000 Zeichen, `session_id` max. 100), Whitelisting der Rolle (`user`, `assistant`, `system`), Hinzufügen von Entropietokens (`Str::random(8)`) bei Kamera-Snapshots sowie Throttling (`throttle:120,1` bzw. `throttle:60,1`) auf den API-Routen.
+* **Testabdeckung:** [`tests/Feature/Ai/AiLiveTranscriptSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiLiveTranscriptSecurityTest.php) (3 Tests, 8 Assertions).
+
+### 2.98 [KI-DOKUMENTE & SSRF] DomPDF Remote-Asset-Schutz & E-Mail-Validierung in Laser- und Reiseberichten
+* **Dateien:** [`app/Services/AI/Functions/AiLaserFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiLaserFuncs.php), [`app/Services/AI/Functions/AiHolidayPlannerFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiHolidayPlannerFuncs.php)
+* **Befund:** In `executeLaserGeneratePdfAndMail()` und `executeHolidayGeneratePdfPlan()` wurden E-Mail-Empfänger ohne RFC-2822-Validierung (`FILTER_VALIDATE_EMAIL`) verwendet, und in den Betreffzeilen konnten Newlines (`\r\n`) zu Header-Injection führen. Zudem waren die DomPDF-Renderer nicht gegen SSRF/LFI gehärtet (`isRemoteEnabled` war nicht explizit deaktiviert). Dateinamen-Generierung konnte bei Sonderzeichen im Titel kollabieren.
+* **Lösung:** Stripping von Zeilenumbrüchen in Betreffzeilen, E-Mail-Validierung via `filter_var(..., FILTER_VALIDATE_EMAIL)` mit Fallback auf die System-E-Mail, Deaktivierung von Remote-Assets (`setOption(['isRemoteEnabled' => false])`), sichere Slug-Fallbacks und Nutzung der Laravel-`Storage`-Disk.
+* **Testabdeckung:** [`tests/Feature/Ai/AiLaserAndHolidaySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiLaserAndHolidaySecurityTest.php) (2 Tests, 4 Assertions).
+
+### 2.99 [KI-KOMMUNIKATION & KONTAKTE] Header-Injection-Schutz, E-Mail-Validierung & String-Limits bei Kontakten
+* **Dateien:** [`app/Services/AI/Functions/AiMailFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMailFuncs.php), [`app/Services/AI/Functions/AiContactFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiContactFuncs.php)
+* **Befund:** In `executeSendEmail()` wurden Empfänger-Adressen nur auf naive Dummy-Begriffe ('example') geprüft, ungültige Formate führten zu Mailer-Abstürzen und Betreffzeilen waren nicht gegen CRLF-Header-Injection geschützt. In `AiContactFuncs` konnten KI-Agenten beliebig lange Namens- und Informations-Strings (`first_name`, `last_name`, `content`) anlegen, was zu MySQL-1406-Fehlern (`Data too long`) führte.
+* **Lösung:** Strikte `FILTER_VALIDATE_EMAIL`-Prüfung und CRLF-Entfernung in `AiMailFuncs`. Feldlängen-Truncation (`first_name`/`last_name` max. 100 Zeichen, `relation_type` max. 50, Notiz-Inhalt max. 5.000 Zeichen) sowie Ergebnismengenbegrenzung (`limit(100)`) in `AiContactFuncs`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiMailAndContactSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMailAndContactSecurityTest.php) (2 Tests, 10 Assertions).
+
+### 2.100 [LIEFERANTEN & DATENINTEGRITÄT] SQL-Column-Crash ('address'), Wertebereichs-Clamping & Lösch-Integrität
+* **Dateien:** [`app/Services/AI/Functions/AiSuppliersFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSuppliersFuncs.php)
+* **Befund:** In `executeSupplierCreate()` und `executeSupplierUpdate()` wurde das Feld `address` übergeben, was zu einem SQL-1054-Absturz (`Unknown column 'address' in 'field list'`) führte, da die Tabelle stattdessen `street`, `zip`, `city` etc. nutzt. Zudem waren negative Vorlaufzeiten (`lead_time_*_days`) und beliebige Transportmethoden zulässig. `executeSupplierDelete()` löschte Lieferanten, selbst wenn noch aktive Produkte oder Bruchwareneinträge mit ihnen verknüpft waren, was verwaiste Fremdschlüssel hinterließ.
+* **Lösung:** Mapping von `address` auf die korrekte Spalte `street`. Clamping der Vorlaufzeiten auf 0 bis 3.650 Tage. Whitelisting von `shipping_method` (`land`, `air`, `sea`, `train`). Hinzufügen einer relationalen Integritätsprüfung vor dem Löschen (`Product` & `ProductLoss`).
+* **Testabdeckung:** [`tests/Feature/Ai/AiSuppliersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSuppliersSecurityTest.php) (2 Tests, 11 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -852,13 +882,32 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`tests/Feature/Auth/GoogleAuthControllerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Auth/GoogleAuthControllerSecurityTest.php) | Neue Testsuite: Avatar SSRF-Filterung & Unverified-Email-Ablehnung |
 | [`tests/Feature/Frontend/EmergencyProtocolSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Frontend/EmergencyProtocolSecurityTest.php) | Neue Testsuite: Auth-Gate, Todo-Key-Whitelisting & Step-Clamping |
 | [`tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php) | Neue Testsuite: DomPDF-Schutz & Newsletter-Verifikationsvalidierung |
+| [`app/Http/Controllers/Customer/CustomerVerificationController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Customer/CustomerVerificationController.php) | Doppelsynchronisation (`customers` & `customer_profiles`) bei E-Mail-Verifikation |
+| [`app/Http/Controllers/AIController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/AIController.php) | Payload-Validierung für Live-Transkripte & Entropie-Token für Kamera-Snapshots |
+| [`routes/api/ai.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/ai.php) | Rate-Limiter für WebSocket-Tokenverifikation & Live-Transkripte |
+| [`app/Services/AI/Functions/AiLaserFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiLaserFuncs.php) | DomPDF SSRF-Schutz (`isRemoteEnabled => false`), E-Mail-Validierung & Header-Sanitization |
+| [`app/Services/AI/Functions/AiHolidayPlannerFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiHolidayPlannerFuncs.php) | DomPDF SSRF-Schutz, E-Mail-Validierung & Storage-Disk-Nutzung |
+| [`app/Services/AI/Functions/AiMailFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMailFuncs.php) | Strikte E-Mail-Validierung via `filter_var` & CRLF-Stripping gegen Header-Injection |
+| [`app/Services/AI/Functions/AiContactFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiContactFuncs.php) | Längenbegrenzung für Kontaktdaten & Wissenseinträge gegen DB-Overflow |
+| [`app/Services/AI/Functions/AiSuppliersFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSuppliersFuncs.php) | Spaltenkorrektur (`street`), Vorlaufzeiten-Clamping & relationale Lösch-Integrität |
+| [`tests/Feature/Customer/CustomerVerificationSyncSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerVerificationSyncSecurityTest.php) | Neue Testsuite: Verifikations-Synchronisation zwischen Customer & Profile |
+| [`tests/Feature/Ai/AiLiveTranscriptSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiLiveTranscriptSecurityTest.php) | Neue Testsuite: Payload-Validierung & Kollisionsschutz bei Snapshots |
+| [`tests/Feature/Ai/AiLaserAndHolidaySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiLaserAndHolidaySecurityTest.php) | Neue Testsuite: DomPDF SSRF-Schutz & E-Mail-Validierung |
+| [`tests/Feature/Ai/AiMailAndContactSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMailAndContactSecurityTest.php) | Neue Testsuite: Mail-Header-Injection & Kontakt-String-Limits |
+| [`tests/Feature/Ai/AiSuppliersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSuppliersSecurityTest.php) | Neue Testsuite: Lieferanten-Vorlaufzeiten, Adress-Spalte & Lösch-Integrität |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 250 Tests bestanden (722 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 260 Tests bestanden (763 Assertions, 0 Fehler)
+  * `CustomerVerificationSyncSecurityTest`: 1/1 bestanden (Verifikations-Synchronisation zwischen Customer & Profile)
+  * `AiLiveTranscriptSecurityTest`: 3/3 bestanden (Payload-Validierung & Kollisionsschutz bei Snapshots)
+  * `AiLaserAndHolidaySecurityTest`: 2/2 bestanden (DomPDF SSRF-Schutz & E-Mail-Validierung)
+  * `AiMailAndContactSecurityTest`: 2/2 bestanden (Mail-Header-Injection & Kontakt-String-Limits)
+  * `AiSuppliersSecurityTest`: 2/2 bestanden (Lieferanten-Vorlaufzeiten, Adress-Spalte & Lösch-Integrität)
+  * `AiOrderFuncsSecurityTest`: 2/2 bestanden (KI-Status-Stornierung, Standardwaren-Restoration & strikter Schutz von Laser-Ausschussware)
   * `AiOrderFuncsSecurityTest`: 2/2 bestanden (KI-Status-Stornierung, Standardwaren-Restoration & strikter Schutz von Laser-Ausschussware)
   * `AiMarketingVoucherFuncsSecurityTest`: 2/2 bestanden (SQL-Spaltenkorrektur `total_price` & Wertebereichsvalidierung für Gutscheine)
   * `GoogleAuthControllerSecurityTest`: 2/2 bestanden (Avatar SSRF-Prävention, Unverified-Email-Block & Session-Regeneration)

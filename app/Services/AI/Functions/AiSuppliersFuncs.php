@@ -144,18 +144,32 @@ trait AiSuppliersFuncs
         try {
             if (empty($args['name'])) return ['status' => 'error', 'message' => 'Name ist ein Pflichtfeld.'];
 
+            $shippingMethod = $args['shipping_method'] ?? 'land';
+            if (!in_array($shippingMethod, ['land', 'air', 'sea', 'train'], true)) {
+                $shippingMethod = 'land';
+            }
+
+            $clampDays = function ($val) {
+                return $val !== null ? max(0, min(3650, (int) $val)) : null;
+            };
+
+            $street = isset($args['street']) ? substr(trim($args['street']), 0, 255) : (isset($args['address']) ? substr(trim($args['address']), 0, 255) : null);
+
             $data = [
-                'name' => $args['name'],
-                'contact_person' => $args['contact_person'] ?? null,
-                'email' => $args['email'] ?? null,
-                'phone' => $args['phone'] ?? null,
-                'website' => $args['website'] ?? null,
-                'address' => $args['address'] ?? null,
-                'notes' => $args['notes'] ?? null,
-                'lead_time_land_days' => $args['lead_time_land_days'] ?? null,
-                'lead_time_sea_days' => $args['lead_time_sea_days'] ?? null,
-                'lead_time_air_days' => $args['lead_time_air_days'] ?? null,
-                'shipping_method' => $args['shipping_method'] ?? 'land',
+                'name' => substr(trim($args['name']), 0, 255),
+                'contact_person' => isset($args['contact_person']) ? substr(trim($args['contact_person']), 0, 255) : null,
+                'email' => isset($args['email']) ? substr(trim($args['email']), 0, 255) : null,
+                'phone' => isset($args['phone']) ? substr(trim($args['phone']), 0, 50) : null,
+                'website' => isset($args['website']) ? substr(trim($args['website']), 0, 255) : null,
+                'street' => $street,
+                'city' => isset($args['city']) ? substr(trim($args['city']), 0, 255) : null,
+                'zip' => isset($args['zip']) ? substr(trim($args['zip']), 0, 20) : null,
+                'country' => isset($args['country']) ? substr(trim($args['country']), 0, 100) : null,
+                'notes' => isset($args['notes']) ? substr(trim($args['notes']), 0, 5000) : null,
+                'lead_time_land_days' => isset($args['lead_time_land_days']) ? $clampDays($args['lead_time_land_days']) : null,
+                'lead_time_sea_days' => isset($args['lead_time_sea_days']) ? $clampDays($args['lead_time_sea_days']) : null,
+                'lead_time_air_days' => isset($args['lead_time_air_days']) ? $clampDays($args['lead_time_air_days']) : null,
+                'shipping_method' => $shippingMethod,
             ];
 
             $supplier = ProductSupplier::create($data);
@@ -180,13 +194,29 @@ trait AiSuppliersFuncs
 
             $updates = [];
             $allowedFields = [
-                'name', 'contact_person', 'email', 'phone', 'website', 'address', 'notes',
+                'name', 'contact_person', 'email', 'phone', 'website', 'street', 'city', 'zip', 'country', 'notes',
                 'lead_time_land_days', 'lead_time_sea_days', 'lead_time_air_days', 'shipping_method'
             ];
 
+            if (isset($args['address']) && !isset($args['street'])) {
+                $args['street'] = $args['address'];
+            }
+
+            $clampDays = function ($val) {
+                return $val !== null ? max(0, min(3650, (int) $val)) : null;
+            };
+
             foreach ($allowedFields as $field) {
                 if (isset($args[$field])) {
-                    $updates[$field] = $args[$field];
+                    if (in_array($field, ['lead_time_land_days', 'lead_time_sea_days', 'lead_time_air_days'], true)) {
+                        $updates[$field] = $clampDays($args[$field]);
+                    } elseif ($field === 'shipping_method') {
+                        $updates[$field] = in_array($args[$field], ['land', 'air', 'sea', 'train'], true) ? $args[$field] : $supplier->shipping_method;
+                    } elseif ($field === 'notes') {
+                        $updates[$field] = substr(trim((string)$args[$field]), 0, 5000);
+                    } else {
+                        $updates[$field] = substr(trim((string)$args[$field]), 0, 255);
+                    }
                 }
             }
 
@@ -211,6 +241,15 @@ trait AiSuppliersFuncs
             
             $supplier = self::findSupplier($args['product_supplier_id']);
             if (!$supplier) return ['status' => 'error', 'message' => 'Lieferant wurde nicht gefunden.'];
+
+            // Foreign key integrity check
+            if (\App\Models\Product\Product::where('product_supplier_id', $supplier->id)->exists() ||
+                \App\Models\Product\ProductLoss::where('product_supplier_id', $supplier->id)->exists()) {
+                return [
+                    'status' => 'error',
+                    'message' => "Lieferant '{$supplier->name}' kann nicht gelöscht werden, da er noch mit aktiven Produkten oder Bruchwaren verknüpft ist."
+                ];
+            }
 
             $name = $supplier->name;
             $supplier->delete();

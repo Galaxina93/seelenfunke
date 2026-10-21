@@ -131,7 +131,7 @@ trait AiHolidayPlannerFuncs
 
     public static function executeHolidayGeneratePdfPlan(array $args, $agent = null)
     {
-        $title = $args['title'] ?? 'Urlaubsplan';
+        $title = str_replace(["\r", "\n"], '', trim($args['title'] ?? 'Urlaubsplan'));
         $description = $args['description'] ?? '';
         $startDate = $args['start_date'] ?? null;
         $endDate = $args['end_date'] ?? null;
@@ -160,7 +160,7 @@ trait AiHolidayPlannerFuncs
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'Globi - Leiter Globale Planung');
 
         try {
-            // Generate PDF using dompdf
+            // Generate PDF using dompdf with remote fetching disabled
             $pdf = Pdf::loadView('pdf.holiday_plan', [
                 'title' => $title,
                 'description' => $description,
@@ -172,23 +172,21 @@ trait AiHolidayPlannerFuncs
                 'generalTips' => $generalTips,
                 'itinerary' => $itinerary,
                 'calendarEvents' => $calendarEvents
-            ]);
+            ])->setOption(['isRemoteEnabled' => false]);
 
-            // Ensure the directory exists
-            $dir = storage_path('app/public/holidays');
-            if (!file_exists($dir)) {
-                mkdir($dir, 0755, true);
-            }
+            // Ensure the directory exists via Storage disk
+            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory('holidays');
 
             // Save PDF
-            $filename = 'urlaubsplan_' . Str::slug($title) . '_' . time() . '.pdf';
-            $filePath = $dir . '/' . $filename;
+            $slug = Str::slug($title) ?: 'plan';
+            $filename = 'urlaubsplan_' . $slug . '_' . time() . '_' . Str::random(6) . '.pdf';
+            $filePath = storage_path('app/public/holidays/' . $filename);
             $pdf->save($filePath);
 
             $downloadUrl = url('storage/holidays/' . $filename);
 
             if ($action === 'email') {
-                if (empty($recipient)) {
+                if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 

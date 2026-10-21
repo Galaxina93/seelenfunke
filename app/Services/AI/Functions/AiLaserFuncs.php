@@ -59,7 +59,7 @@ trait AiLaserFuncs
 
     public static function executeLaserGeneratePdfAndMail(array $args, $agent = null)
     {
-        $title = $args['title'] ?? 'Laserschutz-Information';
+        $title = str_replace(["\r", "\n"], '', trim($args['title'] ?? 'Laserschutz-Information'));
         $content = $args['content'] ?? '';
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
@@ -77,12 +77,12 @@ trait AiLaserFuncs
             // Choose the correct view template
             $viewName = $design === 'generic' ? 'global.pdf.ai-report-generic' : 'global.pdf.ai-report-seelenfunke';
             
-            // Generate PDF
+            // Generate PDF with remote assets disabled for SSRF protection
             $pdf = Pdf::loadView($viewName, [
                 'title' => $title,
                 'htmlContent' => $htmlContent,
                 'agentName' => $agentName
-            ]);
+            ])->setOption(['isRemoteEnabled' => false]);
 
             // Create target folder in workspace (Berufsleben/Projekte)
             $folderPath = 'agenten/workspace/Berufsleben/Projekte';
@@ -93,9 +93,9 @@ trait AiLaserFuncs
                 Storage::disk('workspace')->makeDirectory($folderPath);
             }
 
-            // Generate File Name
-            $safeTitle = preg_replace('/[^A-Za-z0-9\-]/', '_', $title);
-            $fileName = 'LaserReport_' . $safeTitle . '_' . now()->format('Ymd_Hi') . '.pdf';
+            // Generate File Name with collision prevention
+            $safeTitle = substr(preg_replace('/[^A-Za-z0-9\-]/', '_', $title), 0, 50) ?: 'LaserReport';
+            $fileName = 'LaserReport_' . $safeTitle . '_' . now()->format('Ymd_Hi') . '_' . Str::random(6) . '.pdf';
             $filePath = $folderPath . '/' . $fileName;
             $absolutePath = Storage::disk('public')->path($filePath);
 
@@ -107,7 +107,7 @@ trait AiLaserFuncs
 
             // Handle action
             if ($action === 'email') {
-                if (empty($recipient)) {
+                if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
                     $recipient = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
 
