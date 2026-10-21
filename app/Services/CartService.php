@@ -100,7 +100,7 @@ class CartService
     /**
      * Fügt ein Produkt hinzu.
      */
-    public function addItem(Product $product, int $quantity = 1, array $configuration = null): void
+    public function addItem(Product $product, int $quantity = 1, ?array $configuration = null): void
     {
         $cart = $this->getCart();
 
@@ -138,7 +138,7 @@ class CartService
         $this->refreshTotals($cart);
     }
 
-    public function updateItem(string $itemId, int $quantity, array $configuration = null): void
+    public function updateItem(string $itemId, int $quantity, ?array $configuration = null): void
     {
         $item = CartItem::find($itemId);
         if (!$item) return;
@@ -222,7 +222,7 @@ class CartService
     /**
      * Resolves unit price, using quote snapshot price if checking out from a quote.
      */
-    public function resolveItemUnitPrice(Product $product, int $qty, array $configuration = null): int
+    public function resolveItemUnitPrice(Product $product, int $qty, ?array $configuration = null): int
     {
         $quoteId = session('checkout_from_quote_id');
         if ($quoteId) {
@@ -247,7 +247,7 @@ class CartService
     /**
      * Berechnet den Einzelpreis (Staffel & Variante).
      */
-    public function calculateTierPrice(Product $product, int $qty, array $configuration = null): int
+    public function calculateTierPrice(Product $product, int $qty, ?array $configuration = null): int
     {
         if ($product->slug === 'geschenkgutschein' && $configuration && isset($configuration['amount_cents'])) {
             return (int) $configuration['amount_cents'];

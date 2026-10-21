@@ -362,7 +362,7 @@ class OrderOrder extends Model
         return $details['recommended_weight_per_package'];
     }
 
-    public function completePayment(string $stripePaymentIntentId = null): void
+    public function completePayment(?string $stripePaymentIntentId = null): void
     {
         if ($this->payment_status === 'paid') {
             return;

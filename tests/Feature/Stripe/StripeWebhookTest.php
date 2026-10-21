@@ -34,7 +34,7 @@ class StripeWebhookTest extends TestCase
         $this->seed(\Database\Seeders\SystemSettingSeeder::class);
     }
 
-    protected function generateStripeHeader(string $payload, int $timestamp = null): string
+    protected function generateStripeHeader(string $payload, ?int $timestamp = null): string
     {
         $timestamp = $timestamp ?? time();
         $signature = hash_hmac('sha256', "{$timestamp}.{$payload}", $this->webhookSecret);
