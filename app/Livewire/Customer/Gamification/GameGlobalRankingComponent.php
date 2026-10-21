@@ -45,6 +45,7 @@ class GameGlobalRankingComponent extends Component
         // Rangliste nur laden, wenn der Kunde eingewilligt hat (Performance & Datenschutz)
         if ($this->hasOptedIn) {
             $query = CustomerGamification::with('customer')
+                ->has('customer')
                 ->where('is_active', true)
                 ->where('ranking_opt_in', true);
 

@@ -118,6 +118,12 @@ class InvoiceService
                 // Stornobeleg ebenfalls archivieren
                 $this->storePdf($invoice);
 
+                // Synchronize order cancellation if order exists and is not yet cancelled
+                if ($originalInvoice->order && $originalInvoice->order->status !== 'cancelled') {
+                    $originalInvoice->order->handleCancellation('Rechnungsstornierung ' . $originalInvoice->invoice_number);
+                    $originalInvoice->order->update(['status' => 'cancelled']);
+                }
+
                 return $invoice;
             });
         }, 100);

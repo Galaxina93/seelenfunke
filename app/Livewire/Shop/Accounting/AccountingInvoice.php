@@ -537,7 +537,8 @@ class AccountingInvoice extends Component
     public function downloadXml($id)
     {
         $invoice = InvoiceModel::findOrFail($id);
-        $path = 'buchhaltung/invoices/xml/' . $invoice->invoice_number . '.xml';
+        $safeInvoiceNumber = preg_replace('/[^a-zA-Z0-9_-]/', '_', $invoice->invoice_number);
+        $path = 'buchhaltung/invoices/xml/' . $safeInvoiceNumber . '.xml';
 
         // ... Logik wie gehabt, aber im Catch-Block ggf. auch den neuen Service nutzen:
         if (!Storage::disk('local')->exists($path)) {
@@ -591,6 +592,7 @@ class AccountingInvoice extends Component
                 $cancellationInvoice->subtotal = -$invoice->subtotal;
                 $cancellationInvoice->tax_amount = -$invoice->tax_amount;
                 $cancellationInvoice->shipping_cost = -$invoice->shipping_cost;
+                $cancellationInvoice->express_price = -$invoice->express_price;
                 $cancellationInvoice->discount_amount = -$invoice->discount_amount;
                 $cancellationInvoice->volume_discount = -$invoice->volume_discount;
                 $cancellationInvoice->total = -$invoice->total;
@@ -599,6 +601,12 @@ class AccountingInvoice extends Component
 
                 // Auch Stornobeleg archivieren
                 app(InvoiceService::class)->storePdf($cancellationInvoice);
+
+                // Synchronize order cancellation if order exists and is not yet cancelled
+                if ($invoice->order && $invoice->order->status !== 'cancelled') {
+                    $invoice->order->handleCancellation('Rechnungsstornierung ' . $invoice->invoice_number);
+                    $invoice->order->update(['status' => 'cancelled']);
+                }
             });
 
             session()->flash('success', 'Rechnung wurde erfolgreich storniert und eine Gutschrift erstellt.');

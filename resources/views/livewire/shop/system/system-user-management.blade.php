@@ -34,6 +34,14 @@
             </div>
         @endif
 
+        {{-- Error Message --}}
+        @if (session()->has('error'))
+            <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)" class="mt-4 bg-red-500/10 border-l-4 border-red-500 p-4 text-red-600 dark:text-red-400 shadow-inner rounded-r-xl flex items-center gap-3 animate-fade-in text-sm font-bold">
+                <x-heroicon-s-exclamation-circle class="w-5 h-5 drop-shadow-[0_0_8px_currentColor]" />
+                <span>{{ session('error') }}</span>
+            </div>
+        @endif
+
         @if($isCreating || $editingId)
             {{-- FULL PAGE INLINE EDITOR --}}
             <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-8 sm:p-10 rounded-[2.5rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl relative overflow-hidden animate-fade-in mt-6">

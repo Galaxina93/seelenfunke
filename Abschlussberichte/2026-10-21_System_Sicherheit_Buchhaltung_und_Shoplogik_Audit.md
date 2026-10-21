@@ -278,12 +278,64 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Befund:** Die Routen `/admin/ai/workspace/file` und `/admin/widerruf/file/{revocation}/{fileName}` lieferten hochgeladene Dateien direkt mit `response()->file()` aus. Bei HTML- oder SVG-Dateien mit JavaScript-Code konnte dies zu Stored XSS im Admin-Bereich führen.
 * **Lösung:** Beschränkung von `inline`-Darstellung auf sichere MIME-Typen (`image/jpeg`, `image/png`, `image/gif`, `image/webp`, `application/pdf`, `text/plain`). Alle anderen Dateitypen werden als `attachment` mit `X-Content-Type-Options: nosniff` forciert.
 
+### 2.46 [ADMIN-LOCKOUT & KUNDENVERIFIZIERUNG] SystemUserManagement Admin-Selbstlöschungsschutz & Kunden-E-Mail-Sync
+* **Dateien:** [`app/Livewire/Shop/System/SystemUserManagement.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemUserManagement.php), [`resources/views/livewire/shop/system/system-user-management.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-user-management.blade.php)
+* **Befund:** In der zentralen Benutzerverwaltung (`SystemUserManagement`) fehlten in `archiveUser()` und `forceDelete()` Prüfungen gegen das versehentliche Archivieren des eigenen Admin-Kontos sowie das Löschen des letzten Administrators. Ferner aktualisierte `saveNewUser()` und `saveInline()` nur das Profil, nicht aber `customers.email_verified_at`, wodurch neu verifizierte Kunden sich wegen Laravel MustVerifyEmail-Checks nicht einloggen konnten.
+* **Lösung:** 
+  1. Hinzufügen von Sperren in `archiveUser()` und `forceDelete()`: Admins können sich nicht selbst löschen/archivieren; der letzte Administrator kann weder archiviert noch unwiderruflich gelöscht werden (`Admin::count() <= 1` / `Admin::withTrashed()->count() <= 1`).
+  2. Synchronisation von `email_verified_at` auf der Haupttabelle `customers` bei Anlage und Inline-Bearbeitung.
+  3. Integration von Fehlermeldungs-Toasts (`session('error')`) in das Blade-Template.
+
+### 2.47 [BUCHHALTUNGS- & STORNO-SYNC] Rechnungsstornierung mit automatischer Auftrags-, Gutschein- & Lager-Synchronisation
+* **Dateien:** [`app/Livewire/Shop/Accounting/AccountingInvoice.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingInvoice.php), [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php)
+* **Befund:** Bei der Stornierung einer Rechnung über die Buchhaltungs-UI oder den `InvoiceService` wurde zwar eine Stornorechnung / Gutschrift erzeugt, die verknüpfte Bestellung (`$invoice->order`) verblieb jedoch im aktiven Status (`processing`/`completed`). Weder Gutscheine noch Bestände oder Spenden wurden zurückgewickelt. Zudem enthielt `downloadXml()` keine Bereinigung der Rechnungsnummer gegen Directory Traversal.
+* **Lösung:**
+  1. Automatische Ausführung von `$invoice->order->handleCancellation(...)` und Aktualisierung des Auftragsstatus auf `cancelled` bei Rechnungsstornierung. Dadurch wird Standardware wieder eingebucht, Geschenkgutschein-Guthaben erstattet und gekaufte Gutscheine deaktiviert (während personalisierte Laser-Unikate wunschgemäß als Ausschuss verfallen).
+  2. Bereinigung der Rechnungsnummer in `downloadXml()` via `preg_replace('/[^a-zA-Z0-9_-]/', '_', ...)`.
+
+### 2.48 [GAMIFICATION & SUPPORT-ABUSE-SCHUTZ] Null-Safety in der Halle der Legenden & Ticket-Spam-Begrenzung
+* **Dateien:** [`app/Livewire/Customer/Gamification/GameGlobalRankingComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/Gamification/GameGlobalRankingComponent.php), [`resources/views/livewire/customer/gamification/game-global-ranking-component.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/customer/gamification/game-global-ranking-component.blade.php), [`app/Livewire/Customer/CustomerTicketsComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerTicketsComponent.php)
+* **Befund:** 
+  1. Die globale Rangliste (`GameGlobalRankingComponent`) lud Gamification-Datensätze ohne `has('customer')`-Filter und griff im Blade ungeschützt auf `$p->customer->first_name` zu. Bei gelöschten Kunden führte dies zu einem 500er-Fehler für alle Besucher.
+  2. Im Kunden-Support (`CustomerTicketsComponent`) konnten Kunden beliebig viele Bug-Report-Tickets eröffnen und unbegrenzt oft je 5 Seelenfunken (+5 ✨) farmen. Zudem war die Angabe einer fremden `order_id` möglich.
+* **Lösung:**
+  1. `has('customer')`-Filterung und Null-Safe-Operatoren (`$p->customer?->first_name`, `mb_substr`) in der Rangliste.
+  2. Rate-Limiting für Ticketerstellungen (5 Versuche / Stunde).
+  3. Validierung, dass verknüpfte Bestellungen (`newOrderId`) tatsächlich dem Kunden gehören (IDOR-Schutz).
+  4. Begrenzung der Funken-Belohnung für Bug-Meldungen auf maximal einmal pro Tag pro Kunde.
+
+### 2.49 [CHECKOUT PAYMENT-BYPASS & IDOR-SCHUTZ] Absicherung von `handlePaymentSuccess` gegen unberechtigte Zahlungsbestätigung
+* **Dateien:** [`app/Livewire/Shop/Order/OrderCheckout/Traits/HandlesStripePayment.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderCheckout/Traits/HandlesStripePayment.php)
+* **Befund:** Die Methode `handlePaymentSuccess($orderId)` überprüfte bei Aufrufen ohne aktiven PaymentIntent (`currentPaymentIntentId == null`, z. B. bei manipulierter Session oder 0-Euro-Starts) weder die Kundenbesitzerschaft von `$candidate` noch, ob ein Auftrag mit Betrag > 0 € tatsächlich bei Stripe bezahlt worden war. Ein Angreifer konnte so fremde oder unbezahlte Bestellungen unrechtmäßig als bezahlt markieren.
+* **Lösung:**
+  1. Strikter Session-Ownership-Check: Die Zielbestellung muss zum aktuell eingeloggten Kunden oder zur eingegebenen Checkout-E-Mail gehören.
+  2. Bestellungen mit Betrag > 0 € müssen zwingend einen übereinstimmenden PaymentIntent besitzen, der serverseitig bei Stripe mit Status `succeeded` und exakter Betragsübereinstimmung verifiziert wird.
+  3. Nur echte 0,00 € Bestellungen (100% Gutscheindeckung) dürfen ohne externen Stripe-Intent als bezahlt finalisiert werden.
+
+### 2.50 [BELEG-DOWNLOAD STORED-XSS-SCHUTZ] Absicherung der Buchhaltungs-Belegabrufe
+* **Dateien:** [`routes/partials/admin_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/admin_routes.php)
+* **Befund:** Der Endpoint `/admin/accounting/receipt` lieferte Belege und Verträge über `response()->file()` ohne MIME-Typ-Validierung aus. Wurden manipulierte Dateien (HTML, SVG mit Scripten) hinterlegt, konnte beim Betrachten im Admin-Kontext Stored XSS ausgelöst werden.
+* **Lösung:** MIME-Whitelisting (`safeMimes`), Forcierung von `Content-Disposition: attachment` für potentiell gefährliche Dateiformate und Auslieferung mit `X-Content-Type-Options: nosniff`.
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Livewire/Shop/System/SystemUserManagement.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemUserManagement.php) | Admin-Lockout-Schutz (Selbst-Archivierung & Löschung des letzten Admins gesperrt) & `email_verified_at` Sync für Kunden |
+| [`resources/views/livewire/shop/system/system-user-management.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-user-management.blade.php) | Fehler-Toast Anzeige (`session('error')`) |
+| [`app/Livewire/Shop/Accounting/AccountingInvoice.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingInvoice.php) | Storno-Synchronisation mit Bestellung (`handleCancellation`) & XML-Dateinamen-Bereinigung |
+| [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php) | Storno-Synchronisation mit Bestellung (`handleCancellation`) bei Rechnungsannullierung |
+| [`app/Livewire/Customer/Gamification/GameGlobalRankingComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/Gamification/GameGlobalRankingComponent.php) | `has('customer')`-Filterung zur Vermeidung von 500er-Crashes bei gelöschten Nutzern |
+| [`resources/views/livewire/customer/gamification/game-global-ranking-component.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/customer/gamification/game-global-ranking-component.blade.php) | Null-sichere Blade-Ausgabe für Kundennamen |
+| [`app/Livewire/Customer/CustomerTicketsComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerTicketsComponent.php) | Rate-Limiter (5/Stunde), IDOR-Schutz bei Bestellzuordnung & Bug-Funken-Begrenzung (max. 1x täglich) |
+| [`app/Livewire/Shop/Order/OrderCheckout/Traits/HandlesStripePayment.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderCheckout/Traits/HandlesStripePayment.php) | Payment-Bypass-Sperre & IDOR-Schutz: Strikte Besitzprüfung & PaymentIntent-Abgleich vor Abschluss |
+| [`routes/partials/admin_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/admin_routes.php) | Stored-XSS-Schutz bei Buchhaltungs-Belegen (`/admin/accounting/receipt`) mit MIME-Whitelist & `nosniff` |
+| [`tests/Feature/System/SystemUserManagementSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemUserManagementSecurityTest.php) | Neue Testsuite: Admin-Lockout-Schutz & Kundenverifizierungs-Sync |
+| [`tests/Feature/Accounting/AccountingInvoiceCancellationOrderSyncTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingInvoiceCancellationOrderSyncTest.php) | Neue Testsuite: Rechnungsstorno-Synchronisation, Lager-Restore & Gutschein-Saldo |
+| [`tests/Feature/Customer/CustomerTicketSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerTicketSecurityTest.php) | Neue Testsuite: Ticket-Rate-Limiter, Order-IDOR-Schutz & tägliche Funken-Deckelung |
+| [`tests/Feature/Order/CheckoutPaymentSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/CheckoutPaymentSecurityTest.php) | Neue Testsuite: Schutz vor unberechtigter Zahlungsbestätigung & Intent-Mismatch im Checkout |
 | [`app/Livewire/Frontend/Emergency/EmergencyProtocol.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Frontend/Emergency/EmergencyProtocol.php) | `ensureAuthenticated()`-Schutz vor allen sensiblen Aktionen & PDF-Downloads |
 | [`app/Livewire/Shop/System/SystemBackups.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemBackups.php) | Path-Traversal-Schutz & Endungs-Validierung für Backups |
 | [`app/Services/Export/FileDownloadService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php) | Directory-Traversal-Schutz, Whitelist für Steuerexporte & XSS-Schutz für Mail-Anhänge |
@@ -305,7 +357,6 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`resources/views/pdf/marketing-gift-voucher.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/pdf/marketing-gift-voucher.blade.php) | Null-sichere Darstellung des Ablaufdatums |
 | [`routes/api/calendar.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/calendar.php) | Endlosschleifen-Schutz bei Intervall-Berechnung |
 | [`app/Livewire/Customer/CustomerOrdersComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerOrdersComponent.php) | IDOR-Schutz: Strikte Kundenbindung für Bestellungen, Positionen, Rechnungen & Previews |
-| [`app/Livewire/Customer/CustomerTicketsComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerTicketsComponent.php) | IDOR-Schutz: Kundenbindung für Tickets & Dateityp-Validierung für Ticket- und Chat-Anhänge |
 | [`app/Services/CartService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php) | Absicherung gegen negative Mengen, IDOR-Schutz (`updateItem`, `updateQuantity`, `removeItem`) auf aktiven Warenkorb |
 | [`app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php) | IDOR-Schutz: Kundenbindung bei `order_edit` Design-Modifikationen in `mount()` und `save()` |
 | [`app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php) | Session-Regeneration gegen Session Fixation, Brute-Force-Rate-Limiter & Blocked-IP-Enforcement bei Checkout-Login |
@@ -329,12 +380,10 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`app/Console/Commands/System/DeleteUnverifiedUsers.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/System/DeleteUnverifiedUsers.php) | Schutz interner Admins/Mitarbeiter und aktiver Kunden vor versehentlicher Löschung |
 | [`app/Livewire/Frontend/ContactForm.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Frontend/ContactForm.php) | Honeypot gegen Spam-Bots, Rate-Limiting & String-Längenbegrenzung |
 | [`resources/views/livewire/frontend/contact-form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/frontend/contact-form.blade.php) | Unsichtbares Honeypot-Eingabefeld im Kontaktformular |
-| [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php) | Vollständige Beseitigung der öffentlichen Rechnungsspiegelung auf `public` Disk |
 | [`app/Services/DhlService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/DhlService.php) | Umstellung aller DHL-Labels auf geschützten privaten lokalen Speicher |
 | [`app/Livewire/Shop/Order/OrderOverview.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php) | Kein Lagerbestand-Restore für personalisierte Ware; Herzensprojekt-Spenden-Rückbuchung bei Storno/Erstattung |
 | [`app/Livewire/Shop/Order/OrderRevocationForm.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderRevocationForm.php) | Bot-Honeypot und IP-Rate-Limiting (5/10min) für elektronische Widerrufe |
 | [`resources/views/livewire/shop/order/order-revocation-form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-revocation-form.blade.php) | Unsichtbares Honeypot-Feld im Widerrufsformular |
-| [`routes/partials/admin_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/admin_routes.php) | Strikte Beleg-Whitelist & Stored-XSS-Schutz bei E-Mail-Anhängen |
 | [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) | Registrierung von `finapi`, `eric` und `scraperapi` für `config:cache` Robustheit |
 | [`app/Services/BankApiService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/BankApiService.php) | Migration auf `config('services.finapi...')` und `config('app.key')` |
 | [`app/Services/StealthCrawlerService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/StealthCrawlerService.php) | Entfernung hartkodierter API-Keys; sichere Konfigurationsauflösung |
@@ -372,7 +421,46 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 107 Tests bestanden (360 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 118 Tests bestanden (388 Assertions, 0 Fehler)
+  * `SystemUserManagementSecurityTest`: 5/5 bestanden (Admin-Lockout-Schutz & Kundenverifizierungs-Sync)
+  * `AccountingInvoiceCancellationOrderSyncTest`: 1/1 bestanden (Rechnungsstorno-Sync, Standardwaren-Bestandsrestore & Gutschein-Saldo-Restore; Laserware verbleibt unberührt)
+  * `CustomerTicketSecurityTest`: 3/3 bestanden (Ticket-Rate-Limiter, Fremdbestellungs-IDOR-Schutz & tägliche Funkenbelohnungs-Deckelung)
+  * `CheckoutPaymentSecurityTest`: 2/2 bestanden (Schutz vor unberechtigter Zahlungsbestätigung & Intent-Mismatch im Checkout)
+  * `CartServiceSecurityTest`: 1/1 bestanden (Warenkorb-Isolation gegen fremde Item-Manipulation)
+  * `ConfiguratorOrderEditSecurityTest`: 2/2 bestanden (IDOR-Schutz bei Konfigurator-Bestelländerungen)
+  * `AccountingTaxReceiptSecurityTest`: 3/3 bestanden (MIME-Whitelist, Mandanten-Isolation & Export-Löschschutz)
+  * `CheckoutAuthSecurityTest`: 3/3 bestanden (IP-Sperren, Rate-Limiting & Session-Regeneration)
+  * `AiToolAuthorizationTest`: 1/1 bestanden (Unbefugte Tool-Ausführung für KI-Agenten unterbunden)
+  * `OrderCancellationComprehensiveTest`: 3/3 bestanden (Gutschein-Saldo-Restore, Geschenkgutschein-Sperre & Referral-Reversal)
+  * `InvoiceStoragePrivacyTest`: 1/1 bestanden (Private Storage Verifikation)
+  * `OrderCancellationStockTest`: 2/2 bestanden (Standard- vs. Gelasertes Produkt Bestandsprüfung)
+  * `OrderApiCancellationStockTest`: 1/1 bestanden (API Bestandsprüfung bei Storno)
+  * `HerzensprojektDonationReversalTest`: 1/1 bestanden (Spenden-Rückbuchung bei Storno)
+  * `ReferralCustomerProtectionTest`: 1/1 bestanden (Neukunden-Schutz über Customer-ID)
+  * `MailAttachmentSecurityTest`: 2/2 bestanden (Stored XSS & Path Traversal Sperre)
+  * `OrderRevocationSecurityTest`: 3/3 bestanden (Honeypot, legitimer Widerruf, Rate-Limiter)
+  * `AccountingBankSecurityTest`: 5/5 bestanden (Traversal, Whitelist, Multi-Tenancy IDOR)
+  * `StealthCrawlerSecurityTest`: 2/2 bestanden (Kein Key-Leak, Graceful API-Handling)
+  * `AuthApiSecurityTest`: 2/2 bestanden (Enumeration-Schutz)
+  * `FinanceApiSecurityTest`: 3/3 bestanden (Multi-Tenancy IDOR-Schutz)
+  * `AdminAccountProtectionTest`: 2/2 bestanden (Lockout-Schutz für letzten Admin)
+  * `BackOfficeApiSecurityTest`: 4/4 bestanden
+  * `TaxExportSecurityTest`: 3/3 bestanden
+  * `GoogleAuthFillableTest`: 2/2 bestanden
+  * `LandingPageSecurityTest`: 3/3 bestanden
+  * `AiWidgetLiveModeTest`: 8/8 bestanden
+  * `GiftVoucherTest`: 21/21 bestanden
+  * `EmergencyProtocolTest`: 4/4 bestanden
+  * `CustomerOrdersSecurityTest`: 4/4 bestanden
+  * `CustomerTicketsSecurityTest`: 3/3 bestanden
+  * `CartQuantitySecurityTest`: 2/2 bestanden
+  * `NewsletterSecurityTest`: 3/3 bestanden
+  * `ProductReviewSecurityTest`: 2/2 bestanden
+  * `OrderQuoteSecurityTest`: 3/3 bestanden
+  * `DeleteUnverifiedUsersTest`: 3/3 bestanden
+  * `ContactFormSecurityTest`: 2/2 bestanden
+* **Regressionstests:** Keine Regressionen in Bestandsmodulen festgestellt.
+* **PHP Static Lint:** 0 Syntaxfehler in allen Routen, Modellen und Controllern.
   * `CartServiceSecurityTest`: 1/1 bestanden (Warenkorb-Isolation gegen fremde Item-Manipulation)
   * `ConfiguratorOrderEditSecurityTest`: 2/2 bestanden (IDOR-Schutz bei Konfigurator-Bestelländerungen)
   * `AccountingTaxReceiptSecurityTest`: 3/3 bestanden (MIME-Whitelist, Mandanten-Isolation & Export-Löschschutz)

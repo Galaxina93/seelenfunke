@@ -160,12 +160,24 @@ Route::middleware(['auth:admin'])->group(function () {
         if (!str_starts_with($path, 'buchhaltung/receipts/') && !str_starts_with($path, 'buchhaltung/contracts/')) {
             abort(403, 'Zugriff verweigert.');
         }
-        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('local')->exists($path)
+            ? 'local'
+            : (\Illuminate\Support\Facades\Storage::disk('public')->exists($path) ? 'public' : null);
+
+        if ($disk) {
+            $mime = \Illuminate\Support\Facades\Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
+            $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+            $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
+            $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($path));
+
+            return response()->file(\Illuminate\Support\Facades\Storage::disk($disk)->path($path), [
+                'Content-Type' => $mime,
+                'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
         }
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-            return response()->file(\Illuminate\Support\Facades\Storage::disk('public')->path($path));
-        }
+
         abort(404);
     })->name('admin.accounting.receipt.show');
     

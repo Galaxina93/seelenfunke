@@ -7,6 +7,8 @@ use App\Models\Marketing\MarketingVoucher;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Stripe\PaymentIntent;
 use Stripe\Stripe;
@@ -95,39 +97,73 @@ trait HandlesStripePayment
         // wenn sie zum aktuellen PaymentIntent dieser Session gehört (IDOR / Injection Schutz)
         if ($orderId) {
             $candidate = OrderOrder::with('items.product')->find($orderId);
-            if ($candidate) {
-                if (!app()->environment('testing') && !empty($this->currentPaymentIntentId) && $candidate->stripe_payment_intent_id !== $this->currentPaymentIntentId) {
-                    \Illuminate\Support\Facades\Log::warning("Verdächtiger handlePaymentSuccess Aufruf: Order {$orderId} stimmt nicht mit Intent {$this->currentPaymentIntentId} überein.");
+            if (!$candidate) {
+                $this->addError('payment', 'Bestellung nicht gefunden.');
+                return;
+            }
+
+            // Session Ownership Check (IDOR Protection)
+            $isOwner = false;
+            if (Auth::guard('customer')->check() && $candidate->customer_id === Auth::guard('customer')->id()) {
+                $isOwner = true;
+            } elseif (!empty($this->email) && strtolower($candidate->email) === strtolower($this->email)) {
+                $isOwner = true;
+            }
+
+            if (!$isOwner) {
+                Log::warning("Unberechtigter handlePaymentSuccess Aufruf: Order {$orderId} gehört nicht zum aktuellen Kunden/Session.");
+                $this->addError('payment', 'Ungültige Bestellsitzung.');
+                return;
+            }
+
+            // Wenn die Bestellung kostenpflichtig ist (> 0 €), muss ein Stripe Intent existieren und übereinstimmen
+            if ($candidate->total_price > 0) {
+                if (empty($this->currentPaymentIntentId) || $candidate->stripe_payment_intent_id !== $this->currentPaymentIntentId) {
+                    Log::warning("Verdächtiger handlePaymentSuccess Aufruf: Order {$orderId} stimmt nicht mit Intent {$this->currentPaymentIntentId} überein.");
                     $this->addError('payment', 'Ungültige Bestellsitzung.');
                     return;
                 }
-                $order = $candidate;
+            } else {
+                // Bei 0 € Bestellungen (vollständig durch Gutschein gedeckt) darf total_price nicht manipuliert sein
+                if ($candidate->total_price != 0) {
+                    $this->addError('payment', 'Ungültiger Zahlungsstatus.');
+                    return;
+                }
             }
+
+            $order = $candidate;
         }
 
         if ($order) {
-            // 2. Serverseitige Verifikation über die Stripe API
-            $stripeSecret = config('services.stripe.secret');
-            if (!app()->environment('testing') && $stripeSecret && !empty($order->stripe_payment_intent_id)) {
-                Stripe::setApiKey($stripeSecret);
-                try {
-                    $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
-
-                    if ($intent->status !== 'succeeded') {
-                        \Illuminate\Support\Facades\Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded').");
-                        $this->addError('payment', 'Die Zahlung wurde von Stripe noch nicht freigegeben.');
-                        return;
-                    }
-
-                    if ((int)$intent->amount !== (int)$order->total_price) {
-                        \Illuminate\Support\Facades\Log::error("Betrags-Mismatch bei Order {$order->order_number}: Stripe={$intent->amount}, Order={$order->total_price}");
-                        $this->addError('payment', 'Der bezahlte Betrag stimmt nicht mit der Auftragssumme überein.');
-                        return;
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error("Stripe API Fehler bei Verifikation von Order {$order->order_number}: " . $e->getMessage());
-                    $this->addError('payment', 'Zahlung konnte serverseitig nicht verifiziert werden.');
+            // 2. Serverseitige Verifikation über die Stripe API für kostenpflichtige Bestellungen
+            if ($order->total_price > 0) {
+                if (empty($order->stripe_payment_intent_id) && !app()->environment('testing')) {
+                    $this->addError('payment', 'Keine gültige Zahlungsinformation vorhanden.');
                     return;
+                }
+
+                $stripeSecret = config('services.stripe.secret');
+                if (!app()->environment('testing') && $stripeSecret && !empty($order->stripe_payment_intent_id)) {
+                    Stripe::setApiKey($stripeSecret);
+                    try {
+                        $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
+
+                        if ($intent->status !== 'succeeded') {
+                            Log::warning("Zahlungsverifikation fehlgeschlagen für Order {$order->order_number}: Status ist '{$intent->status}' (erwartet: 'succeeded').");
+                            $this->addError('payment', 'Die Zahlung wurde von Stripe noch nicht freigegeben.');
+                            return;
+                        }
+
+                        if ((int)$intent->amount !== (int)$order->total_price) {
+                            Log::error("Betrags-Mismatch bei Order {$order->order_number}: Stripe={$intent->amount}, Order={$order->total_price}");
+                            $this->addError('payment', 'Der bezahlte Betrag stimmt nicht mit der Auftragssumme überein.');
+                            return;
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Stripe API Fehler bei Verifikation von Order {$order->order_number}: " . $e->getMessage());
+                        $this->addError('payment', 'Zahlung konnte serverseitig nicht verifiziert werden.');
+                        return;
+                    }
                 }
             }
 

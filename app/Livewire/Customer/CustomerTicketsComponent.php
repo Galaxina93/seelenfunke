@@ -9,6 +9,7 @@ use App\Models\Support\SupportTicket;
 use App\Models\Support\SupportTicketMessage;
 use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -172,6 +173,13 @@ class CustomerTicketsComponent extends Component
 
     public function createTicket(GamificationService $gameService)
     {
+        $throttleKey = 'create_ticket_' . $this->customerId;
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->addError('newSubject', "Zu viele Ticket-Erstellungen. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+
         $this->validate([
             'newSubject' => 'required|min:5|max:100',
             'newCategory' => 'required',
@@ -185,10 +193,23 @@ class CustomerTicketsComponent extends Component
             'newMessage.min' => 'Deine Nachricht ist zu kurz (mindestens 10 Zeichen).'
         ]);
 
+        RateLimiter::hit($throttleKey, 3600);
+
+        // Sicherheitscheck: Zugehörige Bestellung muss dem Kunden gehören
+        $validatedOrderId = null;
+        if (!empty($this->newOrderId)) {
+            $orderBelongs = OrderOrder::where('id', $this->newOrderId)
+                ->where('customer_id', $this->customerId)
+                ->exists();
+            if ($orderBelongs) {
+                $validatedOrderId = $this->newOrderId;
+            }
+        }
+
         $ticket = SupportTicket::create([
             'ticket_number' => 'MSF-' . date('y') . '-' . strtoupper(Str::random(5)),
             'customer_id' => $this->customerId,
-            'order_id' => $this->newOrderId ?: null,
+            'order_id' => $validatedOrderId,
             'subject' => $this->newSubject,
             'category' => $this->newCategory,
             'status' => 'open',
@@ -233,10 +254,20 @@ class CustomerTicketsComponent extends Component
         }
 
         if ($this->newCategory === 'bug') {
-            $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket eröffnet! +5 ✨ für deine Fehlermeldung!']);
-            $this->dispatch('sparks-awarded');
-            $ticket->update(['reward_claimed' => true]);
+            $alreadyRewardedToday = SupportTicket::where('customer_id', $this->customerId)
+                ->where('category', 'bug')
+                ->where('reward_claimed', true)
+                ->where('created_at', '>=', now()->startOfDay())
+                ->exists();
+
+            if (!$alreadyRewardedToday) {
+                $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
+                $ticket->update(['reward_claimed' => true]);
+                $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket eröffnet! +5 ✨ für deine Fehlermeldung!']);
+                $this->dispatch('sparks-awarded');
+            } else {
+                $this->dispatch('notify', ['type' => 'success', 'message' => 'Dein SupportTicket wurde erfolgreich eröffnet.']);
+            }
         } else {
             $this->dispatch('notify', ['type' => 'success', 'message' => 'Dein SupportTicket wurde erfolgreich eröffnet.']);
         }

@@ -108,6 +108,7 @@ class SystemUserManagement extends Component
             'last_name' => $this->formData['last_name'],
             'email' => $this->formData['email'],
             'password' => Hash::make($this->formData['password']),
+            'email_verified_at' => ($this->createType === 'customer' && $this->formData['is_verified']) ? now() : null,
         ]);
 
         if (method_exists($user, 'profile')) {
@@ -172,7 +173,9 @@ class SystemUserManagement extends Component
             'company_name' => $model->profile->company_name ?? '',
             'vat_id' => $model->profile->vat_id ?? '',
             'internal_note' => $model->profile->internal_note ?? '',
-            'is_verified' => !is_null($model->profile->email_verified_at ?? null),
+            'is_verified' => $this->editingType === 'customer'
+                ? (!is_null($model->email_verified_at) || !is_null($model->profile->email_verified_at ?? null))
+                : !is_null($model->profile->email_verified_at ?? null),
         ];
     }
 
@@ -209,14 +212,24 @@ class SystemUserManagement extends Component
             'company_name' => $model->profile->company_name ?? '',
             'vat_id' => $model->profile->vat_id ?? '',
             'internal_note' => $model->profile->internal_note ?? '',
-            'is_verified' => !is_null($model->profile->email_verified_at ?? null),
+            'is_verified' => $this->editingType === 'customer'
+                ? (!is_null($model->email_verified_at) || !is_null($model->profile->email_verified_at ?? null))
+                : !is_null($model->profile->email_verified_at ?? null),
         ];
 
-        $model->update([
+        $userUpdate = [
             'first_name' => $this->formData['first_name'],
             'last_name' => $this->formData['last_name'],
             'email' => $this->formData['email'],
-        ]);
+        ];
+
+        if ($this->editingType === 'customer') {
+            $userUpdate['email_verified_at'] = $this->formData['is_verified']
+                ? ($model->email_verified_at ?? now())
+                : null;
+        }
+
+        $model->update($userUpdate);
 
         $passwordChanged = false;
         if (!empty($this->formData['password'])) {
@@ -334,6 +347,17 @@ class SystemUserManagement extends Component
 
     public function archiveUser($id, $type)
     {
+        if ($type === 'admin') {
+            if ((string) Auth::guard('admin')->id() === (string) $id) {
+                session()->flash('error', 'Sie können Ihr eigenes Administrator-Konto nicht archivieren.');
+                return;
+            }
+            if (Admin::count() <= 1) {
+                session()->flash('error', 'Der letzte verbleibende aktive Administrator kann nicht archiviert werden.');
+                return;
+            }
+        }
+
         $model = $this->getModelInstance($type, $id);
         $email = $model->email;
         $model->delete();
@@ -371,6 +395,17 @@ class SystemUserManagement extends Component
 
     public function forceDelete($id, $type)
     {
+        if ($type === 'admin') {
+            if ((string) Auth::guard('admin')->id() === (string) $id) {
+                session()->flash('error', 'Sie können Ihr eigenes Administrator-Konto nicht löschen.');
+                return;
+            }
+            if (Admin::withTrashed()->count() <= 1) {
+                session()->flash('error', 'Der letzte verbleibende Administrator darf nicht endgültig gelöscht werden.');
+                return;
+            }
+        }
+
         $model = $this->getModelInstance($type, $id, true);
         $email = $model->email;
         $model->forceDelete();
