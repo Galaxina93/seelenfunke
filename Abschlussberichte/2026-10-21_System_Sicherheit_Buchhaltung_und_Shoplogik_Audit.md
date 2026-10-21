@@ -394,12 +394,86 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Alle vier Komponenten prüfen in `mount()` zwingend die Admin- oder Mitarbeiter-Rolle und brechen bei fehlenden Rechten mit 403 ab.
 * **Testabdeckung:** [`tests/Feature/Product/ProductManagementAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductManagementAuthorizationTest.php) (3 Tests, 12 Assertions).
 
+### 2.61 [MENGENRECHNER PARAMETER-MANIPULATION & MAIL-THROTTLING] Absicherung gegen negative Mengen, Array-Key-Fehler & Mail-Bombing
+* **Dateien:** [`app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php)
+* **Befund:** 
+  1. In `saveItemFromConfigurator` wurde `$this->dbProducts[$data['product_id']]` ungesichert ohne `isset()` abgefragt, was bei ungültigen IDs zu PHP-Crashes führte.
+  2. Die Stückzahl `$data['qty']` bzw. `$item['qty']` wurde weder in `saveItemFromConfigurator` noch in `validateCartItems` validiert; negative Mengen konnten eingeschleust werden, was zu negativen Zwischensummen und manipulierte Anfragesummen führte.
+  3. Bei `submit()` wurden zwei E-Mails via `Mail::send` verschickt und Datenbankanfragen erzeugt – völlig ohne Rate-Limiter (Gefahr von Mail-Bombing und Denial-of-Service).
+* **Lösung:** 
+  1. Sichere Existenzprüfung von `$data['product_id']` vor Weiterverarbeitung.
+  2. Forcierung von `$qty = max(1, min(10000, (int)$qty))` in `saveItemFromConfigurator` und `validateCartItems`.
+  3. IP-basiertes Rate-Limiting (`RateLimiter::tooManyAttempts('calculator-submit:' . request()->ip(), 5)`) mit 10-Minuten-Decay und Absicherung gegen negative Gesamtbeträge.
+* **Testabdeckung:** [`tests/Feature/Product/ProductCalculatorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductCalculatorSecurityTest.php) (3 Tests, 7 Assertions).
+
+### 2.62 [PRODUKTVARIANTEN & STEUERKLASSEN LIVEWIRE-GUARD] Autorisierungsschutz & Wertebereichsbereinigung für Varianten und Steuersätze
+* **Dateien:** [`app/Livewire/Shop/Product/ProductVariants.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductVariants.php), [`app/Livewire/Shop/Product/ProductTax.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTax.php), [`resources/views/livewire/shop/product/product-variants.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-variants.blade.php)
+* **Befund:** 
+  1. Beide Livewire-Komponenten besaßen keinen Autorisierungscheck in `mount()`, sodass Gäste oder Kunden per Livewire-Aufruf Produktvarianten überschreiben oder Steuerklassen (z. B. auf 0% Steuersatz) abändern konnten.
+  2. In `saveVariants` fehlte eine Bereinigung negativer Preise und Lagerbestände.
+  3. Im Blade-Template führte das Fehlen des `attributes`-Schlüssels zu ungefangenen Array-Zugriffsfehlern.
+* **Lösung:** 
+  1. Autorisierungsprüfung in `mount()` auf Admin- und Mitarbeiter-Guard hinterlegt (`abort(403)`).
+  2. Bereinigung von Variantenpreisen (`max(0, ...)`) und Lagerbeständen (`max(0, (int)...)`).
+  3. Null-sicherer Blade-Zugriff `@foreach($variant['attributes'] ?? [] as $key => $val)`.
+* **Testabdeckung:** [`tests/Feature/Product/ProductVariantsAndTaxSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductVariantsAndTaxSecurityTest.php) (4 Tests, 9 Assertions).
+
+### 2.63 [STAFFELPREISE MULTI-TENANCY IDOR & DISCOUNT-VALIDIERUNG] Absicherung gegen fremde Staffelpreis-Löschung & unzulässige Rabattsätze
+* **Dateien:** [`app/Livewire/Shop/Product/ProductTierPricing.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTierPricing.php)
+* **Befund:** 
+  1. `ProductTierPricing` besaß keinen Zugriffsschutz in `mount()`.
+  2. In `removeTier($tierId)` wurde `ProductTierPrice::destroy($tierId)` ohne Prüfung der Produktzugehörigkeit aufgerufen – ein Angreifer konnte beliebige Staffelpreise anderer Produkte fremder Händler löschen (IDOR).
+  3. In `updateTier($tierId)` fehlte ebenfalls das Scoping auf das aktuelle Produkt sowie die Validierung von Rabattsätzen (>100% Rabatt führte zu negativen Verkaufspreisen).
+* **Lösung:** 
+  1. `Auth::guard('admin')->check() || Auth::guard('employee')->check()` in `mount()` erzwungen.
+  2. Scoping aller Lösch- und Aktualisierungsoperationen strikt auf `$this->product->tierPrices()->where('id', $tierId)`.
+  3. Begrenzung von Rabattprozenten auf `0% - 100%` (`max(0, min(100, ...))`) und Mindestmenge >= 1.
+* **Testabdeckung:** [`tests/Feature/Product/ProductTierPricingSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductTierPricingSecurityTest.php) (4 Tests, 8 Assertions).
+
+### 2.64 [PRODUKTKATALOG BACKEND-AUTORISIERUNG] Absicherung von Attributen, Kategorien, Vorlagen und Nischen-Crawler
+* **Dateien:** [`app/Livewire/Shop/Product/ProductAttributes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductAttributes.php), [`app/Livewire/Shop/Product/ProductCategories.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCategories.php), [`app/Livewire/Shop/Product/ProductTemplates.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTemplates.php), [`app/Livewire/Shop/Product/ProductCrawler.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCrawler.php)
+* **Befund:** 
+  1. `ProductAttributes` und `ProductCategories` boten ungeschützte Livewire-Schnittstellen zur globalen Attribut- und Kategorie-Erstellung und -Löschung.
+  2. `ProductTemplates` besaß keine `mount()`-Methode, sodass Vorlagen unbefugt gelöscht oder manipuliert werden konnten.
+  3. `ProductCrawler` besaß keinen Guard in `mount()` und fiel in `saveCurrentRun()` auf `auth('admin')->id() ?? 1` zurück, wodurch anonyme Crawler-Läufe als Hauptadministrator verbucht und Tabellen bereinigt werden konnten (`truncate()`).
+* **Lösung:** Allen vier Komponenten wurde in `mount()` ein strikter Autorisierungscheck (`admin` oder `employee`) vorgeschaltet und der unsichere Default-Fallback auf Admin ID 1 eliminiert.
+* **Testabdeckung:** [`tests/Feature/Product/ProductCatalogBackendAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductCatalogBackendAuthorizationTest.php) (3 Tests, 12 Assertions).
+
+### 2.65 [KUNDEN-SICHERHEIT & MARKETING-BLOG ZUGRIFFSSCHUTZ] Absicherung von Zwangspasswort-Änderung, Kunden-Rechnungen und Blogverwaltung
+* **Dateien:** [`app/Livewire/Customer/CustomerForcePasswordChange.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerForcePasswordChange.php), [`app/Livewire/Customer/CustomerInvoicesComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerInvoicesComponent.php), [`app/Livewire/Shop/Marketing/MarketingBlog.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingBlog.php)
+* **Befund:** 
+  1. In `CustomerForcePasswordChange::submit()` wurde `$customer` ungeprüft dereferenziert (`Call to a member function update() on null` bei unauthentifizierten Requests).
+  2. `CustomerInvoicesComponent` besaß keinen Guard in `mount()`, sodass Gastaufrufe bei `$user->id` mit 500er-Fehlern abstürzten.
+  3. `MarketingBlog` besaß keine `mount()`-Methode, wodurch Blogposts und Kategorien unbefugt angelegt oder gelöscht werden konnten.
+* **Lösung:** 
+  1. `CustomerForcePasswordChange::submit()` prüft Authentifizierung und `needs_password_change` und validiert Passwörter via `same:passwordConfirm` und Längenbeschränkung.
+  2. `CustomerInvoicesComponent` bricht bei fehlendem Kunden-Login sofort ab (`mount()` Guard).
+  3. `MarketingBlog` sichert `mount()`, Beitrags- und Kategorieaktionen strikt für Admins und Mitarbeiter ab.
+* **Testabdeckung:** [`tests/Feature/Customer/CustomerSecurityAndBlogAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerSecurityAndBlogAuthorizationTest.php) (7 Tests, 11 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php) | Sichere Produkt-Existenzprüfung, Stückzahl-Sanitization (`min:1, max:10000`), IP-Rate-Limiter (`calculator-submit`, 5/10min) & Negativpreis-Schutz |
+| [`app/Livewire/Shop/Product/ProductVariants.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductVariants.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Bereinigung von Preisen (`min:0`) und Beständen |
+| [`app/Livewire/Shop/Product/ProductTax.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTax.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Whitelist für Steuerklassen (`standard, reduced, zero`) |
+| [`resources/views/livewire/shop/product/product-variants.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-variants.blade.php) | Null-sicherer Blade-Zugriff auf Variantenattribute (`$variant['attributes'] ?? []`) |
+| [`app/Livewire/Shop/Product/ProductTierPricing.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTierPricing.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Scoping aller Aktionen gegen IDOR, Rabatt-Clamping (0-100%) |
+| [`app/Livewire/Shop/Product/ProductAttributes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductAttributes.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductCategories.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCategories.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductTemplates.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductTemplates.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductCrawler.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCrawler.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Beseitigung des unsicheren Admin-ID-1 Fallbacks |
+| [`app/Livewire/Customer/CustomerForcePasswordChange.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerForcePasswordChange.php) | Null-Dereferenzierung behoben, Authentifizierungs-Check, Längenvalidierung & `same:passwordConfirm` |
+| [`app/Livewire/Customer/CustomerInvoicesComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerInvoicesComponent.php) | Autorisierungs-Guard in `mount()` (`abort(403)`), Null-Prüfung in `render()` |
+| [`app/Livewire/Shop/Marketing/MarketingBlog.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingBlog.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()`, Beitrags- und Kategorieaktionen |
+| [`tests/Feature/Product/ProductCalculatorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductCalculatorSecurityTest.php) | Neue Testsuite: Mengen-Sanitization, Produkt-Existenzprüfung & Rate-Limiter im Mengenrechner |
+| [`tests/Feature/Product/ProductVariantsAndTaxSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductVariantsAndTaxSecurityTest.php) | Neue Testsuite: Autorisierungsschutz & Wertebereichsbereinigung für Varianten und Steuer |
+| [`tests/Feature/Product/ProductTierPricingSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductTierPricingSecurityTest.php) | Neue Testsuite: Staffelpreise IDOR-Schutz, Prozent-Clamping & Mengenbereinigung |
+| [`tests/Feature/Product/ProductCatalogBackendAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductCatalogBackendAuthorizationTest.php) | Neue Testsuite: Autorisierungsschutz für Attribute, Kategorien, Vorlagen & Crawler |
+| [`tests/Feature/Customer/CustomerSecurityAndBlogAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerSecurityAndBlogAuthorizationTest.php) | Neue Testsuite: Zwangspasswort-Sicherheit, Kunden-Rechnungen & Blog-Autorisierung |
 | [`app/Livewire/Shop/Marketing/MarketingVoucher.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingVoucher.php) | Admin/Mitarbeiter-Autorisierung in `mount()`, Wertebereichsvalidierung (max:100% etc.) in `saveManualCoupon()` |
 | [`app/Livewire/Shop/Management/ManagementEMails.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementEMails.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
 | [`app/Livewire/Shop/Management/ManagementContacts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementContacts.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
@@ -527,7 +601,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 149 Tests bestanden (472 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 170 Tests bestanden (519 Assertions, 0 Fehler)
+  * `ProductCalculatorSecurityTest`: 3/3 bestanden (Mengen-Sanitization, Produkt-Existenzprüfung & Rate-Limiter im Mengenrechner)
+  * `ProductVariantsAndTaxSecurityTest`: 4/4 bestanden (Autorisierungsschutz & Wertebereichsbereinigung für Varianten und Steuer)
+  * `ProductTierPricingSecurityTest`: 4/4 bestanden (Staffelpreise IDOR-Schutz, Prozent-Clamping & Mengenbereinigung)
+  * `ProductCatalogBackendAuthorizationTest`: 3/3 bestanden (Autorisierungsschutz für Attribute, Kategorien, Vorlagen & Crawler)
+  * `CustomerSecurityAndBlogAuthorizationTest`: 7/7 bestanden (Zwangspasswort-Sicherheit, Kunden-Rechnungen & Blog-Autorisierung)
   * `MarketingVoucherSecurityTest`: 4/4 bestanden (Gutschein-Wertebereichs- & Autorisierungsvalidierung)
   * `ManagementAccessSecurityTest`: 3/3 bestanden (Autorisierungsschutz für alle 6 Management-Backend-Komponenten)
   * `SupportComponentsAuthorizationTest`: 3/3 bestanden (Autorisierungsschutz für Support-Tickets & Support-Chats)

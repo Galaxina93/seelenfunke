@@ -32,22 +32,25 @@ class CustomerForcePasswordChange extends Component
 
     public function submit()
     {
-        $this->validate([
-            'password' => 'required|min:8',
-            'passwordConfirm' => 'required',
-        ], [
-            'password.required' => 'Bitte gib ein Passwort ein.',
-            'password.min' => 'Das Passwort muss mindestens 8 Zeichen lang sein.',
-            'passwordConfirm.required' => 'Bitte bestätige dein Passwort.',
-        ]);
-
-        if ($this->password !== $this->passwordConfirm) {
-            $this->addError('passwordConfirm', 'Die Passwörter stimmen nicht überein.');
-            return;
+        if (!Auth::guard('customer')->check()) {
+            abort(403);
         }
 
         $customer = Auth::guard('customer')->user();
-        
+        if (!$customer || !$customer->needs_password_change) {
+            return redirect()->route('customer.dashboard');
+        }
+
+        $this->validate([
+            'password' => 'required|string|min:8|max:255|same:passwordConfirm',
+            'passwordConfirm' => 'required|string',
+        ], [
+            'password.required' => 'Bitte gib ein Passwort ein.',
+            'password.min' => 'Das Passwort muss mindestens 8 Zeichen lang sein.',
+            'password.same' => 'Die Passwörter stimmen nicht überein.',
+            'passwordConfirm.required' => 'Bitte bestätige dein Passwort.',
+        ]);
+
         $customer->update([
             'password' => Hash::make($this->password),
             'needs_password_change' => false,

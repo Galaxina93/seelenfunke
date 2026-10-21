@@ -8,6 +8,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\Product\ProductNicheItem;
 use App\Jobs\RunProductNicheCrawlerJob;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use App\Livewire\Traits\WithDepartmentTheming;
 
@@ -31,8 +32,11 @@ class ProductCrawler extends Component
 
     public function mount()
     {
-        $this->loadSavedRuns();
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
 
+        $this->loadSavedRuns();
     }
 
     public function loadSavedRuns()
@@ -88,11 +92,17 @@ class ProductCrawler extends Component
             return;
         }
 
+        $adminId = Auth::guard('admin')->id() ?? Auth::guard('employee')->id();
+        if (!$adminId) {
+            session()->flash('error', 'Nicht autorisiert.');
+            return;
+        }
+
         $platformStr = is_array($this->crawlPlatforms) ? implode(', ', $this->crawlPlatforms) : 'Unbekannt';
         $name = $this->crawlKeyword ? 'Suche: ' . $this->crawlKeyword . ' (' . $platformStr . ')' : 'Scanner-Lauf ' . now()->format('d.m.Y H:i');
 
         $run = \App\Models\Product\ProductNicheCrawlerRun::create([
-            'admin_id' => auth('admin')->id() ?? 1,
+            'admin_id' => $adminId,
             'name' => $name,
             'keyword' => $this->crawlKeyword,
             'platform' => $platformStr,

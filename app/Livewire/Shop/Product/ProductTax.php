@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
@@ -23,6 +24,10 @@ class ProductTax extends Component
 
     public function mount(Product $product)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->product = $product;
         $this->tax_class = $product->tax_class ?? 'standard';
         $this->updateCurrentRate();
@@ -30,6 +35,14 @@ class ProductTax extends Component
 
     public function updatedTaxClass($value)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
+        if (!in_array($value, ['standard', 'reduced', 'zero'])) {
+            return;
+        }
+
         $this->product->update(['tax_class' => $value]);
         $this->updateCurrentRate();
 

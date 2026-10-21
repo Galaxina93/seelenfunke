@@ -8,9 +8,19 @@ use App\Models\Order\OrderOrder;
 
 class CustomerInvoicesComponent extends Component
 {
+    public function mount()
+    {
+        if (!Auth::guard('customer')->check()) {
+            abort(403);
+        }
+    }
+
     public function render()
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) {
+            abort(403);
+        }
 
         // Alle Bestellungen laden als Referenz für die UI (Bestellnummer-Anzeige)
         $orders = OrderOrder::where('customer_id', $user->id)

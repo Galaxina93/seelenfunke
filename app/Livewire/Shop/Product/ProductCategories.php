@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\ProductCategory;
 use App\Models\Product\Product;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -26,6 +27,10 @@ class ProductCategories extends Component
 
     public function mount(Product $product)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->product = $product;
 
         // IDs laden (Mit Fix für Ambiguous Column)

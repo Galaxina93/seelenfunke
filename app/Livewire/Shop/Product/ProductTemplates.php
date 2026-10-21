@@ -6,6 +6,7 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\Attributes\On;
 use Livewire\WithFileUploads;
@@ -33,6 +34,13 @@ class ProductTemplates extends Component
     public $templateImage;
     public $existingTemplateImagePath = null;
     public $removeExistingImage = false;
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function cancel()
     {

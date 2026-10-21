@@ -76,7 +76,7 @@
                                 <div class="min-w-0">
                                     <div class="font-bold text-gray-900 dark:text-white text-base lg:text-sm truncate">{{ $variant['name'] }}</div>
                                     <div class="flex flex-wrap gap-1.5 mt-2 lg:mt-1.5">
-                                        @foreach($variant['attributes'] as $key => $val)
+                                        @foreach($variant['attributes'] ?? [] as $key => $val)
                                             <span class="bg-white dark:bg-gray-900 px-2 py-1 rounded-md border border-gray-200 dark:border-gray-800 shadow-inner text-[9px] uppercase tracking-widest font-black text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{{ $key }}: <span class="text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]">{{ $val }}</span></span>
                                         @endforeach
                                     </div>

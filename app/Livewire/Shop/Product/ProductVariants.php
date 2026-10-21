@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -15,6 +16,10 @@ class ProductVariants extends Component
 
     public function mount(Product $product)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->product = $product;
         // Wir laden die Varianten aus dem Product-Model.
         // Falls du eine eigene Tabelle dafür hast, lade sie von dort.
@@ -117,6 +122,24 @@ class ProductVariants extends Component
 
     public function saveVariants()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
+        // Sanitize variants data (ensure prices and stocks are valid)
+        $cleanVariants = [];
+        foreach ($this->variants as $variant) {
+            if (!is_array($variant)) continue;
+            if (isset($variant['price']) && $variant['price'] !== '') {
+                $variant['price'] = max(0, (float)str_replace(',', '.', $variant['price']));
+            }
+            if (isset($variant['stock']) && $variant['stock'] !== '') {
+                $variant['stock'] = max(0, (int)$variant['stock']);
+            }
+            $cleanVariants[] = $variant;
+        }
+        $this->variants = $cleanVariants;
+
         $this->product->variants_data = $this->variants;
         $this->product->save();
 

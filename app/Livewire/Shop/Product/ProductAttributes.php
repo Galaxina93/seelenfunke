@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
 use App\Models\Product\ProductAttribute;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -28,6 +29,10 @@ class ProductAttributes extends Component
 
     public function mount(Product $product)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->product = $product;
 
         // Wir laden die existierenden Attribute aus dem JSON Feld des Produkts

@@ -45,6 +45,13 @@ class MarketingBlog extends Component
     public $existingHeaderImage;
     public $author_name;
 
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     // SEO & Legal
     public $meta_title;
     public $meta_description;
@@ -194,7 +201,7 @@ class MarketingBlog extends Component
         }
 
         if ($this->viewMode === 'create') {
-            $data['user_id'] = Auth::id();
+            $data['user_id'] = Auth::guard('admin')->id() ?? Auth::guard('employee')->id();
             MarketingBlogPost::create($data);
             session()->flash('success', 'Blogbeitrag erfolgreich erstellt.');
         } else {
@@ -209,6 +216,10 @@ class MarketingBlog extends Component
 
     public function delete($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $post = MarketingBlogPost::find($id);
         if($post) {
             $post->delete();
@@ -237,6 +248,10 @@ class MarketingBlog extends Component
 
     public function createCategory()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate(['newCategoryName' => 'required|min:3|max:50|unique:marketing_blog_categories,name']);
 
         $category = MarketingBlogCategory::create([
@@ -254,6 +269,10 @@ class MarketingBlog extends Component
 
     public function deleteCategory($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $cat = MarketingBlogCategory::find($id);
         if($cat) {
             // Falls der aktuelle Post diese Kategorie hat, Reset

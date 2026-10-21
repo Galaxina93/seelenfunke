@@ -13,6 +13,7 @@ use App\Models\System\SystemLog;
 use App\Services\ProductTrackingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -93,11 +94,13 @@ class ProductCalculator extends Component
     {
         $validItems = [];
         foreach($this->cartItems as $item) {
-            if(isset($this->dbProducts[$item['product_id']])) {
+            if(isset($item['product_id']) && isset($this->dbProducts[$item['product_id']])) {
+                $rawQty = isset($item['qty']) && is_numeric($item['qty']) ? (int)$item['qty'] : 1;
+                $item['qty'] = max(1, min(10000, $rawQty));
                 $validItems[] = $item;
             }
         }
-        if(count($validItems) !== count($this->cartItems)) {
+        if(count($validItems) !== count($this->cartItems) || $validItems !== $this->cartItems) {
             $this->cartItems = $validItems;
             $this->persist();
         }
@@ -260,21 +263,29 @@ class ProductCalculator extends Component
     #[On('calculator-save')]
     public function saveItemFromConfigurator($data)
     {
-        $product = $this->dbProducts[$data['product_id']];
-        $rowId = ($this->editingIndex >= 0) ? $this->cartItems[$this->editingIndex]['row_id'] : Str::uuid()->toString();
+        $productId = $data['product_id'] ?? null;
+        if (!$productId || !isset($this->dbProducts[$productId])) {
+            return;
+        }
+
+        $product = $this->dbProducts[$productId];
+        $rowId = ($this->editingIndex >= 0 && isset($this->cartItems[$this->editingIndex])) ? $this->cartItems[$this->editingIndex]['row_id'] : Str::uuid()->toString();
+
+        $rawQty = isset($data['qty']) && is_numeric($data['qty']) ? (int)$data['qty'] : 1;
+        $qty = max(1, min(10000, $rawQty));
 
         $itemData = [
             'row_id' => $rowId,
             'product_id' => $product['id'],
             'name' => $product['name'],
             'image_ref' => $product['image'],
-            'qty' => $data['qty'],
+            'qty' => $qty,
             'text' => $data['text'] ?? '',
             'configuration' => $data,
             'preview_ref' => $product['preview_image'] ?? $product['image']
         ];
 
-        if ($this->editingIndex >= 0) {
+        if ($this->editingIndex >= 0 && isset($this->cartItems[$this->editingIndex])) {
             $this->cartItems[$this->editingIndex] = array_merge($this->cartItems[$this->editingIndex], $itemData);
         } else {
             $this->cartItems[] = $itemData;
@@ -282,7 +293,7 @@ class ProductCalculator extends Component
 
         ProductTrackingService::trackCalculatorItemSaved(
             $product['id'],
-            (int) $data['qty'],
+            $qty,
             (int) round(($itemData['configuration']['totalPrice'] ?? $product['price']) * 100)
         );
 
@@ -557,6 +568,13 @@ class ProductCalculator extends Component
 
     public function submit()
     {
+        $throttleKey = 'calculator-submit:' . request()->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->addError('cart', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+
         try {
             $this->validate();
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -571,6 +589,13 @@ class ProductCalculator extends Component
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
             return;
         }
+
+        if ($this->totalBrutto < 0) {
+            $this->addError('cart', 'Ungültiger Gesamtbetrag.');
+            return;
+        }
+
+        RateLimiter::hit($throttleKey, 600); // 10 minutes decay
 
         $existingCustomer = Customer::where('email', $this->form['email'])->first();
 
