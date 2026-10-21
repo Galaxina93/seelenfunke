@@ -23,6 +23,13 @@ class ManagementRoutine extends Component
     // Form fields
     public $r_id, $r_time, $r_title, $r_message, $r_duration, $r_type = 'general', $r_days_of_week = 'all';
 
+    public function mount()
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function render()
     {
         $query = RoutineModel::orderBy('start_time');

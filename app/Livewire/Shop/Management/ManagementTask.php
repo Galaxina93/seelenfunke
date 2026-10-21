@@ -37,6 +37,10 @@ class ManagementTask extends Component
 
     public function mount()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         // One-time auto-migration of old English priorities
         TaskModel::where('priority', 'low')->update(['priority' => 'niedrig']);
         TaskModel::where('priority', 'medium')->update(['priority' => 'mittel']);

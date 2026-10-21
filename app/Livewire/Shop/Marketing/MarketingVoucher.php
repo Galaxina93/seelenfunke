@@ -21,6 +21,13 @@ class MarketingVoucher extends Component
 
     public $voucherSectionMode = 'auto'; // 'auto' oder 'manual'
 
+    public function mount()
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     // --- SUCHE & FILTER FÜR WERTGUTSCHEINE ---
     public $searchCode = '';
     public $filterDelivery = 'all'; // 'all', 'email', 'post'
@@ -122,11 +129,21 @@ class MarketingVoucher extends Component
 
     public function saveManualCoupon()
     {
-        $this->validate([
-            'manual_code' => 'required|min:3|unique:marketing_vouchers,code,' . $this->manualId,
+        $rules = [
+            'manual_code' => 'required|string|min:3|max:50|alpha_dash|unique:marketing_vouchers,code,' . $this->manualId,
             'manual_type' => 'required|in:fixed,percent',
-            'manual_value' => 'required|numeric|min:1',
-        ]);
+            'manual_min_order_value' => 'nullable|numeric|min:0',
+            'manual_usage_limit' => 'nullable|integer|min:1',
+            'manual_valid_until' => 'nullable|date',
+        ];
+
+        if ($this->manual_type === 'percent') {
+            $rules['manual_value'] = 'required|numeric|min:0.01|max:100';
+        } else {
+            $rules['manual_value'] = 'required|numeric|min:0.01';
+        }
+
+        $this->validate($rules);
 
         $dbValue = ($this->manual_type === 'fixed') ? (int)($this->manual_value * 100) : (int)$this->manual_value;
         $dbMinOrder = $this->manual_min_order_value ? (int)($this->manual_min_order_value * 100) : null;

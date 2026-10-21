@@ -21,6 +21,13 @@ class SupportChats extends Component
     public $ratingFilter = '';
     public $showDetails = false;
 
+    public function mount()
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function markAsResolved($id)
     {
         $chat = SupportCustomerChat::find($id);

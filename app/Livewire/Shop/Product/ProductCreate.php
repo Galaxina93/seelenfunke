@@ -144,6 +144,10 @@ class ProductCreate extends Component
     }
 
     public function mount(ConfiguratorService $configService) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         // Wenn es ein neues Produkt ist oder ein bestehendes geladen wird:
         $this->configSettings = $configService->mergeWithDefaults($this->product->config_settings ?? []);
     }

@@ -25,6 +25,13 @@ class ManagementContacts extends Component
     public $activeProfileId = null;
     public $isEditing = false;
 
+    public function mount()
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     #[Validate('nullable|image|max:10240')]
     public $avatar_upload;
 

@@ -28,6 +28,13 @@ class ManagementShoppingList extends Component
         'heart', 'cake', 'fire', 'gift', 'star', 'scissors', 'cube', 'sun', 'moon'
     ];
 
+    public function mount()
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function render()
     {
         $categories = ManagementShoppingCategory::where('is_archived', false)

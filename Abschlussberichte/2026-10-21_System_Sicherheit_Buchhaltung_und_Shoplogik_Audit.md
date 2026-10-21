@@ -360,12 +360,63 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
   3. Dynamische Pfadauflösung über `Storage::disk('local')->path($path)`, strikte Inline-Begrenzung auf sichere Bild- und PDF-Formate sowie Forcierung von `attachment` mit `X-Content-Type-Options: nosniff`.
 * **Testabdeckung:** [`tests/Feature/Api/ApiLoggingAndReceiptSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/ApiLoggingAndReceiptSecurityTest.php) (4 Tests, 12 Assertions).
 
+### 2.56 [MARKETING GUTSCHEIN VALIDIERUNG & AUTH-GUARD] Autorisierung & serverseitige Wertebereichsprüfung für Aktionsgutscheine
+* **Dateien:** [`app/Livewire/Shop/Marketing/MarketingVoucher.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingVoucher.php)
+* **Befund:** 
+  1. In `MarketingVoucher` fehlte in `mount()` jegliche Authentifizierungsprüfung; unberechtigte Nutzer konnten Gutschein-Konfigurationen und Codes manipulieren.
+  2. In `saveManualCoupon()` fehlte eine Obergrenzen-Prüfung für Prozent-Gutscheine (`max:100`), sodass Rabatte von >100% oder negative Mindestbestellwerte/Nutzungslimits erfasst werden konnten.
+* **Lösung:** 
+  1. `mount()` mit `Auth::guard('admin')->check() || Auth::guard('employee')->check()` abgesichert (403 bei fehlenden Rechten).
+  2. Strenge Validierung in `saveManualCoupon()` implementiert: `manual_code` (alpha_dash, 3-50 Zeichen), `manual_type` (in:fixed,percent), `manual_value` (min:0.01, bei percent max:100), `min_order_value` (min:0), `usage_limit` (min:1) und `valid_until` (after:now).
+* **Testabdeckung:** [`tests/Feature/Marketing/MarketingVoucherSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingVoucherSecurityTest.php) (4 Tests, 11 Assertions).
+
+### 2.57 [MANAGEMENT MODULE AUTORISIERUNGSSCHUTZ TEIL 1] Absicherung von E-Mails, Kontakten & Aufgaben gegen unberechtigte Livewire-Mounts
+* **Dateien:** [`app/Livewire/Shop/Management/ManagementEMails.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementEMails.php), [`app/Livewire/Shop/Management/ManagementContacts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementContacts.php), [`app/Livewire/Shop/Management/ManagementTask.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementTask.php)
+* **Befund:** Die internen Betriebsführungs-Komponenten für Webmail-Postfächer, sensible Geschäftskontakte und interne Betriebsaufgaben besaßen in ihren Livewire-Klassen keine Autorisierungsprüfung in `mount()`. Unberechtigte Anfragen an den `/livewire/update`-Endpunkt hätten sensible geschäftliche Kommunikation und Betriebsdaten einsehen oder manipulieren können.
+* **Lösung:** In allen drei Komponenten wurde in `mount()` ein strikter Guard-Check integriert: `if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) abort(403);`.
+* **Testabdeckung:** [`tests/Feature/Management/ManagementAccessSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Management/ManagementAccessSecurityTest.php) (3 Tests, 15 Assertions).
+
+### 2.58 [MANAGEMENT MODULE AUTORISIERUNGSSCHUTZ TEIL 2] Absicherung von Kalender, Routinen & Einkaufsliste gegen unberechtigte Livewire-Mounts
+* **Dateien:** [`app/Livewire/Shop/Management/ManagementCalender.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementCalender.php), [`app/Livewire/Shop/Management/ManagementRoutine.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementRoutine.php), [`app/Livewire/Shop/Management/ManagementShoppingList.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementShoppingList.php)
+* **Befund:** Auch für den internen Betriebskalender, die täglichen/wöchentlichen Fertigungsroutinen und die betriebliche Einkaufsliste fehlte in `mount()` der Autorisierungscheck.
+* **Lösung:** Livewire-Lifecycle-Guard in `mount()` für Admin und Mitarbeiter hinterlegt (`abort(403)` für Gäste und Kunden).
+* **Testabdeckung:** [`tests/Feature/Management/ManagementAccessSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Management/ManagementAccessSecurityTest.php) (3 Tests, 15 Assertions).
+
+### 2.59 [SUPPORT BACKEND AUTORISIERUNGSSCHUTZ] Absicherung von Support-Tickets & Live-Chats vor unbefugtem Livewire-Zugriff
+* **Dateien:** [`app/Livewire/Shop/Support/SupportTicket.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Support/SupportTicket.php), [`app/Livewire/Shop/Support/SupportChats.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Support/SupportChats.php)
+* **Befund:** Die Support-Backend-Komponenten zur Bearbeitung eingehender Kundenanfragen, interner Vermerke und Live-Chat-Sitzungen besaßen in ihren `mount()`-Methoden keine Berechtigungsprüfung.
+* **Lösung:** In beiden Komponenten wurde eine strikte Prüfung auf `Auth::guard('admin')->check() || Auth::guard('employee')->check()` in `mount()` ergänzt.
+* **Testabdeckung:** [`tests/Feature/Support/SupportComponentsAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/SupportComponentsAuthorizationTest.php) (3 Tests, 8 Assertions).
+
+### 2.60 [PRODUKTVERWALTUNG AUTORISIERUNGSSCHUTZ] Absicherung von Neuanlage, Lieferanten, Bruchware & Verpackungskonfiguration
+* **Dateien:** [`app/Livewire/Shop/Product/ProductCreate.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCreate.php), [`app/Livewire/Shop/Product/ProductSuppliers.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductSuppliers.php), [`app/Livewire/Shop/Product/ProductFracture.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductFracture.php), [`app/Livewire/Shop/Product/ProductPackagingConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductPackagingConfigurator.php)
+* **Befund:** Die Produktverwaltungskomponenten für die Produktneuanlage, Lieferantenstammdaten, Bruchwarenbuchung und den Verpackungskonfigurator verfügten über keine Autorisierungsprüfung in `mount()`. Unberechtigte Nutzer hätten Artikel anlegen, Bruchwaren verbuchen oder Lieferantenkonditionen einsehen können.
+* **Lösung:** Alle vier Komponenten prüfen in `mount()` zwingend die Admin- oder Mitarbeiter-Rolle und brechen bei fehlenden Rechten mit 403 ab.
+* **Testabdeckung:** [`tests/Feature/Product/ProductManagementAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductManagementAuthorizationTest.php) (3 Tests, 12 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Livewire/Shop/Marketing/MarketingVoucher.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingVoucher.php) | Admin/Mitarbeiter-Autorisierung in `mount()`, Wertebereichsvalidierung (max:100% etc.) in `saveManualCoupon()` |
+| [`app/Livewire/Shop/Management/ManagementEMails.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementEMails.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Management/ManagementContacts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementContacts.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Management/ManagementTask.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementTask.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Management/ManagementCalender.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementCalender.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Management/ManagementRoutine.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementRoutine.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Management/ManagementShoppingList.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Management/ManagementShoppingList.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Support/SupportTicket.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Support/SupportTicket.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Support/SupportChats.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Support/SupportChats.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductCreate.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCreate.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductSuppliers.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductSuppliers.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductFracture.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductFracture.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`app/Livewire/Shop/Product/ProductPackagingConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductPackagingConfigurator.php) | Admin/Mitarbeiter-Autorisierungsprüfung in `mount()` |
+| [`tests/Feature/Marketing/MarketingVoucherSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingVoucherSecurityTest.php) | Neue Testsuite: Gutschein-Wertebereichs- & Autorisierungsvalidierung |
+| [`tests/Feature/Management/ManagementAccessSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Management/ManagementAccessSecurityTest.php) | Neue Testsuite: Autorisierungsschutz für alle 6 Management-Backend-Komponenten |
+| [`tests/Feature/Support/SupportComponentsAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/SupportComponentsAuthorizationTest.php) | Neue Testsuite: Autorisierungsschutz für Support-Tickets & Support-Chats |
+| [`tests/Feature/Product/ProductManagementAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductManagementAuthorizationTest.php) | Neue Testsuite: Autorisierungsschutz für Produktneuanlage, Lieferanten, Bruchware & Verpackung |
 | [`app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingHerzensprojekte.php) | Admin-Autorisierung in `mount()`, Speicherung via `SystemSetting` + Cache-Clearing, serverseitige Validierung |
 | [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php) | Entfernung hartcodierter Secret-Routen; sichere Parameter-Routen mit `config()` und 403-Fallback |
 | [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) | Registrierung von `system.cron_secret` und `system.cache_secret` für reibungsloses Config-Caching |
@@ -476,7 +527,11 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 136 Tests bestanden (426 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 149 Tests bestanden (472 Assertions, 0 Fehler)
+  * `MarketingVoucherSecurityTest`: 4/4 bestanden (Gutschein-Wertebereichs- & Autorisierungsvalidierung)
+  * `ManagementAccessSecurityTest`: 3/3 bestanden (Autorisierungsschutz für alle 6 Management-Backend-Komponenten)
+  * `SupportComponentsAuthorizationTest`: 3/3 bestanden (Autorisierungsschutz für Support-Tickets & Support-Chats)
+  * `ProductManagementAuthorizationTest`: 3/3 bestanden (Autorisierungsschutz für Produktneuanlage, Lieferanten, Bruchware & Verpackung)
   * `MarketingHerzensprojekteSecurityTest`: 3/3 bestanden (Herzensprojekt Admin-Guard, Settings-Persistenz & Einzahlungs-Validierung)
   * `SystemMaintenanceSecretRouteTest`: 3/3 bestanden (Ablehnung alter statischer Secret-Tokens & sichere Token-Verifikation)
   * `AccountingVariableCostsSecurityTest`: 3/3 bestanden (Mass-Assignment-Schutz für Buchungsfelder & Mandanten-Isolation)
