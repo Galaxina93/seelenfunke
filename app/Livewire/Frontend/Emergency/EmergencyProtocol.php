@@ -82,6 +82,11 @@ class EmergencyProtocol extends Component
             abort(403, 'Zugriff verweigert.');
         }
 
+        if (empty(trim($this->passwordInput)) || strlen($this->passwordInput) > 128) {
+            $this->errorMessage = 'Bitte gib ein gültiges Master-Passwort ein.';
+            return;
+        }
+
         $throttleKey = 'emergency_auth_' . $ip;
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
@@ -129,12 +134,16 @@ class EmergencyProtocol extends Component
     public function setStep($step)
     {
         $this->ensureAuthenticated();
-        $this->currentStep = $step;
+        $this->currentStep = min(5, max(1, (int)$step));
     }
 
     public function toggleTodo($key)
     {
         $this->ensureAuthenticated();
+        if (!is_string($key) || !array_key_exists($key, $this->allTodos)) {
+            return;
+        }
+
         $this->todoStates[$key] = !($this->todoStates[$key] ?? false);
         
         SystemSetting::updateOrCreate(
@@ -146,6 +155,10 @@ class EmergencyProtocol extends Component
     public function toggleFinanceTodo($id)
     {
         $this->ensureAuthenticated();
+        if (!\App\Models\Accounting\AccountingCostItem::where('id', $id)->exists()) {
+            return;
+        }
+
         $this->financeStates[$id] = !($this->financeStates[$id] ?? false);
         
         SystemSetting::updateOrCreate(

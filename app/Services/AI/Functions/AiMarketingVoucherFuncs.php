@@ -127,22 +127,45 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_create(array $args)
     {
-        $code = strtoupper(trim($args['code']));
+        $rawCode = (string)($args['code'] ?? '');
+        $code = strtoupper(trim($rawCode));
+
+        if (empty($code) || strlen($code) > 64 || !preg_match('/^[A-Z0-9_\-]+$/', $code)) {
+            return ['status' => 'error', 'message' => "Ungültiger Gutscheincode. Erlaubt sind nur alphanumerische Zeichen, Bindestriche und Unterstriche (max 64 Zeichen)."];
+        }
 
         if (MarketingVoucher::where('code', $code)->exists()) {
             return ['status' => 'error', 'message' => "Der Gutscheincode '$code' existiert bereits."];
         }
 
-        $dbValue = ($args['type'] === 'fixed') ? (int)($args['value'] * 100) : (int)$args['value'];
-        $dbMinOrder = isset($args['min_order_value']) ? (int)($args['min_order_value'] * 100) : null;
+        $type = $args['type'] ?? 'fixed';
+        if (!in_array($type, ['fixed', 'percent'], true)) {
+            return ['status' => 'error', 'message' => "Ungültiger Gutscheintyp: '$type'. Erlaubt sind nur 'fixed' oder 'percent'."];
+        }
+
+        $val = floatval($args['value'] ?? 0);
+        if ($type === 'percent') {
+            if ($val <= 0 || $val > 100) {
+                return ['status' => 'error', 'message' => "Prozentuale Rabatte müssen zwischen 1 und 100 liegen."];
+            }
+            $dbValue = (int) round($val);
+        } else {
+            if ($val <= 0) {
+                return ['status' => 'error', 'message' => "Feste Gutscheinwerte müssen größer als 0 Euro sein."];
+            }
+            $dbValue = (int) round($val * 100);
+        }
+
+        $dbMinOrder = isset($args['min_order_value']) ? max(0, (int) round(floatval($args['min_order_value']) * 100)) : null;
+        $usageLimit = isset($args['usage_limit']) ? max(1, (int) $args['usage_limit']) : null;
         $validUntil = isset($args['valid_until']) ? Carbon::parse($args['valid_until']) : null;
 
         $voucher = MarketingVoucher::create([
             'code' => $code,
             'title' => 'Manueller Code: ' . $code,
-            'type' => $args['type'],
+            'type' => $type,
             'is_active' => true,
-            'usage_limit' => $args['usage_limit'] ?? null,
+            'usage_limit' => $usageLimit,
             'valid_until' => $validUntil,
             'value' => $dbValue,
             'min_order_value' => $dbMinOrder,
@@ -181,7 +204,7 @@ trait AiMarketingVoucherFuncs
         $topCoupons = DB::table('order_orders')
             ->whereNotNull('coupon_code')
             ->where('created_at', '>=', $start)
-            ->select('coupon_code', DB::raw('count(*) as total_uses'), DB::raw('sum(total) as generated_revenue_cents'))
+            ->select('coupon_code', DB::raw('count(*) as total_uses'), DB::raw('sum(total_price) as generated_revenue_cents'))
             ->groupBy('coupon_code')
             ->orderByDesc('total_uses')
             ->limit(15)

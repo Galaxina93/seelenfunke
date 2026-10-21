@@ -67,10 +67,14 @@ Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
 Route::get('/newsletter', MarketingNewsletterPage::class)->name('newsletter.page');
 
 // Der Link aus der E-Mail (Controller Action)
-Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])->name('newsletter.verify');
+Route::get('/newsletter/verify/{token}', [NewsletterController::class, 'verify'])
+    ->name('newsletter.verify')
+    ->middleware('throttle:30,1');
 
 // Warenkorb-Erinnerungen Abmeldung (Opt-Out nach § 7 Abs. 3 UWG / Art. 21 DSGVO)
-Route::get('/warenkorb/erinnerung/abmelden/{id}/{hash}', [\App\Http\Controllers\CartReminderUnsubscribeController::class, 'unsubscribe'])->name('cart.reminder.unsubscribe');
+Route::get('/warenkorb/erinnerung/abmelden/{id}/{hash}', [\App\Http\Controllers\CartReminderUnsubscribeController::class, 'unsubscribe'])
+    ->name('cart.reminder.unsubscribe')
+    ->middleware('throttle:30,1');
 
 // Der Checkout
 Route::get('/checkout', OrderCheckout::class)->name('checkout');
@@ -80,11 +84,12 @@ Route::get('/checkout/success', OrderCheckoutSuccess::class)->name('checkout.suc
 Route::get('/angebot/{token}/annehmen', OrderQuoteAcceptance::class)->name('quote.accept');
 
 // Bezahlungen über Bezahllink zuordenen und Bestellung als bezahlt markieren
-Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle']);
+Route::post('stripe/webhook', [\App\Http\Controllers\StripeWebhookController::class, 'handle'])
+    ->middleware('throttle:60,1');
 
 // Google Accounts
 Route::get('auth/{guard}/google', [GoogleAuthController::class, 'redirectToGoogle'])->name('auth.google');
-Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback']);
+Route::get('auth/google/callback', [GoogleAuthController::class, 'handleGoogleCallback'])->name('google.callback');
 
 
 // --- 2. Hauptseiten ---
@@ -160,8 +165,12 @@ Route::get('/widerruf', function () {
     return view('frontend.pages.widerruf');
 })->name('widerruf');
 
-Route::get('/widerruf/pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])->name('widerruf.pdf');
-Route::get('/widerrufsformular.pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])->name('widerrufsformular.pdf');
+Route::get('/widerruf/pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])
+    ->name('widerruf.pdf')
+    ->middleware('throttle:30,1');
+Route::get('/widerrufsformular.pdf', [\App\Http\Controllers\RevocationPdfController::class, 'download'])
+    ->name('widerrufsformular.pdf')
+    ->middleware('throttle:30,1');
 
 Route::get('/verhaltenskodex', function () {
     return view('frontend.pages.verhaltenskodex');

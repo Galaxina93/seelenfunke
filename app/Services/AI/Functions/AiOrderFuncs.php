@@ -318,15 +318,20 @@ trait AiOrderFuncs
             }
 
             $updates = [];
+            $isCancelling = false;
+            $oldStatus = $order->status;
             if (!empty($args['status'])) {
-                if (!in_array($args['status'], ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'refunded'])) {
+                if (!in_array($args['status'], ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'refunded'], true)) {
                     return ['status' => 'error', 'message' => 'Ungültiger Status: ' . $args['status']];
                 }
                 $updates['status'] = $args['status'];
+                if ($args['status'] === 'cancelled' && $order->status !== 'cancelled') {
+                    $isCancelling = true;
+                }
             }
 
             if (!empty($args['payment_status'])) {
-                if (!in_array($args['payment_status'], ['paid', 'unpaid', 'pending', 'refunded'])) {
+                if (!in_array($args['payment_status'], ['paid', 'unpaid', 'pending', 'refunded'], true)) {
                     return ['status' => 'error', 'message' => 'Ungültiger Payment Status: ' . $args['payment_status']];
                 }
                 $updates['payment_status'] = $args['payment_status'];
@@ -337,6 +342,10 @@ trait AiOrderFuncs
             }
 
             $order->update($updates);
+
+            if ($isCancelling) {
+                $order->handleCancellation('KI-Agent Status-Update: Stornierung', $oldStatus);
+            }
 
             return [
                 'status' => 'success', 

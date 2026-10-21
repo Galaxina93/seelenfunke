@@ -72,7 +72,7 @@ class RevocationPdfController extends Controller
             ->setPaper('a4', 'portrait')
             ->setOption([
                 'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled'      => true,
+                'isRemoteEnabled'      => false,
                 'defaultFont'          => 'sans-serif',
             ]);
 

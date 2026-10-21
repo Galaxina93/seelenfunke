@@ -8,6 +8,10 @@ class NewsletterController extends Controller
 {
     public function verify($token)
     {
+        if (empty($token) || !is_string($token) || strlen($token) < 16 || strlen($token) > 128) {
+            return redirect()->route('newsletter.page')->with('error', 'Dieser Bestätigungslink ist ungültig oder abgelaufen.');
+        }
+
         $subscriber = MarketingNewsletterSubscriber::where('verification_token', $token)->first();
 
         if (!$subscriber) {

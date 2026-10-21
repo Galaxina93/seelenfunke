@@ -601,6 +601,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Erzwingung von `basename()` für Zieldateien in `ExportProjectForAI`. Wertebereichs-Validierung für Monat (1–12) und Jahr (2000–2100) sowie Unterstützung beider Storage-Disks (`local` & `public`) in `GenerateTaxExport`.
 * **Testabdeckung:** [`tests/Feature/Console/ExportProjectForAISecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Console/ExportProjectForAISecurityTest.php) (2 Tests, 5 Assertions).
 
+### 2.91 [KI-AGENTEN & BESTELL-LOGIK] Bestell-Stornierung via KI-Funktionen ohne Bestands- und Schutzlogik
+* **Dateien:** [`app/Services/AI/Functions/AiOrderFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiOrderFuncs.php)
+* **Befund:** In `AiOrderFuncs::executeOrderUpdateStatus()` wurde bei einer Statusänderung auf `cancelled` lediglich der Datensatzstatus aktualisiert. Weder die Standardartikel-Bestandsrückbuchung, noch der Schutz vor Restauration von personalisierter Laser-Ausschussware, noch die Spenden-Stornierung bei Herzensprojekten, noch Gutschein-Reversals wurden ausgelöst.
+* **Lösung:** Erfassung des vorherigen Status vor dem Update und Aufruf von `$order->handleCancellation('KI-Agent Status-Update: Stornierung', $oldStatus)`. Dadurch werden unpersonalisierte Produkte wieder auf Lager gelegt, personalisierte Laserartikel dauerhaft als Ausschuss geschützt, Spenden rückabgewickelt und Kundengutscheine wiederhergestellt.
+* **Testabdeckung:** [`tests/Feature/Ai/AiOrderFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiOrderFuncsSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.92 [KI-AGENTEN & MARKETING] SQL-Fehler in Gutschein-Analytics & unvalidierte Gutschein-Parameter
+* **Dateien:** [`app/Services/AI/Functions/AiMarketingVoucherFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingVoucherFuncs.php)
+* **Befund:** In `AiMarketingVoucherFuncs::marketing_voucher_get_analytics()` schlug die DB-Abfrage mit einem SQL-1054-Fehler fehl (`Unknown column 'total' in 'field list'`), da die Spalte in `order_orders` `total_price` heißt. Zudem erlaubte `marketing_voucher_create()` unbeschränkte Gutscheintypen, unzulässige Zeichenketten und prozentuale Rabatte über 100%.
+* **Lösung:** Korrektur des Spaltennamens auf `sum(total_price)`. Strikte Regex-Prüfung für Gutscheincodes (`/^[A-Z0-9_\-]+$/`), Typ-Whitelisting (`fixed`, `percent`) sowie Validierung und Clamping von Rabattwerten (1–100% bzw. `> 0` für Festbeträge).
+* **Testabdeckung:** [`tests/Feature/Ai/AiMarketingVoucherFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingVoucherFuncsSecurityTest.php) (2 Tests, 10 Assertions).
+
+### 2.93 [AUTHENTIFIZIERUNG & GOOGLE-OAUTH] SSRF-Gefahr via unbeschränkten Avatar-Download & Session Fixation
+* **Dateien:** [`app/Http/Controllers/GoogleAuthController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/GoogleAuthController.php), [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php)
+* **Befund:** Profilbilder von Google-Accounts wurden via `file_get_contents($avatarUrl)` ohne Host- und Protokollvalidierung geladen, wodurch Angreifer über manipulierte OAuth-Provider-Payloads interne Netzwerkanfragen (SSRF) oder lokale Dateien auslesen konnten. Zudem fehlte `session()->regenerate()` direkt vor dem Login.
+* **Lösung:** Protokoll- und Domain-Whitelisting (ausschließlich `https://*.googleusercontent.com` mit 5s-Timeout via Laravel `Http::get`), Hinzufügen von `session()->regenerate()` zur Session-Fixation-Prävention und Benennung der Callback-Route `google.callback`.
+* **Testabdeckung:** [`tests/Feature/Auth/GoogleAuthControllerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Auth/GoogleAuthControllerSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.94 [NOTFALL-PROTOKOLL & WORKFLOW] Unbegrenzte Step-Werte, fehlende Schlüssel-Validierung & Passwort-Länge
+* **Dateien:** [`app/Livewire/Frontend/Emergency/EmergencyProtocol.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Frontend/Emergency/EmergencyProtocol.php)
+* **Befund:** In `EmergencyProtocol` konnte `setStep()` auf beliebige Zahlen (auch negative oder extrem hohe Werte) gesetzt werden. `toggleTodo()` validierte die übergebenen Schlüssel nicht gegen die erlaubte Todo-Liste, wodurch willkürliche Schlüssel in die `SystemSetting`-Tabelle geschrieben werden konnten. `toggleFinanceTodo()` prüfte nicht die Existenz der Kostenstelle.
+* **Lösung:** Clamping von `currentStep` zwischen 1 und 5 (`min(5, max(1, (int)$step))`). Whitelisting der Keys in `toggleTodo()` gegen `$this->allTodos`. Existenzprüfung in `toggleFinanceTodo()`. Längenbegrenzung für das Master-Passwort (max. 128 Zeichen).
+* **Testabdeckung:** [`tests/Feature/Frontend/EmergencyProtocolSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Frontend/EmergencyProtocolSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.95 [GLOBALE ROUTEN & DATENSCHUTZ] DomPDF Remote-Asset-Aktivierung, ungeschützte Webhooks & Token-Validierung
+* **Dateien:** [`app/Http/Controllers/RevocationPdfController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/RevocationPdfController.php), [`app/Http/Controllers/NewsletterController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/NewsletterController.php), [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php)
+* **Befund:** In `RevocationPdfController` war `'isRemoteEnabled' => true` aktiviert, obwohl alle Assets lokal vorliegen – dies eröffnete eine Angriffsfläche für Remote-SSRF/LFI im PDF-Renderer. `/newsletter/verify/{token}` akzeptierte beliebig kurze Tokens ohne Validierung. Die globalen PDF-, Abmelde- und Stripe-Webhook-Routen besaßen kein Rate-Limiting.
+* **Lösung:** Deaktivierung von `isRemoteEnabled` (`false`) im DomPDF-Service. Validierung des Newsletter-Tokens (String, min. 16 Zeichen). Hinzufügen von Throttling (`throttle:30,1` für Widerrufs-PDF, Abmeldung & Newsletter-Verifikation sowie `throttle:60,1` für Stripe-Webhooks).
+* **Testabdeckung:** [`tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php) (3 Tests, 11 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -810,13 +840,30 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`tests/Feature/Gamification/GamificationServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/GamificationServiceSecurityTest.php) | Neue Testsuite: Atomare Funken-Transaktionen & Negativwert-Sperre |
 | [`tests/Feature/Support/TwilioCallControllerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/TwilioCallControllerSecurityTest.php) | Neue Testsuite: Payload-Validierung & DoS-Schutz bei KI-Telefonielogs |
 | [`tests/Feature/Console/ExportProjectForAISecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Console/ExportProjectForAISecurityTest.php) | Neue Testsuite: Path-Traversal-Schutz & CLI-Parameterüberprüfung |
+| [`app/Services/AI/Functions/AiOrderFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiOrderFuncs.php) | Storno-Handling (`handleCancellation`) mit Laserwaren-Schutz & Spenden-Rückabwicklung bei KI-Statusänderung |
+| [`app/Services/AI/Functions/AiMarketingVoucherFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingVoucherFuncs.php) | SQL-Spaltenkorrektur (`total_price`) & Eingabevalidierung für Gutscheincode, -typ und Rabattwert |
+| [`app/Http/Controllers/GoogleAuthController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/GoogleAuthController.php) | Domain- & HTTPS-Whitelisting für Profilbild-Download (`*.googleusercontent.com`) & Session-Regeneration |
+| [`app/Livewire/Frontend/Emergency/EmergencyProtocol.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Frontend/Emergency/EmergencyProtocol.php) | Todo-Key-Whitelisting, Step-Clamping (1–5) & Passwort-Längenvalidierung |
+| [`app/Http/Controllers/RevocationPdfController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/RevocationPdfController.php) | Deaktivierung von DomPDF Remote-Assets (`isRemoteEnabled => false`) |
+| [`app/Http/Controllers/NewsletterController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/NewsletterController.php) | Längen- & Typvalidierung für Bestätigungstokens |
+| [`routes/partials/global_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/global_routes.php) | Throttling für Widerrufs-PDF, Abmeldung, Newsletter-Verifikation & Stripe-Webhooks |
+| [`tests/Feature/Ai/AiOrderFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiOrderFuncsSecurityTest.php) | Neue Testsuite: KI-Status-Stornierung & Laser-Ausschusswarenschutz |
+| [`tests/Feature/Ai/AiMarketingVoucherFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingVoucherFuncsSecurityTest.php) | Neue Testsuite: Gutschein-Validierung & SQL-Query Analytics |
+| [`tests/Feature/Auth/GoogleAuthControllerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Auth/GoogleAuthControllerSecurityTest.php) | Neue Testsuite: Avatar SSRF-Filterung & Unverified-Email-Ablehnung |
+| [`tests/Feature/Frontend/EmergencyProtocolSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Frontend/EmergencyProtocolSecurityTest.php) | Neue Testsuite: Auth-Gate, Todo-Key-Whitelisting & Step-Clamping |
+| [`tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Global/GlobalRoutesAndControllersSecurityTest.php) | Neue Testsuite: DomPDF-Schutz & Newsletter-Verifikationsvalidierung |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 239 Tests bestanden (680 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 250 Tests bestanden (722 Assertions, 0 Fehler)
+  * `AiOrderFuncsSecurityTest`: 2/2 bestanden (KI-Status-Stornierung, Standardwaren-Restoration & strikter Schutz von Laser-Ausschussware)
+  * `AiMarketingVoucherFuncsSecurityTest`: 2/2 bestanden (SQL-Spaltenkorrektur `total_price` & Wertebereichsvalidierung für Gutscheine)
+  * `GoogleAuthControllerSecurityTest`: 2/2 bestanden (Avatar SSRF-Prävention, Unverified-Email-Block & Session-Regeneration)
+  * `EmergencyProtocolSecurityTest`: 2/2 bestanden (Auth-Gate, Key-Whitelisting & Step-Clamping)
+  * `GlobalRoutesAndControllersSecurityTest`: 3/3 bestanden (DomPDF Remote-Deaktivierung, Newsletter-Token-Validierung & Throttling)
   * `FileDownloadServiceSecurityTest`: 3/3 bestanden (Autorisierung, SSRF-Filterung & Stored-XSS-Schutz im FileDownloadService)
   * `ReferralServiceSecurityTest`: 1/1 bestanden (Idempotenz-Schutz & Vermeidung doppelter Storno-Abzüge bei Belohnungsgutscheinen)
   * `GamificationServiceSecurityTest`: 2/2 bestanden (Atomare Zeilensperren für Funken-Guthaben & Negativwert-Abweisung)

@@ -128,25 +128,33 @@ class GoogleAuthController extends Controller
             // Zugriff auf Profil prüfen
             if ($avatarUrl && $user->profile && empty($user->profile->photo_path)) {
                 try {
-                    $fileContents = @file_get_contents($avatarUrl);
+                    $parsedAvatar = parse_url($avatarUrl);
+                    $avatarHost = strtolower($parsedAvatar['host'] ?? '');
+                    $avatarScheme = strtolower($parsedAvatar['scheme'] ?? '');
 
-                    if ($fileContents) {
-                        $image = Image::make($fileContents)->fit(400, 400);
-                        $filename = Str::random(40) . '.jpg';
+                    // Nur sichere HTTPS-Verbindungen zu offiziellen Google-Domains zulassen
+                    if ($avatarScheme === 'https' && (str_ends_with($avatarHost, '.googleusercontent.com') || $avatarHost === 'googleusercontent.com')) {
+                        $resp = \Illuminate\Support\Facades\Http::timeout(5)->get($avatarUrl);
 
-                        // 1. Physischer Pfad (wohin gespeichert wird)
-                        // Wir nutzen den Disk 'public', der zeigt automatisch auf storage/app/public
-                        $folderPath = 'dashboard/user/' . $guard . '/' . $user->id . '/profile-photo/';
+                        if ($resp->successful() && !empty($resp->body())) {
+                            $fileContents = $resp->body();
+                            $image = Image::make($fileContents)->fit(400, 400);
+                            $filename = Str::random(40) . '.jpg';
 
-                        // 2. Speichern über den 'public' Disk
-                        Storage::disk('public')->put($folderPath . $filename, (string) $image->encode('jpg', 90));
+                            // 1. Physischer Pfad (wohin gespeichert wird)
+                            // Wir nutzen den Disk 'public', der zeigt automatisch auf storage/app/public
+                            $folderPath = 'dashboard/user/' . $guard . '/' . $user->id . '/profile-photo/';
 
-                        // 3. In Datenbank speichern (OHNE 'public/' am Anfang, da wir den Disk nutzen)
-                        $user->profile->update([
-                            'photo_path' => $folderPath . $filename
-                        ]);
+                            // 2. Speichern über den 'public' Disk
+                            Storage::disk('public')->put($folderPath . $filename, (string) $image->encode('jpg', 90));
 
-                        # Log::info('Google Profilbild für User ' . $user->id . ' (' . $guard . ') gespeichert.');
+                            // 3. In Datenbank speichern (OHNE 'public/' am Anfang, da wir den Disk nutzen)
+                            $user->profile->update([
+                                'photo_path' => $folderPath . $filename
+                            ]);
+
+                            # Log::info('Google Profilbild für User ' . $user->id . ' (' . $guard . ') gespeichert.');
+                        }
                     }
                 } catch (\Exception $e) {
                     Log::error('Fehler beim Laden des Google Profilbilds: ' . $e->getMessage());
@@ -157,6 +165,7 @@ class GoogleAuthController extends Controller
             // 4. LOGIN DURCHFÜHREN
             // ---------------------------------------------------------
 
+            session()->regenerate();
             Auth::guard($guard)->login($user, true);
 
             // Permissions laden
