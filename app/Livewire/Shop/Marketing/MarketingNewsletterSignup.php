@@ -15,8 +15,8 @@ class MarketingNewsletterSignup extends Component
     public $success = false;
 
     protected $rules = [
-        'email' => 'required|email|unique:newsletter_subscribers,email',
-        'privacy_accepted' => 'accepted', // Laravel Validation Rule: Muss "true", "yes", "1" sein
+        'email' => 'required|email',
+        'privacy_accepted' => 'accepted',
     ];
 
     protected $messages = [

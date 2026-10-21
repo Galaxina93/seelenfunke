@@ -45,6 +45,16 @@ class CustomerOrdersComponent extends Component
 
     public function showOrder($id)
     {
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+
+        $exists = OrderOrder::where('id', $id)->where('customer_id', $user->id)->exists();
+        if (!$exists) {
+            $this->selectedOrderId = null;
+            $this->previewItemId = null;
+            return;
+        }
+
         $this->selectedOrderId = $id;
         $this->previewItemId = null;
     }
@@ -58,6 +68,18 @@ class CustomerOrdersComponent extends Component
     public function openPreview($itemId)
     {
         $this->editItemId = null; // Close edit if open
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+
+        $belongs = OrderOrderItem::where('id', $itemId)->whereHas('order', function ($q) use ($user) {
+            $q->where('customer_id', $user->id);
+        })->exists();
+
+        if (!$belongs) {
+            $this->previewItemId = null;
+            return;
+        }
+
         if ($this->previewItemId === $itemId) {
             $this->previewItemId = null; // Toggle zum Schließen
         } else {
@@ -68,6 +90,18 @@ class CustomerOrdersComponent extends Component
     public function openEdit($itemId)
     {
         $this->previewItemId = null; // Close preview if open
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+
+        $belongs = OrderOrderItem::where('id', $itemId)->whereHas('order', function ($q) use ($user) {
+            $q->where('customer_id', $user->id);
+        })->exists();
+
+        if (!$belongs) {
+            $this->editItemId = null;
+            return;
+        }
+
         if ($this->editItemId === $itemId) {
             $this->editItemId = null; // Toggle zum Schließen
         } else {
@@ -140,25 +174,40 @@ class CustomerOrdersComponent extends Component
         session()->flash('delivery_confirmed', 'Vielen Dank! Ihre Bestellung wurde als zugestellt bestätigt. Wir wünschen Ihnen ganz viel Freude mit Ihren Seelenfunke-Unikaten! ✨');
     }
 
-    // Computed Property für die ausgewählte Bestellung
+    // Computed Property für die ausgewählte Bestellung (strikt mandantengeschützt)
     public function getSelectedOrderProperty()
     {
         if (!$this->selectedOrderId) return null;
-        return OrderOrder::with(['items.product', 'invoices', 'shipments'])->find($this->selectedOrderId);
+        $user = Auth::guard('customer')->user();
+        if (!$user) return null;
+
+        return OrderOrder::with(['items.product', 'invoices', 'shipments'])
+            ->where('customer_id', $user->id)
+            ->find($this->selectedOrderId);
     }
 
-    // Computed Property für das Vorschaubild (Manufaktur Details)
+    // Computed Property für das Vorschaubild (Manufaktur Details, strikt mandantengeschützt)
     public function getPreviewItemProperty()
     {
         if (!$this->previewItemId) return null;
-        return OrderOrderItem::with('product')->find($this->previewItemId);
+        $user = Auth::guard('customer')->user();
+        if (!$user) return null;
+
+        return OrderOrderItem::whereHas('order', function ($q) use ($user) {
+            $q->where('customer_id', $user->id);
+        })->with('product')->find($this->previewItemId);
     }
 
-    // Computed Property für die Edit-Funktion
+    // Computed Property für die Edit-Funktion (strikt mandantengeschützt)
     public function getEditItemProperty()
     {
         if (!$this->editItemId) return null;
-        return OrderOrderItem::with('product')->find($this->editItemId);
+        $user = Auth::guard('customer')->user();
+        if (!$user) return null;
+
+        return OrderOrderItem::whereHas('order', function ($q) use ($user) {
+            $q->where('customer_id', $user->id);
+        })->with('product')->find($this->editItemId);
     }
 
     public function render()

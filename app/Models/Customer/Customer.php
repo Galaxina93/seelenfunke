@@ -82,6 +82,11 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         return $this->hasOne(CustomerProfile::class);
     }
 
+    public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\Order\OrderOrder::class, 'customer_id');
+    }
+
     // -------------------------------------------------------------------------
     // MUST VERIFY EMAIL IMPLEMENTIERUNG (Angepasst für CustomerProfile)
     // -------------------------------------------------------------------------

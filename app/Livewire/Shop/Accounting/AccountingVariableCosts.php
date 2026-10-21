@@ -307,6 +307,7 @@ class AccountingVariableCosts extends Component
     public function updatedQuickUploadFile()
     {
         if($this->uploadingMissingSpecialId && $this->quickUploadFile) {
+            $this->validate(['quickUploadFile' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt,xml|max:15360']);
             $parts = explode('-', $this->uploadingMissingSpecialId, 2);
             if(count($parts) === 2) {
                 $type = $parts[0];

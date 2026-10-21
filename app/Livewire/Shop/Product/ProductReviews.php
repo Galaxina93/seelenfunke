@@ -185,9 +185,9 @@ class ProductReviews extends Component
             ->first();
 
         if ($review) {
-            if (!empty($review->media)) {
+            if (!empty($review->media) && is_array($review->media)) {
                 foreach ($review->media as $media) {
-                    if(Storage::disk('public')->exists($media)) {
+                    if (is_string($media) && str_starts_with($media, 'produkte/reviews/') && !str_contains($media, '..') && Storage::disk('public')->exists($media)) {
                         Storage::disk('public')->delete($media);
                     }
                 }
@@ -233,7 +233,7 @@ class ProductReviews extends Component
             return;
         }
 
-        $mediaPaths = $this->existingMedia;
+        $newMediaPaths = [];
 
         foreach ($this->accumulatedMedia as $file) {
             $mime = $file->getMimeType();
@@ -245,16 +245,13 @@ class ProductReviews extends Component
                 $image = Image::make($file->getRealPath())->orientate()->encode('jpg', 80);
                 Storage::disk('public')->put($path, (string) $image);
 
-                $mediaPaths[] = $path;
+                $newMediaPaths[] = $path;
             } else {
-                $mediaPaths[] = $file->store('produkte/reviews', 'public');
+                $newMediaPaths[] = $file->store('produkte/reviews', 'public');
             }
         }
 
         $hasNewMedia = count($this->accumulatedMedia) > 0;
-        $totalMedia = count($mediaPaths) > 0;
-
-        $targetStatus = $totalMedia ? 'pending' : 'approved';
 
         if ($this->isEditing && $this->userReviewId) {
             $review = ProductReview::where('id', $this->userReviewId)
@@ -262,11 +259,21 @@ class ProductReviews extends Component
                 ->first();
 
             if ($review) {
-                $oldMedia = $review->media ?? [];
-                $removedMedia = array_diff($oldMedia, $this->existingMedia);
+                $oldMedia = is_array($review->media) ? $review->media : [];
+                // Sicherheitsprüfung: Nur Medien behalten, die bereits rechtmäßig im Model gespeichert waren
+                $validExistingMedia = array_values(array_intersect(
+                    is_array($this->existingMedia) ? $this->existingMedia : [],
+                    $oldMedia
+                ));
+                $removedMedia = array_diff($oldMedia, $validExistingMedia);
                 foreach ($removedMedia as $rm) {
-                    Storage::disk('public')->delete($rm);
+                    if (is_string($rm) && str_starts_with($rm, 'produkte/reviews/') && !str_contains($rm, '..') && Storage::disk('public')->exists($rm)) {
+                        Storage::disk('public')->delete($rm);
+                    }
                 }
+
+                $mediaPaths = array_merge($validExistingMedia, $newMediaPaths);
+                $totalMedia = count($mediaPaths) > 0;
 
                 if ($review->status === 'rejected' || $hasNewMedia) {
                     $targetStatus = $totalMedia ? 'pending' : 'approved';
@@ -287,6 +294,11 @@ class ProductReviews extends Component
                 $this->cancelEdit();
             }
         } else {
+            // Neue Reviews können keine extern vorgegebenen Bestandsmedien übernehmen
+            $mediaPaths = $newMediaPaths;
+            $totalMedia = count($mediaPaths) > 0;
+            $targetStatus = $totalMedia ? 'pending' : 'approved';
+
             $existing = ProductReview::where('product_id', $this->product->id)
                 ->where('customer_id', $customerId)
                 ->first();

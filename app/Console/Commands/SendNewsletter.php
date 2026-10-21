@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\AutomaticNewsletterMail;
+use App\Mail\NewsletterAutomaticMail;
 use App\Models\Marketing\MarketingNewsletter;
 use App\Models\Marketing\MarketingNewsletterSubscriber;
 use App\Models\System\SystemLog;
@@ -110,7 +110,7 @@ class SendNewsletter extends Command
 
         foreach ($subscribers as $subscriber) {
             // Die Mail wird via ->queue() asynchron im Hintergrund versendet!
-            Mail::to($subscriber->email)->queue(new AutomaticNewsletterMail($template, $subscriber));
+            Mail::to($subscriber->email)->queue(new NewsletterAutomaticMail($template, $subscriber));
             $count++;
         }
 

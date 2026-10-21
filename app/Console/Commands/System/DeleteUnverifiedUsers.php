@@ -32,31 +32,27 @@ class DeleteUnverifiedUsers extends Command
         $limit = now()->subHours(24);
         $deletedCount = 0;
 
-        $types = [
-            'admin' => Admin::class,
-            'customer' => Customer::class,
-            'employee' => Employee::class,
-        ];
+        // Sicherheitsregel: Admins und Mitarbeiter unterliegen keiner öffentlichen Registrierung und
+        // keinem MustVerifyEmail-Workflow. Sie dürfen niemals automatisch per Cronjob gelöscht werden.
+        // Nur unverifizierte Kunden ohne Bestellungen werden nach Ablauf von 24 Stunden bereinigt.
+        $customers = Customer::withTrashed()
+            ->where('created_at', '<', $limit)
+            ->whereNull('email_verified_at')
+            ->where(function ($query) {
+                $query->whereDoesntHave('profile')
+                    ->orWhereHas('profile', function ($q) {
+                        $q->whereNull('email_verified_at');
+                    });
+            })
+            ->doesntHave('orders')
+            ->get();
 
-        foreach ($types as $type => $class) {
-            // Finde alle User, die vor mehr als 24 Stunden erstellt wurden und deren Profil kein email_verified_at hat.
-            $users = $class::withTrashed()
-                ->where('created_at', '<', $limit)
-                ->whereHas('profile', function ($q) {
-                    $q->whereNull('email_verified_at');
-                })
-                ->get();
-
-            foreach ($users as $user) {
-                // Falls ein Profil existiert, dieses zuerst permanent löschen
-                if ($user->profile) {
-                    $user->profile()->forceDelete();
-                }
-                
-                // Benutzer permanent löschen
-                $user->forceDelete();
-                $deletedCount++;
+        foreach ($customers as $customer) {
+            if ($customer->profile) {
+                $customer->profile()->forceDelete();
             }
+            $customer->forceDelete();
+            $deletedCount++;
         }
 
         if ($deletedCount > 0) {

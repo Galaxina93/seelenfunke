@@ -16,6 +16,7 @@ class ContactForm extends Component
     public string $phone = '';
     public string $message = '';
     public bool $data_protection = false;
+    public string $honey_name = ''; // Honeypot für Spam-Bots
 
     public function render()
     {
@@ -24,14 +25,35 @@ class ContactForm extends Component
 
     public function sending(): void
     {
-        // Sicherheits-Validierung, bevor Mails gesendet werden
+        // 1. Honeypot Check: Bots füllen das unsichtbare Feld aus
+        if (!empty($this->honey_name)) {
+            \Illuminate\Support\Facades\Log::warning("Spam-Bot Kontaktformular blockiert (Honeypot ausgelöst) von IP: " . request()->ip());
+            $this->reset(['first_name', 'last_name', 'email', 'phone', 'message', 'data_protection', 'honey_name']);
+            session()->flash('message', 'Vielen Dank! Deine Anfrage wurde erfolgreich empfangen. Du erhältst in Kürze eine Bestätigung mit deiner Ticketnummer per E-Mail.');
+            return;
+        }
+
+        // 2. Rate-Limiting gegen Flooding & E-Mail-Bombing
+        $ip = request()->ip();
+        $throttleKey = 'contact_form_send_' . $ip;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            session()->flash('message', "Zu viele Anfragen von diesem Anschluss. Bitte warte {$minutes} Minute(n).");
+            return;
+        }
+
+        // 3. Sicherheits-Validierung, bevor Mails gesendet werden
         $this->validate([
-            'first_name' => 'required',
-            'last_name' => 'required',
-            'email' => 'required|email',
-            'message' => 'required',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'email' => 'required|email|max:255',
+            'phone' => 'nullable|string|max:50',
+            'message' => 'required|string|min:5|max:5000',
             'data_protection' => 'accepted'
         ]);
+
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
 
         // 1. Speichere das Ticket nativ in der Datenbank
         $request = \App\Models\Support\SupportContactRequest::create([

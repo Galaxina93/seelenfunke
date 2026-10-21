@@ -63,6 +63,6 @@ class OrderQuoteRequest extends Model
 
     public function isValid()
     {
-        return $this->status === 'open' && $this->expires_at->isFuture();
+        return $this->status === 'open' && (!$this->expires_at || $this->expires_at->isFuture());
     }
 }

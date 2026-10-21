@@ -114,11 +114,23 @@ class CustomerTicketsComponent extends Component
     {
         $this->uploadError = '';
         $totalSize = 0;
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'txt', 'docx'];
+
         foreach ($this->$targetArray as $file) { $totalSize += $file->getSize(); }
         foreach ($this->$newArray as $file) {
+            $ext = strtolower($file->getClientOriginalExtension());
+            if (!in_array($ext, $allowedExtensions, true)) {
+                $this->uploadError = 'Ungültiges Dateiformat (.' . $ext . '). Erlaubt sind: ' . implode(', ', $allowedExtensions) . '.';
+                break;
+            }
+
             $totalSize += $file->getSize();
-            if ($totalSize <= 5 * 1024 * 1024) { $this->$targetArray[] = $file; }
-            else { $this->uploadError = 'Achtung: Upload-Limit erreicht.'; break; }
+            if ($totalSize <= 5 * 1024 * 1024) {
+                $this->$targetArray[] = $file;
+            } else {
+                $this->uploadError = 'Achtung: Upload-Limit erreicht (max. 5 MB).';
+                break;
+            }
         }
         $this->reset($newArray);
     }
@@ -135,15 +147,22 @@ class CustomerTicketsComponent extends Component
         $this->ratingSubmitted = false;
 
         if ($mode === 'chat' && $ticketId) {
-            $this->markAsRead($ticketId);
+            // Mandantenprüfung: Ticket muss dem eingeloggten Kunden gehören
+            $ticket = SupportTicket::where('customer_id', $this->customerId)->find($ticketId);
+            if (!$ticket) {
+                $this->activeTicketId = null;
+                $this->viewMode = 'list';
+                return;
+            }
+
+            $this->markAsRead($ticket->id);
             $this->dispatch('ticket-message-received');
 
             // NEU: Punkt ausschalten
             $this->dispatch('clear-ticket-badge');
 
             // Lade Rating falls das Ticket geschlossen ist
-            $ticket = SupportTicket::find($ticketId);
-            if ($ticket && $ticket->rating !== null) {
+            if ($ticket->rating !== null) {
                 $this->rating = $ticket->rating;
                 $this->feedbackText = $ticket->feedback_text;
                 $this->ratingSubmitted = true;
@@ -284,7 +303,12 @@ class CustomerTicketsComponent extends Component
 
     private function markAsRead($ticketId)
     {
-        SupportTicketMessage::where('support_ticket_id', $ticketId)->where('sender_type', '!=', 'customer')->update(['is_read_by_customer' => true]);
+        $ticket = SupportTicket::where('customer_id', $this->customerId)->find($ticketId);
+        if ($ticket) {
+            SupportTicketMessage::where('support_ticket_id', $ticket->id)
+                ->where('sender_type', '!=', 'customer')
+                ->update(['is_read_by_customer' => true]);
+        }
     }
 
     public function render()

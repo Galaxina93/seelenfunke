@@ -39,11 +39,11 @@ class AccountingQuickEntry extends Component
     public $specialInvoiceNumber = '';
 
     // Uploads Schnellerfassung
-    #[Rule(['specialFiles.*' => 'max:15360'])]
+    #[Rule(['specialFiles.*' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt,xml|max:15360'])]
     public $specialFiles = [];
 
     // Foto-Erfassung & KI-Scan
-    #[Rule('nullable|file|max:15360')]
+    #[Rule('nullable|file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt,xml|max:15360')]
     public $specialPhoto;
 
     public bool $autoSaveAfterScan = false;

@@ -110,6 +110,12 @@
 
                         <form wire:submit.prevent="sending" class="space-y-6" aria-label="Kontaktformular">
 
+                            {{-- Unsichtbarer Honeypot gegen Spam-Bots --}}
+                            <div class="hidden" aria-hidden="true" style="display: none !important;">
+                                <label for="contact_honey_name">Firma</label>
+                                <input wire:model="honey_name" type="text" id="contact_honey_name" name="contact_honey_name" tabindex="-1" autocomplete="off">
+                            </div>
+
                             {{-- Name Fields --}}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div class="space-y-2">

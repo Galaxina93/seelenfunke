@@ -133,6 +133,7 @@ class AccountingBank extends Component
     public function updatedQuickUploadFile()
     {
         if($this->uploadingBankTxId && $this->quickUploadFile) {
+            $this->validate(['quickUploadFile' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt,xml|max:15360']);
             $tx = AccountingBankTransaction::find($this->uploadingBankTxId);
             if($tx && $tx->account->admin_id === auth('admin')->id()) {
                 $path = $this->quickUploadFile->store('buchhaltung/receipts', 'local');

@@ -253,7 +253,7 @@ class AccountingFixCosts extends Component
 
     public function saveQuickUpload()
     {
-        $this->validate(['quickUploadFile' => 'required|file|max:10240']);
+        $this->validate(['quickUploadFile' => 'required|file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt|max:10240']);
         $item = AccountingCostItem::findOrFail($this->uploadingMissingItemId);
 
         if ($item->group->admin_id !== $this->getAdminId()) {
@@ -460,6 +460,7 @@ class AccountingFixCosts extends Component
         ];
 
         if ($this->itemFile) {
+            $this->validate(['itemFile' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt|max:10240']);
             $path = $this->itemFile->store('buchhaltung/contracts', 'local');
             $data['contract_file_path'] = $path;
         }

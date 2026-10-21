@@ -102,6 +102,7 @@ class CartService
      */
     public function addItem(Product $product, int $quantity = 1, ?array $configuration = null): void
     {
+        $quantity = max(1, $quantity);
         $cart = $this->getCart();
 
         // Suche nach existierendem Item mit gleicher Konfiguration
@@ -142,6 +143,11 @@ class CartService
     {
         $item = CartItem::find($itemId);
         if (!$item) return;
+
+        if ($quantity <= 0) {
+            $this->removeItem($itemId);
+            return;
+        }
 
         // FIX: Konfiguration an Preisberechnung übergeben!
         $unitPrice = $this->resolveItemUnitPrice($item->product, $quantity, $configuration ?? $item->configuration);
@@ -226,6 +232,12 @@ class CartService
     {
         $quoteId = session('checkout_from_quote_id');
         if ($quoteId) {
+            $quote = \App\Models\Order\OrderQuoteRequest::find($quoteId);
+            if (!$quote || !$quote->isValid()) {
+                session()->forget('checkout_from_quote_id');
+                return $this->calculateTierPrice($product, $qty, $configuration);
+            }
+
             $quoteItems = \App\Models\Order\OrderQuoteRequestItem::where('quote_request_id', $quoteId)
                 ->where('product_id', $product->id)
                 ->get();
@@ -299,10 +311,10 @@ class CartService
             // [SICHERHEIT] Persönliche Belohnungsgutscheine an das Kundenkonto binden
             $currentBuyerEmail = Auth::guard('customer')->check() ? Auth::guard('customer')->user()->email : null;
             if (!empty($giftVoucher->recipient_email) && str_starts_with($giftVoucher->code, 'DANKE-')) {
-                if ($currentBuyerEmail && strtolower(trim($currentBuyerEmail)) !== strtolower(trim($giftVoucher->recipient_email))) {
+                if (!$currentBuyerEmail || strtolower(trim($currentBuyerEmail)) !== strtolower(trim($giftVoucher->recipient_email))) {
                     return [
                         'success' => false,
-                        'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $giftVoucher->recipient_email . ' gebunden.'
+                        'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $giftVoucher->recipient_email . ' gebunden. Bitte melde dich an, um ihn einzulösen.'
                     ];
                 }
             }
@@ -330,10 +342,10 @@ class CartService
 
         // [SICHERHEIT] Persönliche Belohnungsgutscheine an das Kundenkonto binden
         if (!empty($coupon->recipient_email)) {
-            if ($buyerEmail && strtolower(trim($buyerEmail)) !== strtolower(trim($coupon->recipient_email))) {
+            if (!$buyerEmail || strtolower(trim($buyerEmail)) !== strtolower(trim($coupon->recipient_email))) {
                 return [
                     'success' => false,
-                    'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $coupon->recipient_email . ' gebunden.'
+                    'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $coupon->recipient_email . ' gebunden. Bitte melde dich an, um ihn einzulösen.'
                 ];
             }
         }

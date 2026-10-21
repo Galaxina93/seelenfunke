@@ -49,7 +49,7 @@ class OrderQuoteAcceptance extends Component
         }
 
         // Warnung bei Ablauf
-        if ($this->quote->expires_at->isPast() && $this->quote->status === 'open') {
+        if ($this->quote->expires_at && $this->quote->expires_at->isPast() && $this->quote->status === 'open') {
             // Wir lassen den User drauf, aber sperren Buttons (handled in view/isValidAction)
         }
     }
@@ -90,19 +90,24 @@ class OrderQuoteAcceptance extends Component
     #[On('calculator-save')]
     public function saveItem($data)
     {
-        if (!$this->editingItem) return;
+        if (!$this->editingItem || !$this->isValidAction() || !$this->quote->isValid()) return;
+        if ($this->editingItem->quote_request_id !== $this->quote->id) return;
 
-        // 1. Konfiguration & Menge updaten
-        $this->editingItem->quantity = $data['qty'];
+        // 1. Konfiguration & Menge updaten (Mindestmenge 1 absichern)
+        $qty = max(1, (int) ($data['qty'] ?? 1));
+        $data['qty'] = $qty;
+
+        $this->editingItem->quantity = $qty;
         $this->editingItem->configuration = $data;
 
         // 2. Einzelpreis neu berechnen (Staffelpreise beachten!)
         $product = $this->editingItem->product;
-        $unitPriceCents = $this->calculateTierPrice($product, $data['qty']);
+        if (!$product) return;
+        $unitPriceCents = $this->calculateTierPrice($product, $qty);
 
         $this->editingItem->unit_price = $unitPriceCents;
         $this->editingItem->tax_rate = $product->tax_rate ?? shop_setting('default_tax_rate', 19.0);
-        $this->editingItem->total_price = $unitPriceCents * $data['qty'];
+        $this->editingItem->total_price = $unitPriceCents * $qty;
         $this->editingItem->save();
 
         // 3. Gesamtangebot neu berechnen (INKL. VERSAND & STEUERN)
@@ -386,7 +391,7 @@ class OrderQuoteAcceptance extends Component
             $this->viewState = 'error';
             return false;
         }
-        if ($this->quote->expires_at->isPast()) {
+        if ($this->quote->expires_at && $this->quote->expires_at->isPast()) {
             $this->errorMessage = 'Das Angebot ist abgelaufen.';
             $this->viewState = 'error';
             return false;

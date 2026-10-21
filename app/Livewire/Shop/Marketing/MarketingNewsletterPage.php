@@ -37,21 +37,34 @@ class MarketingNewsletterPage extends Component
     public function subscribe()
     {
         $this->validate([
-            'email' => 'required|email|unique:marketing_newsletter_subscribers,email',
+            'email' => 'required|email',
             'privacy_accepted' => 'accepted'
-        ], [
-            'email.unique' => 'Diese E-Mail ist bereits registriert. Prüfe ggf. deinen Spam-Ordner für die Bestätigung.'
         ]);
+
+        $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();
+
+        if ($subscriber && $subscriber->is_verified) {
+            $this->addError('email', 'Diese E-Mail-Adresse ist bereits für unseren Newsletter angemeldet.');
+            return;
+        }
 
         $token = Str::random(32);
 
-        $subscriber = MarketingNewsletterSubscriber::create([
-            'email' => $this->email,
-            'ip_address' => request()->ip(),
-            'privacy_accepted' => true,
-            'is_verified' => false,
-            'verification_token' => $token
-        ]);
+        if (!$subscriber) {
+            $subscriber = MarketingNewsletterSubscriber::create([
+                'email' => $this->email,
+                'ip_address' => request()->ip(),
+                'privacy_accepted' => true,
+                'is_verified' => false,
+                'verification_token' => $token
+            ]);
+        } else {
+            $subscriber->update([
+                'ip_address' => request()->ip(),
+                'privacy_accepted' => true,
+                'verification_token' => $token,
+            ]);
+        }
 
         // E-Mail senden
         try {
@@ -66,22 +79,16 @@ class MarketingNewsletterPage extends Component
     // --- ABMELDEN ---
     public function unsubscribe()
     {
-        // Für Abmeldung ist Datenschutz-Häkchen technisch nicht zwingend, aber E-Mail Validation
         $this->validate(['email' => 'required|email']);
 
         $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();
 
         if ($subscriber) {
-            // Hard Delete oder Soft Delete, je nach Migration.
-            // Bei SoftDelete (falls im Model aktiviert) bleibt Historie erhalten.
             $subscriber->delete();
-
-            $this->successMessage = 'Du wurdest erfolgreich aus dem Verteiler ausgetragen. Schade, dass du gehst!';
-        } else {
-            // Aus Sicherheitsgründen (Enumeration Attacks) geben wir oft auch "Erfolg" zurück,
-            // oder eine neutrale Meldung. Hier sind wir ehrlich:
-            $this->addError('email', 'Diese E-Mail-Adresse ist uns nicht bekannt.');
         }
+
+        // Einheitliche Erfolgsmeldung zum Schutz vor User-Enumeration
+        $this->successMessage = 'Falls diese E-Mail-Adresse in unserem Verteiler eingetragen war, wurde sie erfolgreich abgemeldet.';
 
         $this->reset(['email']);
     }

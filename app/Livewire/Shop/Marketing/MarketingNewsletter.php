@@ -3,7 +3,7 @@
 namespace App\Livewire\Shop\Marketing;
 
 use App\Livewire\Traits\WithDepartmentTheming;
-use App\Mail\AutomaticNewsletterMail;
+use App\Mail\NewsletterAutomaticMail;
 use App\Models\Marketing\MarketingNewsletter as NewsletterModel;
 use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Carbon\Carbon;

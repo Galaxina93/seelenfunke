@@ -46,9 +46,11 @@ class ProductControlReviews extends Component
     {
         $review = ProductReview::findOrFail($id);
 
-        if (!empty($review->media)) {
+        if (!empty($review->media) && is_array($review->media)) {
             foreach ($review->media as $media) {
-                Storage::disk('public')->delete($media);
+                if (is_string($media) && str_starts_with($media, 'produkte/reviews/') && !str_contains($media, '..') && Storage::disk('public')->exists($media)) {
+                    Storage::disk('public')->delete($media);
+                }
             }
         }
 
