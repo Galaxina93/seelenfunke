@@ -481,6 +481,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Autorisierungsprüfungen für Support- und Auftrags-Tools (`admin`/`employee`) sowie Admin-Only-Schutz für `TabCronjobs`. Nullable-Type-Deklaration `public ?string $guard = null;` und `abort(403)` für unauthentifizierte Gäste in `AuthProfileDropdown`.
 * **Testabdeckung:** [`tests/Feature/Support/OperationalToolsAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/OperationalToolsAuthorizationTest.php) (3 Tests, 12 Assertions).
 
+### 2.71 [SYSTEM-BACKUPS & DATENSCHUTZ] Admin-Only Autorisierung für System-Backups, Download & Löschung
+* **Dateien:** [`app/Livewire/Shop/System/SystemBackups.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemBackups.php)
+* **Befund:** In `SystemBackups` fehlte in `mount()`, `runTestBackup()`, `downloadBackup()` und `deleteBackup()` jeglicher Autorisierungsschutz. Dadurch konnten Gäste oder Kunden Datenbank-Backups triggern, herunterladen (inkl. Kundendaten, Passworthashes und Transaktionen) oder bestehende Backups unwiderruflich löschen. Zudem sollten Datenbank-Dumps niemals für reguläre Mitarbeiter, sondern strikt nur für Hauptadministratoren zugänglich sein.
+* **Lösung:** Striktes Admin-Only Gate (`Auth::guard('admin')->check()`) in `mount()`, `runTestBackup()`, `deleteBackup()` und `downloadBackup()` implementiert.
+* **Testabdeckung:** [`tests/Feature/System/SystemBackupsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemBackupsSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.72 [MANAGEMENT & LINKTREE-SICHERHEIT] Autorisierung für Linktree-Manager und System-Settings
+* **Dateien:** [`app/Livewire/Backend/Management/ManagementLinktreeManager.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Backend/Management/ManagementLinktreeManager.php)
+* **Befund:** `ManagementLinktreeManager` besaß keine Autorisierungsprüfung in `mount()`, `saveSettings()`, `deleteProfileImage()`, `save()`, `delete()`, `toggleActive()` und `updateOrder()`. Unbefugte konnten globale Shopeinstellungen manipulieren, beliebige Linktree-Einträge verändern oder Dateien in `/storage/linktree` ablegen.
+* **Lösung:** Autorisierungsprüfung (`admin` oder `employee`) in `mount()` und allen Mutation-Methoden ergänzt.
+* **Testabdeckung:** [`tests/Feature/Management/ManagementLinktreeSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Management/ManagementLinktreeSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.73 [SYSTEM-ANALYSE & DOKUMENTATION] Zugriffsschutz für Neurale Architekturanalyse
+* **Dateien:** [`app/Livewire/Backend/System/SystemNeuralAnalysisIndex.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Backend/System/SystemNeuralAnalysisIndex.php)
+* **Befund:** `SystemNeuralAnalysisIndex` besaß keine `mount()`-Methode und keine Rollenprüfung in `generateStructure()`. Beliebige Benutzer konnten Code-Strukturanalysen starten und Dateien im Storage erzeugen.
+* **Lösung:** Autorisierungsprüfung für Mitarbeiter und Admins in `mount()` und `generateStructure()` integriert.
+* **Testabdeckung:** [`tests/Feature/System/SystemNeuralAnalysisSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemNeuralAnalysisSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.74 [PRODUKT-MODERATION] Autorisierungsschutz für Produktbewertungs-Steuerung
+* **Dateien:** [`app/Livewire/Shop/Product/ProductControlReviews.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductControlReviews.php)
+* **Befund:** `ProductControlReviews` besaß keine `mount()`-Methode und keine Schutzprüfungen in `approve()`, `reject()` und `deleteReview()`. Externe Angreifer konnten Fake-Bewertungen freischalten, kritische Kundenrezensionen willkürlich verstecken oder Bewertungsmedien löschen.
+* **Lösung:** Autorisierungsprüfung (`admin` oder `employee`) in `mount()`, `approve()`, `reject()` und `deleteReview()` integriert.
+* **Testabdeckung:** [`tests/Feature/Product/ProductControlReviewsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductControlReviewsSecurityTest.php) (3 Tests, 4 Assertions).
+
+### 2.75 [MARKETING-LANDINGPAGES] Autorisierung für Landingpage-Generierung, Bearbeitung und Löschung
+* **Dateien:** [`app/Livewire/Shop/Marketing/MarketingLandingPages.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingLandingPages.php)
+* **Befund:** `MarketingLandingPages` besaß keine `mount()`-Methode und ungeschützte Aktionsmethoden (`generateLandingPage()`, `openEditModal()`, `saveEdit()`, `toggleStatus()`, `deleteLandingPage()`, `createCustomOverrideFile()`). Unbefugte konnten dynamische Landingpages manipulieren oder Blade-Dateien anlegen und löschen.
+* **Lösung:** Autorisierungsprüfungen (`admin` oder `employee`) in `mount()` und allen Aktionsmethoden integriert.
+* **Testabdeckung:** [`tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php) (3 Tests, 4 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -644,13 +674,29 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`tests/Feature/Accounting/AccountingCreditAndInvoicePreviewSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingCreditAndInvoicePreviewSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Gutschriften und Rechnungsvorschau |
 | [`tests/Feature/System/SystemInfrastructureAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemInfrastructureAuthorizationTest.php) | Neue Testsuite: Autorisierung für Versand, Lieferzeiten und System-Logs (Admin-Only) |
 | [`tests/Feature/Support/OperationalToolsAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/OperationalToolsAuthorizationTest.php) | Neue Testsuite: Autorisierung für Telefonie, Cronjobs, Analytics & Profil-Dropdown |
+| [`app/Livewire/Shop/System/SystemBackups.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/System/SystemBackups.php) | Admin-Only-Guard in `mount()`, `runTestBackup()`, `downloadBackup()` und `deleteBackup()` |
+| [`app/Livewire/Backend/Management/ManagementLinktreeManager.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Backend/Management/ManagementLinktreeManager.php) | Autorisierungsschutz für Linktree-Verwaltung, Sortierung, Löschung und globale Shopeinstellungen |
+| [`app/Livewire/Backend/System/SystemNeuralAnalysisIndex.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Backend/System/SystemNeuralAnalysisIndex.php) | Autorisierungsschutz in `mount()` und `generateStructure()` für Code-Architekturanalysen |
+| [`app/Livewire/Shop/Product/ProductControlReviews.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductControlReviews.php) | Autorisierungsschutz in `mount()`, `approve()`, `reject()` und `deleteReview()` für Rezensionen |
+| [`app/Livewire/Shop/Marketing/MarketingLandingPages.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingLandingPages.php) | Autorisierungsschutz in `mount()` und allen Aktionsmethoden (Generierung, Edit, Status, Löschung) |
+| [`tests/Feature/System/SystemBackupsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemBackupsSecurityTest.php) | Neue Testsuite: Striktes Admin-Only Gate für Datenbank-Backups & Downloads |
+| [`tests/Feature/Management/ManagementLinktreeSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Management/ManagementLinktreeSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Linktree-Manager und Systemkonfiguration |
+| [`tests/Feature/System/SystemNeuralAnalysisSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemNeuralAnalysisSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Neurale Architekturanalyse |
+| [`tests/Feature/Product/ProductControlReviewsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductControlReviewsSecurityTest.php) | Neue Testsuite: Zugriffsschutz für Produktbewertungs-Moderation |
+| [`tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/MarketingLandingPagesSecurityTest.php) | Neue Testsuite: Zugriffsschutz für dynamische Marketing-Landingpages |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 185 Tests bestanden (570 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 200 Tests bestanden (590 Assertions, 0 Fehler)
+  * `SystemBackupsSecurityTest`: 3/3 bestanden (Striktes Admin-Only Gate für Backup-Dumps, Download & Löschung)
+  * `ManagementLinktreeSecurityTest`: 3/3 bestanden (Autorisierung für Linktree-Verwaltung & System-Settings)
+  * `SystemNeuralAnalysisSecurityTest`: 3/3 bestanden (Autorisierung für neuronale Architekturanalysen)
+  * `ProductControlReviewsSecurityTest`: 3/3 bestanden (Autorisierung für Moderation, Freigabe & Löschung von Reviews)
+  * `MarketingLandingPagesSecurityTest`: 3/3 bestanden (Autorisierung für Landingpage-Generierung, Edit & Löschung)
+  * `SystemShopConfigSecurityTest`: 4/4 bestanden (Secrets-Leakage, Path-Traversal & Admin-Only-Guard)
   * `SystemShopConfigSecurityTest`: 4/4 bestanden (Secrets-Leakage, Path-Traversal & Admin-Only-Guard)
   * `OrderRevocationProcessingStockTest`: 2/2 bestanden (Widerrufs-Autorisierung, Standardartikel-Restore & strikte Laser-Ausschussgarantie)
   * `AccountingCreditAndInvoicePreviewSecurityTest`: 3/3 bestanden (Autorisierung für Gutschriften & Rechnungs-PDFs)

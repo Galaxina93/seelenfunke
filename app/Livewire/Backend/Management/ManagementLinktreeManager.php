@@ -11,6 +11,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 
 use Livewire\WithFileUploads;
 use App\Models\System\SystemSetting;
+use Illuminate\Support\Facades\Auth;
 
 #[Layout('components.layouts.backend_layout')]
 class ManagementLinktreeManager extends Component
@@ -42,6 +43,10 @@ class ManagementLinktreeManager extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->themeColor = shop_setting('linktree_theme_color', '#C5A059');
         $this->currentProfileImage = shop_setting('linktree_profile_image');
         $this->loadData();
@@ -70,6 +75,10 @@ class ManagementLinktreeManager extends Component
 
     public function saveSettings()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate([
             'themeColor' => 'required|string|max:20',
             'profileImage' => 'nullable|image|max:2048', // max 2MB
@@ -98,6 +107,10 @@ class ManagementLinktreeManager extends Component
 
     public function deleteProfileImage()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         SystemSetting::where('key', 'linktree_profile_image')->delete();
         \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
         $this->currentProfileImage = null;
@@ -125,6 +138,10 @@ class ManagementLinktreeManager extends Component
 
     public function save()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate([
             'title' => 'required|string|max:255',
             'url' => 'required|url',
@@ -159,12 +176,20 @@ class ManagementLinktreeManager extends Component
 
     public function delete($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         ManagementLinktree::where('id', $id)->delete();
         $this->loadData();
     }
 
     public function toggleActive($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $link = ManagementLinktree::find($id);
         if ($link) {
             $link->is_active = !$link->is_active;
@@ -175,6 +200,10 @@ class ManagementLinktreeManager extends Component
 
     public function updateOrder($orderedIds)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         foreach ($orderedIds as $index => $id) {
             $linkId = is_array($id) ? ($id['value'] ?? $id['id'] ?? null) : $id;
             if ($linkId) {

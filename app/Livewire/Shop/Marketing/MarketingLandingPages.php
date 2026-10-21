@@ -8,6 +8,7 @@ use App\Models\Product\Product;
 use App\Models\Marketing\MarketingLandingPage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Auth;
 
 #[Layout('components.layouts.backend_layout')]
 class MarketingLandingPages extends Component
@@ -17,6 +18,13 @@ class MarketingLandingPages extends Component
     public $themingDepartment = 'Marketing';
     public $loadingMessage = '';
     public $actionError = '';
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     // Modal state for editing
     public bool $showEditModal = false;
@@ -56,6 +64,10 @@ class MarketingLandingPages extends Component
      */
     public function generateLandingPage($productId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->actionError = '';
         try {
             $product = Product::findOrFail($productId);
@@ -87,6 +99,10 @@ class MarketingLandingPages extends Component
      */
     public function openEditModal($landingPageId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $lp = MarketingLandingPage::findOrFail($landingPageId);
         $this->editingLandingPageId = $lp->id;
         $this->editTitle = $lp->title ?: '';
@@ -109,6 +125,10 @@ class MarketingLandingPages extends Component
      */
     public function saveEdit()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate();
 
         if (!$this->editingLandingPageId) {
@@ -136,6 +156,10 @@ class MarketingLandingPages extends Component
      */
     public function toggleStatus($landingPageId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $lp = MarketingLandingPage::findOrFail($landingPageId);
         $lp->status = ($lp->status === 'active') ? 'draft' : 'active';
         $lp->save();
@@ -151,6 +175,10 @@ class MarketingLandingPages extends Component
      */
     public function deleteLandingPage($landingPageId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $lp = MarketingLandingPage::findOrFail($landingPageId);
         $productName = $lp->product ? $lp->product->name : $lp->title;
 
@@ -174,6 +202,10 @@ class MarketingLandingPages extends Component
      */
     public function createCustomOverrideFile($productId)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         try {
             $product = Product::findOrFail($productId);
             $slug = Str::slug($product->slug);

@@ -6,6 +6,7 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Product\ProductReview;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -20,6 +21,13 @@ class ProductControlReviews extends Component
     public $filterStatus = 'pending';
     public $search = '';
 
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function updatedSearch()
     {
         $this->resetPage();
@@ -32,18 +40,30 @@ class ProductControlReviews extends Component
 
     public function approve($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         ProductReview::findOrFail($id)->update(['status' => 'approved']);
         session()->flash('success', 'Bewertung wurde erfolgreich veröffentlicht.');
     }
 
     public function reject($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         ProductReview::findOrFail($id)->update(['status' => 'rejected']);
         session()->flash('warning', 'Bewertung wurde abgelehnt und versteckt.');
     }
 
     public function deleteReview($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $review = ProductReview::findOrFail($id);
 
         if (!empty($review->media) && is_array($review->media)) {

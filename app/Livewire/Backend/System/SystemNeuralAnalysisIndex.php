@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\System\SystemNeuralNode;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Auth;
 
 class SystemNeuralAnalysisIndex extends Component
 {
@@ -16,8 +17,19 @@ class SystemNeuralAnalysisIndex extends Component
 
     protected $updatesQueryString = ['search', 'filterGroup'];
 
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function generateStructure($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $node = SystemNeuralNode::findOrFail($id);
         $this->createMarkdown($node);
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Struktur für ' . $node->name . ' wurde generiert.']);

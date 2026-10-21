@@ -7,6 +7,7 @@ use Livewire\Attributes\Layout;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Spatie\Backup\BackupDestination\BackupDestination;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 #[Layout('components.layouts.backend_layout')]
 class SystemBackups extends Component
@@ -22,6 +23,10 @@ class SystemBackups extends Component
 
     public function mount()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->appName = config('app.name');
         $this->backupName = config('backup.backup.name');
         $this->diskName = config('backup.backup.destination.disks.0', 'local');
@@ -87,6 +92,10 @@ class SystemBackups extends Component
 
     public function runTestBackup()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         try {
             \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
             session()->flash('success', 'Ein Datenbank-Backup wurde erfolgreich erstellt.');
@@ -97,6 +106,10 @@ class SystemBackups extends Component
 
     public function deleteBackup($path)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         try {
             $normalizedPath = str_replace('\\', '/', $path);
             if (str_contains($normalizedPath, '..') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
@@ -117,6 +130,10 @@ class SystemBackups extends Component
 
     public function downloadBackup($path)
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $normalizedPath = str_replace('\\', '/', $path);
         if (str_contains($normalizedPath, '..') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
             session()->flash('error', 'Ungültiger Backup-Pfad.');
