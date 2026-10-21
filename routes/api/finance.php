@@ -237,7 +237,7 @@ Route::get('/funki/financials/variable', function (Request $request) {
 });
 
 Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
-    $issue = AccountingSpecialIssue::findOrFail($id);
+    $issue = AccountingSpecialIssue::where('admin_id', $request->user()->id)->findOrFail($id);
 
     $data = $request->validate([
         'title' => 'required|string',
@@ -280,8 +280,9 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
     return response()->json(['success' => true]);
 });
 
-Route::delete('/funki/financials/variable/{id}', function ($id) {
-    AccountingSpecialIssue::destroy($id);
+Route::delete('/funki/financials/variable/{id}', function (Request $request, $id) {
+    $issue = AccountingSpecialIssue::where('admin_id', $request->user()->id)->findOrFail($id);
+    $issue->delete();
     return response()->json(['success' => true]);
 });
 
@@ -347,11 +348,14 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
         'is_business' => 'boolean'
     ]);
 
+    // Sicherstellen, dass die Kostenstellen-Gruppe dem aktuellen Admin gehört
+    $group = AccountingGroup::where('admin_id', $request->user()->id)->findOrFail($data['finance_group_id']);
+
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
 
     $item = AccountingCostItem::create([
         'id' => Str::uuid(),
-        'accounting_group_id' => $data['finance_group_id'],
+        'accounting_group_id' => $group->id,
         'name' => $data['name'],
         'amount' => $amount,
         'interval_months' => (int)$data['interval_months'],
@@ -363,7 +367,7 @@ Route::post('/funki/financials/fixed-item', function (Request $request) {
 });
 
 Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id) {
-    $item = AccountingCostItem::findOrFail($id);
+    $item = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $request->user()->id))->findOrFail($id);
 
     $data = $request->validate([
         'name' => 'required|string',
@@ -375,6 +379,12 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
         'finance_group_id' => 'nullable|string'
     ]);
 
+    $targetGroupId = $item->accounting_group_id;
+    if (!empty($data['finance_group_id'])) {
+        $targetGroup = AccountingGroup::where('admin_id', $request->user()->id)->findOrFail($data['finance_group_id']);
+        $targetGroupId = $targetGroup->id;
+    }
+
     $item->update([
         'name' => $data['name'],
         'amount' => (float)str_replace(',', '.', $data['amount']),
@@ -382,25 +392,26 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
         'first_payment_date' => $data['first_payment_date'],
         'description' => $data['description'],
         'is_business' => filter_var($data['is_business'], FILTER_VALIDATE_BOOLEAN),
-        'accounting_group_id' => $data['finance_group_id'] ?? $item->accounting_group_id
+        'accounting_group_id' => $targetGroupId
     ]);
 
     // Datei-Update Logik
     if ($request->hasFile('file')) {
         // Alte Datei löschen, falls vorhanden
-        if ($item->contract_file_path) {
-            Storage::disk('public')->delete($item->contract_file_path);
+        if ($item->contract_file_path && Storage::disk('local')->exists($item->contract_file_path)) {
+            Storage::disk('local')->delete($item->contract_file_path);
         }
 
         $file = is_array($request->file('file')) ? $request->file('file')[0] : $request->file('file');
-        $path = $file->store('leitung/contracts', 'local');
+        $path = $file->store('buchhaltung/contracts', 'local');
         $item->update(['contract_file_path' => $path]);
     }
 
     return response()->json(['success' => true]);
 });
 
-Route::delete('/funki/financials/fixed-item/{id}', function ($id) {
-    AccountingCostItem::destroy($id);
+Route::delete('/funki/financials/fixed-item/{id}', function (Request $request, $id) {
+    $item = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $request->user()->id))->findOrFail($id);
+    $item->delete();
     return response()->json(['success' => true]);
 });

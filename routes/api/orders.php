@@ -196,9 +196,21 @@ Route::group(['middleware' => [function ($request, $next) {
             'status' => 'required|in:pending,processing,shipped,completed,cancelled,refunded',
         ]);
         
-        $order = OrderOrder::findOrFail($id);
+        $order = OrderOrder::with('items.product')->findOrFail($id);
+        $previousStatus = $order->status;
         $order->status = $data['status'];
         $order->save();
+
+        // Bestand zurückbuchen bei Stornierung: NUR für unpersonalisierte Standardprodukte.
+        // Personalisierte / gelaserte Produkte verfallen und dürfen den Lagerbestand NICHT erhöhen.
+        if ($data['status'] === 'cancelled' && $previousStatus === 'pending') {
+            foreach ($order->items as $item) {
+                $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
+                if (!$isPersonalized && $item->product) {
+                    $item->product->restoreStock($item->quantity);
+                }
+            }
+        }
         
         return response()->json([
             'success' => true,

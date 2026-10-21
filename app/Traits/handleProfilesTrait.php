@@ -275,6 +275,15 @@ trait handleProfilesTrait
         $user = Auth::guard($this->guard)->user();
         if (!$user) return;
 
+        // Schutz vor Lock-Out: Der letzte Administrator darf niemals gelöscht werden
+        if ($this->guard === 'admin') {
+            $adminCount = \App\Models\Admin\Admin::count();
+            if ($adminCount <= 1) {
+                session()->flash('error', 'Der letzte Administrator-Account kann aus Sicherheitsgründen nicht gelöscht werden.');
+                return;
+            }
+        }
+
         $userEmail = $user->email;
         $userId = $user->id;
 

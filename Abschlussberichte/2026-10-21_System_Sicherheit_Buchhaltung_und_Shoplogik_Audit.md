@@ -181,6 +181,26 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
   2. `finapi`, `eric` und `scraperapi` wurden offiziell in [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) registriert. `BankApiService` nutzt nun `config('app.key')`.
   3. `ElsterEricService` maskiert XML-Zeichen vor der Payload-Erstellung und garantiert über `try ... finally` die Bereinigung sensibler UStVA-Dateien.
 
+### 2.27 [DATENSCHUTZ & ENUMERATION] Neutraler Status & Rate-Limiting für API Password-Reset
+* **Dateien:** [`routes/api/auth.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/auth.php)
+* **Befund:** Der Endpunkt `/api/v1/auth/password/email` lieferte bei unbekannten E-Mail-Adressen einen HTTP 404-Statuscode mit der Meldung "Diese E-Mail-Adresse ist uns nicht bekannt." zurück und besaß kein Rate-Limiting. Dies ermöglichte Angreifern User-Enumeration (Auskundschaften registrierter E-Mail-Adressen) und Spam-Missbrauch.
+* **Lösung:** Der Endpunkt liefert nun stets eine neutrale Erfolgsmeldung zurück ("Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.") und wurde mit einem Rate-Limiter (`throttle:5,1`) gegen Brute-Force und Mailbombing gehärtet.
+
+### 2.28 [MULTI-TENANCY & IDOR] Mandanten-Scoping von Finanz-Ausgaben & Kostenstellen in der API
+* **Dateien:** [`routes/api/finance.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/finance.php)
+* **Befund:** In den API-Routen `PUT/DELETE /funki/financials/variable/{id}` und `POST/PUT/DELETE /funki/financials/fixed-item` wurden Datensätze (`AccountingSpecialIssue`, `AccountingCostItem`) lediglich per ID abgefragt, ohne den zugehörigen Administrator (`admin_id`) zu validieren. Ein authentifizierter Admin konnte dadurch fremde Fixkosten und Sonderausgaben anderer Mandanten modifizieren oder löschen.
+* **Lösung:** Strikte Bindung aller Abfragen und Löschungen an `admin_id = $request->user()->id` sowie Validierung, dass zugewiesene Finanzgruppen dem aktuellen Admin gehören.
+
+### 2.29 [SHOP-LOGIK & DOMAIN-REGEL] Ausschließliche Lager-Rückbuchung unpersonalisierter Standardware bei Stornierung via API
+* **Dateien:** [`routes/api/orders.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/orders.php)
+* **Befund:** Die API-Route `/shop/orders/{id}/status` buchte bei einer Statusänderung auf `cancelled` entweder gar keinen Lagerbestand zurück oder bot keine Unterscheidung zwischen Stangenware und individualisierten Laserprodukten. Gemäß Geschäftslogik verfallen personalisierte/gelaserte Produkte bei Stornierung und dürfen den Lagerbestand niemals erhöhen.
+* **Lösung:** Analoge Implementierung zur Livewire-Bestellübersicht: Beim Setzen des Status auf `cancelled` wird der Lagerbestand ausschließlich für unpersonalisierte Produkte (`!$isPersonalized`) zurückgebucht.
+
+### 2.30 [SYSTEM-SICHERHEIT] Admin-Lockout-Schutz bei Account-Löschung
+* **Dateien:** [`app/Traits/handleProfilesTrait.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Traits/handleProfilesTrait.php)
+* **Befund:** Wenn ein Administrator in seinem Profil seinen Account löschte (`deleteUserAccount`), gab es keine Prüfung, ob es sich um den letzten Administrator im System handelte. Das Löschen des letzten Administrators hätte zu einem irreparablen System-Lockout geführt.
+* **Lösung:** Integrierte Sicherheitsprüfung im Trait: Falls `guard === 'admin'` und `Admin::count() <= 1`, wird die Löschung mit einer Fehlermeldung unterbunden.
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -235,23 +255,52 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`app/Services/BankApiService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/BankApiService.php) | Migration auf `config('services.finapi...')` und `config('app.key')` |
 | [`app/Services/StealthCrawlerService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/StealthCrawlerService.php) | Entfernung hartkodierter API-Keys; sichere Konfigurationsauflösung |
 | [`app/Services/ElsterEricService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ElsterEricService.php) | `config()`-Migration, XML-Injection-Schutz, CLI-Escaping & `try...finally`-Dateibereinigung |
+| [`routes/api/auth.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/auth.php) | User-Enumeration-Schutz & Rate-Limiter (`throttle:5,1`) beim Passwort-Reset |
+| [`routes/api/finance.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/finance.php) | Mandanten-Isolation (`admin_id`) bei Fix- und variablen Kosten in der REST-API |
+| [`routes/api/orders.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/orders.php) | Domain-Regel: Kein Lager-Restore für gelaserte/personalisierte Produkte bei Storno via API |
+| [`app/Traits/handleProfilesTrait.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Traits/handleProfilesTrait.php) | Admin-Lockout-Schutz: Letzter Admin kann sich nicht selbst löschen |
 | [`tests/Feature/Accounting/InvoiceStoragePrivacyTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/InvoiceStoragePrivacyTest.php) | Neue Testsuite: Rechnungen existieren nur im privaten Storage |
 | [`tests/Feature/Order/OrderCancellationStockTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderCancellationStockTest.php) | Neue Testsuite: Lagerbestandsprüfung bei Storno (Standard vs. Gravurware) |
 | [`tests/Feature/Order/OrderRevocationSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderRevocationSecurityTest.php) | Neue Testsuite: Bot-Honeypot & Rate-Limiter im Widerrufsformular |
 | [`tests/Feature/Accounting/AccountingBankSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingBankSecurityTest.php) | Neue Testsuite: Traversal-Schutz, Beleg-Whitelist & Multi-Tenancy im Bankabgleich |
 | [`tests/Feature/Product/StealthCrawlerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/StealthCrawlerSecurityTest.php) | Neue Testsuite: Prüfung auf rückstandsfreie Entfernung harter Keys & sanfte Fehlerbehandlung |
+| [`tests/Feature/Api/AuthApiSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/AuthApiSecurityTest.php) | Neue Testsuite: Neutrale Password-Reset-Responses & Enumeration-Schutz |
+| [`tests/Feature/Api/FinanceApiSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/FinanceApiSecurityTest.php) | Neue Testsuite: Multi-Tenancy IDOR-Schutz bei API-Kostenstellen |
+| [`tests/Feature/Api/OrderApiCancellationStockTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/OrderApiCancellationStockTest.php) | Neue Testsuite: Domain-Regel für Bestandsrückbuchung via API |
+| [`tests/Feature/Auth/AdminAccountProtectionTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Auth/AdminAccountProtectionTest.php) | Neue Testsuite: Schutz vor versehentlicher Löschung des letzten Administrators |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 80 Tests bestanden (278 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 88 Tests bestanden (270 Assertions, 0 Fehler)
   * `InvoiceStoragePrivacyTest`: 1/1 bestanden (Private Storage Verifikation)
   * `OrderCancellationStockTest`: 2/2 bestanden (Standard- vs. Gelasertes Produkt Bestandsprüfung)
+  * `OrderApiCancellationStockTest`: 1/1 bestanden (API Bestandsprüfung bei Storno)
   * `OrderRevocationSecurityTest`: 3/3 bestanden (Honeypot, legitimer Widerruf, Rate-Limiter)
   * `AccountingBankSecurityTest`: 5/5 bestanden (Traversal, Whitelist, Multi-Tenancy IDOR)
   * `StealthCrawlerSecurityTest`: 2/2 bestanden (Kein Key-Leak, Graceful API-Handling)
+  * `AuthApiSecurityTest`: 2/2 bestanden (Enumeration-Schutz)
+  * `FinanceApiSecurityTest`: 3/3 bestanden (Multi-Tenancy IDOR-Schutz)
+  * `AdminAccountProtectionTest`: 2/2 bestanden (Lockout-Schutz für letzten Admin)
+  * `BackOfficeApiSecurityTest`: 4/4 bestanden
+  * `TaxExportSecurityTest`: 3/3 bestanden
+  * `GoogleAuthFillableTest`: 2/2 bestanden
+  * `LandingPageSecurityTest`: 3/3 bestanden
+  * `AiWidgetLiveModeTest`: 8/8 bestanden
+  * `GiftVoucherTest`: 21/21 bestanden
+  * `EmergencyProtocolTest`: 4/4 bestanden
+  * `CustomerOrdersSecurityTest`: 4/4 bestanden
+  * `CustomerTicketsSecurityTest`: 3/3 bestanden
+  * `CartQuantitySecurityTest`: 2/2 bestanden
+  * `NewsletterSecurityTest`: 3/3 bestanden
+  * `ProductReviewSecurityTest`: 2/2 bestanden
+  * `OrderQuoteSecurityTest`: 3/3 bestanden
+  * `DeleteUnverifiedUsersTest`: 3/3 bestanden
+  * `ContactFormSecurityTest`: 2/2 bestanden
+* **Regressionstests:** Keine Regressionen in Bestandsmodulen festgestellt.
+* **PHP Static Lint:** 0 Syntaxfehler in allen Routen, Modellen und Controllern.
   * `BackOfficeApiSecurityTest`: 4/4 bestanden
   * `TaxExportSecurityTest`: 3/3 bestanden
   * `GoogleAuthFillableTest`: 2/2 bestanden

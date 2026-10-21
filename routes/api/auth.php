@@ -56,7 +56,11 @@ Route::post('/password/email', function (Request $request) {
     }
 
     if (!$user) {
-        return response()->json(['message' => 'Diese E-Mail-Adresse ist uns nicht bekannt.'], 404);
+        // Einheitliche Erfolgsmeldung zur Verhinderung von User-Enumeration
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.'
+        ]);
     }
 
     $passwordResetToken = \App\Models\System\SystemPasswordResetToken::where('email', $email)
@@ -90,5 +94,5 @@ Route::post('/password/email', function (Request $request) {
         ->notify(new \App\Notifications\globalNotification($emailData));
 
     return response()->json(['status' => 'success', 'message' => 'Link zum Zurücksetzen gesendet.']);
-});
+})->middleware('throttle:5,1');
 
