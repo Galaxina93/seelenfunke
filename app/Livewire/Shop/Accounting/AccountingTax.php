@@ -437,28 +437,43 @@ class AccountingTax extends Component
 
     public function uploadMissingReceipt($itemId, $type)
     {
+        $itemId = (string) $itemId;
+
         if (!isset($this->receiptFiles[$itemId])) {
             $this->addLog('error', 'Kein Beleg für Upload gefunden.');
             return;
         }
 
+        $this->validate([
+            'receiptFiles.' . $itemId => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:10240',
+        ], [
+            'receiptFiles.' . $itemId . '.mimes' => 'Nur PDF-, JPG-, PNG- und WebP-Dateien sind als Beleg zulässig.',
+            'receiptFiles.' . $itemId . '.max' => 'Die Belegdatei darf maximal 10 MB groß sein.',
+        ]);
+
+        $adminId = auth()->guard('admin')->id();
         $file = $this->receiptFiles[$itemId];
-        $filename = Str::uuid() . '_' . $file->getClientOriginalName();
+        $sanitizedOriginal = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $file->getClientOriginalName());
+        $filename = Str::uuid() . '_' . $sanitizedOriginal;
         $path = $file->storeAs('buchhaltung/receipts', $filename, 'local');
 
         if ($type === 'variable') {
-            $issue = \App\Models\Accounting\AccountingSpecialIssue::find($itemId);
+            $issue = \App\Models\Accounting\AccountingSpecialIssue::where('admin_id', $adminId)->find($itemId);
             if ($issue) {
                 $existing = $issue->file_paths ?? [];
                 $existing[] = $path;
                 $issue->update(['file_paths' => $existing]);
                 $this->addLog('success', "Ein Beleg für Variablen-Ausgabe '{$issue->title}' wurde inline verknüpft.");
+            } else {
+                $this->addLog('error', 'Variable Ausgabe nicht gefunden oder keine Berechtigung.');
             }
         } elseif ($type === 'fixed') {
-            $issue = \App\Models\Accounting\AccountingCostItem::find($itemId);
+            $issue = \App\Models\Accounting\AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $adminId))->find($itemId);
             if ($issue) {
                 $issue->update(['contract_file_path' => $path]);
                 $this->addLog('success', "Ein Beleg für Fixkosten '{$issue->name}' wurde inline verknüpft.");
+            } else {
+                $this->addLog('error', 'Fixkosten-Position nicht gefunden oder keine Berechtigung.');
             }
         }
 
@@ -666,6 +681,10 @@ class AccountingTax extends Component
     public function deleteExport(string $filename): void
     {
         $safeName = basename($filename);
+        if (!str_ends_with(strtolower($safeName), '.zip')) {
+            $this->addLog('error', 'Ungültiges Dateiformat für Export-Löschung.');
+            return;
+        }
         $path = 'buchhaltung/tax_exports/' . $safeName;
         if (Storage::disk('local')->exists($path)) {
             Storage::disk('local')->delete($path);

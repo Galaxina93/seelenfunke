@@ -27,6 +27,13 @@ class AuthPasswordReset extends Component
 
     public function submit()
     {
+        $throttleKey = 'password_reset_submit_' . request()->ip();
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            session()->flash('error', "Zu viele Versuche. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+
         $this->validate([
             'email' => 'required|email',
             'password' => 'required|min:8',
@@ -39,17 +46,26 @@ class AuthPasswordReset extends Component
             return;
         }
 
-        $passwordResetToken = SystemPasswordResetToken::where('email', $this->email)->first();
+        $segment = request()->segment(1);
+        $expectedGuard = in_array($segment, ['admin', 'employee', 'customer'], true) ? $segment : null;
+
+        $tokenQuery = SystemPasswordResetToken::where('email', $this->email);
+        if ($expectedGuard) {
+            $tokenQuery->where('guard', $expectedGuard);
+        }
+        $passwordResetToken = $tokenQuery->first();
 
         // Überprüfen Sie, ob der Datensatz gefunden wurde
         if (!$passwordResetToken || !Hash::check($this->token, $passwordResetToken->token))
         {
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
             session()->flash('error', 'Ungültiger Passwort-Reset-Token.');
             return;
         }
 
         // Überprüfen Sie, ob der Datensatz vorhanden ist und ob das created_at älter als 60 Minuten ist
         if (Carbon::parse($passwordResetToken->created_at)->addMinutes(60)->isPast()) {
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
             session()->flash('error', 'Der Link ist abgelaufen.');
             return;
         }
@@ -70,6 +86,8 @@ class AuthPasswordReset extends Component
 
         // Löschen des Passwort-Reset-Tokens
         SystemPasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();
+
+        \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
 
         // Zurück zum Login
         return redirect()->route('login');

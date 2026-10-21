@@ -74,6 +74,19 @@ class ProductConfigurator extends Component
         $this->context = $context;
         $this->cartItem = $cartItem;
 
+        // IDOR-Schutz: Kunden dürfen nur eigene Bestellpositionen im Modus 'order_edit' öffnen
+        if ($this->context === 'order_edit' && $this->cartItem) {
+            $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id ?? null);
+            if ($orderItem && $orderItem->order) {
+                $isAdmin = auth()->guard('admin')->check();
+                $customerId = auth()->guard('customer')->id();
+                $isOwner = $customerId && $orderItem->order->customer_id === $customerId;
+                if (!$isAdmin && !$isOwner) {
+                    abort(403, 'Zugriff auf fremde Bestellposition verweigert.');
+                }
+            }
+        }
+
         if ($this->context === 'calculator') {
             $this->config_confirmed = true;
         }
@@ -705,10 +718,19 @@ class ProductConfigurator extends Component
                 } elseif ($this->context === 'template_admin') {
                     $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
                 } elseif ($this->context === 'order_edit') {
-                    $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id);
+                    $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id ?? null);
 
-                    if (!$orderItem) {
+                    if (!$orderItem || !$orderItem->order) {
                         session()->flash('error', 'Bestellposition nicht gefunden.');
+                        return;
+                    }
+
+                    $isAdmin = auth()->guard('admin')->check();
+                    $customerId = auth()->guard('customer')->id();
+                    $isOwner = $customerId && $orderItem->order->customer_id === $customerId;
+
+                    if (!$isAdmin && !$isOwner) {
+                        session()->flash('error', 'Keine Berechtigung zur Bearbeitung dieser Bestellposition.');
                         return;
                     }
 

@@ -243,6 +243,41 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Befund:** In `AIFunctionsRegistry::execute()` wurde zwar geprüft, ob ein Werkzeug im System existiert, jedoch nicht, ob der ausführende KI-Agent (`$agent->tools`) überhaupt über die Berechtigung für dieses spezifische Werkzeug verfügt. Ein Prompt-Injection-Angriff auf einen limitierten Support-Bot hätte ihm gestattet, administrative Finanztools oder Systemfunktionen auszuführen.
 * **Lösung:** Integrierte Autorisierungsprüfung in `AIFunctionsRegistry::execute`: Werkzeugaufrufe werden gegen die Tool-Sammlung der Rolle des Agenten abgeglichen; unberechtigte Aufrufe werden sofort mit `PERMISSION DENIED` blockiert.
 
+### 2.39 [WARENKORB & IDOR-SCHUTZ] Mandanten- und Sitzungs-Isolation im CartService
+* **Dateien:** [`app/Services/CartService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php)
+* **Befund:** In `CartService::updateItem()`, `updateQuantity()` und `removeItem()` wurde lediglich per `CartItem::find($itemId)` nach dem Datensatz gesucht, ohne abzugleichen, ob der Artikel zum aktiven Warenkorb (`$this->getCart()->id`) des aktuellen Besuchers gehört. Ein entfernter Angreifer konnte fremde Warenkorbpositionen manipulieren oder löschen.
+* **Lösung:** Integrierte Autorisierungsprüfung: Sofern kein Administrator angemeldet ist (`!auth()->guard('admin')->check()`), wird sichergestellt, dass `$item->cart_id === $currentCart->id`. Manipulationen an fremden Warenkörben werden protokolliert und blockiert.
+
+### 2.40 [KONFIGURATOR & IDOR-SCHUTZ] Berechtigungsprüfung im ProductConfigurator bei nachträglicher Auftragsbearbeitung
+* **Dateien:** [`app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php)
+* **Befund:** Im Modus `context === 'order_edit'` lud und überschrieb die Komponente in `mount()` und `save()` die Konfiguration von Bestellpositionen (`OrderOrderItem`), ohne zu überprüfen, ob der eingeloggte Kunde Eigentümer des zugehörigen Auftrags ist (`order->customer_id === auth()->guard('customer')->id()`).
+* **Lösung:** Strikte Besitzprüfung sowohl beim Initialisieren (`mount()`) via 403 Abort als auch bei der Ausführung (`save()`). Nur der Eigentümer des Auftrags oder ein Administrator darf das Design bearbeiten.
+
+### 2.41 [BUCHHALTUNG & MULTI-TENANCY] Multi-Tenancy-Scoping & MIME-Whitelist bei Beleg-Uploads in der USt-Zentrale
+* **Dateien:** [`app/Livewire/Shop/Accounting/AccountingTax.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingTax.php)
+* **Befund:** In `AccountingTax::uploadMissingReceipt()` fehlte eine MIME-Typ- und Größenvalidierung für hochgeladene Belege. Zudem wurden die Ziel-Ausgaben (`AccountingSpecialIssue` und `AccountingCostItem`) ohne Abgleich der `admin_id` geladen (IDOR). In `deleteExport()` fehlte zudem eine Prüfung auf die Dateiendung `.zip`.
+* **Lösung:** Strikte Dateivalidierung (`mimes:pdf,jpg,jpeg,png,webp|max:10240`), Sanitizing des Originaldateinamens, Scoping der Belegzuordnung auf `admin_id = auth()->guard('admin')->id()` sowie Prüfung auf `.zip`-Dateiendung beim Löschen archivierter Exporte.
+
+### 2.42 [CHECKOUT & SESSION-SICHERHEIT] Schutz vor Session-Fixation, Brute-Force Rate Limiting & Blocked-IP-Enforcement bei Checkout-Login
+* **Dateien:** [`app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php)
+* **Befund:** Die Methode `OrderCheckout::loginUser()` rief nach erfolgreicher Authentifizierung kein `session()->regenerate()` auf, wodurch die Sitzung anfällig für Session-Fixation-Angriffe war. Des Weiteren fehlten IP-Sperrprüfungen (`SystemBlockedIp`), Rate-Limiting gegen Brute-Force-Angriffe und Login-Audit-Logs (`SystemLoginAttempt`).
+* **Lösung:** Vollständige Härtung von `loginUser()`: Blockprüfung für gesperrte IPs, Rate-Limiting (5 Versuche / 300s), `session()->regenerate()`, Speicherung der neuen Session-ID am Kunden-Warenkorb und lückenlose Protokollierung in `system_login_attempts`.
+
+### 2.43 [ACCOUNT-SICHERHEIT & PRIVACY] Reset der E-Mail-Verifizierung bei Adressänderung & Folder-Isolation für Profilfotos
+* **Dateien:** [`app/Traits/handleProfilesTrait.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Traits/handleProfilesTrait.php)
+* **Befund:** Wenn ein Kunde im Profil seine E-Mail-Adresse änderte, blieb sein Verifizierungsstatus (`email_verified_at`) unverändert bestehen, sodass er ohne Bestätigung der Inhaberschaft Zugriff auf fremde Kontrollfunktionen erhalten konnte. Beim Löschen des Profilfotos fehlte zudem ein Pfadpräfix-Check gegen Arbitrary File Deletion.
+* **Lösung:** Bei einer Änderung der E-Mail-Adresse im Kundenprofil wird `email_verified_at` auf `null` zurückgesetzt und automatisch eine neue Bestätigungsmail versandt (`sendEmailVerificationNotification`). Beim Löschen des Profilfotos wird geprüft, dass der Pfad strikt in `dashboard/user/` liegt.
+
+### 2.44 [PASSWORT-RESET-SCHUTZ] Rate Limiting & Guard-Scoping bei der Passwort-Rücksetzung
+* **Dateien:** [`app/Livewire/Auth/AuthPasswordReset.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Auth/AuthPasswordReset.php)
+* **Befund:** Das Formular zur Passworteingabe nach Token-Klick (`AuthPasswordReset::submit`) besaß kein Rate-Limiting gegen Token-Brute-Force. Zudem wurde der Token-Datensatz in `SystemPasswordResetToken` ohne Abgleich des aktuellen Guards abgefragt.
+* **Lösung:** Einbau eines Rate-Limiters (5 Versuche / 300s) und Guard-Abgleich anhand des URL-Segments (`admin`, `employee`, `customer`).
+
+### 2.45 [ADMIN-AREA STORED-XSS-SCHUTZ] Sichere Content-Disposition & MIME-Whitelisting für AI-Workspace und Widerrufs-Anhänge
+* **Dateien:** [`routes/partials/admin_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/admin_routes.php)
+* **Befund:** Die Routen `/admin/ai/workspace/file` und `/admin/widerruf/file/{revocation}/{fileName}` lieferten hochgeladene Dateien direkt mit `response()->file()` aus. Bei HTML- oder SVG-Dateien mit JavaScript-Code konnte dies zu Stored XSS im Admin-Bereich führen.
+* **Lösung:** Beschränkung von `inline`-Darstellung auf sichere MIME-Typen (`image/jpeg`, `image/png`, `image/gif`, `image/webp`, `application/pdf`, `text/plain`). Alle anderen Dateitypen werden als `attachment` mit `X-Content-Type-Options: nosniff` forciert.
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -271,7 +306,14 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`routes/api/calendar.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/calendar.php) | Endlosschleifen-Schutz bei Intervall-Berechnung |
 | [`app/Livewire/Customer/CustomerOrdersComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerOrdersComponent.php) | IDOR-Schutz: Strikte Kundenbindung für Bestellungen, Positionen, Rechnungen & Previews |
 | [`app/Livewire/Customer/CustomerTicketsComponent.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Customer/CustomerTicketsComponent.php) | IDOR-Schutz: Kundenbindung für Tickets & Dateityp-Validierung für Ticket- und Chat-Anhänge |
-| [`app/Services/CartService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php) | Absicherung gegen negative Artikelmengen, Session-Validierung für Angebote & Gutscheinschutz |
+| [`app/Services/CartService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartService.php) | Absicherung gegen negative Mengen, IDOR-Schutz (`updateItem`, `updateQuantity`, `removeItem`) auf aktiven Warenkorb |
+| [`app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductConfigurator/ProductConfigurator.php) | IDOR-Schutz: Kundenbindung bei `order_edit` Design-Modifikationen in `mount()` und `save()` |
+| [`app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderCheckout/OrderCheckout.php) | Session-Regeneration gegen Session Fixation, Brute-Force-Rate-Limiter & Blocked-IP-Enforcement bei Checkout-Login |
+| [`app/Livewire/Auth/AuthPasswordReset.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Auth/AuthPasswordReset.php) | Brute-Force-Rate-Limiting (5/300s) & Guard-Scoping bei der Passwort-Rücksetzung |
+| [`tests/Feature/Cart/CartServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Cart/CartServiceSecurityTest.php) | Neue Testsuite: Verhinderung von Cross-Cart Item Manipulation & Löschung |
+| [`tests/Feature/Customer/ConfiguratorOrderEditSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/ConfiguratorOrderEditSecurityTest.php) | Neue Testsuite: IDOR-Schutz für Bestellpositionen im Konfigurator |
+| [`tests/Feature/Accounting/AccountingTaxReceiptSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingTaxReceiptSecurityTest.php) | Neue Testsuite: MIME-Whitelist, Multi-Tenancy IDOR & Zip-Löschschutz bei USt-Belegen |
+| [`tests/Feature/Auth/CheckoutAuthSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Auth/CheckoutAuthSecurityTest.php) | Neue Testsuite: IP-Sperre, Rate-Limiting & Session-Regeneration bei Checkout-Login |
 | [`app/Livewire/Shop/Accounting/AccountingFixCosts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingFixCosts.php) | MIME-Typ-Validierung für Fixkosten-Belege und Verträge |
 | [`app/Livewire/Shop/Accounting/AccountingQuickEntry.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingQuickEntry.php) | MIME-Typ-Validierung für Schnellbeleg-Uploads |
 | [`app/Livewire/Shop/Accounting/AccountingVariableCosts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingVariableCosts.php) | MIME-Typ-Validierung für Beleg-Uploads variabler Kosten |
@@ -330,7 +372,11 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 98 Tests bestanden (336 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 107 Tests bestanden (360 Assertions, 0 Fehler)
+  * `CartServiceSecurityTest`: 1/1 bestanden (Warenkorb-Isolation gegen fremde Item-Manipulation)
+  * `ConfiguratorOrderEditSecurityTest`: 2/2 bestanden (IDOR-Schutz bei Konfigurator-Bestelländerungen)
+  * `AccountingTaxReceiptSecurityTest`: 3/3 bestanden (MIME-Whitelist, Mandanten-Isolation & Export-Löschschutz)
+  * `CheckoutAuthSecurityTest`: 3/3 bestanden (IP-Sperren, Rate-Limiting & Session-Regeneration)
   * `AiToolAuthorizationTest`: 1/1 bestanden (Unbefugte Tool-Ausführung für KI-Agenten unterbunden)
   * `OrderCancellationComprehensiveTest`: 3/3 bestanden (Gutschein-Saldo-Restore, Geschenkgutschein-Sperre & Referral-Reversal)
   * `InvoiceStoragePrivacyTest`: 1/1 bestanden (Private Storage Verifikation)

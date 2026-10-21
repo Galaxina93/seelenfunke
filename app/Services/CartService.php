@@ -144,6 +144,15 @@ class CartService
         $item = CartItem::find($itemId);
         if (!$item) return;
 
+        // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb modifizieren
+        if (!auth()->guard('admin')->check()) {
+            $currentCart = $this->getCart();
+            if ($item->cart_id !== $currentCart->id) {
+                \Illuminate\Support\Facades\Log::warning("Unberechtigter Zugriffsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
+                return;
+            }
+        }
+
         if ($quantity <= 0) {
             $this->removeItem($itemId);
             return;
@@ -174,6 +183,15 @@ class CartService
         $item = CartItem::find($itemId);
         if (!$item) return;
 
+        // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb modifizieren
+        if (!auth()->guard('admin')->check()) {
+            $currentCart = $this->getCart();
+            if ($item->cart_id !== $currentCart->id) {
+                \Illuminate\Support\Facades\Log::warning("Unberechtigter Mengen-Änderungsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
+                return;
+            }
+        }
+
         if ($quantity <= 0) {
             $this->removeItem($itemId);
             return;
@@ -195,6 +213,15 @@ class CartService
     {
         $item = CartItem::find($itemId);
         if ($item) {
+            // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb entfernen
+            if (!auth()->guard('admin')->check()) {
+                $currentCart = $this->getCart();
+                if ($item->cart_id !== $currentCart->id) {
+                    \Illuminate\Support\Facades\Log::warning("Unberechtigter Löschversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
+                    return;
+                }
+            }
+
             $cart = $item->cart;
 
             // Sofortiges Bereinigen verknüpfter Uploads und Snapshots (Lösung B)

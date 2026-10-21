@@ -46,7 +46,9 @@ trait handleProfilesTrait
     public function deleteUserProfilePhoto(): void
     {
         if ($this->user->profile->photo_path) {
-            Storage::disk('public')->delete($this->user->profile->photo_path);
+            if (str_starts_with($this->user->profile->photo_path, 'dashboard/user/') && !str_contains($this->user->profile->photo_path, '..')) {
+                Storage::disk('public')->delete($this->user->profile->photo_path);
+            }
             $this->user->profile->photo_path = null;
             $this->user->profile->save();
         }
@@ -131,10 +133,25 @@ trait handleProfilesTrait
             $oldData['birthday'] = $this->user->profile->birthday;
         }
 
+        $emailChanged = $this->user->email !== $validatedData['email'];
         $this->user->first_name = $validatedData['firstName'];
         $this->user->last_name = $validatedData['lastName'];
         $this->user->email = $validatedData['email'];
-        $this->user->save();
+
+        // Sicherheitsmaßnahme: Bei Änderung der Kunden-E-Mail Verifizierung zurücksetzen und neuen Bestätigungslink senden
+        if ($emailChanged && $this->guard === 'customer') {
+            $this->user->email_verified_at = null;
+            $this->user->save();
+            try {
+                if (method_exists($this->user, 'sendEmailVerificationNotification')) {
+                    $this->user->sendEmailVerificationNotification();
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Konnte Verifizierungsmail nach E-Mail-Änderung nicht senden: " . $e->getMessage());
+            }
+        } else {
+            $this->user->save();
+        }
 
         $this->user->profile->phone_number = $validatedData['phoneNumber'];
         $this->user->profile->about = $validatedData['about'];

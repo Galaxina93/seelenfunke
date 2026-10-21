@@ -268,6 +268,20 @@ class OrderCheckout extends Component
      */
     public function loginUser()
     {
+        $ip = request()->ip();
+
+        if (\App\Models\System\SystemBlockedIp::isBlocked($ip)) {
+            $this->loginError = 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.';
+            return;
+        }
+
+        $throttleKey = 'checkout_login_' . $ip;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            $this->loginError = "Zu viele Login-Versuche. Bitte warte {$seconds} Sekunden.";
+            return;
+        }
+
         $this->validate([
             'loginEmail' => 'required|email',
             'loginPassword' => 'required',
@@ -278,6 +292,15 @@ class OrderCheckout extends Component
         $wasExpress = $guestCart->is_express;
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
+            \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+            session()->regenerate();
+
+            \App\Models\System\SystemLoginAttempt::create([
+                'email' => $this->loginEmail,
+                'ip_address' => $ip,
+                'user_agent' => request()->userAgent() ?: 'Unknown',
+                'success' => true,
+            ]);
 
             $user = Auth::guard('customer')->user();
 
@@ -309,6 +332,15 @@ class OrderCheckout extends Component
             $this->dispatch('checkout-updated');
 
         } else {
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+
+            \App\Models\System\SystemLoginAttempt::create([
+                'email' => $this->loginEmail,
+                'ip_address' => $ip,
+                'user_agent' => request()->userAgent() ?: 'Unknown',
+                'success' => false,
+            ]);
+
             $this->loginError = 'Zugangsdaten nicht korrekt.';
         }
     }

@@ -87,12 +87,17 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/ai/workspace', \App\Livewire\Shop\Ai\AiWorkspace::class)->name('admin.ai.workspace');
     Route::get('/admin/ai/workspace/file', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || str_contains($path, '..') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
+        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             abort(404);
         }
         $mime = \Illuminate\Support\Facades\Storage::disk('workspace')->mimeType($path) ?: 'application/octet-stream';
+        $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+        $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
+        $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($path));
         return response()->file(\Illuminate\Support\Facades\Storage::disk('workspace')->path($path), [
             'Content-Type' => $mime,
+            'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
+            'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, no-cache'
         ]);
     })->name('admin.ai.workspace.file');
@@ -130,7 +135,15 @@ Route::middleware(['auth:admin'])->group(function () {
         }
         $path = "bestellungen/private/revocations/{$revocation->id}/{$fileName}";
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
+            $mime = \Illuminate\Support\Facades\Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
+            $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+            $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
+            $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($fileName));
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
+                'Content-Type' => $mime,
+                'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
         }
         abort(404);
     })->name('admin.widerruf.file');
