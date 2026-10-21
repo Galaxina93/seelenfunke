@@ -84,9 +84,30 @@
                     <h3 class="font-bold text-lg mt-4">Cookies</h3>
                     <p>
                         Unsere Internetseiten verwenden so genannte „Cookies“. Cookies sind kleine Textdateien und richten auf Ihrem Endgerät keinen Schaden an.
-                        Wir setzen technisch notwendige Cookies ein (z.B. für die Funktion der Website). Optionale Cookies (Analyse/Marketing) setzen wir nur mit Ihrer Einwilligung über unser Consent-Tool ein.
+                        Wir setzen technisch notwendige Cookies ein (z.B. für die Funktion der Website, den Warenkorb und Freunde-Werben-Gutscheine). Optionale Cookies (Analyse/Marketing) setzen wir nur mit Ihrer Einwilligung über unser Consent-Tool ein.
                         <br>
-                        Rechtsgrundlage: § 25 Abs. 1 TTDSG (Einwilligung) bzw. Art. 6 Abs. 1 lit. f DSGVO (technisch notwendig).
+                        Rechtsgrundlage: § 25 Abs. 1 TDDDG (Einwilligung) bzw. § 25 Abs. 2 TDDDG i.V.m. Art. 6 Abs. 1 lit. f DSGVO (technisch notwendig).
+                    </p>
+
+                    <h3 class="font-bold text-lg mt-6">First-Party Webanalyse & Server-Statistiken (Quellenanalyse)</h3>
+                    <p>
+                        Zur bedarfsgerechten Gestaltung, Optimierung und Reichweitenmessung unseres Online-Shops erfassen wir serverseitig anonymisierte Nutzungsdaten bei Ihrem Besuch unserer Website (First-Party-Webanalyse).
+                    </p>
+                    <p class="mt-2">
+                        Dabei werden folgende Informationen erfasst:
+                    </p>
+                    <ul class="list-disc pl-5 mt-2 space-y-1 text-sm text-gray-700">
+                        <li>Aufgerufene Seiten und URLs unseres Shops (inkl. eventueller Kampagnenparameter wie UTM-Tags oder Empfehlungscodes bei Freunden-Werben-Aktionen)</li>
+                        <li>Die zuvor besuchte Internetseite (sog. HTTP-Referrer, z.&nbsp;B. Google-Suche, Social-Media-Plattform oder verweisende Website)</li>
+                        <li>Datum und Uhrzeit des Abrufs</li>
+                        <li>Verwendeter Browsertyp, Betriebssystem und Gerätetyp (Desktop oder Mobilgerät)</li>
+                        <li>Ein unumkehrbar kryptografisch gehashter Wert aus Ihrer IP-Adresse und einem serverspezifischen Sicherheitsschlüssel (Salt). Die echte IP-Adresse wird zu keinem Zeitpunkt im Klartext in unserer Analysedatenbank gespeichert.</li>
+                    </ul>
+                    <p class="mt-2">
+                        <strong>Keine Weitergabe an Dritte:</strong> Die Datenerfassung erfolgt ausschließlich direkt auf unseren eigenen Servern. Es werden keine Daten an externe Drittanbieter-Analysedienste (wie z.&nbsp;B. Google Analytics oder Meta-Pixel) übertragen und keine geräteübergreifenden Profile gebildet.
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500">
+                        <strong>Rechtsgrundlage:</strong> Die Verarbeitung erfolgt auf Grundlage unseres berechtigten Interesses an der fehlerfreien technischen Funktionsfähigkeit, der Sicherheit sowie der wirtschaftlichen Reichweiten- und Akquisemessung unseres Online-Angebots gemäß Art. 6 Abs. 1 lit. f DSGVO.
                     </p>
 
                     <h3 class="font-bold text-lg mt-6">Kontaktformular & E-Mail / Telefon</h3>
