@@ -71,7 +71,24 @@ Wenn ein Fehler oder Warnzustand im System auftritt, bietet die Methode `fixSyst
 
 ---
 
-## 5. Datenfluss und Diagramm
+## 6. Quellenanalyse & Akquise-Kanäle (Traffic-Tracking)
+
+Unter dem Tab **Traffic & Kunden** (`activeTab === 'traffic'`) befindet sich die dedizierte **Quellenanalyse** als eigenständiges Widget neben „Besucher & Analysen“ und „Kundengewinnung & Registrierungen“:
+
+### 6.1 Funktionsweise & Attribution
+- **First-Touch Session-Attribution:** Für jede Besuchersitzung (`session_id`) in `page_visits` wird der allererste Seitenaufruf (Einstiegs-URL & Referrer) ermittelt. Interne Shop-Navigationen verfälschen die Quellen somit nicht.
+- **Kanal-Klassifizierung:**
+  - 🔍 **Organische Suche:** Google, Bing, DuckDuckGo, Ecosia, Yahoo.
+  - 📱 **Social Media:** Instagram (inkl. `l.instagram.com`), TikTok, Pinterest, Facebook, YouTube, X/Twitter, LinkedIn.
+  - 🎯 **Kampagnen & Ads:** Automatische Erkennung von `utm_source`, `utm_medium` und `utm_campaign` in der Einstiegs-URL.
+  - 🔗 **Empfehlungen & Partner:** Externe Backlinks sowie das Freunde-Werben-System (`?ref=...`).
+  - ⚡ **Direktzugriffe:** Direkte URL-Eingaben, Lesezeichen und Aufrufe ohne Referrer-Header.
+- **Visualisierung:** Interaktiver Doughnut-Chart (`sourcesDoughnutChart`) mit Chart.js, Prozentbalken, Top-8 Plattformen und aktiver Kampagnen-Tabelle.
+- **Automatisierte Tests:** Vollständig abgedeckt in [`MasterTrafficSourcesTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Master/MasterTrafficSourcesTest.php).
+
+---
+
+## 7. Datenfluss und Diagramm
 
 Ein neuer Dashboard-Aufruf initiiert folgenden Datenfluss:
 
@@ -85,10 +102,10 @@ sequenceDiagram
 
     User->>LW: Öffnet Dashboard
     LW->>LW: mount() -> Initialisiert Health-Status
-    LW->>AS: loadStats() -> Holt Umsatz & Logins
-    AS->>DB: Query Sales & Login-Logs
+    LW->>AS: loadStats() -> Holt Umsatz, Traffic & Quellenanalyse
+    AS->>DB: Query Sales, Logins & PageVisits (First-Touch)
     DB-->>AS: Rohdaten
-    AS-->>LW: Aggregierte Statistiken
+    AS-->>LW: Aggregierte Statistiken & Kanal-Cluster
     LW->>Ext: Paralleler API Health Check (Http::pool)
     Ext-->>LW: HTTP Status & Latenzen
     LW->>User: Rendert Interface & Rendert Charts

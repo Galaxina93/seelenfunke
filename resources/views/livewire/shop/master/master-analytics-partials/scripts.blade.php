@@ -1,7 +1,7 @@
 <script>
     (function() {
         const init = () => {
-            let profitChart, expensesChart, customersChart, visitsChart, acquisitionChart;
+            let profitChart, expensesChart, customersChart, visitsChart, acquisitionChart, sourcesChart;
             let currentStatsData = @json($stats);
 
             const isDark = () => document.documentElement.classList.contains('dark');
@@ -353,6 +353,51 @@
                                     grid: { display: false }, 
                                     border: { display: false },
                                     ticks: { color: getTextColor() } 
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // --- 4. QUELLENANALYSE DOUGHNUT CHART ---
+                const sourcesEl = document.getElementById('sourcesDoughnutChart');
+                if (sourcesEl && data.traffic_sources && data.traffic_sources.chart_data && data.traffic_sources.chart_data.length > 0) {
+                    if (sourcesChart) sourcesChart.destroy();
+                    const ctxSources = sourcesEl.getContext('2d');
+
+                    sourcesChart = new Chart(ctxSources, {
+                        type: 'doughnut',
+                        data: {
+                            labels: data.traffic_sources.chart_labels,
+                            datasets: [{
+                                data: data.traffic_sources.chart_data,
+                                backgroundColor: data.traffic_sources.chart_colors,
+                                borderColor: getDoughnutBorder(),
+                                borderWidth: 3,
+                                hoverOffset: 6
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            cutout: '70%',
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    backgroundColor: getTooltipBg(),
+                                    titleColor: getTooltipTitle(),
+                                    bodyColor: getTooltipBody(),
+                                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                                    borderWidth: 1,
+                                    padding: 10,
+                                    callbacks: {
+                                        label: function(context) {
+                                            const val = context.parsed;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                                            return ` ${context.label}: ${val} Sitzungen (${pct}%)`;
+                                        }
+                                    }
                                 }
                             }
                         }

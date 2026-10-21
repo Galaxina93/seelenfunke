@@ -1273,6 +1273,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     @include('livewire.shop.master.master-analytics-partials.traffic')
                 </div>
                 <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800/80">
+                    <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white mb-6">Quellenanalyse & Akquise-Kanäle</h3>
+                    @include('livewire.shop.master.master-analytics-partials.sources')
+                </div>
+                <div class="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800/80">
                     <h3 class="text-xl font-serif font-bold text-gray-900 dark:text-white mb-6">Kundengewinnung & Registrierungen</h3>
                     @include('livewire.shop.master.master-analytics-partials.customers')
                 </div>

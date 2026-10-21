@@ -102,6 +102,10 @@
                     <p class="text-xs text-gray-400 dark:text-gray-600 italic">Fast alle Zugriffe waren direkte Eingaben oder Lesezeichen.</p>
                 @endif
             </div>
+            <div class="pt-3 mt-3 border-t border-gray-200/80 dark:border-gray-800/80 flex items-center justify-between text-[10px]">
+                <span class="text-gray-500">Kanäle, UTM & Socials:</span>
+                <span class="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">Siehe Quellenanalyse unten <i class="bi bi-arrow-down-short"></i></span>
+            </div>
         </div>
     </div>
 </div>
