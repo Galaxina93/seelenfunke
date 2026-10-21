@@ -571,6 +571,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Mengenbegrenzung auf Maximalwert 10.000 Einheiten geklammert (`min(10000, max(1, (int) $data['qty']))`).
 * **Testabdeckung:** [`tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php) (1 Test, 2 Assertions).
 
+### 2.86 [DATEI-DOWNLOAD-SERVICE, SSRF & SVG XSS] Autorisierungsgates, SSRF-Prävention und Stored-XSS-Schutz im FileDownloadService
+* **Dateien:** [`app/Services/Export/FileDownloadService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php)
+* **Befund:** In `downloadHealthTreatmentPlanPdf` fehlte eine Berechtigungsprüfung; sensible Behandlungspläne (§ 9 DSGVO) konnten von unbefugten Dritten geladen werden. In `downloadProductAnalyticsFullReportPdf`, `downloadProductAnalyticsLucidPdf` und `downloadNicheCrawlerPdf` fehlte ein Gate für Admin/Mitarbeiter. In `downloadLaserSvg` war der Remote-Logo-Download anfällig für SSRF (Blacklist prüfte nur `127.0.0.1` und `localhost`, ignorierte jedoch Cloud-Metadata-Dienste wie `169.254.169.254` und interne RFC1918-Netze). Eingebettete SVGs wurden nicht von `<script>`-Tags oder Event-Handlern bereinigt, und `streamDownload` setzte keine restriktiven CSP- und Sniffing-Header. Zudem fehlte Null-Safety bei nicht gesetzten Positionierungsdaten (`x`, `y`).
+* **Lösung:** Striktes Autorisierungs-Gate in allen Download-Methoden. Robuste SSRF-Prüfung via IP-Filter (`FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE`), Bereinigung von SVG-Tags (`<script>`, `<foreignObject>`, `<iframe`, `on...`), Null-Safety (`$x = (($logo['x'] ?? 50) / 100) * $widthMm`) sowie `Content-Security-Policy: default-src 'none'; sandbox` und `X-Content-Type-Options: nosniff`.
+* **Testabdeckung:** [`tests/Feature/Export/FileDownloadServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Export/FileDownloadServiceSecurityTest.php) (3 Tests, 8 Assertions).
+
+### 2.87 [EMPFEHLUNGSSYSTEM & STORNO-REVERSAL] Idempotenz-Schutz und Race-Condition-Prävention im ReferralService
+* **Dateien:** [`app/Services/ReferralService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ReferralService.php)
+* **Befund:** `processOrderReferralReward` und `reverseOrderReferralReward` liefen außerhalb von DB-Transaktionen ohne `lockForUpdate()`. In `reverseOrderReferralReward` wurde bei mehrfachem Aufruf (z. B. wiederholte Storno-Webhooks oder Admin-Klicks) nicht geprüft, ob die Gutschrift bereits zurückgebucht war (`personal_message` enthielt die Ordernummer weiterhin). Dadurch wurden bei wiederholten Aufrufen wiederholt je 5,00 € vom Gutscheinsaldo des Werbers abgezogen und `successful_referrals_count` dekrementiert.
+* **Lösung:** `reverseOrderReferralReward` und `processOrderReferralReward` in `DB::transaction` gekapselt, Datensätze per `lockForUpdate()` gesperrt und Idempotenz-Check integriert (`if (str_contains($voucher->personal_message, "[Order {$order->order_number}: Storniert")) return false;`).
+* **Testabdeckung:** [`tests/Feature/Marketing/ReferralServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/ReferralServiceSecurityTest.php) (1 Test, 11 Assertions).
+
+### 2.88 [GAMIFICATION FUNKEN-GUTHABEN & CONCURRENCY] Atomare Transaktionen & Negativwert-Sperre in GamificationService
+* **Dateien:** [`app/Services/Gamification/GamificationService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Gamification/GamificationService.php)
+* **Befund:** In `addFunken()` konnten negative oder ungültige Werte (`$amount <= 0`) übergeben werden. Zudem erfolgte die Aktualisierung von `funken_balance`, `funken_total_earned` und `sparks_collected_today` ohne DB-Transaktion und `lockForUpdate()`. Parallele Anfragen (z. B. simultanes Einsammeln geheimer Funken über mehrere Browser-Tabs) konnten zu Race Conditions und Lost Updates führen.
+* **Lösung:** Frühe Rückkehr bei `$amount <= 0` und Kapselung der Guthaben- und Trophäenfortschritte in `DB::transaction` mit Zeilensperre (`lockForUpdate()`).
+* **Testabdeckung:** [`tests/Feature/Gamification/GamificationServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/GamificationServiceSecurityTest.php) (2 Tests, 12 Assertions).
+
+### 2.89 [TELEFONIE & MESSENGER SCHUTZ] Rate-Limiting, Payload-Validierung & Prompt-Injection-Schutz für Twilio & Telegram
+* **Dateien:** [`app/Http/Controllers/Api/TwilioCallController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TwilioCallController.php), [`app/Http/Controllers/Api/TelegramAgentController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TelegramAgentController.php), [`routes/api.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api.php)
+* **Befund:** `/api/twilio/call-log` war ungedrosselt und unbegrenzt aufrufbar. Beliebige externe Anfragen konnten synchrone Gemini-Auswertungen triggern und Tokenkosten verursachen. In `TelegramAgentController` wurde der `first_name` aus dem Telegram-Payload ungefiltert in den internen System-Prompt eingebunden, was anfällig für Prompt-Injection war.
+* **Lösung:** Rate-Limiting auf den Webhook-Routen (`throttle:30,1` bzw. `throttle:60,1`), strikte Validierung der Transcript-Arraygröße (`max:100`, String-Limit 2.000 Zeichen pro Zeile) sowie Bereinigung des Telegram-Vornamens (`preg_replace('/[^\p{L}\p{N}\s\-_]/u', '', ...)`).
+* **Testabdeckung:** [`tests/Feature/Support/TwilioCallControllerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/TwilioCallControllerSecurityTest.php) (3 Tests, 9 Assertions).
+
+### 2.90 [SYSTEM-COMMANDS & PFAD-INTEGRITÄT] Directory-Traversal-Schutz & Validierung in CLI-Befehlen
+* **Dateien:** [`app/Console/Commands/ExportProjectForAI.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/ExportProjectForAI.php), [`app/Console/Commands/GenerateTaxExport.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/GenerateTaxExport.php)
+* **Befund:** `ExportProjectForAI` nutzte die `--output`-Option ohne Bereinigung direkt in `base_path()`, wodurch Directory-Traversal-Schreibzugriffe möglich waren. In `GenerateTaxExport` fehlte eine Wertebereichsprüfung für Monat und Jahr, was bei fehlerhaften Eingaben zu unbehandelten Exceptions führte; zudem wurden Belege nur aus `public` statt auch aus `local` Storage gelesen.
+* **Lösung:** Erzwingung von `basename()` für Zieldateien in `ExportProjectForAI`. Wertebereichs-Validierung für Monat (1–12) und Jahr (2000–2100) sowie Unterstützung beider Storage-Disks (`local` & `public`) in `GenerateTaxExport`.
+* **Testabdeckung:** [`tests/Feature/Console/ExportProjectForAISecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Console/ExportProjectForAISecurityTest.php) (2 Tests, 5 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -762,18 +792,36 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`resources/views/livewire/shop/system/system-delivery-display.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/system/system-delivery-display.blade.php) | Null-sichere Blade-Dereferenzierung für `$product` (`track_quantity`, `sku`) |
 | [`app/Livewire/Shop/Product/ProductPackagingConfigurator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductPackagingConfigurator.php) | Method-Level Autorisierungsschutz in `addMaterial()`, `saveEdit()`, `deleteMaterial()` |
 | [`app/Livewire/Shop/Order/OrderQuoteAcceptance.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderQuoteAcceptance.php) | Stückzahl-Sanitization & Overflow-Schutz (`min:1, max:10000`) |
+| [`app/Services/Export/FileDownloadService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Export/FileDownloadService.php) | Autorisierungsgates für Downloads, SSRF-Filterung für Logos, SVG XSS-Sanitization, CSP/nosniff-Header & Null-Safety |
+| [`app/Services/ReferralService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ReferralService.php) | Concurrency-Schutz via `DB::transaction` & `lockForUpdate()`, Idempotenz-Schutz gegen Mehrfachabzüge bei Storno |
+| [`app/Services/Gamification/GamificationService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Gamification/GamificationService.php) | Concurrency-Schutz via `DB::transaction` & `lockForUpdate()`, Abweisung negativer Funkenbeträge |
+| [`app/Http/Controllers/Api/TwilioCallController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TwilioCallController.php) | Transcript-Array- und Längenvalidierung zur Kostenkontrolle gegen Gemini DoS |
+| [`app/Http/Controllers/Api/TelegramAgentController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Api/TelegramAgentController.php) | Prompt-Injection-Schutz durch Bereinigung des Telegram-Vornamens |
+| [`routes/api.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api.php) | Rate-Limiter für Webhook-Routen (`/telegram/webhook/`, `/twilio/outbound`, `/twilio/inbound`, `/twilio/call-log`) |
+| [`app/Console/Commands/ExportProjectForAI.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/ExportProjectForAI.php) | Directory-Traversal-Schutz für Exportpfad mittels `basename()` |
+| [`app/Console/Commands/GenerateTaxExport.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/GenerateTaxExport.php) | Wertebereichsprüfung für Monat/Jahr & Unterstützung von `local` und `public` Storage |
 | [`tests/Feature/Master/MasterAnalyticsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Master/MasterAnalyticsSecurityTest.php) | Neue Testsuite: Striktes Admin-Only Gate für CEO Master Dashboard & System-Health |
 | [`tests/Feature/Ai/AiAnalyticsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAnalyticsSecurityTest.php) | Neue Testsuite: Autorisierungsschutz für KI-Analytics & Token-Metriken |
 | [`tests/Feature/System/SystemDeliveryDisplaySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/SystemDeliveryDisplaySecurityTest.php) | Neue Testsuite: Feedback-Whitelisting & Null-Safe Blade Rendering |
 | [`tests/Feature/Product/ProductPackagingConfiguratorSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductPackagingConfiguratorSecurityTest.php) | Neue Testsuite: Method-Level Zugriffsschutz für Verpackungsmaterial |
 | [`tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderQuoteAcceptanceQuantitySecurityTest.php) | Neue Testsuite: Overflow- & DoS-Schutz bei Angebotsannahme-Stückzahlen |
+| [`tests/Feature/Export/FileDownloadServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Export/FileDownloadServiceSecurityTest.php) | Neue Testsuite: Autorisierung, SSRF-Prävention & Stored-XSS-Schutz im FileDownloadService |
+| [`tests/Feature/Marketing/ReferralServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/ReferralServiceSecurityTest.php) | Neue Testsuite: Idempotenz-Schutz & Concurrency bei Referral-Rewards |
+| [`tests/Feature/Gamification/GamificationServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Gamification/GamificationServiceSecurityTest.php) | Neue Testsuite: Atomare Funken-Transaktionen & Negativwert-Sperre |
+| [`tests/Feature/Support/TwilioCallControllerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/TwilioCallControllerSecurityTest.php) | Neue Testsuite: Payload-Validierung & DoS-Schutz bei KI-Telefonielogs |
+| [`tests/Feature/Console/ExportProjectForAISecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Console/ExportProjectForAISecurityTest.php) | Neue Testsuite: Path-Traversal-Schutz & CLI-Parameterüberprüfung |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 228 Tests bestanden (635 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 239 Tests bestanden (680 Assertions, 0 Fehler)
+  * `FileDownloadServiceSecurityTest`: 3/3 bestanden (Autorisierung, SSRF-Filterung & Stored-XSS-Schutz im FileDownloadService)
+  * `ReferralServiceSecurityTest`: 1/1 bestanden (Idempotenz-Schutz & Vermeidung doppelter Storno-Abzüge bei Belohnungsgutscheinen)
+  * `GamificationServiceSecurityTest`: 2/2 bestanden (Atomare Zeilensperren für Funken-Guthaben & Negativwert-Abweisung)
+  * `TwilioCallControllerSecurityTest`: 3/3 bestanden (Rate-Limiting & Transcript-Arraybegrenzung gegen DoS/Kostenfallen)
+  * `ExportProjectForAISecurityTest`: 2/2 bestanden (Directory-Traversal-Sperre via `basename()` & CLI-Parameterüberprüfung)
   * `MasterAnalyticsSecurityTest`: 3/3 bestanden (Striktes Admin-Only Gate für CEO Dashboard & Kontrollaktionen)
   * `AiAnalyticsSecurityTest`: 3/3 bestanden (Autorisierung für KI-Metriken & LLM-Kosten)
   * `SystemDeliveryDisplaySecurityTest`: 3/3 bestanden (Feedback-Typen Whitelist & Null-Safety)

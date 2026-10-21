@@ -39,8 +39,13 @@ class GenerateTaxExport extends Command
 
         // Wenn keine Parameter übergeben wurden, nehmen wir standardmäßig den Vormonat
         $targetDate = Carbon::now()->subMonth();
-        $month = $this->option('month') ?: $targetDate->month;
-        $year = $this->option('year') ?: $targetDate->year;
+        $month = (int) ($this->option('month') ?: $targetDate->month);
+        $year = (int) ($this->option('year') ?: $targetDate->year);
+
+        if ($month < 1 || $month > 12 || $year < 2000 || $year > 2100) {
+            $this->error('Ungültiger Monat oder ungültiges Jahr angegeben.');
+            return Command::FAILURE;
+        }
 
         $startDate = Carbon::createFromDate($year, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
@@ -172,8 +177,10 @@ class GenerateTaxExport extends Command
         foreach ($businessSpecials as $special) {
             if (!empty($special->file_paths)) {
                 foreach ($special->file_paths as $idx => $path) {
-                    $source = storage_path('app/public/' . $path);
-                    if (File::exists($source)) {
+                    $source = Storage::disk('local')->exists($path)
+                        ? Storage::disk('local')->path($path)
+                        : (Storage::disk('public')->exists($path) ? Storage::disk('public')->path($path) : null);
+                    if ($source && File::exists($source)) {
                         $ext = pathinfo($source, PATHINFO_EXTENSION);
                         $filename = "Ausgabe_" . date('Y-m-d', strtotime($special->execution_date)) . "_" . Str::slug($special->title) . "_{$idx}.{$ext}";
                         File::copy($source, $receiptsDir . '/' . $filename);
@@ -184,8 +191,11 @@ class GenerateTaxExport extends Command
 
         foreach ($businessFixed as $fixed) {
             if (!empty($fixed->contract_file_path)) {
-                $source = storage_path('app/public/' . $fixed->contract_file_path);
-                if (File::exists($source)) {
+                $path = $fixed->contract_file_path;
+                $source = Storage::disk('local')->exists($path)
+                    ? Storage::disk('local')->path($path)
+                    : (Storage::disk('public')->exists($path) ? Storage::disk('public')->path($path) : null);
+                if ($source && File::exists($source)) {
                     $ext = pathinfo($source, PATHINFO_EXTENSION);
                     $filename = "Fixkosten_" . Str::slug($fixed->name) . ".{$ext}";
                     File::copy($source, $receiptsDir . '/' . $filename);

@@ -67,12 +67,13 @@ class TwilioCallController extends Controller
     public function callLog(Request $request)
     {
         $data = $request->validate([
-            'planned_call_id' => 'nullable|string',
-            'twilio_sid' => 'nullable|string',
-            'contact_name' => 'nullable|string',
-            'objective' => 'nullable|string',
-            'transcript' => 'nullable|array',
-            'duration_seconds' => 'nullable|integer',
+            'planned_call_id' => 'nullable|string|max:64',
+            'twilio_sid' => 'nullable|string|max:64',
+            'contact_name' => 'nullable|string|max:120',
+            'objective' => 'nullable|string|max:1000',
+            'transcript' => 'nullable|array|max:100',
+            'transcript.*' => 'string|max:2000',
+            'duration_seconds' => 'nullable|integer|min:0|max:86400',
         ]);
 
         // Twilio sendet CallSid, Node.js sendet twilio_sid
@@ -112,7 +113,8 @@ class TwilioCallController extends Controller
             $apiKey = env('GEMINI_API_KEY') ?: env('GOOGLE_API_KEY');
             if ($apiKey) {
                 try {
-                    $transcriptText = implode("\n", $data['transcript']);
+                    $transcriptLines = array_slice($data['transcript'], 0, 100);
+                    $transcriptText = mb_substr(implode("\n", $transcriptLines), 0, 15000);
                     $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}, {\"task\": \"Zweites Ziel\", \"achieved\": false}]}";
 
                     $response = \Illuminate\Support\Facades\Http::withHeaders([

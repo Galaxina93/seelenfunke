@@ -194,22 +194,38 @@ class GamificationService
 
     public function addFunken(Customer $customer, int $amount, string $source = 'purchase'): void
     {
-        $profile = $this->getProfile($customer);
-
-        if ($source === 'website_hunt') {
-            if ($profile->last_spark_collection_date && !$profile->last_spark_collection_date->isToday()) {
-                $profile->sparks_collected_today = 0;
-            }
-            if ($profile->sparks_collected_today >= GameConfig::DAILY_SPARK_LIMIT) return;
-
-            $profile->sparks_collected_today += 1;
-            $profile->last_spark_collection_date = now();
-            $this->incrementTitleProgress($profile, 'sammler');
+        if ($amount <= 0) {
+            return;
         }
 
-        $profile->funken_balance += $amount;
-        $profile->funken_total_earned += $amount;
-        $profile->save();
+        \Illuminate\Support\Facades\DB::transaction(function () use ($customer, $amount, $source) {
+            $profile = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+            if (!$profile) {
+                $this->getProfile($customer);
+                $profile = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+            }
+
+            if (!$profile) {
+                return;
+            }
+
+            if ($source === 'website_hunt') {
+                if ($profile->last_spark_collection_date && !$profile->last_spark_collection_date->isToday()) {
+                    $profile->sparks_collected_today = 0;
+                }
+                if ($profile->sparks_collected_today >= GameConfig::DAILY_SPARK_LIMIT) {
+                    return;
+                }
+
+                $profile->sparks_collected_today += 1;
+                $profile->last_spark_collection_date = now();
+                $this->incrementTitleProgress($profile, 'sammler');
+            }
+
+            $profile->funken_balance += $amount;
+            $profile->funken_total_earned += $amount;
+            $profile->save();
+        });
     }
 
     public function getCurrentModelPath(int $level): string

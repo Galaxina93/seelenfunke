@@ -34,7 +34,8 @@ class TelegramAgentController extends Controller
         }
         
         $chatId = $message['chat']['id'];
-        $firstName = $message['from']['first_name'] ?? 'User';
+        $rawFirstName = $message['from']['first_name'] ?? 'User';
+        $firstName = preg_replace('/[^\p{L}\p{N}\s\-_]/u', '', substr($rawFirstName, 0, 50)) ?: 'User';
         $text = $message['text'] ?? '';
         
         // 2.1 Security: Check Whitelist (Zero Trust by Default) BEFORE downloading attachments or spending AI quota

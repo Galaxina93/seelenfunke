@@ -34,7 +34,11 @@ class ExportProjectForAI extends Command
     public function handle()
     {
         $startTime = microtime(true);
-        $outputFile = $this->option('output');
+        $rawOutput = (string) $this->option('output');
+        $outputFile = basename($rawOutput ?: 'project_context.txt');
+        if (empty($outputFile) || $outputFile === '.' || $outputFile === '..') {
+            $outputFile = 'project_context.txt';
+        }
 
         // Such-String in ein Array aufteilen und leere Einträge entfernen
         $searchString = $this->option('search');

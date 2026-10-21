@@ -12,7 +12,15 @@ class FileDownloadService
 {
     public function downloadHealthTreatmentPlanPdf($planId)
     {
+        $isAdmin = \Illuminate\Support\Facades\Auth::guard('admin')->check();
+        $user = \Illuminate\Support\Facades\Auth::user();
+
         $plan = \App\Models\Ai\AiHealthTreatmentPlan::with('items')->findOrFail($planId);
+
+        if (!$isAdmin && (!$user || (string)$user->id !== (string)$plan->user_id)) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $pdf = Pdf::loadView('global.pdf.health-treatment-plan', [
             'plan' => $plan,
         ]);
@@ -23,6 +31,10 @@ class FileDownloadService
 
     public function downloadProductAnalyticsFullReportPdf()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $lossesData = [
             'this_month' => \App\Models\Product\ProductLoss::where('created_at', '>=', now()->startOfMonth())->sum('cost_value') / 100,
             'total' => \App\Models\Product\ProductLoss::sum('cost_value') / 100,
@@ -46,6 +58,10 @@ class FileDownloadService
 
     public function downloadProductAnalyticsLucidPdf()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $lucidData = \App\Livewire\Shop\Product\ProductAnalytics::getLucidData();
         $pdf = Pdf::loadView('global.pdf.product-analytics-lucid', [
             'lucidData' => $lucidData,
@@ -63,6 +79,10 @@ class FileDownloadService
 
     public function downloadNicheCrawlerPdf($runId = null)
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $top40 = collect();
         $aiRecommendation = null;
         $aiAgentName = 'KI-Agent';
@@ -160,6 +180,19 @@ class FileDownloadService
     public function downloadLaserSvg($itemId, $side = 'front')
     {
         $item = ($itemId instanceof OrderOrderItem) ? $itemId : OrderOrderItem::findOrFail($itemId);
+
+        $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check() || \Illuminate\Support\Facades\Auth::guard('employee')->check();
+        $isCustomerOwner = false;
+        if (\Illuminate\Support\Facades\Auth::guard('customer')->check()) {
+            $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+            if ($item->order && (string)$item->order->customer_id === (string)$customer->id) {
+                $isCustomerOwner = true;
+            }
+        }
+        if (!$isAdminOrEmployee && !$isCustomerOwner && !request()->hasValidSignature()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
         $product = $item->product;
         $config = $item->configuration ?? [];
 
@@ -261,8 +294,8 @@ class FileDownloadService
         // BILDER & LOGOS RENDER (Base64)
         if (!empty($logos)) {
             foreach ($logos as $logo) {
-                $x = ($logo['x'] / 100) * $widthMm;
-                $y = ($logo['y'] / 100) * $heightMm;
+                $x = (($logo['x'] ?? 50) / 100) * $widthMm;
+                $y = (($logo['y'] ?? 50) / 100) * $heightMm;
                 $rot = $logo['rotation'] ?? 0;
                 // Skalierungs-Logik identisch zum JS Canvas
                 $logoWidth = (($logo['size'] ?? 100) / 500) * $widthMm;
@@ -322,21 +355,32 @@ class FileDownloadService
                     if ($localPath && file_exists($localPath)) {
                         $ext = strtolower(pathinfo($localPath, PATHINFO_EXTENSION));
                         $data = file_get_contents($localPath);
-                    } elseif (filter_var($url, FILTER_VALIDATE_URL) && !str_contains($url, '127.0.0.1') && !str_contains($url, 'localhost')) {
-                        try {
-                            $resp = \Illuminate\Support\Facades\Http::timeout(5)->get($url);
-                            if ($resp->successful()) {
-                                $data = $resp->body();
-                                $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
-                                if (!$ext && $resp->header('Content-Type')) {
-                                    $ct = $resp->header('Content-Type');
-                                    if (str_contains($ct, 'svg')) $ext = 'svg';
-                                    elseif (str_contains($ct, 'png')) $ext = 'png';
-                                    elseif (str_contains($ct, 'jpeg') || str_contains($ct, 'jpg')) $ext = 'jpg';
+                    } elseif (filter_var($url, FILTER_VALIDATE_URL)) {
+                        $parsedUrl = parse_url($url);
+                        $host = $parsedUrl['host'] ?? '';
+                        $scheme = strtolower($parsedUrl['scheme'] ?? '');
+
+                        if (in_array($scheme, ['http', 'https'], true) && !empty($host) && $host !== 'localhost') {
+                            $ip = gethostbyname($host);
+                            $isPublicIp = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+
+                            if ($isPublicIp && $ip !== '127.0.0.1' && !str_starts_with($ip, '169.254.') && !str_starts_with($ip, '127.')) {
+                                try {
+                                    $resp = \Illuminate\Support\Facades\Http::timeout(5)->get($url);
+                                    if ($resp->successful()) {
+                                        $data = $resp->body();
+                                        $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
+                                        if (!$ext && $resp->header('Content-Type')) {
+                                            $ct = $resp->header('Content-Type');
+                                            if (str_contains($ct, 'svg')) $ext = 'svg';
+                                            elseif (str_contains($ct, 'png')) $ext = 'png';
+                                            elseif (str_contains($ct, 'jpeg') || str_contains($ct, 'jpg')) $ext = 'jpg';
+                                        }
+                                    }
+                                } catch (\Exception $e) {
+                                    \Illuminate\Support\Facades\Log::warning("Could not fetch remote logo for SVG export: " . $url . " - " . $e->getMessage());
                                 }
                             }
-                        } catch (\Exception $e) {
-                            \Illuminate\Support\Facades\Log::warning("Could not fetch remote logo for SVG export: " . $url . " - " . $e->getMessage());
                         }
                     }
                 }
@@ -347,6 +391,12 @@ class FileDownloadService
                         $innerSvg = preg_replace('/<\?xml.*?\?>/is', '', $data);
                         $innerSvg = preg_replace('/<!--.*?-->/is', '', $innerSvg);
                         $innerSvg = preg_replace('/<!DOCTYPE.*?>/is', '', $innerSvg);
+
+                        // XSS / Malicious Elements Prevention: Strip script, iframe, object, foreignObject, embed
+                        $innerSvg = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/<(foreignObject|iframe|object|embed)\b[^>]*>(.*?)<\/\1>/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $innerSvg);
+                        $innerSvg = preg_replace('/href\s*=\s*["\']\s*javascript:[^"\']*["\']/i', '', $innerSvg);
 
                         $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
                         if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {
@@ -423,8 +473,8 @@ class FileDownloadService
                 // Verhindert Rendering von leeren Textboxen
                 if (empty(trim($textItem['text'] ?? ''))) continue;
 
-                $x = ($textItem['x'] / 100) * $widthMm;
-                $y = ($textItem['y'] / 100) * $heightMm;
+                $x = (($textItem['x'] ?? 50) / 100) * $widthMm;
+                $y = (($textItem['y'] ?? 50) / 100) * $heightMm;
                 $rot = $textItem['rotation'] ?? 0;
                 $fontFamily = $textItem['font'] ?? 'Arial';
                 $align = $textItem['align'] ?? 'center';
@@ -459,6 +509,10 @@ class FileDownloadService
 
         return response()->streamDownload(function() use ($svg) {
             echo $svg;
-        }, $filename, ['Content-Type' => 'image/svg+xml']);
+        }, $filename, [
+            'Content-Type' => 'image/svg+xml',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }

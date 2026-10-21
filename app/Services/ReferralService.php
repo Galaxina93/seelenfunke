@@ -217,91 +217,108 @@ class ReferralService
             return null;
         }
 
-        $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))->first();
+        $voucherToSend = null;
+        $referralFound = null;
 
-        // Fallback: Prüfen ob Referrer via Cookie/Session übergeben wurde
-        if (!$referral && !empty($order->utm_campaign_last) && str_starts_with($order->utm_campaign_last, 'ref:')) {
-            $refCode = substr($order->utm_campaign_last, 4);
-            $referral = MarketingReferral::where('code', strtoupper(trim($refCode)))->first();
-        }
+        $voucher = DB::transaction(function () use ($order, &$voucherToSend, &$referralFound) {
+            $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))
+                ->lockForUpdate()
+                ->first();
 
-        if (!$referral) {
-            return null;
-        }
-
-        // Verhindere Eigen-Belohnung
-        if (strtolower(trim($order->email)) === strtolower(trim($referral->referrer_email))) {
-            Log::warning("Referral Reward abgewiesen: Käufer {$order->email} ist identisch mit Werber {$referral->referrer_email}.");
-            return null;
-        }
-
-        // Neukunden-Schutz: Belohnung nur bei Erstbestellern ausstellen (Prüfung über E-Mail und Customer-ID)
-        $paidOrdersCount = OrderOrder::where(function ($query) use ($order) {
-            $query->where('email', strtolower(trim($order->email)));
-            if (!empty($order->customer_id)) {
-                $query->orWhere('customer_id', $order->customer_id);
+            // Fallback: Prüfen ob Referrer via Cookie/Session übergeben wurde
+            if (!$referral && !empty($order->utm_campaign_last) && str_starts_with($order->utm_campaign_last, 'ref:')) {
+                $refCode = substr($order->utm_campaign_last, 4);
+                $referral = MarketingReferral::where('code', strtoupper(trim($refCode)))
+                    ->lockForUpdate()
+                    ->first();
             }
-        })
-        ->where('payment_status', 'paid')
-        ->count();
-        if ($paidOrdersCount > 1) {
-            Log::warning("Referral Reward abgewiesen: Käufer {$order->email} ist kein Neukunde (hat bereits {$paidOrdersCount} bezahlte Bestellungen).");
-            return null;
-        }
 
-        // Idempotenz: Verhindere Doppelgutschriften für dieselbe Order
-        $alreadyRewarded = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
-            ->where('personal_message', 'like', "%{$order->order_number}%")
-            ->exists();
-        if ($alreadyRewarded) {
-            return null;
-        }
-
-        // Kumulatives Guthabenkonto: Prüfen, ob der Werber bereits einen aktiven DANKE-Belohnungsgutschein besitzt
-        $existingVoucher = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
-            ->where('code', 'like', 'DANKE-%')
-            ->where('is_active', true)
-            ->latest()
-            ->first();
-
-        if ($existingVoucher) {
-            // Bestehenden Gutschein um 5,00 € aufbuchen
-            $existingVoucher->initial_value += $referral->reward_cents;
-            $existingVoucher->current_balance += $referral->reward_cents;
-            $existingVoucher->personal_message .= " [Order {$order->order_number}: +5€]";
-            $existingVoucher->valid_until = now()->addYears(3); // Gültigkeit ab neuem Eingang verlängern
-            $existingVoucher->save();
-
-            $voucher = $existingVoucher;
-            Log::info("Freunde-Werben: +5 € Guthaben auf bestehenden Gutschein ({$voucher->code}) an {$referral->referrer_email} für Order {$order->order_number} aufgebucht (Neuer Saldo: {$voucher->current_balance} Cents).");
-        } else {
-            // Neuen Belohnungsgutschein mit eindeutigem Code DANKE-XXXXXX erzeugen
-            $rewardCode = $this->generateUniqueGiftVoucherCode();
-
-            $voucher = MarketingGiftVoucher::create([
-                'code' => $rewardCode,
-                'initial_value' => $referral->reward_cents, // 500 = 5.00 €
-                'current_balance' => $referral->reward_cents,
-                'recipient_email' => $referral->referrer_email,
-                'recipient_name' => $referral->referrer_first_name ?: 'Lieber Seelenfunke-Kunde',
-                'personal_message' => "5 € Belohnung für deine erfolgreiche Empfehlung durch Bestellung {$order->order_number}!",
-                'delivery_method' => 'digital',
-                'is_active' => true,
-                'valid_until' => now()->addYears(3),
-            ]);
-
-            Log::info("Freunde-Werben: Neuer 5 € Belohnungsgutschein ({$voucher->code}) an {$referral->referrer_email} für Order {$order->order_number} ausgestellt.");
-        }
-
-        $referral->increment('successful_referrals_count');
-
-        // E-Mail an Werber versenden
-        try {
-            if (class_exists(ReferralRewardEarnedMail::class)) {
-                Mail::to($referral->referrer_email)->send(new ReferralRewardEarnedMail($voucher, $referral, $order));
+            if (!$referral) {
+                return null;
             }
-        } catch (\Exception $e) {
-            Log::error("Referral Reward E-Mail konnte nicht gesendet werden: " . $e->getMessage());
+
+            // Verhindere Eigen-Belohnung
+            if (strtolower(trim($order->email)) === strtolower(trim($referral->referrer_email))) {
+                Log::warning("Referral Reward abgewiesen: Käufer {$order->email} ist identisch mit Werber {$referral->referrer_email}.");
+                return null;
+            }
+
+            // Neukunden-Schutz: Belohnung nur bei Erstbestellern ausstellen (Prüfung über E-Mail und Customer-ID)
+            $paidOrdersCount = OrderOrder::where(function ($query) use ($order) {
+                $query->where('email', strtolower(trim($order->email)));
+                if (!empty($order->customer_id)) {
+                    $query->orWhere('customer_id', $order->customer_id);
+                }
+            })
+            ->where('payment_status', 'paid')
+            ->count();
+            if ($paidOrdersCount > 1) {
+                Log::warning("Referral Reward abgewiesen: Käufer {$order->email} ist kein Neukunde (hat bereits {$paidOrdersCount} bezahlte Bestellungen).");
+                return null;
+            }
+
+            // Idempotenz: Verhindere Doppelgutschriften für dieselbe Order
+            $alreadyRewarded = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
+                ->where('personal_message', 'like', "%{$order->order_number}%")
+                ->exists();
+            if ($alreadyRewarded) {
+                return null;
+            }
+
+            // Kumulatives Guthabenkonto: Prüfen, ob der Werber bereits einen aktiven DANKE-Belohnungsgutschein besitzt
+            $existingVoucher = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
+                ->where('code', 'like', 'DANKE-%')
+                ->where('is_active', true)
+                ->lockForUpdate()
+                ->latest()
+                ->first();
+
+            if ($existingVoucher) {
+                // Bestehenden Gutschein um 5,00 € aufbuchen
+                $existingVoucher->initial_value += $referral->reward_cents;
+                $existingVoucher->current_balance += $referral->reward_cents;
+                $existingVoucher->personal_message .= " [Order {$order->order_number}: +5€]";
+                $existingVoucher->valid_until = now()->addYears(3); // Gültigkeit ab neuem Eingang verlängern
+                $existingVoucher->save();
+
+                $voucher = $existingVoucher;
+                Log::info("Freunde-Werben: +5 € Guthaben auf bestehenden Gutschein ({$voucher->code}) an {$referral->referrer_email} für Order {$order->order_number} aufgebucht (Neuer Saldo: {$voucher->current_balance} Cents).");
+            } else {
+                // Neuen Belohnungsgutschein mit eindeutigem Code DANKE-XXXXXX erzeugen
+                $rewardCode = $this->generateUniqueGiftVoucherCode();
+
+                $voucher = MarketingGiftVoucher::create([
+                    'code' => $rewardCode,
+                    'initial_value' => $referral->reward_cents, // 500 = 5.00 €
+                    'current_balance' => $referral->reward_cents,
+                    'recipient_email' => $referral->referrer_email,
+                    'recipient_name' => $referral->referrer_first_name ?: 'Lieber Seelenfunke-Kunde',
+                    'personal_message' => "5 € Belohnung für deine erfolgreiche Empfehlung durch Bestellung {$order->order_number}!",
+                    'delivery_method' => 'digital',
+                    'is_active' => true,
+                    'valid_until' => now()->addYears(3),
+                ]);
+
+                Log::info("Freunde-Werben: Neuer 5 € Belohnungsgutschein ({$voucher->code}) an {$referral->referrer_email} für Order {$order->order_number} ausgestellt.");
+            }
+
+            $referral->increment('successful_referrals_count');
+
+            $voucherToSend = $voucher;
+            $referralFound = $referral;
+
+            return $voucher;
+        });
+
+        // E-Mail an Werber versenden (nach erfolgreicher Transaktion)
+        if ($voucherToSend && $referralFound) {
+            try {
+                if (class_exists(ReferralRewardEarnedMail::class)) {
+                    Mail::to($referralFound->referrer_email)->send(new ReferralRewardEarnedMail($voucherToSend, $referralFound, $order));
+                }
+            } catch (\Exception $e) {
+                Log::error("Referral Reward E-Mail konnte nicht gesendet werden: " . $e->getMessage());
+            }
         }
 
         return $voucher;
@@ -309,6 +326,7 @@ class ReferralService
 
     /**
      * Zieht eine gutgeschriebene Empfehlungsvergütung bei Stornierung oder Erstattung wieder ab.
+     * Geschützt gegen Doppel-Stornierungen und Race-Conditions.
      */
     public function reverseOrderReferralReward(OrderOrder $order): bool
     {
@@ -316,18 +334,30 @@ class ReferralService
             return false;
         }
 
-        $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))->first();
-        if (!$referral) {
-            return false;
-        }
+        return DB::transaction(function () use ($order) {
+            $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))
+                ->lockForUpdate()
+                ->first();
+            if (!$referral) {
+                return false;
+            }
 
-        // Suche den Gutschein, auf dem die Belohnung für diese Order vermerkt ist
-        $voucher = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
-            ->where('personal_message', 'like', "%{$order->order_number}%")
-            ->where('is_active', true)
-            ->first();
+            // Suche den Gutschein, auf dem die Belohnung für diese Order vermerkt ist
+            $voucher = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
+                ->where('personal_message', 'like', "%{$order->order_number}%")
+                ->lockForUpdate()
+                ->first();
 
-        if ($voucher) {
+            if (!$voucher) {
+                return false;
+            }
+
+            // IDEMPOTENZ-SCHUTZ: Wurde diese Order bereits zurückgebucht/storniert?
+            if (str_contains($voucher->personal_message, "[Order {$order->order_number}: Storniert")) {
+                Log::info("Freunde-Werben: Storno für Order {$order->order_number} wurde bereits zuvor zurückgebucht. Abbruch.");
+                return false;
+            }
+
             // Saldo um die Belohnung reduzieren (mindestens auf 0)
             $newBalance = max(0, $voucher->current_balance - $referral->reward_cents);
             $voucher->update([
@@ -342,9 +372,7 @@ class ReferralService
 
             Log::info("Freunde-Werben: 5 € Belohnung für Gutschein {$voucher->code} von {$referral->referrer_email} nach Storno von Order {$order->order_number} zurückgebucht.");
             return true;
-        }
-
-        return false;
+        });
     }
 
     /**
