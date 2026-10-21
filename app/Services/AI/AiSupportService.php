@@ -259,7 +259,14 @@ class AiSupportService
             ];
         }
 
-        $missingReceipt = AccountingSpecialIssue::whereNull('file_paths')->first();
+        $missingReceipt = AccountingSpecialIssue::where('is_business', true)
+            ->where(function ($query) {
+                $query->whereNull('file_paths')
+                    ->orWhere('file_paths', '[]')
+                    ->orWhere('file_paths', '')
+                    ->orWhere('file_paths', 'null')
+                    ->orWhereJsonLength('file_paths', 0);
+            })->first();
         if ($missingReceipt) {
             $options[] = [
                 'score' => 100,
@@ -388,19 +395,27 @@ class AiSupportService
         $specialIssuesMonth = 0.0;
         if (class_exists(AccountingSpecialIssue::class)) {
             $specialIssuesTotal = round((float) AccountingSpecialIssue::sum('amount'), 2);
-            $specialIssuesMonth = round((float) AccountingSpecialIssue::whereYear('created_at', $now->year)
-                ->whereMonth('created_at', $now->month)
-                ->sum('amount'), 2);
+            $specialIssuesMonth = round((float) AccountingSpecialIssue::where(function($q) use ($startOfMonth, $endOfMonth, $now) {
+                $q->whereBetween('execution_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+                  ->orWhere(function($sub) use ($now) {
+                      $sub->whereNull('execution_date')
+                          ->whereYear('created_at', $now->year)
+                          ->whereMonth('created_at', $now->month);
+                  });
+            })->sum('amount'), 2);
         }
 
-        // 4. Reale gewerbliche Einnahmen (bezahlte Shop- & Auftragsbestellungen)
+        // 4. Reale gewerbliche Einnahmen (bezahlte Shop- & Auftragsbestellungen, stornierte/erstattete ausgeschlossen)
         $monthPaidOrders = OrderOrder::where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
             ->get();
         $monthActualSales = round((float)($monthPaidOrders->sum('total_price') / 100), 2);
         $monthPaidOrdersCount = $monthPaidOrders->count();
 
-        $totalRecordedSales = round((float)(OrderOrder::where('payment_status', 'paid')->sum('total_price') / 100), 2);
+        $totalRecordedSales = round((float)(OrderOrder::where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->sum('total_price') / 100), 2);
 
         // 5. Reales Netto-Betriebsergebnis des Systems (Einnahmen abzgl. Sonderausgaben)
         $netRecordedCashflow = round($totalRecordedSales + $specialIssuesTotal, 2);

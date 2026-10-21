@@ -403,7 +403,8 @@ trait AiSupportFuncs
             $ticketNumber = trim($args['ticket_number'] ?? '');
             if (empty($ticketNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Ticketnummer fehlt.'];
 
-            $query = SupportTicket::where('ticket_number', 'ILIKE', "%{$ticketNumber}%");
+            $ticketEsc = addcslashes($ticketNumber, '%_\\');
+            $query = SupportTicket::where('ticket_number', 'LIKE', "%{$ticketEsc}%");
             
             if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -434,9 +435,10 @@ trait AiSupportFuncs
             $identifier = trim($args['identifier'] ?? '');
             if (empty($identifier)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Suchbegriff fehlt.'];
 
-            $query = OrderOrder::where(function($q) use ($identifier) {
-                $q->where('order_number', 'LIKE', "%{$identifier}%")
-                  ->orWhere('customer_email', 'LIKE', "%{$identifier}%");
+            $idEsc = addcslashes($identifier, '%_\\');
+            $query = OrderOrder::where(function($q) use ($idEsc) {
+                $q->where('order_number', 'LIKE', "%{$idEsc}%")
+                  ->orWhere('email', 'LIKE', "%{$idEsc}%");
             });
 
             if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
@@ -506,7 +508,8 @@ trait AiSupportFuncs
                 $products = $query->inRandomOrder()->take(3)->get();
                 $noteForAi = 'HINTERGRUND-INFO FÜR KI: Dies sind 3 zufällige Empfehlungen aus unserem großen Sortiment. Bitte präsentiere sie dem Kunden als eine exklusive, kleine Auswahl. Frage ihn im Anschluss charmant nach weiteren Kriterien (z.B. Anlass, für wen?), um bei der nächsten Suche einen spezifischen Suchbegriff (z.B. "Herz" oder "Kristall") an das Tool übergeben zu können!';
             } else {
-                $qTerm = '%' . $term . '%';
+                $termEsc = addcslashes($term, '%_\\');
+                $qTerm = '%' . $termEsc . '%';
                 $dbProducts = (clone $query)->where(function($q) use ($qTerm) {
                     $q->where('name', 'LIKE', $qTerm)
                       ->orWhere('sku', 'LIKE', $qTerm);
@@ -515,7 +518,7 @@ trait AiSupportFuncs
                 if ($dbProducts->isEmpty()) {
                     // Fallback: Fuzzy search in PHP um Leerzeichen, Bindestriche etc. zu ignorieren (z.B. "Seelenkristall" findet "Seelen Kristall")
                     $cleanTerm = str_replace([' ', '-'], '', strtolower($term));
-                    $allProducts = $query->get();
+                    $allProducts = (clone $query)->take(50)->get();
                     $dbProducts = $allProducts->filter(function($p) use ($cleanTerm) {
                         $cleanName = str_replace([' ', '-'], '', strtolower($p->name));
                         return str_contains($cleanName, $cleanTerm) || str_contains($cleanTerm, $cleanName);
@@ -650,7 +653,8 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
-            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items');
+            $orderEsc = addcslashes($orderNumber, '%_\\');
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('items');
 
             if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -712,7 +716,8 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer fehlt.'];
 
-            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%");
+            $orderEsc = addcslashes($orderNumber, '%_\\');
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%");
 
             if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -910,7 +915,8 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bitte frage erst nach der Bestellnummer!'];
 
-            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('items');
+            $orderEsc = addcslashes($orderNumber, '%_\\');
+            $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('items');
 
             if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -970,7 +976,8 @@ trait AiSupportFuncs
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich erst einloggen, um ein Reklamationsticket zu öffnen. Bitte ihn darum.'];
             }
 
-            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->where('customer_id', $customerId)->first();
+            $orderEsc = addcslashes($orderNumber, '%_\\');
+            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->where('customer_id', $customerId)->first();
             if (!$order) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Diese Bestellung gehört nicht zum eingeloggten Kunden oder existiert nicht.'];
             }
@@ -1032,7 +1039,8 @@ trait AiSupportFuncs
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Kunde muss sich zum Ändern einloggen.'];
             }
 
-            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->where('customer_id', $customerId)->first();
+            $orderEsc = addcslashes($orderNumber, '%_\\');
+            $order = OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->where('customer_id', $customerId)->first();
             if (!$order) {
                 return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellung nicht gefunden.'];
             }
@@ -1065,13 +1073,13 @@ trait AiSupportFuncs
                     $agentId
                 );
 
-                $addr = $order->shipping_address;
-                $addr['first_name'] = $newAddr['first_name'] ?? ($addr['first_name'] ?? '');
-                $addr['last_name']  = $newAddr['last_name'] ?? ($addr['last_name'] ?? '');
-                $addr['street']     = $newAddr['street'] ?? ($addr['street'] ?? '');
-                $addr['house_number']= $newAddr['house_number'] ?? ($addr['house_number'] ?? '');
-                $addr['zipcode']    = $newAddr['zipcode'] ?? ($addr['zipcode'] ?? '');
-                $addr['city']       = $newAddr['city'] ?? ($addr['city'] ?? '');
+                $addr = is_array($order->shipping_address) ? $order->shipping_address : [];
+                $addr['first_name']  = mb_substr(trim($newAddr['first_name'] ?? ($addr['first_name'] ?? '')), 0, 100);
+                $addr['last_name']   = mb_substr(trim($newAddr['last_name'] ?? ($addr['last_name'] ?? '')), 0, 100);
+                $addr['street']      = mb_substr(trim($newAddr['street'] ?? ($addr['street'] ?? '')), 0, 150);
+                $addr['house_number']= mb_substr(trim($newAddr['house_number'] ?? ($addr['house_number'] ?? '')), 0, 30);
+                $addr['zipcode']     = mb_substr(trim($newAddr['zipcode'] ?? ($addr['zipcode'] ?? '')), 0, 20);
+                $addr['city']        = mb_substr(trim($newAddr['city'] ?? ($addr['city'] ?? '')), 0, 100);
 
                 $order->update(['shipping_address' => $addr]);
 
@@ -1098,7 +1106,8 @@ trait AiSupportFuncs
             $orderNumber = trim($args['order_number'] ?? '');
             if (empty($orderNumber)) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Bestellnummer nicht übergeben.'];
 
-            $query = OrderOrder::where('order_number', 'LIKE', "%{$orderNumber}%")->with('invoices');
+            $orderEsc = addcslashes($orderNumber, '%_\\');
+            $query = OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('invoices');
 
             if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
@@ -1173,9 +1182,10 @@ trait AiSupportFuncs
             $term = trim($args['search_term'] ?? '');
             if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
 
-            $chats = SupportCustomerChat::where('top_topic', 'LIKE', "%{$term}%")
-                ->orWhere('ai_summary', 'LIKE', "%{$term}%")
-                ->orWhere('mentioned_product', 'LIKE', "%{$term}%")
+            $termEsc = addcslashes($term, '%_\\');
+            $chats = SupportCustomerChat::where('top_topic', 'LIKE', "%{$termEsc}%")
+                ->orWhere('ai_summary', 'LIKE', "%{$termEsc}%")
+                ->orWhere('mentioned_product', 'LIKE', "%{$termEsc}%")
                 ->orderBy('updated_at', 'desc')
                 ->take(5)
                 ->get();
@@ -1208,7 +1218,7 @@ trait AiSupportFuncs
         }
 
         try {
-            $limit = (int)($args['limit'] ?? 5);
+            $limit = min(max((int)($args['limit'] ?? 5), 1), 50);
             $filter = trim($args['status_filter'] ?? '');
 
             $query = SupportCustomerChat::orderBy('updated_at', 'desc');
@@ -1276,7 +1286,7 @@ trait AiSupportFuncs
         }
 
         try {
-            $limit = (int)($args['limit'] ?? 5);
+            $limit = min(max((int)($args['limit'] ?? 5), 1), 50);
 
             $chats = SupportCustomerChat::where('rating', '<=', 2)
                 ->orWhere('status', 'needs_employee')
@@ -1348,13 +1358,14 @@ trait AiSupportFuncs
             $term = trim($args['search_term'] ?? '');
             if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
 
+            $termEsc = addcslashes($term, '%_\\');
             $tickets = \App\Models\Support\SupportTicket::with('customer')
-                ->where('ticket_number', 'LIKE', "%{$term}%")
-                ->orWhere('subject', 'LIKE', "%{$term}%")
-                ->orWhereHas('customer', function($q) use ($term) {
-                    $q->where('email', 'LIKE', "%{$term}%")
-                      ->orWhere('first_name', 'LIKE', "%{$term}%")
-                      ->orWhere('last_name', 'LIKE', "%{$term}%");
+                ->where('ticket_number', 'LIKE', "%{$termEsc}%")
+                ->orWhere('subject', 'LIKE', "%{$termEsc}%")
+                ->orWhereHas('customer', function($q) use ($termEsc) {
+                    $q->where('email', 'LIKE', "%{$termEsc}%")
+                      ->orWhere('first_name', 'LIKE', "%{$termEsc}%")
+                      ->orWhere('last_name', 'LIKE', "%{$termEsc}%");
                 })
                 ->orderBy('updated_at', 'desc')
                 ->take(5)

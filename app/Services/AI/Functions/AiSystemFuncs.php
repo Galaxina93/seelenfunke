@@ -1255,17 +1255,63 @@ trait AiSystemFuncs
         }
     }
 
+    private static function isSafeSystemExternalUrl(string $url): bool
+    {
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        $parsed = parse_url($url);
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return false;
+        }
+
+        $host = strtolower($parsed['host'] ?? '');
+        if (empty($host) || in_array($host, ['localhost', '127.0.0.1', '0.0.0.0', '169.254.169.254'], true) || str_ends_with($host, '.local') || str_ends_with($host, '.internal')) {
+            return false;
+        }
+
+        $ips = @gethostbynamel($host);
+        if (!$ips) {
+            return false;
+        }
+
+        foreach ($ips as $ip) {
+            if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return false;
+            }
+            if (in_array($ip, ['127.0.0.1', '0.0.0.0', '169.254.169.254'], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function isValidRecipientEmail(?string $email): bool
+    {
+        if (empty($email)) return false;
+        if (preg_match('/[\r\n]/', $email)) return false;
+        return (bool) filter_var($email, FILTER_VALIDATE_EMAIL);
+    }
+
     public static function executeSendNeuralReportMail(array $args, $agent = null)
     {
         try {
-            $reportFile = $args['report_file'] ?? '';
-            $email = $args['email'] ?? null;
+            $rawReportFile = trim($args['report_file'] ?? '');
+            $reportFile = basename($rawReportFile);
+            $email = trim($args['email'] ?? '');
             if (!$email) {
                 $email = config('mail.from.address') ?: 'admin@mein-seelenfunke.de';
             }
 
-            if (!$reportFile) {
-                return ['status' => 'error', 'message' => 'Kein report_file angegeben.'];
+            if (!$reportFile || !preg_match('/^[A-Za-z0-9_\-\.]+$/', $reportFile) || str_contains($rawReportFile, '..')) {
+                return ['status' => 'error', 'message' => 'Ungültiger oder fehlender Dateiname (report_file).'];
+            }
+
+            if (!self::isValidRecipientEmail($email)) {
+                return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse.'];
             }
 
             $path = storage_path('app/public/agenten/workspace/Dokumente/Berichte/' . $reportFile);
@@ -2707,7 +2753,7 @@ trait AiSystemFuncs
                 'title' => $title,
                 'htmlContent' => $htmlContent,
                 'agentName' => $agentName
-            ]);
+            ])->setOptions(['isRemoteEnabled' => false]);
 
             $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '.pdf';
             $filePath = 'public/reports/' . $fileName;
@@ -2720,8 +2766,8 @@ trait AiSystemFuncs
                 if (empty($recipient)) {
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
-                if (empty($recipient)) {
-                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
+                if (!self::isValidRecipientEmail($recipient)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine gültige Empfänger-E-Mail angegeben werden.'];
                 }
                 
                 $absolutePath = storage_path('app/' . $filePath);
@@ -2835,8 +2881,8 @@ trait AiSystemFuncs
                 if (empty($recipient)) {
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
-                if (empty($recipient)) {
-                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
+                if (!self::isValidRecipientEmail($recipient)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine gültige Empfänger-E-Mail angegeben werden.'];
                 }
                 
                 $body = "Anbei das angeforderte Word-Dokument (DOCX).";
@@ -2947,7 +2993,7 @@ trait AiSystemFuncs
                 'notes' => $notes,
                 'agentName' => $agentName,
                 'design' => $design,
-            ]);
+            ])->setOptions(['isRemoteEnabled' => false]);
 
             $prefix = $design === 'generic' ? 'lieferschein-neutral' : 'lieferschein-seelenfunke';
             $slugNum = \Illuminate\Support\Str::slug($deliveryNoteNumber) ?: time();
@@ -2963,8 +3009,8 @@ trait AiSystemFuncs
                 if (empty($recipientEmail)) {
                     $recipientEmail = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
                 }
-                if (empty($recipientEmail)) {
-                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine Empfänger-E-Mail (recipient_email) angegeben werden, da keine System-E-Mail hinterlegt ist.'];
+                if (!self::isValidRecipientEmail($recipientEmail)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine gültige Empfänger-E-Mail angegeben werden.'];
                 }
 
                 $designLabel = $design === 'generic' ? 'neutralen ' : '';
@@ -3830,8 +3876,12 @@ trait AiSystemFuncs
 
     public static function executeReadWebUrl(array $args)
     {
-        $url = $args['url'] ?? '';
+        $url = trim($args['url'] ?? '');
         if (empty($url)) return ['status' => 'error', 'message' => 'URL fehlt.'];
+
+        if (!self::isSafeSystemExternalUrl($url)) {
+            return ['status' => 'error', 'message' => 'Sicherheitsfehler: Der Abruf dieser URL ist nicht erlaubt (SSRF Schutz).'];
+        }
 
         try {
             $response = \Illuminate\Support\Facades\Http::timeout(10)->withHeaders([

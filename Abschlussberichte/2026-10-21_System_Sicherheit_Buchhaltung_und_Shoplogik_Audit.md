@@ -811,12 +811,53 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Strikte RFC-Validierung (`filter_var`), CRLF-Prüfung (`preg_match('/[\r\n]/')`), DomPDF-Härtung mit `isRemoteEnabled => false` und Ergänzung von `Http::timeout(5)` für externe Geocoding-APIs.
 * **Testabdeckung:** [`tests/Feature/Ai/AiMapControlFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMapControlFuncsSecurityTest.php) (2 Tests, 5 Assertions).
 
+### 2.126 [KI-AGENTEN & WORKSPACE] Directory-Traversal-Schutz im Pfadnormalisierer, Wildcard-Sanitization & Anweisungslängen-Clamping in AiAgentsFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiAgentsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiAgentsFuncs.php)
+* **Befund:** In `secureWorkspacePath()` war der Filter gegen Pfadausbrüche mittels naivem `str_replace(['../', '..\\'], '', $path)` implementiert, welcher durch verschachtelte relative Pfadtricks (`....//`, `..;/`) umgangen werden konnte. Bei `executeMoveAgentToDepartment()` und `executeWorkspaceFindDocuments()` fehlte das Escaping von SQL-Wildcards (`%` und `_`), wodurch willkürliche Datensätze abgefragt oder verändert werden konnten. In `executeCommunicationAskAgent()` fehlte eine Begrenzung der Anweisungslänge gegen DoS/Speichererschöpfung.
+* **Lösung:** Vollständige segmentbasierte Normalisierung von Pfaden mit Eliminierung von Punkt-Segmenten (`str_replace('.', '', $part) === ''`), Sanitisierung mit `addcslashes($val, '%_\\')` und Begrenzung von Aufgabenanweisungen auf maximal 10.000 Zeichen.
+* **Testabdeckung:** [`tests/Feature/Ai/AiAgentsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAgentsFuncsSecurityTest.php) (3 Tests, 7 Assertions).
+
+### 2.127 [KI-SUPPORT & KUNDENSERVICE] Korrektur PostgreSQL-Syntaxfehler (`ILIKE`), Spaltenname `email`, DoS-Schutz bei Fuzzy-Produktsuche & Wildcard-Sanitization in AiSupportFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiSupportFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSupportFuncs.php)
+* **Befund:** In `executeGetTicketStatus()` wurde der PostgreSQL-spezifische Operator `ILIKE` verwendet, welcher auf der Produktiv-Datenbank (MySQL 8.0) einen fatalen SQL-Syntaxfehler (1064) auslöste. In `executeGetOrderStatus()` wurde nach der nicht-existenten Spalte `customer_email` gesucht (Fehler 1054). In `executeGetProductInfo()` lud der Fuzzy-Search-Fallback bei nicht-exakten Treffern alle Produktmodelle des Shops ungefiltert per `$query->get()` in den Speicher. Zudem fehlte in allen `LIKE`-Abfragen (Bestellstatus, Tickets, Kundenverlauf) das Escaping von Wildcards und Limits in Admin-Chatabfragen waren ungedeckelt.
+* **Lösung:** Ersetzung von `ILIKE` durch Standard-`LIKE`, Korrektur des Spaltennamens auf `email`, Begrenzung der Fuzzy-Abfrage auf maximal 50 Produkte, Escaping aller Suchbegriffe mit `addcslashes()` sowie Limit-Clamping (1..50).
+* **Testabdeckung:** [`tests/Feature/Ai/AiSupportFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSupportFuncsSecurityTest.php) (3 Tests, 6 Assertions).
+
+### 2.128 [KI-SYSTEM & EXPORTE] SSRF-Schutz in `executeReadWebUrl`, Pfadtraversal-Sperre in Report-Mails, CRLF-Validierung & DomPDF-Härtung in AiSystemFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiSystemFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSystemFuncs.php)
+* **Befund:** `executeReadWebUrl()` erlaubte das unbeschränkte Abrufen beliebiger URLs ohne Validierung auf private oder interne Netzwerke (SSRF auf AWS/Cloud-Metadaten `169.254.169.254`, Localhost oder interne Docker-Services). In `executeSendNeuralReportMail()` wurde `report_file` ungefiltert konkateniert (`../../../../.env` Pfadtraversal). Bei `executeGeneratePdfReport()`, `executeGenerateDeliveryNote()` und `executeGenerateDocxReport()` fehlte die RFC-/CRLF-Validierung der Empfänger-E-Mails sowie die Deaktivierung von Remote-Ressourcen in DomPDF.
+* **Lösung:** Implementierung von `isSafeSystemExternalUrl()` mit IP-Filterung gegen private Subnetze und Cloud-Metadaten, Dateinamens-Bereinigung mit `basename()` und Whitelist `[A-Za-z0-9_\-\.]+`, strikte E-Mail-Validierung (`filter_var` und `preg_match('/[\r\n]/')`) und DomPDF-Härtung mit `isRemoteEnabled => false`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiSystemFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSystemFuncsSecurityTest.php) (3 Tests, 9 Assertions).
+
+### 2.129 [KI-MAPS & NEWS] Timeouts, API-Key-Konfiguration, Language-Whitelisting & Fehler-Maskierung in AiMapNewsFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiMapNewsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMapNewsFuncs.php), [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php)
+* **Befund:** Direkte `env()`-Aufrufe zur Laufzeit führten bei gecachtem Config (`config:cache`) zu Fehlschlägen. HTTP-Requests an NewsAPI, OpenAI und Mapbox verfügten über keinerlei Timeouts, wodurch Worker-Threads bei Latenzen blockiert wurden. In der Geocoding-Schleife konnten unbegrenzt viele externe Mapbox-Requests sequenziell abgesetzt werden. Bei OpenAI-Fehlern wurden Rohdaten und Exception-Nachrichten unmaskiert an das Frontend zurückgegeben.
+* **Lösung:** Konfiguration über `config/services.php`, Ergänzung von `Http::timeout(5)` bzw. `timeout(10)`, Begrenzung der Geocoding-Vorfälle auf maximal 10 Marker, Whitelisting des Sprachparameters (`de, en, fr, es, it, nl, pl, ru`), Truncation des Suchbegriffs (max 100 Zeichen) sowie Maskierung von internen API-Fehlern.
+* **Testabdeckung:** [`tests/Feature/Ai/AiMapNewsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMapNewsFuncsSecurityTest.php) (3 Tests, 9 Assertions).
+
+### 2.130 [KI-CHEF-ASSISTENZ] Präzise Belegprüfung für leere JSON-Arrays (`is_business = true`), Bereinigung von Stornierungen aus Finanzstatus in AiSupportService
+* **Dateien:** [`app/Services/AI/AiSupportService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/AiSupportService.php)
+* **Befund:** In `getUltimateCommand()` prüfte die Belegwarnung lediglich `whereNull('file_paths')`. In Laravel gespeicherte leere Arrays (`[]`) werden jedoch als `'[]'` bzw. mit `JSON_LENGTH = 0` serialisiert und wurden daher ignoriert. Zudem fehlte der Filter `is_business = true`, sodass private Ausgaben (z.B. Zahnarzt) fälschlicherweise Betriebsbeleg-Warnungen auslösten. In der Finanzstatus-Berechnung `calculateFinancialStatus()` wurden stornierte und erstattete Bestellungen mit `payment_status = 'paid'` fälschlicherweise als laufender Monats- und Gesamtertrag mitgezählt. Des Weiteren wurden Monatsausgaben nach `created_at` statt nach dem buchhalterischen Ausführungsdatum `execution_date` aggregiert.
+* **Lösung:** Belegabfrage erweitert auf `where('is_business', true)` und `orWhereJsonLength('file_paths', 0)`, Ausschluss von stornierten/erstatteten Bestellungen (`whereNotIn('status', ['cancelled', 'refunded'])`) und Aggregation der Monatsausgaben basierend auf `execution_date`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiSupportServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSupportServiceSecurityTest.php) (2 Tests, 5 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Services/AI/Functions/AiAgentsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiAgentsFuncs.php) | Directory-Traversal-Schutz im Pfadnormalisierer, SQL-Wildcard-Sanitization & Anweisungslängen-Clamping |
+| [`app/Services/AI/Functions/AiSupportFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSupportFuncs.php) | Behebung PostgreSQL `ILIKE`-Crash (MySQL 8.0 Kompatibilität), Spaltenname `email`, Fuzzy-Search-Memory-Limit & Wildcard-Escaping |
+| [`app/Services/AI/Functions/AiSystemFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSystemFuncs.php) | SSRF-Schutz in `executeReadWebUrl`, Pfadtraversal-Sperre in Report-Mails, CRLF-/RFC-E-Mail-Validierung & DomPDF-Härtung |
+| [`app/Services/AI/Functions/AiMapNewsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMapNewsFuncs.php) | Timeouts für NewsAPI, OpenAI & Mapbox, Config-Umstellung, Marker-Limitierung (max 10) & Error-Masking |
+| [`app/Services/AI/AiSupportService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/AiSupportService.php) | Belegprüfung auf leere JSON-Arrays & `is_business = true`, Storno-Bereinigung aus Finanzstatus & `execution_date`-Aggregation |
+| [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) | Ergänzung der Service-Konfigurationen für `newsapi` und `mapbox` |
+| [`tests/Feature/Ai/AiAgentsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiAgentsFuncsSecurityTest.php) | Neue Testsuite: Workspace-Pfadtraversal, SQL-Wildcards & Dokumentensuche |
+| [`tests/Feature/Ai/AiSupportFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSupportFuncsSecurityTest.php) | Neue Testsuite: MySQL-Syntaxkompatibilität, Wildcard-Escaping & Fuzzy-Search-Speicherbegrenzung |
+| [`tests/Feature/Ai/AiSystemFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSystemFuncsSecurityTest.php) | Neue Testsuite: SSRF-Prävention, Pfadtraversal-Sperre & CRLF-E-Mail-Validierung |
+| [`tests/Feature/Ai/AiMapNewsFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMapNewsFuncsSecurityTest.php) | Neue Testsuite: Query-Längen, Language-Fallback & Resilienz bei fehlenden Keys |
+| [`tests/Feature/Ai/AiSupportServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSupportServiceSecurityTest.php) | Neue Testsuite: Belegprüfung für leere Arrays & Storno-Bereinigung aus Umsatz |
 | [`app/Services/FirebaseService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/FirebaseService.php) | Admin-Filterung (`Admin::pluck('id')`), Massen-Abfrage für FCM-Tokens, rekursive Daten-Serialisierung & Push-Timeout |
 | [`app/Services/GoogleReviewsService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/GoogleReviewsService.php) | Aktivierung der Google Places API, 24h-Caching, `Http::timeout(5)` & Fallback-Handling |
 | [`app/Services/Tax/TaxSettingService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/Tax/TaxSettingService.php) | Division-by-Zero-Schutz, Raten-Clamping (0..100%), Nicht-Negativ-Garantie & DB-Transaktion bei Wechsel |
@@ -1103,7 +1144,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 303 Tests bestanden (946 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 317 Tests bestanden (982 Assertions, 0 Fehler)
+  * `AiAgentsFuncsSecurityTest`: 3/3 bestanden (Workspace-Pfadtraversal, SQL-Wildcards & Dokumentensuche)
+  * `AiSupportFuncsSecurityTest`: 3/3 bestanden (MySQL-Syntaxkompatibilität, Wildcard-Escaping & Fuzzy-Search-Speicherbegrenzung)
+  * `AiSystemFuncsSecurityTest`: 3/3 bestanden (SSRF-Prävention, Pfadtraversal-Sperre & CRLF-E-Mail-Validierung)
+  * `AiMapNewsFuncsSecurityTest`: 3/3 bestanden (Query-Längen, Language-Fallback & Resilienz bei fehlenden Keys)
+  * `AiSupportServiceSecurityTest`: 2/2 bestanden (Belegprüfung für leere Arrays & Storno-Bereinigung aus Umsatz)
   * `FirebaseServiceSecurityTest`: 2/2 bestanden (Push-Token-Prüfung, verschachtelte Daten & Admin-Geräte-Filter)
   * `GoogleReviewsServiceSecurityTest`: 2/2 bestanden (Fallback-Reviews, Google Places Caching & Resilienz)
   * `TaxSettingServiceSecurityTest`: 2/2 bestanden (Division-by-Zero-Schutz & transaktionssichere Status-Umschaltung)

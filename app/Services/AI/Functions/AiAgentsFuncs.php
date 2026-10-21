@@ -302,16 +302,18 @@ trait AiAgentsFuncs
 
     public static function executeMoveAgentToDepartment(array $args): array
     {
-        $agentName = $args['agent_name'] ?? null;
-        $deptName = $args['department_name'] ?? null;
+        $agentName = trim($args['agent_name'] ?? '');
+        $deptName = trim($args['department_name'] ?? '');
 
-        if (!$agentName) return ['status' => 'error', 'message' => "Fehler: agent_name fehlt."];
+        if ($agentName === '') return ['status' => 'error', 'message' => "Fehler: agent_name fehlt."];
 
-        $agent = AiAgent::where('name', 'LIKE', '%' . $agentName . '%')->first();
+        $agentEsc = addcslashes($agentName, '%_\\');
+        $agent = AiAgent::where('name', 'LIKE', '%' . $agentEsc . '%')->first();
         if (!$agent) return ['status' => 'error', 'message' => "Fehler: Agent '$agentName' nicht gefunden."];
 
-        if ($deptName && strtolower($deptName) !== 'null' && strtolower($deptName) !== 'freie agenten' && strtolower($deptName) !== 'stabsstelle') {
-            $dept = AiDepartment::where('name', 'LIKE', '%' . $deptName . '%')->first();
+        if ($deptName !== '' && strtolower($deptName) !== 'null' && strtolower($deptName) !== 'freie agenten' && strtolower($deptName) !== 'stabsstelle') {
+            $deptEsc = addcslashes($deptName, '%_\\');
+            $dept = AiDepartment::where('name', 'LIKE', '%' . $deptEsc . '%')->first();
             if (!$dept) {
                 return ['status' => 'error', 'message' => "Fehler: Abteilung '$deptName' nicht gefunden. Prüfe das Organigramm per get_ai_company_structure."];
             }
@@ -370,14 +372,31 @@ trait AiAgentsFuncs
 
     private static function secureWorkspacePath(string $path): string
     {
-        $path = trim($path, '/');
-        // Verhindern von Verzeichnisausbrüchen
-        $path = str_replace(['../', '..\\'], '', $path);
-        
-        if (!str_starts_with($path, 'agenten/workspace')) {
-            $path = 'agenten/workspace/' . $path;
+        $path = str_replace('\\', '/', trim($path));
+        $path = str_replace("\0", '', $path);
+        $path = preg_replace('#/{2,}#', '/', $path);
+
+        $parts = explode('/', trim($path, '/'));
+        $safeParts = [];
+        foreach ($parts as $part) {
+            if ($part === '' || str_replace('.', '', $part) === '') {
+                if ($part === '..') {
+                    array_pop($safeParts);
+                }
+                continue;
+            }
+            // Strip invalid filesystem characters
+            $cleaned = preg_replace('/[<>:"|?*]/', '', $part);
+            if ($cleaned !== '' && str_replace('.', '', $cleaned) !== '') {
+                $safeParts[] = $cleaned;
+            }
         }
-        return $path;
+        $normalized = implode('/', array_filter($safeParts, fn($p) => $p !== ''));
+
+        if (!str_starts_with($normalized, 'agenten/workspace')) {
+            $normalized = 'agenten/workspace/' . ltrim($normalized, '/');
+        }
+        return rtrim($normalized, '/');
     }
 
     public static function executeWorkspaceCreateFolder(array $args): array
@@ -767,7 +786,8 @@ trait AiAgentsFuncs
         $q = \App\Models\Ai\AiWorkspaceDocument::query();
 
         if (!empty($category)) {
-            $q->where('category', 'like', "%{$category}%");
+            $catEsc = addcslashes($category, '%_\\');
+            $q->where('category', 'like', "%{$catEsc}%");
         }
 
         $isLatestQuery = false;
@@ -968,11 +988,13 @@ trait AiAgentsFuncs
     public static function executeCommunicationAskAgent(array $args)
     {
         $targetAgentName = trim($args['agent_name'] ?? '');
-        $instruction = $args['instruction'] ?? $args['task'] ?? '';
+        $instruction = trim($args['instruction'] ?? $args['task'] ?? '');
 
         if (empty($targetAgentName) || empty($instruction)) {
             return ['status' => 'error', 'message' => 'Agenten-Name oder Anweisung fehlt.'];
         }
+
+        $instruction = mb_substr($instruction, 0, 10000);
 
         // 1. Check max delegation depth to prevent deep call cascades
         if (count(self::$delegationStack) >= self::$maxDelegationDepth) {

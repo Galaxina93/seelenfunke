@@ -34,28 +34,39 @@ trait AiMapNewsFuncs
 
     public static function executeMapSearchAndMarkNews(array $args): array
     {
-        $query = $args['query'] ?? '';
-        $language = $args['language'] ?? 'de';
+        $query = trim($args['query'] ?? '');
+        $language = strtolower(trim($args['language'] ?? 'de'));
+
+        $allowedLanguages = ['de', 'en', 'fr', 'es', 'it', 'nl', 'pl', 'ru'];
+        if (!in_array($language, $allowedLanguages, true)) {
+            $language = 'de';
+        }
+
+        if (empty($query)) {
+            return ['status' => 'error', 'message' => 'Der Suchbegriff für die News-Suche darf nicht leer sein.'];
+        }
+
+        $query = mb_substr($query, 0, 100);
         
-        $newsApiKey = env('NEWS_API_KEY');
-        $openAiKey = env('OPENAI_API_KEY');
-        $mapboxToken = env('MAPBOX_TOKEN');
+        $newsApiKey = config('services.newsapi.key') ?: env('NEWS_API_KEY');
+        $openAiKey = config('openai.api_key') ?: config('services.openai.key') ?: env('OPENAI_API_KEY');
+        $mapboxToken = config('services.mapbox.token') ?: env('MAPBOX_TOKEN');
 
         if (empty($newsApiKey) || empty($openAiKey) || empty($mapboxToken)) {
             return [
                 'status' => 'error',
-                'message' => 'Es fehlen benötigte API-Schlüssel (NEWS_API_KEY, OPENAI_API_KEY, MAPBOX_TOKEN) in der .env Datei. Bitte den Nutzer informieren.'
+                'message' => 'Es fehlen benötigte API-Schlüssel (NEWS_API_KEY, OPENAI_API_KEY, MAPBOX_TOKEN) in der Systemkonfiguration. Bitte den Administrator informieren.'
             ];
         }
 
         try {
             // 1. Fetch News
-            $newsResponse = Http::get('https://newsapi.org/v2/everything', [
+            $newsResponse = Http::timeout(5)->get('https://newsapi.org/v2/everything', [
                 'q' => $query,
                 'language' => $language,
                 'sortBy' => 'publishedAt',
                 'apiKey' => $newsApiKey,
-                'pageSize' => 20
+                'pageSize' => 15
             ]);
 
             if (!$newsResponse->successful() || empty($newsResponse->json()['articles'])) {
@@ -69,9 +80,9 @@ trait AiMapNewsFuncs
             
             // Prepare text block for LLM to extract locations
             $textForLLM = "";
-            foreach ($articles as $index => $article) {
-                $title = $article['title'] ?? '';
-                $desc = $article['description'] ?? '';
+            foreach (array_slice($articles, 0, 10) as $index => $article) {
+                $title = mb_substr($article['title'] ?? '', 0, 150);
+                $desc = mb_substr($article['description'] ?? '', 0, 250);
                 $textForLLM .= "ID: {$index} | Titel: {$title} | Text: {$desc}\n";
             }
 
@@ -89,7 +100,7 @@ Format:
   ]
 }";
 
-            $openaiResponse = Http::withHeaders([
+            $openaiResponse = Http::timeout(10)->withHeaders([
                 'Authorization' => 'Bearer ' . $openAiKey,
                 'Content-Type' => 'application/json',
             ])->post('https://api.openai.com/v1/chat/completions', [
@@ -103,7 +114,11 @@ Format:
             ]);
 
             if (!$openaiResponse->successful()) {
-                throw new \Exception("OpenAI API Error: " . $openaiResponse->body());
+                Log::warning('OpenAI API Error in AiMapNewsFuncs', ['status' => $openaiResponse->status()]);
+                return [
+                    'status' => 'error',
+                    'message' => 'Die KI-Ortsanalyse konnte temporär nicht durchgeführt werden.'
+                ];
             }
 
             $llmResult = json_decode($openaiResponse->json()['choices'][0]['message']['content'], true);
@@ -116,14 +131,15 @@ Format:
                 ];
             }
 
-            // 3. Geocoding
+            // 3. Geocoding (max 10 locations)
+            $extractedMarkers = array_slice($extractedMarkers, 0, 10);
             $finalMarkers = [];
             foreach ($extractedMarkers as $marker) {
-                $loc = $marker['location'] ?? '';
+                $loc = trim($marker['location'] ?? '');
                 if (empty($loc)) continue;
 
                 $geoUrl = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($loc) . ".json";
-                $geoResponse = Http::get($geoUrl, [
+                $geoResponse = Http::timeout(5)->get($geoUrl, [
                     'access_token' => $mapboxToken,
                     'limit' => 1
                 ]);
@@ -175,7 +191,7 @@ Format:
             Log::error('AiMapNewsFuncs Error: ' . $e->getMessage());
             return [
                 'status' => 'error',
-                'message' => 'Interner Fehler bei der Verarbeitung der Map-News: ' . $e->getMessage()
+                'message' => 'Interner Fehler bei der Verarbeitung der Map-News.'
             ];
         }
     }

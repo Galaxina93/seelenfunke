@@ -70,6 +70,14 @@ return [
         'credentials_file' => env('FIREBASE_CREDENTIALS_PATH', storage_path('app/firebase-service-account.json')),
     ],
 
+    'newsapi' => [
+        'key' => env('NEWS_API_KEY'),
+    ],
+
+    'mapbox' => [
+        'token' => env('MAPBOX_TOKEN'),
+    ],
+
     'dhl' => [
         'api_key' => env('DHL_API_KEY'),
         'api_user' => env('DHL_API_USER'),
