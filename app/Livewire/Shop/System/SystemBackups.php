@@ -98,8 +98,14 @@ class SystemBackups extends Component
     public function deleteBackup($path)
     {
         try {
-            if (Storage::disk($this->diskName)->exists($path)) {
-                Storage::disk($this->diskName)->delete($path);
+            $normalizedPath = str_replace('\\', '/', $path);
+            if (str_contains($normalizedPath, '..') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
+                session()->flash('error', 'Ungültiger Backup-Pfad.');
+                return;
+            }
+
+            if (Storage::disk($this->diskName)->exists($normalizedPath)) {
+                Storage::disk($this->diskName)->delete($normalizedPath);
                 session()->flash('success', 'Das Backup wurde erfolgreich gelöscht.');
             } else {
                 session()->flash('error', 'Das Backup wurde nicht gefunden.');
@@ -111,8 +117,14 @@ class SystemBackups extends Component
 
     public function downloadBackup($path)
     {
-        if (Storage::disk($this->diskName)->exists($path)) {
-            return Storage::disk($this->diskName)->download($path);
+        $normalizedPath = str_replace('\\', '/', $path);
+        if (str_contains($normalizedPath, '..') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
+            session()->flash('error', 'Ungültiger Backup-Pfad.');
+            return;
+        }
+
+        if (Storage::disk($this->diskName)->exists($normalizedPath)) {
+            return Storage::disk($this->diskName)->download($normalizedPath);
         }
         
         session()->flash('error', 'Das Backup wurde nicht gefunden.');

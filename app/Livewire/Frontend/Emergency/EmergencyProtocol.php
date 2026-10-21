@@ -119,13 +119,22 @@ class EmergencyProtocol extends Component
         $this->isAuthenticated = false;
     }
 
+    protected function ensureAuthenticated(): void
+    {
+        if (!$this->isAuthenticated && !session('emergency_access_granted')) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function setStep($step)
     {
+        $this->ensureAuthenticated();
         $this->currentStep = $step;
     }
 
     public function toggleTodo($key)
     {
+        $this->ensureAuthenticated();
         $this->todoStates[$key] = !($this->todoStates[$key] ?? false);
         
         SystemSetting::updateOrCreate(
@@ -136,6 +145,7 @@ class EmergencyProtocol extends Component
 
     public function toggleFinanceTodo($id)
     {
+        $this->ensureAuthenticated();
         $this->financeStates[$id] = !($this->financeStates[$id] ?? false);
         
         SystemSetting::updateOrCreate(
@@ -146,6 +156,7 @@ class EmergencyProtocol extends Component
 
     public function setMaintenanceMode()
     {
+        $this->ensureAuthenticated();
         SystemSetting::updateOrCreate(
             ['key' => 'maintenance_mode'],
             ['value' => 'true']
@@ -157,6 +168,7 @@ class EmergencyProtocol extends Component
 
     public function downloadEmergencyPdf()
     {
+        $this->ensureAuthenticated();
         $settings = SystemSetting::pluck('value', 'key')->toArray();
         $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
         $date = now()->format('d.m.Y H:i');
@@ -174,6 +186,7 @@ class EmergencyProtocol extends Component
 
     public function downloadSingleCancellation($itemId)
     {
+        $this->ensureAuthenticated();
         $item = \App\Models\Accounting\AccountingCostItem::findOrFail($itemId);
         $settings = SystemSetting::pluck('value', 'key')->toArray();
         $date = now()->format('d.m.Y');
