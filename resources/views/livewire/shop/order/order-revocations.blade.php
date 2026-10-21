@@ -110,12 +110,20 @@
                 <div x-data="{ expanded: false }" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 hover:border-[var(--theme-color-40)] transition-all flex flex-col shadow-sm dark:shadow-inner {{ $isDone ? 'opacity-60' : '' }}">
                     <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 w-full cursor-pointer" @click="expanded = !expanded">
                         <div class="pl-2 flex-1">
-                            <div class="flex items-center gap-2 mb-1">
+                            <div class="flex items-center gap-2 mb-1 flex-wrap">
                                 <i class="bi bi-chevron-down text-gray-500 transition-transform" :class="expanded ? 'rotate-180' : ''"></i>
                                 <h3 class="font-bold text-gray-900 dark:text-gray-100 text-lg line-clamp-1">Bestellung {{ $revocation->order_number }}</h3>
                                 <span class="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-widest font-bold border {{ $statusColor }}">
                                     {{ $statusLabel }}
                                 </span>
+                                @if($order = $revocation->linked_order)
+                                    <a href="{{ route('admin.orders', ['search' => $order->order_number]) }}" 
+                                       class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:underline border border-amber-500/20" 
+                                       title="Zur Bestellung springen" 
+                                       @click.stop>
+                                        <i class="bi bi-box-arrow-up-right"></i> Order #{{ $order->order_number }}
+                                    </a>
+                                @endif
                             </div>
                             <p class="text-xs text-gray-500 dark:text-gray-400 ml-7">
                                 Kunde: <span class="font-bold text-gray-900 dark:text-white">{{ $revocation->name }}</span> ({{ $revocation->email }})

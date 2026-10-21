@@ -3,7 +3,9 @@
 namespace Tests\Feature\Livewire\Shop\Order;
 
 use App\Livewire\Shop\Order\OrderRevocationForm;
+use App\Models\Accounting\AccountingInvoice;
 use App\Models\Admin\Admin;
+use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderRevocation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -266,5 +268,64 @@ class OrderRevocationTest extends TestCase
 
         $this->assertDatabaseMissing('order_revocations', ['id' => $revocation->id]);
         Storage::disk('local')->assertMissing($path);
+    }
+
+    public function test_admin_can_process_revocation_and_cancels_linked_order_and_invoices()
+    {
+        $order = OrderOrder::create([
+            'order_number' => 'ORD-2026-8888',
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'total_price' => 5000,
+            'subtotal_price' => 4500,
+            'tax_amount' => 500,
+            'shipping_price' => 0,
+            'email' => 'klaus@example.com',
+            'billing_address' => ['first_name' => 'Klaus', 'last_name' => 'Klausen'],
+        ]);
+
+        $invoice = AccountingInvoice::create([
+            'order_id' => $order->id,
+            'invoice_number' => 'RE-2026-8888',
+            'type' => 'invoice',
+            'status' => 'paid',
+            'invoice_date' => now(),
+            'due_date' => now(),
+            'delivery_date' => now(),
+            'paid_at' => now(),
+            'subtotal' => 4500,
+            'tax_amount' => 500,
+            'total' => 5000,
+            'shipping_cost' => 0,
+            'discount_amount' => 0,
+            'volume_discount' => 0,
+            'billing_address' => ['first_name' => 'Klaus', 'last_name' => 'Klausen'],
+        ]);
+
+        $revocation = OrderRevocation::create([
+            'name' => 'Klaus K.',
+            'email' => 'klaus@example.com',
+            'order_number' => '#ORD-2026-8888',
+            'items' => 'Test Item',
+            'status' => 'pending'
+        ]);
+
+        \Livewire\Livewire::test(\App\Livewire\Shop\Order\OrderRevocations::class)
+            ->call('markAsProcessed', $revocation->id);
+
+        $revocation->refresh();
+        $this->assertEquals('processed', $revocation->status);
+
+        $order->refresh();
+        $this->assertEquals('cancelled', $order->status);
+        $this->assertEquals('refunded', $order->payment_status);
+        $this->assertEquals('Widerruf akzeptiert und abgewickelt', $order->cancellation_reason);
+
+        $invoice->refresh();
+        $this->assertEquals('cancelled', $invoice->status);
+
+        $storno = AccountingInvoice::where('parent_id', $invoice->id)->where('type', 'cancellation')->first();
+        $this->assertNotNull($storno);
+        $this->assertEquals(-5000, $storno->total);
     }
 }

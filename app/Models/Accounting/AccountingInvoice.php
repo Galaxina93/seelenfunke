@@ -157,11 +157,45 @@ class AccountingInvoice extends Model
     }
 
     /**
-     * Proxy für die E-Mail-Adresse des Kunden.
+     * Proxy für die E-Mail-Adresse des Kunden (unterstützt auch Gastbestellungen & manuelle Belege).
      */
     public function getEmailAttribute($value)
     {
-        return $value ?? ($this->order->email ?? ($this->customer->email ?? ''));
+        return $value 
+            ?? ($this->order->email 
+            ?? ($this->customer->email 
+            ?? ($this->billing_address['email'] ?? '')));
+    }
+
+    /**
+     * Ermittelt den vollständigen Namen des Kunden/Rechnungsempfängers.
+     */
+    public function getCustomerNameAttribute(): string
+    {
+        if ($this->customer) {
+            return trim($this->customer->first_name . ' ' . $this->customer->last_name);
+        }
+        $firstName = $this->billing_address['first_name'] ?? '';
+        $lastName = $this->billing_address['last_name'] ?? '';
+        $name = trim($firstName . ' ' . $lastName);
+        return $name !== '' ? $name : ($this->order->customer_name ?? 'Gastkunde');
+    }
+
+    /**
+     * Ermittelt den Vornamen des Empfängers für E-Mail-Anreden.
+     */
+    public function getRecipientFirstNameAttribute(): string
+    {
+        if ($this->customer && !empty($this->customer->first_name)) {
+            return $this->customer->first_name;
+        }
+        if (!empty($this->billing_address['first_name'])) {
+            return $this->billing_address['first_name'];
+        }
+        if ($this->order && !empty($this->order->billing_address['first_name'])) {
+            return $this->order->billing_address['first_name'];
+        }
+        return 'Kunde';
     }
 
     /**

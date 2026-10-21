@@ -22,10 +22,26 @@ class OrderRevocations extends Component
             'status' => 'processed'
         ]);
 
+        // Verknüpfte Bestellung und zugehörige Rechnungen GoBD-konform stornieren
+        $order = $revocation->linked_order;
+        $orderCancelled = false;
+        if ($order && $order->status !== 'cancelled') {
+            $order->update([
+                'status' => 'cancelled',
+                'payment_status' => $order->payment_status === 'paid' ? 'refunded' : $order->payment_status,
+                'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt'
+            ]);
+            $orderCancelled = true;
+        }
+
         \Illuminate\Support\Facades\Mail::to($revocation->email)
             ->send(new \App\Mail\Order\RevocationProcessedMail($revocation));
 
-        $this->dispatch('toast', message: 'Abwicklung abgeschlossen und Erfolgs-Mail gesendet.', type: 'success');
+        $toastMsg = $orderCancelled
+            ? 'Abwicklung abgeschlossen, Bestellung storniert & Erfolgs-Mail gesendet.'
+            : 'Abwicklung abgeschlossen und Erfolgs-Mail gesendet.';
+
+        $this->dispatch('toast', message: $toastMsg, type: 'success');
     }
 
     public function markAsPending($id)

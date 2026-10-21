@@ -224,6 +224,8 @@ trait FormatsECommerceData
         return [
             // Identifikatoren
             'quote_number' => $this->invoice_number ?? $this->order_number ?? $this->quote_number ?? 'N/A',
+            'order_number' => $this->order_number ?? ($this->order->order_number ?? ($this->invoice_number ?? $this->quote_number ?? 'N/A')),
+            'invoice_number' => $this->invoice_number ?? null,
             'quote_token'  => $this->token ?? '',
             'quote_expiry' => !empty($this->expires_at)
                 ? $this->expires_at->format('d.m.Y')

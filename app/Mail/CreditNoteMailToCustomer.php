@@ -52,9 +52,17 @@ class CreditNoteMailToCustomer extends Mailable implements ShouldQueue
      */
     public function attachments(): array
     {
+        if ($this->invoice->has_archived_pdf) {
+            return [
+                Attachment::fromStorageDisk('local', $this->invoice->pdf_storage_path)
+                    ->as($this->invoice->invoice_number . '.pdf')
+                    ->withMime('application/pdf'),
+            ];
+        }
+
         return [
             Attachment::fromData(function () {
-                $service = new \App\Services\InvoiceService();
+                $service = app(\App\Services\InvoiceService::class);
                 return $service->generatePdf($this->invoice)->output();
             }, $this->invoice->invoice_number . '.pdf')
             ->withMime('application/pdf'),

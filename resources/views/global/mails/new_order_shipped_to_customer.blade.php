@@ -10,10 +10,10 @@
 
     {{-- ANSPRACHE --}}
     <h1>Juhu, deine Bestellung ist unterwegs! 🚚</h1>
-    <p>Hallo {{ $data['contact']['vorname'] }},</p>
+    <p>Hallo {{ !empty($data['contact']['vorname']) ? $data['contact']['vorname'] : 'du' }},</p>
 
     <p>gute Neuigkeiten: Wir haben deinen Seelenfunken soeben liebevoll verpackt und an unseren Versanddienstleister übergeben.</p>
-    <p>Deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> ist nun auf dem Weg zu dir.</p>
+    <p>Deine Bestellung <strong>#{{ $data['order_number'] ?? $data['quote_number'] }}</strong> ist nun auf dem Weg zu dir.</p>
 
     {{-- ARTIKEL LISTE --}}
     <div style="margin-top: 30px; margin-bottom: 30px;">

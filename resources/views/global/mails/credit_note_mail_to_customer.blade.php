@@ -7,7 +7,7 @@
     @include('global.mails.partials.mail_logo')
 
     {{-- ANSPRACHE --}}
-    <h1>Hallo {{ $invoice->customer->first_name }},</h1>
+    <h1>Hallo {{ $invoice->recipient_first_name }},</h1>
     <p>wir haben soeben eine neue Gutschrift bzw. einen Stornobeleg für dich ausgestellt.</p>
 
     {{-- INHALT --}}

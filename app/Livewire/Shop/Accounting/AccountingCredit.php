@@ -122,16 +122,25 @@ class AccountingCredit extends Component
     public function sendCreditEmail($invoiceId)
     {
         $invoice = AccountingInvoice::find($invoiceId);
-        if ($invoice && $invoice->customer) {
+        $targetEmail = $invoice?->email;
 
-            // Asynchrones Dispatching an den Mail-Worker
-            \Illuminate\Support\Facades\Mail::to($invoice->customer->email)
-                ->send(new \App\Mail\CreditNoteMailToCustomer($invoice));
+        if ($invoice && !empty($targetEmail) && filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+            try {
+                // Asynchrones Dispatching an den Mail-Worker
+                \Illuminate\Support\Facades\Mail::to($targetEmail)
+                    ->send(new \App\Mail\CreditNoteMailToCustomer($invoice));
 
-            $invoice->update(['email_sent_at' => now()]);
-            session()->flash('success', 'Die Gutschrift wurde an ' . $invoice->customer->email . ' gesendet!');
+                $invoice->update(['email_sent_at' => now()]);
+                session()->flash('success', 'Die Gutschrift wurde an ' . $targetEmail . ' gesendet!');
+                $this->dispatch('toast', message: 'Die Gutschrift wurde an ' . $targetEmail . ' gesendet!', type: 'success');
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error("Fehler beim Senden der Gutschrift-Mail für {$invoice->invoice_number}: " . $e->getMessage());
+                session()->flash('error', 'Fehler beim E-Mail-Versand: ' . $e->getMessage());
+                $this->dispatch('toast', message: 'Fehler beim E-Mail-Versand: ' . $e->getMessage(), type: 'error');
+            }
         } else {
-            session()->flash('error', 'Kunden-Oder Beleg-Daten unvollständig!');
+            session()->flash('error', 'Kunden- oder Beleg-Daten unvollständig (keine gültige E-Mail hinterlegt)!');
+            $this->dispatch('toast', message: 'Kunden- oder Beleg-Daten unvollständig (keine gültige E-Mail hinterlegt)!', type: 'error');
         }
     }
 
