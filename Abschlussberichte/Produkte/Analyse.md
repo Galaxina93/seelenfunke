@@ -66,7 +66,7 @@ In [`product-analytics.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/m
    - Automatische Optimierungsempfehlungen bei erhöhten Absprüngen.
 
 3. **Tab 3: Wirtschaftlichkeit & LUCID (`activeTab = 'economics'`)**
-   - Wahre Zahlen & Margen (Einkauf, Laserlaufzeit, Verpackung, Reingewinn, Deckungsbeitrag).
+   - Wahre Zahlen & Margen (Einkauf, Laserlaufzeit, Verpackung, Reingewinn, Deckungsbeitrag) – 1:1 originalgetreue Stage-Detailansicht für die Spalten **Kostenstruktur** (EK, Laser, Material, Versand, Marketing, Tara) und **Netto VK & Marge** (Brutto/Netto Aufschlüsselung, Reingewinn groß hervorgehoben, farbliche Margen-Prozentanzeige).
    - Gesetzlicher LUCID-Verpackungsbericht nach Materialarten (PPK, Kunststoff, Glas etc.) mit PDF-Export.
    - Qualitäts- & Schadens-Tracker (Lieferschäden, Top 5 Problemprodukte, Kundenbewertungen, Lieferantenrisiko).
 
