@@ -107,6 +107,46 @@ class StripeWebhookController extends Controller
             $intentId = $intent->id ?? 'unknown';
             $errorMessage = $intent->last_payment_error->message ?? 'Zahlung fehlgeschlagen';
             Log::warning("Webhook payment_intent.payment_failed für Intent {$intentId}: {$errorMessage}");
+        } elseif ($event->type === 'charge.refunded') {
+            $charge = $event->data->object;
+            $intentId = is_object($charge->payment_intent) ? ($charge->payment_intent->id ?? null) : $charge->payment_intent;
+
+            $order = null;
+            if (!empty($intentId)) {
+                $order = OrderOrder::with('items.product')->where('stripe_payment_intent_id', $intentId)->first();
+            }
+
+            if ($order) {
+                $isFullRefund = $charge->refunded ?? false;
+                if ($isFullRefund) {
+                    $order->update([
+                        'payment_status' => 'refunded',
+                        'status' => 'refunded',
+                    ]);
+
+                    // Vollständige Rückabwicklung (Lager Standardware, Spende, Gutscheine, Referral)
+                    $order->handleCancellation('Stripe Webhook Rückerstattung');
+                    Log::info("Webhook charge.refunded: Order {$order->order_number} erfolgreich als erstattet verarbeitet.");
+                } else {
+                    Log::info("Webhook charge.refunded: Order {$order->order_number} wurde teilweise erstattet.");
+                }
+            } else {
+                Log::warning("Webhook charge.refunded: Keine passende Order gefunden für Intent {$intentId}.");
+            }
+        } elseif ($event->type === 'payment_intent.canceled') {
+            $intent = $event->data->object;
+            $intentId = $intent->id ?? null;
+            if ($intentId) {
+                $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->where('payment_status', 'unpaid')->first();
+                if ($order && $order->status === 'pending') {
+                    $order->update([
+                        'status' => 'cancelled',
+                        'cancellation_reason' => 'Stripe PaymentIntent abgebrochen/abgelaufen'
+                    ]);
+                    $order->handleCancellation('Stripe PaymentIntent abgebrochen');
+                    Log::info("Webhook payment_intent.canceled: Unbezahlte Order {$order->order_number} storniert.");
+                }
+            }
         }
 
         return response('Success', 200);

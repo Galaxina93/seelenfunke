@@ -226,6 +226,23 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Befund:** `RevocationFileController` besaß keinerlei Zugriffsbeschränkung oder Traversal-Prüfung. `DigitalProductDownloadController` blockierte signierte Links, falls der Kunde nicht zeitgleich in seiner Session eingeloggt war. Der Resend-Endpunkt für Verifizierungs-Mails war auf den Web-Guard beschränkt.
 * **Lösung:** Rollenprüfung und Traversal-Schutz in `RevocationFileController`, Unterstützung kryptografisch signierter URLs (`hasValidSignature`) für digitale Downloads sowie Multi-Guard-Support (`auth:web,customer`) beim Verifizierungs-Resend.
 
+### 2.36 [GUTSCHEIN- & FINANZSCHUTZ] Vollständige Gutschein-Rückabwicklung & Deaktivierung bei Stornierung
+* **Dateien:** [`app/Models/Order/OrderOrder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php), [`app/Livewire/Shop/Order/OrderOverview.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php), [`routes/api/orders.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/orders.php)
+* **Befund:** Bei Stornierung oder Erstattung einer Bestellung gab es zwei gravierende Finanzlecks:
+  1. Wurde in der Bestellung ein Wertgutschein (`MarketingGiftVoucher`) eingelöst, verfiel das Guthaben des Kunden unwiederbringlich, oder bei Aktionsgutscheinen (`MarketingVoucher`) wurde der Einlösezähler nicht korrigiert.
+  2. Wurde in der stornierten Bestellung ein Geschenkgutschein *gekauft*, blieb dieser nach der Stornierung aktiv und voll einlösbar, wodurch Kunden den erstatteten Gutschein kostenlos im Shop einlösen konnten.
+* **Lösung:** Einführung einer zentralen Rückabwicklungsmethode `OrderOrder::handleCancellation()`. Eingelöste Wertgutscheine erhalten ihr Saldo über eine negative Buchung im `MarketingGiftVoucherLog` gutgeschrieben, Aktionsgutschein-Zähler werden dekrementiert, und gekaufte Wertgutscheine der Bestellung werden sofort deaktiviert und auf Guthaben 0 gesetzt.
+
+### 2.37 [PAYMENT- & WEBHOOK-INTEGRITÄT] Lückenlose Storno- & Erstattungssynchronisation in Stripe-Webhooks
+* **Dateien:** [`app/Http/Controllers/StripeWebhookController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/StripeWebhookController.php)
+* **Befund:** Der Stripe-Webhook verarbeitete Rückerstattungen (`charge.refunded`) oder stornierte Zahlungsabsichten (`payment_intent.canceled`) nicht automatisiert bezüglich der vollständigen Geschäftslogik (Bestand, Gutscheine, Herzensprojekt, Empfehlungsprämien).
+* **Lösung:** Integration von `charge.refunded` und `payment_intent.canceled` im Webhook-Controller mit Aufruf von `$order->handleCancellation(...)` und sauberer Status-Synchronisation (`refunded`/`cancelled`).
+
+### 2.38 [KI-SICHERHEIT & RECHTEISOLATION] Autorisierungsprüfung für KI-Agenten-Werkzeuge (Tool Privilege Escalation Guard)
+* **Dateien:** [`app/Services/AI/AIFunctionsRegistry.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/AIFunctionsRegistry.php)
+* **Befund:** In `AIFunctionsRegistry::execute()` wurde zwar geprüft, ob ein Werkzeug im System existiert, jedoch nicht, ob der ausführende KI-Agent (`$agent->tools`) überhaupt über die Berechtigung für dieses spezifische Werkzeug verfügt. Ein Prompt-Injection-Angriff auf einen limitierten Support-Bot hätte ihm gestattet, administrative Finanztools oder Systemfunktionen auszuführen.
+* **Lösung:** Integrierte Autorisierungsprüfung in `AIFunctionsRegistry::execute`: Werkzeugaufrufe werden gegen die Tool-Sammlung der Rolle des Agenten abgeglichen; unberechtigte Aufrufe werden sofort mit `PERMISSION DENIED` blockiert.
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -290,6 +307,11 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`routes/api/emails.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/api/emails.php) | Whitelist-Validierung für E-Mail-Anhänge in der REST-API |
 | [`app/Http/Controllers/Customer/DigitalProductDownloadController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/Customer/DigitalProductDownloadController.php) | Signatur-Unterstützung (`hasValidSignature`) & Admin/Mitarbeiter-Bypass |
 | [`app/Http/Controllers/RevocationFileController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/RevocationFileController.php) | Authentifizierungsprüfung & Path-Traversal-Schutz |
+| [`app/Models/Order/OrderOrder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php) | Zentrale Rückabwicklungs-Methode `handleCancellation()` für Gutscheine, Lager, Spenden & Referrals |
+| [`app/Http/Controllers/StripeWebhookController.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Http/Controllers/StripeWebhookController.php) | Automatisierte Storno- und Erstattungsverarbeitung bei `charge.refunded` und `payment_intent.canceled` |
+| [`app/Services/AI/AIFunctionsRegistry.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/AIFunctionsRegistry.php) | Autorisierungsprüfung auf Agenten-Tools vor Funktionsausführung (Privilege Escalation Guard) |
+| [`tests/Feature/Order/OrderCancellationComprehensiveTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderCancellationComprehensiveTest.php) | Neue Testsuite: Gutschein-Saldo-Restore, Geschenkgutschein-Deaktivierung & Referral-Reversal |
+| [`tests/Feature/Ai/AiToolAuthorizationTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiToolAuthorizationTest.php) | Neue Testsuite: Prüfung von Permission Denied bei nicht zugewiesenen KI-Werkzeugen |
 | [`tests/Feature/Accounting/InvoiceStoragePrivacyTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/InvoiceStoragePrivacyTest.php) | Neue Testsuite: Rechnungen existieren nur im privaten Storage |
 | [`tests/Feature/Order/OrderCancellationStockTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderCancellationStockTest.php) | Neue Testsuite: Lagerbestandsprüfung bei Storno (Standard vs. Gravurware) |
 | [`tests/Feature/Order/OrderRevocationSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderRevocationSecurityTest.php) | Neue Testsuite: Bot-Honeypot & Rate-Limiter im Widerrufsformular |
@@ -308,7 +330,9 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 93 Tests bestanden (283 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 98 Tests bestanden (336 Assertions, 0 Fehler)
+  * `AiToolAuthorizationTest`: 1/1 bestanden (Unbefugte Tool-Ausführung für KI-Agenten unterbunden)
+  * `OrderCancellationComprehensiveTest`: 3/3 bestanden (Gutschein-Saldo-Restore, Geschenkgutschein-Sperre & Referral-Reversal)
   * `InvoiceStoragePrivacyTest`: 1/1 bestanden (Private Storage Verifikation)
   * `OrderCancellationStockTest`: 2/2 bestanden (Standard- vs. Gelasertes Produkt Bestandsprüfung)
   * `OrderApiCancellationStockTest`: 1/1 bestanden (API Bestandsprüfung bei Storno)

@@ -201,20 +201,14 @@ Route::group(['middleware' => [function ($request, $next) {
         $order->status = $data['status'];
         $order->save();
 
-        // Bestand zurückbuchen bei Stornierung: NUR für unpersonalisierte Standardprodukte.
-        // Personalisierte / gelaserte Produkte verfallen und dürfen den Lagerbestand NICHT erhöhen.
-        if ($data['status'] === 'cancelled' && $previousStatus === 'pending') {
-            foreach ($order->items as $item) {
-                $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
-                if (!$isPersonalized && $item->product) {
-                    $item->product->restoreStock($item->quantity);
-                }
-            }
-        }
-
-        // Herzensprojekt: Spendenbeitrag bei Storno oder Erstattung zurückbuchen
+        // Geschäftslogische Rückabwicklung bei Stornierung oder Erstattung:
+        // 1. Lagerbestand: Nur für Standardware zurückbuchen, personalisierte Ware verfällt als Ausschuss
+        // 2. Herzensprojekt: Spendenbeitrag stornieren
+        // 3. Gekaufte Wertgutscheine: Deaktivieren
+        // 4. Eingelöste Gutscheine: Saldo wiederherstellen
+        // 5. Freunde-Werben: Prämie stornieren
         if (in_array($data['status'], ['cancelled', 'refunded'], true)) {
-            \App\Services\HerzensprojektService::reverseDonationForOrder($order, 'API-Statusänderung');
+            $order->handleCancellation('API-Statusänderung', $previousStatus);
         }
         
         return response()->json([

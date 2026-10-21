@@ -308,6 +308,46 @@ class ReferralService
     }
 
     /**
+     * Zieht eine gutgeschriebene Empfehlungsvergütung bei Stornierung oder Erstattung wieder ab.
+     */
+    public function reverseOrderReferralReward(OrderOrder $order): bool
+    {
+        if (empty($order->coupon_code)) {
+            return false;
+        }
+
+        $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))->first();
+        if (!$referral) {
+            return false;
+        }
+
+        // Suche den Gutschein, auf dem die Belohnung für diese Order vermerkt ist
+        $voucher = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
+            ->where('personal_message', 'like', "%{$order->order_number}%")
+            ->where('is_active', true)
+            ->first();
+
+        if ($voucher) {
+            // Saldo um die Belohnung reduzieren (mindestens auf 0)
+            $newBalance = max(0, $voucher->current_balance - $referral->reward_cents);
+            $voucher->update([
+                'current_balance' => $newBalance,
+                'is_active' => $newBalance > 0,
+                'personal_message' => $voucher->personal_message . " [Order {$order->order_number}: Storniert -5€]"
+            ]);
+
+            if ($referral->successful_referrals_count > 0) {
+                $referral->decrement('successful_referrals_count');
+            }
+
+            Log::info("Freunde-Werben: 5 € Belohnung für Gutschein {$voucher->code} von {$referral->referrer_email} nach Storno von Order {$order->order_number} zurückgebucht.");
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Erzeugt eine Prioritätenliste an lesbaren Gutscheincode-Kandidaten.
      */
     protected function generateCandidateCodes(string $cleanFirst, string $cleanLast): array

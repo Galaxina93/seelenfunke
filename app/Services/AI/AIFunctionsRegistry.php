@@ -144,6 +144,19 @@ class AIFunctionsRegistry
             }
         }
 
+        // Agenten-Berechtigungsprüfung: Verhindert Rechteausweitung und unautorisierte Tool-Calls
+        if ($agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection && $agent->tools->isNotEmpty()) {
+            $allowedTools = $agent->tools->pluck('identifier')->toArray();
+            $allowedTools[] = 'system_get_current_time';
+            if (!in_array($name, $allowedTools, true)) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "PERMISSION DENIED: Agent '{$agent->name}' besitzt keine Berechtigung für das Werkzeug '{$name}'."
+                ];
+            }
+        }
+
         $callable = $functions[$name]['callable'];
 
         if (!is_callable($callable)) {

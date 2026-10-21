@@ -475,6 +475,103 @@ class OrderOrder extends Model
             \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
         });
     }
+
+    /**
+     * Führt alle geschäftslogischen Rückabwicklungen bei Stornierung oder Erstattung durch:
+     * 1. Lagerbestand: Ausschließliche Rückbuchung unpersonalisierter Standardware (Laserprodukte verfallen als Ausschuss).
+     * 2. Herzensprojekt: Rückbuchung des Spendenbeitrags.
+     * 3. Gekaufte Wertgutscheine: Deaktivierung, um kostenlose Einlösung nach Erstattung zu verhindern.
+     * 4. Eingelöste Gutscheine: Wiederherstellung des Guthabens bzw. Dekrementierung des Einlösezählers.
+     * 5. Freunde-Werben: Stornierung unberechtigter Werbeprämien.
+     */
+    public function handleCancellation(string $reason = 'Stornierung', ?string $previousStatus = null): void
+    {
+        $effectiveStatus = $previousStatus ?? $this->getOriginal('status') ?? $this->status;
+
+        // 1. Lagerbestand: NUR für unpersonalisierte Produkte und nur wenn vorher pending/nicht ausgeliefert
+        if (in_array($effectiveStatus, ['pending', 'processing'], true)) {
+            foreach ($this->items as $item) {
+                $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
+                if (!$isPersonalized && $item->product) {
+                    $item->product->restoreStock($item->quantity);
+                }
+            }
+        }
+
+        // 2. Herzensprojekt: Spendenbeitrag stornieren
+        \App\Services\HerzensprojektService::reverseDonationForOrder($this, $reason);
+
+        // 3. In dieser Order gekaufte Geschenkgutscheine sperren (Finanzschutz)
+        foreach ($this->items as $item) {
+            \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)
+                ->where('is_active', true)
+                ->update([
+                    'is_active' => false,
+                    'current_balance' => 0,
+                ]);
+        }
+
+        // 4. Vom Kunden eingelöste Gutscheine wiederherstellen
+        $this->restoreVouchersOnCancellation();
+
+        // 5. Freunde-Werben: Belohnung zurückbuchen
+        try {
+            app(\App\Services\ReferralService::class)->reverseOrderReferralReward($this);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Referral reward reversal error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Stellt verbrauchte Wertgutschein-Guthaben oder Aktionsgutschein-Zähler bei Stornierung/Erstattung wieder her.
+     */
+    public function restoreVouchersOnCancellation(): void
+    {
+        if (empty($this->coupon_code)) {
+            return;
+        }
+
+        // 1. Wertgutschein (MarketingGiftVoucher)
+        $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $this->coupon_code)->first();
+        if ($giftVoucher && $this->discount_amount > 0) {
+            // Idempotenz: Wurde die Rückbuchung für diese Bestellung bereits durchgeführt?
+            $alreadyReversed = \App\Models\Marketing\MarketingGiftVoucherLog::where('gift_voucher_id', $giftVoucher->id)
+                ->where('order_id', $this->id)
+                ->where('amount', '<', 0)
+                ->exists();
+
+            if (!$alreadyReversed) {
+                $usedLog = \App\Models\Marketing\MarketingGiftVoucherLog::where('gift_voucher_id', $giftVoucher->id)
+                    ->where('order_id', $this->id)
+                    ->where('amount', '>', 0)
+                    ->first();
+
+                $refundAmount = $usedLog ? $usedLog->amount : $this->discount_amount;
+                $newBalance = $giftVoucher->current_balance + $refundAmount;
+
+                $giftVoucher->update([
+                    'current_balance' => $newBalance,
+                    'is_active' => true,
+                ]);
+
+                \App\Models\Marketing\MarketingGiftVoucherLog::create([
+                    'gift_voucher_id' => $giftVoucher->id,
+                    'order_id' => $this->id,
+                    'amount' => -$refundAmount,
+                    'remaining_balance' => $newBalance,
+                ]);
+
+                \Illuminate\Support\Facades\Log::info("Gutscheinguthaben von {$refundAmount} Cents für Gutschein {$giftVoucher->code} nach Storno von Order {$this->order_number} erstattet.");
+            }
+        }
+
+        // 2. Rabattcode (MarketingVoucher)
+        $mv = \App\Models\Marketing\MarketingVoucher::where('code', $this->coupon_code)->first();
+        if ($mv && $mv->used_count > 0) {
+            $mv->decrement('used_count');
+            \Illuminate\Support\Facades\Log::info("Rabattcode-Zähler für {$mv->code} nach Storno von Order {$this->order_number} zurückgesetzt.");
+        }
+    }
 }
 
 

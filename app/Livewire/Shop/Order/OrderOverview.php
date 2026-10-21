@@ -199,25 +199,17 @@ class OrderOverview extends Component
             DB::transaction(function () {
                 // Fall: Stornierung
                 if ($this->status === 'cancelled') {
-                    // Bestand zurückbuchen: NUR für unpersonalisierte Standardprodukte.
-                    // Personalisierte / gelasertes Produkte verfallen bei Stornierung und dürfen den Lagerbestand NICHT erhöhen.
-                    if ($this->selectedOrder->status !== 'cancelled' && $this->selectedOrder->status === 'pending') {
-                        $restoredCount = 0;
-                        foreach ($this->selectedOrder->items as $item) {
-                            $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
-                            if (!$isPersonalized && $item->product) {
-                                $item->product->restoreStock($item->quantity);
-                                $restoredCount++;
-                            }
-                        }
-                        if ($restoredCount > 0) {
-                            session()->flash('info', 'Lagerbestand für unpersonalisierte Standard-Artikel wurde zurückgebucht. Personalisierte Artikel wurden als Ausschuss verbucht.');
-                        }
-                    }
-
                     $this->validate([
                         'cancellationReason' => 'required|string|min:5|max:500',
                     ]);
+
+                    // Führt geschäftslogische Rückabwicklung durch:
+                    // 1. Lagerbestand: Nur für Standardware zurückbuchen, personalisierte Ware verfällt als Ausschuss
+                    // 2. Herzensprojekt: Spendenbeitrag stornieren
+                    // 3. Gekaufte Wertgutscheine: Deaktivieren
+                    // 4. Eingelöste Gutscheine: Saldo wiederherstellen
+                    // 5. Freunde-Werben: Prämie stornieren
+                    $this->selectedOrder->handleCancellation($this->cancellationReason ?: 'Stornierung');
 
                     // Update
                     $this->selectedOrder->update([
@@ -226,9 +218,6 @@ class OrderOverview extends Component
                         'notes' => $this->notes,
                         'cancellation_reason' => $this->cancellationReason
                     ]);
-
-                    // Herzensprojekt: Spendenbeitrag bei Storno sicher zurückbuchen
-                    \App\Services\HerzensprojektService::reverseDonationForOrder($this->selectedOrder, $this->cancellationReason ?: 'Stornierung');
 
                     $this->selectedOrder->refresh();
                     session()->flash('success', 'Bestellung storniert.');
@@ -242,9 +231,9 @@ class OrderOverview extends Component
                         'cancellation_reason' => null
                     ]);
 
-                    // Herzensprojekt: Spendenbeitrag bei Rückerstattung zurückbuchen
+                    // Vollständige Rückabwicklung bei Erstattung
                     if ($this->status === 'refunded') {
-                        \App\Services\HerzensprojektService::reverseDonationForOrder($this->selectedOrder, 'Erstattung');
+                        $this->selectedOrder->handleCancellation('Erstattung');
                     }
 
                     $this->selectedOrder->refresh();
