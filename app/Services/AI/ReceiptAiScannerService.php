@@ -31,16 +31,50 @@ class ReceiptAiScannerService
                 return self::mockResponseForTests();
             }
 
+            $allowedMimes = [
+                'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'
+            ];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf'];
+
             // Dateipfad und MimeType ermitteln
             if ($file instanceof UploadedFile) {
                 $path = $file->getRealPath();
                 $mime = $file->getMimeType();
                 $originalName = $file->getClientOriginalName();
-            } elseif (is_string($file) && file_exists($file)) {
-                $path = $file;
-                $mime = mime_content_type($file) ?: 'image/jpeg';
-                $originalName = basename($file);
+                $ext = strtolower($file->getClientOriginalExtension());
+            } elseif (is_string($file)) {
+                $rawFile = str_replace('\\', '/', $file);
+                if (str_contains($rawFile, '..') || str_contains($rawFile, "\0")) {
+                    Log::warning("ReceiptAiScannerService: Path Traversal Versuch abgewehrt: {$file}");
+                    return null;
+                }
+                if (!file_exists($file)) {
+                    return null;
+                }
+
+                $realPath = realpath($file);
+                $storagePath = realpath(storage_path());
+                $tempPath = realpath(sys_get_temp_dir());
+
+                $isAllowedDir = ($storagePath && str_starts_with($realPath, $storagePath))
+                    || ($tempPath && str_starts_with($realPath, $tempPath))
+                    || (defined('base_path') && str_starts_with($realPath, realpath(base_path('tests/fixtures'))));
+
+                if (!$isAllowedDir && !app()->runningUnitTests()) {
+                    Log::warning("ReceiptAiScannerService: Datei außerhalb autorisierter Verzeichnisse: {$file}");
+                    return null;
+                }
+
+                $path = $realPath;
+                $mime = mime_content_type($realPath) ?: 'image/jpeg';
+                $originalName = basename($realPath);
+                $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
             } else {
+                return null;
+            }
+
+            if (!in_array($ext, $allowedExtensions) || !in_array($mime, $allowedMimes)) {
+                Log::warning("ReceiptAiScannerService: Nicht unterstütztes Format oder MIME: {$ext} / {$mime}");
                 return null;
             }
 
@@ -159,12 +193,19 @@ PROMPT;
             $rawAmount = str_replace(',', '.', $rawAmount);
         }
         $amount = abs((float) $rawAmount);
+        if (is_nan($amount) || is_infinite($amount) || $amount < 0) {
+            $amount = 0.0;
+        }
+        $amount = round(min($amount, 9999999.99), 2);
 
         // Datum validieren oder Fallback auf heute
         $date = date('Y-m-d');
         if (!empty($raw['date'])) {
             try {
-                $date = Carbon::parse($raw['date'])->format('Y-m-d');
+                $parsedDate = Carbon::parse($raw['date']);
+                if ($parsedDate->year >= 2000 && $parsedDate->year <= 2100) {
+                    $date = $parsedDate->format('Y-m-d');
+                }
             } catch (\Throwable $e) {
                 $date = date('Y-m-d');
             }
@@ -185,17 +226,17 @@ PROMPT;
 
         return [
             'success' => true,
-            'title' => $title,
-            'merchant' => $raw['merchant'] ?? '',
-            'description' => $raw['description'] ?? '',
+            'title' => mb_substr($title, 0, 255),
+            'merchant' => mb_substr(trim($raw['merchant'] ?? ''), 0, 255),
+            'description' => mb_substr(trim($raw['description'] ?? ''), 0, 255),
             'amount_abs' => $amount,
             'amount_formatted' => '-' . number_format($amount, 2, '.', ''), // Sonderausgaben sind negativ in der DB
             'date' => $date,
-            'location' => trim($raw['location'] ?? ''),
-            'category' => trim($raw['category'] ?? 'Einkauf'),
+            'location' => mb_substr(trim($raw['location'] ?? ''), 0, 255),
+            'category' => mb_substr(trim($raw['category'] ?? 'Einkauf'), 0, 100),
             'is_business' => (bool) ($raw['is_business'] ?? true),
             'tax_rate' => $taxRate,
-            'invoice_number' => trim((string) ($raw['invoice_number'] ?? '')),
+            'invoice_number' => mb_substr(trim((string) ($raw['invoice_number'] ?? '')), 0, 100),
             'raw' => $raw,
         ];
     }

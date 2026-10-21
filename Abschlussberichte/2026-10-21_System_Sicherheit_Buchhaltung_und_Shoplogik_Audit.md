@@ -841,12 +841,52 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Belegabfrage erweitert auf `where('is_business', true)` und `orWhereJsonLength('file_paths', 0)`, Ausschluss von stornierten/erstatteten Bestellungen (`whereNotIn('status', ['cancelled', 'refunded'])`) und Aggregation der Monatsausgaben basierend auf `execution_date`.
 * **Testabdeckung:** [`tests/Feature/Ai/AiSupportServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiSupportServiceSecurityTest.php) (2 Tests, 5 Assertions).
 
+### 2.131 [KI-PRODUKTVERWALTUNG] Negativmengen-Schutz bei Bruchmeldungen (Lager-Inflation), Preis-Validierung & Plattform-Whitelisting in AiProductFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiProductFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiProductFuncs.php)
+* **Befund:** In `executeReportLoss()` fehlte eine Prüfung auf positive Schadensmengen (`quantity <= 0`). Bei Übergabe negativer Werte dekrementierte `reduceStock(-5)` den Lagerbestand um einen negativen Wert, was zu einer unkontrollierten Lagerbestandserhöhung (Inflation) und negativen Schadenswerten in der Buchhaltung führte. In `executeProductDraftUpdate()` konnten negative Verkaufspreise, Streichpreise oder negative Bestände gesetzt werden. In `executeRunCrawler()` wurden beliebige Plattform-Strings ohne Validierung akzeptiert und für Cache-Schlüssel und Hintergrund-Jobs verwendet. In `executeAddMaterial()` und `executeUpdateWeight()` konnten negative Tara-Gewichte erfasst werden. In `findTemplate()`, `executeProductTemplateGetAll()` und `executeProductGetSupplier()` fehlte das SQL-Wildcard-Escaping.
+* **Lösung:** Strikte Validierung auf positive Stückzahlen (`quantity > 0`), Nicht-Negativ-Garantie für Preise und Bestände, Plattform-Whitelisting (`['etsy', 'amazon']`), Validierung von Verpackungsgewichten (`weight_grams > 0`) und konsequentes SQL-Wildcard-Escaping mit `addcslashes($val, '%_\\')`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiProductFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiProductFuncsSecurityTest.php) (4 Tests, 9 Assertions).
+
+### 2.132 [KI-FINANZEN & BUCHHALTUNG] Erhaltung des Negativvorzeichens bei Sonderausgaben, Path-Traversal-Sperre & E-Mail-CRLF-Schutz in AiFinanceFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiFinanceFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiFinanceFuncs.php)
+* **Befund:** In `executeEditVariableCost()` wurden übergebene positive Beträge ungefiltert gespeichert, während Ausgaben im System strikt negativ sein müssen. Dies führte dazu, dass bearbeitete Sonderausgaben fälschlicherweise als Betriebseinnahmen gebucht wurden und Finanzstatistiken verfälschten. In `executeReadFixedCostContract()` wurde bei Vorhandensein eines relativen Pfads unzureichend geprüft (`file_exists`), wodurch unberechtigtes Auslesen lokaler Serverdateien möglich war. In `executeGenerateAndSendReport()` fehlte eine strikte E-Mail-Validierung (CRLF-Injection-Gefahr). In `executeSearchVariableCosts()` und `executeCreateFixedCost()` fehlte das Wildcard-Escaping in LIKE-Abfragen.
+* **Lösung:** Automatische Vorzeichen-Invertierung (`$amount > 0 => -$amount`) beim Bearbeiten von variablen Ausgaben, Path-Traversal-Filterung und `storage_path()`-Containment-Prüfung bei Vertragsdokumenten, RFC- und CRLF-Prüfung bei Report-E-Mails sowie Wildcard-Escaping mit `addcslashes`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiFinanceFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiFinanceFuncsSecurityTest.php) (4 Tests, 9 Assertions).
+
+### 2.133 [BELEGERFASSUNG & KI-VISION] Pfadtraversal-Schutz, Dateiendungs- & MIME-Whitelisting sowie Wertebereichs-Clamping im ReceiptAiScannerService
+* **Dateien:** [`app/Services/AI/ReceiptAiScannerService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/ReceiptAiScannerService.php)
+* **Befund:** In `analyze()` konnten beliebige lokale Systempfade als String übergeben werden, wodurch sensitive Serverdateien (`.env`, Configs, PHP-Skripte) Base64-kodiert an externe Gemini-LLM-Endpunkte übermittelt werden konnten. Bei der JSON-Normalisierung in `normalizeResult()` wurden Beträge ohne Obergrenze übernommen (Risiko von Milliarden-Buchungsfehlern durch Barcode-Verwechslungen als Summe) und Textfelder (`title`, `merchant`, `category`) ohne Längenbegrenzung belassen (MySQL SQL State 22001 Overflow).
+* **Lösung:** Restriktion auf autorisierte Verzeichnisse (`storage_path()`, Temp-Dir), Dateiendungs- und MIME-Whitelisting (`jpg, jpeg, png, webp, heic, heif, pdf`), Wertebereichs-Clamping des Belegbetrags (`min: 0, max: 9.999.999,99 €`) und Truncation aller Textfelder auf Datenbankspezifikationen.
+* **Testabdeckung:** [`tests/Feature/Ai/ReceiptAiScannerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/ReceiptAiScannerSecurityTest.php) (3 Tests, 7 Assertions).
+
+### 2.134 [DATEITRICHTER & DOKUMENTEN-WORKSPACE] Path-Traversal-Sperre, Workspace-Boundary-Containment & Dateinamen-Sanitization im DateitrichterService
+* **Dateien:** [`app/Services/AI/Workspace/DateitrichterService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Workspace/DateitrichterService.php)
+* **Befund:** In `processSingleFile()` konnten über Pfade mit Traversal-Sequenzen (`..`, `\0`) Dokumente außerhalb des Workspace-Roots angesprochen werden. Zudem wurden Dateinamen ohne Bereinigung von potenziell gefährlichen Zeichen oder Steuerzeichen (`\r\n`) in Zielordner verschoben. In `extractTextContent()` wurden Textdateien ungeachtet ihrer Dateigröße vollständig in den RAM geladen. In `updateOrCreate()` fehlten Längenbegrenzungen für Titel, Kategorie und Zweck.
+* **Lösung:** Strikte Path-Traversal-Prüfung und Verifikation der Workspace-Disk-Grenzen via `realpath()`, Bereinigung von Dateinamen (`preg_replace`), Lesebegrenzung auf max. 5 MB bei Textdateien und Truncation von Datenbankfeldern (`mb_substr`).
+* **Testabdeckung:** [`tests/Feature/Ai/DateitrichterServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/DateitrichterServiceSecurityTest.php) (2 Tests, 7 Assertions).
+
+### 2.135 [RECHNUNGSWESEN & GOBD] Schutz vor Mehrfachstornierungen, DomPDF SSRF-Deaktivierung & sichere Rechnungsnummer-Generierung im InvoiceService
+* **Dateien:** [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php)
+* **Befund:** In `cancelInvoice()` fehlte eine Prüfung, ob die Rechnung bereits storniert war oder es sich selbst um ein Stornodokument (`type === 'cancellation'`) handelte. Dadurch konnten mehrfache Stornierungen und Stornierungen von Stornierungen ausgelöst werden. In `generatePdf()` war DomPDF nicht gegen Remote-Asset-Abrufe gehärtet (SSRF-Risiko bei injizierten Kunden- oder Positionsdaten). In `storePdf()` und `generateEInvoiceXml()` wurde die Rechnungsnummer ungefiltert im Dateipfad verwendet. In `generateInvoiceNumber()` fehlte die Bereinigung des Präfixes und das Escaping von Wildcards im LIKE-Query.
+* **Lösung:** Strikte Storno-Validierung (Verbot der Stornierung von Stornos oder bereits stornierten Rechnungen sowie Idempotenzprüfung existierender Stornodokumente), DomPDF-Option `isRemoteEnabled => false`, Bereinigung von PDF-/XML-Dateinamen und Sanitization von Präfixen mit Wildcard-Escaping (`addcslashes`).
+* **Testabdeckung:** [`tests/Feature/Accounting/InvoiceServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/InvoiceServiceSecurityTest.php) (3 Tests, 13 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Services/AI/Functions/AiProductFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiProductFuncs.php) | Negativmengen-Schutz bei Bruchmeldungen, Preis-Validierung, Plattform-Whitelisting & Wildcard-Escaping |
+| [`app/Services/AI/Functions/AiFinanceFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiFinanceFuncs.php) | Vorzeichenerhaltung bei variablen Ausgaben, Path-Traversal-Sperre bei Verträgen, RFC/CRLF-Mail-Schutz & Wildcard-Escaping |
+| [`app/Services/AI/ReceiptAiScannerService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/ReceiptAiScannerService.php) | Path-Traversal-Sperre, Dateiendungs- & MIME-Whitelisting, Betrags-Clamping & String-Truncation |
+| [`app/Services/AI/Workspace/DateitrichterService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Workspace/DateitrichterService.php) | Workspace-Disk-Containment, Dateinamen-Sanitization, 5MB-Leselimit für Textdateien & DB-Feldlängen-Truncation |
+| [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php) | Mehrfachstorno-Schutz, DomPDF SSRF-Deaktivierung (`isRemoteEnabled => false`), Dateinamens-Sanitization & Präfix-Bereinigung |
+| [`tests/Feature/Ai/AiProductFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiProductFuncsSecurityTest.php) | Neue Testsuite: Negativmengen-Schutz bei Bruchmeldungen, Preis-Validierung & Plattform-Whitelisting |
+| [`tests/Feature/Ai/AiFinanceFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiFinanceFuncsSecurityTest.php) | Neue Testsuite: Vorzeichenerhaltung bei Sonderausgaben, Path-Traversal-Sperre & E-Mail-CRLF-Schutz |
+| [`tests/Feature/Ai/ReceiptAiScannerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/ReceiptAiScannerSecurityTest.php) | Neue Testsuite: Pfadtraversal-Schutz, Dateiendungs-/MIME-Whitelisting & Wertebereichs-Clamping |
+| [`tests/Feature/Ai/DateitrichterServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/DateitrichterServiceSecurityTest.php) | Neue Testsuite: Path-Traversal-Sperre, Workspace-Boundary-Containment & Dateinamen-Sanitization |
+| [`tests/Feature/Accounting/InvoiceServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/InvoiceServiceSecurityTest.php) | Neue Testsuite: Mehrfachstorno-Schutz, DomPDF SSRF-Deaktivierung & sichere Rechnungsnummer-Generierung |
 | [`app/Services/AI/Functions/AiAgentsFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiAgentsFuncs.php) | Directory-Traversal-Schutz im Pfadnormalisierer, SQL-Wildcard-Sanitization & Anweisungslängen-Clamping |
 | [`app/Services/AI/Functions/AiSupportFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSupportFuncs.php) | Behebung PostgreSQL `ILIKE`-Crash (MySQL 8.0 Kompatibilität), Spaltenname `email`, Fuzzy-Search-Memory-Limit & Wildcard-Escaping |
 | [`app/Services/AI/Functions/AiSystemFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiSystemFuncs.php) | SSRF-Schutz in `executeReadWebUrl`, Pfadtraversal-Sperre in Report-Mails, CRLF-/RFC-E-Mail-Validierung & DomPDF-Härtung |
@@ -1144,7 +1184,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 317 Tests bestanden (982 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 333 Tests bestanden (1027 Assertions, 0 Fehler)
+  * `AiProductFuncsSecurityTest`: 4/4 bestanden (Negativmengen-Schutz bei Bruchmeldungen, Preis-Validierung & Plattform-Whitelisting)
+  * `AiFinanceFuncsSecurityTest`: 4/4 bestanden (Vorzeichenerhaltung bei Sonderausgaben, Path-Traversal-Sperre & E-Mail-CRLF-Schutz)
+  * `ReceiptAiScannerSecurityTest`: 3/3 bestanden (Pfadtraversal-Schutz, Dateiendungs-/MIME-Whitelisting & Wertebereichs-Clamping)
+  * `DateitrichterServiceSecurityTest`: 2/2 bestanden (Path-Traversal-Sperre, Workspace-Boundary-Containment & Dateinamen-Sanitization)
+  * `InvoiceServiceSecurityTest`: 3/3 bestanden (Mehrfachstorno-Schutz, DomPDF SSRF-Deaktivierung & sichere Rechnungsnummer-Generierung)
   * `AiAgentsFuncsSecurityTest`: 3/3 bestanden (Workspace-Pfadtraversal, SQL-Wildcards & Dokumentensuche)
   * `AiSupportFuncsSecurityTest`: 3/3 bestanden (MySQL-Syntaxkompatibilität, Wildcard-Escaping & Fuzzy-Search-Speicherbegrenzung)
   * `AiSystemFuncsSecurityTest`: 3/3 bestanden (SSRF-Prävention, Pfadtraversal-Sperre & CRLF-E-Mail-Validierung)

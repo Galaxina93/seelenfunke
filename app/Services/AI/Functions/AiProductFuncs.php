@@ -488,7 +488,8 @@ trait AiProductFuncs
 
             if (!$product) {
                 // Fallback via Name
-                $product = \App\Models\Product\Product::with(['supplier', 'packagings'])->withTrashed()->where('name', 'like', '%' . $args['product_id'] . '%')->first();
+                $escapedId = addcslashes($args['product_id'], '%_\\');
+                $product = \App\Models\Product\Product::with(['supplier', 'packagings'])->withTrashed()->where('name', 'like', '%' . $escapedId . '%')->first();
                 if (!$product) return ['status' => 'error', 'message' => 'Produkt nicht gefunden. Nutze product_analytics_get_overview, um alle gültigen Produkte aufzulisten.'];
             }
 
@@ -553,14 +554,15 @@ trait AiProductFuncs
             $product = Product::withTrashed()->find($args['product_id']);
             if (!$product) {
                 // Fallback via Name
-                $product = Product::withTrashed()->where('name', 'like', '%' . $args['product_id'] . '%')->first();
+                $escapedId = addcslashes($args['product_id'], '%_\\');
+                $product = Product::withTrashed()->where('name', 'like', '%' . $escapedId . '%')->first();
                 if (!$product) return ['status' => 'error', 'message' => 'Produkt nicht gefunden.'];
             }
 
             $updates = [];
 
             if (isset($args['name'])) {
-                $updates['name'] = $args['name'];
+                $updates['name'] = trim($args['name']);
                 $slug = Str::slug($args['name']);
                 if (Product::withTrashed()->where('slug', $slug)->where('id', '!=', $product->id)->exists()) {
                     $slug .= '-' . time();
@@ -568,13 +570,29 @@ trait AiProductFuncs
                 $updates['slug'] = $slug;
             }
 
-            if (isset($args['price_eur'])) $updates['price'] = (int)round((float)$args['price_eur'] * 100);
-            if (isset($args['compare_price_eur'])) $updates['compare_at_price'] = (int)round((float)$args['compare_price_eur'] * 100);
+            if (isset($args['price_eur'])) {
+                $priceEur = (float)$args['price_eur'];
+                if ($priceEur < 0 || $priceEur > 1000000) {
+                    return ['status' => 'error', 'message' => 'Verkaufspreis darf nicht negativ oder unplausibel hoch sein.'];
+                }
+                $updates['price'] = (int)round($priceEur * 100);
+            }
+            if (isset($args['compare_price_eur'])) {
+                $compPrice = (float)$args['compare_price_eur'];
+                if ($compPrice < 0 || $compPrice > 1000000) {
+                    return ['status' => 'error', 'message' => 'Streichpreis darf nicht negativ oder unplausibel hoch sein.'];
+                }
+                $updates['compare_at_price'] = (int)round($compPrice * 100);
+            }
             if (isset($args['description'])) $updates['description'] = $args['description'];
             if (isset($args['seo_title'])) $updates['seo_title'] = substr($args['seo_title'], 0, 255);
             if (isset($args['seo_description'])) $updates['seo_description'] = substr($args['seo_description'], 0, 255);
             if (isset($args['quantity'])) {
-                $updates['quantity'] = (int)$args['quantity'];
+                $qty = (int)$args['quantity'];
+                if ($qty < 0 || $qty > 1000000) {
+                    return ['status' => 'error', 'message' => 'Lagerbestand darf nicht negativ sein.'];
+                }
+                $updates['quantity'] = $qty;
                 $updates['track_quantity'] = true;
             }
 
@@ -681,36 +699,45 @@ trait AiProductFuncs
     public static function executeReportLoss(array $args)
     {
         try {
-            if (empty($args['product_id']) || empty($args['quantity']) || empty($args['reason'])) {
+            if (empty($args['product_id']) || !isset($args['quantity']) || empty($args['reason'])) {
                 return ['status' => 'error', 'message' => 'Es fehlen benötigte Parameter (product_id, quantity, reason).'];
+            }
+
+            $quantity = (int)$args['quantity'];
+            if ($quantity <= 0) {
+                return ['status' => 'error', 'message' => 'Die Schadensmenge muss eine positive Zahl größer als 0 sein.'];
+            }
+            if ($quantity > 100000) {
+                return ['status' => 'error', 'message' => 'Schadensmenge überschreitet das zulässige Limit.'];
             }
 
             $product = Product::find($args['product_id']);
             
             if (!$product) {
                 // Fallback über Namen
-                $product = Product::where('name', 'like', '%' . $args['product_id'] . '%')->first();
+                $escapedId = addcslashes($args['product_id'], '%_\\');
+                $product = Product::where('name', 'like', '%' . $escapedId . '%')->first();
                 if (!$product) {
                     return ['status' => 'error', 'message' => 'Produkt wurde nicht gefunden.'];
                 }
             }
 
-            if ($product->quantity < $args['quantity']) {
+            if ($product->quantity < $quantity) {
                 return ['status' => 'error', 'message' => 'Nicht genug Bestand im Lager vorhanden, um diese Bruchmeldung durchzuführen. Buchbestand: ' . $product->quantity];
             }
 
-            $costValue = ($product->purchase_price ?? 0) * (int)$args['quantity'];
+            $costValue = ($product->purchase_price ?? 0) * $quantity;
 
             $loss = ProductLoss::create([
                 'product_id' => $product->id,
                 'product_supplier_id' => $product->product_supplier_id ?? null,
-                'quantity' => (int)$args['quantity'],
+                'quantity' => $quantity,
                 'cost_value' => $costValue,
-                'reason' => substr($args['reason'], 0, 255),
+                'reason' => substr(trim($args['reason']), 0, 255),
                 'recorded_by' => auth('admin')->id() ?? 1,
             ]);
 
-            $product->reduceStock((int)$args['quantity']);
+            $product->reduceStock($quantity);
 
             return [
                 'status' => 'success',
@@ -736,9 +763,24 @@ trait AiProductFuncs
     public static function executeRunCrawler(array $args)
     {
         try {
-            if (empty($args['keyword']) || empty($args['platforms'])) {
+            if (empty($args['keyword']) || empty($args['platforms']) || !is_array($args['platforms'])) {
                 return ['status' => 'error', 'message' => 'Keyword und Plattform-Array fehlen.'];
             }
+
+            $allowedPlatforms = ['etsy', 'amazon'];
+            $sanitizedPlatforms = [];
+            foreach ($args['platforms'] as $platform) {
+                $normPlatform = strtolower(trim((string)$platform));
+                if (in_array($normPlatform, $allowedPlatforms)) {
+                    $sanitizedPlatforms[] = ucfirst($normPlatform);
+                }
+            }
+
+            if (empty($sanitizedPlatforms)) {
+                return ['status' => 'error', 'message' => 'Keine gültigen Plattformen übergeben. Erlaubt sind nur Etsy und Amazon.'];
+            }
+            $args['platforms'] = array_values(array_unique($sanitizedPlatforms));
+            $args['keyword'] = substr(trim($args['keyword']), 0, 100);
 
             // Flush old live data
             ProductNicheItem::truncate();
@@ -943,29 +985,35 @@ trait AiProductFuncs
     public static function executeAddMaterial(array $args)
     {
         try {
-            if (empty($args['product_id']) || empty($args['material_type']) || empty($args['weight_grams'])) {
+            if (empty($args['product_id']) || empty($args['material_type']) || !isset($args['weight_grams'])) {
                 return ['status' => 'error', 'message' => 'Es fehlen product_id, material_type oder weight_grams.'];
             }
+
+            $weightGrams = (float)$args['weight_grams'];
+            if ($weightGrams <= 0 || $weightGrams > 1000000) {
+                return ['status' => 'error', 'message' => 'Das Gewicht muss eine positive Zahl größer als 0g sein.'];
+            }
+            $materialType = substr(trim($args['material_type']), 0, 100);
 
             $product = Product::find($args['product_id']);
             if (!$product) return ['status' => 'error', 'message' => 'Produkt nicht gefunden.'];
 
-            $existing = $product->packagings()->where('material_type', $args['material_type'])->first();
+            $existing = $product->packagings()->where('material_type', $materialType)->first();
 
             if ($existing) {
-                $existing->increment('weight_grams', $args['weight_grams']);
+                $existing->increment('weight_grams', $weightGrams);
                 return [
                     'status' => 'success',
-                    'message' => "Material '{$args['material_type']}' existierte bereits am Produkt. Das System hat das Gewicht um {$args['weight_grams']}g kumuliert. Neues Einzelgewicht: {$existing->weight_grams}g."
+                    'message' => "Material '{$materialType}' existierte bereits am Produkt. Das System hat das Gewicht um {$weightGrams}g kumuliert. Neues Einzelgewicht: {$existing->weight_grams}g."
                 ];
             } else {
                 $created = $product->packagings()->create([
-                    'material_type' => $args['material_type'],
-                    'weight_grams' => $args['weight_grams']
+                    'material_type' => $materialType,
+                    'weight_grams' => $weightGrams
                 ]);
                 return [
                     'status' => 'success',
-                    'message' => "Material '{$args['material_type']}' mit {$args['weight_grams']}g erfolgreich hinzugefügt.",
+                    'message' => "Material '{$materialType}' mit {$weightGrams}g erfolgreich hinzugefügt.",
                     'packaging_id' => $created->id
                 ];
             }
@@ -977,18 +1025,23 @@ trait AiProductFuncs
     public static function executeUpdateWeight(array $args)
     {
         try {
-            if (empty($args['packaging_id']) || empty($args['weight_grams'])) {
+            if (empty($args['packaging_id']) || !isset($args['weight_grams'])) {
                 return ['status' => 'error', 'message' => 'packaging_id oder weight_grams fehlt.'];
+            }
+
+            $weightGrams = (float)$args['weight_grams'];
+            if ($weightGrams <= 0 || $weightGrams > 1000000) {
+                return ['status' => 'error', 'message' => 'Das Gewicht muss eine positive Zahl größer als 0g sein.'];
             }
 
             $packaging = ProductPackaging::find($args['packaging_id']);
             if (!$packaging) return ['status' => 'error', 'message' => 'Verpackungs-Eintrag nicht gefunden.'];
 
-            $packaging->update(['weight_grams' => $args['weight_grams']]);
+            $packaging->update(['weight_grams' => $weightGrams]);
 
             return [
                 'status' => 'success',
-                'message' => "Gewicht von '{$packaging->material_type}' erfolgreich auf {$args['weight_grams']}g aktualisiert."
+                'message' => "Gewicht von '{$packaging->material_type}' erfolgreich auf {$weightGrams}g aktualisiert."
             ];
         } catch (\Exception $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Update: ' . $e->getMessage()];
@@ -1030,7 +1083,8 @@ trait AiProductFuncs
             $query = ProductTemplate::with('product');
             
             if (isset($args['filter_holiday']) && !empty($args['filter_holiday'])) {
-                $query->where('holiday', 'like', '%' . $args['filter_holiday'] . '%');
+                $escapedHoliday = addcslashes($args['filter_holiday'], '%_\\');
+                $query->where('holiday', 'like', '%' . $escapedHoliday . '%');
             }
             if (isset($args['filter_active'])) {
                 $query->where('is_active', (bool)$args['filter_active']);
@@ -1114,7 +1168,8 @@ trait AiProductFuncs
     {
         $template = ProductTemplate::find($identifier);
         if (!$template) {
-            $template = ProductTemplate::where('name', 'like', '%' . $identifier . '%')->first();
+            $escaped = addcslashes($identifier, '%_\\');
+            $template = ProductTemplate::where('name', 'like', '%' . $escaped . '%')->first();
         }
         return $template;
     }
@@ -1131,7 +1186,8 @@ trait AiProductFuncs
                 $product = \App\Models\Product\Product::with("supplier")->where("name", $args["product_id"])->first();
                 
                 if (!$product) {
-                    $searchTerm = str_replace(' ', '%', $args["product_id"]);
+                    $searchTerm = addcslashes($args["product_id"], '%_\\');
+                    $searchTerm = str_replace(' ', '%', $searchTerm);
                     $product = \App\Models\Product\Product::with("supplier")->where("name", "like", "%" . $searchTerm . "%")->first();
                 }
 
@@ -1144,13 +1200,13 @@ trait AiProductFuncs
                     if (mb_strlen($longestWord) >= 4) {
                         // Vergleiche ohne Leerzeichen in der Datenbank (damit "Seelenkristall" "Der Seelen Kristall" findet)
                         $product = \App\Models\Product\Product::with("supplier")
-                            ->whereRaw("REPLACE(REPLACE(LOWER(name), ' ', ''), '-', '') LIKE ?", ['%' . $longestWord . '%'])
+                            ->whereRaw("REPLACE(REPLACE(LOWER(name), ' ', ''), '-', '') LIKE ?", ['%' . addcslashes($longestWord, '%_\\') . '%'])
                             ->first();
                     }
                 }
                 
                 if (!$product) {
-                    $slugTerm = \Illuminate\Support\Str::slug($args["product_id"]);
+                    $slugTerm = addcslashes(\Illuminate\Support\Str::slug($args["product_id"]), '%_\\');
                     $product = \App\Models\Product\Product::with("supplier")->where("slug", "like", "%" . $slugTerm . "%")->first();
                 }
 

@@ -85,15 +85,35 @@ class DateitrichterService
      */
     public function processSingleFile(string $filePath): ?array
     {
+        $normalizedPath = str_replace('\\', '/', $filePath);
+        if (str_contains($normalizedPath, '..') || str_contains($normalizedPath, "\0")) {
+            Log::warning("DateitrichterService: Path Traversal Versuch: {$filePath}");
+            return null;
+        }
+
         $workspace = Storage::disk('workspace');
         if (!$workspace->exists($filePath)) {
             return null;
         }
 
         $fullPath = $workspace->path($filePath);
-        $filename = basename($filePath);
+        $workspaceRoot = realpath($workspace->path(''));
+        $realFilePath = realpath($fullPath);
+        if (!$realFilePath || !$workspaceRoot || !str_starts_with($realFilePath, $workspaceRoot)) {
+            Log::warning("DateitrichterService: Datei außerhalb des Workspace: {$filePath}");
+            return null;
+        }
+
+        $rawFilename = basename($filePath);
+        $extension = strtolower(pathinfo($rawFilename, PATHINFO_EXTENSION));
+        $cleanBase = preg_replace('/[^a-zA-Z0-9_\-\.äöüÄÖÜß ]/u', '_', pathinfo($rawFilename, PATHINFO_FILENAME));
+        $cleanBase = trim(preg_replace('/\s+/', ' ', $cleanBase));
+        if (empty($cleanBase) || $cleanBase === '.' || $cleanBase === '..') {
+            $cleanBase = 'dokument_' . time();
+        }
+        $filename = $extension ? ($cleanBase . '.' . $extension) : $cleanBase;
+
         $fileSize = $workspace->size($filePath);
-        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         $sha256 = hash_file('sha256', $fullPath);
 
         // 1. Textinhalt extrahieren
@@ -150,11 +170,11 @@ class DateitrichterService
                 'filename' => basename($filePath),
                 'file_type' => $extension,
                 'file_size' => $fileSize,
-                'title' => $title,
-                'category' => $classification['category'],
+                'title' => mb_substr($title, 0, 255),
+                'category' => mb_substr($classification['category'], 0, 100),
                 'tags' => $classification['tags'],
-                'purpose' => $purpose,
-                'summary' => $summary,
+                'purpose' => mb_substr($purpose, 0, 500),
+                'summary' => mb_substr($summary, 0, 1000),
                 'key_facts' => $keyFacts,
                 'extracted_date' => $extractedDate,
                 'content_preview' => mb_substr(trim($extractedText), 0, 1000),
@@ -169,7 +189,7 @@ class DateitrichterService
             'original_path' => $originalFilePath,
             'current_path' => $filePath,
             'filename' => basename($filePath),
-            'title' => $title,
+            'title' => mb_substr($title, 0, 255),
             'category' => $classification['category'],
             'main_folder' => $classification['main_folder'],
             'sub_folder' => $classification['sub_folder'],
@@ -184,6 +204,9 @@ class DateitrichterService
     protected function extractTextContent(string $fullPath, string $extension): string
     {
         if (in_array($extension, ['txt', 'md', 'csv', 'json', 'xml', 'html'])) {
+            if (filesize($fullPath) > 5 * 1024 * 1024) {
+                return (string) file_get_contents($fullPath, false, null, 0, 5 * 1024 * 1024);
+            }
             return (string) File::get($fullPath);
         }
 

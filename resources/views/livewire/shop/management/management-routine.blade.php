@@ -60,9 +60,8 @@
                         {{-- Timeline Continuous Track & Dot --}}
                         <div class="relative flex flex-col items-center justify-start shrink-0 w-4 self-stretch pt-4">
                             @if(!$loop->first)
-                                <div class="absolute top-0 bottom-1/2 w-0.5 bg-gray-200 dark:bg-gray-800 -translate-x-1/2 left-1/2 z-0"></div>
-                            @endif
-                            @if(!$loop->last)
+                                <div class="absolute top-0 {{ $loop->last ? 'h-4' : 'bottom-0' }} w-0.5 bg-gray-200 dark:bg-gray-800 -translate-x-1/2 left-1/2 z-0"></div>
+                            @elseif(!$loop->last)
                                 <div class="absolute top-4 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-800 -translate-x-1/2 left-1/2 z-0"></div>
                             @endif
 
@@ -75,7 +74,7 @@
                         </div>
 
                         {{-- Routine Karte --}}
-                        <div class="flex-1 relative transition-all duration-300 ease-in-out cursor-pointer rounded-2xl p-4 sm:p-5 border
+                        <div class="flex-1 relative transition-all duration-300 ease-in-out cursor-pointer rounded-2xl p-4 sm:p-5 border min-h-[100px] flex flex-col justify-center
                             {{ !$r->is_active ? 'opacity-60 bg-gray-50/50 dark:bg-gray-950/30 border-gray-200 dark:border-gray-800/60' : ($isActive
                                 ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)] dark:shadow-[0_0_25px_var(--theme-color-15)] scale-[1.01] z-20'
                                 : 'bg-gray-50 dark:bg-gray-950/50 border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-900 dark:shadow-inner') }}"
@@ -103,14 +102,13 @@
                                         @endif
                                     </div>
 
-                                    <div class="mt-1.5 overflow-hidden transition-all duration-500 ease-in-out
-                                        {{ $isActive ? 'max-h-40' : 'max-h-6 group-hover:max-h-40' }}">
-                                        <p class="leading-relaxed {{ $isActive ? 'text-gray-600 dark:text-gray-400 text-xs font-medium' : 'text-gray-500 text-[11px]' }}">
+                                    <div class="mt-1.5">
+                                        <p class="leading-relaxed {{ $isActive ? 'text-gray-700 dark:text-gray-300 text-xs font-medium' : 'text-gray-500 dark:text-gray-400 text-xs' }}">
                                             {{ $r->message }}
                                         </p>
                                     </div>
                                 </div>
-                                <div class="shrink-0 text-[9px] font-black px-2 py-1 rounded border
+                                <div class="shrink-0 text-[9px] font-black px-2.5 py-1 rounded border
                                     {{ $isActive ? 'bg-white dark:bg-gray-900 text-[var(--theme-color)] border-[var(--theme-color-30)]' : 'bg-gray-100 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }} dark:shadow-inner">
                                     {{ $r->duration_minutes }} MIN
                                 </div>

@@ -80,8 +80,23 @@ class InvoiceService
      */
     public function cancelInvoice(AccountingInvoice $originalInvoice): AccountingInvoice
     {
+        if ($originalInvoice->type === 'cancellation') {
+            throw new \InvalidArgumentException('Eine Stornorechnung / Gutschrift kann nicht erneut storniert werden.');
+        }
+        if ($originalInvoice->status === 'cancelled') {
+            throw new \InvalidArgumentException('Diese Rechnung wurde bereits storniert.');
+        }
+
         return retry(5, function () use ($originalInvoice) {
             return DB::transaction(function () use ($originalInvoice) {
+                $alreadyCancelled = AccountingInvoice::where('parent_id', $originalInvoice->id)
+                    ->where('type', 'cancellation')
+                    ->lockForUpdate()
+                    ->exists();
+                if ($alreadyCancelled) {
+                    throw new \InvalidArgumentException('Zu dieser Rechnung existiert bereits eine Stornorechnung.');
+                }
+
                 $isPaid = $originalInvoice->status === 'paid' || $originalInvoice->paid_at !== null;
                 $originalInvoice->update(['status' => 'cancelled']);
                 $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
@@ -110,8 +125,8 @@ class InvoiceService
                     'volume_discount' => -1 * abs($originalInvoice->volume_discount),
                     'total' => -1 * abs($originalInvoice->total),
                     'notes' => "Storno zur Rechnung Nr. " . $originalInvoice->invoice_number,
-                    'custom_items' => $originalInvoice->custom_items,
-                    'is_e_invoice' => $originalInvoice->is_e_invoice,
+                    'custom_items' => $originalInvoice->custom_items ?? [],
+                    'is_e_invoice' => (bool)($originalInvoice->is_e_invoice ?? false),
                     'is_small_business' => $originalInvoice->is_small_business ?? app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($originalInvoice->invoice_date?->year ?? now()->year),
                 ]);
 
@@ -195,7 +210,9 @@ class InvoiceService
             'invoice' => $invoice,
             'items' => $items,
             'isStorno' => $invoice->type === 'cancellation'
-        ]);
+        ])->setPaper('a4')
+          ->setOption('isRemoteEnabled', false)
+          ->setOption('isHtml5ParserEnabled', true);
 
         return $pdf;
     }
@@ -207,7 +224,8 @@ class InvoiceService
     {
         try {
             $pdf = $this->generatePdf($invoice);
-            $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
+            $safeInvoiceNumber = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)$invoice->invoice_number);
+            $fileName = "buchhaltung/invoices/{$safeInvoiceNumber}.pdf";
 
             // Speichert die Datei ausschließlich im privaten 'local' disk (storage/app/buchhaltung/invoices) für GoBD
             Storage::disk('local')->put($fileName, $pdf->output());
@@ -229,7 +247,8 @@ class InvoiceService
      */
     public function generateEInvoiceXml(AccountingInvoice $invoice)
     {
-        $fileName = "buchhaltung/invoices/xml/{$invoice->invoice_number}.xml";
+        $safeInvoiceNumber = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)$invoice->invoice_number);
+        $fileName = "buchhaltung/invoices/xml/{$safeInvoiceNumber}.xml";
 
         // Einfaches XML-Schema nach E-Commerce Richtlinien
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"/>');
@@ -249,7 +268,8 @@ class InvoiceService
     {
         if ($invoice->status !== 'draft') return false;
 
-        $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
+        $safeInvoiceNumber = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)$invoice->invoice_number);
+        $fileName = "buchhaltung/invoices/{$safeInvoiceNumber}.pdf";
         if (Storage::disk('local')->exists($fileName)) {
             Storage::disk('local')->delete($fileName);
         }
@@ -267,9 +287,11 @@ class InvoiceService
 
     public function generateInvoiceNumber($prefix = 'RE')
     {
+        $prefix = preg_replace('/[^A-Za-z0-9]/', '', strtoupper((string)$prefix)) ?: 'RE';
         $year = date('Y');
         return DB::transaction(function() use ($prefix, $year) {
-            $latest = AccountingInvoice::where('invoice_number', 'like', "$prefix-$year-%")
+            $escapedPrefix = addcslashes($prefix, '%_\\');
+            $latest = AccountingInvoice::where('invoice_number', 'like', "{$escapedPrefix}-$year-%")
                 ->lockForUpdate()
                 ->orderByRaw('LENGTH(invoice_number) DESC')
                 ->orderBy('invoice_number', 'desc')

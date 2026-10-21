@@ -921,11 +921,12 @@ trait AiFinanceFuncs
             // Archive duplicate check: Did this cost item exist before in the archive?
             if (empty($args['ignore_archived'])) {
                 $trimmedName = trim($args['name']);
+                $escapedName = addcslashes($trimmedName, '%_\\');
                 $archivedMatch = \App\Models\Accounting\AccountingCostItem::onlyTrashed()
                     ->whereHas('group', fn($q) => $q->where('admin_id', $adminId))
-                    ->where(function ($q) use ($trimmedName) {
+                    ->where(function ($q) use ($trimmedName, $escapedName) {
                         $q->whereRaw('LOWER(name) = ?', [mb_strtolower($trimmedName)])
-                          ->orWhere('name', 'LIKE', '%' . $trimmedName . '%');
+                          ->orWhere('name', 'LIKE', '%' . $escapedName . '%');
                     })
                     ->with('group')
                     ->first();
@@ -1646,16 +1647,30 @@ trait AiFinanceFuncs
             }
 
             $filePath = $item->contract_file_path;
+            $rawPath = str_replace('\\', '/', $filePath);
+            if (str_contains($rawPath, '..') || str_contains($rawPath, "\0")) {
+                return [
+                    'status' => 'error',
+                    'item_id' => $item->id,
+                    'item_name' => $item->name,
+                    'message' => "Ungültiger oder verdächtiger Dateipfad hinterlegt."
+                ];
+            }
+
             $absolutePath = null;
 
             if (\Illuminate\Support\Facades\Storage::disk('local')->exists($filePath)) {
                 $absolutePath = \Illuminate\Support\Facades\Storage::disk('local')->path($filePath);
             } elseif (\Illuminate\Support\Facades\Storage::disk('private')->exists($filePath)) {
                 $absolutePath = \Illuminate\Support\Facades\Storage::disk('private')->path($filePath);
-            } elseif (file_exists($filePath)) {
-                $absolutePath = $filePath;
             } elseif (file_exists(storage_path('app/' . $filePath))) {
                 $absolutePath = storage_path('app/' . $filePath);
+            } elseif (file_exists($filePath)) {
+                $realCheck = realpath($filePath);
+                $storageCheck = realpath(storage_path());
+                if ($realCheck && $storageCheck && str_starts_with($realCheck, $storageCheck)) {
+                    $absolutePath = $filePath;
+                }
             }
 
             if (!$absolutePath || !file_exists($absolutePath)) {
@@ -1857,13 +1872,13 @@ trait AiFinanceFuncs
     public static function executeGenerateAndSendReport(array $args, $agent = null)
     {
         try {
-            $email = $args['email'];
-            $month = $args['month'] ?? date('n');
-            $year = $args['year'] ?? date('Y');
+            $email = trim($args['email'] ?? '');
+            $month = isset($args['month']) ? max(1, min(12, (int)$args['month'])) : (int)date('n');
+            $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
             $adminId = self::getAdminId();
 
-            if (empty($email)) {
-                return ['status' => 'error', 'message' => 'E-Mail-Adresse fehlt.'];
+            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', $email)) {
+                return ['status' => 'error', 'message' => 'Gültige E-Mail-Adresse fehlt oder ungültiges Format.'];
             }
 
             $service = new \App\Services\FinancialService();
@@ -1949,7 +1964,7 @@ trait AiFinanceFuncs
             $query = \App\Models\Accounting\AccountingSpecialIssue::where('admin_id', self::getAdminId());
             
             if (!empty($args['query'])) {
-                $searchTerm = '%' . $args['query'] . '%';
+                $searchTerm = '%' . addcslashes($args['query'], '%_\\') . '%';
                 $query->where(function ($q) use ($searchTerm) {
                     $q->where('title', 'LIKE', $searchTerm)
                       ->orWhere('category', 'LIKE', $searchTerm)
@@ -2001,10 +2016,15 @@ trait AiFinanceFuncs
             }
 
             if (isset($args['title'])) {
-                $entry->title = $args['title'];
+                $entry->title = trim($args['title']);
             }
             if (isset($args['amount'])) {
-                $entry->amount = (float) str_replace(',', '.', (string) $args['amount']);
+                $amount = (float) str_replace(',', '.', (string) $args['amount']);
+                // WICHTIG: Sonderausgaben / Belegkosten sind im System stets negativ!
+                if ($amount > 0) {
+                    $amount = -$amount;
+                }
+                $entry->amount = $amount;
             }
             if (isset($args['category'])) {
                 $entry->category = $args['category'];
