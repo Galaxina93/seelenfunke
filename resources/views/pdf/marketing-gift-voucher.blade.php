@@ -180,7 +180,7 @@
                 
                 <div class="footer">
                     <div class="footer-brand">MEIN SEELENFUNKE</div>
-                    <div>Einlösbar auf www.mein-seelenfunke.de &bull; Gültig bis zum {{ $voucher->valid_until->format('d.m.Y') }}</div>
+                    <div>Einlösbar auf www.mein-seelenfunke.de &bull; {{ $voucher->valid_until ? 'Gültig bis zum ' . $voucher->valid_until->format('d.m.Y') : 'Gültig 3 Jahre ab Ausstellungsdatum' }}</div>
                 </div>
             </div>
         </div>

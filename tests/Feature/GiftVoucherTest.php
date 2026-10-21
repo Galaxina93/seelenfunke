@@ -775,4 +775,55 @@ class GiftVoucherTest extends TestCase
         $this->assertEquals(520, $voucher->current_balance);
         $this->assertTrue($voucher->is_active);
     }
+
+    #[Test]
+    public function it_allows_recipient_customer_to_download_reward_voucher()
+    {
+        $recipient = \App\Models\Customer\Customer::create([
+            'email' => 'rewardee@example.com',
+            'first_name' => 'Anna',
+            'last_name' => 'Schmidt',
+            'password' => bcrypt('secret'),
+        ]);
+
+        $voucher = MarketingGiftVoucher::create([
+            'code' => 'DANKE-REWARD-1234',
+            'initial_value' => 500,
+            'current_balance' => 500,
+            'recipient_name' => 'Anna Schmidt',
+            'recipient_email' => 'rewardee@example.com',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($recipient, 'customer');
+
+        $response = $this->get(route('customer.gift-voucher.download', $voucher));
+        $response->assertStatus(200);
+        $response->assertHeader('content-type', 'application/pdf');
+    }
+
+    #[Test]
+    public function it_denies_unrelated_customer_to_download_voucher()
+    {
+        $unrelated = \App\Models\Customer\Customer::create([
+            'email' => 'stranger@example.com',
+            'first_name' => 'Stranger',
+            'last_name' => 'User',
+            'password' => bcrypt('secret'),
+        ]);
+
+        $voucher = MarketingGiftVoucher::create([
+            'code' => 'SEELENFUNKE-SECRET-9999',
+            'initial_value' => 2500,
+            'current_balance' => 2500,
+            'recipient_name' => 'Anna Schmidt',
+            'recipient_email' => 'anna@example.com',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($unrelated, 'customer');
+
+        $response = $this->get(route('customer.gift-voucher.download', $voucher));
+        $response->assertStatus(403);
+    }
 }

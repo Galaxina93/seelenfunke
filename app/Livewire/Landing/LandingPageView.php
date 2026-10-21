@@ -17,6 +17,17 @@ class LandingPageView extends Component
     {
         $this->landingPage = MarketingLandingPage::with('product')->where('slug', $slug)->firstOrFail();
 
+        // Security check: Draft landing pages or inactive products must not be publicly visible to customers/guests
+        $isAdmin = auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin();
+        if (!$isAdmin) {
+            if ($this->landingPage->status !== 'active') {
+                abort(404);
+            }
+            if ($this->landingPage->product && $this->landingPage->product->status !== 'active') {
+                abort(404);
+            }
+        }
+
         // Tracker logic
         try {
             $pathFilter = '/l/' . $slug;

@@ -92,7 +92,7 @@
                             <span class="bg-white/95 backdrop-blur text-gray-900 text-[10px] font-black px-4 py-2 rounded-full shadow-lg uppercase tracking-wider border border-gray-100">Neu</span>
                         @endif
                     </div>
-                    @if(count($landingPage->product->media_gallery) > 0)
+                    @if(!empty($landingPage->product->media_gallery) && is_array($landingPage->product->media_gallery) && count($landingPage->product->media_gallery) > 0)
                         <img src="{{ asset('storage/' . $landingPage->product->media_gallery[0]['path']) }}"
                              alt="{{ $landingPage->product->name }}"
                              loading="eager"
@@ -169,7 +169,7 @@
                          alt="{{ $landingPage->product->name }} Detailansicht"
                          loading="lazy"
                          class="rounded-3xl shadow-2xl w-full object-cover h-[500px] border border-gray-100">
-                @elseif(count($landingPage->product->media_gallery) > 0)
+                @elseif(!empty($landingPage->product->media_gallery) && is_array($landingPage->product->media_gallery) && count($landingPage->product->media_gallery) > 0)
                     <img src="{{ asset('storage/' . $landingPage->product->media_gallery[0]['path']) }}"
                          alt="{{ $landingPage->product->name }}"
                          loading="lazy"
@@ -189,10 +189,10 @@
                     Details, die überzeugen.
                 </h2>
                 <div class="text-gray-600 mb-10 text-lg font-light leading-relaxed prose prose-p:leading-relaxed">
-                    {!! nl2br($landingPage->sales_copy ?: $landingPage->product->description) !!}
+                    {!! nl2br(e($landingPage->sales_copy ?: $landingPage->product->description)) !!}
                 </div>
 
-                @if($landingPage->product->attributes && count($landingPage->product->attributes) > 0)
+                @if(!empty($landingPage->product->attributes) && is_array($landingPage->product->attributes) && count($landingPage->product->attributes) > 0)
                 <div class="bg-white rounded-2xl p-8 shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] border border-gray-100">
                     <h3 class="text-xs font-bold text-primary uppercase tracking-[0.2em] mb-6">Technische Spezifikationen</h3>
 

@@ -67,6 +67,7 @@ class TwilioCallController extends Controller
     public function callLog(Request $request)
     {
         $data = $request->validate([
+            'planned_call_id' => 'nullable|string',
             'twilio_sid' => 'nullable|string',
             'contact_name' => 'nullable|string',
             'objective' => 'nullable|string',

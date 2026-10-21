@@ -37,6 +37,17 @@ class TelegramAgentController extends Controller
         $firstName = $message['from']['first_name'] ?? 'User';
         $text = $message['text'] ?? '';
         
+        // 2.1 Security: Check Whitelist (Zero Trust by Default) BEFORE downloading attachments or spending AI quota
+        $allowedIds = $agent->telegram_allowed_chat_ids ?? [];
+        $isPublic = in_array('*', $allowedIds, true);
+        
+        if (!$isPublic && !in_array((string)$chatId, $allowedIds, true)) {
+            Log::warning("Unauthorized Telegram Access Attempt", ['chat_id' => $chatId, 'agent' => $agent->name]);
+            $rejectMessage = "⛔️ *Sicherheitsbereich*\n\nDu bist nicht berechtigt, mit diesem Agenten zu kommunizieren.\n\n_System-Log:_ Deine Telegram-ID lautet `" . $chatId . "`.\nBitte informiere den System-Administrator, damit er diese ID in die Agenten-Whitelist aufnehmen kann.";
+            $this->sendTelegramMessage($token, $chatId, $rejectMessage);
+            return response()->json(['status' => 'unauthorized', 'message' => 'Chat ID not whitelisted']);
+        }
+
         $localUploads = [];
         $userSentVoice = false;
 
@@ -73,17 +84,6 @@ class TelegramAgentController extends Controller
         // Support /start command simply as a greeting
         if ($text === '/start') {
             $text = "Hallo! Wer bist du und was kannst du?";
-        }
-
-        // 2.5 Security: Check Whitelist (Zero Trust by Default)
-        $allowedIds = $agent->telegram_allowed_chat_ids ?? [];
-        $isPublic = in_array('*', $allowedIds, true);
-        
-        if (!$isPublic && !in_array((string)$chatId, $allowedIds, true)) {
-            Log::warning("Unauthorized Telegram Access Attempt", ['chat_id' => $chatId, 'agent' => $agent->name]);
-            $rejectMessage = "⛔️ *Sicherheitsbereich*\n\nDu bist nicht berechtigt, mit diesem Agenten zu kommunizieren.\n\n_System-Log:_ Deine Telegram-ID lautet `" . $chatId . "`.\nBitte informiere den System-Administrator, damit er diese ID in die Agenten-Whitelist aufnehmen kann.";
-            $this->sendTelegramMessage($token, $chatId, $rejectMessage);
-            return response()->json(['status' => 'unauthorized', 'message' => 'Chat ID not whitelisted']);
         }
 
         // 3. Map the Session ID for Long-term Memory
@@ -199,11 +199,19 @@ class TelegramAgentController extends Controller
         $chunks = str_split($text, 4000);
 
         foreach ($chunks as $chunk) {
-            Http::post($url, [
+            $resp = Http::timeout(10)->post($url, [
                 'chat_id' => $chatId,
                 'text' => $chunk,
                 'parse_mode' => 'Markdown', // Allow basic bold/italics
             ]);
+
+            // Fallback: If Telegram markdown parsing fails (e.g. unclosed entities), send without parse_mode
+            if (!$resp->successful()) {
+                Http::timeout(10)->post($url, [
+                    'chat_id' => $chatId,
+                    'text' => $chunk,
+                ]);
+            }
         }
     }
 
@@ -214,7 +222,7 @@ class TelegramAgentController extends Controller
     {
         $url = "https://api.telegram.org/bot{$token}/sendVoice";
         
-        $response = Http::attach(
+        $response = Http::timeout(30)->attach(
             'voice', file_get_contents($audioPath), basename($audioPath)
         )->post($url, [
             'chat_id' => $chatId,
@@ -235,7 +243,7 @@ class TelegramAgentController extends Controller
     {
         // 1. Get File Path
         $url = "https://api.telegram.org/bot{$token}/getFile?file_id={$fileId}";
-        $response = Http::get($url);
+        $response = Http::timeout(15)->get($url);
         if (!$response->successful() || !$response->json('ok')) {
              throw new \Exception("Could not get file info from Telegram API.");
         }
@@ -244,12 +252,19 @@ class TelegramAgentController extends Controller
         
         // 2. Download File
         $downloadUrl = "https://api.telegram.org/file/bot{$token}/{$filePath}";
-        $fileContent = Http::get($downloadUrl)->body();
+        $fileResponse = Http::timeout(30)->get($downloadUrl);
+        if (!$fileResponse->successful()) {
+            throw new \Exception("Could not download file from Telegram.");
+        }
+        $fileContent = $fileResponse->body();
         
         // 3. Save to Public Storage mimicking Standard UI Uploads
-        // Extract extension from file_path
-        $ext = pathinfo($filePath, PATHINFO_EXTENSION);
-        $filename = 'telegram_' . uniqid() . '.' . ($ext ?: 'bin');
+        // Extract and whitelist extension
+        $rawExt = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'docx', 'doc', 'txt', 'mp3', 'ogg', 'wav', 'm4a', 'csv', 'svg'];
+        $ext = in_array($rawExt, $allowedExts, true) ? $rawExt : 'dat';
+
+        $filename = 'telegram_' . uniqid() . '.' . $ext;
         $savePath = 'telegram_uploads/' . $filename;
         
         \Illuminate\Support\Facades\Storage::disk('public')->put($savePath, $fileContent);

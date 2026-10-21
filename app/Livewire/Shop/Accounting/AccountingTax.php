@@ -660,7 +660,7 @@ class AccountingTax extends Component
 
     public function downloadTaxExport($filename, \App\Services\Export\FileDownloadService $exportService)
     {
-        return $exportService->downloadTaxExport($filename);
+        return $exportService->downloadTaxExport(basename($filename));
     }
 
     public function deleteExport(string $filename): void

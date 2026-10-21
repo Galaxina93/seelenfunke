@@ -155,7 +155,8 @@ class MarketingLandingPages extends Component
         $productName = $lp->product ? $lp->product->name : $lp->title;
 
         // Delete custom blade file if one exists
-        $customBlade = resource_path('views/frontend/pages/landingpages/' . $lp->slug . '.blade.php');
+        $safeSlug = Str::slug($lp->slug);
+        $customBlade = resource_path('views/frontend/pages/landingpages/' . $safeSlug . '.blade.php');
         if (File::exists($customBlade)) {
             File::delete($customBlade);
         }
@@ -175,7 +176,7 @@ class MarketingLandingPages extends Component
     {
         try {
             $product = Product::findOrFail($productId);
-            $slug = $product->slug;
+            $slug = Str::slug($product->slug);
             $bladePath = resource_path('views/frontend/pages/landingpages/' . $slug . '.blade.php');
 
             $stubPath = resource_path('views/stubs/landing-page-template.stub');

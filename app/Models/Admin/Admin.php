@@ -21,6 +21,7 @@ class Admin extends Model implements Authenticatable
         'last_name',
         'email',
         'password',
+        'google_id',
     ];
 
     protected $hidden = [

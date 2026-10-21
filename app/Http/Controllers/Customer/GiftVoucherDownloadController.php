@@ -28,9 +28,19 @@ class GiftVoucherDownloadController extends Controller
                 abort(403, 'Zugriff verweigert.');
             }
 
-            // Security check: Only the buyer (customer) who matches the order customer_id
+            // Security check: Either the buyer (who purchased the voucher) or the recipient (e.g. referral/milestone reward or recipient email)
+            $isBuyer = false;
             $item = $voucher->orderItem;
-            if (!$item || !$item->order || $item->order->customer_id !== $user->id) {
+            if ($item && $item->order && $item->order->customer_id === $user->id) {
+                $isBuyer = true;
+            }
+
+            $isRecipient = false;
+            if (!empty($voucher->recipient_email) && strcasecmp(trim($voucher->recipient_email), trim($user->email)) === 0) {
+                $isRecipient = true;
+            }
+
+            if (!$isBuyer && !$isRecipient) {
                 abort(403, 'Zugriff verweigert.');
             }
         }

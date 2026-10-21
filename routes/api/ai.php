@@ -17,27 +17,42 @@ use App\Http\Controllers\AIController;
 */
 
 Route::prefix('ai')->group(function () {
-    // Gibt das JSON-Schema für die Ollama Function-Calling Tools zurück
-    Route::get('/schema', [AIController::class, 'schema']);
-    
-    // Führt eine der registrierten Tools aus
-    Route::post('/execute', [AIController::class, 'execute'])->middleware(['web', 'auth:sanctum,web,admin']);
-
-    // Speichert einen Kamera-Snapshot auf dem Dateisystem
-    Route::post('/camera/snapshot', [AIController::class, 'saveCameraSnapshot'])->middleware(['web', 'auth:sanctum,web,admin']);
-
-    // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
-    Route::post('/chat', [AIController::class, 'chat'])->middleware(['web', 'auth:sanctum,web,admin']);
-
-    // Endpunkt zum Abrufen der Chat-Historie
-    Route::get('/history', [AIController::class, 'history'])->middleware(['web', 'auth:sanctum,web,admin']);
-
-    // Endpunkt für den Multimodal Live API Mode (WebSockets)
-    Route::get('/live-credentials', [AIController::class, 'liveCredentials'])->middleware(['web', 'auth:sanctum,web,admin']);
-
     // Endpunkt zur Verifizierung von WebSockets-Tokens (nur für internen Node-Server)
     Route::post('/verify-token', [AIController::class, 'verifyToken']);
 
     // Endpunkt zum Persistieren von Live-Transkripten (für internen Node-Server)
     Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript']);
+
+    // Admin & Mitarbeiter geschützte KI-Endpunkte
+    Route::group(['middleware' => ['web', 'auth:sanctum,web,admin', function ($request, $next) {
+        $user = $request->user() ?: auth()->guard('admin')->user() ?: auth()->guard('employee')->user();
+        $isAdminOrEmployee = ($user instanceof \App\Models\Admin\Admin)
+            || ($user instanceof \App\Models\Employee\Employee)
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
+
+        if (!$isAdminOrEmployee) {
+            abort(403, 'Zugriff verweigert. Nur Administratoren und Mitarbeiter.');
+        }
+
+        return $next($request);
+    }]], function () {
+        // Gibt das JSON-Schema für die Ollama Function-Calling Tools zurück
+        Route::get('/schema', [AIController::class, 'schema']);
+        
+        // Führt eine der registrierten Tools aus
+        Route::post('/execute', [AIController::class, 'execute']);
+
+        // Speichert einen Kamera-Snapshot auf dem Dateisystem
+        Route::post('/camera/snapshot', [AIController::class, 'saveCameraSnapshot']);
+
+        // Endpunkt für das Frontend (nimmt Prompt entgegen und schickt es an Ollama)
+        Route::post('/chat', [AIController::class, 'chat']);
+
+        // Endpunkt zum Abrufen der Chat-Historie
+        Route::get('/history', [AIController::class, 'history']);
+
+        // Endpunkt für den Multimodal Live API Mode (WebSockets)
+        Route::get('/live-credentials', [AIController::class, 'liveCredentials']);
+    });
 });

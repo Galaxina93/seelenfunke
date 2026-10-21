@@ -35,6 +35,12 @@ class GoogleAuthController extends Controller
             // Google User abrufen (stateless)
             $googleUser = Socialite::driver('google')->stateless()->user();
 
+            // Sicherheitsprüfung: Unverifizierte Google-Accounts dürfen nicht gelinkt werden
+            if (isset($googleUser->user['email_verified']) && $googleUser->user['email_verified'] === false) {
+                Log::warning('Google OAuth Login abgelehnt: E-Mail-Adresse nicht bei Google verifiziert.', ['email' => $googleUser->email]);
+                return redirect()->route('login')->with('error', 'Google-Konto wurde abgelehnt, da die E-Mail-Adresse nicht verifiziert ist.');
+            }
+
             $user = null;
             $guard = null;
 
@@ -98,6 +104,7 @@ class GoogleAuthController extends Controller
                     'last_name' => $googleUser->user['family_name'] ?? $lastName,
                     'password' => Hash::make(Str::random(24)), // Zufälliges, starkes Passwort
                     'google_id' => $googleUser->id,
+                    'email_verified_at' => now(),
                 ]);
 
                 // WICHTIG: Model neu laden für Relationen

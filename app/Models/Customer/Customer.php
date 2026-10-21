@@ -23,6 +23,8 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         'last_name',
         'email',
         'password',
+        'google_id',
+        'email_verified_at',
         'needs_password_change',
         'temporary_password',
     ];

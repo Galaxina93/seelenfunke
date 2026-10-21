@@ -157,13 +157,18 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
         }
     }
 
-    if (!$request->user() && !$request->user('sanctum')) {
+    $user = $request->user() ?: $request->user('sanctum');
+    if (!$user) {
         abort(401, 'Unauthorized');
     }
 
+    if (!$user instanceof \App\Models\Admin\Admin) {
+        abort(403, 'Nur Administratoren dürfen Buchhaltungsbelege einsehen.');
+    }
+
     $path = $request->query('path');
-    if (!$path) {
-        abort(404, 'Path missing');
+    if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+        abort(404, 'Path missing or invalid');
     }
 
     if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
@@ -201,40 +206,48 @@ Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illu
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Basis User- & Geräte-Funktionen
+    // Basis User- & Geräte-Funktionen (Für alle authentifizierten Benutzer: Admin, Mitarbeiter, Kunde)
     require __DIR__ . '/api/core.php';
 
-    // Finanz-Manager
-    require __DIR__ . '/api/finance.php';
+    // Admin Back-Office (Ausschließlich für Administratoren zugänglich)
+    Route::group(['middleware' => [function ($request, $next) {
+        if (!$request->user() instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Zugriff verweigert. Nur Administratoren dürfen auf das Back-Office zugreifen.');
+        }
+        return $next($request);
+    }]], function () {
 
-    // Tagesroutine
-    require __DIR__ . '/api/routine.php';
+        // Finanz-Manager
+        require __DIR__ . '/api/finance.php';
 
-    // Tasks (Aufgaben)
-    require __DIR__ . '/api/tasks.php';
+        // Tagesroutine
+        require __DIR__ . '/api/routine.php';
 
-    // E-Mails
-    require __DIR__ . '/api/emails.php';
+        // Tasks (Aufgaben)
+        require __DIR__ . '/api/tasks.php';
 
-    // Kontakte
-    require __DIR__ . '/api/contacts.php';
+        // E-Mails
+        require __DIR__ . '/api/emails.php';
 
-    // Einkaufsliste
-    require __DIR__ . '/api/shopping.php';
+        // Kontakte
+        require __DIR__ . '/api/contacts.php';
 
-    // Calender & Termine
-    require __DIR__ . '/api/calendar.php';
+        // Einkaufsliste
+        require __DIR__ . '/api/shopping.php';
 
-    // Shop Orders (Bestellungen)
-    require __DIR__ . '/api/orders.php';
+        // Calender & Termine
+        require __DIR__ . '/api/calendar.php';
 
-    // AI Chat
-    Route::get('/ai/agents', function() {
+        // Shop Orders (Bestellungen)
+        require __DIR__ . '/api/orders.php';
 
-        return response()->json([
-            'success' => true,
-            'data' => \App\Models\Ai\AiAgent::where('is_active', true)->orderBy('name')->get()
-        ]);
+        // AI Chat
+        Route::get('/ai/agents', function() {
+            return response()->json([
+                'success' => true,
+                'data' => \App\Models\Ai\AiAgent::where('is_active', true)->orderBy('name')->get()
+            ]);
+        });
     });
 
 });

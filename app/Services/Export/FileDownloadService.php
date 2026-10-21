@@ -124,7 +124,20 @@ class FileDownloadService
 
     public function downloadTaxExport($filename)
     {
-        $path = storage_path('app/buchhaltung/tax_exports/' . $filename);
+        $safeName = basename($filename);
+
+        // Restrict filename characters (alphanumeric, underscores, hyphens, dots)
+        if (!preg_match('/^[a-zA-Z0-9_\-\.]+$/', $safeName)) {
+            abort(404, 'Ungültiger Dateiname.');
+        }
+
+        // Restrict extension to safe export types
+        $ext = strtolower(pathinfo($safeName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['csv', 'zip', 'xlsx', 'pdf', 'txt', 'xml'], true)) {
+            abort(404, 'Ungültiges Dateiformat.');
+        }
+
+        $path = storage_path('app/buchhaltung/tax_exports/' . $safeName);
 
         if (!File::exists($path)) {
             abort(404, 'Die Datei existiert nicht mehr im Tresor.');

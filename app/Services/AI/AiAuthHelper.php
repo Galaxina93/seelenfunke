@@ -14,6 +14,12 @@ class AiAuthHelper
         return ($user instanceof Admin) || Auth::guard('admin')->check();
     }
 
+    public static function isEmployee(): bool
+    {
+        $user = Auth::user();
+        return ($user instanceof \App\Models\Employee\Employee) || Auth::guard('employee')->check();
+    }
+
     public static function isCustomer(): bool
     {
         $user = Auth::user();

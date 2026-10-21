@@ -36,9 +36,10 @@ Route::prefix('funki/calendar')->group(function () {
 
         $recurringTemplates = ManagementCalendarEvent::whereNotNull('recurrence')->get();
         $calcEnd = Carbon::today()->addMonths(6);
+        $validRecurrences = ['daily', 'weekly', 'monthly', 'yearly'];
 
         foreach ($recurringTemplates as $tmpl) {
-            if (!$tmpl->start_date) continue;
+            if (!$tmpl->start_date || !in_array($tmpl->recurrence, $validRecurrences, true)) continue;
             $simDate = $tmpl->start_date->copy();
 
             if ($simDate < Carbon::today()) {
@@ -48,6 +49,7 @@ Route::prefix('funki/calendar')->group(function () {
                         case 'weekly': $simDate->addWeek(); break;
                         case 'monthly': $simDate->addMonth(); break;
                         case 'yearly': $simDate->addYear(); break;
+                        default: $simDate->addYear(100); break;
                     }
                 }
             }
@@ -76,6 +78,7 @@ Route::prefix('funki/calendar')->group(function () {
                     case 'weekly': $simDate->addWeek(); break;
                     case 'monthly': $simDate->addMonth(); break;
                     case 'yearly': $simDate->addYear(); break;
+                    default: $simDate->addYear(100); break;
                 }
             }
         }
