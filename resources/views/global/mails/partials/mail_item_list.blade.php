@@ -57,10 +57,20 @@
                                     break;
                                 }
                             }
-                        }
-                        
-                        if (!$imgUrl) {
-                            $imgUrl = asset('storage/' . $cleanRelPath);
+                            if (!$imgUrl && !empty($item['main_image'])) {
+                                $fallbackRel = ltrim(preg_replace('#^/?storage/#', '', $item['main_image']), '/');
+                                foreach ([storage_path('app/public/' . $fallbackRel), public_path('storage/' . $fallbackRel), public_path($fallbackRel)] as $cand) {
+                                    if (file_exists($cand) && !is_dir($cand)) {
+                                        $mime = @mime_content_type($cand) ?: 'image/jpeg';
+                                        $dataInfo = base64_encode(file_get_contents($cand));
+                                        $imgUrl = 'data:' . $mime . ';base64,' . $dataInfo;
+                                        break;
+                                    }
+                                }
+                            }
+                        } else {
+                            $fallbackUrl = !empty($item['main_image']) ? asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $item['main_image']), '/')) : null;
+                            $imgUrl = resolve_snapshot_url($cleanRelPath, $fallbackUrl);
                         }
                     }
                     if ($imgUrl) {

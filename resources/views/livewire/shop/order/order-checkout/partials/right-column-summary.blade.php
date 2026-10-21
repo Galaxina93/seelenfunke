@@ -80,17 +80,6 @@
                     @foreach($cart->items as $item)
                         <li class="flex items-start py-4 space-x-3">
                             @php
-                                $snapshotFront = null;
-                                $snapshotBack = null;
-                                if (!empty($item->configuration['snapshot_path'])) {
-                                    $sp = $item->configuration['snapshot_path'];
-                                    if (is_array($sp)) {
-                                        $snapshotFront = $sp['front'] ?? null;
-                                        $snapshotBack = $sp['back'] ?? null;
-                                    } else {
-                                        $snapshotFront = $sp;
-                                    }
-                                }
                                 $displayImage = null;
                                 if (!empty($item->product->media_gallery)) {
                                     foreach ($item->product->media_gallery as $media) {
@@ -103,24 +92,41 @@
                                 if (!$displayImage && !empty($item->product->preview_image_path)) {
                                     $displayImage = $item->product->preview_image_path;
                                 }
+                                $displayImageUrl = $displayImage ? asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $displayImage), '/')) : null;
+
+                                $snapshotFront = null;
+                                $snapshotBack = null;
+                                if (!empty($item->configuration['snapshot_path'])) {
+                                    $sp = $item->configuration['snapshot_path'];
+                                    if (is_array($sp)) {
+                                        $snapshotFront = $sp['front'] ?? null;
+                                        $snapshotBack = $sp['back'] ?? null;
+                                    } else {
+                                        $snapshotFront = $sp;
+                                    }
+                                }
+
+                                $frontUrl = resolve_snapshot_url($snapshotFront, $displayImageUrl);
+                                $backUrl = resolve_snapshot_url($snapshotBack, null);
+                                $hasSnapshots = ($frontUrl && $frontUrl !== $displayImageUrl) || $backUrl;
                             @endphp
 
-                            @if($snapshotFront || $snapshotBack)
+                            @if($hasSnapshots)
                                 <div class="flex flex-col gap-2">
-                                    @if($snapshotFront)
+                                    @if($frontUrl && $frontUrl !== $displayImageUrl)
                                         <div class="flex-none w-20 h-20 rounded-md bg-white border border-gray-200 shadow-sm overflow-hidden p-1">
-                                            <img src="{{ Storage::url($snapshotFront) }}" class="w-full h-full object-contain">
+                                            <img src="{{ $frontUrl }}" @if($displayImageUrl) onerror="this.onerror=null; this.src='{{ $displayImageUrl }}';" @endif class="w-full h-full object-contain">
                                         </div>
                                     @endif
-                                    @if($snapshotBack)
+                                    @if($backUrl)
                                         <div class="flex-none w-20 h-20 rounded-md bg-white border border-gray-200 shadow-sm overflow-hidden p-1">
-                                            <img src="{{ Storage::url($snapshotBack) }}" class="w-full h-full object-contain">
+                                            <img src="{{ $backUrl }}" class="w-full h-full object-contain">
                                         </div>
                                     @endif
                                 </div>
                             @else
-                                @if($displayImage)
-                                    <img src="{{ Storage::url($displayImage) }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200 shadow-sm">
+                                @if($displayImageUrl)
+                                    <img src="{{ $displayImageUrl }}" alt="{{ $item->product->name }}" class="flex-none w-20 h-20 rounded-md object-cover bg-gray-100 border border-gray-200 shadow-sm">
                                 @else
                                     <div class="flex-none w-20 h-20 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300">
                                         <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

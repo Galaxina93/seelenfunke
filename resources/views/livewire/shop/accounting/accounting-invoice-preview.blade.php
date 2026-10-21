@@ -188,13 +188,12 @@
                                                         $imgPaths['front'] = $mainImg;
                                                     }
 
+                                                    $fallbackMain = !empty($mainImg) ? (str_starts_with($mainImg, 'http') ? $mainImg : asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $mainImg), '/'))) : null;
                                                     $imgUrls = [];
                                                     foreach ($imgPaths as $key => $pathVal) {
-                                                        if (str_starts_with($pathVal, 'http')) {
-                                                            $imgUrls[$key] = $pathVal;
-                                                        } else {
-                                                            $pathPrefix = str_starts_with($pathVal, 'storage/') ? '' : 'storage/';
-                                                            $imgUrls[$key] = asset($pathPrefix . $pathVal);
+                                                        $resolved = resolve_snapshot_url($pathVal, $fallbackMain);
+                                                        if ($resolved) {
+                                                            $imgUrls[$key] = $resolved;
                                                         }
                                                     }
                                                 @endphp

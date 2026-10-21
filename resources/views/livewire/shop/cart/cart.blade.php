@@ -45,6 +45,18 @@
                             <div class="p-4 sm:p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
                                 {{-- Produktbild / Snapshots --}}
                                 @php
+                                    $fallbackImage = null;
+                                    if (isset($prod)) {
+                                        $media = $prod->media_gallery ?? [];
+                                        $found = collect($media)->firstWhere('is_main', true)['path']
+                                            ?? collect($media)->firstWhere('type', 'image')['path']
+                                            ?? ($media[0]['path'] ?? $prod->preview_image_path ?? null);
+                                        if ($found) {
+                                            $cleanFound = ltrim(preg_replace('#^/?storage/#', '', $found), '/');
+                                            $fallbackImage = asset('storage/' . $cleanFound);
+                                        }
+                                    }
+
                                     $snapshotFront = null;
                                     $snapshotBack = null;
                                     if (!empty($item->configuration['snapshot_path'])) {
@@ -56,21 +68,25 @@
                                             $snapshotFront = $sp;
                                         }
                                     }
+
+                                    $frontUrl = resolve_snapshot_url($snapshotFront, $fallbackImage);
+                                    $backUrl = resolve_snapshot_url($snapshotBack, null);
+                                    $hasSnapshots = ($frontUrl && $frontUrl !== $fallbackImage) || $backUrl;
                                 @endphp
 
                                 <div class="flex flex-col sm:flex-row gap-3">
-                                    @if($snapshotFront || $snapshotBack)
-                                        @if($snapshotFront)
-                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ asset('storage/'.$snapshotFront) }}')">
-                                                <img src="{{ asset('storage/'.$snapshotFront) }}" class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
+                                    @if($hasSnapshots)
+                                        @if($frontUrl && $frontUrl !== $fallbackImage)
+                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ $frontUrl }}')">
+                                                <img src="{{ $frontUrl }}" @if($fallbackImage) onerror="this.onerror=null; this.src='{{ $fallbackImage }}';" @endif class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
                                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
                                                     <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                                 </div>
                                             </div>
                                         @endif
-                                        @if($snapshotBack)
-                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ asset('storage/'.$snapshotBack) }}')">
-                                                <img src="{{ asset('storage/'.$snapshotBack) }}" class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
+                                        @if($backUrl)
+                                            <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" @click="$dispatch('open-image-modal', '{{ $backUrl }}')">
+                                                <img src="{{ $backUrl }}" class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform duration-700">
                                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
                                                     <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                                 </div>
@@ -78,11 +94,11 @@
                                         @endif
                                     @else
                                         <div class="w-32 h-32 sm:w-40 sm:h-40 bg-gray-50 rounded-xl flex-shrink-0 overflow-hidden border border-gray-100 relative group cursor-pointer" 
-                                            @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
-                                            @click="$dispatch('open-image-modal', '{{ asset('storage/'.$prod->media_gallery[0]['path']) }}')"
+                                            @if($fallbackImage)
+                                            @click="$dispatch('open-image-modal', '{{ $fallbackImage }}')"
                                             @endif>
-                                            @if(isset($prod->media_gallery[0]) && isset($prod->media_gallery[0]['path']))
-                                                <img src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
+                                            @if($fallbackImage)
+                                                <img src="{{ $fallbackImage }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700">
                                                 <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
                                                     <svg class="w-8 h-8 sm:w-10 sm:h-10 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/></svg>
                                                 </div>

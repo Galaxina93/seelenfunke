@@ -535,7 +535,7 @@
                                                 </div>
                                             </div>
 
-                                            <a href="{{ asset('storage/' . $snap['path']) }}" download="Seelenfunke_Entwurf_{{ $this->selectedOrder->order_number }}_{{ Str::slug($snap['label']) }}.{{ pathinfo($snap['path'], PATHINFO_EXTENSION) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-primary group-hover:border-primary transition-all shadow-sm shrink-0" title="Herunterladen">
+                                            <a href="{{ resolve_snapshot_url($snap['path'], asset('storage/' . $snap['path'])) }}" download="Seelenfunke_Entwurf_{{ $this->selectedOrder->order_number }}_{{ Str::slug($snap['label']) }}.{{ pathinfo($snap['path'], PATHINFO_EXTENSION) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-primary group-hover:border-primary transition-all shadow-sm shrink-0" title="Herunterladen">
                                                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                             </a>
                                         </div>

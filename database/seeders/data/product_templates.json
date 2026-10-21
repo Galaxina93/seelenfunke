@@ -39,7 +39,7 @@
             "variant_id": null,
             "variant_name": null,
             "snapshot_path": {
-                "front": "snapshots/3cbfde45-d3db-4663-b4b4-f7cd0603cfd1_front.jpg"
+                "front": "system/snapshots/3cbfde45-d3db-4663-b4b4-f7cd0603cfd1_front.jpg"
             }
         },
         "is_active": true,
@@ -294,7 +294,7 @@
             "variant_id": null,
             "variant_name": null,
             "snapshot_path": {
-                "front": "snapshots/c854e39f-993d-4dba-a9e9-08c960483aa9_front.jpg"
+                "front": "system/snapshots/c854e39f-993d-4dba-a9e9-08c960483aa9_front.jpg"
             }
         },
         "is_active": true,

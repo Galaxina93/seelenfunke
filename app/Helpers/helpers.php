@@ -36,3 +36,43 @@ function shop_setting($key, $default = null) {
 
     return $value;
 }
+
+/**
+ * Löst einen Snapshot-Pfad verlässlich auf (unter Berücksichtigung von system/snapshots, Legacy-snapshots und Existenzprüfung).
+ * Falls kein Snapshot physisch existiert, wird der optionale Fallback zurückgegeben.
+ */
+function resolve_snapshot_url(?string $path, ?string $fallback = null): ?string
+{
+    if (empty($path)) {
+        return $fallback;
+    }
+
+    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:')) {
+        return $path;
+    }
+
+    $clean = ltrim(preg_replace('#^/?storage/#', '', $path), '/');
+
+    // Kandidaten in Prioritätsreihenfolge ermitteln
+    $candidates = [];
+    if (str_starts_with($clean, 'snapshots/')) {
+        $candidates[] = 'system/' . $clean;
+        $candidates[] = $clean;
+    } elseif (str_starts_with($clean, 'system/snapshots/')) {
+        $candidates[] = $clean;
+        $candidates[] = substr($clean, 7); // 'snapshots/...'
+    } else {
+        $candidates[] = 'system/snapshots/' . $clean;
+        $candidates[] = 'system/' . $clean;
+        $candidates[] = $clean;
+    }
+
+    foreach ($candidates as $cand) {
+        $diskPath = storage_path('app/public/' . $cand);
+        if (file_exists($diskPath) && !is_dir($diskPath)) {
+            return asset('storage/' . $cand);
+        }
+    }
+
+    return $fallback;
+}

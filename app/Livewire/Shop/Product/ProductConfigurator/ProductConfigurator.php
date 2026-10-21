@@ -128,7 +128,17 @@ class ProductConfigurator extends Component
         $this->notes = $source['notes'] ?? '';
         $this->is_express = filter_var($source['is_express'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $this->uploaded_files = $source['files'] ?? [];
-        $this->snapshot_path = $source['snapshot_path'] ?? [];
+        $rawSnapshot = $source['snapshot_path'] ?? [];
+        if (is_array($rawSnapshot)) {
+            foreach ($rawSnapshot as $k => $p) {
+                if (is_string($p) && str_starts_with($p, 'snapshots/')) {
+                    $rawSnapshot[$k] = 'system/' . $p;
+                }
+            }
+        } elseif (is_string($rawSnapshot) && str_starts_with($rawSnapshot, 'snapshots/')) {
+            $rawSnapshot = 'system/' . $rawSnapshot;
+        }
+        $this->snapshot_path = $rawSnapshot;
 
         // ... (Der restliche bestehende Mount-Code für Texte und Logos bleibt exakt gleich)
         if (isset($source['texts']) && is_array($source['texts'])) {
@@ -631,6 +641,15 @@ class ProductConfigurator extends Component
                 $mainText = collect($cleanTexts)->firstWhere('text', '!=', '')['text'] ?? '';
 
                 $finalSnapshotPath = !empty($snapshotPath) ? $snapshotPath : $this->snapshot_path;
+                if (is_array($finalSnapshotPath)) {
+                    foreach ($finalSnapshotPath as $k => $p) {
+                        if (is_string($p) && str_starts_with($p, 'snapshots/')) {
+                            $finalSnapshotPath[$k] = 'system/' . $p;
+                        }
+                    }
+                } elseif (is_string($finalSnapshotPath) && str_starts_with($finalSnapshotPath, 'snapshots/')) {
+                    $finalSnapshotPath = 'system/' . $finalSnapshotPath;
+                }
 
                 $configData = [
                     'texts' => $cleanTexts,
