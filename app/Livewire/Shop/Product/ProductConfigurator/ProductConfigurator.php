@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use App\Services\ConfiguratorService;
+use App\Services\ProductTrackingService;
 use Livewire\Attributes\Computed; // <-- NEU
 use Illuminate\Support\Facades\DB;
 use App\Models\System\SystemLog;
@@ -235,6 +236,7 @@ class ProductConfigurator extends Component
         $this->dispatch('upload:errored', name: $name)->self();
 
         $germanMsg = 'Die Datei konnte nicht hochgeladen werden. Möglicherweise ist sie beschädigt oder überschreitet die maximale Dateigröße von 20 MB.';
+        ProductTrackingService::trackFileUploadError($this->product->id ?? null, $germanMsg);
 
         if (is_null($errorsInJson)) {
             throw ValidationException::withMessages([
@@ -276,6 +278,12 @@ class ProductConfigurator extends Component
 
         if ($propertyName === 'is_express') {
             $this->calculatePrice();
+            ProductTrackingService::trackExpressToggled(
+                $this->product->id ?? null,
+                filter_var($this->is_express, FILTER_VALIDATE_BOOLEAN),
+                (int) round($this->totalPrice ?? 0),
+                $this->context === 'calculator' ? 'calculator' : 'configurator'
+            );
         }
 
         // ... (Restlicher File-Upload Code bleibt gleich)
@@ -375,6 +383,7 @@ class ProductConfigurator extends Component
                     $finalPath = 'bestellungen/cart-uploads/' . $newFileName;
                     $this->uploaded_files[] = $finalPath;
                     $newPaths[] = $finalPath;
+                    ProductTrackingService::trackFileUploaded($this->product->id ?? null, $extension, (int) round(($file->getSize() ?? 0) / 1024));
                 } elseif ($extension === 'svg') {
                     $tempStoredPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.svg', 'public');
                     $fullTempPath = Storage::disk('public')->path($tempStoredPath);
@@ -384,20 +393,24 @@ class ProductConfigurator extends Component
                             Storage::disk('public')->delete($tempStoredPath);
                         }
                         $this->addError('new_files.' . $key, "Die SVG-Datei ist ungültig oder enthält potenziell schädlichen Code.");
+                        ProductTrackingService::trackFileUploadError($this->product->id ?? null, 'SVG ungültig oder unsicher');
                         continue;
                     }
 
                     $this->uploaded_files[] = $tempStoredPath;
                     $newPaths[] = $tempStoredPath;
+                    ProductTrackingService::trackFileUploaded($this->product->id ?? null, 'svg', (int) round(($file->getSize() ?? 0) / 1024));
                 } elseif ($extension === 'pdf') {
                     if (!$this->validatePdfFile($realPath)) {
                         $this->addError('new_files.' . $key, "Die PDF-Datei ist ungültig oder enthält unzulässige eingebettete Skripte/Aktionen.");
+                        ProductTrackingService::trackFileUploadError($this->product->id ?? null, 'PDF ungültig oder unsicher');
                         continue;
                     }
 
                     $storedPdfPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.pdf', 'public');
                     $this->uploaded_files[] = $storedPdfPath;
                     $newPaths[] = $storedPdfPath;
+                    ProductTrackingService::trackFileUploaded($this->product->id ?? null, 'pdf', (int) round(($file->getSize() ?? 0) / 1024));
                 }
             }
 
@@ -644,6 +657,17 @@ class ProductConfigurator extends Component
                     $cartService->addItem($this->product, $this->qty, $configData);
                     $this->dispatch('cart-updated');
                     $this->dispatch('notify', message: 'In den Warenkorb gelegt!');
+
+                    ProductTrackingService::trackConfiguratorSaved(
+                        $this->product->id ?? null,
+                        (int) round($this->totalPrice ?? 0),
+                        [
+                            'qty' => $this->qty,
+                            'is_express' => filter_var($this->is_express, FILTER_VALIDATE_BOOLEAN),
+                            'symbols_count' => count($this->logos) + count($this->logos_back),
+                            'files_count' => count($this->uploaded_files),
+                        ]
+                    );
 
                     $this->reset(['uploaded_files', 'logos', 'logos_back', 'notes']);
                     $this->texts = [];

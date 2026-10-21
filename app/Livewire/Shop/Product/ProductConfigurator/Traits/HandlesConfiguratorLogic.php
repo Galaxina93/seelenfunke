@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Product\ProductConfigurator\Traits;
 
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use App\Services\ProductTrackingService;
 
 trait HandlesConfiguratorLogic
 {
@@ -132,6 +133,13 @@ trait HandlesConfiguratorLogic
         } else {
             $this->logos[] = $newItem;
         }
+
+        ProductTrackingService::trackSymbolAdded(
+            $this->product->id ?? null,
+            $filename,
+            $this->selectedCategory ?? null,
+            $this->activeSide ?? 'front'
+        );
     }
 
     public function toggleLogo($type, $value)

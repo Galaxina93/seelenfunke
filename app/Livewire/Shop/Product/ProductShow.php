@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Product;
 
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
+use App\Services\ProductTrackingService;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -22,6 +23,9 @@ class ProductShow extends Component
         }
 
         $this->product = $product;
+
+        // Telemetrie: Seitenaufruf Konfigurator
+        ProductTrackingService::trackConfiguratorView($this->product->id);
 
         $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
 
@@ -44,12 +48,14 @@ class ProductShow extends Component
 
     public function openTemplatesList()
     {
+        ProductTrackingService::trackModeChosen($this->product->id, 'template');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = true;
     }
 
     public function startCustomConfig()
     {
+        ProductTrackingService::trackModeChosen($this->product->id, 'custom');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
         $this->currentConfig = [];
@@ -60,6 +66,7 @@ class ProductShow extends Component
         $template = ProductTemplate::find($templateId);
         if ($template) {
             $this->currentConfig = $template->configuration ?? [];
+            ProductTrackingService::trackTemplateSelected($this->product->id, $templateId, $template->name ?? $template->title ?? ('Vorlage #' . $templateId));
         } else {
             $this->currentConfig = [];
         }
@@ -69,6 +76,7 @@ class ProductShow extends Component
 
     public function cancelConfig()
     {
+        ProductTrackingService::trackConfiguratorAbandoned($this->product->id, ['action' => 'canceled_to_templates']);
         if (!empty($this->productTemplates)) {
             $this->currentConfig = [];
             $this->showTemplateSelection = true;

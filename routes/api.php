@@ -239,3 +239,30 @@ Route::middleware('auth:sanctum')->group(function () {
 
 });
 
+// --- First-Party Produkt-Telemetrie Beacon (DSGVO-konform, kein CSRF nötig) ---
+Route::post('/product-telemetry/beacon', function (\Illuminate\Http\Request $request) {
+    try {
+        $source = $request->input('source', 'configurator');
+        $productId = $request->input('product_id');
+        $step = $request->input('step');
+        $meta = $request->input('meta', []);
+
+        if ($source === 'calculator') {
+            \App\Services\ProductTrackingService::trackCalculatorAbandoned(
+                is_numeric($step) ? (int) $step : 0,
+                is_array($meta) ? $meta : []
+            );
+        } else {
+            \App\Services\ProductTrackingService::trackConfiguratorAbandoned(
+                $productId,
+                is_array($meta) ? $meta : []
+            );
+        }
+
+        return response()->json(['success' => true]);
+    } catch (\Throwable $e) {
+        return response()->json(['success' => false], 200);
+    }
+});
+
+

@@ -6,9 +6,11 @@ use Livewire\Attributes\Layout;
 
 use App\Models\Order\OrderOrderItem;
 use App\Models\Product\Product;
+use App\Models\Product\ProductAnalyticsEvent;
 use App\Models\Product\ProductLoss;
 use App\Models\Product\ProductReview;
 use App\Models\Product\ProductSupplier;
+use App\Models\Product\ProductTemplate;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -28,14 +30,36 @@ class ProductAnalytics extends Component
     #[Url]
     public $dateRange = '30';
 
+    #[Url]
+    public string $activeTab = 'configurator';
+
     public $dateFrom;
     public $dateTo;
 
-    // Analytics State
+    // Analytics State (Wirtschaftlichkeit)
     public array $lossData = [];
     public array $topLossData = [];
     public array $reviewData = [];
     public array $supplierData = [];
+
+    // Analytics State (Konfigurator)
+    public array $configuratorStats = [];
+    public array $configuratorModeData = [];
+    public array $topTemplates = [];
+    public array $topSymbols = [];
+    public array $uploadStats = [];
+    public array $expressStats = [];
+
+    // Analytics State (Mengenrechner /calculator)
+    public array $calculatorFunnel = [];
+    public array $calculatorDropOffs = [];
+    public array $calculatorStats = [];
+
+    public function setTab(string $tab): void
+    {
+        $this->activeTab = $tab;
+        $this->dispatch('analytics-updated');
+    }
 
 
     public function mount()
@@ -124,6 +148,254 @@ class ProductAnalytics extends Component
             $suppData[] = $items->count();
         }
         $this->supplierData = ['labels' => $suppLabels, 'data' => $suppData];
+    }
+
+    private function computeConfiguratorAnalytics(): void
+    {
+        // 1. Modus-Verhältnis: Vorlage vs. Selbst konfigurieren
+        $modes = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'mode_chosen')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->select('item_identifier', DB::raw('count(*) as count'))
+            ->groupBy('item_identifier')
+            ->pluck('count', 'item_identifier')
+            ->toArray();
+
+        $tplCount = (int) ($modes['template'] ?? 0);
+        $customCount = (int) ($modes['custom'] ?? 0);
+        $totalModes = $tplCount + $customCount;
+        $tplPercent = $totalModes > 0 ? round(($tplCount / $totalModes) * 100, 1) : 0;
+        $customPercent = $totalModes > 0 ? round(($customCount / $totalModes) * 100, 1) : 0;
+
+        $this->configuratorModeData = [
+            'labels' => ['Vorlage nutzen', 'Selbst konfigurieren'],
+            'data' => [$tplCount, $customCount],
+            'template_count' => $tplCount,
+            'custom_count' => $customCount,
+            'template_percent' => $tplPercent,
+            'custom_percent' => $customPercent,
+            'total' => $totalModes,
+        ];
+
+        // 2. Top-Vorlagen (Welche Vorlage wie oft gewählt)
+        $topTplRows = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'template_selected')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->select('template_id', 'item_identifier', DB::raw('count(*) as count'))
+            ->groupBy('template_id', 'item_identifier')
+            ->orderByDesc('count')
+            ->take(10)
+            ->get();
+
+        $templateIds = $topTplRows->pluck('template_id')->filter()->unique()->toArray();
+        $dbTemplates = !empty($templateIds) ? ProductTemplate::with('product')->whereIn('id', $templateIds)->get()->keyBy('id') : collect();
+
+        $this->topTemplates = $topTplRows->map(function ($row) use ($dbTemplates) {
+            $tpl = $dbTemplates[$row->template_id] ?? null;
+            return [
+                'id' => $row->template_id,
+                'name' => $tpl?->name ?? $row->item_identifier ?? 'Unbenannte Vorlage',
+                'product_name' => $tpl?->product?->name ?? '-',
+                'preview_image' => $tpl?->preview_image_url ?? null,
+                'count' => (int) $row->count,
+            ];
+        })->toArray();
+
+        // 3. Top-Symbole & Gravurmotive
+        $topSymbolRows = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'symbol_added')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->select('item_identifier', DB::raw('count(*) as count'))
+            ->groupBy('item_identifier')
+            ->orderByDesc('count')
+            ->take(12)
+            ->get();
+
+        $this->topSymbols = $topSymbolRows->map(function ($row) {
+            $filename = (string) $row->item_identifier;
+            $cleanName = pathinfo($filename, PATHINFO_FILENAME);
+            $cleanName = str_replace(['_black', '_', '-'], [' ', ' ', ' '], $cleanName);
+            return [
+                'file' => $filename,
+                'name' => ucwords($cleanName),
+                'count' => (int) $row->count,
+            ];
+        })->toArray();
+
+        $totalSymbolsCount = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'symbol_added')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        // 4. Datei-Uploads & Dateiformate
+        $uploadRows = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'file_uploaded')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->select('item_identifier', DB::raw('count(*) as count'))
+            ->groupBy('item_identifier')
+            ->pluck('count', 'item_identifier')
+            ->toArray();
+
+        $uploadErrorCount = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'file_upload_error')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $totalUploads = array_sum($uploadRows);
+
+        $this->uploadStats = [
+            'total' => $totalUploads,
+            'errors' => $uploadErrorCount,
+            'by_format' => [
+                'png' => (int) ($uploadRows['png'] ?? 0),
+                'svg' => (int) ($uploadRows['svg'] ?? 0),
+                'jpg' => (int) (($uploadRows['jpg'] ?? 0) + ($uploadRows['jpeg'] ?? 0)),
+                'pdf' => (int) ($uploadRows['pdf'] ?? 0),
+                'webp' => (int) ($uploadRows['webp'] ?? 0),
+            ],
+            'chart_labels' => ['PNG', 'SVG', 'JPG/JPEG', 'PDF', 'WEBP'],
+            'chart_data' => [
+                (int) ($uploadRows['png'] ?? 0),
+                (int) ($uploadRows['svg'] ?? 0),
+                (int) (($uploadRows['jpg'] ?? 0) + ($uploadRows['jpeg'] ?? 0)),
+                (int) ($uploadRows['pdf'] ?? 0),
+                (int) ($uploadRows['webp'] ?? 0),
+            ],
+        ];
+
+        // 5. Express-Zuschlag "Eiliges Geschenk"
+        $expressToggledCount = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'express_toggled')
+            ->where('item_identifier', 'enabled')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $totalConfigsSaved = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'configurator_saved')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $expressSavedEvents = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'configurator_saved')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->get();
+
+        $expressSavedCount = $expressSavedEvents->filter(function ($e) {
+            return !empty($e->meta_data['is_express']);
+        })->count();
+
+        $expressRevenueCents = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'express_toggled')
+            ->where('item_identifier', 'enabled')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->sum('value_cents');
+
+        $expressAttachRate = $totalConfigsSaved > 0 ? round(($expressSavedCount / $totalConfigsSaved) * 100, 1) : 0;
+
+        $this->expressStats = [
+            'enabled_clicks' => $expressToggledCount,
+            'completed_with_express' => $expressSavedCount,
+            'total_completed' => $totalConfigsSaved,
+            'attach_rate' => $expressAttachRate,
+            'revenue_euros' => round($expressRevenueCents / 100, 2),
+        ];
+
+        // 6. Gesamt-Performance & Conversion Funnel
+        $totalViews = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'configurator_view')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $totalAbandoned = ProductAnalyticsEvent::where('source', 'configurator')
+            ->where('event_name', 'configurator_abandoned')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $conversionRate = $totalViews > 0 ? round(($totalConfigsSaved / $totalViews) * 100, 1) : 0;
+
+        $this->configuratorStats = [
+            'views' => $totalViews,
+            'modes_chosen' => $totalModes,
+            'symbols_used' => $totalSymbolsCount,
+            'uploads' => $totalUploads,
+            'saved' => $totalConfigsSaved,
+            'abandoned' => $totalAbandoned,
+            'conversion_rate' => $conversionRate,
+        ];
+    }
+
+    private function computeCalculatorAnalytics(): void
+    {
+        $views = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_view')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $started = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_started')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $itemsSaved = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_item_saved')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $formReached = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_form_reached')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $quotes = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_quote_submitted')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->get();
+
+        $quotesCount = $quotes->count();
+        $quotesTotalGrossCents = $quotes->sum('value_cents');
+        $avgQuoteValue = $quotesCount > 0 ? round(($quotesTotalGrossCents / 100) / $quotesCount, 2) : 0;
+
+        // Drop-off rates between stages
+        $dropOff0to1 = $views > 0 ? round(max(0, ($views - $started) / $views) * 100, 1) : 0;
+        $dropOff1to2 = $started > 0 ? round(max(0, ($started - $itemsSaved) / $started) * 100, 1) : 0;
+        $dropOff2to3 = $itemsSaved > 0 ? round(max(0, ($itemsSaved - $formReached) / $itemsSaved) * 100, 1) : 0;
+        $dropOff3to4 = $formReached > 0 ? round(max(0, ($formReached - $quotesCount) / $formReached) * 100, 1) : 0;
+
+        $validationErrors = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_validation_failed')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $canceledItems = ProductAnalyticsEvent::where('source', 'calculator')
+            ->where('event_name', 'calc_item_canceled')
+            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->count();
+
+        $this->calculatorFunnel = [
+            'labels' => ['1. Aufruf', '2. Gestartet (AGB)', '3. Artikel fertig', '4. Formular erreicht', '5. Anfrage versendet'],
+            'data' => [$views, $started, $itemsSaved, $formReached, $quotesCount],
+            'views' => $views,
+            'started' => $started,
+            'items_saved' => $itemsSaved,
+            'form_reached' => $formReached,
+            'quotes_count' => $quotesCount,
+        ];
+
+        $this->calculatorDropOffs = [
+            'step0_to_1' => $dropOff0to1,
+            'step1_to_2' => $dropOff1to2,
+            'step2_to_3' => $dropOff2to3,
+            'step3_to_4' => $dropOff3to4,
+            'validation_errors' => $validationErrors,
+            'canceled_items' => $canceledItems,
+        ];
+
+        $this->calculatorStats = [
+            'quotes_count' => $quotesCount,
+            'total_volume_euros' => round($quotesTotalGrossCents / 100, 2),
+            'avg_quote_euros' => $avgQuoteValue,
+            'overall_conversion' => $views > 0 ? round(($quotesCount / $views) * 100, 1) : 0,
+        ];
     }
 
     public static function getCombinedAnalyticsData()
@@ -292,6 +564,8 @@ class ProductAnalytics extends Component
     public function render()
     {
         $this->computeAnalytics();
+        $this->computeConfiguratorAnalytics();
+        $this->computeCalculatorAnalytics();
         $this->dispatch('analytics-updated');
 
         return view('livewire.shop.product.product-analytics', [

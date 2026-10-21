@@ -10,6 +10,7 @@ use App\Models\Order\OrderQuoteRequestItem;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use App\Models\System\SystemLog;
+use App\Services\ProductTrackingService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -83,6 +84,8 @@ class ProductCalculator extends Component
 
             $this->calculateTotal();
             if(count($this->cartItems) > 0) $this->step = 1;
+        } else {
+            ProductTrackingService::trackCalculatorView();
         }
     }
 
@@ -150,9 +153,11 @@ class ProductCalculator extends Component
     {
         if (!$this->agb_accepted) {
             $this->addError('agb', 'Bitte akzeptieren Sie die Hinweise zur Konfiguration und die AGB, um fortzufahren.');
+            ProductTrackingService::trackCalculatorValidationFailed(0, ['agb' => 'not_accepted']);
             return;
         }
         $this->step = 1;
+        ProductTrackingService::trackCalculatorStarted();
     }
 
     // --- NEU: Vorlagen Logik Start ---
@@ -161,6 +166,8 @@ class ProductCalculator extends Component
         $this->editingIndex = -1;
         $this->currentProduct = $this->dbProducts[$productId] ?? null;
         if(!$this->currentProduct) return;
+
+        ProductTrackingService::trackCalculatorProductOpened($productId);
 
         $this->currentConfig = [];
 
@@ -242,6 +249,7 @@ class ProductCalculator extends Component
     }
 
     public function cancelConfig() {
+        ProductTrackingService::trackCalculatorItemCanceled($this->currentProduct['id'] ?? null);
         $this->currentConfig = [];
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
@@ -271,6 +279,12 @@ class ProductCalculator extends Component
         } else {
             $this->cartItems[] = $itemData;
         }
+
+        ProductTrackingService::trackCalculatorItemSaved(
+            $product['id'],
+            (int) $data['qty'],
+            (int) round(($itemData['configuration']['totalPrice'] ?? $product['price']) * 100)
+        );
 
         $this->step = 1;
         $this->dispatch('scroll-top');
@@ -531,6 +545,10 @@ class ProductCalculator extends Component
             return;
         }
         $this->step = 3;
+        ProductTrackingService::trackCalculatorFormReached(
+            count($this->cartItems),
+            (int) round($this->totalBrutto * 100)
+        );
         $this->persist();
         $this->dispatch('scroll-top');
     }
@@ -539,7 +557,13 @@ class ProductCalculator extends Component
 
     public function submit()
     {
-        $this->validate();
+        try {
+            $this->validate();
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            ProductTrackingService::trackCalculatorValidationFailed(3, $e->errors());
+            throw $e;
+        }
+
         $this->validateCartItems();
         $this->calculateTotal();
 
@@ -594,6 +618,14 @@ class ProductCalculator extends Component
                 } catch (\Exception $e) {
                     \Illuminate\Support\Facades\Log::error('Calculator Mail Error: ' . $e->getMessage());
                 }
+
+                ProductTrackingService::trackCalculatorQuoteSubmitted(
+                    $quote->quote_number,
+                    count($this->cartItems),
+                    (int) round($this->totalNetto * 100),
+                    (int) round($this->totalBrutto * 100),
+                    (bool) $this->isExpress
+                );
 
                 session()->forget(['calc_cart', 'calc_form']);
                 $this->cartItems = [];
