@@ -12,7 +12,7 @@ use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
 
-class NewOrderMailToAdmin extends Mailable implements ShouldQueue
+class NewOrderMailToAdmin extends Mailable
 {
     use Queueable, SerializesModels;
 

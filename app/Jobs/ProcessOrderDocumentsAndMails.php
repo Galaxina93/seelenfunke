@@ -109,14 +109,23 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                 $itemIndex++;
             }
 
-            // Da wir hier schon im Job sind, können wir send() nutzen.
-            // Falls deine Mailables 'ShouldQueue' nutzen, werden sie sonst "doppelt" gequeued. Das ist aber kein Problem.
-            Mail::to($this->order->email)
-                ->send(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+            // 2a. Kundenbestätigung direkt synchron via SMTP senden
+            try {
+                Mail::to($this->order->email)
+                    ->sendNow(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+            } catch (\Throwable $customerEx) {
+                Log::error("Kunden-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $customerEx->getMessage());
+            }
 
+            // 2b. Admin-Benachrichtigung direkt synchron via SMTP senden
             if (shop_setting('send_order_email_to_admin', true)) {
-                Mail::to('kontakt@mein-seelenfunke.de')
-                    ->send(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+                try {
+                    $adminEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+                    Mail::to($adminEmail)
+                        ->sendNow(new NewOrderMailToAdmin($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+                } catch (\Throwable $adminEx) {
+                    Log::error("Admin-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $adminEx->getMessage());
+                }
             }
 
             // Push-Benachrichtigung an Admins senden
