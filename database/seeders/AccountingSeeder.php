@@ -325,7 +325,7 @@ class AccountingSeeder extends Seeder
                 'tags'        => ['Versicherung', 'Vorsorge', 'Gesundheit', 'Tecis'],
                 'contract_file_path' => 'buchhaltung/contracts/2021/12/2021-12-14_Swiss-Life_Unfall.pdf'
             ],
-            [
+            /*[
                 'group'       => 'Versicherungen',
                 'name'        => 'Hausrat',
                 'amount'      => -86.69,
@@ -341,7 +341,7 @@ class AccountingSeeder extends Seeder
                 'description' => "Vorher Allianz Jährlich: -117,36\nBezahlt am: 15.12...",
                 'tags'        => ['Versicherung', 'Wohnen', 'Absicherung', 'Tecis'],
                 'contract_file_path' => 'buchhaltung/contracts/2021/12/2021-12-15_Barmenia_Hausrat.pdf'
-            ],
+            ],*/
             [
                 'group'       => 'Versicherungen',
                 'name'        => 'Haftpflicht',
