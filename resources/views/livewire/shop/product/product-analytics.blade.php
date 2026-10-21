@@ -660,30 +660,60 @@
                                     </div>
                                 </td>
                                 <td class="p-4 align-middle">
-                                    <div class="flex flex-col gap-1 w-32">
-                                        <div class="flex justify-between items-center text-[10px] font-black">
-                                            <span class="text-gray-500 flex items-center cursor-help" title="Nettopreis im Einkauf (Produktion/Hersteller).">EK <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
-                                            <span class="text-gray-700 dark:text-gray-300">{{ number_format($cd['purchase_price'], 2, ',', '.') }} €</span>
-                                        </div>
-                                        <div class="flex justify-between items-center text-[10px] font-black">
-                                            <span class="text-gray-500 flex items-center cursor-help" title="Berechnete Stromkosten und Maschinenabnutzung pro Gravur-Minute.">Laser <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
-                                            <span class="text-amber-600 dark:text-amber-500">{{ number_format($cd['laser_cost'], 2, ',', '.') }} €</span>
-                                        </div>
-                                        <div class="flex justify-between items-center text-[10px] font-black">
-                                            <span class="text-gray-500 flex items-center cursor-help" title="Reine Materialkosten für die Verpackung (z.B. der Karton selbst in €).">Material <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
-                                            <span class="text-emerald-600 dark:text-emerald-500">{{ number_format($cd['packaging_cost'], 2, ',', '.') }} €</span>
-                                        </div>
-                                        <div class="flex justify-between items-center text-[10px] font-black">
-                                            <span class="text-gray-500 flex items-center cursor-help" title="Die Portokosten, die für das DHL-Label gezahlt werden.">Versand <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
-                                            <span class="text-gray-600 dark:text-gray-400">{{ number_format($cd['shipping_cost'], 2, ',', '.') }} €</span>
-                                        </div>
-                                        <div class="flex justify-between items-center text-[10px] font-black">
-                                            <span class="text-gray-500 flex items-center cursor-help" title="Geplante Marketing-Kosten ({{ $cd['marketing_percent'] }}% vom Netto).">Marketing <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
-                                            <span class="text-pink-600 dark:text-pink-500">{{ number_format($cd['marketing_cost'], 2, ',', '.') }} €</span>
-                                        </div>
-                                        <div class="flex justify-between items-center text-[10px] font-black mt-1 pt-1 border-t border-gray-200 dark:border-gray-800/60">
-                                            <span class="text-gray-500 flex items-center cursor-help" title="Das Leergewicht der Versandverpackung (Karton, Luftpolster). Das finale Bruttogewicht für DHL setzt sich aus dem Netto-Produktgewicht und diesem Tara-Wert zusammen.">Tara <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
-                                            <span class="text-blue-500 dark:text-blue-400">{{ $cd['packaging_weight'] !== null ? $cd['packaging_weight'] . ' g' : '-' }}</span>
+                                    <div x-data="{ open: false }" class="w-36 select-none">
+                                        {{-- Kompakter EK-Trigger-Button --}}
+                                        <button type="button"
+                                                @click="open = !open"
+                                                class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 hover:bg-gray-100/80 dark:hover:bg-gray-800/80 hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-200 shadow-2xs group cursor-pointer text-left">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-[10px] font-black uppercase tracking-wider text-gray-500 cursor-help" title="Nettopreis im Einkauf (Produktion/Hersteller).">
+                                                    EK:
+                                                </span>
+                                                <span class="text-xs font-black text-gray-900 dark:text-gray-100 font-mono">
+                                                    {{ number_format($cd['purchase_price'], 2, ',', '.') }} €
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center gap-1 pl-1">
+                                                <span class="text-[8px] font-black uppercase tracking-tight px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:text-[var(--theme-color)] group-hover:bg-[var(--theme-color-10)] transition-colors"
+                                                      x-text="open ? '–' : '+5'"></span>
+                                                <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-transform duration-300 ease-out"
+                                                     :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''"
+                                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        </button>
+
+                                        {{-- Geschmeidig aufklappbare Details --}}
+                                        <div x-show="open"
+                                             x-cloak
+                                             x-collapse.duration.300ms
+                                             style="display: none;"
+                                             class="mt-1.5 p-2.5 rounded-xl bg-gray-50/90 dark:bg-gray-950/70 border border-gray-200/80 dark:border-gray-800/80 shadow-xs space-y-1.5 backdrop-blur-xs">
+                                            <div class="flex justify-between items-center text-[10px] font-black">
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Berechnete Stromkosten und Maschinenabnutzung pro Gravur-Minute.">Laser <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-amber-600 dark:text-amber-500 font-mono">{{ number_format($cd['laser_cost'], 2, ',', '.') }} €</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-[10px] font-black">
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Reine Materialkosten für die Verpackung (z.B. der Karton selbst in €).">Material <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-emerald-600 dark:text-emerald-500 font-mono">{{ number_format($cd['packaging_cost'], 2, ',', '.') }} €</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-[10px] font-black">
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Die Portokosten, die für das DHL-Label gezahlt werden.">Versand <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-600 dark:text-gray-400 font-mono">{{ number_format($cd['shipping_cost'], 2, ',', '.') }} €</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-[10px] font-black">
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Geplante Marketing-Kosten ({{ $cd['marketing_percent'] }}% vom Netto).">Marketing <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-pink-600 dark:text-pink-500 font-mono">{{ number_format($cd['marketing_cost'], 2, ',', '.') }} €</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-[10px] font-black mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-800/60">
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Das Leergewicht der Versandverpackung (Karton, Luftpolster). Das finale Bruttogewicht für DHL setzt sich aus dem Netto-Produktgewicht und diesem Tara-Wert zusammen.">Tara <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-blue-500 dark:text-blue-400 font-mono">{{ $cd['packaging_weight'] !== null ? $cd['packaging_weight'] . ' g' : '-' }}</span>
+                                            </div>
+                                            <div class="flex justify-between items-center text-[10px] font-black mt-1 pt-1 border-t border-dashed border-gray-200 dark:border-gray-800/60">
+                                                <span class="text-[9px] uppercase tracking-wider text-gray-500 font-black">Gesamt:</span>
+                                                <span class="text-gray-900 dark:text-gray-200 font-bold font-mono">{{ number_format($cd['total_cost'], 2, ',', '.') }} €</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
