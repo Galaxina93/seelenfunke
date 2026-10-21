@@ -36,13 +36,15 @@ class ProductCreateTest extends TestCase
     #[Test]
     public function it_creates_a_draft_product()
     {
+        $initialCount = Product::count();
+
         Livewire::test(ProductCreate::class)
             ->call('createDraft')
             ->assertSet('viewMode', 'edit')
             ->assertSet('currentStep', 1)
             ->assertStatus(200);
 
-        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseCount('products', $initialCount + 1);
         $this->assertDatabaseHas('products', [
             'status' => 'draft',
             'type' => 'physical'

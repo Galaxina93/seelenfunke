@@ -10,9 +10,9 @@
 
     {{-- ANSPRACHE --}}
     <h1>Juhu, Zahlung erhalten! 🚀</h1>
-    <p>Hallo {{ $data['contact']['vorname'] }},</p>
+    <p>Hallo {{ !empty($data['contact']['vorname']) ? $data['contact']['vorname'] : 'du' }},</p>
 
-    <p>gute Nachrichten: Die Zahlung für deine Bestellung <strong>#{{ $data['quote_number'] }}</strong> ist erfolgreich bei uns eingegangen.</p>
+    <p>gute Nachrichten: Die Zahlung für deine Bestellung <strong>#{{ $data['order_number'] ?? $data['quote_number'] }}</strong> ist erfolgreich bei uns eingegangen.</p>
 
     <p>Vielen Dank für dein Vertrauen! Deine Bestellung wurde nun automatisch für die Produktion freigegeben und unser Team legt los, deinen Seelenfunken zu fertigen.</p>
 

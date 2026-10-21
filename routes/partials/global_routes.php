@@ -224,3 +224,8 @@ Route::get('/invoice/{invoice}/download', [\App\Http\Controllers\Accounting\Invo
 // --- 7. Digitaler Produkt-Download Route ---
 Route::get('/digital-product/{item}/download', [\App\Http\Controllers\Customer\DigitalProductDownloadController::class, 'download'])
     ->name('digital-product.download');
+
+// --- 8. Legacy Snapshot URL Fallback Route (Leitet alte Pfade auf GoBD/System-Pfad um) ---
+Route::get('/storage/snapshots/{path}', function ($path) {
+    return redirect('/storage/system/snapshots/' . $path, 301);
+})->where('path', '.*');

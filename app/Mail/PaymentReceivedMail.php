@@ -22,8 +22,9 @@ class PaymentReceivedMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
+        $num = $this->data['order_number'] ?? $this->data['quote_number'] ?? '';
         return new Envelope(
-            subject: 'Zahlung erhalten für Bestellung #' . ($this->data['quote_number'] ?? ''),
+            subject: 'Zahlung erhalten für Bestellung #' . $num,
         );
     }
 

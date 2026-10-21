@@ -29,6 +29,11 @@ class DigitalProductDownloadController extends Controller
             abort(403, 'Zugriff verweigert.');
         }
 
+        // 3. Payment Status check: Downloads stehen erst nach Bezahlung zur Verfügung
+        if (!AiAuthHelper::isAdmin() && $item->order->payment_status !== 'paid') {
+            abort(403, 'Der Download steht erst nach vollständigem Zahlungseingang zur Verfügung.');
+        }
+
         // 3. Validation
         if (!$item->product || $item->product->type !== 'digital' || empty($item->product->digital_download_path)) {
             abort(404, 'Dieses Produkt ist nicht als Download verfügbar.');

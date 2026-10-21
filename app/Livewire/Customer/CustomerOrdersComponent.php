@@ -95,8 +95,11 @@ class CustomerOrdersComponent extends Component
             return;
         }
 
-        // Falls die Zahlung zwingend abgeschlossen sein soll (optional anpassbar):
-        // if ($item->order->payment_status !== 'paid' && $item->order->status !== 'completed') { ... }
+        // Downloads stehen erst nach vollständigem Zahlungseingang zur Verfügung
+        if ($item->order->payment_status !== 'paid') {
+            session()->flash('error', 'Der Download steht erst nach vollständigem Zahlungseingang zur Verfügung.');
+            return;
+        }
 
         if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($item->product->digital_download_path)) {
             session()->flash('error', 'Datei nicht gefunden.');

@@ -242,8 +242,10 @@ trait FormatsECommerceData
 
             // Kontakt & Adressen
             'contact'          => $this->getMailContactData(),
-            'billing_address'  => $this->billing_address ?? [],
-            'shipping_address' => $this->shipping_address ?? $this->billing_address ?? [],
+            'billing_address'  => (isset($this->billing_address) && is_array($this->billing_address)) ? $this->billing_address : [],
+            'shipping_address' => (isset($this->shipping_address) && is_array($this->shipping_address)) 
+                ? $this->shipping_address 
+                : ((isset($this->billing_address) && is_array($this->billing_address)) ? $this->billing_address : []),
 
             'items' => $items,
 
@@ -285,16 +287,19 @@ trait FormatsECommerceData
      */
     private function getMailContactData()
     {
-        // Logik für Order / Invoice (billing_address Array)
-        if (isset($this->billing_address['first_name'])) {
+        $billing = (isset($this->billing_address) && is_array($this->billing_address)) ? $this->billing_address : [];
+        $customer = $this->customer ?? (isset($this->order) && $this->order ? $this->order->customer : null);
+
+        // Logik für Order / Invoice (billing_address Array oder verknüpfter Kunde)
+        if (!empty($billing['first_name']) || !empty($billing['last_name']) || $customer) {
             return [
-                'vorname'   => $this->billing_address['first_name'],
-                'nachname'  => $this->billing_address['last_name'],
-                'firma'     => $this->billing_address['company'] ?? '',
-                'email'     => $this->email ?? ($this->order->email ?? ''),
-                'telefon'   => $this->billing_address['phone'] ?? $this->phone ?? '',
+                'vorname'   => $billing['first_name'] ?? ($customer->first_name ?? ($this->first_name ?? '')),
+                'nachname'  => $billing['last_name'] ?? ($customer->last_name ?? ($this->last_name ?? '')),
+                'firma'     => $billing['company'] ?? ($customer->company ?? ($this->company ?? '')),
+                'email'     => $this->email ?? ($this->order->email ?? ($customer->email ?? ($billing['email'] ?? ''))),
+                'telefon'   => $billing['phone'] ?? ($this->phone ?? ''),
                 'anmerkung' => $this->notes ?? ($this->admin_notes ?? ''),
-                'country'   => $this->billing_address['country'] ?? 'DE'
+                'country'   => $billing['country'] ?? ($this->country ?? 'DE')
             ];
         }
 

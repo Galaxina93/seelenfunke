@@ -37,15 +37,22 @@ class InvoiceDownloadController extends Controller
             abort(403, 'Zugriff verweigert.');
         }
 
-        $pdf = $service->generatePdf($invoice);
-
         $filenamePrefix = 'Rechnung_';
         if ($invoice->type === 'cancellation') {
             $filenamePrefix = 'Storno_';
         } elseif ($invoice->type === 'credit_note') {
             $filenamePrefix = 'Gutschrift_';
         }
+        $filename = $filenamePrefix . $invoice->invoice_number . '.pdf';
 
-        return $pdf->download($filenamePrefix . $invoice->invoice_number . '.pdf');
+        // 1. Wenn das GoBD-konforme PDF bereits im Archiv liegt, direkt ausliefern (schneller & unveränderlich)
+        if ($invoice->has_archived_pdf) {
+            return \Illuminate\Support\Facades\Storage::disk('local')->download($invoice->pdf_storage_path, $filename);
+        }
+
+        // 2. Fallback: PDF frisch rendern
+        $pdf = $service->generatePdf($invoice);
+
+        return $pdf->download($filename);
     }
 }

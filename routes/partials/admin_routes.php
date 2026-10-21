@@ -111,6 +111,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
     Route::get('/admin/widerruf/file/{revocation}/{fileName}', function (\App\Models\Order\OrderRevocation $revocation, $fileName) {
+        if (str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\')) {
+            abort(404);
+        }
         $path = "bestellungen/private/revocations/{$revocation->id}/{$fileName}";
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
             return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
@@ -123,14 +126,14 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/accounting/receipt', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path) {
+        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
             abort(404);
         }
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-            return response()->file(storage_path('app/' . $path));
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
         }
         if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-            return response()->file(storage_path('app/public/' . $path));
+            return response()->file(\Illuminate\Support\Facades\Storage::disk('public')->path($path));
         }
         abort(404);
     })->name('admin.accounting.receipt.show');

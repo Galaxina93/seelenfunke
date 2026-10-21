@@ -121,7 +121,7 @@
                                 </div>
                                 <button @click="navigator.clipboard.writeText('{{ $gv->code }}'); copied = true; setTimeout(() => copied = false, 2500)"
                                         type="button" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white font-bold text-[11px] cursor-pointer shrink-0 ml-1">
-                                    <span x-show="!copied">Kopieren</span>
+                                    <span x-show="!copied">Code kopieren</span>
                                     <span x-show="copied" style="display: none;" class="text-emerald-500 font-bold">Kopiert! ✓</span>
                                 </button>
                             </div>

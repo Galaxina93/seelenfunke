@@ -5,23 +5,31 @@
 
     // ADRESSDATEN ZUSAMMENSTELLEN
     if ($isOrder) {
+        $b = is_array($model->billing_address) ? $model->billing_address : [];
+        $firstName = $b['first_name'] ?? '';
+        $lastName = $b['last_name'] ?? '';
+        $fullName = trim($firstName . ' ' . $lastName);
+        $postal = $b['postal_code'] ?? '';
+        $city = $b['city'] ?? '';
+        $cityZip = trim($postal . ' ' . $city);
+
         $billing = [
-            'name' => $model->billing_address['first_name'] . ' ' . $model->billing_address['last_name'],
-            'company' => $model->billing_address['company'] ?? null,
-            'address' => $model->billing_address['address'],
-            'city_zip' => $model->billing_address['postal_code'] . ' ' . $model->billing_address['city'],
-            'country' => $model->billing_address['country'],
-            'email' => $model->email
+            'name' => $fullName !== '' ? $fullName : ($model->customer_name ?? 'Gast'),
+            'company' => $b['company'] ?? null,
+            'address' => $b['address'] ?? '',
+            'city_zip' => $cityZip,
+            'country' => $b['country'] ?? 'DE',
+            'email' => $model->email ?? ($b['email'] ?? '')
         ];
         $shipping = $model->shipping_address ?? null;
     } else {
         $billing = [
-            'name' => $model->first_name . ' ' . $model->last_name,
+            'name' => trim(($model->first_name ?? '') . ' ' . ($model->last_name ?? '')),
             'company' => $model->company ?? null,
             'address' => trim(($model->street ?? '') . ' ' . ($model->house_number ?? '')),
-            'city_zip' => ($model->postal ?? '') . ' ' . ($model->city ?? ''),
+            'city_zip' => trim(($model->postal ?? '') . ' ' . ($model->city ?? '')),
             'country' => $model->country ?? 'DE',
-            'email' => $model->email
+            'email' => $model->email ?? ''
         ];
         $shipping = null;
     }

@@ -42,15 +42,10 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             // Invoice Model in DB erstellen
             $invoice = $invoiceService->createFromOrder($this->order);
 
-            // A) PDF Generieren
-            $pdfPath = storage_path("app/public/buchhaltung/invoices/{$invoice->invoice_number}.pdf");
-
-            if ($invoice && !file_exists($pdfPath)) {
-                $pdf = $invoiceService->generatePdf($invoice);
-                if (!file_exists(dirname($pdfPath))) {
-                    mkdir(dirname($pdfPath), 0755, true);
-                }
-                file_put_contents($pdfPath, $pdf->output());
+            // A) PDF Generieren & über InvoiceService GoBD-konform archivieren
+            if ($invoice) {
+                $invoiceService->storePdf($invoice);
+                $pdfPath = \Illuminate\Support\Facades\Storage::disk('local')->path("buchhaltung/invoices/{$invoice->invoice_number}.pdf");
             }
 
             // B) XML Generieren (Nur für gewerbliche Kunden)
