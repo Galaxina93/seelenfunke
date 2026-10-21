@@ -32,6 +32,12 @@
             </div>
 
             <div class="space-y-6">
+                {{-- Honeypot Anti-Spam --}}
+                <div class="hidden" aria-hidden="true" style="display:none;">
+                    <label for="honey_name">Bitte dieses Feld freilassen</label>
+                    <input type="text" id="honey_name" name="honey_name" wire:model="honey_name" tabindex="-1" autocomplete="off">
+                </div>
+
                 {{-- Name --}}
                 <div>
                     <label for="name" class="block text-sm font-bold text-gray-700 mb-2">Vollständiger Name des Verbrauchers *</label>

@@ -14,9 +14,9 @@ class BankApiService
 
     public function __construct()
     {
-        $this->clientId = env('FINAPI_CLIENT_ID');
-        $this->clientSecret = env('FINAPI_CLIENT_SECRET');
-        $env = env('FINAPI_ENV', 'live'); // Auf Live zwingen laut User Wunsch
+        $this->clientId = config('services.finapi.client_id') ?: env('FINAPI_CLIENT_ID');
+        $this->clientSecret = config('services.finapi.client_secret') ?: env('FINAPI_CLIENT_SECRET');
+        $env = config('services.finapi.env') ?: env('FINAPI_ENV', 'live'); // Auf Live zwingen laut User Wunsch
 
         // Die "Access" API
         $this->baseUrl = $env === 'live' ? 'https://live.finapi.io' : 'https://sandbox.finapi.io';
@@ -48,7 +48,8 @@ class BankApiService
      */
     private function generateUserPassword($userId)
     {
-        return substr(hash_hmac('sha256', 'finapi_user_' . $userId, env('APP_KEY')), 0, 16) . 'A1!';
+        $appKey = config('app.key') ?: env('APP_KEY', 'seelenfunke-secret-key-fallback');
+        return substr(hash_hmac('sha256', 'finapi_user_' . $userId, $appKey), 0, 16) . 'A1!';
     }
 
     /**

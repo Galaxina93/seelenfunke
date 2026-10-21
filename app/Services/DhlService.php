@@ -232,10 +232,10 @@ class DhlService
             $trackingNumber = $item['shipmentNo'];
             $labelBase64 = $item['label']['b64'];
 
-            // Save PDF to storage
+            // Save PDF to private local storage (DSGVO-geschützt)
             $safeOrderNo = Str::slug($order->order_number);
             $fileName = "bestellungen/dhl_labels/label_{$safeOrderNo}_{$trackingNumber}.pdf";
-            Storage::disk('public')->put($fileName, base64_decode($labelBase64));
+            Storage::disk('local')->put($fileName, base64_decode($labelBase64));
 
             // Create Shipments Record
             \App\Models\Order\OrderShipment::create([

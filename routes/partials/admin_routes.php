@@ -129,6 +129,10 @@ Route::middleware(['auth:admin'])->group(function () {
         if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
             abort(404);
         }
+        // Sicherheits-Whitelist: Nur Belege und Verträge dürfen über diesen Endpoint abgerufen werden
+        if (!str_starts_with($path, 'buchhaltung/receipts/') && !str_starts_with($path, 'buchhaltung/contracts/')) {
+            abort(403, 'Zugriff verweigert.');
+        }
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
             return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path));
         }

@@ -87,6 +87,12 @@ class AccountingBank extends Component
 
     public function selectBank($accountId)
     {
+        if ($accountId) {
+            $owns = AccountingBankAccount::where('admin_id', auth('admin')->id())->where('id', $accountId)->exists();
+            if (!$owns) {
+                return;
+            }
+        }
         $this->selectedAccountId = ($this->selectedAccountId == $accountId) ? null : $accountId;
         $this->resetPage();
     }
@@ -170,7 +176,8 @@ class AccountingBank extends Component
 
     public function assignCategory($transactionId, $categoryId)
     {
-        $tx = AccountingBankTransaction::find($transactionId);
+        $adminId = auth('admin')->id();
+        $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         if ($tx) {
             $value = empty($categoryId) ? null : $categoryId;
             $tx->update([
@@ -189,7 +196,8 @@ class AccountingBank extends Component
 
     public function assignCostItem($transactionId, $costItemId)
     {
-        $tx = AccountingBankTransaction::find($transactionId);
+        $adminId = auth('admin')->id();
+        $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         if ($tx) {
             $value = empty($costItemId) ? null : $costItemId;
             $tx->update([
@@ -208,7 +216,8 @@ class AccountingBank extends Component
 
     public function toggleBusinessStatus($transactionId)
     {
-        $tx = AccountingBankTransaction::find($transactionId);
+        $adminId = auth('admin')->id();
+        $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         if ($tx) {
             // Null coalescing to inherit from parent BankAccount if previously unset
             $currentStatus = $tx->is_business ?? $tx->account->is_business;
@@ -218,7 +227,8 @@ class AccountingBank extends Component
 
     public function addTag($transactionId, $tag)
     {
-        $tx = AccountingBankTransaction::find($transactionId);
+        $adminId = auth('admin')->id();
+        $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         $cleanTag = trim(strtolower($tag));
         
         if ($tx && !empty($cleanTag)) {
@@ -232,7 +242,8 @@ class AccountingBank extends Component
 
     public function removeTag($transactionId, $tag)
     {
-        $tx = AccountingBankTransaction::find($transactionId);
+        $adminId = auth('admin')->id();
+        $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         if ($tx && is_array($tx->tags)) {
             $tags = array_filter($tx->tags, fn($t) => strcasecmp($t, $tag) !== 0);
             $tx->update(['tags' => array_values($tags)]);
@@ -677,9 +688,9 @@ class AccountingBank extends Component
     {
         $this->isLoading = true;
         try {
-            $account = AccountingBankAccount::find($accountId);
+            $adminId = auth('admin')->id();
+            $account = AccountingBankAccount::where('admin_id', $adminId)->find($accountId);
             if($account) {
-                $adminId = auth('admin')->id();
                 $userToken = $finapi->getUserToken($adminId);
 
                 $finapi->updateBankConnection($userToken, $account->plaid_item_id);
@@ -731,7 +742,7 @@ class AccountingBank extends Component
     
     public function disconnectAccount($accountId) 
     {
-        $account = AccountingBankAccount::find($accountId);
+        $account = AccountingBankAccount::where('admin_id', auth('admin')->id())->find($accountId);
         if ($account) {
             $account->delete();
             $this->loadBankAccounts();
@@ -741,7 +752,8 @@ class AccountingBank extends Component
 
     public function render()
     {
-        $query = AccountingBankTransaction::query();
+        $adminId = auth('admin')->id();
+        $query = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId));
 
         // 1. Bank Account Filter
         if ($this->selectedAccountId) {

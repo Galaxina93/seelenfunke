@@ -199,12 +199,20 @@ class OrderOverview extends Component
             DB::transaction(function () {
                 // Fall: Stornierung
                 if ($this->status === 'cancelled') {
-                    // Bestand zurückbuchen, wenn die Order vorher nur "eingegangen" war
+                    // Bestand zurückbuchen: NUR für unpersonalisierte Standardprodukte.
+                    // Personalisierte / gelasertes Produkte verfallen bei Stornierung und dürfen den Lagerbestand NICHT erhöhen.
                     if ($this->selectedOrder->status !== 'cancelled' && $this->selectedOrder->status === 'pending') {
+                        $restoredCount = 0;
                         foreach ($this->selectedOrder->items as $item) {
-                            if ($item->product) $item->product->restoreStock($item->quantity);
+                            $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
+                            if (!$isPersonalized && $item->product) {
+                                $item->product->restoreStock($item->quantity);
+                                $restoredCount++;
+                            }
                         }
-                        session()->flash('info', 'Bestand wurde zurückgebucht.');
+                        if ($restoredCount > 0) {
+                            session()->flash('info', 'Lagerbestand für unpersonalisierte Standard-Artikel wurde zurückgebucht. Personalisierte Artikel wurden als Ausschuss verbucht.');
+                        }
                     }
 
                     $this->validate([
@@ -678,8 +686,13 @@ class OrderOverview extends Component
     public function downloadDhlLabel($shipmentId)
     {
         $shipment = \App\Models\Order\OrderShipment::find($shipmentId);
-        if ($shipment && $shipment->shipping_label_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
-            return \Illuminate\Support\Facades\Storage::disk('public')->download($shipment->shipping_label_path);
+        if ($shipment && $shipment->shipping_label_path) {
+            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($shipment->shipping_label_path)) {
+                return \Illuminate\Support\Facades\Storage::disk('local')->download($shipment->shipping_label_path);
+            }
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
+                return \Illuminate\Support\Facades\Storage::disk('public')->download($shipment->shipping_label_path);
+            }
         }
         session()->flash('error', 'Label nicht gefunden.');
     }
@@ -699,11 +712,19 @@ class OrderOverview extends Component
             }
 
             foreach ($order->shipments as $shipment) {
-                if ($shipment->shipping_label_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
-                    $labelJobs[] = [
-                        'path' => \Illuminate\Support\Facades\Storage::disk('public')->path($shipment->shipping_label_path),
-                        'order' => $order
-                    ];
+                if ($shipment->shipping_label_path) {
+                    $path = null;
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($shipment->shipping_label_path)) {
+                        $path = \Illuminate\Support\Facades\Storage::disk('local')->path($shipment->shipping_label_path);
+                    } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
+                        $path = \Illuminate\Support\Facades\Storage::disk('public')->path($shipment->shipping_label_path);
+                    }
+                    if ($path) {
+                        $labelJobs[] = [
+                            'path' => $path,
+                            'order' => $order
+                        ];
+                    }
                 }
             }
         }

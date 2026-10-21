@@ -79,6 +79,25 @@ return [
         'tracking_api_key' => env('DHL_TRACKING_API_KEY', env('DHL_API_KEY')),
     ],
 
+    'finapi' => [
+        'client_id' => env('FINAPI_CLIENT_ID'),
+        'client_secret' => env('FINAPI_CLIENT_SECRET'),
+        'env' => env('FINAPI_ENV', 'live'),
+    ],
+
+    'eric' => [
+        'test_mode' => env('ERIC_TEST_MODE', true),
+        'use_native_binary' => env('ERIC_USE_NATIVE_BINARY'),
+        'api_endpoint' => env('ERIC_API_ENDPOINT', 'https://api.elster-sandbox.local/v1/transmit'),
+        'api_username' => env('ERIC_API_USERNAME', ''),
+        'api_password' => env('ERIC_API_PASSWORD', ''),
+        'tresor_path' => env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor'),
+    ],
+
+    'scraperapi' => [
+        'key' => env('SCRAPER_API_KEY'),
+    ],
+
 ];
 
 

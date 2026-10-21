@@ -6,6 +6,7 @@ use App\Mail\RevocationMailToCustomer;
 use App\Models\Order\OrderRevocation;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -17,6 +18,7 @@ class OrderRevocationForm extends Component
     public $order_number = '';
     public $items = ''; // Optional
     public $attachments = []; // Optional
+    public $honey_name = ''; // Honeypot gegen Spam-Bots
 
     public $isSubmitted = false;
 
@@ -90,6 +92,25 @@ class OrderRevocationForm extends Component
 
     public function submitRevocation()
     {
+        // 1. Bot-Schutz: Honeypot prüfen
+        if (!empty($this->honey_name)) {
+            Log::warning("Spam-Bot Versuch im Widerrufsformular erkannt und geblockt.", [
+                'ip' => request()->ip(),
+                'email' => $this->email,
+            ]);
+            $this->isSubmitted = true;
+            return;
+        }
+
+        // 2. DoS / Spam-Schutz: Rate-Limiting pro IP (max 5 Widerrufe pro 10 Minuten)
+        $throttleKey = 'order-revocation:' . request()->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->addError('email', "Zu viele Anfragen. Bitte warten Sie " . ceil($seconds / 60) . " Minute(n) vor einem erneuten Versuch.");
+            return;
+        }
+        RateLimiter::hit($throttleKey, 600);
+
         $this->validate();
 
         $data = [

@@ -203,11 +203,8 @@ class InvoiceService
             $pdf = $this->generatePdf($invoice);
             $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
 
-            // Speichert die Datei im 'local' disk (storage/app/invoices) für GoBD
+            // Speichert die Datei ausschließlich im privaten 'local' disk (storage/app/buchhaltung/invoices) für GoBD
             Storage::disk('local')->put($fileName, $pdf->output());
-
-            // Zusätzlich für öffentlichen Zugriff falls nötig
-            Storage::disk('public')->put($fileName, $pdf->output());
 
             // Falls E-Rechnung aktiv: XML generieren und beifügen
             if ($invoice->is_e_invoice) {
@@ -249,6 +246,9 @@ class InvoiceService
         $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
         if (Storage::disk('local')->exists($fileName)) {
             Storage::disk('local')->delete($fileName);
+        }
+        if (Storage::disk('public')->exists($fileName)) {
+            Storage::disk('public')->delete($fileName);
         }
 
         return $invoice->forceDelete();

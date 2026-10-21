@@ -15,15 +15,15 @@ class ElsterEricService
 
     public function __construct()
     {
-        $this->isTestMode = env('ERIC_TEST_MODE', true);
+        $this->isTestMode = config('services.eric.test_mode') ?? env('ERIC_TEST_MODE', true);
         
         // Auto-Detect: Wenn das kompilierte C++ Executable im Tresor existiert, schalten wir in den Königsklasse-Modus (Nativ C++)
         $cppScriptPath = storage_path('app/buchhaltung/erictresor/eric-linux/ERiC-43.4.6.0/Linux-x86_64/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo');
-        $this->useNativeBinary = filter_var(env('ERIC_USE_NATIVE_BINARY', file_exists($cppScriptPath)), FILTER_VALIDATE_BOOLEAN);
+        $this->useNativeBinary = filter_var(config('services.eric.use_native_binary') ?? env('ERIC_USE_NATIVE_BINARY', file_exists($cppScriptPath)), FILTER_VALIDATE_BOOLEAN);
         
-        $this->apiEndpoint = env('ERIC_API_ENDPOINT', 'https://api.elster-sandbox.local/v1/transmit');
-        $this->apiUsername = env('ERIC_API_USERNAME', '');
-        $this->apiPassword = env('ERIC_API_PASSWORD', '');
+        $this->apiEndpoint = config('services.eric.api_endpoint') ?? env('ERIC_API_ENDPOINT', 'https://api.elster-sandbox.local/v1/transmit');
+        $this->apiUsername = config('services.eric.api_username') ?? env('ERIC_API_USERNAME', '');
+        $this->apiPassword = config('services.eric.api_password') ?? env('ERIC_API_PASSWORD', '');
     }
 
     /**
@@ -136,7 +136,7 @@ class ElsterEricService
         file_put_contents($tempXmlPath, $xmlPayload);
         
         // Neu: Wir nutzen den offiziellen Python-Wrapper, den wir vorhin lauffähig & headless gemacht haben!
-        $tresorConfigPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
+        $tresorConfigPath = config('services.eric.tresor_path') ?? env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
         $isAbs = str_starts_with($tresorConfigPath, '/');
         $absoluteTresorPath = $isAbs ? $tresorConfigPath : base_path($tresorConfigPath);
         
@@ -156,6 +156,7 @@ class ElsterEricService
         
         if (!file_exists($cppBinary)) {
             if (file_exists($tempXmlPath)) unlink($tempXmlPath);
+            if (file_exists($tempOutPath)) unlink($tempOutPath);
             if ($this->isTestMode) {
                 $ticketId = "ELSTER-SIM-" . floatval(microtime(true) * 10000) . "-" . strtoupper(Str::random(6));
                 return [
@@ -176,18 +177,18 @@ class ElsterEricService
 
         // Kommandozeilenaufruf vorbereiten (./ericdemo -v ... -x ... -c ... -p ... -l ...)
         $cmd = sprintf(
-            '"%s" -v %s -x "%s" -s "%s" -d "%s" -l "%s"',
-            $cppBinary,
+            '%s -v %s -x %s -s %s -d %s -l %s',
+            escapeshellarg($cppBinary),
             escapeshellarg($datenart),
-            $tempXmlPath,
-            $tempOutPath,
-            $libDir,
-            $absoluteTresorPath
+            escapeshellarg($tempXmlPath),
+            escapeshellarg($tempOutPath),
+            escapeshellarg($libDir),
+            escapeshellarg($absoluteTresorPath)
         );
 
         // Security: _NULL wenn Hardware oder ohne Cert
         if ($authMethod === 'software') {
-            $cmd .= sprintf(' -c "%s" -p %s', $certPath, escapeshellarg($pin));
+            $cmd .= sprintf(' -c %s -p %s', escapeshellarg($certPath), escapeshellarg($pin ?? ''));
         } else {
             $cmd .= ' -c _NULL -p _NULL'; // Fallback / Hardware Pinning
         }
@@ -197,12 +198,14 @@ class ElsterEricService
         // das ELSTER-Postamt die Übertragung als reinen Stresstest ansieht.
         // Option '-n' würde den Versand ins Internet komplett unterbinden und nur offline prüfen.
 
-        // EXECUTION (Live Ausführung auf Ubuntu Root-Ebene)
-        $output = shell_exec($cmd . ' 2>&1');
-        
-        // Cleanup PII Payload XML
-        if (file_exists($tempXmlPath)) {
-            unlink($tempXmlPath);
+        // EXECUTION (Live Ausführung auf Ubuntu Root-Ebene mit garantierter Bereinigung)
+        try {
+            $output = shell_exec($cmd . ' 2>&1');
+        } finally {
+            // Cleanup PII Payload XML
+            if (file_exists($tempXmlPath)) {
+                unlink($tempXmlPath);
+            }
         }
         
         $serverAnswer = '';
@@ -286,6 +289,12 @@ class ElsterEricService
         // SECURITY LAYER: Testmerker 700000004 garantiert 100% straffreies Test-Sandboxing.
         $testmerker = $this->isTestMode ? "<Testmerker>700000004</Testmerker>" : "";
 
+        // XML-Injection Prevention
+        $safeSteuernummer = htmlspecialchars((string)$steuernummer, ENT_XML1, 'UTF-8');
+        $safeFinanzamtId = htmlspecialchars((string)$finanzamtId, ENT_XML1, 'UTF-8');
+        $safeJahr = htmlspecialchars((string)$jahr, ENT_XML1, 'UTF-8');
+        $safeMonth = htmlspecialchars((string)($data['month_number'] ?? ''), ENT_XML1, 'UTF-8');
+
         // HINWEIS: Offiziell ab ERiC > 30.1 ist UTF-8 Zwang statt ISO-8859-15.
         // Die Nutzdaten selbst liegen zwingend im 'Anmeldungssteuern' (finkonsens.de) Schema.
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
@@ -307,7 +316,7 @@ class ElsterEricService
         <Nutzdatenblock>
             <NutzdatenHeader version=\"11\">
                 <NutzdatenTicket>1</NutzdatenTicket>
-                <Empfaenger id=\"F\">$finanzamtId</Empfaenger>
+                <Empfaenger id=\"F\">{$safeFinanzamtId}</Empfaenger>
                 <Hersteller>
                     <ProduktName>Seelenfunke ERP</ProduktName>
                     <ProduktVersion>1.0</ProduktVersion>
@@ -317,9 +326,9 @@ class ElsterEricService
                 <Anmeldungssteuern xmlns=\"http://finkonsens.de/elster/elsteranmeldung/ustva/v2023\" version=\"2023\">
                     <Steuerfall>
                         <Umsatzsteuervoranmeldung>
-                            <Jahr>{$jahr}</Jahr>
-                            <Zeitraum>{$data['month_number']}</Zeitraum>
-                            <Steuernummer>{$steuernummer}</Steuernummer>
+                            <Jahr>{$safeJahr}</Jahr>
+                            <Zeitraum>{$safeMonth}</Zeitraum>
+                            <Steuernummer>{$safeSteuernummer}</Steuernummer>
                             {$kennzahl10}
                             {$kz81}
                             {$kz66}

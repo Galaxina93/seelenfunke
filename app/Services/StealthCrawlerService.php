@@ -58,7 +58,7 @@ class StealthCrawlerService
 
             try {
                 $targetUrl = "https://www.etsy.com/search?q=" . urlencode($keyword) . "&page={$page}&ref=pagination";
-                $scraperApiKey = env('SCRAPER_API_KEY');
+                $scraperApiKey = config('services.scraperapi.key');
 
                 if ($scraperApiKey) {
                     $updateJobState((int)$progress, "Routing via ScraperAPI (Stealth Mode) für Seite {$page}...");
@@ -193,7 +193,15 @@ class StealthCrawlerService
     public function crawlAmazon(string $jobId, string $keyword = 'personalisiertes geschenk', int $pages = 1)
     {
         Log::info("StealthCrawler: Start crawling Amazon for '{$keyword}' (Job: {$jobId})");
-        $apiKey = env('SCRAPER_API_KEY', '707ccc851a9e7c4759106d2f6e6bf764');
+        $apiKey = config('services.scraperapi.key');
+        if (empty($apiKey)) {
+            Log::warning("StealthCrawler: Kein SCRAPER_API_KEY konfiguriert. Amazon Scraping wird übersprungen.");
+            Cache::put("crawler_job_{$jobId}", [
+                'id' => $jobId, 'keyword' => $keyword, 'platform' => 'Amazon',
+                'progress' => 100, 'status' => 'Fehler: Kein SCRAPER_API_KEY in Konfiguration hinterlegt.', 'is_running' => false
+            ], 600);
+            return;
+        }
         $client = new Client(['timeout' => 60]);
 
         $updateJobState = function($progress, $status) use ($jobId, $keyword) {
@@ -305,7 +313,15 @@ class StealthCrawlerService
     public function crawlAlibaba(string $jobId, string $keyword = 'personalisiertes geschenk', int $pages = 1)
     {
         Log::info("StealthCrawler: Start crawling Alibaba for '{$keyword}' (Job: {$jobId})");
-        $apiKey = env('SCRAPER_API_KEY', '707ccc851a9e7c4759106d2f6e6bf764');
+        $apiKey = config('services.scraperapi.key');
+        if (empty($apiKey)) {
+            Log::warning("StealthCrawler: Kein SCRAPER_API_KEY konfiguriert. Alibaba Scraping wird übersprungen.");
+            Cache::put("crawler_job_{$jobId}", [
+                'id' => $jobId, 'keyword' => $keyword, 'platform' => 'Alibaba',
+                'progress' => 100, 'status' => 'Fehler: Kein SCRAPER_API_KEY in Konfiguration hinterlegt.', 'is_running' => false
+            ], 600);
+            return;
+        }
         $client = new Client(['timeout' => 90]);
 
         $updateJobState = function($progress, $status) use ($jobId, $keyword) {

@@ -141,6 +141,46 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Befund:** Die Prüfung personengebundener Belohnungsgutscheine (`recipient_email`) in `applyCoupon()` prüfte nur `if ($buyerEmail && strtolower(...) !== strtolower(...))`. Bei einem nicht eingeloggten Gastkunden (`$buyerEmail === null`) griff diese Bedingung nicht, wodurch der Gutschein zunächst im Gast-Warenkorb aktiviert werden konnte.
 * **Lösung:** Zwingende Authentifizierung vorausgesetzt (`if (!$buyerEmail || strtolower(...) !== ...)`): Gastnutzer werden aufgefordert, sich mit dem berechtigten Konto anzumelden.
 
+### 2.21 [DSGVO & DATENSCHUTZ] Öffentliche Spiegelung aller Rechnungs-PDFs im Web-Root
+* **Datei:** [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php)
+* **Befund:** In `storePdf()` wurden sämtliche generierten Kundenrechnungen nicht nur im GoBD-konformen privaten Storage (`disk('local')`) abgelegt, sondern zusätzlich über `Storage::disk('public')->put(...)` in `storage/app/public/buchhaltung/invoices` gespiegelt. Durch den Symlink `public/storage` waren sämtliche Rechnungen im Internet unter `https://domain/storage/buchhaltung/invoices/...` ohne jede Authentifizierung öffentlich downloadbar (Schwere Datenschutzverletzung nach Art. 32 DSGVO).
+* **Lösung:** Die Spiegelung in das `public` Disk wurde vollständig entfernt. Alle im öffentlichen Verzeichnis existierenden PDFs wurden bereinigt. Rechnungen liegen ausschließlich im privaten Speicher und werden ausschließlich über authentifizierte Routen mit strikter Autorisierungsprüfung (`abort_unless($user->canView($invoice))`) ausgeliefert.
+
+### 2.22 [DATENSCHUTZ] DHL-Versandlabels im öffentlichen Web-Verzeichnis
+* **Dateien:** [`app/Services/DhlService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/DhlService.php), [`app/Livewire/Shop/Order/OrderOverview.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php)
+* **Befund:** In `DhlService::handleResponse()` wurden DHL-Paketscheine mit Empfänger-Klarnamen, Postadressen und Sendungsnummern auf `Storage::disk('public')` abgelegt.
+* **Lösung:** Die Speicherung wurde auf das private Dateisystem (`disk('local')`, Pfad: `storage/app/bestellungen/dhl_labels/`) umgestellt. Die Download- und Mergemethoden in `OrderOverview` (`downloadDhlLabel`, `downloadMergedLabels`) wurden aktualisiert, um primär aus dem geschützten lokalen Speicher zu laden (mit sicherem Fallback für Altdaten).
+
+### 2.23 [SHOPLOGIK & VORGABEN] Kein Lagerbestands-Rückbuchen bei Stornierung personalisierter Ware
+* **Datei:** [`app/Livewire/Shop/Order/OrderOverview.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php)
+* **Befund:** Bei Stornierung einer Bestellung (`cancelled`) buchte das System pauschal alle Artikelpositionen in den Lagerbestand zurück (`$item->product->restoreStock(...)`). Bei personalisierten bzw. gelaserten Artikeln ist die Ware nach der Gravur jedoch unverkäuflich (Ausschuss/Verfall) und darf unter keinen Umständen wieder den physischen Lagerbestand erhöhen.
+* **Lösung:** Strikte Unterscheidung: Nur Positionen ohne Konfiguration und ohne Personalisierungskennzeichen (`!empty($item->configuration) || $item->product->is_personalizable`) erhalten eine Bestandskorrektur. Personalisierte Artikel verfallen bei Stornierung ohne Bestandsaufstockung.
+
+### 2.24 [SPAM- & DOS-SCHUTZ] Öffentliches Widerrufsformular: Honeypot & Rate-Limiting
+* **Dateien:** [`app/Livewire/Shop/Order/OrderRevocationForm.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderRevocationForm.php), [`resources/views/livewire/shop/order/order-revocation-form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-revocation-form.blade.php)
+* **Befund:** Das öffentlich erreichbare Widerrufsformular besaß keinerlei Bot-Schutz oder Rate-Limiting. Bei jedem Absenden wurden zwei E-Mails ausgelöst (an Kunde und Shop-Betreiber). Bots konnten diesen Endpunkt zur Mail-Überflutung missbrauchen.
+* **Lösung:** Unsichtbares Honeypot-Feld (`honey_name`) mit lautlosem Abbruch bei Befüllung sowie IP-basiertes Rate-Limiting (maximal 5 Widerrufe je 10 Minuten).
+
+### 2.25 [MULTI-TENANCY & AUTORISIERUNG] Härtung des Bankabgleichs & Zugriffsbeschränkung für Buchungsbelege
+* **Dateien:** [`app/Livewire/Shop/Accounting/AccountingBank.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingBank.php), [`routes/partials/admin_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/admin_routes.php)
+* **Befund:**
+  1. In `AccountingBank.php` fehlte bei Methoden wie `assignCategory()`, `assignCostItem()`, `toggleBusinessStatus()`, `addTag()`, `removeTag()`, `syncAccount()` und `disconnectAccount()` die Prüfung auf `admin_id`. Zudem konnte über `selectBank()` und die ungefilterte Basistransaktions-Query Einsicht in Transaktionen anderer Administratoren genommen werden (IDOR).
+  2. Die Hilfsroute `/admin/accounting/receipt` erlaubte das Ausliefern beliebiger privater Dateien im lokalen Storage, solange keine `..`-Pfade enthalten waren (z. B. Zugriff auf ELSTER-Schlüssel oder Konfigurationen).
+* **Lösung:**
+  1. Die Basis-Abfrage in `render()` sowie alle Mutations-Methoden wurden strikt an `admin_id = auth('admin')->id()` gekoppelt.
+  2. Die Route `/admin/accounting/receipt` wurde mit einer strikten Pfad-Whitelist versehen (`buchhaltung/receipts/` und `buchhaltung/contracts/`). Jeder andere Pfad wird sofort mit 403 Forbidden abgewiesen.
+
+### 2.26 [SICHERHEIT & CONFIG-CACHE] Entfernung hartkodierter API-Keys & Absicherung externer Dienste
+* **Dateien:** [`app/Services/StealthCrawlerService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/StealthCrawlerService.php), [`app/Services/BankApiService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/BankApiService.php), [`app/Services/ElsterEricService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ElsterEricService.php), [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php)
+* **Befund:**
+  1. Im Quellcode von `StealthCrawlerService.php` war ein aktiver ScraperAPI-Schlüssel fest einprogrammiert (`707ccc851a9e7c4759106d2f6e6bf764`).
+  2. `BankApiService.php` und `ElsterEricService.php` nutzten direkte `env()`-Aufrufe anstelle von `config()`. In einer Produktivumgebung mit aktivem Konfigurations-Cache (`php artisan config:cache`) liefern `env()`-Aufrufe außerhalb von Konfigurationsdateien `null` zurück, wodurch `BankApiService::generateUserPassword` Passwörter mit leerem Secret erzeugte und ELSTER-Aufrufe fehlschlugen.
+  3. In `ElsterEricService.php` fehlte XML-Escaping bei Steuernummern/Finanzamts-IDs und ein `try...finally`-Block für temporäre Steuer-XML-Dateien im Dateisystem.
+* **Lösung:**
+  1. Der fest kodierte Key wurde rückstandslos entfernt; stattdessen wird auf `config('services.scraperapi.key')` zurückgegriffen mit sauberem Fallback und Logging.
+  2. `finapi`, `eric` und `scraperapi` wurden offiziell in [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) registriert. `BankApiService` nutzt nun `config('app.key')`.
+  3. `ElsterEricService` maskiert XML-Zeichen vor der Payload-Erstellung und garantiert über `try ... finally` die Bereinigung sensibler UStVA-Dateien.
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
@@ -173,7 +213,7 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`app/Livewire/Shop/Accounting/AccountingFixCosts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingFixCosts.php) | MIME-Typ-Validierung für Fixkosten-Belege und Verträge |
 | [`app/Livewire/Shop/Accounting/AccountingQuickEntry.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingQuickEntry.php) | MIME-Typ-Validierung für Schnellbeleg-Uploads |
 | [`app/Livewire/Shop/Accounting/AccountingVariableCosts.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingVariableCosts.php) | MIME-Typ-Validierung für Beleg-Uploads variabler Kosten |
-| [`app/Livewire/Shop/Accounting/AccountingBank.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingBank.php) | MIME-Typ-Validierung für Belegzuordnung im Bankabgleich |
+| [`app/Livewire/Shop/Accounting/AccountingBank.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingBank.php) | Multi-Tenancy-Scoping auf `admin_id` für Transaktionen, Konten, Zuweisungen und Aktionen |
 | [`app/Console/Commands/SendNewsletter.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/SendNewsletter.php) | Behebung des Klassenimport-Fehlers (`NewsletterAutomaticMail`) |
 | [`app/Livewire/Shop/Marketing/MarketingNewsletter.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingNewsletter.php) | Behebung des Klassenimport-Fehlers (`NewsletterAutomaticMail`) |
 | [`app/Livewire/Shop/Marketing/MarketingNewsletterPage.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Marketing/MarketingNewsletterPage.php) | User-Enumeration-Schutz & Re-Tokening für unbestätigte Adressen |
@@ -185,26 +225,33 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 | [`app/Console/Commands/System/DeleteUnverifiedUsers.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Console/Commands/System/DeleteUnverifiedUsers.php) | Schutz interner Admins/Mitarbeiter und aktiver Kunden vor versehentlicher Löschung |
 | [`app/Livewire/Frontend/ContactForm.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Frontend/ContactForm.php) | Honeypot gegen Spam-Bots, Rate-Limiting & String-Längenbegrenzung |
 | [`resources/views/livewire/frontend/contact-form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/frontend/contact-form.blade.php) | Unsichtbares Honeypot-Eingabefeld im Kontaktformular |
-| [`tests/Feature/Api/BackOfficeApiSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Api/BackOfficeApiSecurityTest.php) | Neue Testsuite für Back-Office & KI API Autorisierung (4 Tests, 23 Assertions) |
-| [`tests/Feature/Accounting/TaxExportSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/TaxExportSecurityTest.php) | Neue Testsuite für Steuerexport Traversal- & Format-Prüfung (3 Tests, 3 Assertions) |
-| [`tests/Feature/Auth/GoogleAuthFillableTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Auth/GoogleAuthFillableTest.php) | Neue Testsuite für Mass-Assignment von `google_id` und Verifizierung (2 Tests, 4 Assertions) |
-| [`tests/Feature/LandingPageSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/LandingPageSecurityTest.php) | Neue Testsuite für Landing-Page Zugriffsschutz & Entwurfs-Status (3 Tests, 4 Assertions) |
-| [`tests/Feature/Livewire/Frontend/EmergencyProtocolTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Frontend/EmergencyProtocolTest.php) | Neue Testsuite für Notfallprotokoll (4 Tests, 11 Assertions) |
-| [`tests/Feature/Customer/CustomerOrdersSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerOrdersSecurityTest.php) | Neue Testsuite für IDOR-Schutz im Kundenportal für Bestellungen (4 Tests, 8 Assertions) |
-| [`tests/Feature/Customer/CustomerTicketsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Customer/CustomerTicketsSecurityTest.php) | Neue Testsuite für IDOR- und Upload-Schutz bei Support-Tickets (3 Tests, 6 Assertions) |
-| [`tests/Feature/Cart/CartQuantitySecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Cart/CartQuantitySecurityTest.php) | Neue Testsuite für Warenkorb-Mengensicherheit (2 Tests, 4 Assertions) |
-| [`tests/Feature/Marketing/NewsletterSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/NewsletterSecurityTest.php) | Neue Testsuite für Newsletter-Sicherheit & Mailable-Resolution (3 Tests, 7 Assertions) |
-| [`tests/Feature/Product/ProductReviewSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/ProductReviewSecurityTest.php) | Neue Testsuite für File Deletion Schutz bei Bewertungen (2 Tests, 6 Assertions) |
-| [`tests/Feature/Order/OrderQuoteSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderQuoteSecurityTest.php) | Neue Testsuite für Angebotssicherheit, Mengenhärtung & Session-Verfall (3 Tests, 8 Assertions) |
-| [`tests/Feature/System/DeleteUnverifiedUsersTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/System/DeleteUnverifiedUsersTest.php) | Neue Testsuite für den sicheren Benutzerbereinigungs-Cronjob (3 Tests, 7 Assertions) |
-| [`tests/Feature/Support/ContactFormSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Support/ContactFormSecurityTest.php) | Neue Testsuite für Honeypot- & Spam-Schutz im Kontaktformular (2 Tests, 6 Assertions) |
+| [`app/Services/InvoiceService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/InvoiceService.php) | Vollständige Beseitigung der öffentlichen Rechnungsspiegelung auf `public` Disk |
+| [`app/Services/DhlService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/DhlService.php) | Umstellung aller DHL-Labels auf geschützten privaten lokalen Speicher |
+| [`app/Livewire/Shop/Order/OrderOverview.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderOverview.php) | Kein Lagerbestand-Restore für personalisierte Ware bei Storno; geschützter DHL-Label-Download |
+| [`app/Livewire/Shop/Order/OrderRevocationForm.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Order/OrderRevocationForm.php) | Bot-Honeypot und IP-Rate-Limiting (5/10min) für elektronische Widerrufe |
+| [`resources/views/livewire/shop/order/order-revocation-form.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/order/order-revocation-form.blade.php) | Unsichtbares Honeypot-Feld im Widerrufsformular |
+| [`routes/partials/admin_routes.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/routes/partials/admin_routes.php) | Strikte Pfad-Whitelist (`buchhaltung/receipts/` und `contracts/`) für Beleg-Download |
+| [`config/services.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/config/services.php) | Registrierung von `finapi`, `eric` und `scraperapi` für `config:cache` Robustheit |
+| [`app/Services/BankApiService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/BankApiService.php) | Migration auf `config('services.finapi...')` und `config('app.key')` |
+| [`app/Services/StealthCrawlerService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/StealthCrawlerService.php) | Entfernung hartkodierter API-Keys; sichere Konfigurationsauflösung |
+| [`app/Services/ElsterEricService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ElsterEricService.php) | `config()`-Migration, XML-Injection-Schutz, CLI-Escaping & `try...finally`-Dateibereinigung |
+| [`tests/Feature/Accounting/InvoiceStoragePrivacyTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/InvoiceStoragePrivacyTest.php) | Neue Testsuite: Rechnungen existieren nur im privaten Storage |
+| [`tests/Feature/Order/OrderCancellationStockTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderCancellationStockTest.php) | Neue Testsuite: Lagerbestandsprüfung bei Storno (Standard vs. Gravurware) |
+| [`tests/Feature/Order/OrderRevocationSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Order/OrderRevocationSecurityTest.php) | Neue Testsuite: Bot-Honeypot & Rate-Limiter im Widerrufsformular |
+| [`tests/Feature/Accounting/AccountingBankSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingBankSecurityTest.php) | Neue Testsuite: Traversal-Schutz, Beleg-Whitelist & Multi-Tenancy im Bankabgleich |
+| [`tests/Feature/Product/StealthCrawlerSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Product/StealthCrawlerSecurityTest.php) | Neue Testsuite: Prüfung auf rückstandsfreie Entfernung harter Keys & sanfte Fehlerbehandlung |
 
 ---
 
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 67 Tests bestanden (245 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 80 Tests bestanden (278 Assertions, 0 Fehler)
+  * `InvoiceStoragePrivacyTest`: 1/1 bestanden (Private Storage Verifikation)
+  * `OrderCancellationStockTest`: 2/2 bestanden (Standard- vs. Gelasertes Produkt Bestandsprüfung)
+  * `OrderRevocationSecurityTest`: 3/3 bestanden (Honeypot, legitimer Widerruf, Rate-Limiter)
+  * `AccountingBankSecurityTest`: 5/5 bestanden (Traversal, Whitelist, Multi-Tenancy IDOR)
+  * `StealthCrawlerSecurityTest`: 2/2 bestanden (Kein Key-Leak, Graceful API-Handling)
   * `BackOfficeApiSecurityTest`: 4/4 bestanden
   * `TaxExportSecurityTest`: 3/3 bestanden
   * `GoogleAuthFillableTest`: 2/2 bestanden
