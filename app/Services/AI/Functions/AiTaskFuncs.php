@@ -58,7 +58,8 @@ trait AiTaskFuncs
         }
 
         // 5. Standard SQL LIKE Abgleich
-        $list = ManagementTaskList::where('name', 'LIKE', '%' . $input . '%')->first();
+        $escapedInput = addcslashes($input, '%_\\');
+        $list = ManagementTaskList::where('name', 'LIKE', '%' . $escapedInput . '%')->first();
         if ($list) {
             return $list->id;
         }
@@ -576,10 +577,13 @@ trait AiTaskFuncs
                 $parentTask = ManagementTask::find($args['task_id']);
             }
             if (!$parentTask) {
-                $parentTask = ManagementTask::whereNull('parent_id')
-                    ->where('is_completed', false)
-                    ->where('title', 'like', '%' . $args['task_id'] . '%')
-                    ->first();
+                $taskIdQuery = trim((string)$args['task_id']);
+                if (mb_strlen($taskIdQuery) >= 3) {
+                    $parentTask = ManagementTask::whereNull('parent_id')
+                        ->where('is_completed', false)
+                        ->where('title', 'like', '%' . addcslashes($taskIdQuery, '%_\\') . '%')
+                        ->first();
+                }
             }
 
             if (!$parentTask) {
@@ -697,9 +701,12 @@ trait AiTaskFuncs
                 $task = ManagementTask::find($args['task_id']);
             }
             if (!$task) {
-                $task = ManagementTask::where('is_completed', false)
-                    ->where('title', 'like', '%' . $args['task_id'] . '%')
-                    ->first();
+                $taskQuery = trim((string)$args['task_id']);
+                if (mb_strlen($taskQuery) >= 3) {
+                    $task = ManagementTask::where('is_completed', false)
+                        ->where('title', 'like', '%' . addcslashes($taskQuery, '%_\\') . '%')
+                        ->first();
+                }
             }
 
             if (!$task) {
@@ -736,20 +743,44 @@ trait AiTaskFuncs
             $query = ManagementTask::query();
 
             if (!empty($listNames)) {
-                $query->whereHas('list', function($q) use ($listNames) {
-                    $q->where(function($subQ) use ($listNames) {
-                        foreach ($listNames as $lName) {
+                $sanitizedListNames = [];
+                foreach ($listNames as $lName) {
+                    $cleaned = trim((string)$lName);
+                    if (mb_strlen($cleaned) >= 2) {
+                        $sanitizedListNames[] = addcslashes($cleaned, '%_\\');
+                    }
+                }
+                if (empty($sanitizedListNames)) {
+                    return ['status' => 'error', 'message' => 'Die angegebenen Listennamen sind zu kurz oder ungültig.'];
+                }
+                $query->whereHas('list', function($q) use ($sanitizedListNames) {
+                    $q->where(function($subQ) use ($sanitizedListNames) {
+                        foreach ($sanitizedListNames as $lName) {
                             $subQ->orWhere('name', 'like', '%' . $lName . '%');
                         }
                     });
                 });
             } else {
-                $query->where(function($q) use ($taskIds, $taskTitles) {
+                $sanitizedTitles = [];
+                if (!empty($taskTitles)) {
+                    foreach ($taskTitles as $title) {
+                        $cleaned = trim((string)$title);
+                        if (mb_strlen($cleaned) >= 3) {
+                            $sanitizedTitles[] = addcslashes($cleaned, '%_\\');
+                        }
+                    }
+                }
+
+                if (empty($taskIds) && empty($sanitizedTitles)) {
+                    return ['status' => 'error', 'message' => 'Keine gültigen Aufgaben-IDs oder ausreichend lange Aufgabentitel (mind. 3 Zeichen) angegeben.'];
+                }
+
+                $query->where(function($q) use ($taskIds, $sanitizedTitles) {
                     if (!empty($taskIds)) {
                         $q->whereIn('id', $taskIds);
                     }
-                    if (!empty($taskTitles)) {
-                        foreach ($taskTitles as $title) {
+                    if (!empty($sanitizedTitles)) {
+                        foreach ($sanitizedTitles as $title) {
                             $q->orWhere('title', 'like', '%' . $title . '%');
                         }
                     }

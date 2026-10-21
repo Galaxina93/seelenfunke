@@ -134,7 +134,8 @@ trait AiMarketingNewsletterFuncs
     {
         $query = MarketingNewsletterSubscriber::query();
         if (isset($args['email_search']) && !empty($args['email_search'])) {
-            $query->where('email', 'like', '%' . $args['email_search'] . '%');
+            $escaped = addcslashes(trim($args['email_search']), '%_\\');
+            $query->where('email', 'like', '%' . $escaped . '%');
         }
 
         $subs = $query->limit(50)->get(['id', 'email', 'is_verified', 'created_at']);
@@ -180,17 +181,24 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_create_automated_campaign(array $args)
     {
-        if (MarketingNewsletter::where('target_event_key', $args['target_event_key'])->where('is_active', true)->exists()) {
+        $eventKey = substr(trim($args['target_event_key'] ?? ''), 0, 50);
+        if (empty($eventKey)) {
+            return ['status' => 'error', 'message' => 'Event-Key fehlt.'];
+        }
+
+        if (MarketingNewsletter::where('target_event_key', $eventKey)->where('is_active', true)->exists()) {
             return ['status' => 'error', 'message' => 'Es existiert bereits eine aktive Kampagne für dieses Ereignis.'];
         }
 
+        $daysOffset = max(0, min(365, (int)($args['days_offset'] ?? 0)));
+
         $template = MarketingNewsletter::create([
             'type' => 'automated',
-            'title' => ucfirst(str_replace('_', ' ', $args['target_event_key'])) . ' Kampagne',
-            'target_event_key' => $args['target_event_key'],
-            'subject' => $args['subject'],
-            'content' => $args['content'],
-            'days_offset' => $args['days_offset'],
+            'title' => substr(ucfirst(str_replace('_', ' ', $eventKey)) . ' Kampagne', 0, 255),
+            'target_event_key' => $eventKey,
+            'subject' => substr(trim($args['subject'] ?? ''), 0, 255),
+            'content' => $args['content'] ?? '',
+            'days_offset' => $daysOffset,
             'is_active' => true
         ]);
 
@@ -207,10 +215,10 @@ trait AiMarketingNewsletterFuncs
 
         $template = MarketingNewsletter::create([
             'type' => 'manual',
-            'title' => $args['title'],
+            'title' => substr(trim($args['title'] ?? ''), 0, 255),
             'target_event_key' => null,
-            'subject' => $args['subject'],
-            'content' => $args['content'],
+            'subject' => substr(trim($args['subject'] ?? ''), 0, 255),
+            'content' => $args['content'] ?? '',
             'send_at' => $sendAt,
             'days_offset' => 0,
             'is_active' => true
@@ -226,12 +234,13 @@ trait AiMarketingNewsletterFuncs
             return ['status' => 'error', 'message' => 'Kampagne nicht gefunden.'];
         }
 
-        $campaign->is_active = $args['is_active'];
+        $isActive = filter_var($args['is_active'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $campaign->is_active = $isActive;
         $campaign->save();
 
         return [
             'status' => 'success',
-            'message' => 'Kampagnen-Status aktualisiert auf: ' . ($args['is_active'] ? 'Aktiv' : 'Archiviert')
+            'message' => 'Kampagnen-Status aktualisiert auf: ' . ($isActive ? 'Aktiv' : 'Archiviert')
         ];
     }
 }

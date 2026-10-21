@@ -15,28 +15,31 @@ class HerzensprojektService
     public static function recordDonationForOrder(OrderOrder $order, ?int $amountCents = null): ?MarketingHerzensprojektTransaction
     {
         try {
-            // Idempotency check: Don't book twice for the same order
-            $existing = MarketingHerzensprojektTransaction::where('order_id', $order->id)
-                ->where('type', 'order_contribution')
-                ->first();
+            return \Illuminate\Support\Facades\DB::transaction(function () use ($order, $amountCents) {
+                // Idempotency check with row lock: Don't book twice for the same order
+                $existing = MarketingHerzensprojektTransaction::where('order_id', $order->id)
+                    ->where('type', 'order_contribution')
+                    ->lockForUpdate()
+                    ->first();
 
-            if ($existing) {
-                return $existing;
-            }
+                if ($existing) {
+                    return $existing;
+                }
 
-            // Default: 2,00 € (200 Cents) pro Bestellung, anpassbar über shop_setting
-            $amount = $amountCents ?? (int) shop_setting('herzensprojekt_cents_per_order', 200);
+                // Default: 2,00 € (200 Cents) pro Bestellung, anpassbar über shop_setting
+                $amount = $amountCents ?? (int) shop_setting('herzensprojekt_cents_per_order', 200);
 
-            if ($amount <= 0) {
-                return null;
-            }
+                if ($amount <= 0) {
+                    return null;
+                }
 
-            return MarketingHerzensprojektTransaction::create([
-                'order_id' => $order->id,
-                'type' => 'order_contribution',
-                'amount_cents' => $amount,
-                'description' => 'Herzensbeitrag aus Bestellung ' . ($order->order_number ?? '#' . substr($order->id, 0, 8)),
-            ]);
+                return MarketingHerzensprojektTransaction::create([
+                    'order_id' => $order->id,
+                    'type' => 'order_contribution',
+                    'amount_cents' => $amount,
+                    'description' => 'Herzensbeitrag aus Bestellung ' . ($order->order_number ?? '#' . substr((string)$order->id, 0, 8)),
+                ]);
+            });
         } catch (\Exception $e) {
             Log::error("HerzensprojektService: Fehler beim Erfassen des Spendenbeitrags: " . $e->getMessage());
             return null;
@@ -76,30 +79,33 @@ class HerzensprojektService
     public static function reverseDonationForOrder(OrderOrder $order, string $reason = 'Stornierung / Erstattung'): ?MarketingHerzensprojektTransaction
     {
         try {
-            $contribution = MarketingHerzensprojektTransaction::where('order_id', $order->id)
-                ->where('type', 'order_contribution')
-                ->first();
+            return \Illuminate\Support\Facades\DB::transaction(function () use ($order, $reason) {
+                $contribution = MarketingHerzensprojektTransaction::where('order_id', $order->id)
+                    ->where('type', 'order_contribution')
+                    ->lockForUpdate()
+                    ->first();
 
-            if (!$contribution) {
-                return null;
-            }
+                if (!$contribution) {
+                    return null;
+                }
 
-            // Check if already reversed
-            $alreadyReversed = MarketingHerzensprojektTransaction::where('order_id', $order->id)
-                ->where('amount_cents', '<', 0)
-                ->where('description', 'like', '%Stornierung%')
-                ->exists();
+                // Check if already reversed (any disbursement with negative amount for this order)
+                $alreadyReversed = MarketingHerzensprojektTransaction::where('order_id', $order->id)
+                    ->where('amount_cents', '<', 0)
+                    ->lockForUpdate()
+                    ->exists();
 
-            if ($alreadyReversed) {
-                return null;
-            }
+                if ($alreadyReversed) {
+                    return null;
+                }
 
-            return MarketingHerzensprojektTransaction::create([
-                'order_id' => $order->id,
-                'type' => 'disbursement',
-                'amount_cents' => -$contribution->amount_cents,
-                'description' => "Rückbuchung ($reason) für Bestellung " . ($order->order_number ?? '#' . substr($order->id, 0, 8)),
-            ]);
+                return MarketingHerzensprojektTransaction::create([
+                    'order_id' => $order->id,
+                    'type' => 'disbursement',
+                    'amount_cents' => -abs($contribution->amount_cents),
+                    'description' => "Rückbuchung ($reason) für Bestellung " . ($order->order_number ?? '#' . substr((string)$order->id, 0, 8)),
+                ]);
+            });
         } catch (\Exception $e) {
             Log::error("HerzensprojektService: Fehler bei Rückbuchung: " . $e->getMessage());
             return null;
@@ -111,8 +117,7 @@ class HerzensprojektService
      */
     public static function getActiveAction(): ?MarketingHerzensprojektAction
     {
-        return MarketingHerzensprojektAction::where('status', 'in_progress')
-            ->orWhere('status', 'planned')
+        return MarketingHerzensprojektAction::whereIn('status', ['in_progress', 'planned'])
             ->orderBy('created_at', 'desc')
             ->first();
     }

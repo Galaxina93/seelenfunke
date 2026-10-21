@@ -16,6 +16,10 @@ class MarketingNewsletter extends Model
     public $incrementing = false;
     protected $keyType = 'string';
 
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
+
     protected static function boot()
     {
         parent::boot();

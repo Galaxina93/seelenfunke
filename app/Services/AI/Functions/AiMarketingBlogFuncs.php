@@ -142,10 +142,14 @@ trait AiMarketingBlogFuncs
         $query = MarketingBlogPost::with('category');
 
         if (!empty($args['search'])) {
-            $query->where('title', 'like', '%' . $args['search'] . '%');
+            $escaped = addcslashes(trim($args['search']), '%_\\');
+            $query->where('title', 'like', '%' . $escaped . '%');
         }
         if (!empty($args['status'])) {
-            $query->where('status', $args['status']);
+            $status = strtolower(trim($args['status']));
+            if (in_array($status, ['draft', 'published', 'scheduled'], true)) {
+                $query->where('status', $status);
+            }
         }
 
         $posts = $query->orderByDesc('created_at')->limit(30)->get();
@@ -159,19 +163,43 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_create_post(array $args)
     {
+        $user = auth()->user();
+        $admin = ($user instanceof \App\Models\Admin\Admin) ? $user : \App\Models\Admin\Admin::first();
+        if (!$admin) {
+            return ['status' => 'error', 'message' => 'Kein Admin-Benutzer im System gefunden.'];
+        }
+
+        $title = trim($args['title'] ?? '');
+        if (empty($title)) {
+            return ['status' => 'error', 'message' => 'Titel darf nicht leer sein.'];
+        }
+
+        $baseSlug = Str::slug($title) ?: 'blog-post';
+        $slug = $baseSlug;
+        $counter = 1;
+        while (MarketingBlogPost::where('slug', $slug)->exists()) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
+        $status = strtolower(trim($args['status'] ?? 'draft'));
+        if (!in_array($status, ['draft', 'published', 'scheduled'], true)) {
+            $status = 'draft';
+        }
+
         $post = MarketingBlogPost::create([
-            'title' => $args['title'],
-            'slug' => Str::slug($args['title']),
-            'content' => $args['content'],
-            'excerpt' => $args['excerpt'],
+            'title' => substr($title, 0, 255),
+            'slug' => $slug,
+            'content' => $args['content'] ?? '',
+            'excerpt' => isset($args['excerpt']) ? substr($args['excerpt'], 0, 1000) : null,
             'blog_category_id' => $args['blog_category_id'] ?? null,
-            'status' => $args['status'] ?? 'draft',
-            'published_at' => ($args['status'] ?? 'draft') === 'published' ? now() : null,
-            'meta_title' => $args['meta_title'] ?? null,
-            'meta_description' => $args['meta_description'] ?? null,
+            'status' => $status,
+            'published_at' => $status === 'published' ? now() : null,
+            'meta_title' => isset($args['meta_title']) ? substr($args['meta_title'], 0, 255) : null,
+            'meta_description' => isset($args['meta_description']) ? substr($args['meta_description'], 0, 500) : null,
             'is_advertisement' => false,
             'contains_affiliate_links' => false,
-            'user_id' => 1 // SysAdmin Fallback
+            'user_id' => $admin->id
         ]);
 
         return ['status' => 'success', 'message' => 'Blogbeitrag erstellt.', 'id' => $post->id];
@@ -185,14 +213,25 @@ trait AiMarketingBlogFuncs
         }
 
         if (isset($args['title'])) {
-            $post->title = $args['title'];
-            $post->slug = Str::slug($args['title']);
+            $title = trim($args['title']);
+            $post->title = substr($title, 0, 255);
+            $baseSlug = Str::slug($title) ?: 'blog-post';
+            $slug = $baseSlug;
+            $counter = 1;
+            while (MarketingBlogPost::where('slug', $slug)->where('id', '!=', $post->id)->exists()) {
+                $slug = "{$baseSlug}-{$counter}";
+                $counter++;
+            }
+            $post->slug = $slug;
         }
         if (isset($args['content'])) $post->content = $args['content'];
         if (isset($args['status'])) {
-            $post->status = $args['status'];
-            if ($args['status'] === 'published' && !$post->published_at) {
-                $post->published_at = now();
+            $status = strtolower(trim($args['status']));
+            if (in_array($status, ['draft', 'published', 'scheduled'], true)) {
+                $post->status = $status;
+                if ($status === 'published' && !$post->published_at) {
+                    $post->published_at = now();
+                }
             }
         }
 
@@ -221,13 +260,26 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_create_category(array $args)
     {
-        if (MarketingBlogCategory::where('name', $args['name'])->exists()) {
+        $name = trim($args['name'] ?? '');
+        if (empty($name)) {
+            return ['status' => 'error', 'message' => 'Kategoriename darf nicht leer sein.'];
+        }
+
+        if (MarketingBlogCategory::where('name', $name)->exists()) {
             return ['status' => 'error', 'message' => 'Kategorie existiert bereits.'];
         }
 
+        $baseSlug = Str::slug($name) ?: 'kategorie';
+        $slug = $baseSlug;
+        $counter = 1;
+        while (MarketingBlogCategory::where('slug', $slug)->exists()) {
+            $slug = "{$baseSlug}-{$counter}";
+            $counter++;
+        }
+
         $cat = MarketingBlogCategory::create([
-            'name' => $args['name'],
-            'slug' => Str::slug($args['name'])
+            'name' => substr($name, 0, 255),
+            'slug' => $slug
         ]);
 
         return ['status' => 'success', 'message' => 'Kategorie erstellt.', 'id' => $cat->id];

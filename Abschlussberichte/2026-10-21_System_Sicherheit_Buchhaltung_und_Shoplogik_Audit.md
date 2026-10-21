@@ -721,12 +721,54 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 * **Lösung:** Zwingende Authentifizierungsprüfung (`Auth::user()` / Notfall-Admin) und striktes Scoping auf `user_id` des aktuellen Nutzers bei Update, Abschluss und Export. Verlagerung der generierten medizinischen PDFs ausschließlich auf die private `workspace`-Disk mit Deaktivierung externer Ressourcen in DomPDF (`isRemoteEnabled => false`).
 * **Testabdeckung:** [`tests/Feature/Ai/AiHealthFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiHealthFuncsSecurityTest.php) (3 Tests, 11 Assertions).
 
+### 2.111 [KI-MARKETING & BLOG] Foreign-Key-Korrektur, Slug-Kollisionsauflösung & Status-Validierung in AiMarketingBlogFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiMarketingBlogFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingBlogFuncs.php)
+* **Befund:** In `marketing_blog_create_post()` wurde die statische Ganzzahl `user_id => 1` eingetragen. Da das Datenbankschema `marketing_blog_posts` einen UUID-Foreign-Key auf `admins(id)` definiert, führte jeder Aufruf zu einem fatalen SQL-Integrity-Constraint-Fehler. Bei identischen Beitragstiteln kam es zu `Duplicate entry`-Abbrüchen auf dem `slug`-Unique-Key. Zudem wurden beliebige unvalidierte Strings in die `status`-Spalte geschrieben und in `marketing_blog_get_posts()` fehlte Wildcard-Escaping.
+* **Lösung:** Dynamische Zuordnung der authentifizierten Admin-UUID (bzw. des ersten aktiven Admins), automatische Kollisionserkennung und Anhängen von Suffixen (`-1`, `-2`) an den Slug, Whitelisting des Status (`draft`, `published`, `scheduled`) sowie SQL-Wildcard-Escaping (`addcslashes($search, '%_\\')`).
+* **Testabdeckung:** [`tests/Feature/Ai/AiMarketingBlogFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingBlogFuncsSecurityTest.php) (2 Tests, 8 Assertions).
+
+### 2.112 [KI-NEWSLETTER & AUTOMATION] Wertebereichs-Clamping, String-Truncation & Boolean-Casting in AiMarketingNewsletterFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiMarketingNewsletterFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingNewsletterFuncs.php), [`app/Models/Marketing/MarketingNewsletter.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Marketing/MarketingNewsletter.php)
+* **Befund:** In `marketing_newsletter_create_automated_campaign()` konnte `days_offset` unbegrenzt negativ oder exorbitant hoch übergeben werden. Titel und Betreff wurden ungekürzt übergeben, was zu DB-Truncation-Exceptions führte. In `marketing_newsletter_get_subscribers()` führte die unmaskierte E-Mail-Suche mit `%` und `_` zu fehlerhaften Matches. In `marketing_newsletter_toggle_archive()` führte die Übergabe von String-Booleans (`"false"`) zu inkorrekter Aktivierung.
+* **Lösung:** Clamping von `days_offset` auf den Bereich 0–365 Tage, Truncation von Betreff/Titel auf 255 Zeichen, Wildcard-Escaping mit `addcslashes`, robustes Parsen von Booleans mittels `filter_var(..., FILTER_VALIDATE_BOOLEAN)` und Hinzufügen von `protected $casts = ['is_active' => 'boolean']` im Model.
+* **Testabdeckung:** [`tests/Feature/Ai/AiMarketingNewsletterFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingNewsletterFuncsSecurityTest.php) (2 Tests, 6 Assertions).
+
+### 2.113 [KI-TELEFONIE & CALL-MANAGEMENT] Status-Whitelisting, Model Mass-Assignment & Search-Clamping in AiTelefonyFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiTelefonyFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiTelefonyFuncs.php), [`app/Models/SupportTelephonyCall.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/SupportTelephonyCall.php)
+* **Befund:** In `executeTelephonyCallUpdateStatus()` konnten beliebige ungültige Statusstrings in die Datenbank geschrieben werden, wodurch Anrufe im Dashboard verloren gingen. In `SupportTelephonyCall` fehlte `$guarded = []`, was Mass-Assignment verhinderte. In `executeTelephonyCallGetHistory()` war `limit` unbegrenzt und der Vorname wurde ohne SQL-Wildcard-Escaping gesucht.
+* **Lösung:** Striktes Status-Whitelisting (`['completed', 'failed', 'ongoing', 'planned']`), Ergänzung von `protected $guarded = []` im Model, Begrenzung von `limit` auf 1–50 sowie SQL-Wildcard-Escaping mit `addcslashes`.
+* **Testabdeckung:** [`tests/Feature/Ai/AiTelefonyFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiTelefonyFuncsSecurityTest.php) (2 Tests, 6 Assertions).
+
+### 2.114 [HERZENSPROJEKT & BUCHHALTUNG] Atomare Transaktionssperren & Idempotenz gegen Mehrfachrückbuchungen im HerzensprojektService
+* **Dateien:** [`app/Services/HerzensprojektService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/HerzensprojektService.php)
+* **Befund:** In `recordDonationForOrder()` und `reverseDonationForOrder()` fehlten Datenbank-Transaktionen und Zeilensperren (`lockForUpdate()`), wodurch parallele Checkout-Webhooks oder Stornierungsanfragen doppelte Spendenbuchungen erzeugen konnten. In `reverseDonationForOrder()` basierte die Idempotenzprüfung fragil auf `where('description', 'like', '%Stornierung%')`, wodurch Erstattungen unter abweichendem Grund (z.B. "Widerruf", "Erstattung") mehrfach gebucht wurden. In `getActiveAction()` fehlte die Klammerung im Statusfilter (`orWhere`).
+* **Lösung:** Kapselung beider Buchungsmethoden in `DB::transaction()` mit `lockForUpdate()`, Prüfung auf jegliche existierende negative Auszahlung (`where('amount_cents', '<', 0)->exists()`) für die gegebene Order und Umstellung auf sauberes `whereIn('status', ['in_progress', 'planned'])`.
+* **Testabdeckung:** [`tests/Feature/Marketing/HerzensprojektServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/HerzensprojektServiceSecurityTest.php) (3 Tests, 7 Assertions).
+
+### 2.115 [KI-AUFGABENVERWALTUNG & INTEGRITÄT] Wildcard-Löschschutz, Mindestlängen & sichere Listenauflösung in AiTaskFuncs
+* **Dateien:** [`app/Services/AI/Functions/AiTaskFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiTaskFuncs.php)
+* **Befund:** In `executeDeleteTask()` konnten über unmaskierte Wildcards wie `%` oder einbuchstabige Suchbegriffe versehentlich sämtliche Aufgaben des Systems massenhaft gelöscht werden. In `executeAddSubtask()` und `executeCompleteTask()` führten unmaskierte Substrings zu Fehlzuordnungen oder Bearbeitung falscher Tasks. In `resolveTaskListId()` fehlte Escaping beim LIKE-Abgleich.
+* **Lösung:** Enforcing einer Mindestzeichenlänge (Aufgabentitel >= 3 Zeichen, Listennamen >= 2 Zeichen), Verbot leerer oder reiner Wildcard-Suchfilter in `executeDeleteTask()`, Escaping aller SQL-Wildcards mit `addcslashes` und Validierung übergeordneter Hauptaufgaben.
+* **Testabdeckung:** [`tests/Feature/Ai/AiTaskFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiTaskFuncsSecurityTest.php) (2 Tests, 9 Assertions).
+
 ---
 
 ## 3. Übersicht aller modifizierten Dateien
 
 | Datei | Art der Änderung |
 |---|---|
+| [`app/Services/AI/Functions/AiMarketingBlogFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingBlogFuncs.php) | Admin-UUID-Zuordnung statt integer 1, automatische Slug-Kollisionsauflösung (`-1`, `-2`), Status-Whitelisting & Wildcard-Escaping |
+| [`app/Services/AI/Functions/AiMarketingNewsletterFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiMarketingNewsletterFuncs.php) | Boolean-Parsing, Clamping von `days_offset` (0–365), String-Truncation & Wildcard-Escaping |
+| [`app/Models/Marketing/MarketingNewsletter.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Marketing/MarketingNewsletter.php) | Boolean-Casting für `is_active` (`$casts`) |
+| [`app/Services/AI/Functions/AiTelefonyFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiTelefonyFuncs.php) | Status-Whitelisting, Begrenzung von `limit` (1–50) & Wildcard-Escaping für Kontaktsuche |
+| [`app/Models/SupportTelephonyCall.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/SupportTelephonyCall.php) | Mass-Assignment Freigabe (`protected $guarded = []`) |
+| [`app/Services/HerzensprojektService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/HerzensprojektService.php) | Atomare Transaktionen & Zeilensperren für Spendenbuchung & Storno-Rückbuchung, Negativsaldo-Idempotenzprüfung |
+| [`app/Services/AI/Functions/AiTaskFuncs.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Functions/AiTaskFuncs.php) | Wildcard-Mass-Deletion-Sperre, Mindestlängen (Aufgaben >= 3, Listen >= 2) & LIKE-Wildcard-Escaping |
+| [`tests/Feature/Ai/AiMarketingBlogFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingBlogFuncsSecurityTest.php) | Neue Testsuite: Foreign-Key-Korrektur, Slug-Kollisionsauflösung & Wildcard-Escaping |
+| [`tests/Feature/Ai/AiMarketingNewsletterFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiMarketingNewsletterFuncsSecurityTest.php) | Neue Testsuite: Offset-Clamping, String-Truncation & Boolean-Archive-Toggle |
+| [`tests/Feature/Ai/AiTelefonyFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiTelefonyFuncsSecurityTest.php) | Neue Testsuite: Status-Whitelisting, Mass-Assignment & Search-Clamping |
+| [`tests/Feature/Marketing/HerzensprojektServiceSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Marketing/HerzensprojektServiceSecurityTest.php) | Neue Testsuite: Spendenbuchungs-Idempotenz & robuste Storno-Rückbuchung |
+| [`tests/Feature/Ai/AiTaskFuncsSecurityTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Ai/AiTaskFuncsSecurityTest.php) | Neue Testsuite: Wildcard-Löschschutz, Mindestlängen & Listenauflösung |
 | [`app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Product/ProductCalculator/ProductCalculator.php) | Sichere Produkt-Existenzprüfung, Stückzahl-Sanitization (`min:1, max:10000`), IP-Rate-Limiter (`calculator-submit`, 5/10min) & Negativpreis-Schutz |
 | [`app/Services/CartFileCleanupService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/CartFileCleanupService.php) | SQL-Wildcard-Escaping mit `addcslashes`, speicherschonendes `chunkById(100)` für verlassene Warenkörbe & Pfad-Normalisierung |
 | [`app/Services/ConfiguratorService.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ConfiguratorService.php) | Serverseitiges Clamping von 2D-Bereichen (0–100%) und 3D-Skalierungen (10–1000%) gegen WebGL/Three.js-Crashes |
@@ -981,7 +1023,12 @@ Nach den vorangegangenen Feature-Erweiterungen (Telemetrie, Kundenportal, Reklam
 ## 4. Test- & Verifikationsergebnisse
 
 In der Docker-Umgebung (`mein_php_server`, PHP 8.4) wurden alle Tests erfolgreich validiert:
-* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 273 Tests bestanden (810 Assertions, 0 Fehler)
+* **Sicherheits- & Autorisierungs-Testsuiten (Gesamt):** 284 Tests bestanden (866 Assertions, 0 Fehler)
+  * `AiMarketingBlogFuncsSecurityTest`: 2/2 bestanden (Foreign-Key-Korrektur, Slug-Kollisionsauflösung & Wildcard-Escaping)
+  * `AiMarketingNewsletterFuncsSecurityTest`: 2/2 bestanden (Offset-Clamping, String-Truncation & Boolean-Archive-Toggle)
+  * `AiTelefonyFuncsSecurityTest`: 2/2 bestanden (Status-Whitelisting, Mass-Assignment & Search-Clamping)
+  * `HerzensprojektServiceSecurityTest`: 3/3 bestanden (Spendenbuchungs-Idempotenz & robuste Storno-Rückbuchung)
+  * `AiTaskFuncsSecurityTest`: 2/2 bestanden (Wildcard-Löschschutz, Mindestlängen & Listenauflösung)
   * `CartFileCleanupServiceSecurityTest`: 3/3 bestanden (Pfadtraversal-Schutz, Wildcard-Escaping & chunked Löschung verlassener Warenkörbe)
   * `ConfiguratorServiceBoundsTest`: 2/2 bestanden (2D-Koordinaten- & 3D-Skalierungs-Clamping gegen WebGL/Canvas-Crashes)
   * `ProductTrackingServiceSecurityTest`: 2/2 bestanden (Stringlängen-Truncation & INT-Overflow-Schutz bei Tracking-Events)

@@ -216,16 +216,18 @@ trait AiTelefonyFuncs
 
     public static function executeTelephonyCallGetHistory(array $args)
     {
-        $limit = $args['limit'] ?? 3;
+        $limit = max(1, min(50, (int)($args['limit'] ?? 3)));
         $query = \App\Models\SupportTelephonyCall::orderBy('created_at', 'desc');
 
         if (!empty($args['first_name'])) {
-            $p = self::findPersonProfile($args['first_name']);
+            $firstName = trim($args['first_name']);
+            $escapedName = addcslashes($firstName, '%_\\');
+            $p = self::findPersonProfile($firstName);
             if ($p) {
                 $query->where('phone', preg_replace('/[^0-9+]/', '', $p->phone))
-                      ->orWhere('contact_name', 'like', '%' . $p->first_name . '%');
+                      ->orWhere('contact_name', 'like', '%' . addcslashes($p->first_name, '%_\\') . '%');
             } else {
-                $query->where('contact_name', 'like', '%' . $args['first_name'] . '%');
+                $query->where('contact_name', 'like', '%' . $escapedName . '%');
             }
         }
 
@@ -262,18 +264,24 @@ trait AiTelefonyFuncs
             return ['status' => 'error', 'message' => 'call_id und status sind erforderlich.'];
         }
 
+        $allowedStatuses = ['completed', 'failed', 'ongoing', 'planned'];
+        $status = strtolower(trim($args['status']));
+        if (!in_array($status, $allowedStatuses, true)) {
+            return ['status' => 'error', 'message' => "Ungültiger Status '{$args['status']}'. Erlaubt sind: " . implode(', ', $allowedStatuses)];
+        }
+
         $call = \App\Models\SupportTelephonyCall::find($args['call_id']);
         if (!$call) {
             return ['status' => 'error', 'message' => 'Anruf mit dieser ID nicht gefunden.'];
         }
 
-        $call->status = $args['status'];
+        $call->status = $status;
         $call->save();
         \App\Events\SupportTelephonyUpdated::dispatch();
 
         return [
             'status' => 'success',
-            'message' => "Der Status von Anruf ID {$call->id} wurde erfolgreich auf '{$args['status']}' geändert.",
+            'message' => "Der Status von Anruf ID {$call->id} wurde erfolgreich auf '{$status}' geändert.",
             '_frontend_event' => [
                 'name' => 'refreshTelephony'
             ]
@@ -356,7 +364,16 @@ trait AiTelefonyFuncs
             $cacheKey = "twilio_call_" . $toPhoneClean;
             $context = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
-            $host = request()->getHost();
+            $host = null;
+            try {
+                $host = request() ? request()->getHost() : null;
+            } catch (\Throwable $e) {
+                $host = null;
+            }
+            if (empty($host)) {
+                $host = parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost';
+            }
+
             // Erlaube Fallback auf öffentlichen Ngrok für lokale Entwicklung
             $wssUrl = env('TWILIO_WSS_URL', 'wss://' . $host . ':8081/twilio-stream');
             if (str_contains($host, '.test') || str_contains($host, 'localhost')) {
