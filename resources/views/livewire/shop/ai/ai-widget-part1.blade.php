@@ -119,6 +119,106 @@
         </div>
     </div>
 
+    <!-- FLOATING LIVE-PING & VERBINDUNGS-STATUS TOOLTIP (HOVER) -->
+    <div x-show="pingTooltipOpen && dockOpen"
+         x-cloak
+         @mouseenter="pingTooltipOpen = true"
+         @mouseleave="pingTooltipOpen = false"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-x-2 scale-95"
+         x-transition:enter-end="opacity-100 translate-x-0 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 translate-x-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-x-2 scale-95"
+         class="absolute right-[7.5rem] top-2 z-[100000] w-56 bg-gray-950/95 backdrop-blur-2xl border rounded-2xl p-3 shadow-[0_10px_40px_rgba(0,0,0,0.85)] pointer-events-auto text-left"
+         :class="{
+             'border-emerald-500/40 shadow-[0_0_25px_rgba(16,185,129,0.2)]': getConnectionState() === 'live' || getConnectionState() === 'standby',
+             'border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.2)]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+             'border-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.25)]': getConnectionState() === 'offline'
+         }">
+        <!-- Tooltip Header -->
+        <div class="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-2.5 w-2.5 shrink-0">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                          :class="{
+                              'bg-emerald-400': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                              'bg-amber-400': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                              'bg-rose-500': getConnectionState() === 'offline'
+                          }"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5"
+                          :class="{
+                              'bg-emerald-400 shadow-[0_0_8px_#34d399]': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                              'bg-amber-400 shadow-[0_0_8px_#fbbf24]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                              'bg-rose-500 shadow-[0_0_8px_#f43f5e]': getConnectionState() === 'offline'
+                          }"></span>
+                </span>
+                <span class="text-[10px] font-black uppercase tracking-wider"
+                      :class="{
+                          'text-emerald-400': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                          'text-amber-400': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                          'text-rose-400': getConnectionState() === 'offline'
+                      }"
+                      x-text="getConnectionLabel()"></span>
+            </div>
+            <!-- 4-Bar Signal Indicator -->
+            <div class="flex items-end gap-0.5 h-3" title="Signalqualität">
+                <span class="w-1 rounded-sm transition-all duration-300 h-1"
+                      :class="getSignalBars() >= 1 ? (getConnectionState() === 'slow' ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-gray-800'"></span>
+                <span class="w-1 rounded-sm transition-all duration-300 h-1.5"
+                      :class="getSignalBars() >= 2 ? (getConnectionState() === 'slow' ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-gray-800'"></span>
+                <span class="w-1 rounded-sm transition-all duration-300 h-2.5"
+                      :class="getSignalBars() >= 3 ? 'bg-emerald-400' : 'bg-gray-800'"></span>
+                <span class="w-1 rounded-sm transition-all duration-300 h-3"
+                      :class="getSignalBars() >= 4 ? 'bg-emerald-400' : 'bg-gray-800'"></span>
+            </div>
+        </div>
+
+        <!-- Telemetry Rows -->
+        <div class="space-y-1.5 text-[10px]">
+            <div class="flex items-center justify-between">
+                <span class="text-gray-400">Live-Ping:</span>
+                <div class="flex items-center gap-1.5">
+                    <span class="font-mono font-bold"
+                          :class="{
+                              'text-emerald-300': bridgeOnline && (pingMs === null || pingMs < 150),
+                              'text-amber-300': bridgeOnline && pingMs >= 150,
+                              'text-rose-400': !bridgeOnline
+                          }"
+                          x-text="bridgeOnline ? (pingMs !== null ? pingMs + ' ms' : '...') : 'Offline'"></span>
+                    <span class="text-[8px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider"
+                          :class="{
+                              'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30': bridgeOnline && (pingMs === null || pingMs < 150),
+                              'bg-amber-500/15 text-amber-400 border border-amber-500/30': bridgeOnline && pingMs >= 150,
+                              'bg-rose-500/15 text-rose-400 border border-rose-500/30': !bridgeOnline
+                          }"
+                          x-text="getPingQualityLabel()"></span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <span class="text-gray-400">Modus:</span>
+                <span class="text-gray-200 font-medium" x-text="isLiveMode ? 'WebSocket Duplex' : 'Standby (Bereit)'"></span>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <span class="text-gray-400">Audio-Bridge:</span>
+                <span class="font-mono text-gray-300" x-text="(bridgeVersion || 'v1.2') + (bridgeUptimeSec !== null ? ' · ' + formatBridgeUptime() : '')"></span>
+            </div>
+        </div>
+
+        <!-- Tooltip Footer -->
+        <div class="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[9px] text-gray-500">
+            <span x-text="lastPingTime ? 'Check: ' + lastPingTime : 'Bereit'"></span>
+            <button type="button"
+                    @click.stop="checkBridgePing(true)"
+                    class="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors">
+                <span :class="pingChecking ? 'animate-spin' : ''">↻</span>
+                <span x-text="pingChecking ? 'Prüfe...' : 'Ping testen'"></span>
+            </button>
+        </div>
+    </div>
+
     <!-- DAS HAUPT-DOCK -->
     <div x-show="!(isMobile && isMapFocus)" class="bg-black/95 backdrop-blur-xl border-l border-t border-b border-emerald-900/50 rounded-l-3xl shadow-[-10px_0_30px_rgba(16,185,129,0.15)] flex flex-col w-28 max-h-[80vh] overflow-y-auto pointer-events-auto custom-scrollbar transition-all duration-300 group/dock relative p-3">
         <div class="flex flex-col gap-3">
@@ -126,7 +226,28 @@
                 <div class="flex flex-col gap-2.5">
                     <div class="leading-tight break-words break-all hyphens-auto flex flex-col gap-2 w-full">
                         <div class="flex items-center justify-between">
-                            <span class="text-[10px] font-black tracking-widest text-emerald-400">Live-AI</span>
+                            <!-- LIVE-AI HEADER MIT STATUS-PUNKT & HOVER-PING -->
+                            <div class="flex items-center gap-1.5 cursor-pointer select-none group/ping"
+                                 @mouseenter="pingTooltipOpen = true"
+                                 @mouseleave="pingTooltipOpen = false"
+                                 @click.stop="checkBridgePing(true)">
+                                <span class="relative flex h-2 w-2 shrink-0">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                                          :class="{
+                                              'bg-emerald-400': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                                              'bg-amber-400': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                                              'bg-rose-500': getConnectionState() === 'offline'
+                                          }"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 transition-colors duration-300"
+                                          :class="{
+                                              'bg-emerald-400 shadow-[0_0_8px_#34d399]': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                                              'bg-amber-400 shadow-[0_0_8px_#fbbf24]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                                              'bg-rose-500 shadow-[0_0_8px_#f43f5e]': getConnectionState() === 'offline'
+                                          }"></span>
+                                </span>
+                                <span class="text-[10px] font-black tracking-widest transition-colors"
+                                      :class="getConnectionState() === 'offline' ? 'text-rose-400' : 'text-emerald-400 group-hover/ping:text-emerald-300'">Live-AI</span>
+                            </div>
                             <button type="button"
                                     @click.stop="createNewChatSession()" 
                                     class="text-emerald-400 hover:text-white p-1 rounded hover:bg-emerald-950/60 transition-colors flex items-center justify-center cursor-pointer" 
@@ -155,7 +276,15 @@
                                         </div>
                                     </template>
                                 </div>
-                                <div class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black bg-emerald-400 shadow-[0_0_6px_#34d399]"></div>
+                                <div @mouseenter="pingTooltipOpen = true"
+                                     @mouseleave="pingTooltipOpen = false"
+                                     @click.stop="checkBridgePing(true)"
+                                     class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black transition-colors duration-300"
+                                     :class="{
+                                         'bg-emerald-400 shadow-[0_0_6px_#34d399]': getConnectionState() === 'live' || getConnectionState() === 'standby',
+                                         'bg-amber-400 shadow-[0_0_6px_#fbbf24]': getConnectionState() === 'connecting' || getConnectionState() === 'slow',
+                                         'bg-rose-500 shadow-[0_0_6px_#f43f5e]': getConnectionState() === 'offline'
+                                     }"></div>
                             </div>
                         </div>
 

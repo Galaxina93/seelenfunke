@@ -414,6 +414,9 @@
                 });
 
                 this.initSpeech();
+                if (typeof this.initCameraAndPing === 'function') {
+                    this.initCameraAndPing();
+                }
 
                 document.addEventListener('livewire:navigating', () => {
                     this.destroy();
@@ -442,6 +445,7 @@
                     this.recognition = null;
                 }
                 if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+                if (this.bridgePollInterval) clearInterval(this.bridgePollInterval);
             },
 
             startSafeRecognition(delay = 1000) {

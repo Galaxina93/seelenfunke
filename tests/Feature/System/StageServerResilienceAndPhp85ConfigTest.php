@@ -181,4 +181,29 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
             SystemLog::where('message', 'like', "%{$uniqueMarker}%")->delete();
         }
     }
+
+    public function test_live_ai_widget_bridge_ping_endpoint_and_status_dot_markup(): void
+    {
+        $admin = \App\Models\Admin\Admin::first();
+        if ($admin) {
+            $res = $this->actingAs($admin, 'admin')->getJson('/api/ai/bridge-ping');
+            $res->assertOk()
+                ->assertJsonStructure([
+                    'status',
+                    'online',
+                    'bridge_ping_ms',
+                    'bridge_version',
+                    'checked_at',
+                ]);
+        }
+
+        $part1 = file_get_contents(resource_path('views/livewire/shop/ai/ai-widget-part1.blade.php'));
+        $part2 = file_get_contents(resource_path('views/livewire/shop/ai/ai-widget-part2.blade.php'));
+
+        $this->assertStringContainsString('pingTooltipOpen', $part1);
+        $this->assertStringContainsString('getConnectionLabel()', $part1);
+        $this->assertStringContainsString('checkBridgePing(true)', $part1);
+        $this->assertStringContainsString("data.type === 'pong'", $part2);
+        $this->assertStringContainsString('sendWsPing()', $part2);
+    }
 }

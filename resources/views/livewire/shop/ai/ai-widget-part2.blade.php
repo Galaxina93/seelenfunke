@@ -146,6 +146,110 @@
             hasSpokenInTurn: false,
             lastVoiceDetectedTime: 0,
 
+            // Live Ping & Connection Status Telemetry
+            bridgeOnline: true,
+            pingMs: null,
+            bridgePingMs: null,
+            bridgeVersion: 'v1.2-diag',
+            bridgeUptimeSec: null,
+            bridgeActiveSessions: 0,
+            lastPingTime: '',
+            pingChecking: false,
+            pingTooltipOpen: false,
+            _lastWsPingSentAt: 0,
+            bridgePollInterval: null,
+
+            sendWsPing() {
+                if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    this._lastWsPingSentAt = performance.now();
+                    try {
+                        this.liveWs.send(JSON.stringify({ type: 'ping' }));
+                    } catch (e) {}
+                }
+            },
+
+            async checkBridgePing(isManual = false) {
+                if (!isManual && document.visibilityState === 'hidden') return;
+                if (this.isLiveMode && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
+                    this.sendWsPing();
+                    if (!isManual) return;
+                }
+                this.pingChecking = true;
+                const t0 = performance.now();
+                try {
+                    const res = await fetch('/api/ai/bridge-ping?t=' + Date.now(), {
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const rtt = Math.max(1, Math.round(performance.now() - t0));
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.bridgeOnline = !!data.online;
+                        this.bridgePingMs = data.bridge_ping_ms ?? null;
+                        if (!this.isLiveMode || !this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) {
+                            this.pingMs = data.online ? (data.bridge_ping_ms ?? rtt) : null;
+                        }
+                        if (data.bridge_version) this.bridgeVersion = data.bridge_version;
+                        if (data.uptime_sec !== undefined) this.bridgeUptimeSec = data.uptime_sec;
+                        if (data.active_live_sessions !== undefined) this.bridgeActiveSessions = data.active_live_sessions;
+                        this.lastPingTime = data.checked_at || new Date().toLocaleTimeString('de-DE');
+                    } else {
+                        this.bridgeOnline = false;
+                        this.pingMs = null;
+                    }
+                } catch (e) {
+                    this.bridgeOnline = false;
+                    this.pingMs = null;
+                } finally {
+                    this.pingChecking = false;
+                }
+            },
+
+            getConnectionState() {
+                if (!this.bridgeOnline) return 'offline';
+                if (this.isLiveMode && (!this.isSetupComplete || this.reconnectAttempts > 0)) return 'connecting';
+                if (this.pingMs !== null && this.pingMs >= 350) return 'slow';
+                if (this.isLiveMode && this.isSetupComplete) return 'live';
+                return 'standby';
+            },
+
+            getConnectionLabel() {
+                const st = this.getConnectionState();
+                if (st === 'offline') return 'Bridge Offline';
+                if (st === 'connecting') return this.reconnectAttempts > 0 ? `Reconnect (${this.reconnectAttempts})...` : 'Verbinde Stream...';
+                if (st === 'slow') return 'Hohe Latenz';
+                if (st === 'live') return 'Live-Stream Aktiv';
+                return 'Bridge Bereit';
+            },
+
+            getPingQualityLabel() {
+                if (!this.bridgeOnline) return 'Keine Verbindung';
+                if (this.pingMs === null) return 'Messung läuft...';
+                if (this.pingMs < 50) return 'Exzellent';
+                if (this.pingMs < 150) return 'Sehr gut';
+                if (this.pingMs < 350) return 'Stabil';
+                return 'Verzögert';
+            },
+
+            getSignalBars() {
+                if (!this.bridgeOnline) return 0;
+                if (this.pingMs === null) return 3;
+                if (this.pingMs < 50) return 4;
+                if (this.pingMs < 150) return 3;
+                if (this.pingMs < 350) return 2;
+                return 1;
+            },
+
+            formatBridgeUptime() {
+                if (this.bridgeUptimeSec === null || this.bridgeUptimeSec === undefined) return '—';
+                const s = Math.max(0, parseInt(this.bridgeUptimeSec, 10) || 0);
+                const h = Math.floor(s / 3600);
+                const m = Math.floor((s % 3600) / 60);
+                if (h > 0) return `${h}h ${m}m`;
+                if (m > 0) return `${m}m ${s % 60}s`;
+                return `${s}s`;
+            },
+
             async readClipboard(isDirectClick = false) {
                 try {
                     this.clipboardNeedsPermission = false;
@@ -1486,13 +1590,13 @@
 
                         // Start Microphone immediately on connection open
                         this.startMicrophone();
+                        this.bridgeOnline = true;
+                        setTimeout(() => this.sendWsPing(), 350);
 
-                        // Start client-to-bridge Keep-Alive heartbeat (every 20s)
+                        // Start client-to-bridge Keep-Alive & Latency heartbeat (every 10s)
                         this.pingInterval = setInterval(() => {
-                            if (this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
-                                this.liveWs.send(JSON.stringify({ type: 'ping' }));
-                            }
-                        }, 20000);
+                            this.sendWsPing();
+                        }, 10000);
                     };
 
                     this.liveWs.onmessage = async (event) => {
@@ -1782,6 +1886,14 @@
             },
 
             async handleWsMessage(data) {
+                if (data.type === 'pong') {
+                    if (this._lastWsPingSentAt) {
+                        this.pingMs = Math.max(1, Math.round(performance.now() - this._lastWsPingSentAt));
+                    }
+                    this.bridgeOnline = true;
+                    this.lastPingTime = new Date().toLocaleTimeString('de-DE');
+                    return;
+                }
                 if (data.type === 'liveTranscriptPersisted') {
                     console.log('Gemini Live: Server bestätigte Persistierung:', data);
                     if (data.content) {
@@ -2267,8 +2379,13 @@
                 }, 1000);
             },
 
-            init() {
+            initCameraAndPing() {
                 this.startCameraCapture();
+                this.checkBridgePing();
+                if (this.bridgePollInterval) clearInterval(this.bridgePollInterval);
+                this.bridgePollInterval = setInterval(() => {
+                    this.checkBridgePing();
+                }, 30000);
                 
                 window.addEventListener('ai-analyze-camera', async (e) => {
                     const video = document.getElementById('funki-local-camera');

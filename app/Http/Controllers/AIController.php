@@ -623,6 +623,73 @@ class AIController extends Controller
     }
 
     /**
+     * Lightweight health & latency ping for the "Live-AI" side widget.
+     * Measures TCP + HTTP /health latency to the Node.js WebSocket bridge.
+     */
+    public function bridgePing(Request $request)
+    {
+        $wsUrl = config('services.gemini.proxy_ws_url')
+            ?: config('services.ai.gemini_proxy_ws_url')
+            ?: 'ws://127.0.0.1:8089/gemini-live';
+
+        $parsed = parse_url($wsUrl);
+        $scheme = $parsed['scheme'] ?? 'ws';
+        $host = $parsed['host'] ?? '127.0.0.1';
+        $port = (int) ($parsed['port'] ?? ($scheme === 'wss' ? 443 : 8089));
+
+        $candidates = [[$host, $port, $scheme]];
+        if (in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+            if ($port !== 8081) {
+                $candidates[] = ['127.0.0.1', 8081, 'ws'];
+            }
+            if ($port !== 8089) {
+                $candidates[] = ['127.0.0.1', 8089, 'ws'];
+            }
+        } else {
+            $candidates[] = ['127.0.0.1', 8081, 'ws'];
+            $candidates[] = ['127.0.0.1', 8089, 'ws'];
+        }
+
+        $isOnline = false;
+        $bridgePingMs = null;
+        $bridgeHealth = null;
+        $pingError = null;
+
+        foreach ($candidates as [$candHost, $candPort, $candScheme]) {
+            $startNs = hrtime(true);
+            $fp = @fsockopen($candHost, $candPort, $errno, $errstr, 1.2);
+            if ($fp) {
+                $bridgePingMs = max(1, (int) round((hrtime(true) - $startNs) / 1_000_000));
+                fclose($fp);
+                $isOnline = true;
+                try {
+                    $httpScheme = ($candScheme === 'wss' || $candPort === 443) ? 'https' : 'http';
+                    $healthRes = \Illuminate\Support\Facades\Http::timeout(1.2)->get("{$httpScheme}://{$candHost}:{$candPort}/health");
+                    if ($healthRes->successful()) {
+                        $bridgeHealth = $healthRes->json();
+                    }
+                } catch (\Throwable $ignore) {
+                }
+                break;
+            } else {
+                $pingError = "[{$errno}] {$errstr}";
+            }
+        }
+
+        return response()->json([
+            'status' => 'ok',
+            'online' => $isOnline,
+            'bridge_ping_ms' => $bridgePingMs,
+            'bridge_version' => $bridgeHealth['bridge_version'] ?? ($isOnline ? 'v1.2-diag' : null),
+            'uptime_sec' => $bridgeHealth['uptime_sec'] ?? null,
+            'active_live_sessions' => $bridgeHealth['active_live_sessions'] ?? 0,
+            'memory_rss_mb' => $bridgeHealth['memory_rss_mb'] ?? null,
+            'error' => $isOnline ? null : $pingError,
+            'checked_at' => now()->format('H:i:s'),
+        ]);
+    }
+
+    /**
      * Verifies the websocket token and returns the actual credentials.
      * Only accessed internally by the Node.js server.
      */

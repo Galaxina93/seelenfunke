@@ -2030,34 +2030,50 @@ trait AiSystemFuncs
     public static function executeGetWebSocketStatus(array $args)
     {
         try {
-            $wsUrl = config('services.ai.gemini_proxy_ws_url') 
-                ?? env('GEMINI_PROXY_WS_URL') 
-                ?? 'ws://localhost:8089/gemini-live';
+            $wsUrl = config('services.gemini.proxy_ws_url')
+                ?: config('services.ai.gemini_proxy_ws_url') 
+                ?: env('GEMINI_PROXY_WS_URL') 
+                ?: 'ws://localhost:8089/gemini-live';
                 
             // Parse URL to check host/port
             $parsed = parse_url($wsUrl);
             $scheme = $parsed['scheme'] ?? 'ws';
             $host = $parsed['host'] ?? 'localhost';
-            $port = $parsed['port'] ?? ($scheme === 'wss' ? 443 : 80);
+            $port = (int) ($parsed['port'] ?? ($scheme === 'wss' ? 443 : 80));
+
+            $candidates = [[$host, $port, $scheme]];
+            if (in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+                if ($port !== 8081) {
+                    $candidates[] = ['127.0.0.1', 8081, 'ws'];
+                }
+                if ($port !== 8089) {
+                    $candidates[] = ['127.0.0.1', 8089, 'ws'];
+                }
+            }
             
             // Ping port & fetch /health telemetry
             $isOnline = false;
             $pingError = '';
             $bridgeHealth = null;
-            $fp = @fsockopen($host, $port, $errno, $errstr, 2.0);
-            if ($fp) {
-                $isOnline = true;
-                fclose($fp);
-                try {
-                    $httpScheme = ($scheme === 'wss' || $port == 443) ? 'https' : 'http';
-                    $healthRes = \Illuminate\Support\Facades\Http::timeout(2)->get("{$httpScheme}://{$host}:{$port}/health");
-                    if ($healthRes->successful()) {
-                        $bridgeHealth = $healthRes->json();
+            foreach ($candidates as [$candHost, $candPort, $candScheme]) {
+                $fp = @fsockopen($candHost, $candPort, $errno, $errstr, 2.0);
+                if ($fp) {
+                    $isOnline = true;
+                    $host = $candHost;
+                    $port = $candPort;
+                    fclose($fp);
+                    try {
+                        $httpScheme = ($candScheme === 'wss' || $candPort == 443) ? 'https' : 'http';
+                        $healthRes = \Illuminate\Support\Facades\Http::timeout(2)->get("{$httpScheme}://{$candHost}:{$candPort}/health");
+                        if ($healthRes->successful()) {
+                            $bridgeHealth = $healthRes->json();
+                        }
+                    } catch (\Throwable $ignore) {
                     }
-                } catch (\Throwable $ignore) {
+                    break;
+                } else {
+                    $pingError = "[$errno] $errstr";
                 }
-            } else {
-                $pingError = "[$errno] $errstr";
             }
             
             // Check bridge.log

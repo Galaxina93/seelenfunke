@@ -54,5 +54,8 @@ Route::prefix('ai')->group(function () {
 
         // Endpunkt für den Multimodal Live API Mode (WebSockets)
         Route::get('/live-credentials', [AIController::class, 'liveCredentials']);
+
+        // Leichtgewichtiger Health- & Latenz-Ping für das Live-AI Seiten-Widget
+        Route::get('/bridge-ping', [AIController::class, 'bridgePing']);
     });
 });
