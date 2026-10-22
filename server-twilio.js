@@ -368,7 +368,12 @@ function initGeminiLiveProxy(clientWs, creds) {
     });
     
     clientWs.on('message', (message) => {
+        if (isCleanedUp || googleWs.readyState === WebSocket.CLOSING || googleWs.readyState === WebSocket.CLOSED) {
+            return;
+        }
+
         let data = null;
+        let outgoingMessage = message;
         try {
             data = JSON.parse(message.toString());
             if (data && data.type === 'ping') {
@@ -381,8 +386,49 @@ function initGeminiLiveProxy(clientWs, creds) {
                 return;
             }
             if (data && data.setup) {
+                const DEFAULT_LIVE_MODEL = 'models/gemini-3.1-flash-live-preview';
+                const VALID_LIVE_MODELS = [
+                    'models/gemini-3.1-flash-live-preview',
+                    'models/gemini-2.0-flash-live-001'
+                ];
+                let setupModified = false;
+                if (!data.setup.model || !VALID_LIVE_MODELS.includes(data.setup.model)) {
+                    debugLog(`⚠️ Gemini Live Proxy: Client sendete veraltetes/inkompatibles Modell "${data.setup.model}". Normalisiere auf "${DEFAULT_LIVE_MODEL}".`);
+                    data.setup.model = DEFAULT_LIVE_MODEL;
+                    setupModified = true;
+                }
+                if (!data.setup.inputAudioTranscription) {
+                    data.setup.inputAudioTranscription = {};
+                    setupModified = true;
+                }
+                if (!data.setup.outputAudioTranscription) {
+                    data.setup.outputAudioTranscription = {};
+                    setupModified = true;
+                }
+                if (setupModified) {
+                    outgoingMessage = JSON.stringify(data);
+                }
                 debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
             } else if (data && data.realtimeInput) {
+                // Normalisiere veraltetes mediaChunks-Audio-Format (z.B. von älteren Android-Clients) auf realtimeInput.audio,
+                // um Google Fehler 1007 (CONTENT_TYPE_AUDIO not supported) und 1008 zu verhindern.
+                if (!data.realtimeInput.audio && Array.isArray(data.realtimeInput.mediaChunks)) {
+                    const audioChunkIdx = data.realtimeInput.mediaChunks.findIndex(
+                        c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('audio/pcm')
+                    );
+                    if (audioChunkIdx !== -1) {
+                        const audioChunk = data.realtimeInput.mediaChunks[audioChunkIdx];
+                        data.realtimeInput.audio = {
+                            mimeType: audioChunk.mimeType,
+                            data: audioChunk.data
+                        };
+                        data.realtimeInput.mediaChunks.splice(audioChunkIdx, 1);
+                        if (data.realtimeInput.mediaChunks.length === 0) {
+                            delete data.realtimeInput.mediaChunks;
+                        }
+                        outgoingMessage = JSON.stringify(data);
+                    }
+                }
                 clientAudioPacketsReceived++;
                 if (clientAudioPacketsReceived <= 5 || clientAudioPacketsReceived % 100 === 0) {
                     const audioLength = data.realtimeInput.audio?.data?.length 
@@ -390,6 +436,18 @@ function initGeminiLiveProxy(clientWs, creds) {
                         || 0;
                     debugLog(`🧠 Gemini Live Proxy: Client sendet Audio (Paket #${clientAudioPacketsReceived}, Base64-Länge: ${audioLength})`);
                 }
+            } else if (data && data.clientContent) {
+                // Blockiere fehlerhafte leere Interrupt-Frames (turnComplete: false mit leerem Text " "),
+                // die bei manchen Clients (z.B. Android) zu Google Code 1008 (Requested entity was not found) führen.
+                const turns = Array.isArray(data.clientContent.turns) ? data.clientContent.turns : [];
+                const isWhitespaceOnlyInterrupt = data.clientContent.turnComplete === false
+                    && turns.length > 0
+                    && turns.every(t => Array.isArray(t.parts) && t.parts.every(p => typeof p.text === 'string' && p.text.trim() === '' && !p.inlineData));
+                if (isWhitespaceOnlyInterrupt) {
+                    debugLog('🛡️ Gemini Live Proxy: Ignoriere leeres clientContent-Interrupt-Paket (verhindert Code 1008/1007 Abbruch).');
+                    return;
+                }
+                debugLog('🧠 Gemini Live Proxy: Client sendet clientContent: ' + JSON.stringify(data).substring(0, 150));
             } else {
                 debugLog('🧠 Gemini Live Proxy: Client sendet sonstige Nachricht: ' + JSON.stringify(data).substring(0, 150));
             }
@@ -398,10 +456,10 @@ function initGeminiLiveProxy(clientWs, creds) {
         }
 
         if (googleWs.readyState === WebSocket.OPEN && (isGoogleSetupComplete || (data && data.setup))) {
-            safeSend(googleWs, message);
-        } else {
+            safeSend(googleWs, outgoingMessage);
+        } else if (googleWs.readyState === WebSocket.CONNECTING || (googleWs.readyState === WebSocket.OPEN && !isGoogleSetupComplete)) {
             debugLog('🧠 Gemini Live Proxy: Google WS noch nicht bereit für Nutzdaten (SetupComplete=' + isGoogleSetupComplete + '). Nachricht gepuffert. Queue: ' + (googleQueue.length + 1));
-            googleQueue.push(message);
+            googleQueue.push(outgoingMessage);
         }
     });
     
@@ -489,7 +547,7 @@ function handleTwilioConnection(ws) {
     // 1. Initialisiere die Gemini Live API Verbindung
     const initGemini = () => {
         const HOST = "generativelanguage.googleapis.com";
-        const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
+        const WS_URL = `wss://${HOST}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GOOGLE_API_KEY}`;
         
         geminiWs = new WebSocket(WS_URL, {
             headers: {

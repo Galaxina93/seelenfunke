@@ -72,6 +72,33 @@ class AppServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom($paths);
 
+        // 2b. Redis-Ausfallsicherung (DNS- / Verbindungs-Fallback für Stage & Produktion)
+        // Verhindert fatale Predis StreamInitException (getaddrinfo failed), falls der Redis-Container
+        // temporär nicht auflösbar oder nicht erreichbar ist, indem automatisch auf File-Cache/Session gewechselt wird.
+        if (Config::get('cache.default') === 'redis' || Config::get('session.driver') === 'redis') {
+            try {
+                $redisHost = Config::get('database.redis.default.host', '127.0.0.1');
+                if (is_string($redisHost) && $redisHost !== '' && !filter_var($redisHost, FILTER_VALIDATE_IP) && $redisHost !== 'localhost') {
+                    $resolved = @gethostbyname($redisHost);
+                    if ($resolved === $redisHost) {
+                        throw new \RuntimeException("DNS resolution failed for Redis host: {$redisHost}");
+                    }
+                }
+                Cache::store('redis')->get('__redis_health_check__');
+            } catch (\Throwable $redisEx) {
+                if (Config::get('cache.default') === 'redis') {
+                    Config::set('cache.default', 'file');
+                }
+                if (Config::get('session.driver') === 'redis') {
+                    Config::set('session.driver', 'file');
+                }
+                if (Config::get('queue.default') === 'redis') {
+                    Config::set('queue.default', 'database');
+                }
+                \Illuminate\Support\Facades\Log::warning('Redis nicht erreichbar (' . $redisEx->getMessage() . ') – Automatischer Fallback auf File-Cache/Session aktiviert.');
+            }
+        }
+
         // 3. Shop-Settings & Stripe Config laden
         // WICHTIG: Verhindert, dass Konsolen-Befehle (wie artisan) versuchen die DB abzufragen,
         // bevor Treiber/Datenbank überhaupt existieren!

@@ -24,3 +24,5 @@ migrations.txt
 /venv
 /venv/
 *.sql
+bridge.log
+crash.log

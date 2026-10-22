@@ -238,7 +238,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 // Send Setup configuration payload
                 val setup = JsonObject().apply {
                     add("setup", JsonObject().apply {
-                        addProperty("model", "models/gemini-2.5-flash-native-audio-latest")
+                        addProperty("model", "models/gemini-3.1-flash-live-preview")
                         add("generationConfig", JsonObject().apply {
                             val modalities = JsonArray()
                             modalities.add("AUDIO")
@@ -297,6 +297,8 @@ class FunkiraLiveViewModel : ViewModel() {
                             createDefaultToolsWithEndCall()
                         }
                         add("tools", toolsElement)
+                        add("inputAudioTranscription", JsonObject())
+                        add("outputAudioTranscription", JsonObject())
                     })
                 }
 
@@ -591,11 +593,9 @@ class FunkiraLiveViewModel : ViewModel() {
         }
         val audioMsg = JsonObject().apply {
             add("realtimeInput", JsonObject().apply {
-                add("mediaChunks", JsonArray().apply {
-                    add(JsonObject().apply {
-                        addProperty("mimeType", "audio/pcm;rate=16000")
-                        addProperty("data", base64Data)
-                    })
+                add("audio", JsonObject().apply {
+                    addProperty("mimeType", "audio/pcm;rate=16000")
+                    addProperty("data", base64Data)
                 })
             })
         }
@@ -815,12 +815,19 @@ class FunkiraLiveViewModel : ViewModel() {
                             if (v > maxVal) maxVal = v
                         }
 
-                        // Local interruption check: If AI is speaking and user talks loudly, immediately silence speaker
-                        if (isAiSpeaking && maxVal > 3500) {
-                            android.util.Log.d("FunkiraLive", "Local user interruption detected (amplitude: $maxVal). Flushing audio playback.")
-                            isAiSpeaking = false
-                            flushAudioPlayback()
-                            sendInterruptMessage()
+                        // Echo-Schutz & lokale Barge-In-Erkennung:
+                        // Während die KI über den Lautsprecher spricht, senden wir kein Echo zurück,
+                        // es sei denn, der Nutzer unterbricht deutlich hörbar (Google VAD übernimmt das Interrupt-Handling nativ über realtimeInput.audio).
+                        if (isAiSpeaking) {
+                            if (maxVal > 12000) {
+                                android.util.Log.d("FunkiraLive", "Local user interruption detected (amplitude: $maxVal). Flushing audio playback.")
+                                isAiSpeaking = false
+                                flushAudioPlayback()
+                            } else {
+                                _voiceAmplitude.value = 0f
+                                delay(20)
+                                continue
+                            }
                         }
 
                         _voiceAmplitude.value = maxVal.toFloat() / 32768f
