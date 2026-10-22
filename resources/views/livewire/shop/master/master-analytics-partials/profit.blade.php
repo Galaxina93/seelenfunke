@@ -29,7 +29,7 @@
                 </span>
             </div>
         </div>
-        <div class="h-64 sm:h-72 w-full relative">
+        <div class="h-80 sm:h-96 md:h-[420px] w-full relative">
             <canvas id="profitChart"></canvas>
         </div>
     </div>

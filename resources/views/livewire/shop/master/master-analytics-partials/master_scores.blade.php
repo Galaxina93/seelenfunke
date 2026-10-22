@@ -323,10 +323,13 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
         <!-- 5. GEWINN-ENTWICKLUNG -->
         <div @click="activeTab = activeTab === 'profit' ? null : 'profit'"
-             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-hidden group transition-colors duration-300 hover-theme-pulse"
+             class="bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-3xl p-4 dark:shadow-xl border flex flex-col items-center text-center relative overflow-visible group transition-colors duration-300 hover-theme-pulse"
              :class="activeTab === 'profit' ? 'active-theme-pulse' : 'border-gray-200 dark:border-gray-800'">
              
-             <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] mb-2.5">Gewinn</h3>
+             <div class="flex items-center justify-center gap-1.5 mb-2.5">
+                 <h3 class="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em]">Gewinn</h3>
+                 @include('livewire.shop.master.master-analytics-partials.profit-breakdown-popover', ['positionClass' => 'bottom-full left-1/2 -translate-x-1/2 mb-3'])
+             </div>
 
             @php
                 $bEven = $stats['break_even_monthly'] ?? 0;
@@ -417,22 +420,10 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
         <div class="bg-white/95 dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] p-6 lg:p-10 dark:shadow-2xl border border-gray-200 dark:border-gray-800 relative z-20">
 
             <!-- 1. SHOP DETAILS -->
-            <div x-show="activeTab === 'shop'" x-transition.opacity.duration.300ms class="space-y-8">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-6">
-                    <div>
-                        <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Finanzielle Gesundheit</h2>
-                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Gesicherter Statuswert aus Liquiditätsreserven, Break-Even, Rentabilität und aktuellen Markttrends.</p>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <div class="text-right hidden sm:block">
-                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Monatsgewinn (Ø)</span>
-                            <span class="text-2xl font-black text-gray-900 dark:text-white tracking-tighter">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
-                        </div>
-                    </div>
-                </div>
+            <div x-show="activeTab === 'shop'" x-transition.opacity.duration.300ms class="space-y-6">
 
                 @if($opErrorCount > 0 || $opWarningCount > 0)
-                    <div class="bg-red-500/10 dark:bg-red-950/20 rounded-xl p-5 border border-red-500/20 relative mt-4">
+                    <div class="bg-red-500/10 dark:bg-red-950/20 rounded-xl p-5 border border-red-500/20 relative">
                          <div class="flex items-start gap-3">
                              <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
                              <div>
@@ -443,96 +434,150 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                     </div>
                 @endif
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Säule 1: WACHSTUM -->
-                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5">
-                        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800/80 pb-3">
-                            <x-heroicon-o-arrow-trending-up class="w-5 h-5 text-blue-500" />
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Wachstum</h3>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <div class="flex justify-between items-center group">
-                                <span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-banknotes class="w-3.5 h-3.5 text-gray-500" /> Umsatzrahmen</span>
-                                <span class="text-base font-black text-gray-800 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{{ number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') }} €</span>
-                            </div>
-                            <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
-                            <div class="flex justify-between items-center group">
-                                <span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-chart-bar class="w-3.5 h-3.5 text-gray-500" /> Wachstumstrend</span>
-                                <span class="text-base font-black {{ ($stats['revenue_growth'] ?? 0) >= 0 ? 'text-emerald-500' : 'text-red-500' }} group-hover:dark:drop-shadow-[0_0_8px_currentColor] transition-all">{{ ($stats['revenue_growth'] ?? 0) > 0 ? '+' : '' }}{{ $stats['revenue_growth'] ?? 0 }} %</span>
-                            </div>
-                            <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
-                            <div class="flex justify-between items-center group">
-                                <span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-calendar-days class="w-3.5 h-3.5 text-gray-500" /> Jahreshochlauf</span>
-                                <span class="text-base font-black text-blue-600 dark:text-blue-400 group-hover:text-blue-500 dark:group-hover:text-blue-300 transition-colors">{{ number_format($stats['projected_year'] ?? 0, 0, ',', '.') }} €</span>
-                            </div>
-                        </div>
-                    </div>
+                <div class="flex flex-col gap-8 w-full">
 
-                    <!-- Säule 2: EFFIZIENZ -->
-                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5">
-                        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800/80 pb-3">
-                            <x-heroicon-o-scale class="w-5 h-5 text-emerald-500" />
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Rentabilität</h3>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <div class="flex justify-between items-center group">
-                                <span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-receipt-percent class="w-3.5 h-3.5 text-gray-500" /> Nettomarge</span>
-                                <span class="text-base font-black text-emerald-500 group-hover:text-emerald-400 transition-colors">{{ $stats['margin'] ?? 0 }} %</span>
+                    <!-- KACHEL 1: FINANZIELLE GESUNDHEIT -->
+                    <div class="bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 flex flex-col justify-between gap-6 shadow-sm">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-200 dark:border-gray-800 pb-5">
+                            <div>
+                                <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Finanzielle Gesundheit</h2>
+                                <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Gesicherter Statuswert aus Liquiditätsreserven, Break-Even, Rentabilität und aktuellen Markttrends.</p>
                             </div>
-                            <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
-                            <div class="flex justify-between items-center group">
-                                <span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-currency-dollar class="w-3.5 h-3.5 text-gray-500" /> Gewinn pro Monat</span>
-                                <span class="text-base font-black text-gray-800 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Säule 3: SICHERHEIT -->
-                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-5" x-data="{ showCosts: false }">
-                        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800/80 pb-3">
-                            <x-heroicon-o-shield-check class="w-5 h-5 text-amber-500" />
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Sicherheit</h3>
-                        </div>
-                        <div class="flex flex-col gap-3">
-                            <div class="flex justify-between items-center group">
-                                <span class="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2"><x-heroicon-o-flag class="w-3.5 h-3.5 text-gray-500" /> Break-Even (Mtl.)</span>
-                                <span class="text-base font-black text-amber-500 group-hover:text-amber-400 transition-colors">{{ number_format($stats['break_even_monthly'] ?? 0, 0, ',', '.') }} €</span>
-                            </div>
-                            <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
-
-                            @php
-                                $hasPending = ($stats['pending_invoices']['sum'] ?? 0) > 0;
-                                $pendingCount = $stats['pending_invoices']['count'] ?? 0;
-                            @endphp
-                            <div class="flex justify-between items-center group {{ $hasPending ? 'bg-red-500/10 dark:bg-red-950/20 -mx-2 px-2 py-1 rounded-lg border border-red-500/20' : '' }}">
-                                <span class="text-[10px] font-semibold uppercase tracking-widest flex items-center gap-2 {{ $hasPending ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400' }}">
-                                    <x-heroicon-o-document-magnifying-glass class="w-3.5 h-3.5 {{ $hasPending ? 'text-red-500' : 'text-gray-500' }}" /> Offene Posten
-                                </span>
+                            <div class="flex items-center gap-4 shrink-0">
                                 <div class="text-right">
-                                    <span class="text-base font-black {{ $hasPending ? 'text-red-500 animate-pulse' : 'text-gray-500' }}">{{ number_format($stats['pending_invoices']['sum'] ?? 0, 0, ',', '.') }} €</span>
-                                    @if($pendingCount > 0)
-                                        <span class="text-[8px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest block -mt-1">{{ $pendingCount }} Rechnungen</span>
-                                    @endif
+                                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Monatsgewinn (Ø)</span>
+                                    <div class="flex items-center justify-end gap-2">
+                                        <span class="text-2xl font-black text-gray-900 dark:text-white tracking-tighter">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
+                                        @include('livewire.shop.master.master-analytics-partials.profit-breakdown-popover', ['positionClass' => 'bottom-full right-0 mb-3'])
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Säule 1: WACHSTUM -->
+                            <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-4 shadow-inner flex flex-col gap-4">
+                                <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <x-heroicon-o-arrow-trending-up class="w-4 h-4 text-blue-500" />
+                                        <h3 class="text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Wachstum</h3>
+                                    </div>
+                                    @include('components.alerts.info-tooltip', ['key' => 'pillar_growth'])
+                                </div>
+                                <div class="flex flex-col gap-2.5">
+                                    <div class="flex justify-between items-center group">
+                                        <span class="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <x-heroicon-o-banknotes class="w-3 h-3 text-gray-500" /> Umsatzrahmen
+                                            @include('components.alerts.info-tooltip', ['key' => 'shop_rev'])
+                                        </span>
+                                        <span class="text-sm font-black text-gray-800 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{{ number_format($stats['shop_revenue'] ?? 0, 0, ',', '.') }} €</span>
+                                    </div>
+                                    <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
+                                    <div class="flex justify-between items-center group">
+                                        <span class="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <x-heroicon-o-chart-bar class="w-3 h-3 text-gray-500" /> Trend
+                                            @include('components.alerts.info-tooltip', ['key' => 'trend'])
+                                        </span>
+                                        <span class="text-sm font-black {{ ($stats['revenue_growth'] ?? 0) >= 0 ? 'text-emerald-500' : 'text-red-500' }} group-hover:dark:drop-shadow-[0_0_8px_currentColor] transition-all">{{ ($stats['revenue_growth'] ?? 0) > 0 ? '+' : '' }}{{ $stats['revenue_growth'] ?? 0 }} %</span>
+                                    </div>
+                                    <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
+                                    <div class="flex justify-between items-center group">
+                                        <span class="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <x-heroicon-o-calendar-days class="w-3 h-3 text-gray-500" /> Jahr
+                                            @include('components.alerts.info-tooltip', ['key' => 'projected_year'])
+                                        </span>
+                                        <span class="text-sm font-black text-blue-600 dark:text-blue-400 group-hover:text-blue-500 dark:group-hover:text-blue-300 transition-colors">{{ number_format($stats['projected_year'] ?? 0, 0, ',', '.') }} €</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50 mt-1"></div>
+                            <!-- Säule 2: EFFIZIENZ -->
+                            <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-4 shadow-inner flex flex-col gap-4">
+                                <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <x-heroicon-o-scale class="w-4 h-4 text-emerald-500" />
+                                        <h3 class="text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Rentabilität</h3>
+                                    </div>
+                                    @include('components.alerts.info-tooltip', ['key' => 'pillar_profitability'])
+                                </div>
+                                <div class="flex flex-col gap-2.5">
+                                    <div class="flex justify-between items-center group">
+                                        <span class="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <x-heroicon-o-receipt-percent class="w-3 h-3 text-gray-500" /> Nettomarge
+                                            @include('components.alerts.info-tooltip', ['key' => 'margin'])
+                                        </span>
+                                        <span class="text-sm font-black text-emerald-500 group-hover:text-emerald-400 transition-colors">{{ $stats['margin'] ?? 0 }} %</span>
+                                    </div>
+                                    <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
+                                    <div class="flex justify-between items-center group">
+                                        <span class="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <x-heroicon-o-currency-dollar class="w-3 h-3 text-gray-500" /> Mtl. Gewinn
+                                            @include('livewire.shop.master.master-analytics-partials.profit-breakdown-popover', ['positionClass' => 'bottom-full left-0 mb-3'])
+                                        </span>
+                                        <span class="text-sm font-black text-gray-800 dark:text-gray-200 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">{{ number_format($stats['avg_profit'] ?? 0, 0, ',', '.') }} €</span>
+                                    </div>
+                                </div>
+                            </div>
 
-                            <div class="pt-2">
-                                <button @click="showCosts = !showCosts" class="w-full flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-gray-100 dark:bg-gray-900 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700">
-                                    <span>Kostenstruktur Details</span>
-                                    <x-heroicon-m-chevron-down class="w-3 h-3 transition-transform" ::class="showCosts ? 'rotate-180' : ''" />
-                                </button>
-                                <div x-show="showCosts" x-cloak x-collapse class="space-y-2 mt-3 pt-1 border-t border-gray-200 dark:border-gray-800/50">
-                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Einnahmen Fix</span><span class="text-xs font-black text-emerald-500/80">{{ number_format($stats['fixed_income_total'] ?? 0, 0, ',', '.') }} €</span></div>
-                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Kosten Privat</span><span class="text-xs font-black text-purple-500 dark:text-purple-400/80">{{ number_format($stats['fixed_expenses_priv'] ?? 0, 0, ',', '.') }} €</span></div>
-                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Kosten Gewerbe</span><span class="text-xs font-black text-blue-500 dark:text-blue-400/80">{{ number_format($stats['fixed_expenses_gew'] ?? 0, 0, ',', '.') }} €</span></div>
-                                    <div class="flex justify-between items-center"><span class="text-[9px] font-semibold text-gray-500 uppercase tracking-widest">Sonderkosten</span><span class="text-xs font-black text-amber-500/80">{{ number_format($stats['variable_expenses'] ?? 0, 0, ',', '.') }} €</span></div>
+                            <!-- Säule 3: SICHERHEIT -->
+                            <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-4 shadow-inner flex flex-col gap-4" x-data="{ showCosts: false }">
+                                <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-2.5">
+                                    <div class="flex items-center gap-2">
+                                        <x-heroicon-o-shield-check class="w-4 h-4 text-amber-500" />
+                                        <h3 class="text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Sicherheit</h3>
+                                    </div>
+                                    @include('components.alerts.info-tooltip', ['key' => 'pillar_security'])
+                                </div>
+                                <div class="flex flex-col gap-2.5">
+                                    <div class="flex justify-between items-center group">
+                                        <span class="text-[9px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <x-heroicon-o-flag class="w-3 h-3 text-gray-500" /> Break-Even
+                                            @include('components.alerts.info-tooltip', ['key' => 'break_even_monthly'])
+                                        </span>
+                                        <span class="text-sm font-black text-amber-500 group-hover:text-amber-400 transition-colors">{{ number_format($stats['break_even_monthly'] ?? 0, 0, ',', '.') }} €</span>
+                                    </div>
+                                    <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
+
+                                    @php
+                                        $hasPending = ($stats['pending_invoices']['sum'] ?? 0) > 0;
+                                        $pendingCount = $stats['pending_invoices']['count'] ?? 0;
+                                    @endphp
+                                    <div class="flex justify-between items-center group {{ $hasPending ? 'bg-red-500/10 dark:bg-red-950/20 -mx-1 px-1.5 py-0.5 rounded-lg border border-red-500/20' : '' }}">
+                                        <span class="text-[9px] font-semibold uppercase tracking-widest flex items-center gap-1.5 {{ $hasPending ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400' }}">
+                                            <x-heroicon-o-document-magnifying-glass class="w-3 h-3 {{ $hasPending ? 'text-red-500' : 'text-gray-500' }}" /> Offen
+                                            @include('components.alerts.info-tooltip', ['key' => 'pending_invoices'])
+                                        </span>
+                                        <div class="text-right">
+                                            <span class="text-sm font-black {{ $hasPending ? 'text-red-500 animate-pulse' : 'text-gray-500' }}">{{ number_format($stats['pending_invoices']['sum'] ?? 0, 0, ',', '.') }} €</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="w-full h-px bg-gray-200 dark:bg-gray-800/50"></div>
+
+                                    <div>
+                                        <button @click="showCosts = !showCosts" class="w-full flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-gray-100 dark:bg-gray-900 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700">
+                                            <span>Kostenstruktur</span>
+                                            <x-heroicon-m-chevron-down class="w-3 h-3 transition-transform" ::class="showCosts ? 'rotate-180' : ''" />
+                                        </button>
+                                        <div x-show="showCosts" x-cloak x-collapse class="space-y-1.5 mt-2 pt-1 border-t border-gray-200 dark:border-gray-800/50">
+                                            <div class="flex justify-between items-center"><span class="text-[8px] font-semibold text-gray-500 uppercase tracking-widest">Einnahmen Fix</span><span class="text-[11px] font-black text-emerald-500/80">{{ number_format($stats['fixed_income_total'] ?? 0, 0, ',', '.') }} €</span></div>
+                                            <div class="flex justify-between items-center"><span class="text-[8px] font-semibold text-gray-500 uppercase tracking-widest">Kosten Privat</span><span class="text-[11px] font-black text-purple-500 dark:text-purple-400/80">{{ number_format($stats['fixed_expenses_priv'] ?? 0, 0, ',', '.') }} €</span></div>
+                                            <div class="flex justify-between items-center"><span class="text-[8px] font-semibold text-gray-500 uppercase tracking-widest">Kosten Gewerbe</span><span class="text-[11px] font-black text-blue-500 dark:text-blue-400/80">{{ number_format($stats['fixed_expenses_gew'] ?? 0, 0, ',', '.') }} €</span></div>
+                                            <div class="flex justify-between items-center"><span class="text-[8px] font-semibold text-gray-500 uppercase tracking-widest">Sonderkosten</span><span class="text-[11px] font-black text-amber-500/80">{{ number_format($stats['variable_expenses'] ?? 0, 0, ',', '.') }} €</span></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                    <!-- KACHEL 2: 10-JAHRES FIRMENREISE & MEILENSTEINE (Gleiches Design!) -->
+                    <div class="bg-white/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-7 flex flex-col justify-between shadow-sm">
+                        @include('livewire.shop.master.master-analytics-partials.company-journey-tile')
+                    </div>
+
                 </div>
+
             </div>
 
             <!-- 2. OPERATIVE DETAILS -->

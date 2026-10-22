@@ -14,20 +14,20 @@
                     @include('components.alerts.info-tooltip', ['key' => 'is_small_business'])
                 </div>
                 <div class="space-y-3">
-                    <button type="button" wire:click="initiateSmallBusinessToggle" class="{{ $checkboxContainerClass }} w-full text-left">
-                        <div class="relative flex items-center shrink-0">
+                    <button type="button" wire:click="initiateSmallBusinessToggle" class="{{ $checkboxContainerClass }} w-full text-left !items-start sm:!items-center">
+                        <div class="relative flex items-center shrink-0 mt-0.5 sm:mt-0">
                             <input type="checkbox" {{ !empty($settings['is_small_business']) ? 'checked' : '' }} class="peer sr-only pointer-events-none" readonly>
                             <div class="w-5 h-5 bg-gray-100 dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-700 rounded transition-all {{ !empty($settings['is_small_business']) ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : '' }} shadow-sm dark:shadow-inner"></div>
                             <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 {{ !empty($settings['is_small_business']) ? 'opacity-100' : 'opacity-0' }} transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                         </div>
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2">
-                                <span class="block font-bold text-gray-900 dark:text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Kleinunternehmerregelung</span>
-                                <span class="text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider border {{ $this->taxStatusSummary['badge_color'] }}">
+                            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                <span class="font-bold text-gray-900 dark:text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Kleinunternehmerregelung</span>
+                                <span class="text-[9px] px-2 py-0.5 rounded-full font-black uppercase tracking-wider border shrink-0 {{ $this->taxStatusSummary['badge_color'] }}">
                                     {{ $this->taxStatusSummary['badge'] }}
                                 </span>
                             </div>
-                            <span class="text-[10px] text-gray-500 font-medium mt-0.5 block leading-tight">{{ $this->taxStatusSummary['desc'] }}</span>
+                            <span class="text-[10px] text-gray-500 font-medium mt-1 block leading-normal">{{ $this->taxStatusSummary['desc'] }}</span>
                         </div>
                     </button>
                 </div>

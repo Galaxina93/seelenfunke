@@ -405,8 +405,7 @@ class ProductAnalytics extends Component
         // Sales der letzten 30 Tage pro Produkt holen
         $recentSales = OrderOrderItem::whereHas('order', function ($query) use ($thirtyDaysAgo) {
             $query->where('created_at', '>=', $thirtyDaysAgo)
-                  ->where('status', '!=', 'cancelled')
-                  ->where('status', '!=', 'draft');
+                  ->whereNotIn('status', ['cancelled', 'refunded', 'draft']);
         })
         ->select('product_id', DB::raw('SUM(quantity) as total_sold'))
         ->groupBy('product_id')
@@ -506,8 +505,7 @@ class ProductAnalytics extends Component
         // Sales des aktuellen Jahres (wir summieren einfach anhand der getätigten Käufe * Gewicht)
         $salesThisYear = OrderOrderItem::whereHas('order', function ($query) use ($currentYear) {
             $query->whereYear('created_at', $currentYear)
-                  ->where('status', '!=', 'cancelled')
-                  ->where('status', '!=', 'draft');
+                  ->whereNotIn('status', ['cancelled', 'refunded', 'draft']);
         })
         ->select('product_id', DB::raw('SUM(quantity) as total_sold'))
         ->groupBy('product_id')

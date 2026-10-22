@@ -20,16 +20,17 @@ class FinancialService
         $fixedExpenses = 0;
 
         foreach ($groups as $group) {
+            $isIncome = ($group->type === 'income');
             foreach ($group->items as $item) {
-                if ($this->isDueInMonth($item, $month)) {
+                if ($this->isDueInMonth($item, $month, $year)) {
                     $amount = $item->amount;
                     if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
                         $amount = $amount / (1 + ($item->tax_rate / 100));
                     }
-                    if ($amount >= 0) {
-                        $fixedIncome += $amount;
+                    if ($isIncome) {
+                        $fixedIncome += abs($amount);
                     } else {
-                        $fixedExpenses += $amount;
+                        $fixedExpenses += -abs($amount);
                     }
                 }
             }
@@ -110,10 +111,22 @@ class FinancialService
         ];
     }
 
-    private function isDueInMonth($item, $currentMonth)
+    private function isDueInMonth($item, $currentMonth, $currentYear = null)
     {
+        $start = Carbon::parse($item->first_payment_date);
+        if ($currentYear !== null) {
+            $check = Carbon::createFromDate((int)$currentYear, (int)$currentMonth, 1)->startOfMonth();
+            $startMonth = $start->copy()->startOfMonth();
+            if ($check->lt($startMonth)) return false;
+            if ($item->last_payment_date && $check->gt(Carbon::parse($item->last_payment_date)->endOfMonth())) {
+                return false;
+            }
+            $diffMonths = $check->diffInMonths($startMonth);
+            return ($diffMonths % max(1, (int)$item->interval_months)) === 0;
+        }
+
         $startMonth = $item->first_payment_date->month;
-        $interval = $item->interval_months;
+        $interval = max(1, (int)$item->interval_months);
 
         $diff = ($currentMonth - $startMonth);
         if ($diff < 0) $diff += 12;
@@ -135,17 +148,20 @@ class FinancialService
         // 1. Fixkosten
         $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
+            $isIncome = ($group->type === 'income');
             foreach ($group->items as $item) {
-                $catKey = $item->amount >= 0 ? 'income' : ($item->is_business ? 'fixed_business' : 'fixed_private');
+                $catKey = $isIncome ? 'income' : ($item->is_business ? 'fixed_business' : 'fixed_private');
 
                 $itemRow = ['name' => $item->name . ' (' . $group->name . ')', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
 
                 for ($m = 1; $m <= 12; $m++) {
-                    if ($this->isDueInMonth($item, $m)) {
+                    if ($this->isDueInMonth($item, $m, $year)) {
                         $amount = $item->amount;
                         if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
                             $amount = $amount / (1 + ($item->tax_rate / 100));
                         }
+                        $amount = $isIncome ? abs($amount) : -abs($amount);
+
                         $structure[$catKey]['months'][$m] += $amount;
                         $structure[$catKey]['year_sum'] += $amount;
                         $itemRow['months'][$m] = $amount;
@@ -318,16 +334,17 @@ class FinancialService
                         ? Carbon::createFromFormat('Y-m', $dateKey)->startOfMonth()
                         : Carbon::createFromFormat('Y-m-d', $dateKey);
 
-                    if ($this->isDueInMonth($item, $dateObj->month)) {
+                    if ($this->isDueInMonth($item, $dateObj->month, $dateObj->year)) {
                         $amount = $item->amount;
                         if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
                             $amount = $amount / (1 + ($item->tax_rate / 100));
                         }
                         
+                        $isIncome = ($group->type === 'income');
                         if (!$isMonthly) {
-                            if ($dateObj->day == $dayOfMonth) $this->addToChartData($val, $amount);
+                            if ($dateObj->day == $dayOfMonth) $this->addToChartData($val, $amount, $isIncome);
                         } else {
-                            $this->addToChartData($val, $amount);
+                            $this->addToChartData($val, $amount, $isIncome);
                         }
                     }
                 }
@@ -389,10 +406,10 @@ class FinancialService
         ];
     }
 
-    private function addToChartData(&$dataArray, $amount) {
-        if ($amount >= 0) {
+    private function addToChartData(&$dataArray, $amount, $isIncome = null) {
+        if ($isIncome !== null ? $isIncome : ($amount >= 0)) {
             // Einnahme
-            $dataArray['income'] += $amount;
+            $dataArray['income'] += abs($amount);
         } else {
             // Ausgabe (wird als positiver Wert für den Chartbalken gespeichert)
             // Wenn es hier eine Rückerstattung gibt (amount > 0), ist es oben in Income gelandet.
@@ -426,7 +443,7 @@ class FinancialService
         $fixedCosts = collect();
         foreach ($fixedGroups as $group) {
             foreach ($group->items as $item) {
-                if ($this->isDueInMonth($item, $month)) {
+                if ($this->isDueInMonth($item, $month, $year)) {
                     $fixedCosts->push((object)[
                         'name' => $item->name,
                         'category' => $group->name,

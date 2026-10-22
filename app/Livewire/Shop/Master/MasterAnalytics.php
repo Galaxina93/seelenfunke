@@ -13,6 +13,7 @@ use App\Services\AnalyticsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -45,6 +46,9 @@ class MasterAnalytics extends Component
     public ?string $expandedHealthKey = null;
     public array $repairLogs = [];
 
+    // 10-Jahres Firmenreise & Meilensteine
+    public string $journeyStartDate = '2026-11-01';
+
     public $showAbandonedCarts = false;
     public ?string $latestSecurityReport = null;
     public ?string $securityReportContent = null;
@@ -57,7 +61,7 @@ class MasterAnalytics extends Component
     public $infoTexts = [
         'trend' => 'Veränderung des Umsatzes im Vergleich zum vorherigen Zeitraum gleicher Länge.',
         'marge' => 'Verhältnis von Gewinn zu Umsatz. Zeigt, wie viel Prozent vom Umsatz als Gewinn verbleiben.',
-        'avg_profit' => 'Durchschnittlicher Gewinn pro Zeiteinheit innerhalb des gewählten Zeitraums.',
+        'avg_profit' => 'Durchschnittlicher monatlicher Reingewinn (Einnahmen abzgl. aller Kosten).',
         'prognose' => 'Hochrechnung des Gewinns auf das Jahr basierend auf der aktuellen Performance.',
         'break_even' => 'Monatlicher Umsatz, der nötig ist, um alle fixen Kosten zu decken.',
         'offene' => 'Summe aller Rechnungen mit Status "Offen", die noch nicht beglichen wurden.',
@@ -65,8 +69,286 @@ class MasterAnalytics extends Component
         'shop_rev' => 'Summe aller bezahlten Bestellungen über den Online-Shop.',
         'fix_priv' => 'Regelmäßige private Ausgaben (Miete, Versicherungen, Unterhalt).',
         'fix_bus' => 'Regelmäßige geschäftliche Ausgaben (Server, Software, Miete).',
-        'variabel' => 'Einmalige Ausgaben und Sonderausgaben ohne festes Intervall.'
+        'variabel' => 'Einmalige Ausgaben und Sonderausgaben ohne festes Intervall.',
+        'pillar_growth' => 'Wachstum misst die Geschäftsexpansion über Umsatzvolumen, prozentuale Wachstumsraten im Vergleich zum Vorzeitraum und den prognostizierten Jahresumsatz.',
+        'pillar_profitability' => 'Rentabilität zeigt die operative Ertragskraft: Welcher prozentuale und absolute Überschuss verbleibt nach Abzug sämtlicher Kosten als Gewinn.',
+        'pillar_security' => 'Sicherheit bewertet das finanzielle Fundament anhand der monatlichen Break-Even-Schwelle, offener Rechnungen und der Fixkostenstruktur.',
+        'shop_revenue' => 'Tatsächlich bezahlte Umsätze aus dem Online-Shop im ausgewählten Zeitraum.',
+        'revenue_growth' => 'Prozentuale Veränderung des Umsatzes im Vergleich zum unmittelbar vorherigen Zeitraum gleicher Länge.',
+        'projected_year' => 'Statistische Hochrechnung des Jahresüberschusses basierend auf dem monatlichen Durchschnittsgewinn (12 × Ø Monatsgewinn).',
+        'margin' => 'Nettomarge: Prozentualer Anteil des Reingewinns an den Gesamteinnahmen (Gewinn ÷ Gesamteinnahmen × 100).',
+        'break_even_monthly' => 'Monatlicher Mindestbetrag aller fixen Gewerbe- und Privatkosten, der durch Einnahmen gedeckt werden muss.',
+        'pending_invoices' => 'Summe noch unbezahlter Ausgangsrechnungen, die als offene Forderungen ausstehen.'
     ];
+
+    public function getCompanyRanks(): array
+    {
+        return [
+            [
+                'id' => 1,
+                'title' => 'Dachboden',
+                'target_rev' => 0,
+                'next_rev' => 2500,
+                'percent_pos' => 2,
+                'condition_text' => 'Start (< 2,5K €)',
+                'badge_color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
+                'pill_color' => 'from-amber-500/20 to-amber-600/10 text-amber-600 dark:text-amber-400 border-amber-500/40',
+                'glow_color' => 'rgba(245,158,11,0.3)',
+                'icon' => 'home',
+                'motto' => 'Aller Anfang beginnt im Kleinen. Der Dachboden ist unsere Startrampe!',
+                'faith' => '„Denn wer verachtet den Tag kleiner Anfänge?“ (Sacharja 4,10)'
+            ],
+            [
+                'id' => 2,
+                'title' => 'Fundament',
+                'target_rev' => 2500,
+                'next_rev' => 5000,
+                'percent_pos' => 10,
+                'condition_text' => '2,5K € Monatsumsatz',
+                'badge_color' => 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/30',
+                'pill_color' => 'from-teal-500/20 to-teal-600/10 text-teal-600 dark:text-teal-400 border-teal-500/40',
+                'glow_color' => 'rgba(20,184,166,0.3)',
+                'icon' => 'cube',
+                'motto' => 'Das Fundament ist gegossen – feste Einnahmen decken die Basis.',
+                'faith' => '„Er grub tief und legte das Fundament auf den Felsen.“ (Lukas 6,48)'
+            ],
+            [
+                'id' => 3,
+                'title' => 'Garagenhof',
+                'target_rev' => 5000,
+                'next_rev' => 10000,
+                'percent_pos' => 18,
+                'condition_text' => '5K € Monatsumsatz',
+                'badge_color' => 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
+                'pill_color' => 'from-blue-500/20 to-blue-600/10 text-blue-600 dark:text-blue-400 border-blue-500/40',
+                'glow_color' => 'rgba(59,130,246,0.3)',
+                'icon' => 'archive-box',
+                'motto' => 'Raum für Wachstum. Erste Auslagerung aus den eigenen vier Wänden.',
+                'faith' => '„Wer im Kleinsten treu ist, dem wird auch Großes anvertraut.“ (Lukas 16,10)'
+            ],
+            [
+                'id' => 4,
+                'title' => 'Atelier',
+                'target_rev' => 10000,
+                'next_rev' => 15000,
+                'percent_pos' => 26,
+                'condition_text' => '10K € Fünfstellig',
+                'badge_color' => 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30',
+                'pill_color' => 'from-violet-500/20 to-violet-600/10 text-violet-600 dark:text-violet-400 border-violet-500/40',
+                'glow_color' => 'rgba(139,92,246,0.3)',
+                'icon' => 'paint-brush',
+                'motto' => '10K geknackt! Die fünfstellige Schwelle steht für echte Produktqualität.',
+                'faith' => '„Mache den Raum deines Zeltes weit, spare nicht!“ (Jesaja 54,2)'
+            ],
+            [
+                'id' => 5,
+                'title' => 'Werkstatt',
+                'target_rev' => 15000,
+                'next_rev' => 20000,
+                'percent_pos' => 34,
+                'condition_text' => '15K € Monatsumsatz',
+                'badge_color' => 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30',
+                'pill_color' => 'from-cyan-500/20 to-cyan-600/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/40',
+                'glow_color' => 'rgba(6,182,212,0.3)',
+                'icon' => 'wrench-screwdriver',
+                'motto' => 'Echtes Handwerk, feste Strukturen. Die Maschinen glühen täglich!',
+                'faith' => '„Befiehl dem Herrn dein Werk, so gelingen deine Pläne.“ (Sprüche 16,3)'
+            ],
+            [
+                'id' => 6,
+                'title' => 'Packstation',
+                'target_rev' => 20000,
+                'next_rev' => 30000,
+                'percent_pos' => 42,
+                'condition_text' => '20K € Monatsumsatz',
+                'badge_color' => 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30',
+                'pill_color' => 'from-sky-500/20 to-sky-600/10 text-sky-600 dark:text-sky-400 border-sky-500/40',
+                'glow_color' => 'rgba(14,165,233,0.3)',
+                'icon' => 'truck',
+                'motto' => '20K Durchsatz – täglich verlassen vollgepackte Sendungen das Lager.',
+                'faith' => '„Gott aber vermag jede Gnade in euch überströmen zu lassen.“ (2. Korinther 9,8)'
+            ],
+            [
+                'id' => 7,
+                'title' => 'Studio',
+                'target_rev' => 30000,
+                'next_rev' => 40000,
+                'percent_pos' => 50,
+                'condition_text' => '30K € Monatsumsatz',
+                'badge_color' => 'bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-500/30',
+                'pill_color' => 'from-fuchsia-500/20 to-fuchsia-600/10 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-500/40',
+                'glow_color' => 'rgba(217,70,239,0.3)',
+                'icon' => 'camera',
+                'motto' => '30K erreicht – starke Markenpräsenz und kreativer Schaffensraum.',
+                'faith' => '„Der Herr segne dich und behüte dich; er lasse sein Angesicht leuchten.“ (4. Mose 6,24)'
+            ],
+            [
+                'id' => 8,
+                'title' => 'Manufaktur',
+                'target_rev' => 40000,
+                'next_rev' => 55000,
+                'percent_pos' => 58,
+                'condition_text' => '40K € Meilenstein',
+                'badge_color' => 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+                'pill_color' => 'from-emerald-500/20 to-emerald-600/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/40',
+                'glow_color' => 'rgba(16,185,129,0.3)',
+                'icon' => 'sparkles',
+                'motto' => '40K Monatsmarke geknackt – eine unaufhaltsame Marke entsteht!',
+                'faith' => '„Mein Gott wird allen Mangel ausfüllen nach seinem Reichtum.“ (Philipper 4,19)'
+            ],
+            [
+                'id' => 9,
+                'title' => 'Logistikhalle',
+                'target_rev' => 55000,
+                'next_rev' => 70000,
+                'percent_pos' => 66,
+                'condition_text' => '55K € Monatsumsatz',
+                'badge_color' => 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
+                'pill_color' => 'from-amber-500/20 to-amber-600/10 text-amber-600 dark:text-amber-400 border-amber-500/40',
+                'glow_color' => 'rgba(245,158,11,0.3)',
+                'icon' => 'building-storefront',
+                'motto' => '55K Durchsatz – automatisierte Fördertechnik und Palettenlogistik.',
+                'faith' => '„Denn der Herr gibt Weisheit; Erkenntnis und Einsicht kommen aus seinem Mund.“ (Sprüche 2,6)'
+            ],
+            [
+                'id' => 10,
+                'title' => 'Fabrik',
+                'target_rev' => 70000,
+                'next_rev' => 100000,
+                'percent_pos' => 74,
+                'condition_text' => '70K € Meilenstein',
+                'badge_color' => 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30',
+                'pill_color' => 'from-indigo-500/20 to-indigo-600/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/40',
+                'glow_color' => 'rgba(99,102,241,0.3)',
+                'icon' => 'cpu-chip',
+                'motto' => '70K Monatsumsatz – automatisierte Fertigung und Skalierung.',
+                'faith' => '„Der Herr wird deinen Ausgang und Eingang behüten von nun an bis in Ewigkeit.“ (Psalm 121,8)'
+            ],
+            [
+                'id' => 11,
+                'title' => 'Gewerbepark',
+                'target_rev' => 100000,
+                'next_rev' => 500000,
+                'percent_pos' => 82,
+                'condition_text' => '100K € Sechsstellig',
+                'badge_color' => 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
+                'pill_color' => 'from-purple-500/20 to-purple-600/10 text-purple-600 dark:text-purple-400 border-purple-500/40',
+                'glow_color' => 'rgba(168,85,247,0.3)',
+                'icon' => 'building-office',
+                'motto' => '100K pro Monat! Der Durchbruch in die sechsstellige Königsklasse.',
+                'faith' => '„Durch Weisheit wird ein Haus gebaut und durch Verstand erhalten.“ (Sprüche 24,3)'
+            ],
+            [
+                'id' => 12,
+                'title' => 'Firmensitz',
+                'target_rev' => 500000,
+                'next_rev' => 1000000,
+                'percent_pos' => 91,
+                'condition_text' => '500K € Campus',
+                'badge_color' => 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30',
+                'pill_color' => 'from-rose-500/20 to-rose-600/10 text-rose-600 dark:text-rose-400 border-rose-500/40',
+                'glow_color' => 'rgba(244,63,94,0.3)',
+                'icon' => 'building-library',
+                'motto' => 'Der millionenschwere Firmensitz – ein bleibendes Monument!',
+                'faith' => '„Denn Gott ist es, der dir die Kraft gibt, Reichtum zu schaffen.“ (5. Mose 8,18)'
+            ],
+            [
+                'id' => 13,
+                'title' => 'Imperium',
+                'target_rev' => 1000000,
+                'next_rev' => null,
+                'percent_pos' => 100,
+                'condition_text' => '1 Million € Mega-Ziel',
+                'badge_color' => 'bg-amber-400/20 text-amber-500 dark:text-amber-300 border-amber-400/50',
+                'pill_color' => 'from-amber-400/30 via-amber-500/20 to-yellow-500/20 text-amber-600 dark:text-amber-300 border-amber-400/60 shadow-[0_0_15px_rgba(251,191,36,0.3)]',
+                'glow_color' => 'rgba(251,191,36,0.5)',
+                'icon' => 'trophy',
+                'motto' => '1 Million Monatsumsatz – die Vision ist vollbrachte Realität!',
+                'faith' => '„Siehe, ich habe vor dir eine offene Tür gegeben, die niemand zuschließen kann.“ (Offenbarung 3,8)'
+            ],
+        ];
+    }
+
+    #[Computed]
+    public function currentCompanyRank(): array
+    {
+        return $this->getCurrentCompanyRankProperty();
+    }
+
+    public function getCurrentCompanyRankProperty(): array
+    {
+        $currentMonthlyRevenue = (float) ($this->stats['avg_revenue_monthly'] ?? 0);
+        $ranks = $this->getCompanyRanks();
+
+        $active = $ranks[0];
+        foreach ($ranks as $rank) {
+            if ($currentMonthlyRevenue >= $rank['target_rev']) {
+                $active = $rank;
+            }
+        }
+
+        return $active;
+    }
+
+    #[Computed]
+    public function journeyProgress(): array
+    {
+        $currentMonthlyRevenue = (float) ($this->stats['avg_revenue_monthly'] ?? 0);
+        
+        // Track Percentage calculation (0% to 100%)
+        if ($currentMonthlyRevenue <= 0) {
+            $trackPercent = 2;
+        } elseif ($currentMonthlyRevenue < 2500) {
+            $trackPercent = 2 + ($currentMonthlyRevenue / 2500) * 8;
+        } elseif ($currentMonthlyRevenue < 5000) {
+            $trackPercent = 10 + (($currentMonthlyRevenue - 2500) / 2500) * 8;
+        } elseif ($currentMonthlyRevenue < 10000) {
+            $trackPercent = 18 + (($currentMonthlyRevenue - 5000) / 5000) * 8;
+        } elseif ($currentMonthlyRevenue < 15000) {
+            $trackPercent = 26 + (($currentMonthlyRevenue - 10000) / 5000) * 8;
+        } elseif ($currentMonthlyRevenue < 20000) {
+            $trackPercent = 34 + (($currentMonthlyRevenue - 15000) / 5000) * 8;
+        } elseif ($currentMonthlyRevenue < 30000) {
+            $trackPercent = 42 + (($currentMonthlyRevenue - 20000) / 10000) * 8;
+        } elseif ($currentMonthlyRevenue < 40000) {
+            $trackPercent = 50 + (($currentMonthlyRevenue - 30000) / 10000) * 8;
+        } elseif ($currentMonthlyRevenue < 55000) {
+            $trackPercent = 58 + (($currentMonthlyRevenue - 40000) / 15000) * 8;
+        } elseif ($currentMonthlyRevenue < 70000) {
+            $trackPercent = 66 + (($currentMonthlyRevenue - 55000) / 15000) * 8;
+        } elseif ($currentMonthlyRevenue < 100000) {
+            $trackPercent = 74 + (($currentMonthlyRevenue - 70000) / 30000) * 8;
+        } elseif ($currentMonthlyRevenue < 500000) {
+            $trackPercent = 82 + (($currentMonthlyRevenue - 100000) / 400000) * 9;
+        } elseif ($currentMonthlyRevenue < 1000000) {
+            $trackPercent = 91 + (($currentMonthlyRevenue - 500000) / 500000) * 9;
+        } else {
+            $trackPercent = 100;
+        }
+        $trackPercent = min(100, max(2, round($trackPercent, 1)));
+
+        // 10-Year Timeline calculation
+        $start = \Carbon\Carbon::parse($this->journeyStartDate ?: '2026-11-01');
+        $end = $start->copy()->addYears(10);
+        $totalDays = $start->diffInDays($end) ?: 3652;
+        $now = now();
+
+        $isStarted = $now->greaterThanOrEqualTo($start);
+        $daysPassed = $isStarted ? $start->diffInDays($now) : 0;
+        $timePercent = $isStarted ? min(100, round(($daysPassed / $totalDays) * 100, 1)) : 0;
+        $daysUntilStart = $isStarted ? 0 : $now->diffInDays($start);
+
+        return [
+            'current_revenue' => $currentMonthlyRevenue,
+            'track_percent' => $trackPercent,
+            'is_started' => $isStarted,
+            'time_percent' => $timePercent,
+            'start_date_formatted' => $start->format('d.m.Y'),
+            'end_date_formatted' => $end->format('d.m.Y'),
+            'days_until_start' => $daysUntilStart,
+            'months_passed' => $isStarted ? $start->diffInMonths($now) : 0,
+        ];
+    }
 
     public function mount(AnalyticsService $service)
     {
@@ -636,9 +918,22 @@ class MasterAnalytics extends Component
             $this->dateStart = $config->date_start;
             $this->dateEnd = $config->date_end;
             $this->rangeMode = $config->range_mode ?? 'custom';
+            if (isset($config->widgets['journey_start_date'])) {
+                $this->journeyStartDate = $config->widgets['journey_start_date'];
+            }
         } else {
             $this->setWholeYear(false);
         }
+    }
+
+    public function saveJourneyStartDate()
+    {
+        $config = SystemCheckConfig::firstOrNew(['user_id' => auth()->id()]);
+        $widgets = $config->widgets ?? [];
+        $widgets['journey_start_date'] = $this->journeyStartDate;
+        $config->widgets = $widgets;
+        $config->save();
+        $this->dispatch('banner-message', style: 'success', message: 'Startpunkt für 10-Jahres-Reise aktualisiert.');
     }
 
     public function saveSettings($rangeMode = 'custom')
@@ -765,10 +1060,14 @@ class MasterAnalytics extends Component
         $this->validate(['uploadFile' => 'required|file|max:10240']);
         $item = AccountingCostItem::find($itemId);
         if ($item) {
-            $path = $this->uploadFile->store('leitung/contracts', 'public');
+            $path = app(\App\Services\Accounting\ContractDocumentService::class)->storeContractFile(
+                $this->uploadFile,
+                $item->toArray(),
+                $item->contract_file_path
+            );
             $item->update(['contract_file_path' => $path]);
             $this->reset('uploadFile');
-            session()->flash('success', 'Vertrag erfolgreich hochgeladen.');
+            session()->flash('success', 'Vertrag erfolgreich und logisch strukturiert hochgeladen.');
             $this->loadStats($service);
         }
     }

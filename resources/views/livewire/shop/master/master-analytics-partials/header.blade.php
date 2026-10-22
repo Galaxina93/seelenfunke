@@ -18,7 +18,9 @@
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
                 <i class="solar-pulse-bold-duotone text-primary"></i>Datenanalysezentrum
             </h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm">Echtzeitanalyse von Systemstatus, Finanzen und Performance.</p>
+            <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm">
+                Echtzeitanalyse von Systemstatus, Finanzen und Performance.
+            </p>
         </div>
         <div class="flex items-center gap-4 w-full md:w-auto">
             <div class="flex items-center gap-2">
