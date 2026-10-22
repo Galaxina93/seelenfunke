@@ -2040,13 +2040,22 @@ trait AiSystemFuncs
             $host = $parsed['host'] ?? 'localhost';
             $port = $parsed['port'] ?? ($scheme === 'wss' ? 443 : 80);
             
-            // Ping port
+            // Ping port & fetch /health telemetry
             $isOnline = false;
             $pingError = '';
+            $bridgeHealth = null;
             $fp = @fsockopen($host, $port, $errno, $errstr, 2.0);
             if ($fp) {
                 $isOnline = true;
                 fclose($fp);
+                try {
+                    $httpScheme = ($scheme === 'wss' || $port == 443) ? 'https' : 'http';
+                    $healthRes = \Illuminate\Support\Facades\Http::timeout(2)->get("{$httpScheme}://{$host}:{$port}/health");
+                    if ($healthRes->successful()) {
+                        $bridgeHealth = $healthRes->json();
+                    }
+                } catch (\Throwable $ignore) {
+                }
             } else {
                 $pingError = "[$errno] $errstr";
             }
@@ -2084,6 +2093,7 @@ trait AiSystemFuncs
                 'port' => $port,
                 'is_online' => $isOnline,
                 'ping_error' => $pingError,
+                'bridge_health' => $bridgeHealth,
                 'crash_log' => $crashContent,
                 'bridge_log_tail' => $logContent
             ];
@@ -2214,7 +2224,7 @@ trait AiSystemFuncs
                     $processedCount++;
                 }
             } else {
-                if ($log->status === 'error') {
+                if (in_array($log->status, ['error', 'warning'], true)) {
                     $log->status = 'success';
                     if (!str_starts_with($log->title, '[GELÖST]')) {
                         $log->title = '[GELÖST] ' . $log->title;
@@ -2272,7 +2282,7 @@ trait AiSystemFuncs
             if ($searchStatus) {
                 $query->where('status', $searchStatus);
             } elseif ($action === 'resolve') {
-                $query->where('status', 'error');
+                $query->whereIn('status', ['error', 'warning']);
             }
             
             if ($targetScope === 'latest') {
@@ -2286,7 +2296,7 @@ trait AiSystemFuncs
                     (clone $query)->delete();
                     $processedCount = $count;
                 } elseif ($action === 'resolve') {
-                    $errorQuery = (clone $query)->where('status', 'error');
+                    $errorQuery = (clone $query)->whereIn('status', ['error', 'warning']);
                     $count = $errorQuery->count();
                     if ($count > 0) {
                         $ids = $errorQuery->pluck('id');
@@ -2546,12 +2556,12 @@ trait AiSystemFuncs
                 return ['status' => 'error', 'message' => 'GlobalLog-Klasse ist im System nicht existent.'];
             }
 
-            // Hole nur die echten System/KI/Auto-Warnungen und Fehler der letzten 24h
+            // Hole nur die echten System/KI/Auto-Warnungen und Fehler der letzten 24h inkl. Diagnose-Payload
             $logs = \App\Models\System\SystemLog::whereIn('status', ['error', 'warning'])
                 ->where('started_at', '>=', now()->subHours(24))
                 ->orderByDesc('started_at')
                 ->limit(10)
-                ->get(['title', 'message', 'status', 'type', 'started_at']);
+                ->get(['id', 'action_id', 'title', 'message', 'status', 'type', 'payload', 'started_at']);
 
             if ($logs->isEmpty()) {
                 return ['status' => 'success', 'message' => 'Das Systemprotokoll verzeichnet keine Fehler oder Warnungen in den letzten 24 Stunden. Alles läuft perfekt.'];

@@ -96,6 +96,32 @@ class AppServiceProvider extends ServiceProvider
                     Config::set('queue.default', 'database');
                 }
                 \Illuminate\Support\Facades\Log::warning('Redis nicht erreichbar (' . $redisEx->getMessage() . ') – Automatischer Fallback auf File-Cache/Session aktiviert.');
+
+                try {
+                    if (!app()->runningInConsole() && class_exists(\App\Models\System\SystemLog::class) && Schema::hasTable('system_logs')) {
+                        $throttleKey = 'redis_fallback_logged_' . date('Ymd_H');
+                        if (!Cache::store('file')->has($throttleKey)) {
+                            Cache::store('file')->put($throttleKey, true, 1800);
+                            \App\Models\System\SystemLog::create([
+                                'type' => 'system',
+                                'action_id' => 'system:redis_fallback',
+                                'title' => 'Redis-Fallback aktiviert (File-Cache)',
+                                'message' => 'Redis-Host nicht erreichbar (' . substr($redisEx->getMessage(), 0, 250) . '). System nutzt automatisch File-Cache & File-Session.',
+                                'status' => 'warning',
+                                'payload' => [
+                                    'redis_host' => Config::get('database.redis.default.host'),
+                                    'error' => $redisEx->getMessage(),
+                                    'active_cache_driver' => Config::get('cache.default'),
+                                    'active_session_driver' => Config::get('session.driver'),
+                                    'active_queue_driver' => Config::get('queue.default'),
+                                ],
+                                'started_at' => now(),
+                                'finished_at' => now(),
+                            ]);
+                        }
+                    }
+                } catch (\Throwable $ignore) {
+                }
             }
         }
 

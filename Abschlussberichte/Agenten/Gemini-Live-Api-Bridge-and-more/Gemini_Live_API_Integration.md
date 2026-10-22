@@ -273,3 +273,33 @@ Hier sind die Einstellungen aus dem Mittwald-Panel zur Referenz:
 #### 3. Intervall-Konfiguration (Cron-Syntax)
 ![Intervall-Konfiguration](images/interval_config.png)
 
+---
+
+## 11. Stabilitäts-, Resilienz- & Diagnose-Upgrade (22. Oktober 2026)
+
+### 11.1 Behobene Ursachen (Google Live API Code 1008, Redis DNS & PHP 8.5)
+1. **Google Live API `Code: 1008 (Requested entity was not found)` & `1007`:**
+   - **Automatische Modell-Normalisierung (`server-twilio.js`):** Veraltete Modellnamen (wie `models/gemini-2.5-flash-native-audio-preview-12-2025` von älteren Clients) werden in der Bridge automatisch auf `models/gemini-3.1-flash-live-preview` umgeschrieben.
+   - **Audio-Payload-Konvertierung (`server-twilio.js` & `FunkiraLiveViewModel.kt`):** Veraltete `realtimeInput.mediaChunks`-Audio-Pakete werden live in `realtimeInput.audio` konvertiert.
+   - **Schutz vor leeren Interrupt-Frames:** Leere `clientContent`-Pakete (`turnComplete: false` mit `" "`-Text) werden in der Bridge abgefangen und verworfen, bevor sie bei Google einen `1008`-Abbruch auslösen.
+2. **Stage-Server Redis DNS-Ausfallsicherung (`AppServiceProvider.php`):**
+   - Prüft beim Booten die DNS-Auflösbarkeit und Erreichbarkeit des Redis-Containers (`redis-t4tm3u...`). Bei einem Ausfall schaltet Laravel automatisch und unterbrechungsfrei auf `file` (Cache & Session) und `database` (Queue) um und protokolliert den Fallback gedrosselt in `system_logs`.
+3. **PHP 8.5 Deprecation-Fix (`config/database.php`):**
+   - Nutzt `defined('Pdo\Mysql::ATTR_SSL_CA') ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA`, wodurch die stündlichen PHP-8.5-Deprecation-Warnungen in den Mittwald-Cron-Logs eliminiert sind.
+
+### 11.2 Verstärkte Fehleranalyse & Telemetrie (`v1.2-diag`)
+- **Automatische Ursachen-Diagnose (`diagnoseWsIssue` in `server-twilio.js`):**
+  Ordnet jedem WebSocket-Close-Code (`1006`, `1007`, `1008`, `1009`, `1011`, `4001`, `4003`) automatisch eine präzise deutsche Fehlerkategorie, wahrscheinliche Ursache und Handlungsempfehlung zu.
+- **Sitzungs-Telemetrie & Event-Ringpuffer (`buildSessionDiagnostics`):**
+  Jeder ungewöhnliche Abbruch liefert in `system_logs` und in der Funkira-Warnmail:
+  - Client-Typ (`Android App (OkHttp)` vs. `Web Browser`), IP, User-Agent, Agent-Name, User-ID, Chat-Session-ID
+  - Angefordertes vs. aktives Gemini-Modell, `is_google_setup_complete`, Sitzungsdauer
+  - Paket-Zähler (`client_audio_packets_sent`, `google_messages_received`, `google_audio_chunks_received`, `tool_calls_count`, `last_tool_call`)
+  - Angewandte Schutz-Normalisierungen (`model_rewritten`, `media_chunks_converted`, `empty_interrupts_dropped`)
+  - Chronologie der letzten 15 Protokoll-Ereignisse (`recent_events`) mit Millisekunden-Zeitstempeln vor dem Ausfall
+- **HTTP Health-Check Endpunkt (`GET /health` auf Port 8081/8089):**
+  Liefert Echtzeit-JSON über Bridge-Version (`v1.2-diag`), Uptime, RAM-Verbrauch, aktive Live-Sessions/Twilio-Calls und den letzten Fehler (`last_issue`). Wird auch direkt vom KI-Tool `system_get_websocket_status` (`AiSystemFuncs.php`) ausgelesen.
+- **Globaler Laravel Exception-Logger (`bootstrap/app.php`):**
+  Repariert die bisher ins Leere laufende Referenz `App\Models\Global\GlobalLog` auf `App\Models\System\SystemLog` und speichert unbehandelte Exceptions inklusive automatischer Diagnose (`redis`, `database`, `gemini_api`, `mail`), Request-/CLI-Kontext und Stack-Trace-Auszug (`trace_excerpt`).
+
+

@@ -58,25 +58,50 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
             'payload' => 'nullable|array'
         ]);
 
+        $payload = $data['payload'] ?? [];
+        $payload['server_environment'] = [
+            'php_version' => PHP_VERSION,
+            'app_env' => config('app.env'),
+            'cache_driver' => config('cache.default'),
+            'session_driver' => config('session.driver'),
+            'queue_connection' => config('queue.default'),
+        ];
+
+        $mappedStatus = in_array($data['type'], ['crash', 'error'], true)
+            ? 'error'
+            : ($data['type'] === 'warning' ? 'warning' : 'success');
+
+        $actionId = $data['action_id'] ?? ('ws_' . uniqid());
+
         \App\Models\System\SystemLog::create([
             'type' => 'websocket',
-            'action_id' => $data['action_id'] ?? ('ws_' . uniqid()),
+            'action_id' => $actionId,
             'title' => 'WebSocket Bridge ' . ucfirst($data['type']),
             'message' => \Illuminate\Support\Str::limit($data['message'], 1000),
-            'status' => $data['type'] === 'crash' || $data['type'] === 'error' ? 'error' : 'success',
-            'payload' => $data['payload'] ?? [],
+            'status' => $mappedStatus,
+            'payload' => $payload,
             'started_at' => now(),
             'finished_at' => now(),
         ]);
 
         // --- E-Mail Benachrichtigung an Admin bei Fehlern/Crashes oder abnormalen Abbrüchen (mit Throttling gegen Mail-Bombing) ---
-        $isError = in_array($data['type'], ['crash', 'error']);
-        $isAbnormalDisconnect = ($data['type'] === 'warning' && isset($data['payload']['code']) && !in_array((int)$data['payload']['code'], [1000, 1001, 1005, 1006]));
+        $isError = in_array($data['type'], ['crash', 'error'], true);
+        $isAbnormalDisconnect = ($data['type'] === 'warning' && (!isset($payload['code']) || !in_array((int)$payload['code'], [1000, 1001, 1005, 1006], true)));
 
         if ($isError || $isAbnormalDisconnect) {
-            $mailThrottleKey = 'ws_error_mail_throttle_' . md5($data['message'] ?? 'ws_error');
-            if (!\Illuminate\Support\Facades\Cache::has($mailThrottleKey)) {
-                \Illuminate\Support\Facades\Cache::put($mailThrottleKey, true, now()->addMinutes(15));
+            $mailThrottleKey = 'ws_error_mail_throttle_' . md5(($data['message'] ?? 'ws_error') . '_' . ($payload['code'] ?? ''));
+            $shouldSendMail = true;
+            try {
+                if (\Illuminate\Support\Facades\Cache::has($mailThrottleKey)) {
+                    $shouldSendMail = false;
+                } else {
+                    \Illuminate\Support\Facades\Cache::put($mailThrottleKey, true, now()->addMinutes(15));
+                }
+            } catch (\Throwable $cacheEx) {
+                $shouldSendMail = true;
+            }
+
+            if ($shouldSendMail) {
                 try {
                     $recipient = 'kontakt@mein-seelenfunke.de';
                     if (function_exists('shop_setting')) {
@@ -84,20 +109,64 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
                     }
 
                     $subject = "⚠️ WEBSOCKET BRÜCKEN-FEHLER: " . ucfirst($data['type']);
-                    if ($isAbnormalDisconnect) {
-                        $subject = "⚠️ WEBSOCKET VERBINDUNGSABBRUCH: Code " . $data['payload']['code'];
+                    if ($isAbnormalDisconnect && isset($payload['code'])) {
+                        $subject = "⚠️ WEBSOCKET VERBINDUNGSABBRUCH: Code " . $payload['code'];
                     }
 
                     $body = "Hallo Admin,\n\n";
                     $body .= "Es wurde ein technisches Problem auf der WebSocket-Audiobrücke festgestellt.\n\n";
                     $body .= "--- Details ---\n";
                     $body .= "Typ: " . strtoupper($data['type']) . "\n";
+                    $body .= "Action-ID: " . $actionId . "\n";
                     $body .= "Zeit: " . now()->format('d.m.Y H:i:s') . " Uhr\n";
                     $body .= "Nachricht: " . $data['message'] . "\n\n";
 
-                    if (!empty($data['payload'])) {
+                    if (!empty($payload['diagnosis']) && is_array($payload['diagnosis'])) {
+                        $diag = $payload['diagnosis'];
+                        $body .= "--- Automatische Ursachen-Analyse (Diagnose) ---\n";
+                        $body .= "Kategorie: " . ($diag['category'] ?? 'unbekannt') . "\n";
+                        $body .= "Wahrscheinliche Ursache: " . ($diag['probable_cause'] ?? 'Keine Angabe') . "\n";
+                        $body .= "Empfohlene Maßnahme: " . ($diag['recommended_action'] ?? 'Systemlogs prüfen') . "\n\n";
+                    }
+
+                    if (!empty($payload['session_telemetry']) && is_array($payload['session_telemetry'])) {
+                        $tel = $payload['session_telemetry'];
+                        $norms = $tel['normalizations_applied'] ?? [];
+                        $body .= "--- Sitzungs- & Client-Telemetrie ---\n";
+                        $body .= "Agent: " . ($tel['agent_name'] ?? 'Funkira') . " (ID: " . ($tel['agent_id'] ?? '-') . ")\n";
+                        $body .= "User-ID: " . ($tel['user_id'] ?? 'Gast') . " | Chat-Session: " . ($tel['chat_session_id'] ?? '-') . "\n";
+                        $body .= "Client-Typ: " . ($tel['client_type'] ?? 'Unbekannt') . " | IP: " . ($tel['client_ip'] ?? '-') . "\n";
+                        $body .= "User-Agent: " . ($tel['user_agent'] ?? '-') . "\n";
+                        $body .= "Modell (angefordert -> aktiv): " . ($tel['requested_model'] ?? '-') . " -> " . ($tel['effective_model'] ?? '-') . "\n";
+                        $body .= "Google Setup abgeschlossen: " . (!empty($tel['is_google_setup_complete']) ? 'Ja' : 'Nein') . "\n";
+                        $body .= "Sitzungsdauer: " . ($tel['session_duration_sec'] ?? 0) . " Sek.\n";
+                        $body .= "Pakete (Client-Audio -> Google-Msgs / Audio): " . ($tel['client_audio_packets_sent'] ?? 0) . " -> " . ($tel['google_messages_received'] ?? 0) . " / " . ($tel['google_audio_chunks_received'] ?? 0) . "\n";
+                        $body .= "Tool-Calls: " . ($tel['tool_calls_count'] ?? 0) . " (Letztes Tool: " . ($tel['last_tool_call'] ?? 'keins') . ")\n";
+                        $body .= "Schutz-Normalisierungen: Modell-Rewrite=" . (!empty($norms['model_rewritten']) ? 'Ja' : 'Nein')
+                            . ", MediaChunks-Konvertiert=" . ($norms['media_chunks_converted'] ?? 0)
+                            . ", Leere-Interrupts-Blockiert=" . ($norms['empty_interrupts_dropped'] ?? 0) . "\n\n";
+                    }
+
+                    if (!empty($payload['recent_events']) && is_array($payload['recent_events'])) {
+                        $body .= "--- Letzte Ereignisse vor dem Ausfall (Chronologie) ---\n";
+                        foreach ($payload['recent_events'] as $ev) {
+                            $tMs = $ev['t_ms'] ?? 0;
+                            $evName = $ev['event'] ?? 'event';
+                            $evDetail = !empty($ev['detail']) ? " ({$ev['detail']})" : '';
+                            $body .= sprintf("[+%dms] %s%s\n", $tMs, $evName, $evDetail);
+                        }
+                        $body .= "\n";
+                    }
+
+                    $env = $payload['server_environment'] ?? [];
+                    $body .= "--- Server- & Bridge-Umgebung ---\n";
+                    $body .= "Bridge-Version: " . ($payload['bridge_version'] ?? 'v1.0') . " (Uptime: " . ($payload['bridge_uptime_sec'] ?? '-') . "s, RAM: " . ($payload['memory_rss_mb'] ?? '-') . " MB)\n";
+                    $body .= "Laravel Env: " . ($env['app_env'] ?? '-') . " | PHP: " . ($env['php_version'] ?? PHP_VERSION) . "\n";
+                    $body .= "Treiber (Cache / Session / Queue): " . ($env['cache_driver'] ?? '-') . " / " . ($env['session_driver'] ?? '-') . " / " . ($env['queue_connection'] ?? '-') . "\n\n";
+
+                    if (!empty($payload)) {
                         $body .= "--- Systemdaten (Payload) ---\n";
-                        $body .= json_encode($data['payload'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n\n";
+                        $body .= json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n\n";
                     }
 
                     $body .= "Bitte prüfe die Systemlogs und starte ggf. die Node.js-Audiobrücke neu.\n\n";
