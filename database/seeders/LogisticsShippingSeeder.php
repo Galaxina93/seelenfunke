@@ -36,8 +36,9 @@ class LogisticsShippingSeeder extends Seeder
 
         // =================================================================
         // ZONE 2: EUROPÄISCHE UNION (DHL ZONE 1 Preise)
+        // Standardmäßig deaktiviert, kann bei Bedarf im Admin aktiviert werden
         // =================================================================
-        $eu = LogisticsShippingZone::create(['name' => 'EU - Zone 1 (DHL)', 'is_active' => true]);
+        $eu = LogisticsShippingZone::create(['name' => 'EU - Zone 1 (DHL)', 'is_active' => false]);
 
         // Alle DHL Zone 1 Länder (EU)
         $euCountries = [

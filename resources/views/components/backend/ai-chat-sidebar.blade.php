@@ -16,11 +16,46 @@
     }
 }">
     <!-- Header -->
-    <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-        <h3 class="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-widest text-sm">Chat Verlauf</h3>
-        <button wire:click="createNewChat" class="p-1.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)] dark:hover:bg-[var(--theme-color-30)] transition-colors" title="Neuer Chat">
-            <x-heroicon-o-plus class="w-4 h-4"/>
-        </button>
+    <div class="p-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-1">
+        <h3 class="font-bold text-gray-800 dark:text-gray-200 uppercase tracking-widest text-xs truncate">Chats</h3>
+        
+        <div class="flex items-center gap-1 shrink-0">
+            <!-- Sync -->
+            <button wire:click="syncAll" wire:loading.attr="disabled" class="p-1.5 rounded-lg text-gray-500 hover:text-[var(--theme-color)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Alles synchronisieren">
+                <svg wire:loading.remove wire:target="syncAll" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                </svg>
+                <svg wire:loading wire:target="syncAll" class="animate-spin h-3.5 w-3.5 text-[var(--theme-color)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+
+            <!-- Interne Agenten Modal Trigger -->
+            <button @click="$dispatch('open-agents-modal')" class="p-1.5 rounded-lg text-gray-500 hover:text-[var(--theme-color)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Interne Agenten verwalten">
+                <x-heroicon-o-cpu-chip class="w-3.5 h-3.5"/>
+            </button>
+
+            <!-- Wissensdatenbank -->
+            <button wire:click="$set('activeWorkspaceView', 'knowledge-base')" class="p-1.5 rounded-lg text-gray-500 hover:text-[var(--theme-color)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Wissensdatenbank">
+                <x-heroicon-o-book-open class="w-3.5 h-3.5"/>
+            </button>
+
+            <!-- Einstellungen -->
+            <button wire:click="$set('activeWorkspaceView', 'settings')" class="p-1.5 rounded-lg text-gray-500 hover:text-[var(--theme-color)] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Einstellungen">
+                <x-heroicon-o-cog-6-tooth class="w-3.5 h-3.5"/>
+            </button>
+
+            <!-- Neuer Chat -->
+            <button wire:click="createNewChat" class="p-1.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)] dark:hover:bg-[var(--theme-color-30)] transition-colors" title="Neuer Chat">
+                <x-heroicon-o-plus class="w-3.5 h-3.5"/>
+            </button>
+
+            <!-- Mobil: Schließen Button -->
+            <button type="button" @click="showMobileChatSidebar = false" class="md:hidden p-1.5 ml-1 rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-500/10 transition-colors" title="Seitenleiste schließen">
+                <x-heroicon-s-x-mark class="w-4 h-4"/>
+            </button>
+        </div>
     </div>
 
     <!-- Actions (Bulk Delete) -->

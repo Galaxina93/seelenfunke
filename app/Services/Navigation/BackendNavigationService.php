@@ -54,7 +54,7 @@ class BackendNavigationService
                             ['id' => 'support-analytics', 'title' => 'Analyse', 'route' => '/admin/support/analytics', 'icon' => 'chart-pie'],
                             ['id' => 'support-chats', 'title' => 'Chats', 'route' => '/admin/support-chats', 'icon' => 'chat-bubble-left-ellipsis'],
                             ['id' => 'support-ticket', 'title' => 'Tickets', 'route' => '/admin/support-tickets', 'icon' => 'ticket', 'is_ticket' => true],
-                            ['id' => 'support-contact-form', 'title' => 'Kontaktanfragen', 'route' => '/admin/support-contact-form', 'icon' => 'envelope'],
+                            ['id' => 'support-contact-form', 'title' => 'Kontakt', 'route' => '/admin/support-contact-form', 'icon' => 'envelope'],
                             ['id' => 'support-telephony', 'title' => 'Telefonie', 'route' => '/admin/support/telephony', 'icon' => 'phone'],
                         ]
                     ],
@@ -67,12 +67,12 @@ class BackendNavigationService
                         'children' => [
                             ['id' => 'product-analytics', 'title' => 'Analyse', 'route' => '/admin/product-analytics', 'icon' => 'chart-pie'],
                             ['id' => 'product-fracture', 'title' => 'Schaden', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
-                            ['id' => 'products', 'title' => 'Produktübersicht', 'route' => '/admin/products', 'icon' => 'cube'],
+                            ['id' => 'products', 'title' => 'Produkte', 'route' => '/admin/products', 'icon' => 'cube'],
                             ['id' => 'product-templates', 'title' => 'Vorlagen', 'route' => '/admin/product-templates', 'icon' => 'clipboard-document-list'],
                             ['id' => 'product-suppliers', 'title' => 'Lieferanten', 'route' => '/admin/product-suppliers', 'icon' => 'truck'],
                             ['id' => 'reviews', 'title' => 'Bewertungen', 'route' => '/admin/reviews', 'icon' => 'star'],
                             ['id' => 'product-crawler', 'title' => 'Crawler', 'route' => '/admin/product-crawler', 'icon' => 'magnifying-glass'],
-                            ['id' => 'product-packaging', 'title' => 'Verpackungsmaterial', 'route' => '/admin/product-packaging', 'icon' => 'archive-box'],
+                            ['id' => 'product-packaging', 'title' => 'Verpackung', 'route' => '/admin/product-packaging', 'icon' => 'archive-box'],
                         ]
                     ],
                     [

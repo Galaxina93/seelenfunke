@@ -29,8 +29,8 @@ class AiAgentRouter
         }
         $agentStr = implode("\n", $agentList);
 
-        $sysPrompt = "Du bist ein intelligenter Routing-Dispatcher für ein Multi-Agenten System.
-Deine Aufgabe ist es herauszufinden, welcher oder welche Agenten die Nutzeranfrage am besten beantworten können.
+        $sysPrompt = "Du bist ein intelligenter Routing-Dispatcher für ein Multi-Agenten System im internen Admin-Backend von Seelenfunke.
+Deine Aufgabe ist es herauszufinden, welcher oder welche Agenten die Nutzeranfrage von Admin Alina am besten beantworten können.
 Hier sind die verfügbaren Agenten:
 
 {$agentStr}
@@ -39,10 +39,11 @@ NUTZERANFRAGE: '{$userInput}'
 
 REGELN FÜR DAS ROUTING:
 1. Analysiere das Ziel der Nutzeranfrage und vergleiche es präzise mit den expliziten 'Werkzeuge' und 'Rolle' der Agenten.
-2. Spricht der Nutzer einen Agenten explizit namentlich an (z.B. 'Funkira mach mal...'), vergleiche, ob dieser Agent das überhaupt kann!
-3. Wenn der namentlich genannte Agent aber fachlich absolut NICHT das passende Werkzeug besitzt (z.B. Funkira wird nach Gutscheinen gefragt, Funkira hat aber nur Code-Tools, Luna hat aber VoucherTools), dann LASS DEN FALSCHEN AGENTEN WEG und inkludiere **NUR** die ID des echten Fach-Agenten! (Strikter Handover).
-4. Wird kein Agent genannt, wähle exakt den EINEN fachlich passendsten Agenten basierend auf den Tools aus. Wenn ein allgemeines 'Hallo' kommt, wähle den Agenten, der allgemeine Fragen klärt.
-5. Antworte AUSSCHLIESSLICH mit einem puren JSON-Array von Strings (die Agent-IDs). Keine Markdown-Blöcke, keine Rückfragen, reines JSON.
+2. Spricht der Nutzer einen Agenten explizit namentlich an (z.B. 'Funkira mach mal...', 'Buchi schau mal...'), wähle diesen Agenten.
+3. BEGRÜSSUNG & ALLGEMEINES: Wenn die Anfrage eine Begrüßung ist (z.B. 'Hallo', 'Hi', 'Guten Morgen'), allgemeine Projektkoordination oder keine spezifische Fachaufgabe betrifft, wähle IMMER den Teamleiter 'Funkira' (CEO-KI)!
+4. KUNDENSUPPORT: Der Agent 'Funki' ist ausschließlich für spezifische Kundensupport-Tickets, Retouren oder Kundenkommunikation zuständig. Funki darf NIEMALS bei allgemeinen Begrüßungen ('Hallo') im internen Workspace gewählt werden!
+5. Wird kein Agent genannt und es handelt sich um ein Fachthema, wähle exakt den passendsten Fachagenten basierend auf seinen Werkzeugen.
+6. Antworte AUSSCHLIESSLICH mit einem puren JSON-Array von Strings (die Agent-IDs). Keine Markdown-Blöcke, keine Rückfragen, reines JSON.
 Beispiel richtig: [\"id1\"]
 Beispiel falsch: Hier sind die Agenten: [...]";
 

@@ -18,8 +18,8 @@ class AiPromptService
     public static function getRichPrompt(AiAgent $agent): string
     {
         $user = Auth::user();
-        $isAdmin = ($user instanceof Admin) || Auth::guard('admin')->check();
-        $isCustomer = ($user instanceof Customer) || Auth::guard('customer')->check();
+        $isAdmin = AiAuthHelper::isAdmin();
+        $isCustomer = AiAuthHelper::isCustomer();
         
         $systemPromptText = $agent->system_prompt ?? '';
         
@@ -35,10 +35,46 @@ class AiPromptService
         $systemPromptText .= "\n\n[BUCHHALTUNG & FINANZEN REGEL]\n" .
                              "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
         
+        // Dynamic Briefing & Sprachrohr-Funktion für Funkira / Teamleiter
+        $isTeamLeader = $agent->name === 'Funkira' || ($agent->role && stripos($agent->role->name, 'Teamleiter') !== false);
+        if ($isTeamLeader) {
+            $otherAgents = AiAgent::where('is_active', true)
+                ->where('id', '!=', $agent->id)
+                ->with('role')
+                ->get();
+            
+            $agentsSummary = [];
+            foreach ($otherAgents as $oa) {
+                $roleName = $oa->role ? $oa->role->name : 'Spezialist';
+                $desc = $oa->role_description ?: ($oa->role ? $oa->role->description : 'Keine Beschreibung');
+                $agentsSummary[] = "• **{$oa->name}** (Rolle: {$roleName})\n  - Spezialgebiet: {$desc}";
+            }
+            $agentsOverview = implode("\n", $agentsSummary);
+
+            $systemPromptText .= "\n\n[TEAM-ÜBERSICHT & DEINE ROLLE ALS ZENTRALES SPRACHROHR]\n" .
+                "Du bist Funkira, die persönliche Assistentin, CEO-KI und das primäre SPRACHROHR für Shop-Gründerin Alina im internen Admin-Workspace.\n" .
+                "Du sprichst DIREKT mit Alina (Inhaberin von 'Mein Seelenfunke'). Du bist KEIN Kundenchat-Bot für externe Web-Besucher!\n\n" .
+                "Hier ist dein internes Spezialisten-Team, das dir jederzeit zur Verfügung steht:\n" .
+                $agentsOverview . "\n\n" .
+                "=== DEIN WORKFLOW FÜR DIE AGENTEN-KOMMUNIKATION ===\n" .
+                "1. SELBST PRÜFEN & ANTWORTEN: Prüfe bei jeder Anfrage von Alina zuerst, was du selbst direkt weißt, beantworten oder mit deinen eigenen Werkzeugen lösen kannst. Allgemeine Fragen, Strategien, Begrüßungen, Erklärungen oder Systemübersichten beantwortest du direkt, freundlich, motivierend und kompetent.\n" .
+                "2. SPEZIALISTEN KONSULTIEREN: Sobald eine Anfrage spezifisches Fachwissen oder tiefe Werkzeuge eines deiner Spezialisten erfordert (z.B. Buchhaltung/Finanzen bei Buchi, Bestellwesen/Fulfillment bei Bestelli, Laser-Details bei Lasi, Produkte bei Produkti, Kundentickets bei Funki, Marketing bei Marketi etc.):\n" .
+                "   - Rufe das Werkzeug `communication_ask_agent` auf mit:\n" .
+                "     - `agent_name`: Exakter Name des Spezialisten (z.B. 'Buchi', 'Bestelli', 'Lasi', 'Funki')\n" .
+                "     - `instruction`: Deine präzise Aufgabenstellung an den Spezialisten inklusive aller nötigen Details.\n" .
+                "   - KÜNDIGE ES ALINA AN: Sage Alina im Chat immer klar und sympathisch Bescheid, wen du gerade befragst (z.B. 'Ich habe dazu kurz bei unserem Finanzexperten Buchi nachgehakt...' oder 'Hierzu frage ich kurz Bestelli aus der Logistik...').\n" .
+                "   - SYNTHETISIERE DIE LÖSUNG: Fasse die Rückmeldung des Kollegen für Alina zusammen und präsentiere ihr die fertige, strukturierte Lösung.\n";
+        }
+
         // Check if this is a Support agent
         $isSupportAgent = ($agent->department && $agent->department->name === 'Support') || $agent->name === 'Funki';
         
-        if ($isSupportAgent) {
+        if ($isSupportAgent && $isAdmin) {
+            $systemPromptText = "Du bist '{$agent->name}', der interne Kundenservice- & Ticket-Spezialist von 'Mein Seelenfunke'.\n" .
+                "Du sprichst intern mit Shop-Inhaberin Alina im Administrationsbereich.\n" .
+                "Deine Aufgaben: Alina über Support-Anfragen, Ticket-Status, Kundenfeedback und Retouren informieren und auf ihre Anweisungen hin Tickets bearbeiten oder Kunden kontaktieren. Du sprichst professionell und kollegial mit Alina.\n\n" .
+                $systemPromptText;
+        } elseif ($isSupportAgent && !$isAdmin) {
             $aName = $agent->name;
             $aDesc = $agent->role_description ?: 'der extrem loyale, freundliche 24/7 Support-Agent';
             

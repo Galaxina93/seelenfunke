@@ -71,21 +71,16 @@
     <!-- Neon Header -->
     <div x-show="!isChatFullScreen" class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
         <p class="text-gray-600 dark:text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
-        <button @click="activeTab = activeTab === 'workspace' ? 'chat' : 'workspace'" class="lg:hidden mt-3 text-xs font-bold uppercase tracking-widest bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[var(--theme-color)] px-4 py-2 rounded-xl shadow-sm">
-            <span x-text="activeTab === 'workspace' ? 'Arbeitsbereich ausblenden' : 'Arbeitsbereich anzeigen'"></span>
-        </button>
     </div>
 
     <!-- Main Workspace Container -->
-    <div class="flex-1 flex flex-col lg:flex-row gap-4 lg:gap-6 px-4 lg:px-6 pb-4 lg:pb-6 overflow-hidden relative"
+    <div class="flex-1 flex flex-col gap-4 lg:gap-6 px-4 lg:px-6 pb-4 lg:pb-6 overflow-hidden relative"
          x-data="workspaceCanvas()">
 
-        @include('livewire.shop.ai.partials-ai-workspace.sidebar-agents')
-
         <!-- Main Content Area -->
-        <div class="flex-1 flex flex-col min-w-0 bg-transparent">
+        <div class="flex-1 flex flex-col min-w-0 bg-transparent min-h-0 h-full">
             <!-- Top Navigation Area -->
-            <div class="flex-1 flex flex-col overflow-hidden p-2">
+            <div class="flex-1 flex flex-col overflow-hidden p-2 min-h-0 h-full">
 
                 @if($activeWorkspaceView === 'knowledge-base')
                     @include('livewire.shop.ai.partials-ai-workspace.view-knowledge-base')
@@ -107,6 +102,7 @@
             </div>
         </div>
     </div>
+    @include('livewire.shop.ai.partials-ai-workspace.modal-internal-agents')
     @include('livewire.shop.ai.partials-ai-workspace.modals-and-scripts')
     </div>
 </div>

@@ -6,7 +6,7 @@
                         </button>
                     </div>
                     
-                    <div class="max-w-3xl w-full mx-auto relative z-10 pt-8 lg:pt-0">
+                    <div class="max-w-6xl w-full mx-auto relative z-10 pt-8 lg:pt-0">
                         <div class="mb-10 text-center">
                             <h2 class="text-3xl font-black text-gray-900 dark:text-white tracking-widest uppercase inline-flex items-center gap-3">
                                 <x-heroicon-o-cog-6-tooth class="w-8 h-8 text-[var(--theme-color)]" /> Einstellungen
@@ -199,3 +199,5 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>

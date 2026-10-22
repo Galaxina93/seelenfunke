@@ -1,6 +1,6 @@
 
             <!-- AI Chat Console -->
-            <div wire:key="tab-chat" x-data="{ showMobileChatSidebar: false }" :class="{'hidden': activeTab !== 'chat', '!fixed !inset-0 !m-0 !p-0 !z-[99999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-gray-950': isChatFullScreen}" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/80 backdrop-blur-xl flex overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full">
+            <div wire:key="tab-chat" x-data="{ showMobileChatSidebar: false }" :class="{'hidden': activeTab !== 'chat', '!fixed !inset-0 !m-0 !p-0 !z-[99999] !h-[100dvh] !w-[100vw] !rounded-none !border-none !bg-slate-50 dark:!bg-gray-950 text-gray-900 dark:text-gray-100': isChatFullScreen}" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/80 backdrop-blur-xl flex overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_rgba(0,0,0,0.5)] h-full w-full">
 
                 
                 <!-- Burger Menu Sidebar (Desktop/Tablet) -->
@@ -13,6 +13,11 @@
                 <!-- Mobile Sidebar Toggle -->
                 <button @click="showMobileChatSidebar = true" class="md:hidden absolute top-4 left-4 z-50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-white/90 dark:bg-gray-900/80 hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-200 dark:border-gray-700 shadow-md dark:shadow-xl" title="Chats anzeigen">
                     <x-heroicon-o-bars-3-bottom-left class="w-4 h-4" />
+                </button>
+
+                <!-- Mobile Quick Agent Modal Button -->
+                <button @click="$dispatch('open-agents-modal')" class="md:hidden absolute top-4 left-16 z-50 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-white/90 dark:bg-gray-900/80 hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-xl backdrop-blur-md border border-gray-200 dark:border-gray-700 shadow-md dark:shadow-xl" title="Agenten verwalten">
+                    <x-heroicon-o-cpu-chip class="w-4 h-4" />
                 </button>
 
                 <!-- Fullscreen Toggle Button (Mobile) -->
@@ -63,7 +68,7 @@
                                     @endif
                                 </div>
                             </div>
-                            <div class="max-w-[90%] lg:max-w-[85%] min-w-0 text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-300 rounded-tr-none shadow-sm dark:shadow-md' : 'bg-[var(--theme-color-5)] dark:bg-[var(--theme-color-10)] text-gray-800 dark:text-gray-200 rounded-tl-none border border-[var(--theme-color-20)] dark:border-gray-800 shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)]' }}">
+                            <div class="max-w-[90%] lg:max-w-[85%] min-w-0 text-sm lg:text-base leading-relaxed p-3 px-4 rounded-xl {{ $msg['role'] === 'user' ? 'bg-primary/10 border border-primary/25 text-gray-900 dark:bg-gray-950 dark:border-gray-700 dark:text-gray-200 rounded-tr-none shadow-sm dark:shadow-md' : 'bg-gray-100 dark:bg-gray-900/90 text-gray-900 dark:text-gray-200 rounded-tl-none border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)]' }}">
                                 @if($msg['role'] === 'user')
                                     @if(!empty($msg['attachments']) || !empty($msg['local_uploads']))
                                         <div class="flex flex-wrap gap-2 mb-2">
@@ -139,7 +144,7 @@
                                 </div>
                                 <span class="text-xs font-bold text-{{ $tAgent->color }} tracking-widest uppercase">{{ $tAgent->name }}</span>
                             </div>
-                            <div class="max-w-[85%] px-5 py-3 rounded-xl bg-[var(--theme-color-10)] text-gray-200 rounded-tl-none border border-gray-800 shadow-xl shadow-[var(--theme-color-10)]">
+                            <div class="max-w-[85%] px-5 py-3 rounded-xl bg-gray-100 dark:bg-[var(--theme-color-10)] text-gray-900 dark:text-gray-200 rounded-tl-none border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)]">
                                 <div class="font-mono text-sm leading-relaxed flex items-center gap-3">
                                     <span class="flex gap-1.5 pt-1">
                                         <span class="w-1.5 h-1.5 bg-[var(--theme-color)] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
@@ -154,7 +159,7 @@
                                     </span>
                                 </div>
                                 <div wire:stream="thought_{{ $tId }}" class="mt-2 text-xs flex flex-col gap-1 font-mono text-[var(--theme-color)] opacity-70 empty:hidden empty:mt-0"></div>
-                                <div wire:stream="answer_{{ $tId }}" class="mt-3 text-sm font-sans text-gray-200 leading-relaxed whitespace-pre-wrap empty:hidden empty:mt-0"></div>
+                                <div wire:stream="answer_{{ $tId }}" class="mt-3 text-sm font-sans text-gray-900 dark:text-gray-200 leading-relaxed whitespace-pre-wrap empty:hidden empty:mt-0"></div>
                             </div>
                         </div>
                         @endif
@@ -308,10 +313,6 @@
                     <div x-show="showMobileChatSidebar" x-transition.opacity class="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm" @click="showMobileChatSidebar = false"></div>
                     <div x-show="showMobileChatSidebar" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative w-[85%] max-w-sm h-full shadow-2xl flex flex-col pointer-events-auto z-10 border-r border-gray-200 dark:border-[var(--theme-color-50)]">
                         <x-backend.ai-chat-sidebar class="h-full border-r-0 w-full" />
-                        <!-- Close Button Inside Sidebar -->
-                        <button @click="showMobileChatSidebar = false" class="absolute top-4 right-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-[var(--theme-color-50)] text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white p-2 rounded-xl shadow-md dark:shadow-[0_0_15px_rgba(0,0,0,0.5)] z-50">
-                            <x-heroicon-s-x-mark class="w-5 h-5" />
-                        </button>
                     </div>
                 </div>
 

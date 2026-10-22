@@ -6,3 +6,4 @@
                     </div>
                     <livewire:shop.ai.ai-knowledge-base />
                     <div class="h-32 lg:hidden w-full shrink-0"></div>
+                </div>

@@ -120,8 +120,10 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--theme-color-50); }
         .ai-markdown-content p { margin-bottom: 0.5rem; }
         .ai-markdown-content ul { list-style-type: disc; padding-left: 1.5rem; }
-        .ai-markdown-content h3 { font-weight: bold; margin-top: 1rem; color: #fff; }
-        .ai-markdown-content code:not(.hljs) { background-color: rgba(255,255,255,0.1); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.85em; color: var(--theme-color); }
+        .ai-markdown-content h3 { font-weight: bold; margin-top: 1rem; color: #111827; }
+        html.dark .ai-markdown-content h3 { color: #fff; }
+        .ai-markdown-content code:not(.hljs) { background-color: rgba(0,0,0,0.06); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; font-size: 0.85em; color: var(--theme-color); }
+        html.dark .ai-markdown-content code:not(.hljs) { background-color: rgba(255,255,255,0.1); }
     </style>
 
     <!-- Management Modals (Isolated via wire:ignore) -->

@@ -559,17 +559,21 @@ trait ManagesAiChat
             return;
         }
 
-        $routedIds = \App\Services\AI\AiAgentRouter::determineRequiredAgents($rawUserInput, $this->activeAgentIds);
-        
-        // Use routed agent(s) if specifically identified, otherwise fallback to current/forced
-        $finalIds = !empty($routedIds) ? $routedIds : $this->activeAgentIds;
-        if (empty($finalIds)) {
-            $finalIds = $this->forcedAgentIds;
+        // Respect the user's manual selection of active agents exclusively
+        if (empty($this->activeAgentIds)) {
+            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
         }
 
-        if (!empty($finalIds)) {
-            $this->activeAgentIds = $finalIds;
-            AiAgent::whereIn('id', $this->activeAgentIds)->update(['is_in_chat' => true]);
+        // Fallback to Teamleiter (Funkira) if no agent is selected
+        if (empty($this->activeAgentIds)) {
+            $teamLeader = AiAgent::where('is_active', true)->whereHas('role', function($q) {
+                $q->where('name', 'like', '%Teamleiter%');
+            })->first();
+            $fallback = $teamLeader ?? AiAgent::where('is_active', true)->first();
+            if ($fallback) {
+                $fallback->update(['is_in_chat' => true]);
+                $this->activeAgentIds = [$fallback->id];
+            }
         }
 
         if (empty($this->activeAgentIds)) {
@@ -579,7 +583,7 @@ trait ManagesAiChat
                 'icon' => 'exclamation-triangle',
                 'profile_picture' => null,
             ];
-            $errStr = 'FEHLER: Kein Agent für Verarbeitung ausgewählt und Auto-Routing schlug fehl. Bitte wähle mindestens einen Agenten im oberen Panel manuell aus.';
+            $errStr = 'FEHLER: Kein Agent für Verarbeitung ausgewählt. Bitte wähle mindestens einen Agenten im Modal "Interne KI-Agenten" aus.';
             $this->saveMessageToDb('assistant', $errStr, $errCtx);
             return;
         }
