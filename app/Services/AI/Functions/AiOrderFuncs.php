@@ -341,10 +341,27 @@ trait AiOrderFuncs
                 return ['status' => 'error', 'message' => 'Keine Statuswerte zum Aktualisieren übergeben.'];
             }
 
+            $oldPaymentStatus = $order->payment_status;
             $order->update($updates);
 
             if ($isCancelling) {
                 $order->handleCancellation('KI-Agent Status-Update: Stornierung', $oldStatus);
+            }
+
+            if (($updates['status'] ?? null) === 'shipped' && $oldStatus !== 'shipped' && !empty($order->email)) {
+                try {
+                    Mail::to($order->email)->send(new \App\Mail\NewOrderShippedToCustomer($order->fresh()->toFormattedArray()));
+                } catch (\Throwable $mailEx) {
+                    \Illuminate\Support\Facades\Log::warning('NewOrderShippedToCustomer Mail-Fehler: ' . $mailEx->getMessage());
+                }
+            }
+
+            if (($updates['payment_status'] ?? null) === 'paid' && $oldPaymentStatus !== 'paid' && !empty($order->email)) {
+                try {
+                    Mail::to($order->email)->send(new \App\Mail\PaymentReceivedMail($order->fresh()->toFormattedArray()));
+                } catch (\Throwable $mailEx) {
+                    \Illuminate\Support\Facades\Log::warning('PaymentReceivedMail Mail-Fehler: ' . $mailEx->getMessage());
+                }
             }
 
             return [

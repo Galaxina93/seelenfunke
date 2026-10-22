@@ -608,6 +608,17 @@ trait AiSupportFuncs
                         'message'           => "Kunde hat im Funki-Chat nach einem Mitarbeiter verlangt. KI-Zusammenfassung: {$reason}. Bitte Chat-Verlauf prüfen.\n" . self::fetchChatHistory($chatId)
                     ]);
                     $chat->update(['support_ticket_id' => $ticket->id]);
+
+                    try {
+                        $customerObj = \App\Models\Customer\Customer::find($customerId);
+                        if ($customerObj && !empty($customerObj->email)) {
+                            \Illuminate\Support\Facades\Mail::to($customerObj->email)
+                                ->send(new \App\Mail\SupportTicketCreatedMailToCustomer($customerObj, $ticket));
+                        }
+                    } catch (\Throwable $mailEx) {
+                        \Illuminate\Support\Facades\Log::warning('SupportTicketCreatedMailToCustomer Fehler: ' . $mailEx->getMessage());
+                    }
+
                     return [
                         'status' => 'success',
                         'data' => [
@@ -1010,6 +1021,16 @@ trait AiSupportFuncs
                 'sender_type'       => 'customer',
                 'message'           => "KI-Zusammenfassung der Reklamation: \n" . $reason . "\n" . $chatHistoryStr
             ]);
+
+            try {
+                $customerObj = \App\Models\Customer\Customer::find($customerId);
+                if ($customerObj && !empty($customerObj->email)) {
+                    \Illuminate\Support\Facades\Mail::to($customerObj->email)
+                        ->send(new \App\Mail\SupportTicketCreatedMailToCustomer($customerObj, $ticket));
+                }
+            } catch (\Throwable $mailEx) {
+                \Illuminate\Support\Facades\Log::warning('SupportTicketCreatedMailToCustomer Fehler: ' . $mailEx->getMessage());
+            }
 
             $log->finish('success', 'Ticket TCK-'.$ticket->ticket_number.' erstellt.', [
                 'ticket_id' => $ticket->id,

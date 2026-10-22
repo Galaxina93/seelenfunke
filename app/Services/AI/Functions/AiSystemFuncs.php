@@ -2182,8 +2182,8 @@ trait AiSystemFuncs
         $runInBackground = $args['run_in_background'] ?? false;
         $isBackgroundJob = !empty($args['__is_background_job']);
 
-        // Mass actions should be dispatched to the background worker to avoid dead silence
-        $isBulkOperation = ($targetScope === 'all') || $manageAllSimilar || $runInBackground;
+        // Fast SQL bulk updates/deletes run synchronously (<15ms) so they never depend on a queue worker unless explicitly requested
+        $isBulkOperation = (bool) $runInBackground;
 
         if ($isBulkOperation && !$isBackgroundJob && empty($logId)) {
             $actionGer = match($action) {
@@ -2511,8 +2511,8 @@ trait AiSystemFuncs
                         $logs[] = "Scheduler manuell ausgeführt.";
                         break;
                     case 'backup':
-                        \Illuminate\Support\Facades\Artisan::queue('backup:run', ['--only-db' => true]);
-                        $logs[] = "Datenbank-Backup Auftrag gestartet.";
+                        \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
+                        $logs[] = "Datenbank-Backup erfolgreich durchgeführt.";
                         break;
                     case 'stripe':
                     case 'smtp':

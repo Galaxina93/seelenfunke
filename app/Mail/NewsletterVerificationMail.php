@@ -4,11 +4,10 @@ namespace App\Mail;
 
 use App\Models\Marketing\MarketingNewsletterSubscriber;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class NewsletterVerificationMail extends Mailable implements ShouldQueue
+class NewsletterVerificationMail extends Mailable
 {
     use Queueable, SerializesModels;
 

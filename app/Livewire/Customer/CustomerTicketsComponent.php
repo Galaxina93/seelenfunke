@@ -240,7 +240,7 @@ class CustomerTicketsComponent extends Component
 
         try {
             \Illuminate\Support\Facades\Mail::to($customerUser->email)
-                ->queue(new \App\Mail\SupportTicketCreatedMailToCustomer($customerUser, $ticket));
+                ->send(new \App\Mail\SupportTicketCreatedMailToCustomer($customerUser, $ticket));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Mail Error: ' . $e->getMessage());
         }

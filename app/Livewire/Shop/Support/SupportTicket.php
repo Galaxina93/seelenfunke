@@ -131,8 +131,11 @@ class SupportTicket extends Component
         if (!$isOnline && $ticket->customer) {
             $gamification = \App\Models\Customer\CustomerGamification::where('customer_id', $ticket->customer_id)->first();
             if (!$gamification || $gamification->ticket_emails_enabled) {
-                // Sende die E-Mail als Hintergrund-Job, das blockiert den Admin nicht
-                \Illuminate\Support\Facades\Mail::to($ticket->customer->email)->queue(new \App\Mail\SupportTicketUpdateMailToCustomer($ticket->customer, $ticket));
+                try {
+                    \Illuminate\Support\Facades\Mail::to($ticket->customer->email)->send(new \App\Mail\SupportTicketUpdateMailToCustomer($ticket->customer, $ticket));
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Ticket Update Mail Error: ' . $e->getMessage());
+                }
             }
         }
 

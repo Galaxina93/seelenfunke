@@ -5,13 +5,12 @@ namespace App\Mail;
 use App\Models\Customer\Customer;
 use App\Models\Support\SupportTicket;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class SupportTicketCreatedMailToCustomer extends Mailable implements ShouldQueue
+class SupportTicketCreatedMailToCustomer extends Mailable
 {
     use Queueable, SerializesModels;
 

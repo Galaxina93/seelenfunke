@@ -48,7 +48,7 @@ class ManagementCalendarEvent extends Model
 
             if ($recipient && $recipient->email) {
                 \Illuminate\Support\Facades\Mail::to($recipient->email)
-                    ->queue(new \App\Mail\CalendarEventCreated($event));
+                    ->send(new \App\Mail\CalendarEventCreated($event));
             }
         });
 

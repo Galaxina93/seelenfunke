@@ -221,19 +221,25 @@ Mit dieser Implementierung verfügt Seelenfunke über eine **hochmoderne, extrem
 
 ---
 
-## 9. Einrichtung & Deployment der Node.js App im mStudio
-Für die Ausführung der Gemini Live API Bridge auf dem Live-Server/Staging-Server wird im Mittwald mStudio eine Node.js-Applikation eingerichtet.
+## 9. Einrichtung, Deployment & Update-Workflow der Node.js App (`twilio-bridge`) im mStudio
 
-### mStudio App-Konfiguration
-Folgende Einstellungen müssen beim Anlegen der Node.js App im mStudio hinterlegt werden:
+> [!IMPORTANT]
+> **WICHTIG FÜR JEDES DEPLOYMENT (`twilio-bridge` vs. `seelenfunke-stage`):**  
+> Auf dem Mittwald-Server läuft die Node.js-Audiobrücke (`seelenfunke-nodejs`) in einem **eigenen Verzeichnis** (`/html/twilio-bridge`), getrennt vom Git-Hauptverzeichnis (`/html/seelenfunke-stage`).  
+> Ein normaler `git pull` in `/html/seelenfunke-stage` aktualisiert zwar die Datei `server-twilio.js` im Git-Ordner, **nicht aber automatisch die laufende Instanz in `/html/twilio-bridge`**!  
+> Wenn `/html/twilio-bridge/server-twilio.js` nach einem Update nicht synchronisiert und die Node.js-App im mStudio neu gestartet wird, läuft die Bridge weiterhin mit der alten Version (erkennbar an `"bridge_version"` im Log oder im Live-Ping-Tooltip).
+
+### 9.1 mStudio App-Konfiguration
+Folgende Einstellungen sind beim Anlegen der Node.js App im Mittwald mStudio hinterlegt:
 
 *   **Name:** `seelenfunke-nodejs`
-*   **Installationsverzeichnis:** `twilio-bridge`
+*   **Installationsverzeichnis:** `/html/twilio-bridge` (relativ: `twilio-bridge`)
 *   **Startbefehl:** `node server-twilio.js`
 *   **Verknüpfung / Domain:** `api-live-bridge.mein-seelenfunke.de`
+*   **Interner Health- & Ping-Port:** `127.0.0.1:8081` (`GET /health`)
 
-### Bereitstellung der Dateien
-Um die notwendigen Quelldateien aus dem Staging-Projekt in das Installationsverzeichnis der Node.js-App zu kopieren, führen Sie auf dem Server folgende Befehle aus:
+### 9.2 Erstmalige Bereitstellung & Manuelles Update nach `git pull`
+Um nach einem Git-Deployment die aktualisierte `server-twilio.js` aus dem Staging-Projekt in das Ausführungsverzeichnis der Node.js-App zu übernehmen, führen Sie per SSH auf dem Server folgende Befehle aus:
 
 ```bash
 cd /html/twilio-bridge
@@ -242,6 +248,23 @@ cp ../seelenfunke-stage/.env .
 cp ../seelenfunke-stage/package.json .
 cp -r ../seelenfunke-stage/node_modules .
 ```
+
+### 9.3 Empfohlene Dauerlösung: Symlink statt manuellem Kopieren
+Damit zukünftige `git pull`-Updates in `/html/seelenfunke-stage` **automatisch** auch in `/html/twilio-bridge` wirksam sind (ohne jedes Mal `cp` ausführen zu müssen), empfiehlt sich das einmalige Anlegen eines symbolischen Links:
+
+```bash
+cd /html/twilio-bridge
+ln -sf ../seelenfunke-stage/server-twilio.js /html/twilio-bridge/server-twilio.js
+ln -sf ../seelenfunke-stage/.env /html/twilio-bridge/.env
+```
+
+**Nach jedem Update von `server-twilio.js`:**
+1. Im Mittwald mStudio unter **Apps → `seelenfunke-nodejs`** auf **„Neu starten“ (Restart)** klicken (damit Node.js den neuen Code in den Arbeitsspeicher lädt).
+2. Zur schnellen Verifikation per SSH oder im Browser-Widget prüfen:
+   ```bash
+   curl -s http://127.0.0.1:8081/health
+   ```
+   Die Ausgabe muss `"bridge_version": "v1.3-stable"` und `"status": "ok"` anzeigen (alternativ sichtbar beim Hovern über den grünen Live-Ping-Punkt im Seiten-Widget **„Live-AI“**).
 
 ---
 
@@ -275,31 +298,71 @@ Hier sind die Einstellungen aus dem Mittwald-Panel zur Referenz:
 
 ---
 
-## 11. Stabilitäts-, Resilienz- & Diagnose-Upgrade (22. Oktober 2026)
+## 11. Stabilitäts-, Resilienz- & Diagnose-Upgrade (`v1.2-diag` → `v1.3-stable`, 22. Oktober 2026)
 
 ### 11.1 Behobene Ursachen (Google Live API Code 1008, Redis DNS & PHP 8.5)
 1. **Google Live API `Code: 1008 (Requested entity was not found)` & `1007`:**
    - **Automatische Modell-Normalisierung (`server-twilio.js`):** Veraltete Modellnamen (wie `models/gemini-2.5-flash-native-audio-preview-12-2025` von älteren Clients) werden in der Bridge automatisch auf `models/gemini-3.1-flash-live-preview` umgeschrieben.
-   - **Audio-Payload-Konvertierung (`server-twilio.js` & `FunkiraLiveViewModel.kt`):** Veraltete `realtimeInput.mediaChunks`-Audio-Pakete werden live in `realtimeInput.audio` konvertiert.
+   - **Audio- & Video-Payload-Konvertierung (`server-twilio.js` & `FunkiraLiveViewModel.kt`):** Veraltete `realtimeInput.mediaChunks`-Pakete werden live in `realtimeInput.audio` bzw. `realtimeInput.video` konvertiert.
    - **Schutz vor leeren Interrupt-Frames:** Leere `clientContent`-Pakete (`turnComplete: false` mit `" "`-Text) werden in der Bridge abgefangen und verworfen, bevor sie bei Google einen `1008`-Abbruch auslösen.
 2. **Stage-Server Redis DNS-Ausfallsicherung (`AppServiceProvider.php`):**
    - Prüft beim Booten die DNS-Auflösbarkeit und Erreichbarkeit des Redis-Containers (`redis-t4tm3u...`). Bei einem Ausfall schaltet Laravel automatisch und unterbrechungsfrei auf `file` (Cache & Session) und `database` (Queue) um und protokolliert den Fallback gedrosselt in `system_logs`.
 3. **PHP 8.5 Deprecation-Fix (`config/database.php`):**
    - Nutzt `defined('Pdo\Mysql::ATTR_SSL_CA') ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA`, wodurch die stündlichen PHP-8.5-Deprecation-Warnungen in den Mittwald-Cron-Logs eliminiert sind.
 
-### 11.2 Verstärkte Fehleranalyse & Telemetrie (`v1.2-diag`)
+### 11.2 Behebung der Sprachabbrüche mitten im Satz & WebSocket-Disconnects (`v1.3-stable`)
+In längeren Live-AI-Sitzungen (insb. nach ca. 120–150 Sekunden oder während mehrsätziger Antworten) trat das Problem auf, dass Funkira mitten im Satz aufhörte zu sprechen und im Log `client_ws_close (code=1006)` gefolgt von `google_ws_close (code=1000)` erschien. Folgende 6 Ursachen wurden identifiziert und behoben:
+
+1. **Schutz der Audio-Wiedergabeschlange vor falschen Google-Interrupts (`ai-widget-part2.blade.php`):**
+   - *Ursache:* Google sendete bei kurzen Raumgeräuschen oder internen Re-Evaluierungen während eines Satzes `serverContent.interrupted = true`. Der Client rief daraufhin `stopCurrentAudioPlayback()` auf und löschte alle bereits im Browser gepufferten `AudioBufferSourceNode`-Satzteile.
+   - *Lösung:* `stopCurrentAudioPlayback()` wird bei `interrupted` nur noch ausgeführt, wenn `allowVoiceInterruption === true` **und** der Nutzer in den letzten `2500ms` tatsächlich selbst gesprochen hat (`userSpokeRecently`). Andernfalls spricht der Agent seinen Satz im WebAudio-Buffer vollständig und unterbrechungsfrei zu Ende.
+2. **Verlängerte Raumhall-Schutzzeit (`650ms`) & `aiTurnGenerating`-Sperre in `isOutputActive()`:**
+   - *Ursache:* Zwischen zwei von Google gestreamten Satz-Chunks entstand manchmal eine Lücke von >120ms. Dadurch wurde `isOutputActive()` kurzzeitig `false`, das Mikrofon öffnete sich für wenige Millisekunden und schickte den Nachhall des Lautsprechers an Google zurück (was wiederum `interrupted` auslöste).
+   - *Lösung:* `roomEchoCushion` in `isOutputActive()` wurde von `120ms` auf `650ms` erhöht und zusätzlich `this.aiTurnGenerating` einbezogen. Solange Google noch am selben Turn generiert oder Audio im Raum nachhallt, bleibt das Mikrofon strikt stummgeschaltet.
+3. **Beseitigung des 1200ms Noise-Gate-Sprungs (`onaudioprocess`):**
+   - *Ursache:* 1,2 Sekunden nach Ende eines Satzes sprang der Mikrofon-Schwellenwert (`dynamicGate`) abrupt von `0.045` auf `0.004` (11-fache Empfindlichkeit). Normales Hintergrundrauschen schoss dadurch als plötzlicher Audio-Spike zu Google.
+   - *Lösung:* Konstanter, sauberer Basis-Schwellenwert (`0.006`) im Normalbetrieb und `0.045` nur bei explizit aktiviertem Barge-In während aktiver Sprachausgabe.
+4. **Deaktivierung der parallelen Browser-`SpeechRecognition` während `isLiveMode`:**
+   - *Ursache:* Auf Desktop-Browsern lief `webkitSpeechRecognition` parallel zum 16 kHz WebAudio-Stream weiter und konkurrierte um den Audio-Thread.
+   - *Lösung:* Da Gemini Live bereits eigene `inputTranscription`-Events liefert, wird die lokale Browser-`SpeechRecognition` während `isLiveMode` komplett pausiert.
+5. **Bidirektionaler 15s WebSocket-Heartbeat (`server-twilio.js`) & `keepAudioAlive` bei Reconnect:**
+   - *Ursache:* Nach ~150s schlossen Reverse-Proxies (Mittwald Ingress / Cloudflare) vermeintlich inaktive Verbindungen mit `Code: 1006`. Beim anschließenden Auto-Reconnect zerstörte `cleanupLiveConnection()` den `AudioContext`, wodurch die letzten gepufferten Wörter abgeschnitten wurden.
+   - *Lösung:* `server-twilio.js` (`v1.3-stable`) sendet alle 15 Sekunden echte WebSocket-Protokoll-Pings (`googleWs.ping()` und `clientWs.ping()`). Zudem behält `cleanupLiveConnection(keepAudioAlive = true)` beim Auto-Reconnect den `AudioContext` und laufende `activeAudioSources` am Leben.
+6. **Multi-Tool-Call-Schleife & Unterdrückung kaskadierender `Code: 1000`-Logs:**
+   - Wenn Gemini mehrere Tools gleichzeitig aufruft (`functionCalls`), werden nun alle Calls in einer `for`-Schleife abgearbeitet (statt nur `functionCalls[0]`).
+   - Schließt der Client zuerst die Verbindung (`1006`), unterdrückt `server-twilio.js` (`wasAlreadyCleanedUp`) den dadurch ausgelösten sekundären `Code: 1000`-Log von Google und filtert `sessionResumptionUpdate`-Nachrichten aus `recent_events`, damit die letzten 15 Diagnose-Ereignisse niemals durch Resumption-Updates überschrieben werden.
+
+### 11.3 Live-Ping & Verbindungsstatus-Punkt im Seiten-Widget „Live-AI“ (`ai-widget-part1.blade.php`)
+Im Header des Seiten-Widgets **„Live-AI“** (direkt neben dem Titel und der Modell-Auswahl) wurde ein kompakter Echtzeit-Status-Indikator mit Hover-Tooltip integriert:
+- **Farbcodierter Status-Punkt:**
+  - **Grün (pulsierend im Live-Modus):** Bridge online & bereit bzw. Live-WebSocket verbunden (`Verbunden (Live)` / `Bereit (Online)`).
+  - **Gelb/Amber (animiert):** Verbindungsaufbau läuft (`Verbinde...`) oder erhöhte Latenz (`> 400 ms`).
+  - **Rot:** Bridge nicht erreichbar oder Verbindung unterbrochen (`Nicht erreichbar`).
+- **Detail-Tooltip beim Hovern:**
+  Zeigt Verbindungsstatus, gemessenen **Ping in `ms`** (über `GET /api/ai/bridge-ping` → `http://127.0.0.1:8081/health`), **WebSocket-Status**, **Bridge-Version (`v1.3-stable`)** sowie die Anzahl aktiver Sessions.
+
+### 11.4 Verstärkte Fehleranalyse & lückenloses Logging in `/admin/global-logs`
 - **Automatische Ursachen-Diagnose (`diagnoseWsIssue` in `server-twilio.js`):**
   Ordnet jedem WebSocket-Close-Code (`1006`, `1007`, `1008`, `1009`, `1011`, `4001`, `4003`) automatisch eine präzise deutsche Fehlerkategorie, wahrscheinliche Ursache und Handlungsempfehlung zu.
 - **Sitzungs-Telemetrie & Event-Ringpuffer (`buildSessionDiagnostics`):**
-  Jeder ungewöhnliche Abbruch liefert in `system_logs` und in der Funkira-Warnmail:
+  Jeder ungewöhnliche Abbruch liefert in `system_logs` (`/admin/global-logs`) und bei `error`/`warning` per E-Mail:
   - Client-Typ (`Android App (OkHttp)` vs. `Web Browser`), IP, User-Agent, Agent-Name, User-ID, Chat-Session-ID
   - Angefordertes vs. aktives Gemini-Modell, `is_google_setup_complete`, Sitzungsdauer
   - Paket-Zähler (`client_audio_packets_sent`, `google_messages_received`, `google_audio_chunks_received`, `tool_calls_count`, `last_tool_call`)
   - Angewandte Schutz-Normalisierungen (`model_rewritten`, `media_chunks_converted`, `empty_interrupts_dropped`)
   - Chronologie der letzten 15 Protokoll-Ereignisse (`recent_events`) mit Millisekunden-Zeitstempeln vor dem Ausfall
-- **HTTP Health-Check Endpunkt (`GET /health` auf Port 8081/8089):**
-  Liefert Echtzeit-JSON über Bridge-Version (`v1.2-diag`), Uptime, RAM-Verbrauch, aktive Live-Sessions/Twilio-Calls und den letzten Fehler (`last_issue`). Wird auch direkt vom KI-Tool `system_get_websocket_status` (`AiSystemFuncs.php`) ausgelesen.
-- **Globaler Laravel Exception-Logger (`bootstrap/app.php`):**
-  Repariert die bisher ins Leere laufende Referenz `App\Models\Global\GlobalLog` auf `App\Models\System\SystemLog` und speichert unbehandelte Exceptions inklusive automatischer Diagnose (`redis`, `database`, `gemini_api`, `mail`), Request-/CLI-Kontext und Stack-Trace-Auszug (`trace_excerpt`).
+- **Drei-Schichten-Erfassung nach `/admin/global-logs` (`SystemLog`):**
+  1. **Laravel Backend & Queue/Cron (`bootstrap/app.php`):** Jede unbehandelte Exception wird inkl. Kategorie-Diagnose (`redis`, `database`, `gemini_api`, `mail`, `filesystem`) und Stack-Trace in `system_logs` gespeichert.
+  2. **Node.js Bridge (`POST /api/ai/bridge-log`):** Alle Bridge-Warnungen, WebSocket-Abbrüche und Token-Fehler landen mit vollem Telemetrie-Payload in `/admin/global-logs`.
+  3. **Browser Live-AI Frontend (`POST /api/ai/frontend-log`):** Mikrofon-/WebAudio-Fehler, Token-Fetch-Fehler und unerwartete WebSocket-Abbrüche im Browser werden direkt an `/admin/global-logs` gemeldet.
+
+### 11.5 Umfangreiche Kalender-KI-Fähigkeiten (`.ics` E-Mail-Versand) & Entfernung unnötiger `ShouldQueue`-Abhängigkeiten
+- **Neues KI-Tool `calendar_send_ics_email` (`AiCalendarFuncs.php`):**
+  Ermöglicht KI-Agenten (wie Funkira), einzelne Termine, mehrere Termine per ID/Suchbegriff oder ganze Zeiträume (`start_date` bis `end_date`, z. B. Wochen-/Monatspläne) als RFC-5545-konforme `.ics`-Kalenderdatei (`VCALENDAR` mit `VEVENT`, `LOCATION`, `CATEGORIES`, `ORGANIZER`, `ATTENDEE`, `RRULE`, `VALARM` und `METHOD:REQUEST`) per E-Mail an beliebige Empfänger zu versenden.
+- **Erweiterung von `calendar_create_event` & `calendar_update_event`:**
+  Unterstützen nun direkt `recipient_email`, `recipient_name`, `location`, `custom_message` und `send_email`, um beim Anlegen oder Ändern eines Termins sofort die `.ics`-Einladung mitzuversenden.
+- **Konsequente Beseitigung unnötiger `ShouldQueue`-Blockaden:**
+  Da E-Mails und schnelle KI-Aktionen bei inaktivem Queue-Worker sonst in der `jobs`-Tabelle hängen blieben, wurden alle Einzel-Transaktions-Mailables (`CalendarEventCreated`, `SupportTicketCreatedMailToCustomer`, `SupportTicketUpdateMailToCustomer`, `NewOrderShippedToCustomer`, `PaymentReceivedMail`, `OrderPhotoIssueMailToCustomer`, `CreditNoteMailToCustomer`, `NewGiftVoucherToCustomer`, `ReferralRewardEarnedMail`, `NewsletterVerificationMail`, `RevocationMailToCustomer`, `RevocationMailToAdmin`, `NewCalcMailToCustomer`, `NewCalcMailToAdmin`, `AbandonedCartReminder`) sowie die KI-Funktionen `ManagementCalendarEvent::created`, `system_manage_logs`, `system_fix_errors (backup)`, `AiSupportFuncs` und `AiOrderFuncs` auf **sofortige synchrone Ausführung (`->send()` / `Artisan::call()`)** umgestellt.
+
 
 

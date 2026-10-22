@@ -325,4 +325,43 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
         $this->assertStringContainsString('if (!wasAlreadyCleanedUp)', $bridgeJs);
         $this->assertStringContainsString('clientWs.ping()', $bridgeJs);
     }
+
+    public function test_ai_capabilities_and_transactional_mailables_do_not_require_should_queue(): void
+    {
+        $synchronousMailables = [
+            \App\Mail\CalendarEventCreated::class,
+            \App\Mail\SupportTicketCreatedMailToCustomer::class,
+            \App\Mail\SupportTicketUpdateMailToCustomer::class,
+            \App\Mail\NewOrderShippedToCustomer::class,
+            \App\Mail\PaymentReceivedMail::class,
+            \App\Mail\OrderPhotoIssueMailToCustomer::class,
+            \App\Mail\CreditNoteMailToCustomer::class,
+            \App\Mail\NewGiftVoucherToCustomer::class,
+            \App\Mail\ReferralRewardEarnedMail::class,
+            \App\Mail\NewsletterVerificationMail::class,
+            \App\Mail\RevocationMailToAdmin::class,
+            \App\Mail\RevocationMailToCustomer::class,
+            \App\Mail\NewCalcMailToAdmin::class,
+            \App\Mail\NewCalcMailToCustomer::class,
+            \App\Mail\AbandonedCartReminder::class,
+            \App\Services\AI\Mails\AiAgentMessageMail::class,
+            \App\Services\AI\Mails\AiHolidayPlanMail::class,
+            \App\Services\AI\Mails\AiMapSummaryMail::class,
+        ];
+
+        foreach ($synchronousMailables as $mailableClass) {
+            $this->assertFalse(
+                is_subclass_of($mailableClass, \Illuminate\Contracts\Queue\ShouldQueue::class),
+                "Mailable {$mailableClass} should not implement ShouldQueue so emails send immediately."
+            );
+        }
+
+        $calendarModelCode = file_get_contents(app_path('Models/Management/ManagementCalendarEvent.php'));
+        $this->assertStringContainsString('->send(new \App\Mail\CalendarEventCreated($event))', $calendarModelCode);
+        $this->assertStringNotContainsString('->queue(new \App\Mail\CalendarEventCreated($event))', $calendarModelCode);
+
+        $aiSystemCode = file_get_contents(app_path('Services/AI/Functions/AiSystemFuncs.php'));
+        $this->assertStringContainsString('$isBulkOperation = (bool) $runInBackground;', $aiSystemCode);
+        $this->assertStringContainsString("Artisan::call('backup:run', ['--only-db' => true]);", $aiSystemCode);
+    }
 }

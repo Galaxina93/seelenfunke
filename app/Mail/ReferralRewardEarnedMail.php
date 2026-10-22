@@ -6,13 +6,12 @@ use App\Models\Marketing\MarketingGiftVoucher;
 use App\Models\Marketing\MarketingReferral;
 use App\Models\Order\OrderOrder;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class ReferralRewardEarnedMail extends Mailable implements ShouldQueue
+class ReferralRewardEarnedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
