@@ -198,5 +198,56 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Queue::looping($heartbeatCallback);
         \Illuminate\Support\Facades\Queue::before($heartbeatCallback);
         \Illuminate\Support\Facades\Queue::after($heartbeatCallback);
+
+        // 7. Lückenlose Fehler-Erfassung für /admin/global-logs (SystemLog):
+        //    a) Alle abgefangenen Log::error / Log::critical / Log::alert / Log::emergency Aufrufe
+        //    b) Fehlgeschlagene Queue-Jobs (JobFailed)
+        //    c) Fehlgeschlagene Cron-/Scheduler-Tasks (ScheduledTaskFailed)
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Log\Events\MessageLogged::class, function (\Illuminate\Log\Events\MessageLogged $event) {
+            if (!in_array(strtolower($event->level), ['error', 'critical', 'alert', 'emergency'], true)) {
+                return;
+            }
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordLogEvent(
+                    $event->level,
+                    (string) $event->message,
+                    is_array($event->context) ? $event->context : []
+                );
+            }
+        });
+
+        \Illuminate\Support\Facades\Queue::failing(function (\Illuminate\Queue\Events\JobFailed $event) {
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                $jobName = method_exists($event->job, 'resolveName') ? $event->job->resolveName() : get_class($event->job);
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $event->exception,
+                    'queue',
+                    'queue:job_failed:' . class_basename($jobName),
+                    'Queue-Job Fehler [' . class_basename($jobName) . ']',
+                    [
+                        'job_name' => $jobName,
+                        'connection_name' => $event->connectionName,
+                        'queue' => $event->job->getQueue(),
+                        'attempts' => method_exists($event->job, 'attempts') ? $event->job->attempts() : 1,
+                    ]
+                );
+            }
+        });
+
+        \Illuminate\Support\Facades\Event::listen(\Illuminate\Console\Events\ScheduledTaskFailed::class, function (\Illuminate\Console\Events\ScheduledTaskFailed $event) {
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                $cmd = $event->task->command ?? $event->task->description ?? 'scheduled_task';
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $event->exception,
+                    'scheduler',
+                    'scheduler:task_failed',
+                    'Cron/Scheduler Fehler',
+                    [
+                        'task_command' => $cmd,
+                        'cron_expression' => $event->task->expression ?? null,
+                    ]
+                );
+            }
+        });
     }
 }

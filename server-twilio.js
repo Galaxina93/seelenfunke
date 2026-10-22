@@ -447,7 +447,7 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             }));
         })
         .catch(err => {
-            debugLog(`❌ Fehler beim Speichern des Live-Transkripts (${role}): ` + err.message);
+            debugLog(`❌ Fehler beim Speichern des Live-Transkripts (${role})`, err);
         });
     };
     
@@ -702,7 +702,7 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             }
         } catch (e) {
             recordEvent('client_parse_error', e.message);
-            debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Client-Nachricht: ' + e.message);
+            debugLog('🧠 Gemini Live Proxy: Fehler beim Parsen der Client-Nachricht', e);
         }
 
         if (googleWs.readyState === WebSocket.OPEN && (isGoogleSetupComplete || (data && data.setup))) {
@@ -1009,7 +1009,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                             
                         } catch (e) {
                             console.error("Audio Encoding Error:", e);
-                            debugLog("Audio Encoding Error: " + e.toString());
+                            debugLog("Audio Encoding Error", e);
                         }
                     }
                 }
@@ -1123,7 +1123,7 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                     debugLog(`Processed incoming audio. Twilio Payload: ${payloadLength} -> Sent to Gemini PCM 16kHz: ${pcmBase64.length}`);
                 } catch (e) {
                     // Audio conversion error
-                    debugLog("Audio input conversion error: " + e.toString());
+                    debugLog("Audio input conversion error", e);
                 }
             } else {
                 debugLog(`Ignored media event. Gemini readyState is ${geminiWs ? geminiWs.readyState : 'null'}`);

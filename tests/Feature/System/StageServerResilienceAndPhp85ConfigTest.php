@@ -130,4 +130,55 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
         $this->assertStringNotContainsString('App\Models\Global\GlobalLog', $bootstrapContent);
         $this->assertStringContainsString('system:exception:redis', $bootstrapContent);
     }
+
+    public function test_every_log_error_and_exception_lands_detailed_in_global_logs(): void
+    {
+        $uniqueMarker = 'DiagTest_' . uniqid();
+
+        try {
+            // 1. Abgefangener Log::error Aufruf (landet über MessageLogged Listener in SystemLog)
+            \Illuminate\Support\Facades\Log::error("Redis connection timeout during {$uniqueMarker}", [
+                'component' => 'Checkout',
+            ]);
+
+            $logEntry = SystemLog::where('message', 'like', "%{$uniqueMarker}%")->latest('id')->first();
+            $this->assertNotNull($logEntry, 'Log::error entry must be written to system_logs (/admin/global-logs)');
+            $this->assertSame('error', $logEntry->status);
+            $this->assertSame('redis_connectivity_or_dns', $logEntry->payload['diagnosis']['category'] ?? null);
+            $this->assertArrayHasKey('execution_context', $logEntry->payload);
+            $this->assertArrayHasKey('server_environment', $logEntry->payload);
+
+            // 2. Direkte Exception-Erfassung inkl. Stack-Trace & Deduplizierung
+            $ex = new \RuntimeException("Database SQLSTATE error {$uniqueMarker}", 500);
+            $exLog = \App\Services\System\SystemErrorLogger::recordException($ex);
+            $this->assertNotNull($exLog);
+            $this->assertSame('database_query_or_connection', $exLog->payload['diagnosis']['category'] ?? null);
+            $this->assertNotEmpty($exLog->payload['trace_excerpt'] ?? []);
+            $this->assertSame(__FILE__, $exLog->payload['file'] ?? null);
+
+            // Dieselbe Exception-Instanz darf nicht doppelt protokolliert werden
+            $duplicate = \App\Services\System\SystemErrorLogger::recordException($ex);
+            $this->assertNull($duplicate);
+
+            // 3. Frontend JS / Livewire Error Endpunkt
+            $feRes = $this->postJson('/api/log/frontend-error', [
+                'message' => "Uncaught TypeError in {$uniqueMarker}",
+                'source' => 'https://stage.mein-seelenfunke.de/build/assets/app.js',
+                'lineno' => 142,
+                'colno' => 18,
+                'url' => 'https://stage.mein-seelenfunke.de/admin/dashboard',
+                'type' => 'js_error',
+                'stack' => "TypeError: Cannot read properties of null\n    at app.js:142:18",
+            ]);
+            $feRes->assertOk();
+
+            $feLog = SystemLog::where('message', 'like', "%Uncaught TypeError in {$uniqueMarker}%")->latest('id')->first();
+            $this->assertNotNull($feLog);
+            $this->assertSame('frontend:js_error', $feLog->action_id);
+            $this->assertSame('frontend_js_error', $feLog->payload['diagnosis']['category'] ?? null);
+            $this->assertSame(142, $feLog->payload['line'] ?? null);
+        } finally {
+            SystemLog::where('message', 'like', "%{$uniqueMarker}%")->delete();
+        }
+    }
 }

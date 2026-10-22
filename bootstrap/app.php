@@ -32,50 +32,26 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->reportable(function (\Throwable $e) {
             try {
-                // Fange echte System-Fehler ab und schiebe sie inkl. automatischer Ursachen-Diagnose ins SystemLog
-                if (class_exists(SystemLog::class)) {
-                    $msg = $e->getMessage();
-                    $msgLower = strtolower($msg);
-                    $exClass = get_class($e);
-
-                    $diagnosis = 'Allgemeiner Laufzeitfehler. Prüfe exception_class, file/line und trace_excerpt.';
-                    $actionId = 'system:exception';
-
-                    if (str_contains($msgLower, 'getaddrinfo') || str_contains($msgLower, 'redis') || str_contains(strtolower($exClass), 'predis')) {
-                        $diagnosis = 'Redis-Container nicht erreichbar oder DNS-Auflösung fehlgeschlagen. Der Boot-Fallback in AppServiceProvider schützt HTTP-Requests automatisch via File-Cache.';
+                // Fange echte System-Fehler ab und schiebe sie inkl. automatischer Ursachen-Diagnose ins SystemLog (/admin/global-logs)
+                if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                    $msgLower = strtolower($e->getMessage());
+                    $actionId = null;
+                    if (str_contains($msgLower, 'getaddrinfo') || str_contains($msgLower, 'redis') || str_contains(strtolower(get_class($e)), 'predis')) {
                         $actionId = 'system:exception:redis';
-                    } elseif ($e instanceof \PDOException || str_contains($msgLower, 'sqlstate')) {
-                        $diagnosis = 'Datenbank-Verbindungs- oder SQL-Abfragefehler. Prüfe DB-Erreichbarkeit, Migrationen und Spaltendefinitionen.';
-                        $actionId = 'system:exception:database';
-                    } elseif (str_contains($msgLower, 'generativelanguage') || str_contains($msgLower, 'gemini')) {
-                        $diagnosis = 'Fehler bei der Kommunikation mit der Google Gemini API (Timeout, Quota oder ungültiges Modell/Parameter).';
-                        $actionId = 'system:exception:gemini_api';
-                    } elseif (str_contains($msgLower, 'smtp') || str_contains($msgLower, 'mailer') || str_contains($msgLower, 'imap')) {
-                        $diagnosis = 'E-Mail-Server (SMTP/IMAP) Verbindungs- oder Authentifizierungsproblem.';
-                        $actionId = 'system:exception:mail';
                     }
-
-                    $traceExcerpt = array_map(function (array $frame) {
-                        return ($frame['file'] ?? '[internal]') . ':' . ($frame['line'] ?? '?')
-                            . ' -> ' . ($frame['class'] ?? '') . ($frame['type'] ?? '') . ($frame['function'] ?? '');
-                    }, array_slice($e->getTrace(), 0, 5));
-
+                    \App\Services\System\SystemErrorLogger::recordException($e, 'system', $actionId, 'System-Fehler');
+                } elseif (class_exists(SystemLog::class)) {
                     SystemLog::create([
                         'type' => 'system',
-                        'action_id' => $actionId,
+                        'action_id' => 'system:exception',
                         'title' => 'System-Fehler (' . class_basename($e) . ')',
-                        'message' => substr($msg, 0, 500),
+                        'message' => substr($e->getMessage(), 0, 1000),
                         'status' => 'error',
                         'payload' => [
-                            'exception_class' => $exClass,
+                            'exception_class' => get_class($e),
                             'file' => $e->getFile(),
                             'line' => $e->getLine(),
                             'code' => $e->getCode(),
-                            'diagnosis' => $diagnosis,
-                            'execution_context' => app()->runningInConsole()
-                                ? ('CLI: ' . implode(' ', $_SERVER['argv'] ?? []))
-                                : ('HTTP: ' . (request()?->method() ?? 'GET') . ' ' . (request()?->fullUrl() ?? '')),
-                            'trace_excerpt' => $traceExcerpt,
                         ],
                         'started_at' => now(),
                         'finished_at' => now(),

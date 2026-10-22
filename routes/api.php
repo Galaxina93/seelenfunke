@@ -27,18 +27,46 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
             'lineno' => 'nullable|integer',
             'colno' => 'nullable|integer',
             'url' => 'nullable|string',
+            'page_title' => 'nullable|string',
+            'viewport' => 'nullable|string',
             'userAgent' => 'nullable|string',
             'type' => 'nullable|string',
+            'status_code' => 'nullable|integer',
             'stack' => 'nullable|string'
+        ]);
+
+        $errType = $data['type'] ?? 'js_error';
+        $title = match ($errType) {
+            'promise_rejection' => 'Frontend Promise Error',
+            'livewire_request_error' => 'Frontend Livewire HTTP-' . ($data['status_code'] ?? 'Error'),
+            default => 'Frontend JS Error',
+        };
+
+        $diagnosis = [
+            'category' => 'frontend_' . $errType,
+            'probable_cause' => $errType === 'livewire_request_error'
+                ? 'Livewire-Hintergrundanfrage fehlgeschlagen (HTTP ' . ($data['status_code'] ?? '?') . '). Mögliche Ursachen: abgelaufenes CSRF-Token (419), Server-Exception (500) oder Verbindungsabbruch.'
+                : 'Clientseitiger JavaScript-/Alpine.js-Laufzeitfehler im Browser auf URL ' . ($data['url'] ?? 'unbekannt') . '.',
+            'recommended_action' => 'Prüfe URL, Skript-Quelle (source/lineno) und den Browser-Stack-Trace im Payload.',
+        ];
+
+        $payload = array_merge($data, [
+            'file' => $data['source'] ?? null,
+            'line' => $data['lineno'] ?? null,
+            'client_ip' => $request->ip(),
+            'diagnosis' => $diagnosis,
+            'server_environment' => class_exists(\App\Services\System\SystemErrorLogger::class)
+                ? \App\Services\System\SystemErrorLogger::buildServerEnvironment()
+                : ['php_version' => PHP_VERSION, 'app_env' => config('app.env')],
         ]);
 
         \App\Models\System\SystemLog::create([
             'type' => 'frontend_error',
-            'action_id' => 'js_error_' . uniqid(),
-            'title' => 'Frontend ' . ($data['type'] === 'promise_rejection' ? 'Promise Error' : 'JS Error'),
-            'message' => \Illuminate\Support\Str::limit($data['message'], 250),
+            'action_id' => 'frontend:' . $errType,
+            'title' => $title,
+            'message' => \Illuminate\Support\Str::limit($data['message'], 1500),
             'status' => 'error',
-            'payload' => $data,
+            'payload' => $payload,
             'started_at' => now(),
             'finished_at' => now(),
         ]);
@@ -46,7 +74,7 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
     } catch (\Exception $e) {
         return response()->json(['status' => 'error'], 500);
     }
-})->middleware('throttle:10,1');
+})->middleware('throttle:20,1');
 
 // --- WebSocket Bridge Error & Status Tracking ---
 Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {

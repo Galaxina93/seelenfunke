@@ -54,15 +54,15 @@ class SystemLogs extends Component
 
         $log = SystemLog::find($logId);
         if ($log) {
-            if ($log->status === 'error') {
+            if (in_array($log->status, ['error', 'warning'], true)) {
                 $log->status = 'success';
-                if (!str_starts_with($log->title, '[GELÖST]')) {
+                if (!str_starts_with((string) $log->title, '[GELÖST]')) {
                     $log->title = '[GELÖST] ' . $log->title;
                 }
             } else {
                 $log->status = 'error';
-                if (str_starts_with($log->title, '[GELÖST] ')) {
-                    $log->title = substr($log->title, strlen('[GELÖST] '));
+                if (str_starts_with((string) $log->title, '[GELÖST] ')) {
+                    $log->title = substr((string) $log->title, strlen('[GELÖST] '));
                 }
             }
             $log->save();
@@ -83,12 +83,7 @@ class SystemLogs extends Component
 
     public function render()
     {
-        // One-time fix for terminal access restrictions
         try {
-            \Illuminate\Support\Facades\Artisan::call('livewire:discover');
-            \Illuminate\Support\Facades\Artisan::call('view:clear');
-            \Illuminate\Support\Facades\Artisan::call('cache:clear');
-            
             if (!\App\Models\Ai\AiAgent::where('name', 'Funkira')->exists()) {
                 \App\Models\Ai\AiAgent::create([
                     'name' => 'Funkira',
@@ -100,9 +95,8 @@ class SystemLogs extends Component
                     'icon' => 'sparkles'
                 ]);
             } else {
-                // Ensure Funkira has a valid color/icon format
                 $f = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
-                if ($f->color === 'primary' || str_starts_with($f->icon, 'bi-')) {
+                if ($f && ($f->color === 'primary' || str_starts_with((string) $f->icon, 'bi-'))) {
                     $f->color = 'cyan-500';
                     $f->icon = 'sparkles';
                     $f->save();
@@ -113,13 +107,15 @@ class SystemLogs extends Component
         }
 
         $query = SystemLog::with('agent')
-            ->selectRaw('*, (SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status = "error") as error_count');
+            ->selectRaw('*, (SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status IN ("error", "warning")) as error_count');
 
         if ($this->search) {
             $query->where(function($q) {
                 $q->where('message', 'like', '%' . $this->search . '%')
+                  ->orWhere('title', 'like', '%' . $this->search . '%')
                   ->orWhere('action_id', 'like', '%' . $this->search . '%')
-                  ->orWhere('type', 'like', '%' . $this->search . '%');
+                  ->orWhere('type', 'like', '%' . $this->search . '%')
+                  ->orWhere('payload', 'like', '%' . $this->search . '%');
             });
         }
 
@@ -148,6 +144,7 @@ class SystemLogs extends Component
         // Analytics Data
         $totalLogs = SystemLog::count();
         $totalErrors = SystemLog::where('status', 'error')->count();
+        $totalWarnings = SystemLog::where('status', 'warning')->count();
         $logsToday = SystemLog::whereDate('created_at', today())->count();
         $agents = \App\Models\Ai\AiAgent::orderBy('name')->get();
         $uniqueTypes = SystemLog::select('type')->distinct()->pluck('type');
@@ -168,6 +165,7 @@ class SystemLogs extends Component
             'logs' => $logs,
             'totalLogs' => $totalLogs,
             'totalErrors' => $totalErrors,
+            'totalWarnings' => $totalWarnings,
             'logsToday' => $logsToday,
             'agents' => $agents,
             'uniqueTypes' => $uniqueTypes,

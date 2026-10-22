@@ -50,8 +50,13 @@
                 </div>
             </div>
             <div>
-                <p class="text-[10px] text-red-500 font-black uppercase tracking-widest mb-1">Fehlerrate / Errors</p>
-                <div class="text-3xl font-serif text-gray-900 dark:text-white">{{ number_format($totalErrors, 0, ',', '.') }}</div>
+                <p class="text-[10px] text-red-500 font-black uppercase tracking-widest mb-1">Errors / Warnungen</p>
+                <div class="text-3xl font-serif text-gray-900 dark:text-white">
+                    {{ number_format($totalErrors, 0, ',', '.') }}
+                    @if(($totalWarnings ?? 0) > 0)
+                        <span class="text-sm font-sans font-bold text-amber-500 ml-2">({{ number_format($totalWarnings, 0, ',', '.') }} Warn.)</span>
+                    @endif
+                </div>
             </div>
         </div>
 
@@ -123,7 +128,7 @@
                     @forelse($logs as $log)
                         <tbody x-data="{ expanded: false }" class="transition-colors group hover:bg-gray-50 dark:hover:bg-gray-800/40">
                             <tr @click="expanded = !expanded" class="cursor-pointer">
-                                <td class="px-6 sm:px-8 py-4 align-top border-l-[3px] {{ $log->status === 'error' ? 'border-red-500' : ($log->status === 'success' ? 'border-emerald-500' : 'border-gray-700') }}">
+                                <td class="px-6 sm:px-8 py-4 align-top border-l-[3px] {{ $log->status === 'error' ? 'border-red-500' : ($log->status === 'warning' ? 'border-amber-500' : ($log->status === 'success' ? 'border-emerald-500' : 'border-gray-700')) }}">
                                     <div class="flex flex-col mt-0.5">
                                         <span class="text-xs font-bold text-gray-900 dark:text-white">{{ $log->created_at->format('H:i:s') }}</span>
                                         <span class="text-[9px] text-gray-500 uppercase tracking-widest font-black mt-1">{{ $log->created_at->format('d.m.Y') }}</span>
@@ -167,7 +172,10 @@
                                     </div>
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top max-w-xs">
-                                    <div class="text-xs text-gray-700 dark:text-gray-300 font-medium truncate mt-1 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" title="{{ $log->message }}">
+                                    @if(!empty($log->title))
+                                        <div class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">{{ $log->title }}</div>
+                                    @endif
+                                    <div class="text-xs text-gray-700 dark:text-gray-300 font-medium truncate mt-0.5 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" title="{{ $log->message }}">
                                         {{ $log->message }}
                                     </div>
                                 </td>
@@ -186,6 +194,13 @@
                                                     <span class="bg-red-500 text-white rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $log->error_count }}x</span>
                                                 @endif
                                             </button>
+                                        @elseif($log->status === 'warning')
+                                            <button wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)] flex items-center gap-1.5 hover:bg-amber-500/20 transition-colors">
+                                                WARNUNG
+                                                @if($log->error_count > 1)
+                                                    <span class="bg-amber-500 text-black rounded px-1.5 py-0.5 text-[8px] ml-1">{{ $log->error_count }}x</span>
+                                                @endif
+                                            </button>
                                         @else
                                             <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-700 bg-gray-800 text-gray-400">{{ strtoupper($log->status) }}</span>
                                         @endif
@@ -198,14 +213,106 @@
                             </tr>
                             <tr x-show="expanded" x-transition x-cloak>
                                 <td colspan="5" class="px-8 py-6 bg-gray-50/80 dark:bg-gray-950/80 border-t border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
+                                    @php
+                                        $cPayload = is_array($log->payload) ? $log->payload : (json_decode($log->payload, true) ?? []);
+                                        $diag = $cPayload['diagnosis'] ?? null;
+                                        $tel = $cPayload['session_telemetry'] ?? null;
+                                        $execCtx = $cPayload['execution_context'] ?? null;
+                                        $traceList = $cPayload['trace_excerpt'] ?? null;
+                                        $rawStack = $cPayload['stack'] ?? null;
+                                        $recentEvents = $cPayload['recent_events'] ?? null;
+                                    @endphp
                                     <div class="space-y-4">
                                         <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
                                             <div class="flex-1 w-full">
-                                                <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2"><x-heroicon-o-document-text class="w-3.5 h-3.5" /> Nachrichten-Trace</div>
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2">
+                                                    <x-heroicon-o-document-text class="w-3.5 h-3.5" />
+                                                    {{ $log->title ? $log->title . ' — ' : '' }}Nachrichten-Trace
+                                                </div>
                                                 <div class="text-xs text-gray-800 dark:text-gray-300 whitespace-pre-wrap break-all p-4 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner font-mono leading-relaxed">{{ $log->message }}</div>
                                             </div>
-
                                         </div>
+
+                                        {{-- Automatische Ursachen-Diagnose --}}
+                                        @if(!empty($diag))
+                                            <div class="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 space-y-1.5">
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-amber-500 flex items-center gap-2">
+                                                    <x-heroicon-o-light-bulb class="w-4 h-4" /> Automatische Ursachen-Diagnose
+                                                    @if(is_array($diag) && !empty($diag['category']))
+                                                        <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px]">{{ $diag['category'] }}</span>
+                                                    @endif
+                                                </div>
+                                                @if(is_array($diag))
+                                                    <p class="text-xs text-gray-800 dark:text-gray-200 font-medium"><strong>Ursache:</strong> {{ $diag['probable_cause'] ?? '-' }}</p>
+                                                    @if(!empty($diag['recommended_action']))
+                                                        <p class="text-xs text-emerald-600 dark:text-emerald-400"><strong>Empfehlung:</strong> {{ $diag['recommended_action'] }}</p>
+                                                    @endif
+                                                @else
+                                                    <p class="text-xs text-gray-800 dark:text-gray-200 font-medium">{{ $diag }}</p>
+                                                @endif
+                                            </div>
+                                        @endif
+
+                                        {{-- Fehler-Ursprung (Datei, Zeile, Exception, Request / WebSocket-Session) --}}
+                                        @if(!empty($cPayload['file']) || !empty($cPayload['exception_class']) || !empty($tel) || !empty($execCtx))
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] font-mono">
+                                                @if(!empty($cPayload['file']) || !empty($cPayload['exception_class']))
+                                                    <div class="p-3.5 rounded-xl bg-white dark:bg-black border border-gray-200 dark:border-gray-800 space-y-1">
+                                                        <div class="text-[9px] font-sans font-black uppercase tracking-widest text-red-400">Code-Ursprung</div>
+                                                        @if(!empty($cPayload['exception_class']))
+                                                            <div class="text-gray-900 dark:text-white font-bold break-all">{{ $cPayload['exception_class'] }}</div>
+                                                        @endif
+                                                        @if(!empty($cPayload['file']))
+                                                            <div class="text-gray-600 dark:text-gray-400 break-all">{{ $cPayload['file'] }}:{{ $cPayload['line'] ?? '?' }}</div>
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                                @if(!empty($tel) && is_array($tel))
+                                                    <div class="p-3.5 rounded-xl bg-white dark:bg-black border border-gray-200 dark:border-gray-800 space-y-1">
+                                                        <div class="text-[9px] font-sans font-black uppercase tracking-widest text-sky-400">Live-Session & Client</div>
+                                                        <div class="text-gray-800 dark:text-gray-300">Client: <strong>{{ $tel['client_type'] ?? 'Unbekannt' }}</strong> (IP: {{ $tel['client_ip'] ?? '-' }})</div>
+                                                        <div class="text-gray-600 dark:text-gray-400">Modell: {{ $tel['requested_model'] ?? '-' }} &rarr; {{ $tel['effective_model'] ?? '-' }} | Dauer: {{ $tel['session_duration_sec'] ?? 0 }}s</div>
+                                                        <div class="text-gray-600 dark:text-gray-400">Audio-Pakete: Client={{ $tel['client_audio_packets_sent'] ?? 0 }}, Google={{ $tel['google_audio_chunks_received'] ?? 0 }}</div>
+                                                    </div>
+                                                @elseif(!empty($execCtx))
+                                                    <div class="p-3.5 rounded-xl bg-white dark:bg-black border border-gray-200 dark:border-gray-800 space-y-1">
+                                                        <div class="text-[9px] font-sans font-black uppercase tracking-widest text-sky-400">Aufruf-Kontext</div>
+                                                        @if(is_array($execCtx))
+                                                            <div class="text-gray-800 dark:text-gray-300 break-all">{{ strtoupper($execCtx['mode'] ?? 'HTTP') }}: {{ $execCtx['method'] ?? '' }} {{ $execCtx['url'] ?? ($execCtx['command'] ?? '') }}</div>
+                                                            @if(!empty($execCtx['ip']))
+                                                                <div class="text-gray-600 dark:text-gray-400">IP: {{ $execCtx['ip'] }} | Route: {{ $execCtx['route'] ?? '-' }}</div>
+                                                            @endif
+                                                        @else
+                                                            <div class="text-gray-800 dark:text-gray-300 break-all">{{ $execCtx }}</div>
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endif
+
+                                        {{-- Chronologie der letzten WebSocket-Ereignisse --}}
+                                        @if(!empty($recentEvents) && is_array($recentEvents))
+                                            <div>
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-sky-400 mb-2 flex items-center gap-2">
+                                                    <x-heroicon-o-clock class="w-3.5 h-3.5" /> Letzte Protokoll-Ereignisse vor dem Ausfall
+                                                </div>
+                                                <div class="p-3.5 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 font-mono text-[10px] space-y-1 text-gray-700 dark:text-gray-300">
+                                                    @foreach($recentEvents as $ev)
+                                                        <div><span class="text-sky-400">[+{{ $ev['t_ms'] ?? 0 }}ms]</span> <strong>{{ $ev['event'] ?? 'event' }}</strong> {{ !empty($ev['detail']) ? '— ' . $ev['detail'] : '' }}</div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        {{-- Stack-Trace Auszug --}}
+                                        @if((!empty($traceList) && is_array($traceList)) || !empty($rawStack))
+                                            <div>
+                                                <div class="text-[10px] font-black uppercase tracking-widest text-red-400 mb-2 flex items-center gap-2">
+                                                    <x-heroicon-o-bug-ant class="w-3.5 h-3.5" /> Stack-Trace
+                                                </div>
+                                                <div class="p-4 bg-white dark:bg-black rounded-xl border border-red-500/20 font-mono text-[10px] text-red-700 dark:text-red-300/90 whitespace-pre-wrap break-all leading-relaxed">@if(!empty($traceList) && is_array($traceList)){{ implode("\n", $traceList) }}@else{{ $rawStack }}@endif</div>
+                                            </div>
+                                        @endif
 
                                         @if($log->payload)
                                             @if(isset($log->payload['changes']))
@@ -255,15 +362,14 @@
                                             @endif
                                             
                                             @php
-                                                $cPayload = is_array($log->payload) ? $log->payload : (json_decode($log->payload, true) ?? []);
                                                 $clonedPayload = collect($cPayload)
                                                     ->except(['changes', 'before', 'after'])
                                                     ->toArray();
                                             @endphp
                                             @if(!empty($clonedPayload))
                                                 <div>
-                                                    <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 mt-6 flex items-center gap-2"><x-heroicon-o-code-bracket class="w-3.5 h-3.5" /> {{ isset($log->payload['changes']) || isset($log->payload['before']) ? 'Zusätzliche Metadaten' : 'System Payload Dump' }}</div>
-                                                    <div class="text-[10px] text-emerald-700 dark:text-green-500 whitespace-pre-wrap break-all p-4 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner font-mono leading-relaxed">{{ json_encode($clonedPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</div>
+                                                    <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 mt-6 flex items-center gap-2"><x-heroicon-o-code-bracket class="w-3.5 h-3.5" /> {{ isset($log->payload['changes']) || isset($log->payload['before']) ? 'Zusätzliche Metadaten' : 'System Payload Dump (JSON)' }}</div>
+                                                    <div class="text-[10px] text-emerald-700 dark:text-green-500 whitespace-pre-wrap break-all p-4 bg-white dark:bg-black rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner font-mono leading-relaxed">{{ json_encode($clonedPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</div>
                                                 </div>
                                             @endif
                                         @endif
