@@ -52,6 +52,18 @@
         </div>
 
         <div class="flex items-center gap-1 sm:gap-2">
+            {{-- Archiv Button (Icon im Header neben Mülleimer) --}}
+            <button
+                type="button"
+                @click.stop="if('{{ $activeGroupId }}' !== '{{ $group->id }}') { $wire.toggleGroup('{{ $group->id }}'); } showGroupArchive = !showGroupArchive; $wire.toggleGroupArchive('{{ $group->id }}')"
+                class="p-2 text-gray-400 hover:text-amber-500 dark:text-gray-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 rounded-xl transition-all"
+                title="Gruppen-Archiv"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+            </button>
+
             {{-- Delete Button (Icon im Header) --}}
             <button
                 wire:click.stop="deleteGroup('{{ $group->id }}')"

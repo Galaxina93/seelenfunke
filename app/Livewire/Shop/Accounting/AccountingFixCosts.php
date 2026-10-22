@@ -7,7 +7,9 @@ use Livewire\Attributes\Layout;
 use App\Models\Accounting\AccountingGroup;
 use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingCostItemHistory;
+use App\Services\Accounting\ContractDocumentService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Rule;
@@ -70,6 +72,14 @@ class AccountingFixCosts extends Component
     public ?string $targetGroupId = null;
     public $isRestoring = false;
 
+    // --- KI & Dokumentenprüfung ---
+    public $aiContractAnalysis = null;
+    public bool $isAnalyzingContract = false;
+
+    // --- Tags für das aktuelle Formular (Add/Edit) ---
+    public array $itemTags = [];
+    public string $itemNewTag = '';
+
     // --- Search & UI Toggle Properties ---
     public string $searchQuery = '';
     public bool $showMissingDocs = false;
@@ -77,6 +87,7 @@ class AccountingFixCosts extends Component
     public bool $showTagManagement = false;
     public bool $showChart = false;
     public bool $showArchive = false;
+    public array $openGroupArchives = [];
 
     // --- Tagging Properties ---
     public $addingTagToItemId = null;
@@ -260,12 +271,16 @@ class AccountingFixCosts extends Component
             abort(403);
         }
 
-        $path = $this->quickUploadFile->store('buchhaltung/contracts', 'local');
+        $path = app(ContractDocumentService::class)->storeContractFile(
+            $this->quickUploadFile,
+            $item->toArray(),
+            $item->contract_file_path
+        );
         $item->update(['contract_file_path' => $path]);
 
         $this->uploadingMissingItemId = null;
         $this->reset('quickUploadFile');
-        session()->flash('success', 'Datei erfolgreich hochgeladen.');
+        session()->flash('success', 'Vertrag erfolgreich und logisch strukturiert archiviert.');
     }
 
     public function createGroup()
@@ -415,6 +430,9 @@ class AccountingFixCosts extends Component
             $this->itemContractNumber = $item->contract_number;
             $this->itemNoticePeriod = $item->notice_period;
             $this->itemContractEndDate = $item->contract_end_date ? $item->contract_end_date->format('Y-m-d') : null;
+            $this->itemTags = is_array($item->tags) ? $item->tags : [];
+        } else {
+            $this->itemTags = [];
         }
     }
 
@@ -457,11 +475,20 @@ class AccountingFixCosts extends Component
             'contract_number'         => $this->itemContractNumber,
             'notice_period'           => $this->itemNoticePeriod,
             'contract_end_date'       => $this->itemContractEndDate ?: null,
+            'tags'                    => array_values(array_unique(array_filter($this->itemTags))),
         ];
 
         if ($this->itemFile) {
             $this->validate(['itemFile' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt|max:10240']);
-            $path = $this->itemFile->store('buchhaltung/contracts', 'local');
+            $oldPath = null;
+            if ($this->editingItemId) {
+                $oldPath = AccountingCostItem::where('id', $this->editingItemId)->value('contract_file_path');
+            }
+            $path = app(ContractDocumentService::class)->storeContractFile(
+                $this->itemFile,
+                $data,
+                $oldPath
+            );
             $data['contract_file_path'] = $path;
         }
 
@@ -667,8 +694,12 @@ class AccountingFixCosts extends Component
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         if ($item->contract_file_path) {
+            if (Storage::disk('local')->exists($item->contract_file_path)) {
+                Storage::disk('local')->delete($item->contract_file_path);
+            }
             $item->update(['contract_file_path' => null]);
             $this->itemExistingFile = null;
+            $this->aiContractAnalysis = null;
             session()->flash('success', 'Datei entfernt.');
         }
     }
@@ -680,10 +711,182 @@ class AccountingFixCosts extends Component
         $this->resetItemForm();
     }
 
+    /**
+     * Ermittelt den vorhergesagten logischen Speicherpfad live für das UI.
+     */
+    public function getPredictedContractPathProperty(): string
+    {
+        $ext = 'pdf';
+        if ($this->itemFile) {
+            $ext = $this->itemFile->getClientOriginalExtension() ?: 'pdf';
+        } elseif ($this->itemExistingFile) {
+            $ext = pathinfo($this->itemExistingFile, PATHINFO_EXTENSION) ?: 'pdf';
+        }
+
+        $service = app(ContractDocumentService::class);
+        return $service->generateLogicalPath(
+            $this->itemDate ?: date('Y-m-d'),
+            $this->itemProviderCompany,
+            $this->itemName ?: 'Vertrag',
+            $ext
+        );
+    }
+
+    /**
+     * Analysiert das aktuell ausgewählte oder vorhandene Vertragsdokument mit KI
+     * und befüllt/prüft die Vertragsstammdaten.
+     */
+    public function analyzeContractWithAi()
+    {
+        $fileToAnalyze = null;
+
+        if ($this->itemFile) {
+            $this->validate(['itemFile' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:15360']);
+            $fileToAnalyze = $this->itemFile;
+        } elseif ($this->itemExistingFile && Storage::disk('local')->exists($this->itemExistingFile)) {
+            $fileToAnalyze = storage_path('app/' . $this->itemExistingFile);
+        }
+
+        if (!$fileToAnalyze) {
+            session()->flash('error', 'Kein Dokument zum Prüfen ausgewählt.');
+            return;
+        }
+
+        $this->isAnalyzingContract = true;
+
+        try {
+            $service = app(ContractDocumentService::class);
+            $analysis = $service->analyzeDocument($fileToAnalyze);
+
+            if ($analysis && !empty($analysis['success'])) {
+                $this->aiContractAnalysis = $analysis;
+
+                // Alle Formularfelder direkt und vollständig per KI befüllen
+                if (!empty($analysis['name'])) {
+                    $this->itemName = $analysis['name'];
+                }
+                if (!empty($analysis['amount'])) {
+                    $this->itemAmount = number_format($analysis['amount'], 2, '.', '');
+                }
+                if (!empty($analysis['interval_months'])) {
+                    $this->itemInterval = (int) $analysis['interval_months'];
+                }
+                if (isset($analysis['tax_rate'])) {
+                    $this->itemTaxRate = (int) $analysis['tax_rate'];
+                }
+                if (!empty($analysis['first_payment_date'])) {
+                    $this->itemDate = $analysis['first_payment_date'];
+                }
+                if (isset($analysis['is_business'])) {
+                    $this->itemIsBusiness = (bool) $analysis['is_business'];
+                }
+                $this->itemRequiresContract = true;
+
+                if (!empty($analysis['provider_company'])) {
+                    $this->itemProviderCompany = $analysis['provider_company'];
+                } elseif (!empty($analysis['provider_clean'])) {
+                    $this->itemProviderCompany = $analysis['provider_clean'];
+                }
+
+                if (!empty($analysis['contract_number'])) {
+                    $this->itemContractNumber = $analysis['contract_number'];
+                }
+                if (!empty($analysis['notice_period'])) {
+                    $this->itemNoticePeriod = $analysis['notice_period'];
+                }
+                if (!empty($analysis['contract_end_date'])) {
+                    $this->itemContractEndDate = $analysis['contract_end_date'];
+                }
+
+                // Stammdaten Adressen & Kontakt
+                if (!empty($analysis['provider_street'])) {
+                    $this->itemProviderStreet = $analysis['provider_street'];
+                }
+                if (!empty($analysis['provider_house_number'])) {
+                    $this->itemProviderHouseNumber = $analysis['provider_house_number'];
+                }
+                if (!empty($analysis['provider_zip'])) {
+                    $this->itemProviderZip = $analysis['provider_zip'];
+                }
+                if (!empty($analysis['provider_city'])) {
+                    $this->itemProviderCity = $analysis['provider_city'];
+                }
+                if (!empty($analysis['provider_phone'])) {
+                    $this->itemProviderPhone = $analysis['provider_phone'];
+                }
+                if (!empty($analysis['provider_email'])) {
+                    $this->itemProviderEmail = $analysis['provider_email'];
+                }
+                if (!empty($analysis['provider_website'])) {
+                    $this->itemProviderWebsite = $analysis['provider_website'];
+                }
+
+                // Notizen / Beschreibung mit Zusammenfassung ergänzen
+                if (!empty($analysis['summary'])) {
+                    $this->itemDescription = $analysis['summary'];
+                }
+
+                // Tags aus der KI-Analyse setzen
+                if (!empty($analysis['tags']) && is_array($analysis['tags'])) {
+                    $this->itemTags = array_values(array_unique(array_merge($this->itemTags, $analysis['tags'])));
+                }
+
+                $providerName = $analysis['provider_clean'] ?: $analysis['provider_company'] ?: 'Vertrag';
+                session()->flash('success', "✨ KI-Auto-Fill erfolgreich ({$providerName}): Alle Formularfelder inklusive Tags wurden automatisch befüllt.");
+            } else {
+                session()->flash('error', 'Dokument konnte nicht analysiert werden. Die Datei wird beim Speichern automatisch nach Standard-Schema abgelegt.');
+            }
+        } catch (\Throwable $e) {
+            Log::error('analyzeContractWithAi error: ' . $e->getMessage());
+            session()->flash('error', 'Fehler bei der KI-Analyse: ' . $e->getMessage());
+        } finally {
+            $this->isAnalyzingContract = false;
+        }
+    }
+
+    /**
+     * Fügt dem aktuellen Formular einen Tag hinzu.
+     */
+    public function addTagToCurrentForm(?string $tag = null)
+    {
+        $tagToAdd = trim($tag ?: $this->itemNewTag);
+        if (!empty($tagToAdd) && !in_array($tagToAdd, $this->itemTags)) {
+            $this->itemTags[] = $tagToAdd;
+        }
+        $this->itemNewTag = '';
+    }
+
+    /**
+     * Entfernt einen Tag aus dem aktuellen Formular.
+     */
+    public function removeTagFromCurrentForm(string $tag)
+    {
+        $this->itemTags = array_values(array_filter($this->itemTags, fn($t) => $t !== $tag));
+    }
+
+    public function toggleGroupArchive(string $groupId): void
+    {
+        if (in_array($groupId, $this->openGroupArchives)) {
+            $this->openGroupArchives = array_values(array_filter($this->openGroupArchives, fn($id) => $id !== $groupId));
+        } else {
+            $this->openGroupArchives[] = $groupId;
+            $this->activeGroupId = $groupId;
+        }
+    }
+
+    public function archiveItem($id)
+    {
+        $this->deleteItem($id);
+    }
+
     public function deleteItem($id)
     {
         $item = AccountingCostItem::findOrFail($id);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        if ($this->editingItemId === $id) {
+            $this->cancelItemEdit();
+        }
 
         $adminName = Auth::guard('admin')->user()->name ?? 'Admin';
 
@@ -765,8 +968,12 @@ class AccountingFixCosts extends Component
 
     public function forceDeleteItem($id)
     {
-        $item = AccountingCostItem::onlyTrashed()->findOrFail($id);
+        $item = AccountingCostItem::withTrashed()->findOrFail($id);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        if ($this->editingItemId === $id) {
+            $this->cancelItemEdit();
+        }
 
         $name = $item->name;
 
@@ -829,7 +1036,8 @@ class AccountingFixCosts extends Component
             'itemExistingFile', 'targetGroupId', 'quickUploadFile', 'uploadingMissingItemId', 'itemTaxRate', 'itemLastPaymentDate',
             'itemProviderCompany', 'itemProviderStreet', 'itemProviderHouseNumber', 'itemProviderZip', 'itemProviderCity',
             'itemProviderPhone', 'itemProviderEmail', 'itemProviderWebsite', 'itemContractNumber',
-            'itemNoticePeriod', 'itemContractEndDate', 'cancellingItemId', 'cancellationDateType', 'cancellationCustomDate'
+            'itemNoticePeriod', 'itemContractEndDate', 'cancellingItemId', 'cancellationDateType', 'cancellationCustomDate',
+            'aiContractAnalysis', 'isAnalyzingContract', 'itemTags', 'itemNewTag'
         ]);
         $this->itemRequiresContract = true;
         $this->itemDate = date('Y-m-d');
@@ -837,7 +1045,7 @@ class AccountingFixCosts extends Component
 
     private function getFilteredGroups()
     {
-        $groups = AccountingGroup::with('items.transactions')
+        $groups = AccountingGroup::with(['items.transactions', 'archivedItems.transactions'])
             ->where('admin_id', $this->getAdminId())
             ->orderBy('position')
             ->orderBy('created_at')
@@ -853,7 +1061,7 @@ class AccountingFixCosts extends Component
                     continue;
                 }
 
-                // Otherwise, filter items in the group
+                // Filter active items in the group
                 $matchingItems = $group->items->filter(function ($item) use ($search) {
                     $tagsString = is_array($item->tags) ? implode(' ', $item->tags) : '';
                     $searchTarget = implode(' ', [
@@ -865,8 +1073,21 @@ class AccountingFixCosts extends Component
                     return $this->fuzzyMatch($search, $searchTarget);
                 });
 
-                if ($matchingItems->isNotEmpty()) {
+                // Filter archived items in the group
+                $matchingArchivedItems = $group->archivedItems->filter(function ($item) use ($search) {
+                    $tagsString = is_array($item->tags) ? implode(' ', $item->tags) : '';
+                    $searchTarget = implode(' ', [
+                        $item->name,
+                        $item->provider_company,
+                        $item->description,
+                        $tagsString
+                    ]);
+                    return $this->fuzzyMatch($search, $searchTarget);
+                });
+
+                if ($matchingItems->isNotEmpty() || $matchingArchivedItems->isNotEmpty()) {
                     $group->setRelation('items', $matchingItems);
+                    $group->setRelation('archivedItems', $matchingArchivedItems);
                     $filteredGroups->push($group);
                 }
             }

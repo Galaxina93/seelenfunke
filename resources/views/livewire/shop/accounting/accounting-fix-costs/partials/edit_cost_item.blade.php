@@ -85,14 +85,15 @@
 
         <div>
             <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 ml-1 uppercase tracking-widest mb-1.5">
-                Vertrag / Datei
+                Vertrag / Dokument
                 <div class="relative group cursor-help">
                     <svg class="w-3.5 h-3.5 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 bg-gray-900 border border-gray-700 rounded-xl shadow-xl text-[10px] text-gray-300 font-medium normal-case tracking-normal opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 pointer-events-none">
-                        <div class="font-bold text-white mb-1">Upload-Regel (E-Commerce Standard)</div>
-                        Bitte benenne die PDF-Datei vor dem Upload nach diesem Schema:<br>
+                        <div class="font-bold text-white mb-1">Automatische Ablage & Benennung</div>
+                        Dokumente werden beim Speichern automatisch nach Standard-Schema benannt und abgelegt:<br>
                         <span class="text-[var(--theme-color)] font-mono mt-1 block">YYYY-MM-DD_Anbieter_Titel.pdf</span>
-                        <div class="text-gray-500 mt-1">Die Datei wird automatisch in den sicheren Speicher <span class="text-gray-400 font-mono">storage/app/buchhaltung/contracts/</span> verschoben.</div>
+                        <div class="text-gray-400 mt-1">Speicherort: <span class="text-gray-300 font-mono">storage/app/buchhaltung/contracts/YYYY/MM/</span></div>
+                        <div class="text-gray-500 mt-1">Optional kann die KI das Dokument prüfen und Stammdaten auslesen.</div>
                         <div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-gray-900 border-b border-r border-gray-700 rotate-45"></div>
                     </div>
                 </div>
@@ -101,13 +102,39 @@
             <div class="space-y-2">
                 {{-- Force DOM recreation to clear file input text via wire:key --}}
                 <div wire:key="file-input-{{ $item->id }}-{{ $itemExistingFile ? md5($itemExistingFile) : 'none' }}-{{ now()->timestamp }}">
-                    <input type="file" wire:model="itemFile"
+                    <input type="file" wire:model.live="itemFile"
                            class="block w-full text-xs text-gray-500 file:mr-4 file:py-3.5 file:px-6 file:rounded-xl file:border-0 file:text-[9px] file:font-black file:uppercase file:tracking-widest file:bg-gray-100 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-200 dark:hover:file:bg-gray-700 hover:file:text-gray-900 dark:hover:file:text-white transition-all cursor-pointer bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl p-1 shadow-sm dark:shadow-inner">
                 </div>
                 
+                {{-- Live Zielpfad & optionaler KI-Prüfbutton --}}
+                @if($itemFile || $itemExistingFile)
+                    <div class="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl border border-dashed border-gray-300 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/60">
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] flex-shrink-0 text-xs">
+                                📁
+                            </span>
+                            <div class="truncate text-[10px] text-gray-600 dark:text-gray-400 font-mono">
+                                <span class="font-bold text-gray-700 dark:text-gray-300">Zielpfad:</span>
+                                <span class="text-[var(--theme-color)]">{{ $this->predictedContractPath }}</span>
+                            </div>
+                        </div>
+
+                        <button type="button"
+                                wire:click.prevent="analyzeContractWithAi"
+                                wire:loading.attr="disabled"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.35)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 cursor-pointer">
+                            <span wire:loading.remove wire:target="analyzeContractWithAi">✨ Alle Felder per KI ausfüllen</span>
+                            <span wire:loading wire:target="analyzeContractWithAi" class="inline-flex items-center gap-1.5">
+                                <svg class="animate-spin h-3.5 w-3.5 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                KI analysiert Dokument...
+                            </span>
+                        </button>
+                    </div>
+                @endif
+
                 @if($itemExistingFile)
                     <div class="flex items-center justify-between p-2 rounded-xl border border-gray-200 dark:border-gray-800/50 bg-gray-50 dark:bg-gray-950/50">
-                        <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[10px] font-bold text-[var(--theme-color)] hover:text-white transition-colors truncate max-w-[80%] flex items-center gap-2">
+                        <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[10px] font-bold text-[var(--theme-color)] hover:text-gray-900 dark:hover:text-white hover:underline transition-colors truncate max-w-[80%] flex items-center gap-2">
                             <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                             Aktuelle Datei ansehen
                         </button>
@@ -195,6 +222,43 @@
         </div>
     </div>
     @endif
+
+    {{-- Tags Bereich --}}
+    <div class="mt-6 border-t border-gray-200 dark:border-gray-800 pt-6">
+        <label class="flex items-center justify-between text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-3">
+            <span class="flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-[var(--theme-color)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                Tags / Schlagwörter
+            </span>
+            <span class="text-[9px] font-bold text-gray-500 normal-case tracking-normal">Durch KI gesetzt oder manuell anpassen</span>
+        </label>
+        <div class="flex flex-wrap items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl min-h-[48px]">
+            @forelse($itemTags as $tag)
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-15)] border border-[var(--theme-color-30)] text-[var(--theme-color)] shadow-sm">
+                    <span>{{ $tag }}</span>
+                    <button type="button" wire:click.prevent="removeTagFromCurrentForm('{{ $tag }}')" class="hover:text-red-400 hover:bg-red-500/20 rounded-full p-0.5 transition-colors cursor-pointer" title="Tag entfernen">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </span>
+            @empty
+                <span class="text-[10px] text-gray-400 italic">Noch keine Tags vergeben (werden bei KI-Import automatisch generiert).</span>
+            @endforelse
+            <div class="inline-flex items-center gap-1 ml-auto">
+                <input type="text" wire:model="itemNewTag" wire:keydown.enter.prevent="addTagToCurrentForm" placeholder="+ Neuer Tag..." class="bg-transparent text-[9px] font-black uppercase tracking-widest text-gray-900 dark:text-white px-2 py-1 outline-none border-b border-gray-300 dark:border-gray-700 focus:border-[var(--theme-color)] w-28">
+                <button type="button" wire:click.prevent="addTagToCurrentForm" class="text-xs font-bold text-gray-500 hover:text-[var(--theme-color)] px-1.5 py-0.5 rounded transition-colors cursor-pointer" title="Tag hinzufügen">+</button>
+            </div>
+        </div>
+        @if(!empty($this->globalTags))
+            <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
+                <span class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mr-1">Vorschläge:</span>
+                @foreach(array_slice($this->globalTags, 0, 10) as $gTag)
+                    @if(!in_array($gTag, $itemTags))
+                        <button type="button" wire:click.prevent="addTagToCurrentForm('{{ $gTag }}')" class="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-[var(--theme-color-10)] text-gray-600 dark:text-gray-400 hover:text-[var(--theme-color)] border border-gray-200 dark:border-gray-700/50 transition-all cursor-pointer">+ {{ $gTag }}</button>
+                    @endif
+                @endforeach
+            </div>
+        @endif
+    </div>
 
     {{-- HISTORY & CHART SECTION --}}
     @if($editingItemId && $item && $item->histories && $item->histories->count() > 0)

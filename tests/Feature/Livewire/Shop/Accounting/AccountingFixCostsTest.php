@@ -6,6 +6,8 @@ use App\Livewire\Shop\Accounting\AccountingFixCosts;
 use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingGroup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Tests\TestCase;
 use PHPUnit\Framework\Attributes\Test;
@@ -239,5 +241,248 @@ class AccountingFixCostsTest extends TestCase
         $component->call('forceDeleteItem', $item->id);
         $this->assertCount(0, $component->get('archivedItems'));
         $this->assertNull(AccountingCostItem::onlyTrashed()->find($item->id));
+    }
+
+    #[Test]
+    public function it_handles_group_level_archiving_contract_preservation_and_force_delete()
+    {
+        Storage::fake('local');
+
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'Versicherungen',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $contractPath = 'buchhaltung/contracts/2026/10/2026-10-22_Allianz_Haftpflicht.pdf';
+        Storage::disk('local')->put($contractPath, 'dummy pdf content');
+
+        $item = AccountingCostItem::create([
+            'accounting_group_id' => $group->id,
+            'name' => 'Haftpflichtversicherung',
+            'amount' => -120.00,
+            'interval_months' => 12,
+            'first_payment_date' => now(),
+            'contract_file_path' => $contractPath,
+            'tags' => ['Versicherung', 'Haftpflicht']
+        ]);
+
+        // Group should have 1 active item and 0 archived items
+        $this->assertEquals(1, $group->fresh()->items->count());
+        $this->assertEquals(0, $group->fresh()->archivedItems->count());
+
+        $component = Livewire::test(AccountingFixCosts::class);
+
+        // 1. Archive item
+        $component->call('archiveItem', $item->id);
+
+        // Item must be excluded from group active items and present in group archivedItems
+        $this->assertEquals(0, $group->fresh()->items->count());
+        $this->assertEquals(1, $group->fresh()->archivedItems->count());
+
+        // Contract file MUST be preserved while archived
+        Storage::disk('local')->assertExists($contractPath);
+
+        // 2. Toggle group archive view
+        $component->call('toggleGroupArchive', $group->id);
+        $this->assertContains($group->id, $component->get('openGroupArchives'));
+        $this->assertEquals($group->id, $component->get('activeGroupId'));
+
+        // Toggle it off
+        $component->call('toggleGroupArchive', $group->id);
+        $this->assertNotContains($group->id, $component->get('openGroupArchives'));
+
+        // 3. Restore item
+        $component->call('restoreItem', $item->id);
+        $this->assertEquals(1, $group->fresh()->items->count());
+        $this->assertEquals(0, $group->fresh()->archivedItems->count());
+
+        // 4. Force delete directly from active or archived status deletes item AND contract file
+        $component->call('forceDeleteItem', $item->id);
+        $this->assertDatabaseMissing('accounting_cost_items', ['id' => $item->id]);
+        Storage::disk('local')->assertMissing($contractPath);
+        $this->assertEquals(0, $group->fresh()->items->count());
+        $this->assertEquals(0, $group->fresh()->archivedItems->count());
+    }
+
+    #[Test]
+    public function it_logically_names_and_stores_contract_file_on_item_save()
+    {
+        Storage::fake('local');
+
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'IT Infrastructure',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $file = UploadedFile::fake()->create('upload_123.pdf', 50, 'application/pdf');
+
+        $component = Livewire::test(AccountingFixCosts::class)
+            ->set('addingToGroupId', $group->id)
+            ->set('itemName', 'Managed Cloud Server')
+            ->set('itemAmount', '49.99')
+            ->set('itemInterval', 1)
+            ->set('itemDate', '2026-08-11')
+            ->set('itemProviderCompany', 'Mittwald CM Service')
+            ->set('itemFile', $file)
+            ->call('saveItem');
+
+        $item = AccountingCostItem::where('name', 'Managed Cloud Server')->first();
+        $this->assertNotNull($item);
+        $this->assertEquals('buchhaltung/contracts/2026/08/2026-08-11_Mittwald_CM_Service_Managed_Cloud_Server.pdf', $item->contract_file_path);
+        Storage::disk('local')->assertExists($item->contract_file_path);
+    }
+
+    #[Test]
+    public function it_logically_names_and_stores_contract_file_on_quick_upload()
+    {
+        Storage::fake('local');
+
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'Versicherungen',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $item = AccountingCostItem::create([
+            'accounting_group_id' => $group->id,
+            'name' => 'Autoversicherung',
+            'amount' => -387.23,
+            'interval_months' => 12,
+            'first_payment_date' => '2026-08-11',
+            'provider_company' => 'ADAC',
+            'requires_contract' => true,
+            'contract_file_path' => null
+        ]);
+
+        $file = UploadedFile::fake()->create('scan_document.pdf', 50, 'application/pdf');
+
+        $component = Livewire::test(AccountingFixCosts::class)
+            ->set('uploadingMissingItemId', $item->id)
+            ->set('quickUploadFile', $file)
+            ->call('saveQuickUpload');
+
+        $item->refresh();
+        $this->assertEquals('buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf', $item->contract_file_path);
+        Storage::disk('local')->assertExists($item->contract_file_path);
+    }
+
+    #[Test]
+    public function it_can_trigger_ai_contract_analysis_and_autofill_properties()
+    {
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'Versicherungen',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $realPdfPath = storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
+        if (!file_exists($realPdfPath)) {
+            $this->markTestSkipped('ADAC contract file does not exist.');
+        }
+
+        $item = AccountingCostItem::create([
+            'accounting_group_id' => $group->id,
+            'name' => 'Autoversicherung',
+            'amount' => 0,
+            'interval_months' => 1,
+            'first_payment_date' => '2026-08-11',
+            'contract_file_path' => 'buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf'
+        ]);
+
+        $component = Livewire::test(AccountingFixCosts::class)
+            ->call('openItemForm', $group->id, $item->id)
+            ->call('analyzeContractWithAi');
+
+        $this->assertNotNull($component->get('aiContractAnalysis'));
+        $this->assertTrue($component->get('aiContractAnalysis')['success']);
+        $this->assertStringContainsString('ADAC', $component->get('itemProviderCompany'));
+        $this->assertNotEmpty($component->get('itemTags'));
+        $this->assertContains('Versicherung', $component->get('itemTags'));
+    }
+
+    #[Test]
+    public function it_can_autofill_all_fields_when_creating_new_item_from_uploaded_document()
+    {
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'Versicherungen',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $realPdfPath = storage_path('app/buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf');
+        if (!file_exists($realPdfPath)) {
+            $this->markTestSkipped('ADAC contract file does not exist.');
+        }
+
+        $file = UploadedFile::fake()->createWithContent(
+            'ADAC_Autoversicherung.pdf',
+            file_get_contents($realPdfPath)
+        );
+
+        $component = Livewire::test(AccountingFixCosts::class)
+            ->call('toggleAddItemForm', $group->id)
+            ->set('itemFile', $file)
+            ->call('analyzeContractWithAi');
+
+        $this->assertNotNull($component->get('aiContractAnalysis'));
+        $this->assertNotEmpty($component->get('itemName'));
+        $this->assertStringContainsString('ADAC', $component->get('itemProviderCompany'));
+        $this->assertTrue((float)$component->get('itemAmount') > 0);
+        $this->assertTrue((int)$component->get('itemInterval') >= 1);
+        $this->assertTrue((bool)$component->get('itemRequiresContract'));
+        $this->assertNotEmpty($component->get('itemTags'));
+        $this->assertContains('Versicherung', $component->get('itemTags'));
+
+        // Save newly filled item
+        $component->call('saveNewItem', $group->id);
+
+        $item = AccountingCostItem::where('accounting_group_id', $group->id)->first();
+        $this->assertNotNull($item);
+        $this->assertStringContainsString('ADAC', $item->provider_company);
+        $this->assertNotNull($item->contract_file_path);
+        $this->assertIsArray($item->tags);
+        $this->assertContains('Versicherung', $item->tags);
+    }
+
+    #[Test]
+    public function it_can_manage_tags_interactively_on_cost_item_form()
+    {
+        $group = AccountingGroup::create([
+            'admin_id' => $this->admin->id,
+            'name' => 'IT & Software',
+            'type' => 'expense',
+            'position' => 1
+        ]);
+
+        $component = Livewire::test(AccountingFixCosts::class)
+            ->call('toggleAddItemForm', $group->id)
+            ->call('addTagToCurrentForm', 'Hosting')
+            ->set('itemNewTag', 'Mittwald')
+            ->call('addTagToCurrentForm')
+            ->set('itemName', 'Webhosting Server')
+            ->set('itemAmount', '49.90')
+            ->set('itemDate', '2026-01-01')
+            ->call('saveNewItem', $group->id);
+
+        $item = AccountingCostItem::where('accounting_group_id', $group->id)->first();
+        $this->assertNotNull($item);
+        $this->assertContains('Hosting', $item->tags);
+        $this->assertContains('Mittwald', $item->tags);
+
+        // Edit and remove a tag
+        $component->call('openItemForm', $group->id, $item->id)
+            ->assertSet('itemTags', ['Hosting', 'Mittwald'])
+            ->call('removeTagFromCurrentForm', 'Mittwald')
+            ->call('saveItem');
+
+        $item->refresh();
+        $this->assertEquals(['Hosting'], $item->tags);
     }
 }

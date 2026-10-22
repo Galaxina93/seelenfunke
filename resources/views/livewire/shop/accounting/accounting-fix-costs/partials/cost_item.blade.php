@@ -33,7 +33,7 @@
 
             @if($item->contract_file_path)
                 <div class="w-px h-3 bg-gray-300 dark:bg-gray-700"></div>
-                <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[var(--theme-color)] hover:text-white transition-colors flex items-center gap-1.5 font-bold uppercase tracking-widest">
+                <button wire:click.prevent="downloadContract('{{ $item->id }}')" class="text-[var(--theme-color)] hover:text-gray-900 dark:hover:text-white hover:underline transition-colors flex items-center gap-1.5 font-bold uppercase tracking-widest">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg> Vertrag
                 </button>
             @endif
@@ -57,7 +57,8 @@
                 <button wire:click.stop="openCancellationModal('{{ $item->id }}')" class="text-[9px] text-gray-500 hover:text-red-600 dark:hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-500 hover:border-red-600 dark:hover:border-red-400 pb-0.5 transition-colors">Kündigen</button>
             @endif
             <button wire:click="openItemForm('{{ $group->id }}', '{{ $item->id }}')" class="text-[9px] text-gray-500 hover:text-[var(--theme-color)] font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-500 hover:border-[var(--theme-color)] pb-0.5 transition-colors">Bearbeiten</button>
-            <button wire:click.stop="deleteItem('{{ $item->id }}')" wire:confirm="Wirklich löschen?" class="text-[9px] text-gray-400 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-600 hover:border-red-600 dark:hover:border-red-400 pb-0.5 transition-colors">Löschen</button>
+            <button wire:click.stop="archiveItem('{{ $item->id }}')" wire:confirm="Kostenstelle '{{ $item->name }}' ins Archiv verschieben? (Vertrag bleibt gesichert und kann jederzeit wiederhergestellt werden)" class="text-[9px] text-gray-400 dark:text-gray-500 hover:text-amber-500 dark:hover:text-amber-400 font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-700 hover:border-amber-500 dark:hover:border-amber-400 pb-0.5 transition-colors">Archivieren</button>
+            <button wire:click.stop="forceDeleteItem('{{ $item->id }}')" wire:confirm="Achtung: Möchtest du diese Kostenstelle samt hinterlegtem Vertrag wirklich UNWIDERRUFLICH und endgültig löschen?" class="text-[9px] text-gray-400 dark:text-gray-600 hover:text-red-600 dark:hover:text-red-400 font-black uppercase tracking-widest border-b border-gray-300 dark:border-gray-600 hover:border-red-600 dark:hover:border-red-400 pb-0.5 transition-colors">Endgültig löschen</button>
         </div>
     </div>
 </div>

@@ -438,7 +438,7 @@ class AccountingSeeder extends Seeder
                 'amount'      => 0,
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-04-15',
-                'is_business' => 1,
+                'is_business' => false,
                 'provider_company' => 'K/A',
                 'provider_street'  => 'Winkeler Straße',
                 'provider_house_number' => '1',
@@ -448,8 +448,8 @@ class AccountingSeeder extends Seeder
                 'provider_phone'   => 'K/A',
                 'contract_number'  => 'K/A',
                 'notice_period'    => 'K/A',
-                'description' => "Arbeitslosenversicherung zur Absicherung falls die Firma nicht klappt.",
-                'tags'        => ['Versicherung', 'Gewerbe', 'Vorsorge', 'Absicherung'],
+                'description' => "Freiwillige Weiterversicherung gegen Arbeitslosigkeit (§ 28a SGB III). Steuerlich private Vorsorgeaufwendung / Sonderausgabe (keine Betriebsausgabe).",
+                'tags'        => ['Versicherung', 'Privat', 'Vorsorge', 'Absicherung'],
             ],
 
             // Vertrag & Lizenz (Ausgaben = Negativ)
@@ -599,18 +599,21 @@ class AccountingSeeder extends Seeder
                 'name'        => 'Autoversicherung',
                 'amount'      => -387.23,
                 'interval'    => 12,
-                'start_date'  => '2023-09-25',
-                'provider_company' => 'Allianz Generalvertretung Andreas Wiegand',
-                'provider_street'  => 'Hauptstr. 19',
-                'provider_zip'     => '38542',
-                'provider_city'    => 'Leiferde',
-                'provider_phone'   => '0 53 73.61 19',
-                'provider_email'   => 'andreas2.wiegand@allianz.de',
-                'provider_website' => 'www.allianz-wiegand.de',
-                'contract_number'  => 'AS-9185063127',
-                'description' => "Allianz Generalvertretung Andreas Wiegand. Faxnummer und weitere Kontaktdetails vorhanden.",
-                'tags'        => ['Auto', 'Versicherung', 'Mobilität', 'Absicherung', 'Kfz', 'Allianz'],
-                'contract_file_path' => 'buchhaltung/contracts/2023/09/2023-09-25_HUK-Coburg_Autoversicherung.pdf'
+                'start_date'  => '2026-08-11',
+                'contract_end_date' => '2027-08-11',
+                'notice_period' => 'Automatische Verlängerung um 12 Monate',
+                'provider_company' => 'ADAC Autoversicherung AG',
+                'provider_street'  => 'Hansastraße',
+                'provider_house_number' => '19',
+                'provider_zip'     => '80686',
+                'provider_city'    => 'München',
+                'provider_phone'   => null,
+                'provider_email'   => 'kfz-beratung@check24.de',
+                'provider_website' => 'www.adac.de',
+                'contract_number'  => '1437-2545-2110-61',
+                'description' => "Ihr Fahrzeug:\nName / Halter: Frau Alina Steinhauer\nAnschrift: Carl-Goerdeler-Ring 26, 38518 Gifhorn\nKennzeichen: GF-HS 232\nFIN: WVWZZZ1KZBP176602\nKilometerstand: 101.000 km\n\nVersicherungsdetails (ADAC Basis mit Werkstattbonus):\nVersicherungsbeginn: 11.08.2026\nAblauf: 11.08.2027 (automatische Verlängerung um 12 Monate)\nVorversicherung: Allianz (Vertragsnr. as-9185063127)\nAntrag-Referenz: 1437-2545-2110-61 (CHECK24)\nZahlungsart: SEPA-Lastschrift (ADAC Autoversicherung AG, Hansastraße 19, 80686 München)\nBeitrag Haftpflicht: 301,59 € jährlich\nBeitrag Kasko: 85,64 € jährlich\nGesamtbeitrag (inkl. Versicherungssteuer): 387,23 € jährlich\nCashback von CHECK24: -50,00 € einmalig\nSF-Klasse Haftpflicht: SF 31 (angegeben & tatsächlich)\nSelbstbeteiligung Teilkasko: 150 €\nBesonderheiten der Selbstbeteiligung: Senkung um 100% bei Reparatur statt Austausch der Frontscheibe in einer Partnerwerkstatt; Erhöhung um 20% der Reparaturkosten bei Reparatur in einer anderen Werkstatt als einer Partnerwerkstatt\nEinschränkungen: keine\nVertragsunterlagen: online\nNotiz: läuft über meine Mama (Kerstin)",
+                'tags'        => ['Auto', 'Versicherung', 'Mobilität', 'Absicherung', 'Kfz', 'ADAC', 'Haftpflicht', 'Kasko'],
+                'contract_file_path' => 'buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf'
             ],
 
             // Unterhalt (Ausgaben = Negativ)
@@ -660,6 +663,33 @@ class AccountingSeeder extends Seeder
         // --- 3. Sonderausgaben erstellen (Gewerblich) ---
 
         $specialIssues = [
+            [
+                'title'          => 'Gewerbeanmeldung Stadt Gifhorn (GewA1) - Neugründung Mein-Seelenfunke',
+                'location'       => 'Stadt Gifhorn',
+                'amount'         => -32.50,
+                'date'           => '2026-10-22',
+                'category'       => 'Beratung & Gründung',
+                'tax_rate'       => 0,
+                'invoice_number' => 'OGAN-2026-00000406',
+                'note'           => "Bezahlt via PayPal (Transaktionscode: 7N857731L42389422)\nBankkonto: Volksbank eG Braunschweig Wolfsburg x-6000\nAktenzeichen / Transaktionsnummer: OLAV-GEW001317632\nAuftragsnummer: GEWANZ-20261022-000454-KCHAXY",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_Gewerbeanzeige-Zahlungsbeleg.pdf',
+                    'buchhaltung/receipts/2026/10/2026-10-22_Stadt-Gifhorn_PayPal-Zahlungsbeleg.pdf'
+                ]
+            ],
+            [
+                'title'          => '50x 3D Goldfolien-Kristall-Transferaufkleber & 50x 3D UV Metallic Logo Aufkleber',
+                'location'       => 'Temu',
+                'amount'         => -36.34,
+                'date'           => '2026-10-22',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-01528762450550774',
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/10/2026-10-22_Temu_3D-Goldfolien-Kristall-Transferaufkleber-Metallic-Logo.pdf',
+                    'buchhaltung/receipts/2026/10/2026-10-22_Temu_3D-Goldfolien-Kristall-Transferaufkleber-Metallic-Logo.png'
+                ]
+            ],
             [
                 'title'          => '1x Bambus-Kugelschreiber (24er Set) & 2x Edelstahl-Schlüsselanhänger (16 Stk. Gold)',
                 'location'       => 'Temu',
@@ -893,6 +923,7 @@ class AccountingSeeder extends Seeder
                 'tax_rate'       => $issue['tax_rate'] ?? 19,
                 'invoice_number' => $issue['invoice_number'] ?? null,
                 'file_paths'     => $issue['file_paths'] ?? null,
+                'note'           => $issue['note'] ?? null,
             ]);
         }
     }

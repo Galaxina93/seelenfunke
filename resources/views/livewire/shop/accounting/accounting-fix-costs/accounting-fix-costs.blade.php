@@ -97,16 +97,11 @@
 
                     {{-- Archiv Toggle --}}
                     <button wire:click="$toggle('showArchive')" 
-                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : ($this->archivedItems->count() > 0 ? 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-100 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/50 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800') }}"
-                            title="{{ $this->archivedItems->count() > 0 ? 'Archiv: ' . $this->archivedItems->count() . ' archivierte Kostenstellen' : 'Archiv: Keine archivierten Kostenstellen' }}">
+                            class="relative p-1.5 sm:p-2.5 rounded-xl shrink-0 transition-all hover:scale-105 active:scale-95 duration-200 {{ $showArchive ? 'ring-2 ring-[var(--theme-color-50)] bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color)]' : 'bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] hover:bg-[var(--theme-color-20)]' }}"
+                            title="Archiv">
                         <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
-                        @if($this->archivedItems->count() > 0)
-                            <span class="absolute -top-1 -right-1 sm:-top-1.5 sm:-right-1.5 flex h-3.5 w-3.5 sm:h-4 sm:w-4">
-                                <span class="relative inline-flex rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 bg-[var(--theme-color)] text-[7px] sm:text-[8px] font-black text-gray-900 items-center justify-center shadow-[0_0_8px_var(--theme-color-50)]">{{ $this->archivedItems->count() }}</span>
-                            </span>
-                        @endif
                     </button>
                 </div>
             </div>
@@ -617,7 +612,7 @@
                              draggable="true"
                              @dragstart.stop="draggedGroup = $el; $el.classList.add('opacity-40', 'scale-[0.98]', 'border-dashed')"
                              @dragend.stop="draggedGroup = null; $el.classList.remove('opacity-40', 'scale-[0.98]', 'border-dashed')"
-                             x-data="{ isDraggingOver: false }"
+                             x-data="{ isDraggingOver: false, showGroupArchive: {{ in_array($group->id, $openGroupArchives) ? 'true' : 'false' }} }"
                              @dragover.prevent="if(!draggedGroup && draggingItemId) isDraggingOver = true"
                              @dragleave.prevent="isDraggingOver = false"
                              @drop.prevent="
@@ -638,37 +633,60 @@
                             {{-- Group Header --}}
                             @include('livewire.shop.accounting.accounting-fix-costs.partials.group_header')
 
-                            {{-- Group Body (Items) --}}
+                            {{-- Group Body (Items & Archiv) --}}
                             @if($activeGroupId === $group->id || !empty(trim($searchQuery)))
-                                <div class="border-t border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/50 p-4 sm:p-8 animate-fade-in-down shadow-inner" @dragstart.stop>
+                                <div class="border-t border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/50 p-4 sm:p-8 animate-fade-in-down shadow-inner relative min-h-[140px] overflow-hidden" @dragstart.stop>
 
-                                    <div class="space-y-4">
-                                        @foreach($group->items as $item)
-                                            {{-- ITEM CARD (Draggable) --}}
-                                            <div wire:key="item-card-{{ $item->id }}"
-                                                 id="item-card-{{ $item->id }}"
-                                                 class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm dark:shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-md dark:hover:shadow-[0_0_15px_var(--theme-color-10)] transition-all cursor-default group/item overflow-hidden"
-                                                 {{ $editingItemId === $item->id ? '' : 'draggable=true' }}
-                                                 @if($editingItemId !== $item->id)
-                                                 @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
-                                                 @dragend.stop="draggingItemId = null"
-                                                 @endif>
-                                                @if($editingItemId === $item->id)
-                                                    <div wire:key="edit-view-{{ $item->id }}" class="p-4 sm:p-6 bg-gray-50 dark:bg-gray-800/30 cursor-default">
-                                                        @include('livewire.shop.accounting.accounting-fix-costs.partials.edit_cost_item')
-                                                    </div>
-                                                @else
-                                                    <div wire:key="read-view-{{ $item->id }}" class="p-4 sm:p-6 cursor-default">
-                                                        @include('livewire.shop.accounting.accounting-fix-costs.partials.cost_item')
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        @endforeach
+                                    {{-- AKTIVE KOSTENSTELLEN ANSICHT --}}
+                                    <div x-show="!showGroupArchive"
+                                         x-transition:enter="transition ease-out duration-300 transform"
+                                         x-transition:enter-start="opacity-0 -translate-x-8"
+                                         x-transition:enter-end="opacity-100 translate-x-0"
+                                         x-transition:leave="transition ease-in duration-200 transform absolute inset-x-0 p-4 sm:p-8"
+                                         x-transition:leave-start="opacity-100 translate-x-0"
+                                         x-transition:leave-end="opacity-0 -translate-x-8">
+
+                                        <div class="space-y-4">
+                                            @foreach($group->items as $item)
+                                                {{-- ITEM CARD (Draggable) --}}
+                                                <div wire:key="item-card-{{ $item->id }}"
+                                                     id="item-card-{{ $item->id }}"
+                                                     class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm dark:shadow-inner hover:border-[var(--theme-color-30)] hover:shadow-md dark:hover:shadow-[0_0_15px_var(--theme-color-10)] transition-all cursor-default group/item overflow-hidden"
+                                                     {{ $editingItemId === $item->id ? '' : 'draggable=true' }}
+                                                     @if($editingItemId !== $item->id)
+                                                     @dragstart.stop="draggingItemId = '{{ $item->id }}'; $event.dataTransfer.effectAllowed = 'move';"
+                                                     @dragend.stop="draggingItemId = null"
+                                                     @endif>
+                                                    @if($editingItemId === $item->id)
+                                                        <div wire:key="edit-view-{{ $item->id }}" class="p-4 sm:p-6 bg-gray-50 dark:bg-gray-800/30 cursor-default">
+                                                            @include('livewire.shop.accounting.accounting-fix-costs.partials.edit_cost_item')
+                                                        </div>
+                                                    @else
+                                                        <div wire:key="read-view-{{ $item->id }}" class="p-4 sm:p-6 cursor-default">
+                                                            @include('livewire.shop.accounting.accounting-fix-costs.partials.cost_item')
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            @endforeach
+                                        </div>
+
+                                        {{-- "NEUE KOSTENSTELLE" --}}
+                                        <div class="mt-6">
+                                            @include('livewire.shop.accounting.accounting-fix-costs.partials.new_cost_item')
+                                        </div>
                                     </div>
 
-                                    {{-- "NEUE KOSTENSTELLE" --}}
-                                    <div class="mt-6">
-                                        @include('livewire.shop.accounting.accounting-fix-costs.partials.new_cost_item')
+                                    {{-- GRUPPEN-ARCHIV ANSICHT (Gleitend mit Transition) --}}
+                                    <div x-show="showGroupArchive"
+                                         x-transition:enter="transition ease-out duration-300 transform"
+                                         x-transition:enter-start="opacity-0 translate-x-8"
+                                         x-transition:enter-end="opacity-100 translate-x-0"
+                                         x-transition:leave="transition ease-in duration-200 transform absolute inset-x-0 p-4 sm:p-8"
+                                         x-transition:leave-start="opacity-100 translate-x-0"
+                                         x-transition:leave-end="opacity-0 translate-x-8"
+                                         style="display: none;"
+                                         x-cloak>
+                                        @include('livewire.shop.accounting.accounting-fix-costs.partials.group_archive')
                                     </div>
 
                                 </div>

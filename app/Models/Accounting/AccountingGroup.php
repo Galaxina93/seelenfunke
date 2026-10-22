@@ -24,6 +24,11 @@ class AccountingGroup extends Model
         return $this->hasMany(AccountingCostItem::class, 'accounting_group_id');
     }
 
+    public function archivedItems(): HasMany
+    {
+        return $this->hasMany(AccountingCostItem::class, 'accounting_group_id')->onlyTrashed()->orderBy('deleted_at', 'desc');
+    }
+
     public function admin(): BelongsTo
     {
         return $this->belongsTo(Admin::class);

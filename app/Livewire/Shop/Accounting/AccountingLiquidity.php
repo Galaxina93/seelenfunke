@@ -372,7 +372,8 @@ class AccountingLiquidity extends Component
                     continue; // Skip the standard mapping for this item
                 }
 
-                $mapping = $this->mapItemToRow($item->name, $group->name, $item->is_business, $item->amount >= 0 ? 'receipt' : 'expense', $item->tags);
+                $rowType = ($group->type === 'income') ? 'receipt' : 'expense';
+                $mapping = $this->mapItemToRow($item->name, $group->name, $item->is_business, $rowType, $item->tags);
                 $type = $mapping['type'];
                 $rowKey = $mapping['key'];
                 $amt = abs($item->amount);
