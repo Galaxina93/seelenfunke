@@ -30,6 +30,19 @@ class AccountingBank extends Component
     public $availableAgents = [];
     public $selectedAgentId = '';
 
+    // CSV Import Properties
+    public $csvFile;
+    public $csvTargetAccountId = '';
+    public bool $showCsvModal = false;
+    public bool $showAccountModal = false;
+
+    // New Bank Account Modal Properties
+    public string $newBankName = 'FYRST';
+    public string $newAccountName = 'Geschäftskonto';
+    public string $newIban = '';
+    public string $newBalance = '0.00';
+    public bool $newIsBusiness = true;
+
     // Filter Properties
     public $searchTx = '';
     public $filterCategoryId = ''; 
@@ -71,6 +84,10 @@ class AccountingBank extends Component
         $this->availableCostItems = \App\Models\Accounting\AccountingCostItem::whereHas('group', function ($q) use ($adminId) {
             $q->where('admin_id', $adminId);
         })->orderBy('name')->get()->toArray();
+
+        if (empty($this->csvTargetAccountId) && !empty($this->bankAccounts)) {
+            $this->csvTargetAccountId = $this->bankAccounts[0]['id'];
+        }
 
         $dept = \App\Models\Ai\AiDepartment::where('name', $this->themingDepartment)->first();
         if ($dept) {
@@ -151,6 +168,7 @@ class AccountingBank extends Component
                 $files[] = $path;
 
                 $tx->update(['file_paths' => $files]);
+
                 session()->flash('success', 'Beleg hochgeladen.');
             }
             $this->reset(['quickUploadFile', 'uploadingBankTxId']);
@@ -614,85 +632,371 @@ class AccountingBank extends Component
         }
     }
 
-    public function syncAllAccounts(BankApiService $finapi)
+    public function openCsvModal($accountId = null)
     {
+        if ($accountId) {
+            $this->csvTargetAccountId = $accountId;
+        } elseif (empty($this->csvTargetAccountId) && !empty($this->bankAccounts)) {
+            $this->csvTargetAccountId = $this->bankAccounts[0]['id'];
+        }
+        $this->reset('csvFile');
+        $this->showCsvModal = true;
+    }
+
+    public function closeCsvModal()
+    {
+        $this->reset('csvFile');
+        $this->showCsvModal = false;
+    }
+
+    public function openAccountModal()
+    {
+        $this->reset(['newBankName', 'newAccountName', 'newIban', 'newBalance', 'newIsBusiness']);
+        $this->newBankName = 'FYRST';
+        $this->newAccountName = 'Geschäftskonto';
+        $this->newBalance = '0.00';
+        $this->newIsBusiness = true;
+        $this->showAccountModal = true;
+    }
+
+    public function closeAccountModal()
+    {
+        $this->showAccountModal = false;
+    }
+
+    public function createManualAccount()
+    {
+        $this->validate([
+            'newBankName' => 'required|string|max:100',
+            'newAccountName' => 'required|string|max:100',
+            'newIban' => 'nullable|string|max:34',
+            'newBalance' => 'nullable|numeric',
+        ]);
+
+        $adminId = auth('admin')->id();
+        $cleanIban = $this->newIban ? strtoupper(str_replace(' ', '', $this->newIban)) : null;
+        $uniqueId = 'manual_' . ($cleanIban ?: uniqid());
+
+        $account = AccountingBankAccount::create([
+            'admin_id' => $adminId,
+            'plaid_item_id' => 'manual_managed',
+            'plaid_access_token' => 'manual_managed',
+            'plaid_account_id' => $uniqueId,
+            'bank_name' => trim($this->newBankName),
+            'account_name' => trim($this->newAccountName),
+            'iban' => $cleanIban,
+            'balance' => (float) ($this->newBalance ?: 0),
+            'currency' => 'EUR',
+            'is_business' => $this->newIsBusiness,
+            'is_active_for_analysis' => true,
+            'last_synced_at' => now(),
+        ]);
+
+        $this->loadBankAccounts();
+        $this->csvTargetAccountId = $account->id;
+        $this->selectedAccountId = $account->id;
+        $this->showAccountModal = false;
+
+        session()->flash('success', "Bankkonto '{$account->bank_name} - {$account->account_name}' erfolgreich angelegt!");
+    }
+
+    public function importCsvTransactions()
+    {
+        $this->validate([
+            'csvFile' => 'required|file|max:10240',
+            'csvTargetAccountId' => 'required',
+        ]);
+
+        $adminId = auth('admin')->id();
+        $account = AccountingBankAccount::where('admin_id', $adminId)->find($this->csvTargetAccountId);
+        if (!$account) {
+            session()->flash('error', 'Ziel-Bankkonto nicht gefunden.');
+            return;
+        }
+
+        try {
+            $rawContent = file_get_contents($this->csvFile->getRealPath());
+
+            // Remove UTF-8 BOM
+            $bom = pack('H*', 'EFBBBF');
+            $rawContent = preg_replace("/^$bom/", '', $rawContent);
+
+            // Detect & normalize encoding (German banks often use ISO-8859-1 or Windows-1252)
+            $encoding = mb_detect_encoding($rawContent, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
+            if ($encoding && $encoding !== 'UTF-8') {
+                $rawContent = mb_convert_encoding($rawContent, 'UTF-8', $encoding);
+            }
+
+            $lines = preg_split("/\r\n|\n|\r/", trim($rawContent));
+            if (count($lines) < 2) {
+                session()->flash('error', 'Die CSV-Datei enthält keine Datenzeilen.');
+                return;
+            }
+
+            // Auto-detect delimiter
+            $sample = implode("\n", array_slice($lines, 0, 15));
+            $semicolonCount = substr_count($sample, ';');
+            $commaCount = substr_count($sample, ',');
+            $tabCount = substr_count($sample, "\t");
+
+            $delimiter = ';';
+            if ($commaCount > $semicolonCount && $commaCount > $tabCount) {
+                $delimiter = ',';
+            } elseif ($tabCount > $semicolonCount && $tabCount > $commaCount) {
+                $delimiter = "\t";
+            }
+
+            // Locate Header Row
+            $headerIndex = -1;
+            $headers = [];
+
+            foreach ($lines as $idx => $line) {
+                $row = str_getcsv($line, $delimiter);
+                if (count($row) < 3) continue;
+
+                $normalizedRow = array_map(fn($col) => mb_strtolower(trim(preg_replace('/[^a-zA-Z0-9äöüÄÖÜß]/', '', $col))), $row);
+
+                $hasDate = false;
+                $hasAmount = false;
+
+                foreach ($normalizedRow as $colName) {
+                    if (in_array($colName, ['buchungstag', 'buchungsdatum', 'datum', 'wertstellung', 'valuta', 'date'])) {
+                        $hasDate = true;
+                    }
+                    if (in_array($colName, ['betrag', 'umsatz', 'betragineur', 'betrageur', 'amount'])) {
+                        $hasAmount = true;
+                    }
+                }
+
+                if ($hasDate && $hasAmount) {
+                    $headerIndex = $idx;
+                    $headers = $row;
+                    break;
+                }
+            }
+
+            if ($headerIndex === -1) {
+                session()->flash('error', 'Konnte die Spaltenüberschriften (Datum, Betrag, Verwendungszweck) in der CSV-Datei nicht automatisch erkennen.');
+                return;
+            }
+
+            // Map Column Indices
+            $dateCol = null;
+            $amountCol = null;
+            $nameCol = null;
+            $purposeCol = null;
+            $ibanCol = null;
+            $typeCol = null;
+
+            foreach ($headers as $idx => $headerText) {
+                $clean = mb_strtolower(trim(preg_replace('/[^a-zA-Z0-9äöüÄÖÜß]/', '', $headerText)));
+
+                if ($dateCol === null && in_array($clean, ['buchungstag', 'buchungsdatum', 'datum', 'date', 'wertstellung', 'valuta'])) {
+                    $dateCol = $idx;
+                } elseif ($amountCol === null && in_array($clean, ['betrag', 'umsatz', 'betragineur', 'betrageur', 'amount'])) {
+                    $amountCol = $idx;
+                } elseif ($nameCol === null && in_array($clean, ['beguenstigterzahlungspflichtiger', 'beguenstigterauftraggeber', 'beguenstigter', 'auftraggeber', 'auftraggeberempfaenger', 'empfaenger', 'zahlungsempfaenger', 'name', 'counterparty'])) {
+                    $nameCol = $idx;
+                } elseif ($purposeCol === null && in_array($clean, ['verwendungszweck', 'buchungstext', 'umsatztext', 'text', 'zweck', 'details', 'description', 'reference'])) {
+                    $purposeCol = $idx;
+                } elseif ($ibanCol === null && in_array($clean, ['iban', 'kontonummer', 'gegenkonto', 'kontonummeriban'])) {
+                    $ibanCol = $idx;
+                } elseif ($typeCol === null && in_array($clean, ['buchungsart', 'transaktionstyp', 'geschaeftsvorfall', 'type'])) {
+                    $typeCol = $idx;
+                }
+            }
+
+            if ($dateCol === null || $amountCol === null) {
+                session()->flash('error', 'Datum oder Betragspalte konnte nicht zugeordnet werden.');
+                return;
+            }
+
+            $importedCount = 0;
+            $skippedDuplicates = 0;
+
+            for ($i = $headerIndex + 1; $i < count($lines); $i++) {
+                $line = trim($lines[$i]);
+                if (empty($line)) continue;
+
+                $row = str_getcsv($line, $delimiter);
+                if (!isset($row[$dateCol]) || !isset($row[$amountCol])) continue;
+
+                $rawDate = trim($row[$dateCol]);
+                $rawAmount = trim($row[$amountCol]);
+                if (empty($rawDate) || empty($rawAmount)) continue;
+
+                // Parse Date
+                $parsedDate = null;
+                try {
+                    if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/', $rawDate, $m)) {
+                        $parsedDate = \Carbon\Carbon::createFromDate($m[3], $m[2], $m[1])->startOfDay();
+                    } elseif (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/', $rawDate, $m)) {
+                        $year = (int)$m[3] < 50 ? 2000 + (int)$m[3] : 1900 + (int)$m[3];
+                        $parsedDate = \Carbon\Carbon::createFromDate($year, $m[2], $m[1])->startOfDay();
+                    } elseif (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $rawDate, $m)) {
+                        $parsedDate = \Carbon\Carbon::createFromDate($m[1], $m[2], $m[3])->startOfDay();
+                    } else {
+                        $parsedDate = \Carbon\Carbon::parse($rawDate)->startOfDay();
+                    }
+                } catch (\Throwable $e) {
+                    continue;
+                }
+
+                // Parse Amount
+                $cleanAmountStr = str_replace(['€', 'EUR', ' '], '', $rawAmount);
+                $isSoll = str_ends_with(strtoupper($cleanAmountStr), 'S') || str_starts_with($cleanAmountStr, '-');
+                $isHaben = str_ends_with(strtoupper($cleanAmountStr), 'H') || str_starts_with($cleanAmountStr, '+');
+                $cleanAmountStr = rtrim(ltrim($cleanAmountStr, '+-'), 'SHsh ');
+
+                if (strpos($cleanAmountStr, ',') !== false && strpos($cleanAmountStr, '.') !== false) {
+                    $cleanAmountStr = str_replace('.', '', $cleanAmountStr);
+                    $cleanAmountStr = str_replace(',', '.', $cleanAmountStr);
+                } elseif (strpos($cleanAmountStr, ',') !== false) {
+                    $cleanAmountStr = str_replace(',', '.', $cleanAmountStr);
+                }
+
+                $amount = (float) $cleanAmountStr;
+                if ($isSoll) {
+                    $amount = -abs($amount);
+                } elseif ($isHaben) {
+                    $amount = abs($amount);
+                }
+
+                $name = $nameCol !== null && isset($row[$nameCol]) ? trim($row[$nameCol]) : null;
+                $purpose = $purposeCol !== null && isset($row[$purposeCol]) ? trim($row[$purposeCol]) : null;
+                $iban = $ibanCol !== null && isset($row[$ibanCol]) ? trim($row[$ibanCol]) : null;
+                $type = $typeCol !== null && isset($row[$typeCol]) ? trim($row[$typeCol]) : 'transfer';
+
+                // Hash key for deduplication
+                $hashKey = 'csv_' . md5($account->id . '|' . $parsedDate->toDateString() . '|' . number_format($amount, 2, '.', '') . '|' . trim((string)$name) . '|' . mb_substr(trim((string)$purpose), 0, 40));
+
+                $existing = AccountingBankTransaction::where('finapi_transaction_id', $hashKey)->exists();
+                if ($existing) {
+                    $skippedDuplicates++;
+                    continue;
+                }
+
+                AccountingBankTransaction::create([
+                    'accounting_bank_account_id' => $account->id,
+                    'finapi_transaction_id' => $hashKey,
+                    'amount' => $amount,
+                    'currency' => $account->currency ?? 'EUR',
+                    'is_business' => null,
+                    'purpose' => $purpose,
+                    'counterpart_name' => $name,
+                    'counterpart_iban' => $iban,
+                    'transaction_date' => $parsedDate,
+                    'value_date' => $parsedDate,
+                    'type' => $type,
+                    'is_pending' => false,
+                    'raw_data' => $row,
+                ]);
+
+                $importedCount++;
+            }
+
+            $account->update(['last_synced_at' => now()]);
+
+            $assignedCount = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
+            $msgAuto = $assignedCount > 0 ? " ({$assignedCount} automatisch kategorisiert)" : "";
+            $msgDup = $skippedDuplicates > 0 ? " ({$skippedDuplicates} Duplikate übersprungen)" : "";
+
+            session()->flash('success', "{$importedCount} Umsätze erfolgreich importiert!{$msgDup}{$msgAuto}");
+            $this->closeCsvModal();
+            $this->loadBankAccounts();
+
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('CSV Bank Import Fehler: ' . $e->getMessage());
+            session()->flash('error', 'Fehler beim CSV-Import: ' . $e->getMessage());
+        }
+    }
+
+    public function syncAllAccounts(?BankApiService $finapi = null)
+    {
+        $finapi = $finapi ?? app(BankApiService::class);
         $this->isLoading = true;
+
         try {
             $adminId = auth('admin')->id();
-            $userToken = $finapi->getUserToken($adminId);
 
-            $accounts = $finapi->getAccounts($userToken);
-            
-            if (empty($accounts)) {
-                $connections = \Illuminate\Support\Facades\Http::withToken($userToken)->get("https://live.finapi.io/api/v2/bankConnections")->json('connections') ?? [];
-                if (empty($connections)) {
-                    session()->flash('error', 'Keine Bankverbindungen bei finAPI gefunden. Hast du die Datenbank zurückgesetzt? Dann musst du die Bank einmalig über "Neue Bank verbinden" neu verknüpfen, da sich deine User-ID geändert hat!');
-                    $this->isLoading = false;
-                    return;
-                }
-            }
+            $hasFinapiAccounts = AccountingBankAccount::where('admin_id', $adminId)
+                ->where('plaid_access_token', 'finapi_managed')
+                ->exists();
 
-            foreach ($accounts as $acc) {
-                $bankAccount = AccountingBankAccount::updateOrCreate(
-                    ['plaid_account_id' => (string) $acc['id']],
-                    [
-                        'admin_id' => $adminId,
-                        'plaid_item_id' => (string) $acc['bankConnectionId'],
-                        'plaid_access_token' => 'finapi_managed',
-                        'bank_name' => $acc['bankName'] ?? 'Demo Bank',
-                        'account_name' => $acc['accountName'] ?? 'Bankkonto',
-                        'iban' => $acc['iban'] ?? null,
-                        'balance' => $acc['balance'] ?? 0,
-                        'currency' => $acc['accountCurrency'] ?? 'EUR',
-                        'last_synced_at' => now(),
-                    ]
-                );
-                
-                // TRANSAKTIONEN LADEN WIE BEI EINZEL-SYNC
-                $txs = $finapi->getTransactions($userToken, $bankAccount->plaid_account_id, 200);
-                foreach($txs as $apiTx) {
-                    \App\Models\Accounting\AccountingBankTransaction::updateOrCreate(
-                        ['finapi_transaction_id' => (string) $apiTx['id']],
+            if ($hasFinapiAccounts) {
+                $userToken = $finapi->getUserToken($adminId);
+                $accounts = $finapi->getAccounts($userToken);
+
+                foreach ($accounts as $acc) {
+                    $bankAccount = AccountingBankAccount::updateOrCreate(
+                        ['plaid_account_id' => (string) $acc['id']],
                         [
-                            'accounting_bank_account_id' => $bankAccount->id,
-                            'amount' => $apiTx['amount'] ?? 0,
-                            'currency' => $bankAccount->currency,
-                            'purpose' => $apiTx['purpose'] ?? null,
-                            'counterpart_name' => $apiTx['counterpartName'] ?? null,
-                            'counterpart_iban' => $apiTx['counterpartIban'] ?? null,
-                            'transaction_date' => isset($apiTx['bankBookingDate']) ? \Carbon\Carbon::parse($apiTx['bankBookingDate']) : null,
-                            'value_date' => isset($apiTx['valueDate']) ? \Carbon\Carbon::parse($apiTx['valueDate']) : null,
-                            'type' => $apiTx['type'] ?? null,
-                            'is_pending' => $apiTx['isPending'] ?? false,
-                            'raw_data' => $apiTx
+                            'admin_id' => $adminId,
+                            'plaid_item_id' => (string) $acc['bankConnectionId'],
+                            'plaid_access_token' => 'finapi_managed',
+                            'bank_name' => $acc['bankName'] ?? 'Demo Bank',
+                            'account_name' => $acc['accountName'] ?? 'Bankkonto',
+                            'iban' => $acc['iban'] ?? null,
+                            'balance' => $acc['balance'] ?? 0,
+                            'currency' => $acc['accountCurrency'] ?? 'EUR',
+                            'last_synced_at' => now(),
                         ]
                     );
+
+                    $txs = $finapi->getTransactions($userToken, $bankAccount->plaid_account_id, 200);
+                    foreach ($txs as $apiTx) {
+                        AccountingBankTransaction::updateOrCreate(
+                            ['finapi_transaction_id' => (string) $apiTx['id']],
+                            [
+                                'accounting_bank_account_id' => $bankAccount->id,
+                                'amount' => $apiTx['amount'] ?? 0,
+                                'currency' => $bankAccount->currency,
+                                'purpose' => $apiTx['purpose'] ?? null,
+                                'counterpart_name' => $apiTx['counterpartName'] ?? null,
+                                'counterpart_iban' => $apiTx['counterpartIban'] ?? null,
+                                'transaction_date' => isset($apiTx['bankBookingDate']) ? \Carbon\Carbon::parse($apiTx['bankBookingDate']) : null,
+                                'value_date' => isset($apiTx['valueDate']) ? \Carbon\Carbon::parse($apiTx['valueDate']) : null,
+                                'type' => $apiTx['type'] ?? null,
+                                'is_pending' => $apiTx['isPending'] ?? false,
+                                'raw_data' => $apiTx,
+                            ]
+                        );
+                    }
                 }
+
+                $autoAssigned = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
+                $msgAuto = $autoAssigned > 0 ? " ({$autoAssigned} automatisch sortiert)" : "";
+                session()->flash('success', "Konten via finAPI aktualisiert!" . $msgAuto);
+            } else {
+                session()->flash('info', 'Keine finAPI-Verbindungen aktiv. Du kannst Umsätze bequem per CSV importieren.');
             }
-            
-            $autoAssigned = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
-            $msgAuto = $autoAssigned > 0 ? " ({$autoAssigned} automatisch sortiert)" : "";
-            
-            session()->flash('success', 'Alle Konten und Umsätze manuell aus finAPI aktualisiert!' . $msgAuto);
+
             $this->loadBankAccounts();
         } catch (\Exception $e) {
             if(app()->environment('testing')) throw $e;
-            \Illuminate\Support\Facades\Log::error('finAPI Sync Fehler: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Bank Sync Fehler: ' . $e->getMessage());
             session()->flash('error', 'Synchronisierung fehlgeschlagen: ' . $e->getMessage());
         } finally {
             $this->isLoading = false;
         }
     }
 
-    public function syncAccount($accountId, BankApiService $finapi)
+    public function syncAccount($accountId, ?BankApiService $finapi = null)
     {
+        $finapi = $finapi ?? app(BankApiService::class);
         $this->isLoading = true;
+
         try {
             $adminId = auth('admin')->id();
             $account = AccountingBankAccount::where('admin_id', $adminId)->find($accountId);
-            if($account) {
-                $userToken = $finapi->getUserToken($adminId);
+            if ($account) {
+                if ($account->plaid_access_token === 'manual_managed') {
+                    $this->openCsvModal($account->id);
+                    $this->isLoading = false;
+                    return;
+                }
 
+                $userToken = $finapi->getUserToken($adminId);
                 $finapi->updateBankConnection($userToken, $account->plaid_item_id);
                 $accounts = $finapi->getAccounts($userToken);
 
@@ -702,11 +1006,10 @@ class AccountingBank extends Component
                             'balance' => $apiAcc['balance'],
                             'last_synced_at' => now(),
                         ]);
-                        
-                        // TRANSAKTIONEN LADEN
+
                         $txs = $finapi->getTransactions($userToken, $account->plaid_account_id, 200);
-                        foreach($txs as $apiTx) {
-                            \App\Models\Accounting\AccountingBankTransaction::updateOrCreate(
+                        foreach ($txs as $apiTx) {
+                            AccountingBankTransaction::updateOrCreate(
                                 ['finapi_transaction_id' => (string) $apiTx['id']],
                                 [
                                     'accounting_bank_account_id' => $account->id,
@@ -719,16 +1022,16 @@ class AccountingBank extends Component
                                     'value_date' => isset($apiTx['valueDate']) ? \Carbon\Carbon::parse($apiTx['valueDate']) : null,
                                     'type' => $apiTx['type'] ?? null,
                                     'is_pending' => $apiTx['isPending'] ?? false,
-                                    'raw_data' => $apiTx
+                                    'raw_data' => $apiTx,
                                 ]
                             );
                         }
                     }
                 }
-                
+
                 $autoAssigned = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
                 $msgAuto = $autoAssigned > 0 ? " ({$autoAssigned} automatisch sortiert)" : "";
-                
+
                 session()->flash('success', 'Kontostand und Umsätze erfolgreich synchronisiert!' . $msgAuto);
                 $this->loadBankAccounts();
             }

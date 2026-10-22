@@ -11,27 +11,31 @@
                     </svg>
                     Bankverbindungen
                 </h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Live-Synchronisation deiner Geschäftskonten via finAPI.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 font-medium">Umsatzverwaltung und Auswertung deiner Geschäftskonten via CSV-Import oder finAPI.</p>
             </div>
 
-            <div class="flex items-center gap-4">
-                {{-- Manueller Sync Button falls der Redirect verloren geht --}}
-                <button wire:click="syncAllAccounts"
-                        wire:loading.attr="disabled"
-                        class="shrink-0 flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300 font-bold uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg wire:loading.remove wire:target="syncAllAccounts" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                    <svg wire:loading wire:target="syncAllAccounts" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                    <span wire:loading.remove wire:target="syncAllAccounts">Sync</span>
-                    <span wire:loading wire:target="syncAllAccounts">Lade...</span>
+            <div class="flex flex-wrap items-center gap-3">
+                {{-- Neues Konto anlegen Button --}}
+                <button wire:click="openAccountModal"
+                        class="shrink-0 flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-700 text-gray-800 dark:text-gray-200 font-bold uppercase tracking-widest text-xs px-4 py-3 rounded-xl transition-all transform hover:-translate-y-0.5">
+                    <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <span>Konto anlegen</span>
                 </button>
 
-                {{-- Der Button triggert jetzt die Livewire Methode, die das finAPI WebForm erstellt und weiterleitet --}}
+                {{-- CSV Import Button --}}
+                <button wire:click="openCsvModal"
+                        class="shrink-0 flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-all shadow-sm hover:shadow-md transform hover:-translate-y-0.5">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    <span>CSV Import</span>
+                </button>
+
+                {{-- finAPI WebForm Button --}}
                 <button wire:click="connectNewBank"
                         wire:loading.attr="disabled"
-                        class="shrink-0 flex items-center gap-2 bg-[var(--theme-color)] hover:bg-[var(--theme-color)] text-black font-bold uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all shadow-none dark:shadow-[0_0_15px_var(--theme-color-30)] hover:shadow-none dark:hover:shadow-[0_0_25px_var(--theme-color-50)] transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                        class="shrink-0 flex items-center gap-2 bg-[var(--theme-color)] hover:bg-[var(--theme-color)] text-black font-bold uppercase tracking-widest text-xs px-5 py-3 rounded-xl transition-all shadow-none dark:shadow-[0_0_15px_var(--theme-color-30)] hover:shadow-none dark:hover:shadow-[0_0_25px_var(--theme-color-50)] transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
                     <svg wire:loading.remove wire:target="connectNewBank" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"/></svg>
                     <svg wire:loading wire:target="connectNewBank" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                    <span wire:loading.remove wire:target="connectNewBank">Neue Bank verbinden</span>
+                    <span wire:loading.remove wire:target="connectNewBank">Bank via finAPI</span>
                     <span wire:loading wire:target="connectNewBank">Leite weiter...</span>
                 </button>
             </div>
@@ -105,7 +109,14 @@
 
                         <div class="flex justify-between items-start mb-4 relative z-10">
                             <div>
-                                <div class="text-gray-900 dark:text-white font-bold text-lg">{{ $account['bank_name'] }}</div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-gray-900 dark:text-white font-bold text-lg">{{ $account['bank_name'] }}</span>
+                                    @if(($account['plaid_access_token'] ?? '') === 'manual_managed')
+                                        <span class="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">CSV / Manuell</span>
+                                    @else
+                                        <span class="px-2 py-0.5 text-[9px] font-extrabold uppercase rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/30">finAPI</span>
+                                    @endif
+                                </div>
                                 <div class="text-gray-500 text-xs font-mono mt-1">{{ $account['account_name'] }}</div>
                                 @if(!empty($account['iban']))
                                     <div class="text-gray-600 text-[10px] font-mono mt-0.5">{{ $account['iban'] }}</div>
@@ -144,9 +155,15 @@
                                 <button wire:click="toggleBankActive('{{ $account['id'] }}')" wire:loading.attr="disabled" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 {{ $account['is_active_for_analysis'] ? 'text-emerald-400 hover:border-emerald-500/50' : 'text-gray-600 hover:text-emerald-500 hover:border-emerald-500/50' }} transition-colors" title="{{ $account['is_active_for_analysis'] ? 'Analyse Aktiv - Klick zum Deaktivieren' : 'Analyse Inaktiv - Klick zum Aktivieren' }}">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
                                 </button>
-                                <button wire:click="syncAccount('{{ $account['id'] }}')" wire:loading.attr="disabled" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] transition-colors" title="Jetzt synchronisieren">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                                </button>
+                                @if(($account['plaid_access_token'] ?? '') === 'manual_managed')
+                                    <button wire:click="openCsvModal('{{ $account['id'] }}')" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-emerald-500 hover:border-emerald-500/50 transition-colors" title="CSV Umsätze importieren">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                                    </button>
+                                @else
+                                    <button wire:click="syncAccount('{{ $account['id'] }}')" wire:loading.attr="disabled" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color-50)] transition-colors" title="Jetzt synchronisieren">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                    </button>
+                                @endif
                                 <button wire:click="disconnectAccount('{{ $account['id'] }}')" wire:confirm="Dieses Konto wirklich trennen?" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-red-400 hover:border-red-500/50 transition-colors" title="Konto trennen">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                 </button>
@@ -156,8 +173,11 @@
                 @empty
                     <div class="bg-gray-50 dark:bg-gray-900/40 border border-dashed border-gray-300 dark:border-gray-700 rounded-3xl p-8 text-center flex flex-col items-center justify-center">
                         <svg class="w-12 h-12 text-gray-600 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"/></svg>
-                        <span class="text-sm font-bold text-gray-400">Noch keine Bank verbunden</span>
-                        <span class="text-xs text-gray-600 mt-1">Verbinde dein erstes Konto, um Salden zu laden.</span>
+                        <span class="text-sm font-bold text-gray-400">Noch kein Bankkonto hinterlegt</span>
+                        <span class="text-xs text-gray-600 mt-1 mb-4">Lege dein FYRST- oder Geschäftskonto an und importiere die Umsätze.</span>
+                        <button wire:click="openAccountModal" class="px-4 py-2 bg-[var(--theme-color)] hover:bg-[var(--theme-color)] text-black font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm">
+                            + Bankkonto anlegen
+                        </button>
                     </div>
                 @endforelse
             </div>
@@ -422,5 +442,146 @@
             </div>
 
         </div>
+
+        {{-- CSV IMPORT MODAL --}}
+        @if($showCsvModal)
+            <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative space-y-6">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">CSV Umsätze importieren</h3>
+                                <p class="text-xs text-gray-500">FYRST, Deutsche Bank, Postbank, Sparkasse & Co.</p>
+                            </div>
+                        </div>
+                        <button wire:click="closeCsvModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <form wire:submit="importCsvTransactions" class="space-y-5">
+                        {{-- Ziel-Konto Auswahl --}}
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Ziel-Bankkonto</label>
+                            @if(empty($bankAccounts))
+                                <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-xs flex items-center justify-between">
+                                    <span>Bitte lege zuerst ein Bankkonto an.</span>
+                                    <button type="button" wire:click="openAccountModal" class="font-bold underline">+ Konto anlegen</button>
+                                </div>
+                            @else
+                                <select wire:model="csvTargetAccountId" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] outline-none">
+                                    @foreach($bankAccounts as $acc)
+                                        <option value="{{ $acc['id'] }}">{{ $acc['bank_name'] }} - {{ $acc['account_name'] }} ({{ $acc['iban'] ?: 'Ohne IBAN' }})</option>
+                                    @endforeach
+                                </select>
+                            @endif
+                            @error('csvTargetAccountId') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        {{-- Datei-Upload Feld --}}
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Kontoauszug / Umsatzdatei (CSV oder TXT)</label>
+                            <div class="relative border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-emerald-500 dark:hover:border-emerald-500 rounded-2xl p-6 text-center transition-colors">
+                                <input type="file" wire:model="csvFile" accept=".csv,.txt" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                                <div class="flex flex-col items-center pointer-events-none">
+                                    <svg class="w-10 h-10 text-emerald-500/70 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                        @if($csvFile)
+                                            <span class="text-emerald-500 font-bold">{{ $csvFile->getClientOriginalName() }}</span>
+                                        @else
+                                            <span>Klicke hier oder ziehe die CSV-Datei hinein</span>
+                                        @endif
+                                    </div>
+                                    <p class="text-[11px] text-gray-400 mt-1">Exportiere deine Umsätze bei FYRST/Online-Banking einfach als CSV.</p>
+                                </div>
+                            </div>
+                            @error('csvFile') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 text-[11px] text-gray-500 dark:text-gray-400 flex items-start gap-2">
+                            <svg class="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span>Duplikate werden automatisch erkannt und nicht doppelt angelegt. Alle neuen Umsätze werden direkt von deiner KI-Schablonen-Engine sortiert.</span>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-2">
+                            <button type="button" wire:click="closeCsvModal" class="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold uppercase tracking-wider hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                                Abbrechen
+                            </button>
+                            <button type="submit" wire:loading.attr="disabled" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50">
+                                <svg wire:loading wire:target="importCsvTransactions" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                <span wire:loading.remove wire:target="importCsvTransactions">Umsätze importieren</span>
+                                <span wire:loading wire:target="importCsvTransactions">Verarbeite CSV...</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
+
+        {{-- MANUELLES KONTO ANLEGEN MODAL --}}
+        @if($showAccountModal)
+            <div class="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
+                <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-6">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2.5 bg-[var(--theme-color-15)] text-[var(--theme-color)] rounded-xl">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Bankkonto anlegen</h3>
+                                <p class="text-xs text-gray-500">Für FYRST oder jedes andere Geschäftskonto</p>
+                            </div>
+                        </div>
+                        <button wire:click="closeAccountModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+
+                    <form wire:submit="createManualAccount" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Bankname</label>
+                            <input type="text" wire:model="newBankName" placeholder="z.B. FYRST, Postbank, Sparkasse" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] outline-none">
+                            @error('newBankName') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Kontobezeichnung</label>
+                            <input type="text" wire:model="newAccountName" placeholder="z.B. Geschäftskonto" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-white focus:border-[var(--theme-color)] outline-none">
+                            @error('newAccountName') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">IBAN (optional)</label>
+                            <input type="text" wire:model="newIban" placeholder="DE..." class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-mono text-gray-900 dark:text-white focus:border-[var(--theme-color)] outline-none">
+                            @error('newIban') <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Startsaldo (€)</label>
+                            <input type="number" step="0.01" wire:model="newBalance" placeholder="0.00" class="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-mono text-gray-900 dark:text-white focus:border-[var(--theme-color)] outline-none">
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="flex items-center gap-3 cursor-pointer">
+                                <input type="checkbox" wire:model="newIsBusiness" class="w-4 h-4 rounded text-[var(--theme-color)] focus:ring-[var(--theme-color)] border-gray-300 dark:border-gray-700">
+                                <span class="text-xs text-gray-700 dark:text-gray-300 font-medium">Gewerbliches Konto (für betriebliche EÜR / Buchhaltung)</span>
+                            </label>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-3">
+                            <button type="button" wire:click="closeAccountModal" class="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold uppercase tracking-wider hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                                Abbrechen
+                            </button>
+                            <button type="submit" class="px-6 py-2.5 rounded-xl bg-[var(--theme-color)] text-black text-xs font-bold uppercase tracking-wider shadow-md hover:shadow-lg transition-all">
+                                Konto speichern
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endif
     </div>
 </div>
