@@ -206,4 +206,123 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
         $this->assertStringContainsString("data.type === 'pong'", $part2);
         $this->assertStringContainsString('sendWsPing()', $part2);
     }
+
+    public function test_calendar_send_ics_email_and_create_event_with_ics_capabilities(): void
+    {
+        \Illuminate\Support\Facades\Mail::fake();
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $event = null;
+        $adHocEvent = null;
+        try {
+            // 1. Create event with immediate ICS email dispatch & full RFC 5545 metadata
+            $createRes = \App\Services\AI\Functions\AiCalendarFuncs::executeCreateCalendarEvent([
+                'title' => 'Quartalsplanung Seelenfunke Test',
+                'start_date' => '2026-11-15 14:00:00',
+                'end_date' => '2026-11-15 15:30:00',
+                'is_all_day' => false,
+                'category' => 'Business',
+                'location' => 'Konferenzraum Nord / Google Meet',
+                'description' => 'Besprechung der Q4-Ziele',
+                'reminder_minutes' => 30,
+                'recurrence' => 'weekly',
+                'recurrence_end_date' => '2026-12-31',
+                'send_ics_email' => true,
+                'recipient_email' => 'alina-test@mein-seelenfunke.de',
+                'custom_email_message' => 'Hier ist deine Termineinladung als ICS-Datei.',
+            ]);
+
+            $this->assertSame('success', $createRes['status'] ?? null);
+            $this->assertTrue($createRes['ics_email_sent'] ?? false);
+            $this->assertNotEmpty($createRes['ics_workspace_path'] ?? null);
+            $this->assertNotEmpty($createRes['event_id'] ?? null);
+
+            $event = \App\Models\Management\ManagementCalendarEvent::find($createRes['event_id']);
+            $this->assertNotNull($event);
+
+            \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\CalendarEventCreated::class, function ($mail) {
+                return $mail->hasTo('alina-test@mein-seelenfunke.de');
+            });
+
+            // 2. Verify RFC 5545 ICS content generation (single & multi-event)
+            $icsContent = \App\Mail\CalendarEventCreated::buildIcsForEvents([$event], [
+                'location' => 'Konferenzraum Nord / Google Meet',
+                'attendee_email' => 'alina-test@mein-seelenfunke.de',
+            ]);
+            $this->assertStringContainsString('BEGIN:VCALENDAR', $icsContent);
+            $this->assertStringContainsString('BEGIN:VEVENT', $icsContent);
+            $this->assertStringContainsString('SUMMARY:Quartalsplanung Seelenfunke Test', $icsContent);
+            $this->assertStringContainsString('LOCATION:Konferenzraum Nord / Google Meet', $icsContent);
+            $this->assertStringContainsString('RRULE:FREQ=WEEKLY;UNTIL=20261231T235959Z', $icsContent);
+            $this->assertStringContainsString('TRIGGER:-PT30M', $icsContent);
+            $this->assertStringContainsString('ATTENDEE;', $icsContent);
+
+            // 3. Test calendar_send_ics_email tool by keyword search
+            $sendExistingRes = \App\Services\AI\Functions\AiCalendarFuncs::executeSendCalendarIcsEmail([
+                'title_suche' => 'Quartalsplanung Seelenfunke Test',
+                'recipient_email' => 'team-test@mein-seelenfunke.de',
+                'custom_message' => 'Bitte in den Kalender importieren.',
+            ]);
+            $this->assertSame('success', $sendExistingRes['status'] ?? null);
+            $this->assertSame(1, $sendExistingRes['events_count'] ?? 0);
+            \Illuminate\Support\Facades\Storage::disk('public')->assertExists($sendExistingRes['ics_workspace_path']);
+
+            // 4. Test calendar_send_ics_email tool with ad-hoc event
+            $sendAdHocRes = \App\Services\AI\Functions\AiCalendarFuncs::executeSendCalendarIcsEmail([
+                'title' => 'Ad-hoc Design Review',
+                'start_date' => '2026-11-16 10:00:00',
+                'end_date' => '2026-11-16 11:00:00',
+                'location' => 'Studio 1',
+                'recipient_email' => 'alina-test@mein-seelenfunke.de',
+                'create_in_calendar' => true,
+            ]);
+            $this->assertSame('success', $sendAdHocRes['status'] ?? null);
+            $adHocEvent = \App\Models\Management\ManagementCalendarEvent::where('title', 'Ad-hoc Design Review')->latest('id')->first();
+            $this->assertNotNull($adHocEvent);
+
+            // 5. Test date-range multi-event ICS export
+            $rangeRes = \App\Services\AI\Functions\AiCalendarFuncs::executeSendCalendarIcsEmail([
+                'date_from' => '2026-11-15',
+                'date_to' => '2026-11-16',
+                'recipient_email' => 'alina-test@mein-seelenfunke.de',
+            ]);
+            $this->assertSame('success', $rangeRes['status'] ?? null);
+            $this->assertGreaterThanOrEqual(2, $rangeRes['events_count'] ?? 0);
+
+            // 6. Verify agent payload auto-grants and syncs calendar_send_ics_email
+            $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
+            if ($agent) {
+                $payload = \App\Services\AI\AiAgentService::getAgentPayload($agent);
+                $toolNames = array_map(fn ($t) => $t['function']['name'] ?? null, $payload['tools'] ?? []);
+                if (in_array('calendar_create_event', $toolNames, true) || in_array('calendar_get_events', $toolNames, true)) {
+                    $this->assertContains('calendar_send_ics_email', $toolNames);
+                }
+            }
+        } finally {
+            if ($event) {
+                $event->delete();
+            }
+            if ($adHocEvent) {
+                $adHocEvent->delete();
+            }
+        }
+    }
+
+    public function test_live_ai_audio_mid_sentence_cutoff_and_websocket_stability_guards(): void
+    {
+        $part2 = file_get_contents(resource_path('views/livewire/shop/ai/ai-widget-part2.blade.php'));
+        $bridgeJs = file_get_contents(base_path('server-twilio.js'));
+
+        // Verify mid-sentence cutoff protections in ai-widget-part2.blade.php
+        $this->assertStringContainsString('hasQueuedAudio && (!this.allowVoiceInterruption || !userSpokeRecently)', $part2);
+        $this->assertStringContainsString('this.cleanupLiveConnection(this.isLiveMode)', $part2);
+        $this->assertStringContainsString('const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 650;', $part2);
+        $this->assertStringContainsString('const aiTurnGenerating = this.isAiSpeakingTurn && !this.generationCompleteReceived', $part2);
+        $this->assertStringContainsString('for (const call of data.toolCall.functionCalls)', $part2);
+
+        // Verify duplicate Code 1000 close-log suppression & bidirectional ping in server-twilio.js
+        $this->assertStringContainsString("const BRIDGE_VERSION = 'v1.3-stable';", $bridgeJs);
+        $this->assertStringContainsString('if (!wasAlreadyCleanedUp)', $bridgeJs);
+        $this->assertStringContainsString('clientWs.ping()', $bridgeJs);
+    }
 }

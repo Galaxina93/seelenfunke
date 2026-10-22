@@ -145,12 +145,14 @@
             currentUserLiveTranscript: '',
             hasSpokenInTurn: false,
             lastVoiceDetectedTime: 0,
+            isToolCallPending: false,
+            turnDrainTimeout: null,
 
             // Live Ping & Connection Status Telemetry
             bridgeOnline: true,
             pingMs: null,
             bridgePingMs: null,
-            bridgeVersion: 'v1.2-diag',
+            bridgeVersion: 'v1.3-stable',
             bridgeUptimeSec: null,
             bridgeActiveSessions: 0,
             lastPingTime: '',
@@ -845,9 +847,11 @@
             isOutputActive() {
                 const now = Date.now();
                 const hasActiveSources = Array.isArray(this.activeAudioSources) && this.activeAudioSources.length > 0;
-                // Nur kleiner 120ms Raumhall-Puffer nach aktiver Sprachausgabe (Acoustic Echo Cushion)
-                const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 120;
-                return hasActiveSources || roomEchoCushion;
+                // 650ms Raumhall-Puffer nach aktiver Sprachausgabe (deckt 256ms ScriptProcessor-Frame + Lautsprecher-Latenz + Raumhall ab)
+                const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 650;
+                // Halte Output-Schutz aktiv, solange die KI noch mitten in einem laufenden Turn generiert (verhindert Mikrofon-Unmute in kurzen Chunk-Lücken)
+                const aiTurnGenerating = this.isAiSpeakingTurn && !this.generationCompleteReceived && (now - (this.lastAiPacketTime || 0)) < 3500;
+                return hasActiveSources || roomEchoCushion || aiTurnGenerating;
             },
 
             setMainScreenWidget(type, index) {
@@ -1617,24 +1621,26 @@
 
                     this.liveWs.onclose = (event) => {
                         console.log('WebSocket Closed', event);
-                        this.sessionResumptionHandle = null;
                         if (event.code !== 1000 && event.code !== 1005) {
                             console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
                         }
                         
-                        this.cleanupLiveConnection();
+                        // Bei aktivem Live-Modus AudioContext & gepufferte Sprachausgabe NICHT abwürgen (keepAudioAlive = true)
+                        this.cleanupLiveConnection(this.isLiveMode);
                         
                         if (this.isLiveMode) {
                             if (this.reconnectAttempts < this.maxReconnectAttempts) {
                                 this.reconnectAttempts++;
-                                console.log(`WebSocket geschlossen. Versuche Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 1.5s...`);
-                                this.thinking = true;
-                                this.updateCoreColor(true);
+                                console.log(`WebSocket geschlossen. Versuche nahtlosen Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 800ms...`);
+                                if (!this.isSpeaking && (!this.activeAudioSources || this.activeAudioSources.length === 0)) {
+                                    this.thinking = true;
+                                    this.updateCoreColor(true);
+                                }
                                 setTimeout(() => {
                                     if (this.isLiveMode) {
                                         this.initLiveMode();
                                     }
-                                }, 1500);
+                                }, 800);
                             } else {
                                 console.error('Maximale Reconnect-Versuche erreicht.');
                                 this.stopLiveMode();
@@ -1664,43 +1670,72 @@
 
             async startMicrophone() {
                 try {
+                    // Beende Browser-SpeechRecognition im Live-Modus, da Gemini Live natives inputAudioTranscription nutzt
+                    // und paralleles SpeechRecognition zu Mikrofon-Konflikten sowie falschen Turn-Abbrüchen führt.
+                    this.stopSpeechRecognition();
+
+                    // Falls AudioContext + Mikrofon-Stream bereits aktiv sind (z.B. bei nahtlosem Reconnect), wiederverwenden!
+                    const hasActiveAudioContext = this.audioContext && this.audioContext.state !== 'closed';
+                    const hasActiveStream = this.localAudioStream
+                        && typeof this.localAudioStream.getAudioTracks === 'function'
+                        && this.localAudioStream.getAudioTracks().some(t => t.readyState === 'live');
+
+                    if (hasActiveAudioContext && hasActiveStream && this.audioInput && this.audioWorklet) {
+                        if (this.audioContext.state === 'suspended') {
+                            await this.audioContext.resume();
+                        }
+                        console.log('🎤 Bestehender AudioContext & Mikrofon-Stream nahtlos weiterverwendet.');
+                        return;
+                    }
+
                     // Try to initialize AudioContext with target 16000Hz, fallback to default if unsupported
-                    try {
-                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                    } catch (e) {
-                        console.warn('Could not initialize AudioContext with sampleRate 16000, falling back to default:', e);
-                        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    if (!hasActiveAudioContext) {
+                        try {
+                            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+                        } catch (e) {
+                            console.warn('Could not initialize AudioContext with sampleRate 16000, falling back to default:', e);
+                            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        }
                     }
                     
                     console.log('🎤 AudioContext initialisiert. Zustand vor Start:', this.audioContext.state, 'SampleRate:', this.audioContext.sampleRate);
                     
                     // Hardware AEC enabled with flexible / ideal constraints to prevent OverconstrainedError
-                    let stream;
-                    try {
-                        stream = await navigator.mediaDevices.getUserMedia({
-                            audio: {
-                                channelCount: { ideal: 1 },
-                                echoCancellation: { ideal: true },
-                                noiseSuppression: { ideal: true },
-                                autoGainControl: { ideal: true }
-                            }
-                        });
-                    } catch (err) {
-                        console.warn('Standard getUserMedia constraints failed, trying simple fallback:', err);
+                    let stream = hasActiveStream ? this.localAudioStream : null;
+                    if (!stream) {
                         try {
                             stream = await navigator.mediaDevices.getUserMedia({
                                 audio: {
-                                    echoCancellation: true
+                                    channelCount: { ideal: 1 },
+                                    echoCancellation: { ideal: true },
+                                    noiseSuppression: { ideal: true },
+                                    autoGainControl: { ideal: true }
                                 }
                             });
-                        } catch (err2) {
-                            console.warn('Fallback constraints failed, requesting basic audio:', err2);
-                            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        } catch (err) {
+                            console.warn('Standard getUserMedia constraints failed, trying simple fallback:', err);
+                            try {
+                                stream = await navigator.mediaDevices.getUserMedia({
+                                    audio: {
+                                        echoCancellation: true
+                                    }
+                                });
+                            } catch (err2) {
+                                console.warn('Fallback constraints failed, requesting basic audio:', err2);
+                                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                            }
                         }
                     }
 
                     this.localAudioStream = stream;
                     console.log('🎤 Mikrofon-Stream erfolgreich erhalten.');
+
+                    if (this.audioInput) {
+                        try { this.audioInput.disconnect(); } catch (e) {}
+                    }
+                    if (this.audioWorklet) {
+                        try { this.audioWorklet.disconnect(); } catch (e) {}
+                    }
 
                     this.audioInput = this.audioContext.createMediaStreamSource(stream);
 
@@ -1727,11 +1762,11 @@
                         // We only send audio when the mic is not explicitly muted
                         if (this.isMicMuted) return;
 
-                        // Prevent AI from hearing itself and interrupting (echo cancellation / barge-in suppression)
-                        if (this.isOutputActive()) return;
-
                         // Do not send audio data before setup is completed and acknowledged
                         if (!this.isSetupComplete) return;
+
+                        // Prevent AI from hearing itself and interrupting mid-sentence (echo cancellation / barge-in suppression)
+                        if (this.isOutputActive() || (this.isAiSpeakingTurn && !this.allowVoiceInterruption) || this.isToolCallPending) return;
 
                         let inputData = e.inputBuffer.getChannelData(0);
 
@@ -1748,9 +1783,11 @@
                             this.hasSpokenInTurn = true;
                         } else if (this.hasSpokenInTurn) {
                             const silenceDuration = Date.now() - (this.lastVoiceDetectedTime || 0);
-                            // If user stopped speaking between 250ms and 1200ms ago, zero out buffer (digital silence)
-                            // so Google's server-side VAD immediately triggers end-of-turn instead of waiting through mic hiss
-                            if (silenceDuration > 250 && silenceDuration < 1200) {
+                            // Sobald der Nutzer seit > 250ms aufgehört hat zu sprechen, senden wir kontinuierlich Stille,
+                            // bis er wieder aktiv spricht (rms > 0.012) oder die KI antwortet.
+                            // Wichtig: NICHT nach 1200ms wieder ungefiltertes Mikrofon-Grundrauschen durchlassen,
+                            // da dieser plötzliche Rausch-Sprung Googles VAD mitten im ersten KI-Satz fälschlich als Interrupt auslöst!
+                            if (silenceDuration > 250) {
                                 inputData = new Float32Array(inputData.length);
                             }
                         }
@@ -1800,9 +1837,6 @@
 
                     this.audioInput.connect(processor);
                     processor.connect(this.audioContext.destination);
-
-                    // Real-time speech recognition für unmittelbares Feedback wie in der Gemini-Handy-App
-                    this.startSpeechRecognition();
 
                 } catch (err) {
                     console.error('Mikrofon Fehler:', err);
@@ -1914,9 +1948,12 @@
                     return;
                 }
                 if (data.sessionResumptionUpdate) {
-                    console.log('Gemini Live: Session Resumption Update received', data.sessionResumptionUpdate);
-                    this.sessionResumptionHandle = data.sessionResumptionUpdate.newHandle;
-                    return;
+                    if (data.sessionResumptionUpdate.newHandle) {
+                        this.sessionResumptionHandle = data.sessionResumptionUpdate.newHandle;
+                    }
+                    if (!data.serverContent && !data.toolCall && !data.setupComplete) {
+                        return;
+                    }
                 }
                 if (data.setupComplete) {
                     console.log('Gemini Live Setup Complete received');
@@ -1984,7 +2021,7 @@
                     this.isAiSpeakingTurn = true;
                     if (!this.turnStartTime) this.turnStartTime = Date.now();
 
-                    const parts = data.serverContent.modelTurn.parts;
+                    const parts = data.serverContent.modelTurn.parts || [];
                     let chunkText = "";
                     parts.forEach(part => {
                         if (part.inlineData && part.inlineData.data) {
@@ -2003,7 +2040,18 @@
                 // Sobald die KI fertig generiert hat, wandeln wir das Transkript sofort in eine permanente Chatnachricht um
                 if (data.serverContent && (data.serverContent.turnComplete || data.serverContent.generationComplete)) {
                     this.generationCompleteReceived = true;
-                    this.turnStartTime = null;
+                    if (this.turnDrainTimeout) {
+                        clearTimeout(this.turnDrainTimeout);
+                        this.turnDrainTimeout = null;
+                    }
+                    // Wenn keine Audio-Chunks mehr in der Wiedergabe-Queue liegen, Turn-Status sauber abschließen
+                    if (!this.activeAudioSources || this.activeAudioSources.length === 0) {
+                        this.turnStartTime = null;
+                        this.isSpeaking = false;
+                        this.isAiSpeakingTurn = false;
+                        this.lastSpeechEndTime = Date.now();
+                        this.updateCoreColor(true);
+                    }
                     if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
                         let finalTxt = this.currentLiveTranscript.trim();
                         this.currentLiveTranscript = ""; // Reset sofort für nächsten Turn
@@ -2023,10 +2071,13 @@
                 }
 
                 if (data.serverContent && data.serverContent.interrupted) {
-                    const elapsedSinceTurnStart = Date.now() - (this.turnStartTime || 0);
-                    // Echo/Barge-in Schutz: Ignoriere spurious interrupt innerhalb der ersten 1500ms, wenn noch Audio abgespielt wird
-                    if (this.turnStartTime && elapsedSinceTurnStart < 1500 && this.activeAudioSources && this.activeAudioSources.length > 0) {
-                        console.warn('⚠️ Ignoriere frühen Google-Interrupted Event (Echo/Barge-in Schutz):', elapsedSinceTurnStart, 'ms');
+                    const hasQueuedAudio = Array.isArray(this.activeAudioSources) && this.activeAudioSources.length > 0;
+                    const userSpokeRecently = this.hasSpokenInTurn && (Date.now() - (this.lastVoiceDetectedTime || 0)) < 2000;
+                    // Satz-Abbruch-Schutz:
+                    // Wenn "Stören" (allowVoiceInterruption) deaktiviert ist ODER der Nutzer gar nicht aktiv ins Mikrofon gesprochen hat,
+                    // dürfen bereits empfangene / gepufferte Audio-Chunks NICHT mitten im Satz abgebrochen werden!
+                    if (hasQueuedAudio && (!this.allowVoiceInterruption || !userSpokeRecently)) {
+                        console.warn('🛡️ Ignoriere Google-Interrupted Event mitten im Satz (Audio-Puffer läuft geschützt weiter).');
                     } else {
                         this.stopCurrentAudioPlayback();
                         this.turnStartTime = null;
@@ -2047,86 +2098,101 @@
                     }
                 }
 
-                // Handle Tool Calls from WebSocket
-                if (data.toolCall) {
-                    const call = data.toolCall.functionCalls[0];
-                    if (call) {
-                        try {
-                            const res = await fetch('/api/ai/execute', {
-                                method: 'POST',
-                                credentials: 'same-origin',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-                                },
-                                body: JSON.stringify({
-                                    function: call.name,
-                                    args: call.args,
-                                    chat_session_id: this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : null),
-                                    session_id: '{{ session()->getId() }}',
-                                    agent_id: this.activeAgentId || (this.$wire ? this.$wire.agentId : null)
-                                })
-                            });
-                            const resultData = await res.json();
+                // Handle Tool Calls from WebSocket (supports single or multiple parallel functionCalls)
+                if (data.toolCall && Array.isArray(data.toolCall.functionCalls) && data.toolCall.functionCalls.length > 0) {
+                    this.isToolCallPending = true;
+                    const functionResponses = [];
+                    try {
+                        for (const call of data.toolCall.functionCalls) {
+                            if (!call) continue;
+                            try {
+                                const res = await fetch('/api/ai/execute', {
+                                    method: 'POST',
+                                    credentials: 'same-origin',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                                    },
+                                    body: JSON.stringify({
+                                        function: call.name,
+                                        args: call.args,
+                                        chat_session_id: this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : null),
+                                        session_id: '{{ session()->getId() }}',
+                                        agent_id: this.activeAgentId || (this.$wire ? this.$wire.agentId : null)
+                                    })
+                                });
+                                const resultData = await res.json();
 
-                            // Visualize
-                            this.renderAnalytics([resultData]);
-                            this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug ausgeführt: ${call.name}` });
+                                // Visualize
+                                this.renderAnalytics([resultData]);
+                                this.funkiLogs.push({ role: 'tool', time: new Date().toLocaleTimeString('de-DE'), message: `Werkzeug ausgeführt: ${call.name}` });
 
-                            // MAGIC: Synchronize frontend UI if the agent decided to switch itself!
-                            if (call.name === 'system_switch_agent' && resultData.result && resultData.result.status === 'success') {
-                                // This triggers the Livewire updatedAgentId hook which in turn dispatches 'agent-changed',
-                                // naturally shutting down this WS connection and spinning up the new one,
-                                // exactly as if the user clicked the dropdown manually!
-                                @this.set('agentId', resultData.result.agent_id);
-                            }
-
-                            // MAGIC: Handle explicit UI events returned by tools (like navigation)
-                            let frontendEvents = resultData.result && resultData.result._frontend_events;
-                            let frontendEvent = resultData.result && (resultData.result._frontend_event || resultData.result._event);
-
-                            let eventsToProcess = [];
-                            if (frontendEvents && Array.isArray(frontendEvents)) eventsToProcess = [...frontendEvents];
-                            if (frontendEvent) eventsToProcess.push(frontendEvent);
-
-                            eventsToProcess.forEach(ev => {
-                                if (ev.type === 'navigate' && ev.url) {
-                                    if (typeof window.Livewire !== 'undefined') {
-                                        window.Livewire.navigate(ev.url);
-                                    } else {
-                                        window.location.href = ev.url;
-                                    }
-                                } else if ((ev.type === 'dispatch' || !ev.type) && ev.name) {
-                                    window.dispatchEvent(new CustomEvent(ev.name, { detail: ev.detail || {} }));
+                                // MAGIC: Synchronize frontend UI if the agent decided to switch itself!
+                                if (call.name === 'system_switch_agent' && resultData.result && resultData.result.status === 'success') {
+                                    @this.set('agentId', resultData.result.agent_id);
                                 }
-                            });
 
-                            // Send Tool Response back to Gemini
+                                // MAGIC: Handle explicit UI events returned by tools (like navigation)
+                                let frontendEvents = resultData.result && resultData.result._frontend_events;
+                                let frontendEvent = resultData.result && (resultData.result._frontend_event || resultData.result._event);
+
+                                let eventsToProcess = [];
+                                if (frontendEvents && Array.isArray(frontendEvents)) eventsToProcess = [...frontendEvents];
+                                if (frontendEvent) eventsToProcess.push(frontendEvent);
+
+                                eventsToProcess.forEach(ev => {
+                                    if (ev.type === 'navigate' && ev.url) {
+                                        if (typeof window.Livewire !== 'undefined') {
+                                            window.Livewire.navigate(ev.url);
+                                        } else {
+                                            window.location.href = ev.url;
+                                        }
+                                    } else if ((ev.type === 'dispatch' || !ev.type) && ev.name) {
+                                        window.dispatchEvent(new CustomEvent(ev.name, { detail: ev.detail || {} }));
+                                    }
+                                });
+
+                                functionResponses.push({
+                                    id: call.id,
+                                    name: call.name,
+                                    response: {
+                                        result: resultData
+                                    }
+                                });
+                            } catch (e) {
+                                console.error("Tool execution failed for " + call.name, e);
+                                functionResponses.push({
+                                    id: call.id,
+                                    name: call.name,
+                                    response: {
+                                        error: e.message || 'Tool execution failed'
+                                    }
+                                });
+                            }
+                        }
+
+                        if (functionResponses.length > 0 && this.liveWs && this.liveWs.readyState === WebSocket.OPEN) {
                             const toolResp = {
                                 toolResponse: {
-                                    functionResponses: [{
-                                        id: call.id,
-                                        name: call.name,
-                                        response: {
-                                            result: resultData
-                                        }
-                                    }]
+                                    functionResponses: functionResponses
                                 }
                             };
                             this.liveWs.send(JSON.stringify(toolResp));
-                        } catch (e) {
-                            console.error("Tool execution failed", e);
                         }
+                    } finally {
+                        this.isToolCallPending = false;
                     }
                 }
             },
 
             stopCurrentAudioPlayback() {
-                if (this.audioContext) {
-                    this.audioContext.suspend();
+                if (this.turnDrainTimeout) {
+                    clearTimeout(this.turnDrainTimeout);
+                    this.turnDrainTimeout = null;
                 }
                 if (this.activeAudioSources && this.activeAudioSources.length > 0) {
                     this.activeAudioSources.forEach(source => {
+                        try { source.onended = null; } catch(e) {}
                         try { source.stop(); } catch(e) {}
                         try { source.disconnect(); } catch(e) {}
                     });
@@ -2137,17 +2203,19 @@
                 this.isAiSpeakingTurn = false;
                 this.generationCompleteReceived = false;
                 this.turnStartTime = null;
+                this.lastSpeechEndTime = Date.now();
                 this.updateCoreColor(true);
-
-                if (this.audioContext) {
-                    setTimeout(() => {
-                        if (this.audioContext) this.audioContext.resume();
-                    }, 20);
-                }
             },
 
             playLiveAudioChunk(base64Data) {
                 if (!this.audioContext) return;
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume().catch(() => {});
+                }
+                if (this.turnDrainTimeout) {
+                    clearTimeout(this.turnDrainTimeout);
+                    this.turnDrainTimeout = null;
+                }
 
                 this.thinking = false;
                 this.isSpeaking = true;
@@ -2178,7 +2246,8 @@
                 source.connect(this.audioContext.destination);
 
                 if (this.nextPlayTime < this.audioContext.currentTime) {
-                    this.nextPlayTime = this.audioContext.currentTime;
+                    // 30ms Jitter-Puffer beim ersten Chunk eines Satzes verhindert Audio-Underruns
+                    this.nextPlayTime = this.audioContext.currentTime + 0.03;
                 }
 
                 if (!this.activeAudioSources) this.activeAudioSources = [];
@@ -2191,11 +2260,28 @@
                     this.activeAudioSources = (this.activeAudioSources || []).filter(s => s !== source);
                     this.lastSpeechEndTime = Date.now();
                     if (this.activeAudioSources.length === 0) {
-                        this.nextPlayTime = 0;
-                        this.isSpeaking = false;
-                        this.isAiSpeakingTurn = false;
-                        this.generationCompleteReceived = false;
-                        this.updateCoreColor(true);
+                        if (this.generationCompleteReceived) {
+                            this.nextPlayTime = 0;
+                            this.isSpeaking = false;
+                            this.isAiSpeakingTurn = false;
+                            this.generationCompleteReceived = false;
+                            this.turnStartTime = null;
+                            this.updateCoreColor(true);
+                        } else {
+                            // Noch kein turnComplete/generationComplete empfangen -> kurzer Puffer gegen Netzwerk-Jitter zwischen Satzteilen,
+                            // damit das Mikrofon nicht mitten im Satz kurz angeht und ein Echo an Google sendet.
+                            if (this.turnDrainTimeout) clearTimeout(this.turnDrainTimeout);
+                            this.turnDrainTimeout = setTimeout(() => {
+                                if (!this.activeAudioSources || this.activeAudioSources.length === 0) {
+                                    this.nextPlayTime = 0;
+                                    this.isSpeaking = false;
+                                    this.isAiSpeakingTurn = false;
+                                    this.generationCompleteReceived = false;
+                                    this.turnStartTime = null;
+                                    this.updateCoreColor(true);
+                                }
+                            }, 1500);
+                        }
                     }
                 };
             },
@@ -2203,12 +2289,19 @@
             stopLiveMode() {
                 this.sessionResumptionHandle = null;
                 this.reconnectAttempts = 0;
+                this.isToolCallPending = false;
+                if (this.turnDrainTimeout) {
+                    clearTimeout(this.turnDrainTimeout);
+                    this.turnDrainTimeout = null;
+                }
                 if (this.pingInterval) {
                     clearInterval(this.pingInterval);
                     this.pingInterval = null;
                 }
                 if (this.liveWs) {
-                    this.liveWs.close();
+                    this.liveWs.onclose = null;
+                    this.liveWs.onerror = null;
+                    try { this.liveWs.close(1000, 'user_stopped_live_mode'); } catch(e) {}
                     this.liveWs = null;
                 }
                 if (this.localAudioStream) {
@@ -2229,7 +2322,7 @@
 
                 this.isLiveMode = false;
                 if (this.audioContext) {
-                    this.audioContext.close();
+                    try { this.audioContext.close(); } catch(e) {}
                     this.audioContext = null;
                 }
                 if (this.liveRecognition) {
@@ -2268,7 +2361,8 @@
                 this.updateCoreColor(true);
             },
 
-            cleanupLiveConnection() {
+            cleanupLiveConnection(keepAudioAlive = false) {
+                this.isToolCallPending = false;
                 if (this.pingInterval) {
                     clearInterval(this.pingInterval);
                     this.pingInterval = null;
@@ -2276,8 +2370,17 @@
                 if (this.liveWs) {
                     this.liveWs.onclose = null;
                     this.liveWs.onerror = null;
-                    this.liveWs.close();
+                    try { this.liveWs.close(); } catch(e) {}
                     this.liveWs = null;
+                }
+                // Bei nahtlosem Auto-Reconnect im laufenden Live-Modus lassen wir AudioContext,
+                // gepufferte Sprach-Ausgabe (activeAudioSources) und Mikrofon-Stream am Leben!
+                if (keepAudioAlive) {
+                    return;
+                }
+                if (this.turnDrainTimeout) {
+                    clearTimeout(this.turnDrainTimeout);
+                    this.turnDrainTimeout = null;
                 }
                 if (this.localAudioStream) {
                     console.log('🎤 Beende alle Mikrofon-Tracks...');
@@ -2367,10 +2470,10 @@
                             
                             const msg = {
                                 realtimeInput: {
-                                    mediaChunks: [{
+                                    video: {
                                         mimeType: "image/jpeg",
                                         data: base64Data
-                                    }]
+                                    }
                                 }
                             };
                             this.liveWs.send(JSON.stringify(msg));

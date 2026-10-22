@@ -148,6 +148,11 @@ class AIFunctionsRegistry
         if ($agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection && $agent->tools->isNotEmpty()) {
             $allowedTools = $agent->tools->pluck('identifier')->toArray();
             $allowedTools[] = 'system_get_current_time';
+            if (in_array('calendar_create_event', $allowedTools, true) || in_array('calendar_get_events', $allowedTools, true)) {
+                $allowedTools[] = 'calendar_send_ics_email';
+                $allowedTools[] = 'calendar_update_event';
+                $allowedTools[] = 'calendar_delete_event';
+            }
             if (!in_array($name, $allowedTools, true)) {
                 return [
                     'error' => true,

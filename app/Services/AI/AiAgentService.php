@@ -45,6 +45,30 @@ class AiAgentService
         $allowedToolIdentifiers[] = 'system_dispatch_background_task';
         $allowedToolIdentifiers[] = 'system_get_task_status';
 
+        if (in_array('calendar_create_event', $allowedToolIdentifiers, true) || in_array('calendar_get_events', $allowedToolIdentifiers, true)) {
+            if (!in_array('calendar_send_ics_email', $allowedToolIdentifiers, true)) {
+                try {
+                    if (class_exists(\App\Models\Ai\AiTool::class)) {
+                        $icsTool = \App\Models\Ai\AiTool::firstOrCreate(
+                            ['identifier' => 'calendar_send_ics_email'],
+                            [
+                                'name' => 'Calendar Send Ics Email',
+                                'description' => 'Versendet Kalender-Termine umfangreich als RFC-5545 kompatible .ics Datei per E-Mail (Einzeltermin, Zeitraum-Sammelmappe oder Ad-hoc-Termin) und speichert die .ics Datei im Workspace.',
+                            ]
+                        );
+                        if ($agent->role) {
+                            $agent->role->tools()->syncWithoutDetaching([$icsTool->id]);
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Ignore DB sync issues safely
+                }
+            }
+            $allowedToolIdentifiers[] = 'calendar_send_ics_email';
+            $allowedToolIdentifiers[] = 'calendar_update_event';
+            $allowedToolIdentifiers[] = 'calendar_delete_event';
+        }
+
         // Extrahiere das Schema aus der globalen Registry
         $globalSchema = class_exists('\App\Services\AI\AIFunctionsRegistry')
             ? \App\Services\AI\AIFunctionsRegistry::getSchema()

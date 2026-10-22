@@ -12,7 +12,7 @@ import { dirname, join } from 'path';
 // Zuerst dotenv konfigurieren, damit APP_URL sofort verfügbar ist
 dotenv.config();
 
-const BRIDGE_VERSION = 'v1.2-diag';
+const BRIDGE_VERSION = 'v1.3-stable';
 const bridgeStartedAt = new Date().toISOString();
 let activeLiveSessions = 0;
 let activeTwilioCalls = 0;
@@ -348,11 +348,15 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     let isGoogleSetupComplete = false;
 
     let isCleanedUp = false;
+    let sessionResumptionUpdatesCount = 0;
     const googlePingInterval = setInterval(() => {
         if (googleWs.readyState === WebSocket.OPEN) {
-            googleWs.ping();
+            try { googleWs.ping(); } catch (e) {}
         }
-    }, 20000);
+        if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+            try { clientWs.ping(); } catch (e) {}
+        }
+    }, 15000);
 
     function cleanup() {
         if (isCleanedUp) return;
@@ -541,6 +545,11 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                     scLog += ' [AudioParts: ' + audioParts + ']';
                 }
                 debugLog('🧠 Gemini Live Proxy: Server Content von Google empfangen:' + (scLog || (' ' + JSON.stringify(data.serverContent).substring(0, 150))));
+            } else if (data.sessionResumptionUpdate && Object.keys(data).length === 1) {
+                sessionResumptionUpdatesCount++;
+                if (sessionResumptionUpdatesCount === 1) {
+                    recordEvent('google_session_resumption', 'Session resumption handle active');
+                }
             } else {
                 recordEvent('google_other_msg', Object.keys(data).join(','));
                 debugLog('🧠 Gemini Live Proxy: Sonstige Nachricht von Google: ' + JSON.stringify(data).substring(0, 150));
@@ -553,6 +562,7 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     });
     
     googleWs.on('close', (code, reason) => {
+        const wasAlreadyCleanedUp = isCleanedUp;
         const cleanReason = reason ? reason.toString() : 'Keine';
         recordEvent('google_ws_close', `code=${code}, reason=${cleanReason}`);
         cleanup();
@@ -567,13 +577,16 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
         }
         debugLog(`🧠 Gemini Live Proxy: Google Verbindung geschlossen (${code}): ${cleanReason}`);
         
-        // Log inkl. vollständiger Telemetrie & Diagnose an Laravel senden
-        sendLogToBackend(
-            code === 1000 || code === 1001 || code === 1005 || code === 1006 ? 'info' : 'warning',
-            `Google Live API Verbindung geschlossen. Code: ${code}. Reason: ${cleanReason}`,
-            'websocket:disconnect:google',
-            buildSessionDiagnostics(code, reason ? reason.toString() : null, 'google')
-        );
+        // Nur loggen, wenn Google die Verbindung tatsächlich zuerst geschlossen hat
+        // (verhindert doppelte Folge-Logs mit Code 1000, nachdem der Client die Sitzung beendet hat)
+        if (!wasAlreadyCleanedUp) {
+            sendLogToBackend(
+                code === 1000 || code === 1001 || code === 1005 || code === 1006 ? 'info' : 'warning',
+                `Google Live API Verbindung geschlossen. Code: ${code}. Reason: ${cleanReason}`,
+                'websocket:disconnect:google',
+                buildSessionDiagnostics(code, reason ? reason.toString() : null, 'google')
+            );
+        }
         
         safeClose(clientWs, code, reason);
     });
@@ -644,25 +657,41 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                 recordEvent('client_setup', `model=${effectiveModel}`);
                 debugLog('🧠 Gemini Live Proxy: Client sendet Setup: ' + JSON.stringify(data.setup).substring(0, 150));
             } else if (data && data.realtimeInput) {
-                // Normalisiere veraltetes mediaChunks-Audio-Format (z.B. von älteren Android-Clients) auf realtimeInput.audio,
+                // Normalisiere veraltetes mediaChunks-Audio/Video-Format (z.B. von älteren Android-Clients) auf realtimeInput.audio / realtimeInput.video,
                 // um Google Fehler 1007 (CONTENT_TYPE_AUDIO not supported) und 1008 zu verhindern.
-                if (!data.realtimeInput.audio && Array.isArray(data.realtimeInput.mediaChunks)) {
+                if (Array.isArray(data.realtimeInput.mediaChunks)) {
+                    let chunksModified = false;
                     const audioChunkIdx = data.realtimeInput.mediaChunks.findIndex(
                         c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('audio/pcm')
                     );
-                    if (audioChunkIdx !== -1) {
+                    if (audioChunkIdx !== -1 && !data.realtimeInput.audio) {
                         const audioChunk = data.realtimeInput.mediaChunks[audioChunkIdx];
                         data.realtimeInput.audio = {
                             mimeType: audioChunk.mimeType,
                             data: audioChunk.data
                         };
                         data.realtimeInput.mediaChunks.splice(audioChunkIdx, 1);
+                        chunksModified = true;
+                    }
+                    const imageChunkIdx = data.realtimeInput.mediaChunks.findIndex(
+                        c => c && typeof c.mimeType === 'string' && c.mimeType.startsWith('image/')
+                    );
+                    if (imageChunkIdx !== -1 && !data.realtimeInput.video) {
+                        const imageChunk = data.realtimeInput.mediaChunks[imageChunkIdx];
+                        data.realtimeInput.video = {
+                            mimeType: imageChunk.mimeType,
+                            data: imageChunk.data
+                        };
+                        data.realtimeInput.mediaChunks.splice(imageChunkIdx, 1);
+                        chunksModified = true;
+                    }
+                    if (chunksModified) {
                         if (data.realtimeInput.mediaChunks.length === 0) {
                             delete data.realtimeInput.mediaChunks;
                         }
                         normalizationsApplied.media_chunks_converted++;
                         if (normalizationsApplied.media_chunks_converted === 1) {
-                            recordEvent('media_chunks_normalized', 'Converted legacy mediaChunks audio to realtimeInput.audio');
+                            recordEvent('media_chunks_normalized', 'Converted legacy mediaChunks to realtimeInput.audio/video');
                         }
                         outgoingMessage = JSON.stringify(data);
                     }
@@ -714,6 +743,7 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     });
     
     clientWs.on('close', (code, reason) => {
+        const wasAlreadyCleanedUp = isCleanedUp;
         const cleanReason = reason ? reason.toString() : 'Keine';
         recordEvent('client_ws_close', `code=${code}, reason=${cleanReason}`);
         cleanup();
@@ -728,13 +758,15 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
         }
         debugLog(`🧠 Gemini Live Proxy: Client Verbindung geschlossen (${code})`);
         
-        // Log inkl. vollständiger Telemetrie & Diagnose an Laravel senden
-        sendLogToBackend(
-            code === 1000 || code === 1001 || code === 1005 || code === 1006 ? 'info' : 'warning',
-            `Client-WebSocket-Verbindung geschlossen. Code: ${code}. Reason: ${cleanReason}`,
-            'websocket:disconnect:client',
-            buildSessionDiagnostics(code, reason ? reason.toString() : null, 'client')
-        );
+        // Nur loggen, wenn der Client die Verbindung zuerst geschlossen hat und es kein regulärer User-Toggle war
+        if (!wasAlreadyCleanedUp && cleanReason !== 'user_stopped_live_mode') {
+            sendLogToBackend(
+                code === 1000 || code === 1001 || code === 1005 || code === 1006 ? 'info' : 'warning',
+                `Client-WebSocket-Verbindung geschlossen. Code: ${code}. Reason: ${cleanReason}`,
+                'websocket:disconnect:client',
+                buildSessionDiagnostics(code, reason ? reason.toString() : null, 'client')
+            );
+        }
         
         safeClose(googleWs, code, reason);
     });

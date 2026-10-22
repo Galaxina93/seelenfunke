@@ -97,34 +97,56 @@
 
     <div class="content">
         <div class="badge">
-            Automatische Termin-Synchronisation
+            {{ !empty($eventsList) && count($eventsList) > 1 ? 'Kalender-Export (' . count($eventsList) . ' Termine)' : 'Termin-Einladung & ICS-Synchronisation' }}
         </div>
         
         <p>Hallo,</p>
-        <p>Es wurde ein neuer Termin im System erstellt. Hier sind die Details:</p>
+        @if(!empty($customMessage))
+            <p style="margin-bottom: 16px;">{!! nl2br(e($customMessage)) !!}</p>
+        @else
+            <p>Hier sind die Termin-Details inklusive angehängter <strong>.ics Kalenderdatei</strong> zum direkten Import:</p>
+        @endif
 
-        <div class="event-details">
-            <p><strong>Titel:</strong> {{ $event->title }}</p>
-            <p><strong>Beginn:</strong> {{ $event->start_date ? $event->start_date->format('d.m.Y H:i') : 'Keine Angabe' }}</p>
-            <p><strong>Ende:</strong> {{ $event->end_date ? $event->end_date->format('d.m.Y H:i') : 'Keine Angabe' }}</p>
-            @if($event->is_all_day)
-                <p><strong>Dauer:</strong> Ganztägig</p>
-            @endif
-            @if($event->description)
-                <p style="margin-top: 15px;"><strong>Beschreibung:</strong><br>{!! nl2br(e($event->description)) !!}</p>
-            @endif
-        </div>
+        @php
+            $itemsToRender = (!empty($eventsList) && is_array($eventsList)) ? $eventsList : [$event];
+        @endphp
+
+        @foreach($itemsToRender as $evItem)
+            <div class="event-details">
+                <p><strong>Titel:</strong> {{ $evItem->title }}</p>
+                <p><strong>Beginn:</strong> {{ $evItem->start_date ? \Carbon\Carbon::parse($evItem->start_date)->format('d.m.Y H:i') . ' Uhr' : 'Keine Angabe' }}</p>
+                <p><strong>Ende:</strong> {{ $evItem->end_date ? \Carbon\Carbon::parse($evItem->end_date)->format('d.m.Y H:i') . ' Uhr' : 'Keine Angabe' }}</p>
+                @if($evItem->is_all_day)
+                    <p><strong>Dauer:</strong> Ganztägig</p>
+                @endif
+                @if(!empty($evItem->category))
+                    <p><strong>Kategorie:</strong> {{ ucfirst($evItem->category) }}</p>
+                @endif
+                @if(!empty($location) || !empty($evItem->location))
+                    <p><strong>Ort / Link:</strong> {{ $evItem->location ?? $location }}</p>
+                @endif
+                @if(!empty($evItem->recurrence))
+                    <p><strong>Wiederholung:</strong> {{ ucfirst($evItem->recurrence) }}</p>
+                @endif
+                @if(!empty($evItem->reminder_minutes))
+                    <p><strong>Erinnerung:</strong> {{ $evItem->reminder_minutes }} Min. vorher</p>
+                @endif
+                @if($evItem->description)
+                    <p style="margin-top: 15px;"><strong>Beschreibung:</strong><br>{!! nl2br(e($evItem->description)) !!}</p>
+                @endif
+            </div>
+        @endforeach
 
         <div style="text-align: center;">
             <a href="{{ $googleUrl }}" target="_blank" class="button">In Google Kalender eintragen</a>
         </div>
 
         <p class="hint">
-            <strong>Tipp:</strong> Nutzt du Outlook, Apple Kalender oder ein anderes Programm? 
-            Öffne einfach die angehängte <strong>termin.ics</strong> Datei, um den Termin mit einem Klick zu deinem Kalender hinzuzufügen.
+            <strong>Tipp:</strong> Nutzt du Outlook, Apple Kalender, Thunderbird oder dein Smartphone? 
+            Öffne einfach die angehängte <strong>.ics Kalender-Datei</strong>, um {{ count($itemsToRender) > 1 ? 'alle Termine' : 'den Termin' }} mit einem Klick in deinen Kalender zu übernehmen.
         </p>
 
-        <p>Herzliche Grüße,<br>Dein System-Team ✨</p>
+        <p>Herzliche Grüße,<br>{{ !empty($agentName) ? $agentName . ' ✨ (Seelenfunke KI)' : 'Dein System-Team ✨' }}</p>
     </div>
 
     <div class="footer">
