@@ -48,7 +48,7 @@ class MailMessage extends Model
             }
             
             // 2. Böse Container entfernen
-            foreach (['iframe', 'object', 'embed', 'applet', 'svg'] as $tag) {
+            foreach (['iframe', 'object', 'embed', 'applet', 'svg', 'base', 'form', 'meta', 'math'] as $tag) {
                 foreach ($xpath->query('//' . $tag) as $node) {
                     $node->parentNode->removeChild($node);
                 }
@@ -59,9 +59,14 @@ class MailMessage extends Model
                 $attr->ownerElement->removeAttributeNode($attr);
             }
 
-            // 4. "javascript:" hrefs löschen
-            foreach ($xpath->query('//@href[starts-with(translate(., "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "javascript:")]') as $attr) {
-                $attr->ownerElement->setAttribute('href', '#');
+            // 4. "javascript:" und "data:text/html" URLs in href/src/action/formaction löschen
+            foreach (['href', 'src', 'action', 'formaction'] as $urlAttr) {
+                foreach ($xpath->query('//@' . $urlAttr) as $attr) {
+                    $val = strtolower(trim(preg_replace('/[\x00-\x20]+/', '', $attr->value)));
+                    if (str_starts_with($val, 'javascript:') || str_starts_with($val, 'vbscript:') || str_starts_with($val, 'data:text/html')) {
+                        $attr->ownerElement->setAttribute($urlAttr, '#');
+                    }
+                }
             }
 
             // 5. Inline-Attachments (cid:...) auslesen und direkt als Base64 einbetten, sonst 1x1 Pixel

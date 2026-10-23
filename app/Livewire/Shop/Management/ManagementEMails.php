@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Management;
 
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 
 use App\Models\Management\Mail\MailAccount;
@@ -11,6 +12,7 @@ use App\Models\Management\Mail\MailRule;
 use App\Models\Management\ManagementContact;
 use App\Models\Management\ManagementTask;
 use App\Models\Management\ManagementTaskList;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -73,6 +75,7 @@ class ManagementEMails extends Component
     public $composeSubject = '';
     public $composeBody = '';
     public $composeAccountId = null;
+    #[Locked]
     public $composeAttachments = [];
     public $uploadedFiles = [];
 
@@ -289,6 +292,26 @@ class ManagementEMails extends Component
             'imap_host' => 'required',
             'smtp_host' => 'required',
         ]);
+
+        if (!SystemSecurityService::isSafeMailHost((string) $this->imap_host) || !SystemSecurityService::isSafeMailHost((string) $this->smtp_host)) {
+            SystemSecurityService::logEvent(
+                'security:ssrf_mail_host_blocked',
+                'ERROR',
+                'Unsicherer oder interner Mail-Host (SSRF-Schutz) blockiert.',
+                ['imap_host' => $this->imap_host, 'smtp_host' => $this->smtp_host],
+                'idor_integrity'
+            );
+            $this->addError('imap_host', 'Ungültiger oder intern gesperrter Mail-Server Hostname.');
+            return;
+        }
+
+        if ($this->editAccountId) {
+            $existing = MailAccount::find($this->editAccountId);
+            if ($existing && ($existing->imap_host !== $this->imap_host || $existing->smtp_host !== $this->smtp_host) && empty($this->password)) {
+                $this->addError('password', 'Aus Sicherheitsgründen muss bei einer Änderung des Mail-Servers das Passwort erneut eingegeben werden.');
+                return;
+            }
+        }
 
         $data = [
             'name' => $this->account_name,

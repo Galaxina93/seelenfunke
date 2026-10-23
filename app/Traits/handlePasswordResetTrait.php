@@ -54,8 +54,10 @@ trait handlePasswordResetTrait
             ->first();
 
         // Sollte der PassworResetToken existieren aber die Zeit von 2 Minuten ist noch nicht vergangen, dann return
+        // (Einheitliche Statusmeldung verhindert User-Enumeration)
         if ($passwordResetToken != null && !Carbon::parse($passwordResetToken->created_at)->addMinutes(2)->isPast()) {
-            session()->flash('error', 'Bitte warte kurz, bis du es erneut versuchst!');
+            $this->email = "";
+            session()->flash('status', 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.');
             return;
         }
 
@@ -97,6 +99,14 @@ trait handlePasswordResetTrait
 
     public function resetPassword()
     {
+        $throttleKey = 'password_reset_exec_' . request()->ip();
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            session()->flash('error', "Zu viele Versuche. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+
         $this->validate([
             'email' => 'required|email',
             'password' => 'required|min:8',

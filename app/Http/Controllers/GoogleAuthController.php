@@ -32,12 +32,24 @@ class GoogleAuthController extends Controller
     public function handleGoogleCallback()
     {
         try {
+            if (\App\Models\System\SystemBlockedIp::isBlocked(request()->ip())) {
+                return redirect()->route('login')->with('error', 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.');
+            }
+
             // Google User abrufen (stateless)
             $googleUser = Socialite::driver('google')->stateless()->user();
 
             // Sicherheitsprüfung: Unverifizierte Google-Accounts dürfen nicht gelinkt werden
-            if (isset($googleUser->user['email_verified']) && $googleUser->user['email_verified'] === false) {
+            $emailVerified = $googleUser->user['email_verified'] ?? ($googleUser->user['verified_email'] ?? null);
+            if ($emailVerified === false || $emailVerified === 'false') {
                 Log::warning('Google OAuth Login abgelehnt: E-Mail-Adresse nicht bei Google verifiziert.', ['email' => $googleUser->email]);
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:oauth_unverified',
+                    'Unverifizierter Google-OAuth Login blockiert',
+                    "Google-Login für '{$googleUser->email}' abgelehnt (E-Mail nicht verifiziert).",
+                    'warning',
+                    ['target_email' => $googleUser->email]
+                );
                 return redirect()->route('login')->with('error', 'Google-Konto wurde abgelehnt, da die E-Mail-Adresse nicht verifiziert ist.');
             }
 
@@ -51,7 +63,7 @@ class GoogleAuthController extends Controller
 
             // A) Check: Ist es ein Admin?
             // Jetzt findet er die Klasse, da "use App\Models\Admin;" oben steht
-            $admin = Admin::where('google_id', $googleUser->id)
+            $admin = Admin::withTrashed()->where('google_id', $googleUser->id)
                 ->orWhere('email', $googleUser->email)
                 ->first();
 
@@ -62,7 +74,7 @@ class GoogleAuthController extends Controller
 
             // B) Check: Ist es ein Mitarbeiter? (Nur wenn kein Admin gefunden)
             if (!$user) {
-                $employee = Employee::where('google_id', $googleUser->id)
+                $employee = Employee::withTrashed()->where('google_id', $googleUser->id)
                     ->orWhere('email', $googleUser->email)
                     ->first();
 
@@ -74,7 +86,7 @@ class GoogleAuthController extends Controller
 
             // C) Check: Ist es ein Kunde? (Nur wenn bisher nichts gefunden)
             if (!$user) {
-                $customer = Customer::where('google_id', $googleUser->id)
+                $customer = Customer::withTrashed()->where('google_id', $googleUser->id)
                     ->orWhere('email', $googleUser->email)
                     ->first();
 
@@ -82,6 +94,11 @@ class GoogleAuthController extends Controller
                     $user = $customer;
                     $guard = 'customer';
                 }
+            }
+
+            if ($user && method_exists($user, 'trashed') && $user->trashed()) {
+                \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), false, 'google_oauth');
+                return redirect()->route('login')->with('error', 'Dieser Account wurde deaktiviert.');
             }
 
             // ---------------------------------------------------------
@@ -162,8 +179,17 @@ class GoogleAuthController extends Controller
             }
 
             // ---------------------------------------------------------
-            // 4. LOGIN DURCHFÜHREN
+            // 4. LOGIN DURCHFÜHREN (INKL. 2FA-ENFORCEMENT)
             // ---------------------------------------------------------
+
+            \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), true, 'google_oauth');
+
+            // Wenn 2FA für das Konto aktiviert ist, darf Google OAuth 2FA NICHT überspringen!
+            if ($user->profile && $user->profile->two_factor_is_active) {
+                session()->regenerate();
+                session(['2fa_user_id' => $user->id, 'guard' => $guard]);
+                return redirect()->route('login');
+            }
 
             session()->regenerate();
             Auth::guard($guard)->login($user, true);

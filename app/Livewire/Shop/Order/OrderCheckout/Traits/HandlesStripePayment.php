@@ -7,6 +7,7 @@ use App\Models\Marketing\MarketingVoucher;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
@@ -112,6 +113,13 @@ trait HandlesStripePayment
 
             if (!$isOwner) {
                 Log::warning("Unberechtigter handlePaymentSuccess Aufruf: Order {$orderId} gehört nicht zum aktuellen Kunden/Session.");
+                SystemSecurityService::logEvent(
+                    'security:checkout_idor_attempt',
+                    'ERROR',
+                    'Unberechtigter Zahlungsabschluss-Aufruf für fremde Bestellung blockiert.',
+                    ['order_id' => $orderId, 'current_email' => $this->email],
+                    'idor_integrity'
+                );
                 $this->addError('payment', 'Ungültige Bestellsitzung.');
                 return;
             }
@@ -120,6 +128,13 @@ trait HandlesStripePayment
             if ($candidate->total_price > 0) {
                 if (empty($this->currentPaymentIntentId) || $candidate->stripe_payment_intent_id !== $this->currentPaymentIntentId) {
                     Log::warning("Verdächtiger handlePaymentSuccess Aufruf: Order {$orderId} stimmt nicht mit Intent {$this->currentPaymentIntentId} überein.");
+                    SystemSecurityService::logEvent(
+                        'security:checkout_intent_mismatch',
+                        'ERROR',
+                        'Manipulationsversuch im Checkout: Stripe PaymentIntent stimmt nicht mit Bestellung überein.',
+                        ['order_id' => $orderId, 'session_intent' => $this->currentPaymentIntentId, 'order_intent' => $candidate->stripe_payment_intent_id],
+                        'idor_integrity'
+                    );
                     $this->addError('payment', 'Ungültige Bestellsitzung.');
                     return;
                 }

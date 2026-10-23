@@ -64,9 +64,17 @@ class CrmOutgoingMailToCustomer extends Mailable
     {
         $attachments = [];
         foreach ($this->attachmentFiles as $file) {
-            $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorage($file['path'])
-                ->as($file['filename'])
-                ->withMime($file['mime']);
+            $path = ltrim((string) ($file['path'] ?? ''), '/');
+            if (
+                empty($path)
+                || str_contains($path, '..')
+                || !\Illuminate\Support\Str::startsWith($path, ['temp/mail-attachments/', 'mail-attachments/', 'crm/'])
+            ) {
+                continue;
+            }
+            $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorage($path)
+                ->as(basename((string) ($file['filename'] ?? 'attachment')))
+                ->withMime($file['mime'] ?? 'application/octet-stream');
         }
         return $attachments;
     }

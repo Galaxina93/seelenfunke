@@ -12,6 +12,7 @@ use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use DanHarrin\LivewireRateLimiting\WithRateLimiting;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Rule;
 use Livewire\Component;
 
@@ -29,8 +30,13 @@ class AuthLogin extends Component
     public string $password = '';
 
     public bool $remember = false;
+
+    #[Locked]
     public $user;
+
+    #[Locked]
     public string $guard = 'customer';
+
     public string $activeView = 'login';
 
     public function mount()
@@ -171,12 +177,7 @@ class AuthLogin extends Component
 
     protected function logLoginAttempt(string $email, bool $success): void
     {
-        SystemLoginAttempt::create([
-            'email' => $email,
-            'ip_address' => request()->ip(),
-            'success' => $success,
-            'attempted_at' => now(),
-        ]);
+        \App\Services\System\SystemSecurityService::recordLoginAttempt($email, request()->ip(), $success, 'web');
     }
 
 

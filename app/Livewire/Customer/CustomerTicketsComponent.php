@@ -8,12 +8,14 @@ use App\Models\Order\OrderOrder;
 use App\Models\Support\SupportTicket;
 use App\Models\Support\SupportTicketMessage;
 use App\Services\Gamification\GamificationService;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On; // NEU HINZUGEFÜGT
 
 #[Layout('components.layouts.customer_layout')]
@@ -25,6 +27,7 @@ class CustomerTicketsComponent extends Component
     public $activeTicketId = null;
 
     // GANZ WICHTIG FÜR WEBSOCKETS BEI UUIDS: MUSS STRING SEIN!
+    #[Locked]
     public string $customerId = '';
 
     public $emailNotifications = true;
@@ -63,12 +66,32 @@ class CustomerTicketsComponent extends Component
         $this->emailNotifications = (bool) $profile->ticket_emails_enabled;
     }
 
+    private function enforceCustomerId(): string
+    {
+        $authId = (string) Auth::guard('customer')->id();
+        if ($this->customerId !== '' && $this->customerId !== $authId) {
+            SystemSecurityService::logEvent(
+                'security:idor_customer_ticket',
+                'ERROR',
+                'Manipulation der Customer-ID im Ticket-System verhindert (IDOR-Schutz).',
+                ['attempted_customer_id' => $this->customerId, 'authenticated_customer_id' => $authId],
+                'idor_integrity'
+            );
+        }
+        $this->customerId = $authId;
+        return $authId;
+    }
+
     public function setRating($stars) {
-        $this->rating = $stars;
+        $this->rating = max(1, min(5, (int) $stars));
     }
 
     public function submitRating() {
+        $this->enforceCustomerId();
         if ($this->rating < 1 || !$this->activeTicketId) return;
+
+        $this->rating = max(1, min(5, (int) $this->rating));
+        $this->feedbackText = mb_substr((string) $this->feedbackText, 0, 2000);
 
         $ticket = SupportTicket::where('id', $this->activeTicketId)->where('customer_id', $this->customerId)->first();
         if ($ticket && $ticket->status === 'closed') {
@@ -101,6 +124,7 @@ class CustomerTicketsComponent extends Component
 
     public function updatedEmailNotifications()
     {
+        $this->enforceCustomerId();
         $profile = CustomerGamification::firstOrCreate(
             ['customer_id' => $this->customerId]
         );
@@ -140,6 +164,7 @@ class CustomerTicketsComponent extends Component
 
     public function setMode($mode, $ticketId = null)
     {
+        $this->enforceCustomerId();
         $this->viewMode = $mode;
         $this->activeTicketId = $ticketId;
         $this->reset(['attachments', 'newAttachments', 'chatAttachments', 'chatNewAttachments', 'chatMessage', 'uploadError']);
@@ -151,6 +176,13 @@ class CustomerTicketsComponent extends Component
             // Mandantenprüfung: Ticket muss dem eingeloggten Kunden gehören
             $ticket = SupportTicket::where('customer_id', $this->customerId)->find($ticketId);
             if (!$ticket) {
+                SystemSecurityService::logEvent(
+                    'security:idor_customer_ticket_view',
+                    'WARNING',
+                    'Versuchter Zugriff auf fremdes oder nicht existentes Support-Ticket blockiert.',
+                    ['customer_id' => $this->customerId, 'ticket_id' => $ticketId],
+                    'idor_integrity'
+                );
                 $this->activeTicketId = null;
                 $this->viewMode = 'list';
                 return;
@@ -173,9 +205,17 @@ class CustomerTicketsComponent extends Component
 
     public function createTicket(GamificationService $gameService)
     {
+        $this->enforceCustomerId();
         $throttleKey = 'create_ticket_' . $this->customerId;
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
+            SystemSecurityService::logEvent(
+                'security:rate_limit_ticket_create',
+                'WARNING',
+                'Support-Ticket Rate-Limit für Kunden ausgelöst.',
+                ['customer_id' => $this->customerId, 'retry_after' => $seconds],
+                'bot_defense'
+            );
             $this->addError('newSubject', "Zu viele Ticket-Erstellungen. Bitte warte {$seconds} Sekunden.");
             return;
         }
@@ -278,6 +318,7 @@ class CustomerTicketsComponent extends Component
 
     public function sendReply()
     {
+        $this->enforceCustomerId();
         $this->validate([
             'chatMessage' => 'required|min:1',
             'chatAttachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:5120',
@@ -313,6 +354,7 @@ class CustomerTicketsComponent extends Component
 
     public function closeTicket()
     {
+        $this->enforceCustomerId();
         $this->validate([
             'closeReason' => 'required|min:5'
         ], [
@@ -335,6 +377,7 @@ class CustomerTicketsComponent extends Component
 
     private function markAsRead($ticketId)
     {
+        $this->enforceCustomerId();
         $ticket = SupportTicket::where('customer_id', $this->customerId)->find($ticketId);
         if ($ticket) {
             SupportTicketMessage::where('support_ticket_id', $ticket->id)
@@ -345,6 +388,7 @@ class CustomerTicketsComponent extends Component
 
     public function render()
     {
+        $this->enforceCustomerId();
         $tickets = SupportTicket::where('customer_id', $this->customerId)->with('order')->orderBy('updated_at', 'desc')->get();
         $orders = OrderOrder::where('customer_id', $this->customerId)->with('items')->orderBy('created_at', 'desc')->get();
         $activeTicket = $this->viewMode === 'chat' && $this->activeTicketId ? SupportTicket::with('messages', 'order')->where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->first() : null;

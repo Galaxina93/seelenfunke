@@ -12,6 +12,7 @@ use BaconQrCode\Writer;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use PragmaRX\Google2FA\Google2FA;
@@ -23,8 +24,13 @@ class AuthProfileDropdown extends Component
     use handleTwoFactorTrait;
 
     public $photo;
+
+    #[Locked]
     public ?object $user = null;
+
+    #[Locked]
     public ?string $guard = null;
+
     public bool $isGameModeActive = false;
 
     public string $firstName = '';
@@ -47,7 +53,10 @@ class AuthProfileDropdown extends Component
 
     public $twoFactorActive = false;
     public $qrCodeSvg = null;
+
+    #[Locked]
     public $secretKey = null;
+
     public $confirmPasswordOpener = false;
     public $password = '';
 

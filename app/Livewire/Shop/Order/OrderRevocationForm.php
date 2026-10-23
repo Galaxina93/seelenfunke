@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\Order;
 
 use App\Mail\RevocationMailToCustomer;
 use App\Models\Order\OrderRevocation;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
@@ -98,6 +99,13 @@ class OrderRevocationForm extends Component
                 'ip' => request()->ip(),
                 'email' => $this->email,
             ]);
+            SystemSecurityService::logEvent(
+                'security:honeypot_revocation',
+                'WARNING',
+                'Spam-Bot im Widerrufsformular durch Honeypot abgefangen.',
+                ['email' => $this->email, 'order_number' => $this->order_number],
+                'bot_defense'
+            );
             $this->isSubmitted = true;
             return;
         }
@@ -106,6 +114,13 @@ class OrderRevocationForm extends Component
         $throttleKey = 'order-revocation:' . request()->ip();
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
+            SystemSecurityService::logEvent(
+                'security:rate_limit_revocation',
+                'WARNING',
+                'Widerrufsformular Rate-Limit ausgelöst (Spam-Schutz).',
+                ['email' => $this->email, 'retry_after' => $seconds],
+                'bot_defense'
+            );
             $this->addError('email', "Zu viele Anfragen. Bitte warten Sie " . ceil($seconds / 60) . " Minute(n) vor einem erneuten Versuch.");
             return;
         }

@@ -8,6 +8,7 @@ use Livewire\WithPagination;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderOrderItem; // Anpassen, falls dein Model anders heißt
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 
 class CustomerOrdersComponent extends Component
@@ -15,25 +16,36 @@ class CustomerOrdersComponent extends Component
     use WithPagination;
 
     public $searchOrder = '';
+    #[Locked]
     public $selectedOrderId = null;
+    #[Locked]
     public $previewItemId = null;
+    #[Locked]
     public $editItemId = null;
     public $showSuccessMessageFor = null;
 
     public function mount()
     {
+        $user = Auth::guard('customer')->user();
+        if (!$user) {
+            return redirect()->route('login');
+        }
+
         if (request()->has('order')) {
             $orderId = request()->get('order');
-            $user = Auth::guard('customer')->user();
-            if ($user) {
-                $order = OrderOrder::where('id', $orderId)->where('customer_id', $user->id)->first();
-                if ($order) {
-                    $this->selectedOrderId = $order->id;
-                }
+            $order = OrderOrder::where('id', $orderId)->where('customer_id', $user->id)->first();
+            if ($order) {
+                $this->selectedOrderId = $order->id;
             }
         }
         if (request()->has('edit')) {
-            $this->editItemId = request()->get('edit');
+            $editId = request()->get('edit');
+            $belongs = OrderOrderItem::where('id', $editId)->whereHas('order', function ($q) use ($user) {
+                $q->where('customer_id', $user->id);
+            })->exists();
+            if ($belongs) {
+                $this->editItemId = $editId;
+            }
         }
     }
 
@@ -119,6 +131,10 @@ class CustomerOrdersComponent extends Component
     public function downloadDigitalFile($itemId)
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) {
+            abort(403);
+        }
+
         $item = OrderOrderItem::where('id', $itemId)
             ->whereHas('order', function ($q) use ($user) {
                 $q->where('customer_id', $user->id);
@@ -129,19 +145,25 @@ class CustomerOrdersComponent extends Component
             return;
         }
 
+        $downloadPath = (string) $item->product->digital_download_path;
+        if (str_contains($downloadPath, '..') || str_contains($downloadPath, "\0")) {
+            session()->flash('error', 'Ungültiger Dateipfad.');
+            return;
+        }
+
         // Downloads stehen erst nach vollständigem Zahlungseingang zur Verfügung
         if ($item->order->payment_status !== 'paid') {
             session()->flash('error', 'Der Download steht erst nach vollständigem Zahlungseingang zur Verfügung.');
             return;
         }
 
-        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($item->product->digital_download_path)) {
+        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($downloadPath)) {
             session()->flash('error', 'Datei nicht gefunden.');
             return;
         }
 
         return \Illuminate\Support\Facades\Storage::disk('local')->download(
-            $item->product->digital_download_path, 
+            $downloadPath, 
             $item->product->digital_filename ?? 'Download'
         );
     }

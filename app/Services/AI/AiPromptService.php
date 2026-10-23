@@ -31,9 +31,11 @@ class AiPromptService
                                  "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
 
-        // Buchhaltungs-Regel für Ausgaben
-        $systemPromptText .= "\n\n[BUCHHALTUNG & FINANZEN REGEL]\n" .
-                             "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
+        // Buchhaltungs-Regel für Ausgaben (nur für interne Admin-/Mitarbeiter-Agenten)
+        if ($isAdmin || AiAuthHelper::isEmployee()) {
+            $systemPromptText .= "\n\n[BUCHHALTUNG & FINANZEN REGEL]\n" .
+                                 "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
+        }
         
         // Dynamic Briefing & Sprachrohr-Funktion für Funkira / Teamleiter
         $isTeamLeader = $agent->name === 'Funkira' || ($agent->role && stripos($agent->role->name, 'Teamleiter') !== false);

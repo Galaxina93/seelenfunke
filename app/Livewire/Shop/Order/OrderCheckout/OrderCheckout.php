@@ -5,10 +5,14 @@ namespace App\Livewire\Shop\Order\OrderCheckout;
 use App\Livewire\Shop\Order\OrderCheckout\Traits\HandlesOrderCreation;
 use App\Livewire\Shop\Order\OrderCheckout\Traits\HandlesStripePayment;
 use App\Models\Cart\Cart;
+use App\Models\Customer\Customer;
 use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class OrderCheckout extends Component
@@ -46,14 +50,21 @@ class OrderCheckout extends Component
     public $loginError = '';
 
     // --- STRIPE & CONFIG ---
+    #[Locked]
     public $clientSecret;
+    #[Locked]
     public $stripeKey;
+    #[Locked]
     public $currentPaymentIntentId;
+    #[Locked]
     public int $totalAmount = 0;
 
     // --- UI STATE ---
+    #[Locked]
     public $isFinished = false;
+    #[Locked]
     public $finalOrderNumber = '';
+    #[Locked]
     public $referralCode = '';
 
     /**
@@ -291,18 +302,40 @@ class OrderCheckout extends Component
         $guestCart = $cartService->getCart();
         $wasExpress = $guestCart->is_express;
 
-        if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
+        $customer = Customer::withTrashed()->where('email', $this->loginEmail)->first();
+
+        if ($customer && Hash::check($this->loginPassword, $customer->password)) {
+            if ($customer->trashed()) {
+                \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+                SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, false, 'checkout_trashed_customer');
+                $this->loginError = 'Zugangsdaten nicht korrekt.';
+                return;
+            }
+
+            if ($customer->profile && $customer->profile->two_factor_is_active) {
+                \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+                session([
+                    '2fa_user_id' => $customer->id,
+                    'guard' => 'customer',
+                    'remember' => false,
+                ]);
+                SystemSecurityService::logEvent(
+                    'security:checkout_2fa_challenge',
+                    'INFO',
+                    'Kunden-Login im Checkout erfordert 2FA-Verifizierung.',
+                    ['customer_id' => $customer->id, 'email' => $customer->email],
+                    'auth_2fa'
+                );
+                return redirect()->route('login');
+            }
+
+            Auth::guard('customer')->login($customer);
             \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
             session()->regenerate();
 
-            \App\Models\System\SystemLoginAttempt::create([
-                'email' => $this->loginEmail,
-                'ip_address' => $ip,
-                'user_agent' => request()->userAgent() ?: 'Unknown',
-                'success' => true,
-            ]);
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, true, 'checkout_login');
 
-            $user = Auth::guard('customer')->user();
+            $user = $customer;
 
             $userCart = Cart::firstOrCreate(
                 ['customer_id' => $user->id]
@@ -334,12 +367,7 @@ class OrderCheckout extends Component
         } else {
             \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
 
-            \App\Models\System\SystemLoginAttempt::create([
-                'email' => $this->loginEmail,
-                'ip_address' => $ip,
-                'user_agent' => request()->userAgent() ?: 'Unknown',
-                'success' => false,
-            ]);
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, false, $ip, 'checkout_login_failed');
 
             $this->loginError = 'Zugangsdaten nicht korrekt.';
         }

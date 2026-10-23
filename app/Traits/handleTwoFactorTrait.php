@@ -25,8 +25,10 @@ trait handleTwoFactorTrait
     public function twoFactorVerify()
     {
         $this->validate([
-            'code' => 'required',
+            'code' => 'required|string|max:64',
         ]);
+
+        $inputCode = trim((string) $this->code);
 
         $userId = session('2fa_user_id');
         $guard = session('guard');
@@ -39,7 +41,7 @@ trait handleTwoFactorTrait
         $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($guard);
         $user = $userModel::find($userId);
 
-        if (!$user) {
+        if (!$user || !$user->profile) {
             session()->flash('error', 'Benutzer nicht gefunden. Bitte erneut anmelden.');
             return;
         }
@@ -48,21 +50,39 @@ trait handleTwoFactorTrait
         $throttleKey = '2fa_verify_' . $user->id . '_' . request()->ip();
         if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:2fa_rate_limit',
+                '2FA Brute-Force Schutz ausgelöst',
+                "Zu viele fehlerhafte 2FA-Versuche für '{$user->email}' ({$guard}) von IP " . request()->ip(),
+                'error',
+                ['target_email' => $user->email, 'guard' => $guard]
+            );
             session()->flash('error', "Zu viele Fehlversuche bei der 2FA-Eingabe. Bitte warte {$seconds} Sekunden.");
             return;
         }
 
-        // 2FA prüfen
-        $valid = $this->twoFactorCheckCode($user->profile->two_factor_secret, $this->code);
+        // 2FA prüfen (strikt typisiert)
+        $valid = false;
+        if (!empty($user->profile->two_factor_secret)) {
+            $valid = (bool) $this->twoFactorCheckCode((string) $user->profile->two_factor_secret, $inputCode);
+        }
 
-        if (!$valid) {
-            $recoveryCodes = json_decode(decrypt($user->profile->two_factor_recovery_codes), true);
-            $valid = in_array($this->code, $recoveryCodes);
-
-            if ($valid) {
-                $recoveryCodes = array_diff($recoveryCodes, [$this->code]);
-                $user->profile->two_factor_recovery_codes = encrypt(json_encode(array_values($recoveryCodes)));
-                $user->profile->save();
+        if (!$valid && !empty($user->profile->two_factor_recovery_codes)) {
+            try {
+                $recoveryCodes = json_decode(decrypt($user->profile->two_factor_recovery_codes), true);
+                if (is_array($recoveryCodes)) {
+                    foreach ($recoveryCodes as $idx => $savedCode) {
+                        if (is_string($savedCode) && $savedCode !== '' && hash_equals($savedCode, $inputCode)) {
+                            $valid = true;
+                            unset($recoveryCodes[$idx]);
+                            $user->profile->two_factor_recovery_codes = encrypt(json_encode(array_values($recoveryCodes)));
+                            $user->profile->save();
+                            break;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                $valid = false;
             }
         }
 
@@ -92,14 +112,14 @@ trait handleTwoFactorTrait
 
         \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
 
-        if (class_exists(\App\Models\System\SystemLoginAttempt::class)) {
-            \App\Models\System\SystemLoginAttempt::create([
-                'email' => $user->email,
-                'ip_address' => request()->ip(),
-                'success' => false,
-                'attempted_at' => now(),
-            ]);
-        }
+        \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), false, '2fa');
+        \App\Services\System\SystemSecurityService::logEvent(
+            'security:2fa_failed',
+            'Fehlgeschlagene 2FA-Verifikation',
+            "Ungültiger 2FA-Code für '{$user->email}' ({$guard}) von IP " . request()->ip(),
+            'warning',
+            ['target_email' => $user->email, 'guard' => $guard]
+        );
 
         session()->flash('error', 'Der eingegebene Code ist ungültig. Bitte versuchen Sie es erneut.');
     }

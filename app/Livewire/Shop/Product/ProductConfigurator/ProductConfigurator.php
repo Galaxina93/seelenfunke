@@ -12,6 +12,7 @@ use Livewire\WithFileUploads;
 use App\Services\ConfiguratorService;
 use App\Services\ProductTrackingService;
 use Livewire\Attributes\Computed; // <-- NEU
+use Livewire\Attributes\Locked;
 use Illuminate\Support\Facades\DB;
 use App\Models\System\SystemLog;
 use DanHarrin\LivewireRateLimiting\WithRateLimiting;
@@ -24,6 +25,7 @@ class ProductConfigurator extends Component
 
     public $product;
     public $cartItem = null;
+    #[Locked]
     public $context = 'add';
     public $type = 'physical';
     public $isDigital = false;

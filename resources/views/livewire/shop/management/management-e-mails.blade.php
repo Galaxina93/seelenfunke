@@ -468,7 +468,7 @@
             {{-- Mail Body --}}
             <div class="flex-1 overflow-hidden relative bg-white">
                 @if($selectedMessage->body_html)
-                    <iframe srcdoc="{{ $selectedMessage->safe_body_html }}" class="absolute inset-0 w-full h-full border-0" sandbox="allow-popups allow-scripts" title="E-Mail Inhalt"></iframe>
+                    <iframe srcdoc="{{ $selectedMessage->safe_body_html }}" class="absolute inset-0 w-full h-full border-0" sandbox="allow-popups" title="E-Mail Inhalt"></iframe>
                 @else
                     <div class="p-6 w-full h-full overflow-y-auto custom-scrollbar text-black prose max-w-none">
                         {!! nl2br(e($selectedMessage->body_plain)) !!}

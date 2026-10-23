@@ -78,6 +78,16 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
 
 // --- WebSocket Bridge Error & Status Tracking ---
 Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
+    if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+        \App\Services\System\SystemSecurityService::logEvent(
+            'security:ws_log_unauthorized',
+            'Unautorisierter WebSocket-Log-Aufruf blockiert',
+            'Externer Aufruf auf /api/log/websocket von IP ' . $request->ip() . ' abgewehrt.',
+            'warning'
+        );
+        return response()->json(['status' => 'forbidden'], 403);
+    }
+
     try {
         $data = $request->validate([
             'type' => 'required|string', // 'crash', 'error', 'info', 'warning'
@@ -274,6 +284,26 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
     $path = $request->query('path');
     if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
         abort(404, 'Path missing or invalid');
+    }
+
+    // Sicherheit: Erlaube nur Pfade innerhalb der Buchhaltungs-/Beleg-Verzeichnisse
+    $allowedPrefixes = ['buchhaltung/', 'invoices/', 'finanzen/', 'receipts/'];
+    $hasAllowedPrefix = false;
+    foreach ($allowedPrefixes as $prefix) {
+        if (str_starts_with($path, $prefix)) {
+            $hasAllowedPrefix = true;
+            break;
+        }
+    }
+    if (!$hasAllowedPrefix) {
+        \App\Services\System\SystemSecurityService::logEvent(
+            'security:path_traversal_blocked',
+            'Unzulässiger Beleg-Dateipfad blockiert',
+            "Zugriff auf Pfad '{$path}' außerhalb des Beleg-Tresors verweigert.",
+            'error',
+            ['path' => $path]
+        );
+        abort(403, 'Unzulässiger Dateipfad.');
     }
 
     $fullPath = null;

@@ -5,6 +5,10 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
 Route::post('/login', function (Request $request) {
+    if (\App\Models\System\SystemBlockedIp::isBlocked($request->ip())) {
+        return response()->json(['message' => 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.'], 403);
+    }
+
     $credentials = $request->validate([
         'email' => 'required|email',
         'password' => 'required',
@@ -14,8 +18,73 @@ Route::post('/login', function (Request $request) {
     $guards = ['admin', 'employee', 'customer'];
 
     foreach ($guards as $guard) {
-        if (Auth::guard($guard)->attempt($credentials)) {
-            $user = Auth::guard($guard)->user();
+        if (Auth::guard($guard)->validate($credentials)) {
+            $userModelClass = (new \App\Models\System\SystemUser)->getUserModelByGuard($guard);
+            $user = $userModelClass::withTrashed()->where('email', $credentials['email'])->first();
+
+            if (!$user || (method_exists($user, 'trashed') && $user->trashed())) {
+                \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api');
+                return response()->json(['message' => 'Dieser Account wurde deaktiviert.'], 403);
+            }
+
+            if ($guard === 'customer' && method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api');
+                return response()->json(['message' => 'Bitte bestätige zuerst deine E-Mail-Adresse.'], 403);
+            }
+
+            // 2FA-Prüfung auch für API-Logins erzwingen
+            if ($user->profile && $user->profile->two_factor_is_active) {
+                $twoFactorCode = trim((string) $request->input('two_factor_code', $request->input('code', '')));
+                if ($twoFactorCode === '') {
+                    return response()->json([
+                        'status' => 'two_factor_required',
+                        'message' => 'Zwei-Faktor-Authentifizierung erforderlich.',
+                    ], 403);
+                }
+
+                $valid2fa = false;
+                if (!empty($user->profile->two_factor_secret)) {
+                    try {
+                        $google2fa = new \PragmaRX\Google2FA\Google2FA();
+                        $valid2fa = (bool) $google2fa->verifyKey((string) $user->profile->two_factor_secret, $twoFactorCode);
+                    } catch (\Throwable $e) {
+                        $valid2fa = false;
+                    }
+                }
+
+                if (!$valid2fa && !empty($user->profile->two_factor_recovery_codes)) {
+                    try {
+                        $recoveryCodes = json_decode(decrypt($user->profile->two_factor_recovery_codes), true);
+                        if (is_array($recoveryCodes)) {
+                            foreach ($recoveryCodes as $idx => $savedCode) {
+                                if (is_string($savedCode) && $savedCode !== '' && hash_equals($savedCode, $twoFactorCode)) {
+                                    $valid2fa = true;
+                                    unset($recoveryCodes[$idx]);
+                                    $user->profile->two_factor_recovery_codes = encrypt(json_encode(array_values($recoveryCodes)));
+                                    $user->profile->save();
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        $valid2fa = false;
+                    }
+                }
+
+                if (!$valid2fa) {
+                    \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api_2fa');
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:api_2fa_failed',
+                        'API 2FA-Verifikation fehlgeschlagen',
+                        "Ungültiger 2FA-Code beim API-Login für '{$user->email}' ({$guard}) von IP " . $request->ip(),
+                        'warning',
+                        ['target_email' => $user->email, 'guard' => $guard]
+                    );
+                    return response()->json(['message' => 'Ungültiger 2FA-Code.'], 401);
+                }
+            }
+
+            \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), true, 'api');
 
             // Optional: Alte Tokens aufräumen
             $user->tokens()->delete();
@@ -31,6 +100,8 @@ Route::post('/login', function (Request $request) {
             ]);
         }
     }
+
+    \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api');
 
     return response()->json(['message' => 'Zugangsdaten ungültig.'], 401);
 })->middleware('throttle:5,1');
@@ -68,7 +139,10 @@ Route::post('/password/email', function (Request $request) {
         ->first();
 
     if ($passwordResetToken != null && !\Carbon\Carbon::parse($passwordResetToken->created_at)->addMinutes(2)->isPast()) {
-        return response()->json(['message' => 'Bitte warte, bis du es erneut versuchst.'], 429);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.'
+        ]);
     }
 
     $token = \Illuminate\Support\Str::random(60);

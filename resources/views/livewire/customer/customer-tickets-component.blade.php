@@ -51,7 +51,7 @@
 
     {{-- VIEW: TICKET LISTE --}}
     @if($viewMode === 'list')
-        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[2rem] shadow-sm dark:shadow-2xl overflow-hidden animate-fade-in">
+        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[2rem] shadow-sm dark:shadow-2xl overflow-hidden">
             @if($tickets->isEmpty())
                 <div class="p-12 text-center flex flex-col items-center">
                     <div class="w-24 h-24 bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-full flex items-center justify-center mb-6 shadow-inner"><span class="text-4xl opacity-70">📫</span></div>
@@ -116,7 +116,7 @@
 
     {{-- VIEW: TICKET ERSTELLEN --}}
     @if($viewMode === 'create')
-        <div class="max-w-4xl mx-auto w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-6 sm:p-10 shadow-sm dark:shadow-2xl animate-fade-in relative overflow-hidden">
+        <div class="max-w-4xl mx-auto w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-6 sm:p-10 shadow-sm dark:shadow-2xl relative overflow-hidden">
             <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-8 border-b border-gray-200 dark:border-gray-800 pb-4">Wie können wir helfen?</h2>
             <form wire:submit.prevent="createTicket" class="space-y-6 relative z-10">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -206,7 +206,7 @@
                         <h2 class="text-lg sm:text-xl font-bold text-gray-900 dark:text-white pl-10 break-all whitespace-pre-wrap">{{ $activeTicket->subject }}</h2>
                     </div>
                 </div>
-                
+
                 @if($activeTicket->status !== 'closed')
                 <div class="shrink-0 flex items-center">
                     <button @click="showCloseModal = true" class="px-3 py-2 bg-white dark:bg-gray-900 border border-red-300 dark:border-red-500/50 hover:bg-red-500 hover:text-white text-red-500 dark:text-red-400 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all shadow-sm">Ticket schließen</button>
@@ -289,7 +289,7 @@
                                     </button>
                                 @endfor
                             </div>
-                            
+
                             <div x-show="selectedRating > 0" style="display:none;" x-transition.opacity class="mt-2 text-left bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-2xl shadow-sm">
                                 <textarea wire:model="feedbackText" rows="2" class="w-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white text-[13px] rounded-xl border border-gray-200 dark:border-gray-800 focus:ring-amber-500 focus:border-amber-500 mb-3 resize-none shadow-sm py-2 px-3 placeholder-gray-400 dark:placeholder-gray-600" placeholder="Wie war deine Erfahrung? (optional)"></textarea>
                                 <button type="button" wire:click="submitRating" class="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 font-bold text-white text-xs py-2.5 px-4 rounded-xl shadow-md transition-all uppercase tracking-wider">
@@ -372,26 +372,26 @@
             </div>
         </div>
     @endif
-    
+
     {{-- TICKET SCHLIESSEN MODAL --}}
     <div x-show="showCloseModal" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center">
         <div x-show="showCloseModal" x-transition.opacity @click="showCloseModal = false" class="absolute inset-0 bg-black/60 dark:bg-black/80 backdrop-blur-sm"></div>
         <div x-show="showCloseModal" x-transition.scale.origin.bottom class="relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full mx-4 overflow-hidden">
             <div class="absolute top-0 inset-x-0 h-1 bg-red-500"></div>
-            
+
             <h3 class="text-xl font-black text-gray-900 dark:text-white mb-2 flex items-center gap-3">
                 <span class="text-red-500 text-2xl">⚠️</span> Ticket wirklich schließen?
             </h3>
-            
+
             <p class="text-sm text-gray-600 dark:text-gray-400 mb-6">Damit wir unseren Service verbessern können, teile uns bitte kurz mit, warum du dieses Ticket schließt.</p>
-            
+
             <form wire:submit.prevent="closeTicket">
                 <div class="mb-6">
                     <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Schließgrund / Feedback *</label>
                     <textarea wire:model="closeReason" rows="3" placeholder="Hat sich das Problem von selbst gelöst? Fehlen Informationen?..." class="w-full bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl px-4 py-3 focus:ring-2 focus:ring-red-500 outline-none transition-colors @error('closeReason') border-2 border-red-500 @else border border-gray-200 dark:border-gray-800 @enderror"></textarea>
                     @error('closeReason') <span class="text-red-500 text-xs mt-1 block font-bold">{{ $message }}</span> @enderror
                 </div>
-                
+
                 <div class="flex gap-3">
                     <button type="button" @click="showCloseModal = false" class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-white rounded-xl font-bold text-xs uppercase tracking-widest transition-colors">Abbrechen</button>
                     <button type="submit" class="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all">Schließen</button>

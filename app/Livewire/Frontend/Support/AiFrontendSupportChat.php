@@ -7,6 +7,7 @@ use App\Models\Support\SupportCustomerChat;
 use App\Models\Support\SupportCustomerChatMessage;
 use App\Models\Ai\AiAgent;
 use App\Services\AI\AIFunctionsRegistry;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
@@ -66,6 +67,14 @@ class AiFrontendSupportChat extends Component
                     ->whereIn('status', ['open', 'needs_employee', 'resolved', 'resolved_admin', 'resolved_auto'])
                     ->with(['messages'])
                     ->first();
+
+            if ($chat) {
+                // Mandanten-Schutz: Falls der Chat bereits einem anderen Kunden gehört (z.B. geteilter Browser), Session trennen
+                if ($chat->customer_id !== null && (string) $chat->customer_id !== (string) $customerId) {
+                    session()->forget('current_chat_id');
+                    $chat = null;
+                }
+            }
 
             if ($chat) {
                 // Auto-Claim: Falls das ein Gast war und nun ein Kunde eingeloggt ist
@@ -137,13 +146,20 @@ class AiFrontendSupportChat extends Component
     {
         if (!$this->hasAcceptedPrivacy) return;
 
-        $text = trim($this->message);
+        $text = mb_substr(trim((string) $this->message), 0, 2000);
         if (empty($text)) return;
 
         // --- RATE LIMITING ---
         $throttleKey = 'support_chat_' . (auth()->guard('customer')->id() ?? request()->ip());
         if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             $seconds = RateLimiter::availableIn($throttleKey);
+            SystemSecurityService::logEvent(
+                'security:rate_limit_support_chat',
+                'WARNING',
+                'KI-Support-Chat Rate-Limit ausgelöst (Spam-Schutz).',
+                ['customer_id' => auth()->guard('customer')->id(), 'retry_after' => $seconds],
+                'bot_defense'
+            );
             $rateLimitMsg = "Du schreibst etwas zu schnell. Bitte warte {$seconds} Sekunden, bevor du eine neue Nachricht sendest.";
             $this->messages[] = ['sender' => 'system', 'text' => $rateLimitMsg];
             $this->dispatch('message-received');
@@ -163,8 +179,15 @@ class AiFrontendSupportChat extends Component
 
             $chat = SupportCustomerChat::find($this->chatId);
             if ($chat) {
-                if (!empty($chat->customer_id) && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+                if (!empty($chat->customer_id) && (string)$chat->customer_id !== (string)$currentCustomerId) {
                     Log::warning("SupportChat ownership violation: Chat belongs to {$chat->customer_id}, but user is {$currentCustomerId}");
+                    SystemSecurityService::logEvent(
+                        'security:idor_support_chat',
+                        'ERROR',
+                        'Unautorisierter Zugriffsversuch auf fremden Support-Chat blockiert.',
+                        ['chat_id' => $chat->id, 'owner_id' => $chat->customer_id, 'actor_id' => $currentCustomerId],
+                        'idor_integrity'
+                    );
                     return;
                 }
                 if (empty($chat->customer_id) && $currentCustomerId) {
@@ -249,9 +272,33 @@ class AiFrontendSupportChat extends Component
         $chat = SupportCustomerChat::with('messages')->find($this->chatId);
         if (!$chat) return;
 
+        if (in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto', 'needs_employee', 'closed'], true)) {
+            $this->isTyping = false;
+            return;
+        }
+
         $currentCustomerId = auth()->guard('customer')->id();
-        if ($chat->customer_id && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+        if ($chat->customer_id && (string)$chat->customer_id !== (string)$currentCustomerId) {
             Log::warning("Inference rejected: Chat customer mismatch.");
+            $this->isTyping = false;
+            return;
+        }
+
+        // Schutz gegen direkten Aufruf von generateAiResponse ohne vorherige Kundennachricht oder über Gast-Limit
+        $lastDbMsg = $chat->messages->last();
+        if (!$lastDbMsg || $lastDbMsg->sender !== 'customer') {
+            $this->isTyping = false;
+            return;
+        }
+
+        $isSystem = false;
+        if (class_exists(\App\Models\System\SystemUser::class)) {
+            $sysGuard = (new \App\Models\System\SystemUser)->getGuard();
+            $isSystem = auth()->guard($sysGuard)->check();
+        }
+        $isGuest = !($currentCustomerId || $isSystem || auth()->check());
+        if ($isGuest && $chat->messages->where('sender', 'customer')->count() >= 3) {
+            $this->isTyping = false;
             return;
         }
 
@@ -408,11 +455,14 @@ class AiFrontendSupportChat extends Component
     }
 
     public function setRating($stars) {
-        $this->rating = $stars;
+        $this->rating = max(1, min(5, (int) $stars));
     }
 
     public function submitRating() {
         if ($this->rating < 1 || !$this->chatId) return;
+
+        $this->rating = max(1, min(5, (int) $this->rating));
+        $this->feedbackText = mb_substr((string) $this->feedbackText, 0, 2000);
 
         $sessionChatId = session('current_chat_id');
         if ($sessionChatId && (string)$this->chatId !== (string)$sessionChatId) {
@@ -423,7 +473,7 @@ class AiFrontendSupportChat extends Component
         $currentCustomerId = auth()->guard('customer')->id();
         $chat = SupportCustomerChat::find($this->chatId);
         if ($chat) {
-            if ($chat->customer_id && $currentCustomerId && (string)$chat->customer_id !== (string)$currentCustomerId) {
+            if ($chat->customer_id && (string)$chat->customer_id !== (string)$currentCustomerId) {
                 Log::warning("Rating rejected: Chat customer mismatch.");
                 return;
             }

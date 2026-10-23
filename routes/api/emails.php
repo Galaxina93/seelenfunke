@@ -153,9 +153,24 @@ Route::prefix('funki/emails')->group(function () {
         $attachmentDataParams = [];
         if (!empty($data['attachments']) && is_array($data['attachments'])) {
             foreach ($data['attachments'] as $att) {
+                $attPath = ltrim((string) ($att['path'] ?? ''), '/');
+                if (
+                    empty($attPath)
+                    || str_contains($attPath, '..')
+                    || !\Illuminate\Support\Str::startsWith($attPath, ['temp/mail-attachments/', 'mail-attachments/', 'crm/'])
+                ) {
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:lfi_mail_attachment_blocked',
+                        'ERROR',
+                        'Unzulässiger Dateipfad beim E-Mail-Anhang-Versand blockiert.',
+                        ['path' => $att['path'] ?? null],
+                        'idor_integrity'
+                    );
+                    return response()->json(['error' => 'Ungültiger Anhang-Pfad.'], 403);
+                }
                 $attachmentDataParams[] = [
-                    'path' => $att['path'],
-                    'filename' => $att['filename'],
+                    'path' => $attPath,
+                    'filename' => basename((string) ($att['filename'] ?? 'attachment')),
                     'mime' => $att['mime'] ?? $att['content_type'] ?? 'application/octet-stream',
                     'size' => $att['size'] ?? 0
                 ];
@@ -276,6 +291,24 @@ Route::prefix('funki/emails')->group(function () {
             'is_default' => 'boolean',
             'is_commercial' => 'boolean',
         ]);
+
+        if (!\App\Services\System\SystemSecurityService::isSafeMailHost($data['imap_host']) || !\App\Services\System\SystemSecurityService::isSafeMailHost($data['smtp_host'])) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:ssrf_mail_host_blocked',
+                'ERROR',
+                'Unsicherer Mail-Server Host über API blockiert (SSRF-Schutz).',
+                ['imap_host' => $data['imap_host'], 'smtp_host' => $data['smtp_host']],
+                'idor_integrity'
+            );
+            return response()->json(['error' => 'Ungültiger oder intern gesperrter Mail-Server Hostname.'], 422);
+        }
+
+        if (!empty($data['id'])) {
+            $existing = MailAccount::find($data['id']);
+            if ($existing && ($existing->imap_host !== $data['imap_host'] || $existing->smtp_host !== $data['smtp_host']) && empty($data['password'])) {
+                return response()->json(['error' => 'Bei Änderung des Mail-Servers muss das Passwort erneut angegeben werden.'], 422);
+            }
+        }
 
         $updateData = [
             'name' => $data['name'],

@@ -8,11 +8,14 @@ use App\Models\System\SystemBlockedIp;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Auth\Events\Registered;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class AuthRegister extends Component
 {
+    #[Locked]
     public ?string $sessionToken = null;
+
     public string $company_hp = ''; // Honeypot für Spam-Bots
 
     public function mount(?string $sessionToken = null)
@@ -41,6 +44,7 @@ class AuthRegister extends Component
 
     public $terms = false;
 
+    #[Locked]
     public $passwordRules = [
         'min' => false,
         'number' => false,
@@ -54,7 +58,7 @@ class AuthRegister extends Component
             'firstname' => 'required|string|max:255',
             'lastname' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:customers|indisposable',
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', 'min:8', 'regex:/[0-9]/', 'regex:/[A-Z]/', 'same:password_confirmation'],
             'street' => 'required|string|max:255',
             'house_number' => 'required|string|max:20',
             'postal' => 'required|string|max:10',
@@ -114,6 +118,13 @@ class AuthRegister extends Component
         // 1. Honeypot Check (Bots füllen unsichtbare Felder aus)
         if (!empty($this->company_hp)) {
             \Illuminate\Support\Facades\Log::warning("Spam-Bot Registrierung blockiert (Honeypot ausgelöst) von IP: {$ip}");
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:honeypot_register',
+                'Bot-Angriff bei Registrierung abgewehrt',
+                "Honeypot-Feld bei Registrierung ausgelöst (IP: {$ip}, E-Mail: {$this->email}).",
+                'warning',
+                ['ip_address' => $ip, 'target_email' => $this->email]
+            );
             // Stillschweigende Umleitung ohne Speicherung
             session()->flash('status', 'Willkommen bei Mein Seelenfunke! Wir haben dir eine E-Mail gesendet. Bitte bestätige deine Adresse, um dich einzuloggen.');
             return redirect()->route('login');
@@ -124,10 +135,18 @@ class AuthRegister extends Component
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:rate_limit_register',
+                'Registrierungs-Flooding blockiert',
+                "Rate-Limit für Registrierungen von IP {$ip} überschritten.",
+                'warning',
+                ['ip_address' => $ip, 'target_email' => $this->email]
+            );
             $this->addError('email', "Zu viele Registrierungsversuche von diesem Anschluss. Bitte warte {$minutes} Minute(n).");
             return;
         }
 
+        $this->validatePasswordRules();
         $this->validate();
 
         if (!$this->canRegister) {

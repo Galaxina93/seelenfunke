@@ -79,8 +79,11 @@ class TwilioCallController extends Controller
         // Twilio sendet CallSid, Node.js sendet twilio_sid
         $sid = $data['twilio_sid'] ?? $request->input('CallSid');
         
-        // Direkter Twilio Fallback bei Fehlern
+        // Direkter Twilio Fallback bei Fehlern (nur wenn eine gültige, existierende CallSid vorliegt)
         if ($request->has('CallStatus') && in_array($request->input('CallStatus'), ['failed', 'canceled', 'no-answer', 'busy'])) {
+            if (empty($sid)) {
+                return response()->json(['error' => 'Missing CallSid'], 400);
+            }
             $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $sid)->first();
             if ($callRecord) {
                 $callRecord->status = 'failed';
@@ -88,6 +91,18 @@ class TwilioCallController extends Controller
                 $callRecord->save();
                 return response()->json(['status' => 'updated_from_twilio_status']);
             }
+            return response()->json(['status' => 'ignored_unknown_sid'], 404);
+        }
+
+        // Voller Call-Log & KI-Auswertungs-Endpunkt darf nur intern von der Node.js Bridge aufgerufen werden
+        if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:twilio_calllog_unauthorized',
+                'Unautorisierter Twilio-CallLog-Aufruf blockiert',
+                'Externer Aufruf auf /api/twilio/call-log von IP ' . $request->ip() . ' abgewehrt.',
+                'error'
+            );
+            return response()->json(['error' => 'Forbidden'], 403);
         }
 
         $callRecord = null;

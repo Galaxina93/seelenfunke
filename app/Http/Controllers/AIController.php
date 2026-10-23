@@ -696,8 +696,18 @@ class AIController extends Controller
      */
     public function verifyToken(Request $request)
     {
+        if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:bridge_verify_unauthorized',
+                'Unautorisierter Zugriff auf Bridge-Token-Endpunkt',
+                'Externer Zugriffsversuch auf /api/ai/verify-token von IP ' . $request->ip() . ' blockiert.',
+                'error'
+            );
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $token = $request->input('token');
-        if (empty($token)) {
+        if (empty($token) || !is_string($token)) {
             return response()->json(['error' => 'Token missing'], 400);
         }
 
@@ -717,6 +727,16 @@ class AIController extends Controller
      */
     public function saveLiveTranscript(Request $request)
     {
+        if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:bridge_transcript_unauthorized',
+                'Unautorisierter Transcript-Injection-Versuch blockiert',
+                'Externer Zugriffsversuch auf /api/ai/save-live-transcript von IP ' . $request->ip() . ' abgewehrt.',
+                'error'
+            );
+            return response()->json(['error' => 'Forbidden'], 403);
+        }
+
         $sessionId = (string) $request->input('session_id', '');
         $role = (string) $request->input('role', 'assistant');
         $content = trim((string) $request->input('content', ''));
@@ -732,7 +752,8 @@ class AIController extends Controller
             return response()->json(['error' => 'Payload limits exceeded (content max 50000 chars, session_id max 100 chars)'], 422);
         }
 
-        if (!in_array($role, ['user', 'assistant', 'system'], true)) {
+        // Security: Never allow external injection of 'system' role prompts into AiChatMemory
+        if (!in_array($role, ['user', 'assistant'], true)) {
             $role = 'assistant';
         }
 

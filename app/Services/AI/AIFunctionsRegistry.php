@@ -144,6 +144,26 @@ class AIFunctionsRegistry
             }
         }
 
+        // Zero-Trust Sandbox Gate: Im öffentlichen Frontend-Support-Chat dürfen ausschließlich Support-Kunden-Werkzeuge ausgeführt werden
+        $isPublicSupportChat = !empty(self::$globalContext['__chat_id']);
+        if ($isPublicSupportChat) {
+            $publicAllowedPrefix = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
+            if (!$publicAllowedPrefix) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_sandbox_violation',
+                    'KI-Sandbox-Ausbruchsversuch blockiert',
+                    "Im öffentlichen Support-Chat wurde der unzulässige Tool-Call '{$name}' durch die Zero-Trust-Sandbox blockiert.",
+                    'error',
+                    ['tool' => $name, 'chat_id' => self::$globalContext['__chat_id'] ?? null]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "SANDBOX VIOLATION: Das Werkzeug '{$name}' ist im öffentlichen Support-Kontext gesperrt."
+                ];
+            }
+        }
+
         // Agenten-Berechtigungsprüfung: Verhindert Rechteausweitung und unautorisierte Tool-Calls
         if ($agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection && $agent->tools->isNotEmpty()) {
             $allowedTools = $agent->tools->pluck('identifier')->toArray();
