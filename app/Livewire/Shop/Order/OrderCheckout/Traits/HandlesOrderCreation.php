@@ -75,6 +75,12 @@ trait HandlesOrderCreation
             $cartService = app(CartService::class);
             $cart = $cartService->getCart();
 
+            if (!$cart || $cart->items()->count() === 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'cart' => 'Dein Warenkorb ist leer. Bitte füge vor dem Abschluss Artikel hinzu.'
+                ]);
+            }
+
             // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
             if ($cart->coupon_code) {
                 $coupon = \App\Models\Marketing\MarketingGiftVoucher::where('code', $cart->coupon_code)->first();
@@ -108,7 +114,7 @@ trait HandlesOrderCreation
                     if (strtolower(trim($this->email)) !== strtolower(trim($coupon->recipient_email))) {
                         $cart->update(['coupon_code' => null]);
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'coupon' => 'Dieser Belohnungsgutschein ist persönlich an ' . $coupon->recipient_email . ' gebunden und kann nur mit dieser E-Mail eingelöst werden.'
+                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein anderes Kundenkonto gebunden und kann mit dieser E-Mail-Adresse nicht eingelöst werden.'
                         ]);
                     }
                 }
@@ -118,7 +124,7 @@ trait HandlesOrderCreation
                     if (strtolower(trim($this->email)) !== strtolower(trim($coupon->recipient_email))) {
                         $cart->update(['coupon_code' => null]);
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'coupon' => 'Dieser Belohnungsgutschein ist persönlich an ' . $coupon->recipient_email . ' gebunden und kann nur mit dieser E-Mail eingelöst werden.'
+                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein anderes Kundenkonto gebunden und kann mit dieser E-Mail-Adresse nicht eingelöst werden.'
                         ]);
                     }
                 }
@@ -126,6 +132,12 @@ trait HandlesOrderCreation
 
             $targetCountry = $this->has_separate_shipping ? $this->shipping_country : $this->country;
             $totals = $cartService->calculateTotals($cart, $targetCountry);
+
+            if (($totals['subtotal_gross'] ?? 0) <= 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'cart' => 'Ungültiger Warenwert. Bitte prüfe deinen Warenkorb.'
+                ]);
+            }
 
             $finalIntentId = $this->currentPaymentIntentId;
 
@@ -299,7 +311,7 @@ trait HandlesOrderCreation
                 ]);
             }
 
-            if ($order->total_price == 0) {
+            if ($order->total_price == 0 && $order->subtotal_price > 0 && $order->discount_amount >= $order->subtotal_price) {
                 $order->completePayment(null);
             }
 

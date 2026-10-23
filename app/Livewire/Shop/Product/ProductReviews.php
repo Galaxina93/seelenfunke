@@ -11,9 +11,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Facades\Image;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithPagination;
 use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\RateLimiter;
+use App\Models\System\SystemBlockedIp;
+use App\Services\System\SystemSecurityService;
 
 class ProductReviews extends Component
 {
@@ -26,7 +30,9 @@ class ProductReviews extends Component
     public $title = '';
     public $content = '';
 
+    #[Locked]
     public $isEditing = false;
+    #[Locked]
     public $userReviewId = null;
 
     public $filterRating = null;
@@ -71,6 +77,21 @@ class ProductReviews extends Component
 
     public function loginUser()
     {
+        $this->loginError = '';
+        $ip = request()->ip();
+
+        if (SystemBlockedIp::isBlocked($ip)) {
+            $this->loginError = 'Der Zugriff von deiner IP-Adresse wurde vorübergehend gesperrt.';
+            return;
+        }
+
+        $throttleKey = 'review_login_' . $ip;
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->loginError = "Zu viele Anmeldeversuche. Bitte warte {$seconds} Sekunden.";
+            return;
+        }
+
         $this->validate([
             'loginEmail' => 'required|email',
             'loginPassword' => 'required',
@@ -83,11 +104,15 @@ class ProductReviews extends Component
         $candidate = Customer::withTrashed()->where('email', $this->loginEmail)->first();
 
         if (!$candidate || !Auth::guard('customer')->validate(['email' => $this->loginEmail, 'password' => $this->loginPassword])) {
+            RateLimiter::hit($throttleKey, 300);
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, false, 'product_reviews');
             $this->loginError = 'Zugangsdaten nicht korrekt.';
             return;
         }
 
         if (method_exists($candidate, 'trashed') && $candidate->trashed()) {
+            RateLimiter::hit($throttleKey, 300);
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, false, 'product_reviews');
             $this->loginError = 'Dieser Account wurde deaktiviert.';
             return;
         }
@@ -103,6 +128,8 @@ class ProductReviews extends Component
         }
 
         if (Auth::guard('customer')->attempt(['email' => $this->loginEmail, 'password' => $this->loginPassword], $this->loginRemember)) {
+            RateLimiter::clear($throttleKey);
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, true, 'product_reviews');
             session()->regenerate();
 
             $loggedInUser = Auth::guard('customer')->user();

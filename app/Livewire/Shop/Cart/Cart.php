@@ -92,6 +92,8 @@ class Cart extends Component
     public function addToCartHandler($productId, $qty = 1, $config = null)
     {
         try {
+            $qty = max(1, min(100, (int) $qty));
+            $config = is_array($config) ? $config : null;
             DB::transaction(function () use ($productId, $qty, $config) {
                 $product = \App\Models\Product\Product::find($productId);
                 if($product) {
@@ -110,17 +112,34 @@ class Cart extends Component
 
     public function applyCoupon()
     {
-        $this->validate(['couponCodeInput' => 'required|string']);
+        $this->validate(['couponCodeInput' => 'required|string|max:64']);
+
+        $ip = request()->ip();
+        $throttleKey = 'cart_coupon_' . $ip;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:voucher_brute_force',
+                'Gutschein-Brute-Force im Warenkorb gedrosselt',
+                "Zu viele Gutschein-Einlöseversuche von IP {$ip}.",
+                'warning',
+                ['ip_address' => $ip, 'code_attempt' => substr((string) $this->couponCodeInput, 0, 32)]
+            );
+            $this->addError('couponCodeInput', "Zu viele Versuche. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
 
         try {
-            DB::transaction(function () {
-                $result = $this->cartService->applyCoupon($this->couponCodeInput);
+            DB::transaction(function () use ($throttleKey) {
+                $result = $this->cartService->applyCoupon(trim($this->couponCodeInput));
 
                 if ($result['success']) {
+                    \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
                     $this->couponCodeInput = ''; // Input leeren
                     $this->dispatch('cart-updated'); // UI neu laden
                     session()->flash('coupon_success', $result['message']);
                 } else {
+                    \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
                     $this->addError('couponCodeInput', $result['message']);
                 }
             });

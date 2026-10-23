@@ -72,4 +72,53 @@ class CartServiceSecurityTest extends TestCase
         $itemA->refresh();
         $this->assertEquals(10, $itemA->quantity, 'Admin should be permitted to update items across carts');
     }
+
+    public function test_gift_voucher_price_and_flag_tampering_are_blocked()
+    {
+        $cartService = app(CartService::class);
+
+        $regularProduct = Product::create([
+            'id' => Str::uuid(),
+            'name' => 'Schlüsselanhänger',
+            'slug' => 'schluesselanhaenger',
+            'price' => 990,
+            'quantity' => 50,
+            'track_quantity' => true,
+            'status' => 'active',
+        ]);
+
+        // 1. Attempt to inject is_gift_voucher and 500€ amount_cents into a 9.90€ regular product
+        $cartService->addItem($regularProduct, 1, [
+            'is_gift_voucher' => true,
+            'amount_cents' => 50000,
+            'text' => 'Mein Text',
+        ]);
+
+        $cart = $cartService->getCart();
+        $item = $cart->items()->first();
+        $this->assertNotNull($item);
+        $this->assertEquals(990, $item->unit_price);
+        $this->assertArrayNotHasKey('is_gift_voucher', $item->configuration ?? []);
+        $this->assertArrayNotHasKey('amount_cents', $item->configuration ?? []);
+
+        // 2. Attempt negative amount_cents on actual gift voucher product
+        $voucherProduct = Product::create([
+            'id' => Str::uuid(),
+            'name' => 'Geschenkgutschein',
+            'slug' => 'geschenkgutschein',
+            'price' => 2500,
+            'type' => 'digital',
+            'status' => 'active',
+        ]);
+
+        $cartService->addItem($voucherProduct, 1, [
+            'is_gift_voucher' => true,
+            'amount_cents' => -50000,
+        ]);
+
+        $voucherItem = $cart->items()->where('product_id', $voucherProduct->id)->first();
+        $this->assertNotNull($voucherItem);
+        $this->assertEquals(500, $voucherItem->unit_price, 'Negative gift voucher amount must be clamped to minimum 5.00 € (500 cents)');
+        $this->assertEquals(500, $voucherItem->configuration['amount_cents']);
+    }
 }

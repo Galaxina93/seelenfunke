@@ -402,18 +402,35 @@ class OrderOrder extends Model
             // --- GIFT VOUCHERS GENERIEREN ---
             foreach ($order->items as $item) {
                 $config = $item->configuration ?? [];
-                if (!empty($config['is_gift_voucher'])) {
+                $isActualVoucherProduct = ($item->product && $item->product->slug === 'geschenkgutschein')
+                    || str_contains(strtolower((string) $item->product_name), 'geschenkgutschein');
+
+                if (!empty($config['is_gift_voucher']) && !$isActualVoucherProduct) {
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:price_tampering_attempt',
+                        'Unautorisierte Gutschein-Generierung verhindert',
+                        "Order {$order->order_number}: Artikel '{$item->product_name}' enthielt is_gift_voucher-Flag, ist aber kein Geschenkgutschein-Produkt.",
+                        'error',
+                        ['order_id' => $order->id, 'order_item_id' => $item->id]
+                    );
+                    continue;
+                }
+
+                if (!empty($config['is_gift_voucher']) && $isActualVoucherProduct) {
                     // Safety check to prevent duplicate vouchers for this item
                     $alreadyExists = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)->exists();
                     if (!$alreadyExists) {
+                        // Der Gutscheinwert darf niemals den tatsächlich berechneten/bezahlten Einzelpreis des Artikels überschreiten
+                        $paidVoucherValue = max(500, min(100000, (int) ($item->unit_price > 0 ? $item->unit_price : ($config['amount_cents'] ?? 500))));
+
                         for ($i = 0; $i < $item->quantity; $i++) {
                             $code = \App\Models\Marketing\MarketingGiftVoucher::generateCode();
                             $voucher = \App\Models\Marketing\MarketingGiftVoucher::create([
                                 'code' => $code,
                                 'order_item_id' => $item->id,
-                                'initial_value' => $config['amount_cents'],
-                                'current_balance' => $config['amount_cents'],
-                                'recipient_name' => $config['recipient_name'],
+                                'initial_value' => $paidVoucherValue,
+                                'current_balance' => $paidVoucherValue,
+                                'recipient_name' => $config['recipient_name'] ?? null,
                                 'recipient_email' => $config['recipient_email'] ?? null,
                                 'personal_message' => isset($config['personal_message']) ? mb_substr($config['personal_message'], 0, 160) : null,
                                 'delivery_method' => $config['delivery_method'] ?? 'email',

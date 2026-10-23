@@ -312,14 +312,27 @@ class FileDownloadService
                     if (preg_match('/^data:image\/([a-zA-Z0-9\+\-]+);base64,(.*)$/', $url, $matches)) {
                         $ext = strtolower($matches[1]);
                         if ($ext === 'svg+xml') $ext = 'svg';
-                        $data = base64_decode($matches[2]);
+                        if (in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                            $data = base64_decode($matches[2]);
+                        }
                     }
                 } else {
-                    $urlPath = parse_url($url, PHP_URL_PATH) ?? $url;
+                    $urlPath = rawurldecode(parse_url($url, PHP_URL_PATH) ?? $url);
+
+                    if (str_contains($urlPath, '..') || str_contains($urlPath, "\0") || str_contains($urlPath, '\\')) {
+                        \App\Services\System\SystemSecurityService::logEvent(
+                            'security:lfi_attempt_blocked',
+                            'LFI / Path-Traversal im Laser-SVG-Export blockiert',
+                            "Manipulierter Logo-Pfad im SVG-Export abgewiesen: " . substr((string) $urlPath, 0, 120),
+                            'error',
+                            ['order_item_id' => $item->id, 'path' => substr((string) $urlPath, 0, 120)]
+                        );
+                        continue;
+                    }
 
                     if (str_contains($urlPath, '/storage/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
-                        $localPath = storage_path('app/public/' . $relativePath);
+                        $localPath = storage_path('app/public/' . ltrim($relativePath, '/'));
                     } elseif (str_contains($urlPath, '/images/')) {
                         $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
                         $localPath = public_path('shopverwaltung/images/' . ltrim($relativePath, '/'));
@@ -352,9 +365,34 @@ class FileDownloadService
                         }
                     }
 
-                    if ($localPath && file_exists($localPath)) {
-                        $ext = strtolower(pathinfo($localPath, PATHINFO_EXTENSION));
-                        $data = file_get_contents($localPath);
+                    if ($localPath && file_exists($localPath) && is_file($localPath)) {
+                        $realLocalPath = realpath($localPath);
+                        $allowedRoots = array_filter([
+                            realpath(storage_path('app/public')),
+                            realpath(public_path('shop')),
+                            realpath(public_path('shopverwaltung/images')),
+                        ]);
+                        $isWithinAllowedRoot = false;
+                        if ($realLocalPath) {
+                            foreach ($allowedRoots as $root) {
+                                if (str_starts_with($realLocalPath, $root . DIRECTORY_SEPARATOR)) {
+                                    $isWithinAllowedRoot = true;
+                                    break;
+                                }
+                            }
+                        }
+                        $ext = strtolower(pathinfo($realLocalPath ?: $localPath, PATHINFO_EXTENSION));
+                        if ($isWithinAllowedRoot && in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                            $data = file_get_contents($realLocalPath);
+                        } else {
+                            \App\Services\System\SystemSecurityService::logEvent(
+                                'security:lfi_attempt_blocked',
+                                'Unzulässiger Dateizugriff im SVG-Export blockiert',
+                                "Zugriff auf Pfad außerhalb erlaubter Medienverzeichnisse verweigert.",
+                                'error',
+                                ['order_item_id' => $item->id, 'ext' => $ext]
+                            );
+                        }
                     } elseif (filter_var($url, FILTER_VALIDATE_URL)) {
                         $parsedUrl = parse_url($url);
                         $host = $parsedUrl['host'] ?? '';
@@ -494,8 +532,10 @@ class FileDownloadService
                 $totalHeight = (count($lines) - 1) * $lineHeight;
                 $startY = -$totalHeight / 2;
 
+                $safeFontFamily = htmlspecialchars((string) $fontFamily, ENT_QUOTES, 'UTF-8');
+                $safeFontSize = (float) $fontSizeMm;
                 foreach ($lines as $line) {
-                    $svg .= '    <text x="0" y="'.($startY + ($fontSizeMm * 0.35)).'" font-family="'.$fontFamily.'" font-size="'.$fontSizeMm.'" font-weight="bold" fill="#000000" text-anchor="'.$textAnchor.'">'.htmlspecialchars($line).'</text>' . "\n";
+                    $svg .= '    <text x="0" y="'.($startY + ($safeFontSize * 0.35)).'" font-family="'.$safeFontFamily.'" font-size="'.$safeFontSize.'" font-weight="bold" fill="#000000" text-anchor="'.$textAnchor.'">'.htmlspecialchars((string) $line, ENT_QUOTES, 'UTF-8').'</text>' . "\n";
                     $startY += $lineHeight;
                 }
 

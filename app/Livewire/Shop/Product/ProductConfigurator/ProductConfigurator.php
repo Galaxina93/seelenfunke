@@ -38,6 +38,7 @@ class ProductConfigurator extends Component
     public $logos_back = [];
 
     public $new_files = [];
+    #[Locked]
     public $uploaded_files = [];
     public $notes = '';
 
@@ -46,6 +47,7 @@ class ProductConfigurator extends Component
     public $totalPrice = 0;
     public $config_confirmed = false;
     public $is_express = false;
+    #[Locked]
     public $snapshot_path = [];
 
     public array $fonts = [];
@@ -581,7 +583,7 @@ class ProductConfigurator extends Component
             $dataArray = is_array($snapshotData) ? $snapshotData : ['front' => $snapshotData];
 
             foreach ($dataArray as $side => $base64) {
-                if (!is_string($base64) || !is_string($side)) {
+                if (!is_string($base64) || !is_string($side) || strlen($base64) > 10 * 1024 * 1024) {
                     continue;
                 }
 
@@ -651,6 +653,39 @@ class ProductConfigurator extends Component
                     }
                     return $t;
                 }, $this->texts_back ?? []);
+
+                $sanitizeLogos = function ($logosList) {
+                    if (!is_array($logosList)) {
+                        return [];
+                    }
+                    $cleaned = [];
+                    foreach ($logosList as $l) {
+                        if (!is_array($l)) {
+                            continue;
+                        }
+                        $val = (string) ($l['value'] ?? '');
+                        $url = (string) ($l['url'] ?? '');
+                        if (str_contains($val, '..') || str_contains($val, "\0") || str_contains($val, '\\') ||
+                            str_contains($url, '..') || str_contains($url, "\0") || str_contains($url, '\\')) {
+                            \App\Services\System\SystemSecurityService::logEvent(
+                                'security:lfi_attempt_blocked',
+                                'Manipulierter Logo-Pfad im Konfigurator blockiert',
+                                "Ungültiger Pfad in Konfigurator-Logos verworfen.",
+                                'error',
+                                ['value' => substr($val, 0, 100)]
+                            );
+                            continue;
+                        }
+                        if ($val !== '' && !str_starts_with($val, 'vectors/') && !str_starts_with($val, 'bestellungen/cart-uploads/') && !in_array($val, $this->uploaded_files, true)) {
+                            continue;
+                        }
+                        $cleaned[] = $l;
+                    }
+                    return $cleaned;
+                };
+
+                $this->logos = $sanitizeLogos($this->logos);
+                $this->logos_back = $sanitizeLogos($this->logos_back);
 
                 $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
                 $mainText = collect($cleanTexts)->firstWhere('text', '!=', '')['text'] ?? '';

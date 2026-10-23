@@ -102,7 +102,8 @@ class CartService
      */
     public function addItem(Product $product, int $quantity = 1, ?array $configuration = null): void
     {
-        $quantity = max(1, $quantity);
+        $quantity = max(1, min(100, $quantity));
+        $configuration = $this->sanitizeConfiguration($product, $configuration);
         $cart = $this->getCart();
 
         // Suche nach existierendem Item mit gleicher Konfiguration
@@ -112,7 +113,7 @@ class CartService
             return json_encode($item->configuration) === json_encode($configuration);
         });
 
-        $newQty = $existingItem ? $existingItem->quantity + $quantity : $quantity;
+        $newQty = $existingItem ? min(100, $existingItem->quantity + $quantity) : $quantity;
 
         // FIX: Konfiguration an Preisberechnung übergeben!
         $unitPrice = $this->resolveItemUnitPrice($product, $newQty, $configuration);
@@ -149,6 +150,13 @@ class CartService
             $currentCart = $this->getCart();
             if ($item->cart_id !== $currentCart->id) {
                 \Illuminate\Support\Facades\Log::warning("Unberechtigter Zugriffsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:cart_idor_attempt',
+                    'Warenkorb-IDOR-Versuch blockiert',
+                    "Versuch, fremdes CartItem {$itemId} zu modifizieren.",
+                    'warning',
+                    ['item_id' => $itemId, 'cart_id' => $currentCart->id]
+                );
                 return;
             }
         }
@@ -156,6 +164,11 @@ class CartService
         if ($quantity <= 0) {
             $this->removeItem($itemId);
             return;
+        }
+
+        $quantity = min(100, $quantity);
+        if ($configuration !== null && $item->product) {
+            $configuration = $this->sanitizeConfiguration($item->product, $configuration);
         }
 
         // FIX: Konfiguration an Preisberechnung übergeben!
@@ -188,6 +201,13 @@ class CartService
             $currentCart = $this->getCart();
             if ($item->cart_id !== $currentCart->id) {
                 \Illuminate\Support\Facades\Log::warning("Unberechtigter Mengen-Änderungsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:cart_idor_attempt',
+                    'Warenkorb-IDOR-Versuch blockiert',
+                    "Versuch, Menge von fremdem CartItem {$itemId} zu ändern.",
+                    'warning',
+                    ['item_id' => $itemId, 'cart_id' => $currentCart->id]
+                );
                 return;
             }
         }
@@ -196,6 +216,8 @@ class CartService
             $this->removeItem($itemId);
             return;
         }
+
+        $quantity = min(100, $quantity);
 
         // FIX: Konfiguration an Preisberechnung übergeben!
         $unitPrice = $this->resolveItemUnitPrice($item->product, $quantity, $item->configuration);
@@ -218,6 +240,13 @@ class CartService
                 $currentCart = $this->getCart();
                 if ($item->cart_id !== $currentCart->id) {
                     \Illuminate\Support\Facades\Log::warning("Unberechtigter Löschversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:cart_idor_attempt',
+                        'Warenkorb-IDOR-Versuch blockiert',
+                        "Versuch, fremdes CartItem {$itemId} zu löschen.",
+                        'warning',
+                        ['item_id' => $itemId, 'cart_id' => $currentCart->id]
+                    );
                     return;
                 }
             }
@@ -289,7 +318,7 @@ class CartService
     public function calculateTierPrice(Product $product, int $qty, ?array $configuration = null): int
     {
         if ($product->slug === 'geschenkgutschein' && $configuration && isset($configuration['amount_cents'])) {
-            return (int) $configuration['amount_cents'];
+            return max(500, min(100000, (int) $configuration['amount_cents']));
         }
 
         $price = $product->price;
@@ -320,7 +349,57 @@ class CartService
             }
         }
 
-        return (int) round($price);
+        return max(0, (int) round($price));
+    }
+
+    /**
+     * Bereinigt und validiert Artikelkonfigurationen gegen Preis- und Gutschein-Manipulation.
+     */
+    private function sanitizeConfiguration(Product $product, ?array $configuration): ?array
+    {
+        if ($configuration === null) {
+            return null;
+        }
+
+        if ($product->slug !== 'geschenkgutschein') {
+            if (isset($configuration['is_gift_voucher']) || isset($configuration['amount_cents'])) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:price_tampering_attempt',
+                    'Gutschein-Parameter-Manipulation blockiert',
+                    "Versuch, Gutschein-Konfigurationswerte (is_gift_voucher / amount_cents) an Produkt '{$product->slug}' zu übergeben.",
+                    'error',
+                    ['product_id' => $product->id, 'slug' => $product->slug]
+                );
+                unset($configuration['is_gift_voucher'], $configuration['amount_cents']);
+            }
+        } else {
+            $rawCents = isset($configuration['amount_cents']) ? (int) $configuration['amount_cents'] : ((int) $product->price ?: 2500);
+            if ($rawCents < 500 || $rawCents > 100000) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:price_tampering_attempt',
+                    'Ungültiger Gutscheinbetrag abgefangen',
+                    "Manipulierter Geschenkgutschein-Betrag ({$rawCents} Cents) wurde auf erlaubte Grenzen (500–100000 Cents) korrigiert.",
+                    'error',
+                    ['raw_amount_cents' => $rawCents]
+                );
+            }
+            $configuration['amount_cents'] = max(500, min(100000, $rawCents));
+            $configuration['is_gift_voucher'] = true;
+        }
+
+        return $configuration;
+    }
+
+    private function maskEmail(string $email): string
+    {
+        $parts = explode('@', trim($email));
+        if (count($parts) !== 2) {
+            return '***';
+        }
+        $local = $parts[0];
+        $domain = $parts[1];
+        $maskedLocal = mb_substr($local, 0, min(2, mb_strlen($local))) . '***';
+        return $maskedLocal . '@' . $domain;
     }
 
     public function applyCoupon(string $code): array
@@ -341,7 +420,7 @@ class CartService
                 if (!$currentBuyerEmail || strtolower(trim($currentBuyerEmail)) !== strtolower(trim($giftVoucher->recipient_email))) {
                     return [
                         'success' => false,
-                        'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $giftVoucher->recipient_email . ' gebunden. Bitte melde dich an, um ihn einzulösen.'
+                        'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto (' . $this->maskEmail($giftVoucher->recipient_email) . ') gebunden. Bitte melde dich an, um ihn einzulösen.'
                     ];
                 }
             }
@@ -372,7 +451,7 @@ class CartService
             if (!$buyerEmail || strtolower(trim($buyerEmail)) !== strtolower(trim($coupon->recipient_email))) {
                 return [
                     'success' => false,
-                    'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto von ' . $coupon->recipient_email . ' gebunden. Bitte melde dich an, um ihn einzulösen.'
+                    'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto (' . $this->maskEmail($coupon->recipient_email) . ') gebunden. Bitte melde dich an, um ihn einzulösen.'
                 ];
             }
         }

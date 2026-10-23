@@ -111,4 +111,62 @@ class FileDownloadServiceSecurityTest extends TestCase
         $this->assertEquals("default-src 'none'; sandbox", $response->headers->get('Content-Security-Policy'));
         $this->assertEquals('nosniff', $response->headers->get('X-Content-Type-Options'));
     }
+
+    public function test_laser_svg_blocks_local_file_inclusion_path_traversal_in_logos()
+    {
+        $admin = Admin::factory()->create();
+        $customer = Customer::factory()->create();
+
+        $product = Product::create([
+            'name' => 'Laser Schieferplatte',
+            'slug' => 'laser-schiefer-' . Str::random(6),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2500,
+            'width' => 150,
+            'height' => 100,
+        ]);
+
+        $order = OrderOrder::create([
+            'id' => Str::uuid(),
+            'order_number' => 'ORD-LFI-TEST-01',
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'paid',
+            'payment_status' => 'paid',
+            'subtotal_price' => 2500,
+            'tax_amount' => 0,
+            'shipping_price' => 0,
+            'total_price' => 2500,
+            'billing_address' => ['first_name' => 'Test', 'last_name' => 'User'],
+        ]);
+
+        $item = OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2500,
+            'total_price' => 2500,
+            'configuration' => [
+                'logos' => [
+                    ['url' => '/storage/../../../.env', 'x' => 50, 'y' => 50, 'size' => 100]
+                ]
+            ]
+        ]);
+
+        Auth::guard('admin')->login($admin);
+        $service = new FileDownloadService();
+        $response = $service->downloadLaserSvg($item->id);
+
+        ob_start();
+        $response->sendContent();
+        $svgOutput = ob_get_clean();
+
+        $this->assertStringNotContainsString('data:image/env;base64,', $svgOutput);
+        $this->assertDatabaseHas('system_logs', [
+            'type' => 'security',
+            'action_id' => 'security:lfi_attempt_blocked',
+        ]);
+    }
 }

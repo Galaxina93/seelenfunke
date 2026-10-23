@@ -8,6 +8,8 @@ use App\Models\Marketing\MarketingVoucher;
 use App\Models\Order\OrderQuoteRequest;
 use App\Services\CartService;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -19,6 +21,7 @@ class OrderQuoteAcceptance extends Component
 
     public string $themingDepartment = 'Bestellungen';
 
+    #[Locked]
     public $token;
     public $quote;
 
@@ -28,6 +31,7 @@ class OrderQuoteAcceptance extends Component
 
     // Coupon State
     public $couponCodeInput = '';
+    #[Locked]
     public $activeCoupon = null;
 
     // Editing State
@@ -301,14 +305,34 @@ class OrderQuoteAcceptance extends Component
      */
     public function applyCoupon()
     {
-        $this->validate(['couponCodeInput' => 'required|string']);
+        $this->validate(['couponCodeInput' => 'required|string|max:64']);
 
-        $coupon = MarketingVoucher::where('code', $this->couponCodeInput)->first();
+        $ip = request()->ip();
+        $throttleKey = 'quote_coupon_' . $ip;
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->addError('couponCodeInput', "Zu viele Versuche. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+
+        $coupon = MarketingVoucher::where('code', trim($this->couponCodeInput))->first();
 
         if (!$coupon || !$coupon->isValid()) {
+            RateLimiter::hit($throttleKey, 300);
             $this->addError('couponCodeInput', 'Gutschein ist ungültig oder abgelaufen.');
             return;
         }
+
+        if (!empty($coupon->recipient_email)) {
+            $quoteEmail = $this->quote->email ?? ($this->quote->billing_address['email'] ?? null);
+            if (!$quoteEmail || strtolower(trim($quoteEmail)) !== strtolower(trim($coupon->recipient_email))) {
+                RateLimiter::hit($throttleKey, 300);
+                $this->addError('couponCodeInput', 'Dieser persönliche Gutschein ist an ein anderes Kundenkonto gebunden.');
+                return;
+            }
+        }
+
+        RateLimiter::clear($throttleKey);
 
         // Check Minimum Order Value against Goods Gross (Gross Total - Shipping - Express)
         $expressCost = $this->quote->express_price ?? 0;
