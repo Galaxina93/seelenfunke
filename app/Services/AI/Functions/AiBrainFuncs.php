@@ -258,6 +258,16 @@ trait AiBrainFuncs
                             $synonyms[] = 'firmus';
                             $synonyms[] = 'Krankengeld';
                             $synonyms[] = 'Sozialrecht';
+                        } elseif (str_contains($lower, 'krankschreibung') || str_contains($lower, 'krankmeldung') || $lower === 'au' || $lower === 'eau') {
+                            $synonyms[] = 'Krankschreibungen';
+                            $synonyms[] = 'Arbeitsunfähigkeit';
+                            $synonyms[] = 'Aussteuerung';
+                            $synonyms[] = 'Dorothea Jung';
+                        } elseif (str_contains($lower, 'labor') || str_contains($lower, 'blut') || str_contains($lower, 'hormon') || str_contains($lower, 'endokrinolog') || str_contains($lower, 'chromosom') || str_contains($lower, 'attest')) {
+                            $synonyms[] = 'Endokrinologikum';
+                            $synonyms[] = 'Laborbefunde';
+                            $synonyms[] = 'Humangenetik';
+                            $synonyms[] = 'Krusche';
                         }
 
                         $rootQ->orWhere(function ($segQ) use ($synonyms) {
@@ -281,7 +291,7 @@ trait AiBrainFuncs
                     'title' => $kb->title,
                     'category' => $kb->category ? $kb->category->name : 'Allgemein',
                     'tags' => $kb->tags->pluck('name')->implode(', '),
-                    'content' => mb_substr($kb->content, 0, 1500),
+                    'content' => mb_substr($kb->content, 0, 5000),
                     'date' => $kb->created_at ? $kb->created_at->format('Y-m-d') : null
                 ];
             }
