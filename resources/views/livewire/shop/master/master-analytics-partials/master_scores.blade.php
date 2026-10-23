@@ -1109,63 +1109,273 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
 
             <!-- 4. SECURITY DETAILS -->
             <div x-show="activeTab === 'security'" x-transition.opacity.duration.300ms>
-                <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8">
+                @php
+                    $defStats = $this->securityDefenseStats;
+                    $catCounts = $defStats['categories'] ?? [];
+                    $activeBlockedIps = $defStats['active_blocked_ips'] ?? collect();
+                    $autoBans48h = $defStats['auto_bans_48h'] ?? 0;
+                    $adminTotal = $defStats['admin_total'] ?? 0;
+                    $admin2fa = $defStats['admin_2fa'] ?? 0;
+                @endphp
+
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-gray-200 dark:border-gray-800 pb-6 mb-8 mt-8 gap-4">
                     <div>
-                        <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Sicherheit & Abwehr</h2>
-                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-md">Aktuelle Angriffe, Rate-Limits und Systembedrohungen in Echtzeit.</p>
+                        <h2 class="text-2xl font-serif font-bold text-gray-900 dark:text-white mb-1">Sicherheit & Abwehr (Zero-Trust Schild)</h2>
+                        <p class="text-xs font-bold text-gray-500 leading-relaxed max-w-xl">Echtzeit-Überwachung von Brute-Force-Attacken, Bot-Honeypots, 2FA-Integrität, KI-Sandbox-Zugriffen, IDOR-Manipulationsversuchen und aktiver IP-Firewall.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Auto-IP-Ban (≥10 Fehlversuche) aktiv
+                        </span>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- TOP KPI CARDS (4 SÄULEN) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <!-- Stat 1: Failed Logins -->
-                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
-                        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800/80 pb-3">
-                            <x-heroicon-o-finger-print class="w-5 h-5 text-purple-500" />
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Login Versuche</h3>
+                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3 relative">
+                        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-3">
+                            <div class="flex items-center gap-3">
+                                <x-heroicon-o-finger-print class="w-5 h-5 text-purple-500" />
+                                <h3 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Login-Abwehr</h3>
+                            </div>
+                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-purple-500 cursor-help transition-colors" />
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-purple-500 mb-1">Was bedeutet Login-Abwehr?</p>
+                                    <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Zählt alle fehlgeschlagenen Anmeldeversuche (Web, Checkout, Google OAuth & Mobile API) der letzten 24 Stunden. Ab 10 Fehlversuchen in 15 Minuten sperrt das System die Angreifer-IP automatisch.</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="flex justify-between items-center mt-2">
                             <span class="text-3xl font-black {{ $failedLogins24h > 10 ? 'text-red-500' : 'text-purple-500 dark:text-purple-400' }}">{{ $failedLogins24h }}</span>
-                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Fehlgeschlagen<br>(Letzte 24h)</span>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Fehlversuche<br>(Letzte 24h)</span>
                         </div>
                     </div>
 
-                    <!-- Stat 2: Security Errors -->
-                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
-                        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800/80 pb-3">
-                            <x-heroicon-o-shield-exclamation class="w-5 h-5 text-red-500" />
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Sicherheits-Alarme</h3>
+                    <!-- Stat 2: Security Alarms -->
+                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3 relative">
+                        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-3">
+                            <div class="flex items-center gap-3">
+                                <x-heroicon-o-shield-exclamation class="w-5 h-5 text-red-500" />
+                                <h3 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Abwehr-Ereignisse</h3>
+                            </div>
+                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-red-500 cursor-help transition-colors" />
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-red-500 mb-1">Was sind Abwehr-Ereignisse?</p>
+                                    <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Summe aller aktiv abgewehrten Sicherheitsvorfälle der letzten 24h: ausgelöste Spam-Honeypots, Rate-Limits, unbefugte Ticket-/Checkout-Zugriffe (IDOR), SSRF-Versuche und KI-Sandbox-Blockaden.</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="flex justify-between items-center mt-2">
-                            <span class="text-3xl font-black {{ $securityWarnings24h > 0 ? 'text-red-500' : 'text-emerald-500' }}">{{ $securityWarnings24h }}</span>
-                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Kritische<br>Warnungen</span>
+                            <span class="text-3xl font-black {{ $securityWarnings24h > 0 ? 'text-amber-500' : 'text-emerald-500' }}">{{ $securityWarnings24h }}</span>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Blockierte Angriffe<br>(Letzte 24h)</span>
                         </div>
                     </div>
 
                     <!-- Stat 3: WAF / Rate Limit Status & IP Firewall -->
-                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3">
-                        <div class="flex items-center gap-3 border-b border-gray-200 dark:border-gray-800/80 pb-3">
-                            <x-heroicon-o-lock-closed class="w-5 h-5 text-emerald-500" />
-                            <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-widest">Rate Limiter & Abwehr</h3>
+                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3 relative">
+                        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-3">
+                            <div class="flex items-center gap-3">
+                                <x-heroicon-o-lock-closed class="w-5 h-5 text-emerald-500" />
+                                <h3 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">IP-Firewall & Ban</h3>
+                            </div>
+                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-emerald-500 cursor-help transition-colors" />
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-emerald-500 mb-1">Wie schützt die IP-Firewall?</p>
+                                    <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Zeigt die Anzahl aktuell gesperrter Angreifer-IPs sowie die automatischen 24h-Bans der letzten 48 Stunden. Gesperrte IPs werden bei jedem Login-, API- und Checkout-Versuch sofort abgewiesen.</p>
+                                </div>
+                            </div>
                         </div>
                         <div class="flex justify-between items-center mt-2">
                             <div>
-                                <span class="text-3xl font-black text-emerald-500">Aktiv</span>
-                                @if($blockedIpsCount > 0)
-                                    <span class="block text-[10px] font-bold text-amber-500 dark:text-amber-400 mt-0.5">{{ $blockedIpsCount }} IP(s) gesperrt</span>
-                                @endif
+                                <span class="text-3xl font-black {{ $blockedIpsCount > 0 ? 'text-amber-500 dark:text-amber-400' : 'text-emerald-500' }}">{{ $blockedIpsCount }}</span>
+                                <span class="block text-[10px] font-bold text-gray-500 mt-0.5">{{ $autoBans48h }} Auto-Bans (48h)</span>
                             </div>
-                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">DDoS Schutz<br>IP-Firewall</span>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Aktive<br>IP-Sperren</span>
                         </div>
                     </div>
+
+                    <!-- Stat 4: 2FA & Zero-Trust Schutzschild -->
+                    <div class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800/80 rounded-[1.5rem] p-5 shadow-inner flex flex-col gap-3 relative">
+                        <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800/80 pb-3">
+                            <div class="flex items-center gap-3">
+                                <x-heroicon-o-shield-check class="w-5 h-5 text-cyan-500" />
+                                <h3 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest">Zero-Trust & 2FA</h3>
+                            </div>
+                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-cyan-500 cursor-help transition-colors" />
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute right-0 top-full mt-2 w-64 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-cyan-500 mb-1">Was bedeutet Zero-Trust & 2FA?</p>
+                                    <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Zeigt den Anteil der Administrator-Konten mit aktivierter Zwei-Faktor-Authentifizierung (2FA) sowie den Status der serverseitigen Attribut-Sperren (#[Locked]) und der KI-Tool-Sandbox.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center mt-2">
+                            <div>
+                                <span class="text-3xl font-black text-cyan-500 dark:text-cyan-400">{{ $admin2fa }}/{{ $adminTotal }}</span>
+                                <span class="block text-[10px] font-bold text-emerald-500 mt-0.5">KI-Sandbox & Locked aktiv</span>
+                            </div>
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-right">Admin-Konten<br>mit 2FA</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5-SÄULEN ABWEHR-MATRIX (FILTERBAR) -->
+                <div class="mb-8">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-[11px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Abwehr-Kategorien (48h Telemetrie — Klick zum Filtern)</h3>
+                        @if($threatCategoryFilter !== 'all')
+                            <button wire:click="setThreatCategoryFilter('all')" class="text-[10px] font-bold text-purple-500 hover:underline uppercase tracking-wider">Filter zurücksetzen (Alle zeigen)</button>
+                        @endif
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                        @php
+                            $defensePillars = [
+                                [
+                                    'key' => 'brute_force',
+                                    'label' => 'Brute-Force & Login',
+                                    'desc' => 'Login-Versuche & Auto-Bans',
+                                    'color' => 'purple',
+                                    'info' => 'Erfasst fehlgeschlagene Passwort-Eingaben und Passwort-Reset-Throttling. Schützt Konten vor automatisierten Wörterbuch- und Credential-Stuffing-Attacken.'
+                                ],
+                                [
+                                    'key' => 'bot_defense',
+                                    'label' => 'Bot & Rate-Limiter',
+                                    'desc' => 'Honeypots & Spam-Abwehr',
+                                    'color' => 'amber',
+                                    'info' => 'Zählt abgefangene Spam-Bots in unsichtbaren Honeypot-Feldern (Registrierung, Widerruf) sowie ausgelöste Nachrichten- und Ticket-Rate-Limits.'
+                                ],
+                                [
+                                    'key' => 'auth_2fa',
+                                    'label' => '2FA & Identität',
+                                    'desc' => 'OAuth, 2FA & Token-Schutz',
+                                    'color' => 'cyan',
+                                    'info' => 'Überwacht die Zwei-Faktor-Authentifizierung (TOTP & Recovery-Codes), Google-OAuth-Prüfungen und blockiert fehlerhafte 2FA-Codes auf Web & Mobile-App.'
+                                ],
+                                [
+                                    'key' => 'api_ai_sandbox',
+                                    'label' => 'KI & API-Sandbox',
+                                    'desc' => 'Tool-Gate & Bridge-Schutz',
+                                    'color' => 'emerald',
+                                    'info' => 'Zero-Trust-Schranke für KI-Agenten und WebSocket-Bridge: Verhindert, dass öffentliche Support-Chats interne Verwaltungs-Tools aufrufen oder fremde Requests Transkripte manipulieren.'
+                                ],
+                                [
+                                    'key' => 'idor_integrity',
+                                    'label' => 'IDOR & Integrität',
+                                    'desc' => 'Checkout, Ticket & Mail-Schutz',
+                                    'color' => 'rose',
+                                    'info' => 'Blockiert Manipulationsversuche an fremden Ticket-IDs, Bestellsummen/Stripe-Intents, Dateipfaden (LFI) und internen Mail-Server-Adressen (SSRF).'
+                                ],
+                            ];
+                        @endphp
+                        @foreach($defensePillars as $pillar)
+                            @php
+                                $pCount = $catCounts[$pillar['key']] ?? 0;
+                                $isActiveFilter = $threatCategoryFilter === $pillar['key'];
+                            @endphp
+                            <div class="relative group" x-data="{ tooltip: false }">
+                                <button type="button"
+                                        wire:click="setThreatCategoryFilter('{{ $isActiveFilter ? 'all' : $pillar['key'] }}')"
+                                        class="w-full text-left p-4 rounded-2xl border transition-all {{ $isActiveFilter ? 'bg-purple-500/10 border-purple-500 shadow-md' : 'bg-white dark:bg-gray-950/80 border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-700' }}">
+                                    <div class="flex items-center justify-between mb-1 pr-5">
+                                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-200">{{ $pillar['label'] }}</span>
+                                        <span class="text-sm font-black {{ $pCount > 0 ? 'text-amber-500' : 'text-emerald-500' }}">{{ $pCount }}</span>
+                                    </div>
+                                    <p class="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">{{ $pillar['desc'] }}</p>
+                                </button>
+                                <div class="absolute top-3.5 right-3 z-20" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-purple-500 cursor-help transition-colors" />
+                                    <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute right-0 top-full mt-2 w-60 p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                        <p class="text-[10px] font-black uppercase tracking-wider text-purple-500 mb-1">{{ $pillar['label'] }}</p>
+                                        <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">{{ $pillar['info'] }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+
+                <!-- AKTIVE IP-FIREWALL & MANUELLE SPERRE -->
+                <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 shadow-inner mb-8">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 mb-5 border-b border-gray-200 dark:border-gray-800">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                                    <x-heroicon-o-no-symbol class="w-5 h-5 text-rose-500" />
+                                    Aktive IP-Firewall & Sofort-Sperre
+                                </h3>
+                                <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-rose-500 cursor-help transition-colors" />
+                                    <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute left-0 top-full mt-2 w-72 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                        <p class="text-[10px] font-black uppercase tracking-wider text-rose-500 mb-1">Wie funktioniert die IP-Sperrliste?</p>
+                                        <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Hier siehst du alle aktuell gesperrten IPv4/IPv6-Adressen. Du kannst auffällige IPs jederzeit manuell sperren oder irrtümlich gesperrte IPs mit einem Klick wieder freigeben.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Gesperrte IP-Adressen werden bei Login, OAuth, API und Checkout sofort abgewiesen.</p>
+                        </div>
+
+                        <form wire:submit.prevent="blockManualIp" class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                            <input type="text" wire:model="manualBlockIp" placeholder="IP-Adresse (z.B. 203.0.113.5)" class="text-xs px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-purple-500 w-44" />
+                            <input type="text" wire:model="manualBlockReason" placeholder="Grund (optional)" class="text-xs px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-purple-500 w-44" />
+                            <select wire:model="manualBlockHours" class="text-xs px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-purple-500">
+                                <option value="24">24 Stunden</option>
+                                <option value="168">7 Tage</option>
+                                <option value="0">Permanent</option>
+                            </select>
+                            <button type="submit" class="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white transition-colors shrink-0">
+                                IP sperren
+                            </button>
+                        </form>
+                    </div>
+                    @error('manualBlockIp')
+                        <p class="text-xs text-rose-500 font-bold mb-4">{{ $message }}</p>
+                    @enderror
+
+                    @if($activeBlockedIps->isNotEmpty())
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            @foreach($activeBlockedIps as $blocked)
+                                <div class="bg-white dark:bg-gray-900 rounded-xl p-3.5 border border-rose-500/30 flex items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex items-center gap-2">
+                                            <span class="font-mono text-xs font-black text-rose-600 dark:text-rose-400">{{ $blocked->ip_address }}</span>
+                                            <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500">
+                                                {{ $blocked->blocked_until ? 'bis ' . $blocked->blocked_until->format('d.m. H:i') : 'Permanent' }}
+                                            </span>
+                                        </div>
+                                        <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-1" title="{{ $blocked->reason }}">{{ $blocked->reason ?: 'Manuelle Sperre' }}</p>
+                                    </div>
+                                    <button wire:click="unblockIpAddress('{{ $blocked->ip_address }}')" class="text-[9px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-gray-200 dark:border-gray-700 shrink-0 transition-colors">
+                                        Freigeben
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Aktuell befinden sich keine IP-Adressen auf der Sperrliste.</p>
+                    @endif
                 </div>
 
                 <!-- THREAT MONITOR -->
                 <div class="bg-gray-50/60 dark:bg-gray-950/40 rounded-[2rem] border border-gray-200 dark:border-gray-800 p-6 shadow-inner">
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                        <h3 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
-                            <x-heroicon-s-eye class="w-5 h-5 text-purple-500" />
-                            Threat Monitor (Aktuelle Bedrohungen)
-                        </h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-black text-gray-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
+                                <x-heroicon-s-eye class="w-5 h-5 text-purple-500" />
+                                Threat Monitor (Aktuelle Bedrohungen & Abwehr-Log)
+                            </h3>
+                            <div class="relative" x-data="{ tooltip: false }" @mouseenter="tooltip = true" @mouseleave="tooltip = false">
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-purple-500 cursor-help transition-colors" />
+                                <div x-show="tooltip" x-transition.opacity.duration.150ms class="absolute left-0 top-full mt-2 w-72 p-3.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-30 text-left pointer-events-none" style="display: none;">
+                                    <p class="text-[10px] font-black uppercase tracking-wider text-purple-500 mb-1">Was zeigt der Threat Monitor?</p>
+                                    <p class="text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">Bündelt fehlgeschlagene Logins (gruppiert nach Angreifer-IP) und abgewehrte Sicherheitsvorfälle der letzten 48 Stunden. Über „KI-Threat-Scan“ erstellt Funkira einen tiefgehenden Bedrohungsbericht.</p>
+                                </div>
+                            </div>
+                        </div>
                         <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
                             <button wire:click="triggerAiSecurityThreatAudit" 
                                     wire:loading.attr="disabled"
@@ -1190,19 +1400,22 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         @forelse($this->aggregatedThreatLogs as $log)
                             <div class="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800/80 hover:border-gray-300 dark:hover:border-gray-700 transition-colors flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                                 <div class="flex gap-4 items-start flex-1 min-w-0">
-                                    <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center {{ ($log['type'] ?? '') === 'security' ? 'bg-purple-500/10 border-purple-500/20 text-purple-500' : 'bg-red-500/10 border-red-500/20 text-red-500' }} border">
-                                        @if(($log['type'] ?? '') === 'security')
+                                    <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center {{ ($log['status'] ?? '') === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-amber-500/10 border-amber-500/20 text-amber-500' }} border">
+                                        @if(($log['category'] ?? '') === 'brute_force')
                                             <x-heroicon-o-finger-print class="w-5 h-5" />
                                         @else
-                                            <x-heroicon-o-exclamation-circle class="w-5 h-5" />
+                                            <x-heroicon-o-shield-exclamation class="w-5 h-5" />
                                         @endif
                                     </div>
                                     <div class="flex-1 min-w-0 pt-0.5">
                                         <div class="flex flex-wrap justify-between items-start gap-2">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex flex-wrap items-center gap-2">
                                                 <h4 class="text-sm font-bold text-gray-800 dark:text-gray-200 truncate">{{ $log['title'] ?? 'Unbekanntes Ereignis' }}</h4>
+                                                @if(!empty($log['category_label']))
+                                                    <span class="bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-300 text-[9px] font-bold uppercase px-2 py-0.5 rounded-full">{{ $log['category_label'] }}</span>
+                                                @endif
                                                 @if($log['is_blocked'] ?? false)
-                                                    <span class="bg-rose-500/20 border border-rose-500/50 text-rose-600 dark:text-rose-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">Gesperrt</span>
+                                                    <span class="bg-rose-500/20 border border-rose-500/50 text-rose-600 dark:text-rose-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-full">IP Gesperrt</span>
                                                 @endif
                                             </div>
                                             <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ \Carbon\Carbon::parse($log['timestamp'])->format('d.m.Y H:i:s') }}</span>
@@ -1229,7 +1442,7 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                             <div class="py-12 flex flex-col items-center justify-center text-gray-500 text-center">
                                 <x-heroicon-o-shield-check class="w-12 h-12 mb-4 text-emerald-500/50" />
                                 <p class="font-bold text-sm text-gray-800 dark:text-gray-300">Keine Bedrohungen erkannt.</p>
-                                <p class="text-xs mt-1">Dein System hat in letzter Zeit keine Sicherheitswarnungen protokolliert.</p>
+                                <p class="text-xs mt-1">Dein System hat in dieser Kategorie keine Sicherheitswarnungen protokolliert.</p>
                             </div>
                         @endforelse
                     </div>

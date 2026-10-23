@@ -53,6 +53,10 @@ class MasterAnalytics extends Component
     public ?string $latestSecurityReport = null;
     public ?string $securityReportContent = null;
     public bool $showSecurityReportModal = false;
+    public string $manualBlockIp = '';
+    public string $manualBlockReason = '';
+    public int $manualBlockHours = 24;
+    public string $threatCategoryFilter = 'all';
 
     // AI Agent Properties
     public $availableAgents = [];
@@ -1202,10 +1206,71 @@ class MasterAnalytics extends Component
     {
         return class_exists(SystemLog::class)
             ? SystemLog::where('type', 'security')
-                ->where('status', 'error')
+                ->whereIn('status', ['error', 'warning'])
                 ->where('started_at', '>=', now()->subHours(24))
                 ->count()
             : 0;
+    }
+
+    public function getSecurityDefenseStatsProperty(): array
+    {
+        $since48h = now()->subHours(48);
+        $secLogs = class_exists(SystemLog::class)
+            ? SystemLog::where('type', 'security')
+                ->where('started_at', '>=', $since48h)
+                ->get()
+            : collect();
+
+        $countByCat = [
+            'brute_force' => $this->failedLogins24h,
+            'bot_defense' => 0,
+            'auth_2fa' => 0,
+            'api_ai_sandbox' => 0,
+            'idor_integrity' => 0,
+        ];
+
+        $autoBans48h = 0;
+
+        foreach ($secLogs as $log) {
+            $payload = is_array($log->payload) ? $log->payload : [];
+            $cat = $payload['category'] ?? null;
+            $actionId = (string) $log->action_id;
+
+            if ($actionId === 'security:auto_ip_ban') {
+                $autoBans48h++;
+            }
+
+            if ($cat && isset($countByCat[$cat])) {
+                $countByCat[$cat]++;
+            } elseif (str_contains($actionId, 'honeypot') || str_contains($actionId, 'rate_limit')) {
+                $countByCat['bot_defense']++;
+            } elseif (str_contains($actionId, '2fa')) {
+                $countByCat['auth_2fa']++;
+            } elseif (str_contains($actionId, 'ai_') || str_contains($actionId, 'bridge') || str_contains($actionId, 'twilio')) {
+                $countByCat['api_ai_sandbox']++;
+            } elseif (str_contains($actionId, 'idor') || str_contains($actionId, 'lfi') || str_contains($actionId, 'ssrf') || str_contains($actionId, 'checkout')) {
+                $countByCat['idor_integrity']++;
+            }
+        }
+
+        $activeBlockedIps = class_exists(SystemBlockedIp::class)
+            ? SystemBlockedIp::where(function ($q) {
+                $q->whereNull('blocked_until')->orWhere('blocked_until', '>', now());
+            })->orderByDesc('created_at')->limit(15)->get()
+            : collect();
+
+        $adminTotal = class_exists(\App\Models\Admin\Admin::class) ? \App\Models\Admin\Admin::count() : 0;
+        $admin2fa = class_exists(\App\Models\Admin\Admin::class)
+            ? \App\Models\Admin\Admin::whereHas('profile', fn($q) => $q->where('two_factor_is_active', true))->count()
+            : 0;
+
+        return [
+            'categories' => $countByCat,
+            'auto_bans_48h' => $autoBans48h,
+            'active_blocked_ips' => $activeBlockedIps,
+            'admin_total' => $adminTotal,
+            'admin_2fa' => $admin2fa,
+        ];
     }
 
     public function getBlockedIpsCountProperty(): int
@@ -1272,14 +1337,14 @@ class MasterAnalytics extends Component
     {
         $items = collect();
 
+        $blockedIps = class_exists(SystemBlockedIp::class)
+            ? SystemBlockedIp::where(function($q) {
+                $q->whereNull('blocked_until')->orWhere('blocked_until', '>', now());
+            })->pluck('ip_address')->toArray()
+            : [];
+
         // 1. Gruppierte Fehl-Logins nach IP (verhindert Log-Spam und hebt Brute-Force hervor)
         if (class_exists(SystemLoginAttempt::class)) {
-            $blockedIps = class_exists(SystemBlockedIp::class)
-                ? SystemBlockedIp::where(function($q) {
-                    $q->whereNull('blocked_until')->orWhere('blocked_until', '>', now());
-                })->pluck('ip_address')->toArray()
-                : [];
-
             $failedGroups = SystemLoginAttempt::where('success', false)
                 ->where('attempted_at', '>=', now()->subHours(48))
                 ->select(
@@ -1297,7 +1362,8 @@ class MasterAnalytics extends Component
                     return [
                         'id' => 'fail_ip_' . md5($row->ip_address ?? 'unknown'),
                         'type' => 'security',
-                        'category' => 'login_attempt',
+                        'category' => 'brute_force',
+                        'category_label' => 'Brute-Force / Login',
                         'ip_address' => $row->ip_address,
                         'is_blocked' => $isBlocked,
                         'attempts' => $row->attempts,
@@ -1305,7 +1371,7 @@ class MasterAnalytics extends Component
                             ? "Wiederholte Fehl-Logins ({$row->attempts}x)"
                             : "Fehlgeschlagener Login",
                         'message' => "IP: " . ($row->ip_address ?: 'Unbekannt') . " (Ziel: " . ($row->target_emails ?: 'Unbekannt') . ")",
-                        'status' => 'error',
+                        'status' => $row->attempts >= 5 ? 'error' : 'warning',
                         'timestamp' => $row->last_attempt,
                     ];
                 });
@@ -1313,25 +1379,37 @@ class MasterAnalytics extends Component
             $items = $items->concat($failedGroups);
         }
 
-        // 2. Gezielte Security-Logs (nur status = error & type = security)
+        // 2. Gezielte Security- & Abwehr-Logs (error & warning, type = security)
         if (class_exists(SystemLog::class)) {
+            $categoryLabels = [
+                'brute_force' => 'Brute-Force / Auto-Ban',
+                'bot_defense' => 'Bot-Abwehr / Rate-Limit',
+                'auth_2fa' => '2FA & Identitätsschutz',
+                'api_ai_sandbox' => 'KI-Sandbox & API-Schutz',
+                'idor_integrity' => 'IDOR & Manipulationsschutz',
+            ];
+
             $secLogs = SystemLog::where('type', 'security')
-                ->where('status', 'error')
+                ->whereIn('status', ['error', 'warning'])
                 ->where('started_at', '>=', now()->subHours(48))
                 ->orderByDesc('started_at')
-                ->limit(20)
+                ->limit(30)
                 ->get()
-                ->map(function($log) {
+                ->map(function($log) use ($blockedIps, $categoryLabels) {
+                    $payload = is_array($log->payload) ? $log->payload : [];
+                    $ip = $payload['ip_address'] ?? $payload['ip'] ?? null;
+                    $cat = $payload['category'] ?? 'system_log';
                     return [
                         'id' => 'sec_log_' . $log->id,
                         'type' => 'security',
-                        'category' => 'system_log',
-                        'ip_address' => null,
-                        'is_blocked' => false,
+                        'category' => $cat,
+                        'category_label' => $categoryLabels[$cat] ?? 'System-Abwehr',
+                        'ip_address' => $ip,
+                        'is_blocked' => $ip ? in_array($ip, $blockedIps) : false,
                         'attempts' => 1,
                         'title' => $log->title,
-                        'message' => $log->message,
-                        'status' => 'error',
+                        'message' => $log->message . ($ip ? " (IP: {$ip})" : ''),
+                        'status' => $log->status,
                         'timestamp' => $log->started_at,
                     ];
                 });
@@ -1339,7 +1417,38 @@ class MasterAnalytics extends Component
             $items = $items->concat($secLogs);
         }
 
-        return $items->sortByDesc('timestamp')->values()->take(25);
+        if ($this->threatCategoryFilter !== 'all') {
+            $items = $items->filter(fn($item) => ($item['category'] ?? '') === $this->threatCategoryFilter);
+        }
+
+        return $items->sortByDesc('timestamp')->values()->take(30);
+    }
+
+    public function setThreatCategoryFilter(string $category)
+    {
+        $allowed = ['all', 'brute_force', 'bot_defense', 'auth_2fa', 'api_ai_sandbox', 'idor_integrity'];
+        $this->threatCategoryFilter = in_array($category, $allowed, true) ? $category : 'all';
+    }
+
+    public function blockManualIp()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $ip = trim($this->manualBlockIp);
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            $this->addError('manualBlockIp', 'Bitte eine gültige IPv4- oder IPv6-Adresse eingeben.');
+            return;
+        }
+
+        $reason = trim($this->manualBlockReason) ?: 'Manuell über Sicherheit & Abwehr Firewall gesperrt';
+        $hours = $this->manualBlockHours > 0 ? $this->manualBlockHours : null;
+
+        SystemBlockedIp::blockIp($ip, $reason, $hours, auth()->user()?->email ?? 'Admin');
+        $this->reset(['manualBlockIp', 'manualBlockReason']);
+        $this->manualBlockHours = 24;
+        session()->flash('success', "IP-Adresse {$ip} wurde erfolgreich in die Firewall eingetragen.");
     }
 
     public function clearSecurityLogs()
