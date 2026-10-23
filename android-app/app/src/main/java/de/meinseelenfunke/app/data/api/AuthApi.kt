@@ -6,7 +6,8 @@ import retrofit2.http.POST
 
 data class LoginRequest(
     val email: String,
-    val password: String
+    val password: String,
+    val two_factor_code: String? = null
 )
 
 data class User(
@@ -21,7 +22,9 @@ data class LoginResponse(
     val status: String,
     val token: String?,
     val user_type: String?,
-    val user: User?
+    val user: User?,
+    val message: String? = null,
+    val two_factor_required: Boolean? = null
 )
 
 data class ForgotPasswordRequest(

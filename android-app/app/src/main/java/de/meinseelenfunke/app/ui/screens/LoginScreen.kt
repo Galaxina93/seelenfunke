@@ -109,11 +109,13 @@ fun LoginScreen(
     viewModel: LoginViewModel = viewModel()
 ) {
     val loginState by viewModel.loginState.collectAsState()
+    val requiresTwoFactor by viewModel.requiresTwoFactor.collectAsState()
     val baseUrl by viewModel.baseUrl.collectAsState()
     val passwordResetState by viewModel.passwordResetState.collectAsState()
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var twoFactorCode by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(viewModel.isRememberMeEnabled()) }
     var isEditingUrl by remember { mutableStateOf(false) }
@@ -347,17 +349,53 @@ fun LoginScreen(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "Willkommen zurück",
+                            text = if (requiresTwoFactor) "2FA-Sicherheitscode" else "Willkommen zurück",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.textPrimary
                         )
                         Text(
-                            text = "Melde dich an, um deinen Funken zu entfachen",
+                            text = if (requiresTwoFactor)
+                                "Bitte gib den 6-stelligen Code deiner Authenticator-App oder einen Recovery-Code ein."
+                            else
+                                "Melde dich an, um deinen Funken zu entfachen",
                             fontSize = 12.sp,
                             color = AppTheme.colors.textMuted
                         )
                     }
+
+                    if (requiresTwoFactor) {
+                        OutlinedTextField(
+                            value = twoFactorCode,
+                            onValueChange = { twoFactorCode = it },
+                            label = { Text("2FA-Code / Recovery-Code") },
+                            placeholder = { Text("z.B. 123456") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Gold,
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                focusedLabelColor = Gold,
+                                unfocusedLabelColor = AppTheme.colors.textMuted,
+                                focusedTextColor = AppTheme.colors.textPrimary,
+                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground
+                            )
+                        )
+
+                        TextButton(
+                            onClick = {
+                                twoFactorCode = ""
+                                viewModel.cancelTwoFactor()
+                            },
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text("← Zurück zur E-Mail & Passwort Eingabe", color = AppTheme.colors.textMuted, fontSize = 12.sp)
+                        }
+                    } else {
 
                     // Email input
                     OutlinedTextField(
@@ -466,6 +504,7 @@ fun LoginScreen(
                             Text("Passwort vergessen?", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
+                    } // End !requiresTwoFactor
 
                     // Error feedback Banner with auto-fix suggestion
                     if (loginState is LoginState.Error) {
@@ -507,6 +546,8 @@ fun LoginScreen(
                         }
                     }
 
+                    val canSubmit = email.isNotBlank() && password.isNotBlank() && (!requiresTwoFactor || twoFactorCode.isNotBlank())
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -514,7 +555,7 @@ fun LoginScreen(
                     ) {
                         // Modern Golden Gradient Login Button
                         Button(
-                            onClick = { viewModel.login(email, password, rememberMe) },
+                            onClick = { viewModel.login(email, password, rememberMe, if (requiresTwoFactor) twoFactorCode else null) },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(50.dp)
@@ -522,7 +563,7 @@ fun LoginScreen(
                                     scaleX = buttonScale
                                     scaleY = buttonScale
                                 },
-                            enabled = loginState !is LoginState.Loading && email.isNotBlank() && password.isNotBlank(),
+                            enabled = loginState !is LoginState.Loading && canSubmit,
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.Transparent,
@@ -534,7 +575,7 @@ fun LoginScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .background(
-                                        if (email.isNotBlank() && password.isNotBlank()) {
+                                        if (canSubmit) {
                                             Brush.horizontalGradient(GoldGradient)
                                         } else {
                                             Brush.horizontalGradient(listOf(Color(0xFF555555), Color(0xFF444444)))
@@ -551,8 +592,8 @@ fun LoginScreen(
                                     )
                                 } else {
                                     Text(
-                                        text = "Einloggen",
-                                        color = if (email.isNotBlank() && password.isNotBlank()) SpaceBlack else Color.LightGray,
+                                        text = if (requiresTwoFactor) "2FA-Code bestätigen" else "Einloggen",
+                                        color = if (canSubmit) SpaceBlack else Color.LightGray,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
                                     )

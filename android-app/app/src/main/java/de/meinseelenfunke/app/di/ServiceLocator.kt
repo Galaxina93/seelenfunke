@@ -2,6 +2,10 @@ package de.meinseelenfunke.app.di
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.pm.ApplicationInfo
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.Base64
 import de.meinseelenfunke.app.data.api.AiApi
 import de.meinseelenfunke.app.data.api.AuthApi
 import de.meinseelenfunke.app.data.api.FinanceApi
@@ -19,7 +23,12 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.security.KeyStore
 import java.util.concurrent.TimeUnit
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import kotlinx.coroutines.flow.MutableStateFlow
 
 enum class ThemeMode {
@@ -66,6 +75,66 @@ object ServiceLocator {
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_SAVED_PASSWORD = "saved_password"
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+    private const val KEYSTORE_ALIAS = "seelenfunke_master_key_v1"
+    private const val ENC_PREFIX = "enc_v1:"
+
+    private fun getOrCreateSecretKey(): SecretKey {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        val existingKey = keyStore.getEntry(KEYSTORE_ALIAS, null) as? KeyStore.SecretKeyEntry
+        if (existingKey != null) {
+            return existingKey.secretKey
+        }
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        val spec = KeyGenParameterSpec.Builder(
+            KEYSTORE_ALIAS,
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build()
+        keyGenerator.init(spec)
+        return keyGenerator.generateKey()
+    }
+
+    private fun putEncryptedString(key: String, value: String) {
+        if (value.isEmpty()) {
+            sharedPreferences.edit().putString(key, "").apply()
+            return
+        }
+        try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+            val iv = Base64.encodeToString(cipher.iv, Base64.NO_WRAP)
+            val encrypted = Base64.encodeToString(cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
+            sharedPreferences.edit().putString(key, "$ENC_PREFIX$iv:$encrypted").apply()
+        } catch (e: Exception) {
+            // Fallback if Keystore is unavailable on an emulator
+            sharedPreferences.edit().putString(key, value).apply()
+        }
+    }
+
+    private fun getDecryptedString(key: String, default: String? = null): String? {
+        val raw = sharedPreferences.getString(key, null) ?: return default
+        if (raw.isEmpty()) return raw
+        if (!raw.startsWith(ENC_PREFIX)) {
+            // Migrate legacy plaintext value transparently to AndroidKeyStore
+            putEncryptedString(key, raw)
+            return raw
+        }
+        return try {
+            val payload = raw.removePrefix(ENC_PREFIX)
+            val parts = payload.split(":", limit = 2)
+            if (parts.size != 2) return default
+            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
+            val cipherBytes = Base64.decode(parts[1], Base64.NO_WRAP)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, getOrCreateSecretKey(), GCMParameterSpec(128, iv))
+            String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
+        } catch (e: Exception) {
+            default
+        }
+    }
 
     private val _userTypeState = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val userTypeState = _userTypeState.asStateFlow()
@@ -166,11 +235,11 @@ object ServiceLocator {
     }
 
     fun getGeminiApiKey(): String {
-        return sharedPreferences.getString(KEY_GEMINI_API_KEY, "") ?: ""
+        return getDecryptedString(KEY_GEMINI_API_KEY, "") ?: ""
     }
 
     fun saveGeminiApiKey(key: String) {
-        sharedPreferences.edit().putString(KEY_GEMINI_API_KEY, key).apply()
+        putEncryptedString(KEY_GEMINI_API_KEY, key)
     }
 
     fun isWakeWordEnabled(): Boolean {
@@ -182,11 +251,11 @@ object ServiceLocator {
     }
 
     fun getAuthToken(): String? {
-        return sharedPreferences.getString(KEY_AUTH_TOKEN, null)
+        return getDecryptedString(KEY_AUTH_TOKEN, null)?.ifEmpty { null }
     }
 
     fun saveAuthToken(token: String) {
-        sharedPreferences.edit().putString(KEY_AUTH_TOKEN, token).apply()
+        putEncryptedString(KEY_AUTH_TOKEN, token)
         // Rebuild Retrofit with the new token context
         rebuildRetrofit()
     }
@@ -233,8 +302,11 @@ object ServiceLocator {
 
     private fun getRetrofit(): Retrofit {
         if (retrofit == null) {
+            val isDebuggable = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
             val loggingInterceptor = HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
+                redactHeader("Authorization")
+                redactHeader("Cookie")
+                level = if (isDebuggable) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
             }
 
             val okHttpClient = OkHttpClient.Builder()
@@ -330,11 +402,11 @@ object ServiceLocator {
     }
 
     fun getSavedPassword(): String {
-        return sharedPreferences.getString(KEY_SAVED_PASSWORD, "") ?: ""
+        return getDecryptedString(KEY_SAVED_PASSWORD, "") ?: ""
     }
 
     fun saveSavedPassword(password: String) {
-        sharedPreferences.edit().putString(KEY_SAVED_PASSWORD, password).apply()
+        putEncryptedString(KEY_SAVED_PASSWORD, password)
     }
 
     fun isBiometricEnabled(): Boolean {

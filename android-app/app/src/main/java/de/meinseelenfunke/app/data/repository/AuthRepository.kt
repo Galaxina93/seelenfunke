@@ -5,14 +5,24 @@ import de.meinseelenfunke.app.data.api.LoginResponse
 import de.meinseelenfunke.app.data.api.User
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.AppLogger
+import org.json.JSONObject
+import retrofit2.HttpException
+
+class TwoFactorRequiredException(message: String) : Exception(message)
 
 class AuthRepository(private val serviceLocator: ServiceLocator) {
 
-    suspend fun login(email: String, password: String): Result<LoginResponse> {
+    suspend fun login(email: String, password: String, twoFactorCode: String? = null): Result<LoginResponse> {
         return try {
-            val response = serviceLocator.getAuthApi().login(LoginRequest(email, password))
+            val cleanCode = twoFactorCode?.trim()?.ifEmpty { null }
+            val response = serviceLocator.getAuthApi().login(LoginRequest(email, password, cleanCode))
+            if (response.status == "two_factor_required" || response.two_factor_required == true) {
+                return Result.failure(
+                    TwoFactorRequiredException(response.message ?: "Zwei-Faktor-Authentifizierung erforderlich.")
+                )
+            }
             if (response.status == "success" && response.token != null) {
-                // Save token inside SharedPreferences via ServiceLocator
+                // Save token encrypted inside SharedPreferences via ServiceLocator
                 serviceLocator.saveAuthToken(response.token)
                 response.user_type?.let { serviceLocator.saveUserType(it) }
                 // Upload cached FCM token if present
@@ -26,10 +36,28 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
 
                 Result.success(response)
             } else {
-                Result.failure(Exception("Login fehlgeschlagen: Kein Token zurückgegeben."))
+                Result.failure(Exception(response.message ?: "Login fehlgeschlagen: Kein Token zurückgegeben."))
             }
+        } catch (e: HttpException) {
+            val errorBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+            if (!errorBody.isNullOrBlank()) {
+                try {
+                    val json = JSONObject(errorBody)
+                    val status = json.optString("status")
+                    val twoFactorReq = json.optBoolean("two_factor_required", false)
+                    val msg = json.optString("message").ifBlank { "Authentifizierung fehlgeschlagen (HTTP ${e.code()})." }
+                    if (status == "two_factor_required" || twoFactorReq) {
+                        return Result.failure(TwoFactorRequiredException(msg))
+                    }
+                    return Result.failure(Exception(msg))
+                } catch (_: Exception) {
+                    // Fallback to generic HttpException handling below
+                }
+            }
+            AppLogger.error(serviceLocator.context, "AuthRepo", "login HTTP error: code=${e.code()}")
+            Result.failure(Exception("Anmeldung abgelehnt (HTTP ${e.code()})."))
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "AuthRepo", "login failed: email=$email", e)
+            AppLogger.error(serviceLocator.context, "AuthRepo", "login failed", e)
             Result.failure(e)
         }
     }

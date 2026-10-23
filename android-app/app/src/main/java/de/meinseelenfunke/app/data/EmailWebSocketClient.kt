@@ -51,6 +51,10 @@ object EmailWebSocketClient {
 
     fun startWebSocket() {
         val ctx = context ?: return
+        val authToken = ServiceLocator.getAuthToken()
+        if (authToken.isNullOrBlank()) {
+            return
+        }
         if (client == null) {
             client = OkHttpClient.Builder()
                 .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -62,6 +66,7 @@ object EmailWebSocketClient {
 
         val request = Request.Builder()
             .url(url)
+            .addHeader("Authorization", "Bearer $authToken")
             .build()
 
         // Close existing web socket if any

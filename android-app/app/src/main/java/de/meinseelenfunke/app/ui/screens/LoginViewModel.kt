@@ -2,6 +2,7 @@ package de.meinseelenfunke.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.meinseelenfunke.app.data.repository.TwoFactorRequiredException
 import de.meinseelenfunke.app.di.ServiceLocator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +22,9 @@ class LoginViewModel : ViewModel() {
 
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState.asStateFlow()
+
+    private val _requiresTwoFactor = MutableStateFlow(false)
+    val requiresTwoFactor: StateFlow<Boolean> = _requiresTwoFactor.asStateFlow()
 
     private val _baseUrl = MutableStateFlow(ServiceLocator.getBaseUrl())
     val baseUrl: StateFlow<String> = _baseUrl.asStateFlow()
@@ -51,16 +55,26 @@ class LoginViewModel : ViewModel() {
         _passwordResetState.value = null
     }
 
-    fun login(email: String, password: String, rememberMe: Boolean) {
+    fun cancelTwoFactor() {
+        _requiresTwoFactor.value = false
+        _loginState.value = LoginState.Idle
+    }
+
+    fun login(email: String, password: String, rememberMe: Boolean, twoFactorCode: String? = null) {
         if (email.isBlank() || password.isBlank()) {
             _loginState.value = LoginState.Error("Bitte fülle alle Felder aus.")
+            return
+        }
+        if (_requiresTwoFactor.value && twoFactorCode.isNullOrBlank()) {
+            _loginState.value = LoginState.Error("Bitte gib deinen 6-stelligen 2FA-Code oder Recovery-Code ein.")
             return
         }
 
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
-            authRepository.login(email, password)
+            authRepository.login(email, password, twoFactorCode)
                 .onSuccess {
+                    _requiresTwoFactor.value = false
                     ServiceLocator.saveRememberMeEnabled(rememberMe)
                     if (rememberMe) {
                         ServiceLocator.saveSavedEmail(email)
@@ -72,9 +86,14 @@ class LoginViewModel : ViewModel() {
                     _loginState.value = LoginState.Success
                 }
                 .onFailure { error ->
-                    _loginState.value = LoginState.Error(
-                        error.localizedMessage ?: "Authentifizierung fehlgeschlagen."
-                    )
+                    if (error is TwoFactorRequiredException) {
+                        _requiresTwoFactor.value = true
+                        _loginState.value = LoginState.Idle
+                    } else {
+                        _loginState.value = LoginState.Error(
+                            error.localizedMessage ?: "Authentifizierung fehlgeschlagen."
+                        )
+                    }
                 }
         }
     }
