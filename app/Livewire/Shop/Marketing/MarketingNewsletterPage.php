@@ -37,14 +37,32 @@ class MarketingNewsletterPage extends Component
     public function subscribe()
     {
         $this->validate([
-            'email' => 'required|email',
+            'email' => 'required|email|max:255',
             'privacy_accepted' => 'accepted'
         ]);
+
+        $ip = request()->ip();
+        $throttleKey = 'newsletter_page_sub_' . $ip;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:newsletter_flood',
+                'Newsletter-Seiten-Flooding gedrosselt',
+                "Zu viele Newsletter-Anmeldungen von IP {$ip}.",
+                'warning',
+                ['ip_address' => $ip]
+            );
+            $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
 
         $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();
 
         if ($subscriber && $subscriber->is_verified) {
-            $this->addError('email', 'Diese E-Mail-Adresse ist bereits für unseren Newsletter angemeldet.');
+            // Schutz vor User-Enumeration: Gleiche Erfolgsmeldung ohne erneuten Mail-Versand
+            $this->successMessage = 'Fast geschafft! Wir haben dir eine Bestätigungs-E-Mail gesendet.';
+            $this->reset(['email', 'privacy_accepted']);
             return;
         }
 
@@ -79,7 +97,16 @@ class MarketingNewsletterPage extends Component
     // --- ABMELDEN ---
     public function unsubscribe()
     {
-        $this->validate(['email' => 'required|email']);
+        $this->validate(['email' => 'required|email|max:255']);
+
+        $ip = request()->ip();
+        $throttleKey = 'newsletter_unsub_' . $ip;
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            $this->addError('email', "Zu viele Anfragen. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+        \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 600);
 
         $subscriber = MarketingNewsletterSubscriber::where('email', $this->email)->first();
 

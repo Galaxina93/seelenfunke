@@ -6,10 +6,12 @@ use App\Models\Customer\CustomerGamification;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 
 #[Layout('components.layouts.customer_layout')]
 class GameGlobalRankingComponent extends Component
 {
+    #[Locked]
     public $hasOptedIn = false;
     public $activeTab = 'classic';
 

@@ -28,6 +28,13 @@ class ContactForm extends Component
         // 1. Honeypot Check: Bots füllen das unsichtbare Feld aus
         if (!empty($this->honey_name)) {
             \Illuminate\Support\Facades\Log::warning("Spam-Bot Kontaktformular blockiert (Honeypot ausgelöst) von IP: " . request()->ip());
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:honeypot_triggered',
+                'Spam-Bot am Kontaktformular abgefangen',
+                "Honeypot-Feld im Kontaktformular wurde von IP " . request()->ip() . " ausgefüllt.",
+                'warning',
+                ['ip_address' => request()->ip()]
+            );
             $this->reset(['first_name', 'last_name', 'email', 'phone', 'message', 'data_protection', 'honey_name']);
             session()->flash('message', 'Vielen Dank! Deine Anfrage wurde erfolgreich empfangen. Du erhältst in Kürze eine Bestätigung mit deiner Ticketnummer per E-Mail.');
             return;
@@ -39,6 +46,13 @@ class ContactForm extends Component
         if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:rate_limit_exceeded',
+                'Kontaktformular Rate-Limit ausgelöst',
+                "Zu viele Kontaktanfragen von IP {$ip}.",
+                'warning',
+                ['ip_address' => $ip]
+            );
             session()->flash('message', "Zu viele Anfragen von diesem Anschluss. Bitte warte {$minutes} Minute(n).");
             return;
         }

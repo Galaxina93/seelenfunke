@@ -4,14 +4,17 @@ namespace App\Livewire\Frontend\Emergency;
 
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use App\Models\System\SystemSetting;
 use App\Models\System\SystemBlockedIp;
+use App\Services\System\SystemSecurityService;
 
 #[Layout('components.layouts.frontend_layout')]
 class EmergencyProtocol extends Component
 {
+    #[Locked]
     public $isAuthenticated = false;
     public $passwordInput = '';
     public $errorMessage = '';
@@ -62,15 +65,11 @@ class EmergencyProtocol extends Component
             abort(403, 'Zugriff aufgrund wiederholter Sicherheitsverletzungen verweigert.');
         }
 
-        if (session('emergency_access_granted')) {
+        if (session('emergency_access_granted') === true) {
             $this->isAuthenticated = true;
+            $this->todoStates = json_decode(SystemSetting::where('key', 'emergency_todo_states')->value('value') ?? '{}', true);
+            $this->financeStates = json_decode(SystemSetting::where('key', 'emergency_finance_states')->value('value') ?? '{}', true);
         }
-
-        // Load Todo States
-        $this->todoStates = json_decode(SystemSetting::where('key', 'emergency_todo_states')->value('value') ?? '{}', true);
-        
-        // Load Finance States
-        $this->financeStates = json_decode(SystemSetting::where('key', 'emergency_finance_states')->value('value') ?? '{}', true);
     }
 
     public function authenticate()
@@ -94,6 +93,13 @@ class EmergencyProtocol extends Component
 
             // Automatische IP-Sperre für 24 Stunden bei fortgesetzten Brute-Force-Versuchen
             SystemBlockedIp::blockIp($ip, 'Brute-Force-Schutz: Zu viele Fehlversuche am Notfall-Protokoll', 24, 'Notfall-Monitor');
+            SystemSecurityService::logEvent(
+                'security:emergency_auth_failed',
+                'Notfall-Protokoll Brute-Force blockiert',
+                "IP {$ip} wurde nach zu vielen Master-Passwort-Fehlversuchen am Notfall-Protokoll für 24h gesperrt.",
+                'error',
+                ['ip_address' => $ip]
+            );
 
             $this->errorMessage = "Zu viele Fehlversuche. Dieser Bereich wurde aus Sicherheitsgründen für {$minutes} Minute(n) gesperrt.";
             return;
@@ -110,9 +116,18 @@ class EmergencyProtocol extends Component
             RateLimiter::clear($throttleKey);
             session(['emergency_access_granted' => true]);
             $this->isAuthenticated = true;
+            $this->todoStates = json_decode(SystemSetting::where('key', 'emergency_todo_states')->value('value') ?? '{}', true);
+            $this->financeStates = json_decode(SystemSetting::where('key', 'emergency_finance_states')->value('value') ?? '{}', true);
         } else {
             RateLimiter::hit($throttleKey, 900); // 15 Minuten Throttling-Fenster
             $remaining = RateLimiter::remaining($throttleKey, 5);
+            SystemSecurityService::logEvent(
+                'security:emergency_auth_failed',
+                'Fehlversuch am Notfall-Protokoll',
+                "Inkorrektes Master-Passwort am Notfall-Protokoll von IP {$ip} (Verbleibend: {$remaining}).",
+                'warning',
+                ['ip_address' => $ip, 'remaining_attempts' => $remaining]
+            );
             $this->errorMessage = "Das eingegebene Master-Passwort ist inkorrekt. (Verbleibende Versuche: {$remaining})";
         }
         $this->passwordInput = '';
@@ -126,7 +141,7 @@ class EmergencyProtocol extends Component
 
     protected function ensureAuthenticated(): void
     {
-        if (!$this->isAuthenticated && !session('emergency_access_granted')) {
+        if (!$this->isAuthenticated || session('emergency_access_granted') !== true) {
             abort(403, 'Zugriff verweigert.');
         }
     }
@@ -224,7 +239,7 @@ class EmergencyProtocol extends Component
         $openOrders = collect();
         $isMaintenanceMode = false;
 
-        if ($this->isAuthenticated) {
+        if ($this->isAuthenticated && session('emergency_access_granted') === true) {
             $settings = SystemSetting::pluck('value', 'key')->toArray();
             $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
             $isMaintenanceMode = filter_var($settings['maintenance_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);

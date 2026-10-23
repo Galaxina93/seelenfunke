@@ -3,21 +3,25 @@
 namespace App\Livewire\Auth;
 
 use App\Models\System\SystemPasswordResetToken;
+use App\Services\System\SystemSecurityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class AuthPasswordReset extends Component
 {
-    public string $email;
-    public string $password;
-    public string $passwordConfirm;
-    public string $guard;
-    public string $token;
+    public string $email = '';
+    public string $password = '';
+    public string $passwordConfirm = '';
+    #[Locked]
+    public string $guard = '';
+    #[Locked]
+    public string $token = '';
 
     public function mount($token)
     {
-        $this->token = $token;
+        $this->token = (string) $token;
     }
 
     public function render(): \Illuminate\Contracts\View\View|\Illuminate\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\Foundation\Application
@@ -27,7 +31,8 @@ class AuthPasswordReset extends Component
 
     public function submit()
     {
-        $throttleKey = 'password_reset_submit_' . request()->ip();
+        $ip = request()->ip();
+        $throttleKey = 'password_reset_submit_' . $ip;
         if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
             session()->flash('error', "Zu viele Versuche. Bitte warte {$seconds} Sekunden.");
@@ -35,9 +40,11 @@ class AuthPasswordReset extends Component
         }
 
         $this->validate([
-            'email' => 'required|email',
-            'password' => 'required|min:8',
+            'email' => 'required|email|max:255',
+            'password' => ['required', 'string', 'min:8', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/[0-9]/'],
             'passwordConfirm' => 'required',
+        ], [
+            'password.regex' => 'Das Passwort muss mindestens einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.',
         ]);
 
         if ($this->password != $this->passwordConfirm)
@@ -59,6 +66,13 @@ class AuthPasswordReset extends Component
         if (!$passwordResetToken || !Hash::check($this->token, $passwordResetToken->token))
         {
             \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+            SystemSecurityService::logEvent(
+                'security:password_reset_failed',
+                'Ungültiger Passwort-Reset-Token',
+                "Fehlgeschlagener Passwort-Reset für '{$this->email}' von IP {$ip}.",
+                'warning',
+                ['ip_address' => $ip, 'email' => $this->email]
+            );
             session()->flash('error', 'Ungültiger Passwort-Reset-Token.');
             return;
         }

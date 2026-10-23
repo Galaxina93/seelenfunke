@@ -46,4 +46,24 @@ class ManagementLinktreeSecurityTest extends TestCase
             ->test(ManagementLinktreeManager::class)
             ->assertStatus(200);
     }
+
+    public function test_linktree_page_blocks_open_redirect_to_manipulated_url(): void
+    {
+        $link = \App\Models\Management\ManagementLinktree::create([
+            'title' => 'Offizieller Shop',
+            'url' => 'https://mein-seelenfunke.de/shop',
+            'type' => 'standard',
+            'is_active' => true,
+            'sort_order' => 1,
+        ]);
+
+        Livewire::test(\App\Livewire\Frontend\Management\ManagementLinktreePage::class)
+            ->call('trackAndRedirect', $link->id, 'https://evil-phishing.example.com')
+            ->assertNoRedirect();
+
+        $this->assertDatabaseHas('system_logs', [
+            'type' => 'security',
+            'action_id' => 'security:open_redirect_blocked',
+        ]);
+    }
 }

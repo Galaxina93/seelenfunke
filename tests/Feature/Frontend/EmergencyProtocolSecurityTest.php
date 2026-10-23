@@ -19,6 +19,14 @@ class EmergencyProtocolSecurityTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_is_authenticated_property_is_locked_against_client_spoofing()
+    {
+        $this->expectException(\Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException::class);
+
+        Livewire::test(EmergencyProtocol::class)
+            ->set('isAuthenticated', true);
+    }
+
     public function test_authenticated_toggle_todo_whitelists_valid_keys_and_clamps_step()
     {
         // Set master password in SystemSetting

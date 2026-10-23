@@ -4,11 +4,13 @@ namespace App\Livewire\Shop\Marketing;
 
 use App\Models\Marketing\MarketingGiftVoucher;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 class MarketingVoucherBalanceChecker extends Component
 {
     public $code = '';
+    #[Locked]
     public $result = null;
 
     public function checkBalance()
@@ -27,6 +29,13 @@ class MarketingVoucherBalanceChecker extends Component
         if (RateLimiter::tooManyAttempts($key, 5)) {
             $seconds = RateLimiter::availableIn($key);
             $this->result = null;
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:voucher_brute_force',
+                'Gutschein-Guthabenabfrage gedrosselt',
+                "Zu viele Gutschein-Abfragen von IP {$ip}.",
+                'warning',
+                ['ip_address' => $ip]
+            );
             $this->addError('code', "Zu viele Versuche. Bitte warte {$seconds} Sekunden.");
             return;
         }
