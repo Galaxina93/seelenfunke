@@ -353,13 +353,26 @@ trait AiHealthFuncs
         ];
     }
 
+    protected static function resolveAuthorizedHealthUser(): ?\App\Models\Admin\Admin
+    {
+        $admin = Auth::guard('admin')->user();
+        if ($admin instanceof \App\Models\Admin\Admin) {
+            return $admin;
+        }
+        $defaultUser = Auth::user();
+        if ($defaultUser instanceof \App\Models\Admin\Admin) {
+            return $defaultUser;
+        }
+        if (session('emergency_access_granted')) {
+            return \App\Models\Admin\Admin::first();
+        }
+        return null;
+    }
+
     public static function executeGetPatientFile(array $args)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             $activePlans = AiHealthTreatmentPlan::where('user_id', $user->id)
@@ -389,10 +402,7 @@ trait AiHealthFuncs
     public static function executeCreateTreatmentPlan(array $args)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Kein Admin/CEO authentifiziert.'];
 
             $agentId = session('current_ai_agent_id');
@@ -435,10 +445,7 @@ trait AiHealthFuncs
     public static function executeUpdateTreatmentPlan(array $args)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             if (empty($args['plan_id'])) {
@@ -490,10 +497,7 @@ trait AiHealthFuncs
     public static function executeCompleteTreatmentPlan(array $args)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             if (empty($args['plan_id'])) {
@@ -522,6 +526,9 @@ trait AiHealthFuncs
     public static function executeGetDoctors(array $args)
     {
         try {
+            if (!self::resolveAuthorizedHealthUser()) {
+                return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+            }
             $doctors = \App\Models\Management\ManagementContact::where('relation_type', 'like', '%arzt%')
                 ->orWhere('relation_type', 'like', '%Praxis%')
                 ->orderBy('last_name', 'asc')
@@ -538,6 +545,9 @@ trait AiHealthFuncs
     public static function executeCreateDoctor(array $args)
     {
         try {
+            if (!self::resolveAuthorizedHealthUser()) {
+                return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+            }
             $doctor = \App\Models\Management\ManagementContact::create([
                 'first_name' => $args['first_name'],
                 'last_name' => $args['last_name'],
@@ -564,6 +574,9 @@ trait AiHealthFuncs
     public static function executeUpdateDoctor(array $args)
     {
         try {
+            if (!self::resolveAuthorizedHealthUser()) {
+                return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+            }
             $doctor = \App\Models\Management\ManagementContact::findOrFail($args['contact_id']);
             
             $updateData = [];
@@ -589,6 +602,9 @@ trait AiHealthFuncs
     public static function executeDeleteDoctor(array $args)
     {
         try {
+            if (!self::resolveAuthorizedHealthUser()) {
+                return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+            }
             $doctor = \App\Models\Management\ManagementContact::findOrFail($args['contact_id']);
             $doctor->delete();
             return ['success' => true, 'message' => 'Arzt erfolgreich aus dem System gelöscht.'];
@@ -600,10 +616,7 @@ trait AiHealthFuncs
     public static function executeWriteProtocol(array $args)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             $activePlan = AiHealthTreatmentPlan::where('user_id', $user->id)
@@ -632,10 +645,7 @@ trait AiHealthFuncs
     public static function executeCreateMedication(array $args)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             $med = \App\Models\Ai\AiHealthMedication::create([
@@ -661,6 +671,9 @@ trait AiHealthFuncs
     public static function executeCreateHealthTodo(array $args)
     {
         try {
+            if (!self::resolveAuthorizedHealthUser()) {
+                return ['status' => 'error', 'error' => true, 'message' => 'Nicht authentifiziert.'];
+            }
             if (empty($args['title'])) {
                 return ['status' => 'error', 'message' => 'Titel fehlt.'];
             }
@@ -690,9 +703,12 @@ trait AiHealthFuncs
     public static function executeReadDocument(array $args)
     {
         try {
+            if (!self::resolveAuthorizedHealthUser()) {
+                return ['error' => true, 'message' => 'Nicht authentifiziert.'];
+            }
             $filename = trim($args['filename'] ?? '');
-            if (empty($filename)) {
-                return ['error' => true, 'message' => 'Es wurde kein Dateiname übergeben.'];
+            if (empty($filename) || str_contains($filename, '..') || str_contains($filename, "\0")) {
+                return ['error' => true, 'message' => 'Es wurde kein gültiger Dateiname übergeben.'];
             }
 
             $foundPath = null;
@@ -769,10 +785,7 @@ trait AiHealthFuncs
     public static function executeExportTreatmentPlan(array $args, $agent = null)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             if (empty($args['plan_id'])) {
@@ -837,10 +850,7 @@ trait AiHealthFuncs
     public static function executeExportProtocol(array $args, $agent = null)
     {
         try {
-            $user = Auth::user();
-            if (!$user && session('emergency_access_granted')) {
-                $user = \App\Models\Admin\Admin::first();
-            }
+            $user = self::resolveAuthorizedHealthUser();
             if (!$user) return ['error' => true, 'message' => 'Nicht authentifiziert.'];
 
             if (empty($args['protocol_id'])) {

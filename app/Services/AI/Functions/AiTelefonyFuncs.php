@@ -364,15 +364,7 @@ trait AiTelefonyFuncs
             $cacheKey = "twilio_call_" . $toPhoneClean;
             $context = \Illuminate\Support\Facades\Cache::get($cacheKey);
 
-            $host = null;
-            try {
-                $host = request() ? request()->getHost() : null;
-            } catch (\Throwable $e) {
-                $host = null;
-            }
-            if (empty($host)) {
-                $host = parse_url(config('app.url'), PHP_URL_HOST) ?: 'localhost';
-            }
+            $host = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
 
             // Erlaube Fallback auf öffentlichen Ngrok für lokale Entwicklung
             $wssUrl = env('TWILIO_WSS_URL', 'wss://' . $host . ':8081/twilio-stream');

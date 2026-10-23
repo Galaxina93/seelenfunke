@@ -417,7 +417,7 @@ trait AiPersonaFuncs
         try {
             $response = \Illuminate\Support\Facades\Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-            ])->timeout(10)->get($url);
+            ])->timeout(10)->withoutRedirecting()->get($url);
 
             if ($response->successful()) {
                 $imgContent = $response->body();
@@ -858,7 +858,7 @@ trait AiPersonaFuncs
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(10)->get($url);
+            $response = \Illuminate\Support\Facades\Http::timeout(10)->withoutRedirecting()->get($url);
             if ($response->successful()) {
                 $html = $response->body();
                 // Simple text extraction: strip scripts and tags

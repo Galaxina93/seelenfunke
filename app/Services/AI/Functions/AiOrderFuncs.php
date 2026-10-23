@@ -394,11 +394,12 @@ trait AiOrderFuncs
             $response->sendContent();
             $svgContent = ob_get_clean();
 
-            $filename = 'xTool-F2-Druckdatei-' . ($item->order->order_number ?? 'Angebot') . '-Pos-' . $item->id . '-' . ($side === 'back' ? 'Rueckseite' : 'Vorderseite') . '.svg';
+            $rawOrderNum = preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) ($item->order->order_number ?? 'Angebot'));
+            $safeItemId = preg_replace('/[^A-Za-z0-9_\-]/', '_', (string) $item->id);
+            $filename = 'xTool-F2-Druckdatei-' . $rawOrderNum . '-Pos-' . $safeItemId . '-' . ($side === 'back' ? 'Rueckseite' : 'Vorderseite') . '.svg';
 
             if ($action === 'filemanager') {
                 $path = 'agenten/workspace/Berufsleben/Projekte/' . $filename;
-                Storage::disk('public')->put($path, $svgContent);
                 Storage::disk('workspace')->put($path, $svgContent);
                 return [
                     'status' => 'success',
@@ -408,32 +409,35 @@ trait AiOrderFuncs
                 ];
             } 
             elseif ($action === 'download') {
-                $path = 'ai_downloads/' . $filename;
-                Storage::disk('public')->put($path, $svgContent);
-                $url = url('storage/' . $path);
+                $url = url("/admin/order-item/{$item->id}/download-laser-svg/" . ($side === 'back' ? 'back' : 'front'));
                 return [
                     'status' => 'success',
-                    'message' => 'Die SVG Datei wurde generiert. Du kannst dem Nutzer nun folgenden Download-Link geben:',
+                    'message' => 'Die SVG Datei wurde generiert. Du kannst dem Nutzer nun folgenden sicheren Download-Link geben:',
                     'download_url' => $url
                 ];
             }
             elseif ($action === 'mail') {
-                $path = 'ai_downloads/' . $filename;
-                Storage::disk('public')->put($path, $svgContent);
-                
-                $targetEmail = $args['mail_to'] ?? $item->order->email;
+                $rawEmail = str_replace(["\r", "\n", "\t"], '', trim((string) ($args['mail_to'] ?? $item->order->email ?? '')));
+                $targetEmail = filter_var($rawEmail, FILTER_VALIDATE_EMAIL);
                 if (!$targetEmail) {
-                    return ['status' => 'error', 'message' => 'Keine E-Mail Adresse hinterlegt (weder vom Kunden, noch in mail_to übergeben).'];
+                    return ['status' => 'error', 'message' => 'Keine gültige E-Mail Adresse hinterlegt (weder vom Kunden, noch in mail_to übergeben).'];
                 }
 
-                $subject = "Produktions-Datei: " . $filename;
-                $absolutePath = storage_path('app/public/' . $path);
+                $path = 'ai_downloads/' . $filename;
+                Storage::disk('local')->put($path, $svgContent);
+
+                $subject = str_replace(["\r", "\n"], '', "Produktions-Datei: " . $filename);
+                $absolutePath = Storage::disk('local')->path($path);
                 
                 $agentName = $agent ? $agent->name : 'Bestell-Agent';
                 $body = "Hallo,\n\nanbei befindet sich die generierte XTool Laserdatei für die Bestellung " . $item->order->order_number . ".\n\nViele Grüße";
                 $design = $args['design'] ?? 'seelenfunke';
 
-                Mail::to($targetEmail)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath], $design));
+                try {
+                    Mail::to($targetEmail)->send(new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, $agentName, [$absolutePath], $design));
+                } finally {
+                    Storage::disk('local')->delete($path);
+                }
 
                 return [
                     'status' => 'success',

@@ -169,6 +169,10 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
         ], 400);
     }
 
+    $request->validate([
+        'file' => 'file|mimes:pdf,jpg,jpeg,png,webp|max:20480',
+    ]);
+
     $file = $request->file('file');
     $autoSave = filter_var($request->input('auto_save', false), FILTER_VALIDATE_BOOLEAN);
 
@@ -413,12 +417,18 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
 
     // Datei-Update Logik
     if ($request->hasFile('file')) {
+        $file = is_array($request->file('file')) ? $request->file('file')[0] : $request->file('file');
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx'];
+        $ext = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, $allowedExts, true) || $file->getSize() > 20 * 1024 * 1024) {
+            return response()->json(['success' => false, 'message' => 'Ungültiges Dateiformat oder Datei zu groß.'], 422);
+        }
+
         // Alte Datei löschen, falls vorhanden
         if ($item->contract_file_path && Storage::disk('local')->exists($item->contract_file_path)) {
             Storage::disk('local')->delete($item->contract_file_path);
         }
 
-        $file = is_array($request->file('file')) ? $request->file('file')[0] : $request->file('file');
         $path = $file->store('buchhaltung/contracts', 'local');
         $item->update(['contract_file_path' => $path]);
     }

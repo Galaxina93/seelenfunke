@@ -24,7 +24,7 @@ Route::prefix('ai')->group(function () {
     Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript'])->middleware('throttle:120,1');
 
     // Admin & Mitarbeiter geschützte KI-Endpunkte
-    Route::group(['middleware' => ['web', 'auth:sanctum,web,admin', function ($request, $next) {
+    Route::group(['middleware' => ['web', 'auth:sanctum,web,admin,employee', function ($request, $next) {
         $user = $request->user() ?: auth()->guard('admin')->user() ?: auth()->guard('employee')->user();
         $isAdminOrEmployee = ($user instanceof \App\Models\Admin\Admin)
             || ($user instanceof \App\Models\Employee\Employee)

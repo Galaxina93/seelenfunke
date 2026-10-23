@@ -2,7 +2,9 @@
 
 namespace App\Services\Export;
 
+use App\Models\Admin\Admin;
 use App\Models\Order\OrderOrderItem;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -126,6 +128,10 @@ class FileDownloadService
 
     public function downloadMailAttachment($id)
     {
+        if (!Auth::guard('admin')->check() && !(Auth::check() && Auth::user() instanceof Admin)) {
+            abort(403, 'Unautorisierter Zugriff auf E-Mail-Anhänge.');
+        }
+
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
         
         $path = $attachment->path;
@@ -155,6 +161,10 @@ class FileDownloadService
 
     public function downloadTaxExport($filename)
     {
+        if (!Auth::guard('admin')->check() && !(Auth::check() && Auth::user() instanceof Admin)) {
+            abort(403, 'Unautorisierter Zugriff auf Steuerexporte.');
+        }
+
         $safeName = basename($filename);
 
         // Restrict filename characters (alphanumeric, underscores, hyphens, dots)
@@ -294,11 +304,11 @@ class FileDownloadService
         // BILDER & LOGOS RENDER (Base64)
         if (!empty($logos)) {
             foreach ($logos as $logo) {
-                $x = (($logo['x'] ?? 50) / 100) * $widthMm;
-                $y = (($logo['y'] ?? 50) / 100) * $heightMm;
-                $rot = $logo['rotation'] ?? 0;
+                $x = (((float) ($logo['x'] ?? 50)) / 100) * $widthMm;
+                $y = (((float) ($logo['y'] ?? 50)) / 100) * $heightMm;
+                $rot = (float) ($logo['rotation'] ?? 0);
                 // Skalierungs-Logik identisch zum JS Canvas
-                $logoWidth = (($logo['size'] ?? 100) / 500) * $widthMm;
+                $logoWidth = (((float) ($logo['size'] ?? 100)) / 500) * $widthMm;
 
                 $url = $logo['url'] ?? $logo['value'] ?? $logo['src'] ?? null;
                 if (!$url) continue;
@@ -494,13 +504,22 @@ class FileDownloadService
 
                         continue; // base64 <image> wird übersprungen
                     } else {
-                        $type = ($ext === 'jpg') ? 'jpeg' : ($ext ?: 'png');
+                        $type = preg_replace('/[^a-z0-9]/i', '', ($ext === 'jpg') ? 'jpeg' : ($ext ?: 'png'));
                         $url = 'data:image/' . $type . ';base64,' . base64_encode($data);
                     }
+                } else {
+                    continue;
                 }
 
-                $svg .= '  <g transform="translate('.$x.', '.$y.') rotate('.$rot.')">' . "\n";
-                $svg .= '    <image x="-'.($logoWidth/2).'" y="-'.($logoWidth/2).'" width="'.$logoWidth.'" height="'.$logoWidth.'" href="'.$url.'" xlink:href="'.$url.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
+                $safeUrl = htmlspecialchars($url, ENT_QUOTES | ENT_XML1, 'UTF-8');
+                $halfW = number_format(((float) $logoWidth) / 2, 4, '.', '');
+                $fmtW = number_format((float) $logoWidth, 4, '.', '');
+                $fmtX = number_format((float) $x, 4, '.', '');
+                $fmtY = number_format((float) $y, 4, '.', '');
+                $fmtRot = number_format((float) $rot, 4, '.', '');
+
+                $svg .= '  <g transform="translate('.$fmtX.', '.$fmtY.') rotate('.$fmtRot.')">' . "\n";
+                $svg .= '    <image x="-'.$halfW.'" y="-'.$halfW.'" width="'.$fmtW.'" height="'.$fmtW.'" href="'.$safeUrl.'" xlink:href="'.$safeUrl.'" preserveAspectRatio="xMidYMid meet" />' . "\n";
                 $svg .= '  </g>' . "\n";
             }
         }
@@ -511,13 +530,13 @@ class FileDownloadService
                 // Verhindert Rendering von leeren Textboxen
                 if (empty(trim($textItem['text'] ?? ''))) continue;
 
-                $x = (($textItem['x'] ?? 50) / 100) * $widthMm;
-                $y = (($textItem['y'] ?? 50) / 100) * $heightMm;
-                $rot = $textItem['rotation'] ?? 0;
+                $x = (((float) ($textItem['x'] ?? 50)) / 100) * $widthMm;
+                $y = (((float) ($textItem['y'] ?? 50)) / 100) * $heightMm;
+                $rot = (float) ($textItem['rotation'] ?? 0);
                 $fontFamily = $textItem['font'] ?? 'Arial';
                 $align = $textItem['align'] ?? 'center';
 
-                $fontSizeMm = ($textItem['size'] ?? 1) * ($widthMm / 25);
+                $fontSizeMm = ((float) ($textItem['size'] ?? 1)) * ($widthMm / 25);
 
                 $textAnchor = match($align) {
                     'left' => 'start',

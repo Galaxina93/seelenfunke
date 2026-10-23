@@ -1233,6 +1233,10 @@ trait AiSystemFuncs
                 $to = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
             }
 
+            if (!self::isValidRecipientEmail($to)) {
+                return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse.'];
+            }
+
             $asPdf = $args['as_pdf'] ?? false;
             $design = $args['design'] ?? 'seelenfunke';
             $subject = "Neuronale Struktur: " . $node->name;
@@ -1247,9 +1251,9 @@ trait AiSystemFuncs
                     'title' => $subject,
                     'htmlContent' => $htmlForPdf,
                     'agentName' => $agentName
-                ]);
+                ])->setOptions(['isRemoteEnabled' => false]);
 
-                $fileName = 'struktur-' . \Illuminate\Support\Str::slug($node->name) . '-' . time() . '.pdf';
+                $fileName = 'struktur-' . \Illuminate\Support\Str::slug($node->name) . '-' . time() . '-' . \Illuminate\Support\Str::random(12) . '.pdf';
                 $filePath = 'public/agenten/exports/reports/' . $fileName;
 
                 \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
@@ -1427,6 +1431,9 @@ trait AiSystemFuncs
             if ($sendEmail) {
                 if (!$email) {
                     $email = config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+                if (!self::isValidRecipientEmail($email)) {
+                    return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse für den Security-Report.'];
                 }
                 
                 $agentName = $agentObj ? $agentObj->name : 'System-Security-Agent';
@@ -2361,9 +2368,9 @@ trait AiSystemFuncs
                     if ($count > 0) {
                         $ids = $errorQuery->pluck('id');
                         \App\Models\System\SystemLog::whereIn('id', $ids)->update(['status' => 'success']);
-                        \Illuminate\Support\Facades\DB::update(
-                            "UPDATE system_logs SET title = CONCAT('[GELÖST] ', title) WHERE id IN (" . $ids->implode(',') . ") AND title NOT LIKE '[GELÖST]%'"
-                        );
+                        \App\Models\System\SystemLog::whereIn('id', $ids)
+                            ->where('title', 'not like', '[GELÖST]%')
+                            ->update(['title' => \Illuminate\Support\Facades\DB::raw("CONCAT('[GELÖST] ', title)")]);
                     }
                     $processedCount = $count;
                 } else {
@@ -2402,17 +2409,35 @@ trait AiSystemFuncs
         $forbiddenBackgroundTools = [
             'system_dispatch_background_task',
             'system_run_command',
+            'system_command_status',
             'system_write_to_file',
             'system_multi_replace_file',
             'system_get_rights',
             'system_assign_tool_to_role',
             'system_clear_security_threats',
+            'system_execute_command',
+            'system_fix_errors',
+            'system_manage_logs',
+            'system_create_database_backup',
+            'agent_update_system_config',
+            'agent_update_runtime_config',
+            'master_toggle_maintenance',
         ];
         if (!empty($toolToExecute) && in_array($toolToExecute, $forbiddenBackgroundTools, true)) {
             return [
                 'status' => 'error',
                 'message' => "Sicherheitsrichtlinie: Das Werkzeug '{$toolToExecute}' darf nicht unbeaufsichtigt im Hintergrund ausgeführt werden."
             ];
+        }
+
+        if (!empty($toolToExecute) && $agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection && $agent->tools->isNotEmpty()) {
+            $allowedCallerTools = $agent->tools->pluck('identifier')->toArray();
+            if (!in_array($toolToExecute, $allowedCallerTools, true)) {
+                return [
+                    'status' => 'error',
+                    'message' => "Sicherheitsrichtlinie: Agent '{$agent->name}' darf kein Hintergrund-Werkzeug ('{$toolToExecute}') delegieren, für das er selbst keine Berechtigung besitzt."
+                ];
+            }
         }
 
         $targetAgent = $agent;
@@ -2841,7 +2866,7 @@ trait AiSystemFuncs
                 'agentName' => $agentName
             ])->setOptions(['isRemoteEnabled' => false]);
 
-            $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '.pdf';
+            $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '-' . \Illuminate\Support\Str::random(12) . '.pdf';
             $filePath = 'public/agenten/exports/reports/' . $fileName;
 
             \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
@@ -2903,7 +2928,7 @@ trait AiSystemFuncs
             }
 
             // Path setup
-            $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '.docx';
+            $fileName = \Illuminate\Support\Str::slug($title) . '-' . time() . '-' . \Illuminate\Support\Str::random(12) . '.docx';
             $filePath = 'public/agenten/exports/reports/' . $fileName;
             $absoluteOutputPath = storage_path('app/' . $filePath);
             if (!is_dir(dirname($absoluteOutputPath))) {
@@ -3086,7 +3111,7 @@ trait AiSystemFuncs
 
             $prefix = $design === 'generic' ? 'lieferschein-neutral' : 'lieferschein-seelenfunke';
             $slugNum = \Illuminate\Support\Str::slug($deliveryNoteNumber) ?: time();
-            $fileName = $prefix . '-' . $slugNum . '-' . time() . '.pdf';
+            $fileName = $prefix . '-' . $slugNum . '-' . time() . '-' . \Illuminate\Support\Str::random(12) . '.pdf';
             $filePath = 'public/agenten/exports/reports/' . $fileName;
 
             \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
@@ -3205,9 +3230,9 @@ trait AiSystemFuncs
                 $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [
                     'htmlContent' => $htmlContent,
                     'agentName' => $agent->name
-                ]);
+                ])->setOptions(['isRemoteEnabled' => false]);
 
-                $generatedFileName = 'CEO-Strategie-Report-' . time() . '.pdf';
+                $generatedFileName = 'CEO-Strategie-Report-' . time() . '-' . \Illuminate\Support\Str::random(12) . '.pdf';
                 // Temporäres Speichern
                 $tempPath = storage_path('app/temp/' . $generatedFileName);
                 if (!\Illuminate\Support\Facades\File::exists(dirname($tempPath))) {
@@ -3256,8 +3281,8 @@ trait AiSystemFuncs
                 if (empty($recipient)) {
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address');
                 }
-                if (empty($recipient)) {
-                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss recipient_email angegeben werden, da keine System-E-Mail gefunden wurde.'];
+                if (empty($recipient) || !self::isValidRecipientEmail($recipient)) {
+                    return ['status' => 'error', 'message' => 'Für den E-Mail-Versand muss eine gültige recipient_email angegeben werden.'];
                 }
                 
                 $pathForMail = $generatedFilePath;
@@ -3280,7 +3305,10 @@ trait AiSystemFuncs
             } else {
                 // Default: Download
                 // Wir müssen die Datei so zugänglich machen, dass der Browser sie laden kann
-                $publicTempPath = 'agenten/exports/reports/' . $generatedFileName;
+                $ext = pathinfo($generatedFileName, PATHINFO_EXTENSION);
+                $baseStem = pathinfo($generatedFileName, PATHINFO_FILENAME);
+                $safeDownloadFileName = $baseStem . '-' . \Illuminate\Support\Str::random(12) . ($ext ? '.' . $ext : '');
+                $publicTempPath = 'agenten/exports/reports/' . $safeDownloadFileName;
                 \Illuminate\Support\Facades\Storage::disk('public')->put(
                     $publicTempPath,
                     file_get_contents($generatedFilePath)
@@ -3315,11 +3343,22 @@ trait AiSystemFuncs
     public static function executeUpdateFunkiraConfiguration(array $args)
     {
         $restrictedKeys = ['api_provider', 'api_key', 'local_tts_url'];
+        $allowedKeys = [
+            'active_mode',
+            'ai_model',
+            'token_limit',
+            'human_in_the_loop',
+            'execution_limit',
+            'voice_enabled',
+            'cap_shop_support',
+            'cap_system_diagnostics',
+            'cap_family_crm',
+        ];
         $changes = [];
         $errors = [];
 
         foreach ($args as $key => $value) {
-            if (in_array($key, $restrictedKeys)) {
+            if (in_array($key, $restrictedKeys, true) || !in_array($key, $allowedKeys, true)) {
                 $errors[] = "Sicherheits-Sperre: Du darfst die Einstellung '$key' nicht verändern.";
                 continue;
             }
@@ -3463,8 +3502,12 @@ trait AiSystemFuncs
 
     public static function executeReadCode(array $args)
     {
-        $path = ltrim($args['file_path'] ?? '', '/');
+        $path = ltrim(str_replace('\\', '/', (string) ($args['file_path'] ?? '')), '/');
         if (empty($path)) return ['status' => 'error', 'message' => 'Kein Dateipfad angegeben.'];
+
+        if (str_contains($path, '..') || str_contains($path, "\0")) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Unzulässiger Dateipfad.'];
+        }
 
         $fullPath = base_path($path);
         
@@ -3472,12 +3515,27 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => "Datei '$path' existiert nicht. Bitte mit system_search_files überprüfen!"];
         }
         
-        if (!str_starts_with(realpath($fullPath), realpath(base_path()))) {
+        $realFile = realpath($fullPath);
+        $realBase = realpath(base_path());
+        if ($realFile === false || $realBase === false || !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
              return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
         }
 
-        if (str_contains(basename($fullPath), '.env')) {
-             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: .env Dateien dürfen nicht gelesen oder bearbeitet werden.'];
+        $baseNameLower = strtolower(basename($realFile));
+        $extLower = strtolower(pathinfo($realFile, PATHINFO_EXTENSION));
+        $relPathLower = strtolower(ltrim(str_replace('\\', '/', substr($realFile, strlen($realBase))), '/'));
+        if (
+            str_contains($baseNameLower, '.env')
+            || in_array($baseNameLower, ['auth.json', 'composer.lock'], true)
+            || in_array($extLower, ['key', 'pem', 'p12', 'pfx', 'sqlite', 'sql'], true)
+            || str_starts_with($relPathLower, '.git/')
+            || str_starts_with($relPathLower, 'storage/logs/')
+            || str_starts_with($relPathLower, 'storage/framework/')
+            || str_starts_with($relPathLower, 'storage/app/buchhaltung/')
+            || str_starts_with($relPathLower, 'storage/app/invoices/')
+            || str_starts_with($relPathLower, 'storage/app/backups/')
+        ) {
+             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Sensible System- oder Schlüsseldateien dürfen nicht gelesen werden.'];
         }
 
         $lines = file($fullPath);
@@ -3538,19 +3596,29 @@ trait AiSystemFuncs
         $fullPath = base_path($path);
 
         // Path Traversal Check
-        if (!file_exists($fullPath)) {
+        if (!file_exists($fullPath) || !is_file($fullPath)) {
             return ['status' => 'error', 'message' => "Datei '$path' existiert nicht."];
         }
 
-        if (!str_starts_with(realpath($fullPath), realpath(base_path()))) {
+        $realFile = realpath($fullPath);
+        $realBase = realpath(base_path());
+        if ($realFile === false || $realBase === false || !str_starts_with($realFile, $realBase . DIRECTORY_SEPARATOR)) {
              return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des Projektverzeichnisses.'];
         }
 
-        $baseNameLower = strtolower(basename($fullPath));
+        $baseNameLower = strtolower(basename($realFile));
+        $extLower = strtolower(pathinfo($realFile, PATHINFO_EXTENSION));
+        $relPathLower = strtolower(ltrim(str_replace('\\', '/', substr($realFile, strlen($realBase))), '/'));
         if (
             str_contains($baseNameLower, '.env')
-            || in_array($baseNameLower, ['artisan', 'composer.json', 'composer.lock'], true)
-            || str_starts_with($path, '.git/')
+            || in_array($baseNameLower, ['artisan', 'composer.json', 'composer.lock', 'package.json', 'package-lock.json', 'server-twilio.js', 'funki', 'auth.json', '.htaccess', 'index.php'], true)
+            || in_array($extLower, ['sh', 'bash', 'phar', 'key', 'pem', 'sqlite'], true)
+            || str_starts_with($relPathLower, '.git/')
+            || str_starts_with($relPathLower, 'public/')
+            || str_starts_with($relPathLower, 'config/')
+            || str_starts_with($relPathLower, 'bootstrap/')
+            || str_starts_with($relPathLower, 'vendor/')
+            || str_starts_with($relPathLower, 'node_modules/')
         ) {
              return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Geschützte Systemdateien dürfen nicht bearbeitet werden.'];
         }
@@ -3662,24 +3730,43 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'Zugriff verweigert. Unzulässiger Dateipfad.'];
         }
 
+        $pathLower = strtolower($path);
+        $baseNameLower = strtolower(basename($path));
+        $extLower = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (
+            str_contains($baseNameLower, '.env')
+            || in_array($baseNameLower, ['artisan', 'composer.json', 'composer.lock', 'package.json', 'package-lock.json', 'server-twilio.js', 'funki', 'auth.json', '.htaccess', 'index.php'], true)
+            || in_array($extLower, ['sh', 'bash', 'phar', 'key', 'pem', 'sqlite'], true)
+            || str_starts_with($pathLower, 'public/')
+            || str_starts_with($pathLower, 'config/')
+            || str_starts_with($pathLower, 'bootstrap/')
+            || str_starts_with($pathLower, 'vendor/')
+            || str_starts_with($pathLower, 'node_modules/')
+        ) {
+             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Geschützte Systemdateien (.env, artisan, composer, public, config) dürfen nicht überschrieben werden.'];
+        }
+
         $fullPath = base_path($path);
         $dir = dirname($fullPath);
+        $realBase = realpath(base_path());
+
+        // Validate closest existing ancestor BEFORE creating directories
+        $checkDir = $dir;
+        while (!file_exists($checkDir) && dirname($checkDir) !== $checkDir) {
+            $checkDir = dirname($checkDir);
+        }
+        $realCheckDir = realpath($checkDir);
+        if ($realCheckDir === false || $realBase === false || ($realCheckDir !== $realBase && !str_starts_with($realCheckDir, $realBase . DIRECTORY_SEPARATOR))) {
+             return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
+        }
 
         if (!file_exists($dir)) {
             mkdir($dir, 0755, true);
         }
 
-        // Path Traversal Check
-        if (!str_starts_with((string) realpath($dir), (string) realpath(base_path()))) {
+        $realDir = realpath($dir);
+        if ($realDir === false || ($realDir !== $realBase && !str_starts_with($realDir, $realBase . DIRECTORY_SEPARATOR))) {
              return ['status' => 'error', 'message' => 'Zugriff verweigert. Dateipfad liegt außerhalb des erlaubten Projektverzeichnisses.'];
-        }
-
-        $baseNameLower = strtolower(basename($fullPath));
-        if (
-            str_contains($baseNameLower, '.env')
-            || in_array($baseNameLower, ['artisan', 'composer.json', 'composer.lock'], true)
-        ) {
-             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Geschützte Systemdateien (.env, artisan, composer) dürfen nicht überschrieben werden.'];
         }
 
         file_put_contents($fullPath, $newContent);
@@ -3907,12 +3994,36 @@ trait AiSystemFuncs
         
         $basePath = base_path();
         
-        // Anti-destroy & secret-exfiltration safety net
-        $disallowed = ['rm -rf /', 'mkfs', 'dd ', '.env', '/etc/passwd', '/etc/shadow', '/dev/tcp', 'bash -i', 'nc -e'];
+        // Anti-destroy, shell-chaining & secret-exfiltration safety net
+        $disallowed = ['rm -rf', 'mkfs', 'dd ', '.env', '/etc/passwd', '/etc/shadow', '/dev/tcp', 'bash -i', 'nc -e', '`', '$(', ';', '|', '&', '>', '<', "\n", "\r"];
         foreach ($disallowed as $d) {
             if (stripos($cmd, $d) !== false) {
                 return ['status' => 'error', 'message' => 'Command blocked globally for safety.'];
             }
+        }
+
+        $allowedCommandPrefixes = [
+            'php artisan ',
+            'php -l ',
+            'composer ',
+            'npm run ',
+            'npx ',
+            './vendor/bin/phpunit',
+            'vendor/bin/phpunit',
+            'echo ',
+            'git status',
+            'git diff',
+            'git log',
+        ];
+        $isAllowedCmd = false;
+        foreach ($allowedCommandPrefixes as $prefix) {
+            if (str_starts_with($cmd, $prefix) || $cmd === rtrim($prefix)) {
+                $isAllowedCmd = true;
+                break;
+            }
+        }
+        if (!$isAllowedCmd) {
+            return ['status' => 'error', 'message' => 'Command blocked: Nur freigegebene Entwicklungsbefehle (php artisan, phpunit, composer, npm run, echo) sind erlaubt.'];
         }
 
         $fullCmd = "cd " . escapeshellarg($basePath) . " && (" . $cmd . ") > " . escapeshellarg($logFile) . " 2>&1 & echo $!";
@@ -4008,8 +4119,33 @@ trait AiSystemFuncs
             'system_get_rights',
             'system_assign_tool_to_role',
             'system_clear_security_threats',
+            'move_agent_to_department',
+            'analyze_agents_activity',
         ];
-        if (in_array($toolId, $restrictedSelfAssignTools, true)) {
+        $restrictedSelfAssignPrefixes = [
+            'system_',
+            'agent_',
+            'agents_',
+            'finance_',
+            'mail_',
+            'email_',
+            'master_',
+            'workspace_',
+            'health_',
+            'persona_',
+            'call_',
+            'brain_',
+        ];
+        $isRestrictedSelfAssign = in_array($toolId, $restrictedSelfAssignTools, true);
+        if (!$isRestrictedSelfAssign) {
+            foreach ($restrictedSelfAssignPrefixes as $prefix) {
+                if (str_starts_with($toolId, $prefix)) {
+                    $isRestrictedSelfAssign = true;
+                    break;
+                }
+            }
+        }
+        if ($isRestrictedSelfAssign) {
             return "Sicherheitsrichtlinie: Kritische System-Werkzeuge ('{$toolId}') dürfen nicht autonom selbst zugewiesen werden.";
         }
 
@@ -4061,8 +4197,25 @@ trait AiSystemFuncs
         $realDir = realpath($dirPath);
         $realBase = realpath(base_path());
 
-        if ($realDir === false || $realBase === false || !str_starts_with($realDir, $realBase) || !is_dir($realDir)) {
+        if (
+            $realDir === false
+            || $realBase === false
+            || ($realDir !== $realBase && !str_starts_with($realDir, $realBase . DIRECTORY_SEPARATOR))
+            || !is_dir($realDir)
+        ) {
             return ['status' => 'error', 'message' => "Das Verzeichnis existiert nicht oder ist gesperrt: {$rawDir}"];
+        }
+
+        $relDirLower = strtolower(ltrim(str_replace('\\', '/', substr($realDir, strlen($realBase))), '/'));
+        if (
+            str_starts_with($relDirLower, '.git')
+            || str_starts_with($relDirLower, 'storage/logs')
+            || str_starts_with($relDirLower, 'storage/framework')
+            || str_starts_with($relDirLower, 'storage/app/buchhaltung')
+            || str_starts_with($relDirLower, 'storage/app/invoices')
+            || str_starts_with($relDirLower, 'storage/app/backups')
+        ) {
+            return ['status' => 'error', 'message' => "Sicherheitsrichtlinie: Zugriff auf geschütztes Verzeichnis verweigert: {$rawDir}"];
         }
 
         $files = \Illuminate\Support\Facades\File::files($realDir);
@@ -4078,7 +4231,15 @@ trait AiSystemFuncs
         $out .= "\n[DATEIEN]\n";
         foreach ($files as $f) {
             $fileName = $f->getFilename();
-            if (str_starts_with(strtolower($fileName), '.env')) continue;
+            $fileNameLower = strtolower($fileName);
+            $extLower = strtolower($f->getExtension());
+            if (
+                str_starts_with($fileNameLower, '.env')
+                || in_array($fileNameLower, ['auth.json'], true)
+                || in_array($extLower, ['key', 'pem', 'p12', 'pfx', 'sqlite', 'sql'], true)
+            ) {
+                continue;
+            }
             $out .= "- " . $fileName . " (" . round($f->getSize() / 1024, 2) . " KB)\n";
         }
 
@@ -4098,7 +4259,7 @@ trait AiSystemFuncs
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::timeout(10)->withHeaders([
+            $response = \Illuminate\Support\Facades\Http::timeout(10)->withoutRedirecting()->withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ])->get($url);
             if ($response->failed()) {

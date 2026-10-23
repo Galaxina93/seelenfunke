@@ -123,6 +123,89 @@ class AIFunctionsRegistry
      */
     public static function execute(string $name, array $args = [], $agent = null)
     {
+        // Rollen-Schranke: Authentifizierte Mitarbeiter (Employee) dürfen keine Admin-exklusiven Werkzeuge ausführen
+        if (AiAuthHelper::check() && !AiAuthHelper::isAdmin()) {
+            $adminOnlyPrefixes = [
+                'finance_',
+                'mail_',
+                'email_',
+                'master_',
+                'workspace_',
+                'health_',
+                'brain_',
+                'persona_',
+                'call_',
+                'agents_',
+                'agent_',
+                'holiday_',
+            ];
+            $adminOnlyTools = [
+                'move_agent_to_department',
+                'analyze_agents_activity',
+                'system_write_to_file',
+                'system_multi_replace_file',
+                'system_run_command',
+                'system_read_file',
+                'system_read_code',
+                'system_search_code',
+                'system_search_files',
+                'system_list_directory',
+                'system_command_status',
+                'system_get_rights',
+                'system_execute_command',
+                'system_fix_errors',
+                'system_create_database_backup',
+                'system_export_system_report',
+                'system_manage_logs',
+                'system_clear_security_threats',
+                'system_analyze_security_threats',
+                'system_dispatch_background_task',
+                'system_assign_tool_to_role',
+                'system_view_file_outline',
+                'system_grep_search',
+                'system_find_by_name',
+                'system_list_dir',
+                'system_write_implementation_plan',
+            ];
+            $employeeAllowedSystemTools = [
+                'system_get_current_time',
+                'system_open_nav_item',
+                'system_close_ui',
+                'system_open_zentrum',
+                'system_close_zentrum',
+                'system_switch_agent',
+                'system_search_chat_history',
+                'system_read_knowledge',
+                'system_read_wiki_files',
+                'system_search_web',
+                'system_read_web_url',
+            ];
+            $isRestrictedForEmployee = in_array($name, $adminOnlyTools, true)
+                || (str_starts_with($name, 'system_') && !in_array($name, $employeeAllowedSystemTools, true));
+            if (!$isRestrictedForEmployee) {
+                foreach ($adminOnlyPrefixes as $prefix) {
+                    if (str_starts_with($name, $prefix)) {
+                        $isRestrictedForEmployee = true;
+                        break;
+                    }
+                }
+            }
+            if ($isRestrictedForEmployee) {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_privilege_escalation_blocked',
+                    'KI-Rechteausweitung durch Mitarbeiter blockiert',
+                    "Mitarbeiter (ID: " . AiAuthHelper::getUserId() . ") versuchte das Admin-Werkzeug '{$name}' auszuführen.",
+                    'error',
+                    ['tool' => $name, 'user_id' => AiAuthHelper::getUserId()]
+                );
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "ROLE VIOLATION: Das Werkzeug '{$name}' erfordert Administrator-Berechtigungen."
+                ];
+            }
+        }
+
         $functions = collect(self::getFunctions())->keyBy('name');
 
         if (!$functions->has($name)) {

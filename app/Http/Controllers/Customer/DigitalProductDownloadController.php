@@ -41,14 +41,19 @@ class DigitalProductDownloadController extends Controller
             abort(404, 'Dieses Produkt ist nicht als Download verfügbar.');
         }
 
+        $downloadPath = (string) $item->product->digital_download_path;
+        if (str_contains($downloadPath, '..') || str_contains($downloadPath, "\0") || str_starts_with($downloadPath, '/') || str_starts_with($downloadPath, '\\')) {
+            abort(403, 'Ungültiger Dateipfad.');
+        }
+
         // 4. File existence check
-        if (!Storage::disk('local')->exists($item->product->digital_download_path)) {
+        if (!Storage::disk('local')->exists($downloadPath)) {
             abort(404, 'Die angeforderte Datei wurde auf dem Server nicht gefunden.');
         }
 
         // 5. Trigger download
         return Storage::disk('local')->download(
-            $item->product->digital_download_path,
+            $downloadPath,
             $item->product->digital_filename ?? 'Download.zip'
         );
     }

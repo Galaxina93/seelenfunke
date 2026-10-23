@@ -349,7 +349,7 @@ Route::prefix('funki/emails')->group(function () {
     // 10. Upload Attachment
     Route::post('/attachments', function (Request $request) {
         $request->validate([
-            'file' => 'required|file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,svg,zip,tar,gz,txt,json,xml', // limit of 20MB per file
+            'file' => 'required|file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,zip,tar,gz,txt,json,xml', // limit of 20MB per file
         ]);
 
         $file = $request->file('file');

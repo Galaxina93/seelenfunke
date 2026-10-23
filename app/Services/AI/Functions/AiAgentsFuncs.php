@@ -684,7 +684,11 @@ trait AiAgentsFuncs
     public static function executeWorkspaceArchiveFolderContent(array $args): array
     {
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
-        $archiveName = $args['archive_name'] ?? 'archiv.zip';
+        $rawArchiveName = basename(str_replace('\\', '/', (string) ($args['archive_name'] ?? 'archiv.zip')));
+        $archiveName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $rawArchiveName);
+        if (empty($archiveName) || $archiveName === '.' || $archiveName === '..') {
+            $archiveName = 'archiv.zip';
+        }
         if (!str_ends_with(strtolower($archiveName), '.zip')) {
             $archiveName .= '.zip';
         }

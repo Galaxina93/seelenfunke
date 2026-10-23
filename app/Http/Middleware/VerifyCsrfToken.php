@@ -13,6 +13,9 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         'stripe/*',
-        'api/ai/*',
+        'api/ai/verify-token',
+        'api/ai/save-live-transcript',
+        'api/ai/log/websocket',
+        'api/ai/twilio/call-log',
     ];
 }

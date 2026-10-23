@@ -25,7 +25,7 @@ class InvoiceDownloadController extends Controller
             $isAuthorized = true;
         } 
         // 2. Eingeloggter Kunde darf seine eigenen Rechnungen einsehen
-        elseif (\App\Services\AI\AiAuthHelper::isCustomer() && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id) {
+        elseif (\App\Services\AI\AiAuthHelper::isCustomer() && $invoice->customer_id !== null && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id) {
             $isAuthorized = true;
         } 
         // 3. Gültige kryptografische URL-Signatur (z. B. für Gastkunden via Mail)

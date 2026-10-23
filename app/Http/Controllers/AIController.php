@@ -40,8 +40,17 @@ class AIController extends Controller
         $args = $request->input('args', []);
 
         $sessionId = $request->input('chat_session_id') ?: $request->input('session_id');
+        $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
+        if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin() && $currentUserId) {
+            $foreignSession = \App\Models\Ai\AiChatSession::where('id', $sessionId)
+                ->where('user_id', '!=', $currentUserId)
+                ->exists();
+            if ($foreignSession) {
+                $sessionId = null;
+            }
+        }
         if (!$sessionId && \App\Services\AI\AiAuthHelper::check()) {
-            $userId = \App\Services\AI\AiAuthHelper::getUserId();
+            $userId = $currentUserId;
             $latestSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)
                 ->where('is_archived', false)
                 ->orderBy('updated_at', 'desc')
@@ -52,11 +61,6 @@ class AIController extends Controller
         }
         if ($sessionId) {
             config(['ai.current_session_id' => $sessionId]);
-            // Only set PHP session ID if it's not a database UUID/ID to avoid corrupting native sessions
-            if (strlen($sessionId) <= 40 && !str_contains($sessionId, '-')) {
-                session()->setId($sessionId);
-                session()->start();
-            }
         }
 
         $agentId = $request->input('agent_id');
@@ -133,11 +137,14 @@ class AIController extends Controller
         }
 
         // Clean history from frontend specific keys (name, color, icon, etc.) to prevent API schema validation errors
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
+        $allowedRoles = $isAdmin ? ['user', 'assistant', 'system', 'tool'] : ['user', 'assistant', 'tool'];
         $cleanHistory = [];
         foreach ($history as $msg) {
             $content = $msg['content'] ?? '';
+            $rawRole = strtolower(trim((string) ($msg['role'] ?? 'user')));
             $cleanMsg = [
-                'role' => $msg['role'] ?? 'user',
+                'role' => in_array($rawRole, $allowedRoles, true) ? $rawRole : 'user',
             ];
 
             // Image Extraction Support for Vision Models
@@ -150,26 +157,37 @@ class AIController extends Controller
                 if (!empty($textPart)) {
                     $contentArr[] = ['type' => 'text', 'text' => $textPart];
                 }
-                $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $imgUrl]];
+                if (str_starts_with($imgUrl, 'data:image/')) {
+                    $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $imgUrl]];
+                }
                 $cleanMsg['content'] = $contentArr;
             } else if (is_string($content) && str_contains($content, '[SYSTEM_IMAGE_PATH]: ')) {
                 $parts = explode('[SYSTEM_IMAGE_PATH]: ', $content);
                 $textPart = trim($parts[0]);
-                $imgPath = trim($parts[1]); 
+                $imgPath = ltrim(str_replace('\\', '/', trim($parts[1] ?? '')), '/');
 
                 $contentArr = [];
                 if (!empty($textPart)) {
                     $contentArr[] = ['type' => 'text', 'text' => $textPart];
                 }
 
-                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($imgPath)) {
+                $ext = strtolower(pathinfo($imgPath, PATHINFO_EXTENSION));
+                $isSafeImagePath = $imgPath !== ''
+                    && !str_contains($imgPath, '..')
+                    && !str_contains($imgPath, "\0")
+                    && str_starts_with($imgPath, 'agenten/workspace/')
+                    && in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true);
+
+                if ($isSafeImagePath && \Illuminate\Support\Facades\Storage::disk('public')->exists($imgPath)) {
                     $mimeType = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($imgPath);
-                    $base64 = base64_encode(\Illuminate\Support\Facades\Storage::disk('public')->get($imgPath));
-                    $dataUrl = "data:{$mimeType};base64,{$base64}";
-                    $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]];
+                    if (is_string($mimeType) && str_starts_with($mimeType, 'image/')) {
+                        $base64 = base64_encode(\Illuminate\Support\Facades\Storage::disk('public')->get($imgPath));
+                        $dataUrl = "data:{$mimeType};base64,{$base64}";
+                        $contentArr[] = ['type' => 'image_url', 'image_url' => ['url' => $dataUrl]];
+                    }
                 }
                 
-                $cleanMsg['content'] = $contentArr;
+                $cleanMsg['content'] = !empty($contentArr) ? $contentArr : $textPart;
             } else {
                 $cleanMsg['content'] = $content;
             }
@@ -231,17 +249,25 @@ class AIController extends Controller
 
         // Speichere finalen Dialog-Verlauf in der Datenbank
         $sessionId = $request->input('chat_session_id');
+        $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
+
+        if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            $existingSession = \App\Models\Ai\AiChatSession::find($sessionId);
+            if ($existingSession && $existingSession->user_id && (string) $existingSession->user_id !== (string) $currentUserId) {
+                $sessionId = null;
+            }
+        }
         
         if (!$sessionId) {
             $sessionId = session()->getId();
-            if (auth()->check()) {
-                $lastSession = \App\Models\Ai\AiChatSession::where('user_id', auth()->id())
+            if ($currentUserId) {
+                $lastSession = \App\Models\Ai\AiChatSession::where('user_id', $currentUserId)
                                  ->orderBy('updated_at', 'desc')
                                  ->first();
                 if ($lastSession) {
                     $sessionId = $lastSession->id;
                 } else {
-                    $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => auth()->id(), 'title' => 'Push-to-Talk Chat']);
+                    $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => $currentUserId, 'title' => 'Push-to-Talk Chat']);
                     $sessionId = $newSession->id;
                 }
             }
@@ -487,8 +513,18 @@ class AIController extends Controller
 
         // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert
         $sessionId = $request->input('chat_session_id');
+        $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
+        $isAdminUser = \App\Services\AI\AiAuthHelper::isAdmin();
+        if ($sessionId && !$isAdminUser && $currentUserId) {
+            $ownedSession = \App\Models\Ai\AiChatSession::where('id', $sessionId)
+                ->where('user_id', $currentUserId)
+                ->exists();
+            if (!$ownedSession) {
+                $sessionId = null;
+            }
+        }
         if (!$sessionId && \App\Services\AI\AiAuthHelper::check()) {
-            $userId = \App\Services\AI\AiAuthHelper::getUserId();
+            $userId = $currentUserId;
             $latestSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)
                 ->where('is_archived', false)
                 ->orderBy('updated_at', 'desc')
@@ -757,6 +793,12 @@ class AIController extends Controller
             $role = 'assistant';
         }
 
+        // Security: Prevent cross-user session transcript injection if session belongs to a different user
+        $targetSession = \App\Models\Ai\AiChatSession::find($sessionId);
+        if ($targetSession && !empty($targetSession->user_id) && !empty($userId) && (string) $targetSession->user_id !== (string) $userId) {
+            return response()->json(['error' => 'Session ownership mismatch'], 403);
+        }
+
         // Deduplication check: inspect recent messages for this session
         $recent = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
             ->where('role', $role)
@@ -879,8 +921,19 @@ class AIController extends Controller
      */
     public function history(Request $request)
     {
-        $userId = auth()->id();
+        $userId = \App\Services\AI\AiAuthHelper::getUserId() ?: auth()->id();
+        $isAdminUser = \App\Services\AI\AiAuthHelper::isAdmin();
         $sessionId = $request->input('chat_session_id');
+
+        if ($sessionId && !$isAdminUser) {
+            $chatSession = \App\Models\Ai\AiChatSession::find($sessionId);
+            if ($chatSession && (string) $chatSession->user_id !== (string) $userId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Kein Zugriff auf diese Chat-Session.'
+                ], 403);
+            }
+        }
 
         if (!$sessionId && $userId) {
             $lastSession = \App\Models\Ai\AiChatSession::where('user_id', $userId)

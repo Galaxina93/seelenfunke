@@ -149,7 +149,10 @@ function sendLogToBackend(type, message, actionId, payload = {}) {
     const backendUrl = process.env.APP_URL || 'http://localhost';
     fetch(`${backendUrl}/api/log/websocket`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
+        },
         body: JSON.stringify({
             type: type, // 'crash', 'error', 'info', 'warning'
             message: message,
@@ -426,7 +429,8 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
             },
             body: JSON.stringify(payload)
         })
@@ -830,7 +834,10 @@ function handleTwilioConnection(ws) {
         const backendUrl = process.env.APP_URL || 'http://localhost';
         fetch(`${backendUrl}/api/twilio/call-log`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
+            },
             body: payload
         }).catch(e => console.error("Error sending call log to backend:", e));
     };
@@ -1243,7 +1250,8 @@ wss.on('connection', (ws, req) => {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
             },
             body: JSON.stringify({ token: token }),
             signal: controller.signal
