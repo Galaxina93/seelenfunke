@@ -7,23 +7,36 @@ use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Carbon\Carbon;
 
 class GameGlobalStatsHeader extends Component
 {
+    #[Locked]
     public $level = 1;
+    #[Locked]
     public $balance = 0;
+    #[Locked]
     public $energyBalance = 5;
+    #[Locked]
     public $maxEnergy = 5;
+    #[Locked]
     public $progressPercentage = 0;
+    #[Locked]
     public $missingSparks = 0;
+    #[Locked]
     public $upgradeCost = 0;
+    #[Locked]
     public $canUpgrade = false;
+    #[Locked]
     public $isMaxLevel = false;
+    #[Locked]
     public $nextVoucherLevel = 5;
+    #[Locked]
     public $hasOptedIn = false;
 
+    #[Locked]
     public array $voucherMilestones = [5, 10, 15, 20, 30, 40, 50, 60, 80];
 
     public function mount(GamificationService $gameService)

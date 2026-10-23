@@ -105,17 +105,28 @@ this.highlightMat = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: tr
 
 start() {
 this.isProcessing = true;
-this.clearBoard();
+this.isRunning = true;
+window.__PauseBackgroundCanvas = true;
+this.clearBoard(false);
 this.fillBoard();
 
 while(this.findMatches().length > 0) {
-this.clearBoard();
+this.clearBoard(false);
 this.fillBoard();
 }
 this.isProcessing = false;
+if (!this.animationFrameId) this.animate();
 }
 
-clearBoard() {
+clearBoard(stopLoop = true) {
+if (stopLoop) {
+this.isRunning = false;
+window.__PauseBackgroundCanvas = false;
+if (this.animationFrameId) {
+cancelAnimationFrame(this.animationFrameId);
+this.animationFrameId = null;
+}
+}
 this.crystals.forEach(m => this.scene.remove(m));
 this.crystals = [];
 this.board = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
@@ -574,7 +585,11 @@ if (l.life <= 0) { this.scene.remove(l.mesh); this.lasers.splice(i, 1); }
 }
 
 animate() {
-requestAnimationFrame(() => this.animate());
+if (this.isRunning === false) {
+this.animationFrameId = null;
+return;
+}
+this.animationFrameId = requestAnimationFrame(() => this.animate());
 this.crystals.forEach(c => {
 c.rotation.x += 0.005; c.rotation.y += 0.01;
 if(c.userData.type === 8 && c.material.emissiveIntensity !== undefined) c.material.emissiveIntensity = 0.5 + Math.sin(Date.now() * 0.008) * 0.4;

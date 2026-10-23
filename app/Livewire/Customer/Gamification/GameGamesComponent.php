@@ -6,53 +6,77 @@ use App\Models\Customer\CustomerGamification;
 use App\Models\Marketing\MarketingVoucher;
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\GameConfig;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Carbon\Carbon;
 
 #[Layout('components.layouts.customer_layout')]
 class GameGamesComponent extends Component
 {
+    #[Locked]
     public $currentEnergy = 0;
+    #[Locked]
     public $timeUntilNextEnergy = '';
+    #[Locked]
     public $personalHighscoreFF = 0;
+    #[Locked]
     public $globalHighscoreFF = 0;
+    #[Locked]
     public $hasOptedIn = false;
 
+    #[Locked]
     public $currentRankName = 'Funken-Novize';
+    #[Locked]
     public $level = 1;
 
+    #[Locked]
     public $modelPath;
+    #[Locked]
     public $imagePath;
+    #[Locked]
     public $titlesData = [];
 
+    #[Locked]
     public $balance = 0;
+    #[Locked]
     public $energyBalance = 5;
+    #[Locked]
     public $maxEnergy = 5;
+    #[Locked]
     public $progressPercentage = 0;
+    #[Locked]
     public $missingSparks = 0;
+    #[Locked]
     public $upgradeCost = 0;
+    #[Locked]
     public $canUpgrade = false;
+    #[Locked]
     public $isMaxLevel = false;
 
+    #[Locked]
     public $activeTitleKey = null;
 
+    #[Locked]
     public $unlockedCoupons = [];
+    #[Locked]
     public $milestonesConfig = [];
     public $leftHandedMode = false;
 
     public function mount()
     {
         $user = Auth::guard('customer')->user();
-        if ($user) {
-            $profile = CustomerGamification::where('customer_id', $user->id)->first();
-            if ($profile && $profile->is_active) {
-                $this->hasOptedIn = true;
-                $gameService = app(GamificationService::class);
-                $this->loadGamificationData($gameService, $profile);
-            }
+        if (!$user) {
+            return redirect()->route('login');
+        }
+        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        if ($profile && $profile->is_active) {
+            $this->hasOptedIn = true;
+            $gameService = app(GamificationService::class);
+            $this->loadGamificationData($gameService, $profile);
         }
         $this->updateEnergyState();
     }
@@ -304,11 +328,13 @@ class GameGamesComponent extends Component
         $gameSession = session('active_game_session');
         if (!$gameSession || empty($gameSession['started_at'])) {
             \Log::warning("Manipulationsversuch: rewardGameSparks ohne aktive Spielsitzung (User: {$user->id})");
+            SystemSecurityService::logEvent('security:game_cheat_attempt', 'warning', 'Gamification: rewardGameSparks ohne aktive Spielsitzung aufgerufen.', ['user_id' => $user->id, 'amount' => $amount]);
             return;
         }
 
         if (($gameSession['user_id'] ?? null) !== $user->id) {
             \Log::warning("Manipulationsversuch: Ungültige User-ID in Spielsitzung (User: {$user->id})");
+            SystemSecurityService::logEvent('security:game_cheat_attempt', 'error', 'Gamification: Session-User-Mismatch bei rewardGameSparks.', ['user_id' => $user->id]);
             session()->forget('active_game_session');
             return;
         }
@@ -317,6 +343,7 @@ class GameGamesComponent extends Component
         // Mindestspieldauer für Kristall-Kollaps prüfen
         if ($elapsed < 5) {
             \Log::warning("Manipulationsversuch: rewardGameSparks zu schnell eingereicht ({$elapsed}s) von User {$user->id}");
+            SystemSecurityService::logEvent('security:game_cheat_attempt', 'warning', "Gamification: Kristall-Kollaps unplausibel schnell beendet ({$elapsed}s).", ['user_id' => $user->id, 'elapsed' => $elapsed]);
             session()->forget('active_game_session');
             return;
         }
@@ -349,11 +376,13 @@ class GameGamesComponent extends Component
         $gameSession = session('active_game_session');
         if (!$gameSession || empty($gameSession['started_at'])) {
             \Log::warning("Manipulationsversuch: saveGameRecord ohne aktive Spielsitzung (User: {$user->id})");
+            SystemSecurityService::logEvent('security:game_cheat_attempt', 'warning', 'Gamification: saveGameRecord ohne aktive Spielsitzung aufgerufen.', ['user_id' => $user->id, 'distance' => $distance, 'funken' => $funkenCollected]);
             return;
         }
 
         if (($gameSession['user_id'] ?? null) !== $user->id) {
             \Log::warning("Manipulationsversuch: Ungültige User-ID in Spielsitzung (User: {$user->id})");
+            SystemSecurityService::logEvent('security:game_cheat_attempt', 'error', 'Gamification: Session-User-Mismatch bei saveGameRecord.', ['user_id' => $user->id]);
             session()->forget('active_game_session');
             return;
         }
@@ -361,6 +390,7 @@ class GameGamesComponent extends Component
         $elapsed = now()->timestamp - (int)$gameSession['started_at'];
         if ($elapsed < 2) {
             \Log::warning("Manipulationsversuch: saveGameRecord zu schnell eingereicht ({$elapsed}s) von User {$user->id}");
+            SystemSecurityService::logEvent('security:game_cheat_attempt', 'warning', "Gamification: Funkenflug unplausibel schnell beendet ({$elapsed}s).", ['user_id' => $user->id, 'elapsed' => $elapsed]);
             session()->forget('active_game_session');
             return;
         }

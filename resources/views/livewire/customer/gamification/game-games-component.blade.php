@@ -341,7 +341,7 @@
 
         <div class="relative w-full flex-1 flex flex-col">
 
-            <div class="flex flex-col gap-6 lg:gap-8 flex-1 pb-10 transition-all duration-500" :class="gameState === 'ready' ? 'opacity-20 blur-md pointer-events-none grayscale-[50%]' : 'opacity-100 blur-0'">
+            <div class="flex flex-col gap-6 lg:gap-8 flex-1 pb-10 transition-opacity duration-500" :class="gameState === 'ready' ? 'opacity-20 blur-md pointer-events-none grayscale-[50%]' : 'opacity-100'">
 
 
                 {{-- MIDDLE: SPIELFELD --}}
@@ -377,7 +377,7 @@
 
                                 {{-- TOP LEFT: GESAMMELTE FUNKEN --}}
                                 <div class="absolute top-4 left-4 sm:top-6 sm:left-6 z-40 flex flex-col items-start gap-1 pointer-events-auto" x-show="gameState === 'playing'">
-                                    <div class="bg-gray-950/80 px-3 py-1.5 rounded-xl border border-gray-800 shadow-inner flex items-center gap-2 backdrop-blur-sm">
+                                    <div class="bg-gray-950/90 px-3 py-1.5 rounded-xl border border-gray-800 shadow-inner flex items-center gap-2">
                                         <span class="text-sm">✨</span>
                                         <span class="text-xs sm:text-sm font-bold text-amber-500" x-text="funkenCollected">0</span>
                                     </div>
@@ -385,9 +385,9 @@
 
                                 {{-- TOP CENTER: DISTANZ / REKORD --}}
                                 <div class="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 pointer-events-auto" x-show="gameState === 'playing'">
-                                    <p class="text-[8px] sm:text-[10px] text-gray-400 font-black uppercase tracking-widest bg-gray-900/60 px-3 py-0.5 rounded-full backdrop-blur-sm shadow-md">Distanz / Rekord</p>
+                                    <p class="text-[8px] sm:text-[10px] text-gray-400 font-black uppercase tracking-widest bg-gray-900/85 px-3 py-0.5 rounded-full shadow-md">Distanz / Rekord</p>
                                     <div class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white drop-shadow-md flex items-baseline gap-1">
-                                        <span x-text="distance" class="text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]"></span>
+                                        <span id="ff-hud-distance" x-text="distance" class="text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]">0</span>
                                         <span class="text-gray-500 text-sm sm:text-base">/ {{ $personalHighscoreFF }}</span>
                                     </div>
                                 </div>

@@ -208,18 +208,44 @@ window.funkenflugExpress = function() {
                 return;
             }
 
+            let lastAlpineSyncTime = 0;
+            let lastHudDist = -1;
+            let hudDistEl = null;
+
             const callbacks = {
                 onDistanceUpdate: (dist) => {
-                    this.distance = Math.floor(dist);
-                    // The instruction snippet had this.showUiMessage(text, color); here,
-                    // but 'text' and 'color' are not defined in this scope.
-                    // Assuming it was a placeholder or intended for a different context,
-                    // keeping the original distance update logic.
+                    const floored = Math.floor(dist);
+                    if (floored !== lastHudDist) {
+                        lastHudDist = floored;
+                        if (!hudDistEl || !hudDistEl.isConnected) {
+                            hudDistEl = document.getElementById('ff-hud-distance');
+                        }
+                        if (hudDistEl) {
+                            hudDistEl.textContent = floored;
+                        }
+                    }
+                    const now = performance.now();
+                    if (now - lastAlpineSyncTime >= 150 || floored === 0) {
+                        lastAlpineSyncTime = now;
+                        if (this.distance !== floored) {
+                            this.distance = floored;
+                        }
+                    }
                 },
                 onSparkCollected: () => {
                     this.funkenCollected += 1;
-                    this.distance += 25;
-                    if (window.ArcadeAudio) new window.ArcadeAudio().playPickup();
+                    if (engine) {
+                        engine.distance += 25;
+                        this.distance = Math.floor(engine.distance);
+                    } else {
+                        this.distance += 25;
+                    }
+                    if (!hudDistEl || !hudDistEl.isConnected) {
+                        hudDistEl = document.getElementById('ff-hud-distance');
+                    }
+                    if (hudDistEl) {
+                        hudDistEl.textContent = this.distance;
+                    }
                 },
                 onShieldUpdate: (energy) => {
                     this.shieldEnergy = Math.max(0, Math.floor(energy));
@@ -233,6 +259,9 @@ window.funkenflugExpress = function() {
                 },
                 onGameOver: () => {
                     if (this.gameState !== 'gameover') {
+                        if (engine) {
+                            this.distance = Math.floor(engine.distance);
+                        }
                         this.gameState = 'gameover';
                         
                         // Stop music

@@ -20,6 +20,28 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.isPointerDown = false;
         this.pointerPos = new THREE.Vector3(0, 0, 0);
 
+        // Pre-allocated Scratch Math Objects (Zero-GC in Game Loop & Touch Handlers)
+        this._rayVec = new THREE.Vector3();
+        this._rayDir = new THREE.Vector3();
+        this._z0Plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+        this._ray = new THREE.Ray();
+        this._intersectTarget = new THREE.Vector3();
+        this._bulletDefaultDir = new THREE.Vector3(0, 1, 0);
+        this._tempVec = new THREE.Vector3();
+        this._droneDir = new THREE.Vector3();
+        this.canvasRect = null;
+
+        // Real-time FPS & Frame-Time Telemetry
+        this.fps = 60;
+        this.frameTimeMs = 16.67;
+        this.minFps = 60;
+        this.maxFrameTimeMs = 0;
+        this.framesRendered = 0;
+        this._fpsAccumulator = 0;
+        this._fpsFrames = 0;
+        this.loadedModels = { rocket: false, meteor: false, sharp_stone: false };
+        window.__funkenflugEngine = this;
+
         // Pools
         this.pools = {
             bullets: [],
@@ -62,10 +84,18 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
         // Audio
         this.audio = new window.ArcadeAudio();
+        this.tpAudio = new Audio('{{ asset("shop/customer/gamification/sounds/teleport_active.mp3") }}');
+        this.tpAudio.preload = 'auto';
 
         this.initScene();
         this.loadAssets();
         this.setupInteractions();
+    }
+
+    updateCanvasRect() {
+        if (this.renderer && this.renderer.domElement) {
+            this.canvasRect = this.renderer.domElement.getBoundingClientRect();
+        }
     }
 
     resize() {
@@ -75,12 +105,15 @@ window.FunkenflugEngine = class FunkenflugEngine {
         if (w === 0 || h === 0) return; // Prevent NaN/Infinity aspect corruption
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(w, h);
+        this.renderer.setSize(w, h, false);
+        this.updateCanvasRect();
         
         // Update bounds asynchronously to ensure layout has settled
-        setTimeout(() => {
+        if (this._boundsTimeout) clearTimeout(this._boundsTimeout);
+        this._boundsTimeout = setTimeout(() => {
+            this.updateCanvasRect();
             this.updateBounds();
-        }, 100);
+        }, 60);
     }
 
     updateBounds() {
@@ -148,12 +181,17 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.camera.position.set(0, -15, 30);
         this.camera.lookAt(0, 5, 0);
 
-        // Turn off antialiasing on mobile for huge performance gain
-        this.renderer = new THREE.WebGLRenderer({ antialias: !this.isMobile, alpha: true });
-        this.renderer.setSize(w, h);
+        // Turn off antialiasing on mobile for huge performance gain, use high-performance GPU power preference
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: !this.isMobile,
+            alpha: false,
+            stencil: false,
+            powerPreference: 'high-performance'
+        });
+        this.renderer.setSize(w, h, false);
         
-        // Standard setup: Keep resolution sharp
-        const pixelRatio = this.isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.25);
+        // Standard setup: Crisp resolution on mobile and desktop without fragment shader overload
+        const pixelRatio = this.isMobile ? Math.min(window.devicePixelRatio || 1, 1.5) : Math.min(window.devicePixelRatio || 1, 1.5);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setClearColor(0x0f172a, 1);
 
@@ -242,76 +280,113 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 );
                 this.shipModel.scale.set(this.modelConfig.scale.x, this.modelConfig.scale.y, this.modelConfig.scale.z);
 
-                // Add emissive engine glow to materials
+                // Add emissive engine glow to materials & optimize texture sampling
                 this.shipModel.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = false;
+                        child.receiveShadow = false;
+                        child.frustumCulled = false;
                         if(child.material) {
                             const oldMat = child.material;
-                            child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
+                            if (oldMat.map) {
+                                oldMat.map.anisotropy = 1;
+                                oldMat.map.generateMipmaps = true;
+                            }
+                            child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map, toneMapped: false });
                         }
                     }
                 });
 
                 this.ship.add(this.shipModel);
+                this.loadedModels.rocket = true;
+                if (this.renderer) this.renderer.compile(this.scene, this.camera);
             }, undefined, (e) => { console.warn("Could not load rocket GLTF, using fallback."); });
 
-            // Load Meteor GLB (Skip on mobile for performance)
+            // Load Meteor GLB (Optimized ~335KB / 4.9k tris — enabled on both Mobile & Desktop!)
             this.meteorModel = null;
-            if (this.assets.meteor && !this.isMobile) {
+            if (this.assets.meteor) {
                 loader.load(this.assets.meteor, (gltf) => {
                     this.meteorModel = gltf.scene;
-                    // Standard scaling/rotation for meteor
                     this.meteorModel.scale.set(1.5, 1.5, 1.5);
+                    let sharedMeteorMat = null;
                     this.meteorModel.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = false;
                             child.receiveShadow = false;
+                            child.frustumCulled = false;
                             if (child.material) {
-                                const oldMat = child.material;
-                                child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
+                                if (!sharedMeteorMat) {
+                                    const oldMat = child.material;
+                                    if (oldMat.map) {
+                                        oldMat.map.anisotropy = 1;
+                                    }
+                                    sharedMeteorMat = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map, toneMapped: false });
+                                }
+                                child.material = sharedMeteorMat;
                             }
                         }
                     });
                     
-                    // ONCE IT LOADS: CLONE INTO ALL POOL ITEMS IMMEDIATELY
-                    this.pools.enemies.forEach(m => {
-                        if(m && m.userData) {
+                    // Clone into all pool items AND any currently active enemies
+                    const allEnemyContainers = [...this.pools.enemies, ...this.enemies];
+                    allEnemyContainers.forEach(m => {
+                        if(m && m.userData && !m.userData.meshGlbMeteor) {
                             let clone = this.meteorModel.clone();
-                            clone.visible = false;
+                            clone.visible = (m.visible && m.userData.type === 0);
+                            if (clone.visible && m.userData.fallbackNormal) {
+                                m.userData.fallbackNormal.visible = false;
+                                m.userData.activeMesh = clone;
+                            }
                             m.userData.meshGlbMeteor = clone;
                             m.add(clone);
                         }
                     });
+                    this.loadedModels.meteor = true;
+                    if (this.renderer) this.renderer.compile(this.scene, this.camera);
                 }, undefined, (e) => { console.warn("Could not load meteor GLTF."); });
             }
 
-            // Load Sharp Stone GLB (Skip on mobile for performance)
+            // Load Sharp Stone GLB (Optimized ~258KB / 4.9k tris — enabled on both Mobile & Desktop!)
             this.sharpstoneModel = null;
-            if (this.assets.sharp_stone && !this.isMobile) {
+            if (this.assets.sharp_stone) {
                 loader.load(this.assets.sharp_stone, (gltf) => {
                     this.sharpstoneModel = gltf.scene;
                     this.sharpstoneModel.scale.set(1.5, 1.5, 1.5);
+                    let sharedSharpMat = null;
                     this.sharpstoneModel.traverse((child) => {
                         if (child.isMesh) {
                             child.castShadow = false;
                             child.receiveShadow = false;
+                            child.frustumCulled = false;
                             if (child.material) {
-                                const oldMat = child.material;
-                                child.material = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map });
+                                if (!sharedSharpMat) {
+                                    const oldMat = child.material;
+                                    if (oldMat.map) {
+                                        oldMat.map.anisotropy = 1;
+                                    }
+                                    sharedSharpMat = new THREE.MeshBasicMaterial({ color: oldMat.color, map: oldMat.map, toneMapped: false });
+                                }
+                                child.material = sharedSharpMat;
                             }
                         }
                     });
                     
-                    // ONCE IT LOADS: CLONE INTO ALL POOL ITEMS IMMEDIATELY
-                    this.pools.enemies.forEach(m => {
-                        if(m && m.userData) {
+                    // Clone into all pool items AND any currently active enemies
+                    const allEnemyContainers = [...this.pools.enemies, ...this.enemies];
+                    allEnemyContainers.forEach(m => {
+                        if(m && m.userData && !m.userData.meshGlbSharp) {
                             let clone = this.sharpstoneModel.clone();
-                            clone.visible = false;
+                            clone.visible = (m.visible && m.userData.type === 1);
+                            if (clone.visible && m.userData.fallbackElite) {
+                                m.userData.fallbackElite.visible = false;
+                                m.userData.activeMesh = clone;
+                            }
                             m.userData.meshGlbSharp = clone;
                             m.add(clone);
                         }
                     });
+                    this.loadedModels.sharp_stone = true;
+                    if (this.renderer) this.renderer.compile(this.scene, this.camera);
                 }, undefined, (e) => { console.warn("Could not load sharp stone GLTF."); });
             }
         } else {
@@ -368,7 +443,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
     // --- POOL FACTORIES ---
     createBulletMesh() {
+        if (!this.matBulletGold) {
+            this.matBulletGold = new THREE.MeshBasicMaterial({ color: 0xfde047 });
+        }
         const m = new THREE.Mesh(this.geomBullet, this.matBullet);
+        m.frustumCulled = false;
+        m.userData = { dir: new THREE.Vector3(0, 1, 0) };
         m.visible = false; this.scene.add(m); return m;
     }
     createEnemyMesh(index) {
@@ -408,11 +488,13 @@ window.FunkenflugEngine = class FunkenflugEngine {
     }
     createCollectMesh() {
         const m = new THREE.Mesh(this.geomCollect, this.matCollect[0]);
+        m.frustumCulled = false;
         m.visible = false; m.userData = { type: 0, radius: 0.6 };
         this.scene.add(m); return m;
     }
     createParticleMesh() {
         const m = new THREE.Mesh(this.geomParticle, this.matParticleWhite);
+        m.frustumCulled = false;
         m.visible = false; m.userData = { vel: new THREE.Vector3(), life: 0 };
         this.scene.add(m); return m;
     }
@@ -434,51 +516,54 @@ window.FunkenflugEngine = class FunkenflugEngine {
         };
         this._kd = e => km(e, true); window.addEventListener('keydown', this._kd);
         this._ku = e => km(e, false); window.addEventListener('keyup', this._ku);
-
+        this._onScroll = () => this.updateCanvasRect();
+        window.addEventListener('scroll', this._onScroll, { passive: true });
 
         this.activeTouchId = null;
 
         // POINTER EVENTS (Desktop Mouse & Pen)
-        const onPointerMove = (e) => {
+        this._onPointerMove = (e) => {
             if (!this.isRunning) return;
             if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
-                this.updatePointerPos(e);
+                this.updateScreenCoords(e.clientX, e.clientY);
             }
         };
-        const onPointerDown = (e) => {
+        this._onPointerDown = (e) => {
             if (!this.isRunning) return;
             if (e.pointerType === 'mouse' || e.pointerType === 'pen') {
-                this.updatePointerPos(e);
+                this.updateCanvasRect();
+                this.updateScreenCoords(e.clientX, e.clientY);
                 if (this.activeSkills.teleport.waitingForClick) {
                     this.executeTeleport();
                 }
             }
         };
 
-        // TOUCH EVENTS (Mobile Multi-Touch)
-        const onTouchStart = (e) => {
+        // TOUCH EVENTS (Mobile Multi-Touch — Passive for Zero Compositor Lag)
+        this._onTouchStart = (e) => {
             if (!this.isRunning) return;
-            if (e.target.tagName === 'BUTTON') return; 
+            if (e.target && e.target.tagName === 'BUTTON') return; 
             
             if (this.activeTouchId === null && e.changedTouches.length > 0) {
+                this.updateCanvasRect();
                 this.activeTouchId = e.changedTouches[0].identifier;
-                this.updateTouchPos(e.changedTouches[0]);
+                this.updateScreenCoords(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
                 
                 if (this.activeSkills.teleport.waitingForClick) {
                     this.executeTeleport();
                 }
             }
         };
-        const onTouchMove = (e) => {
+        this._onTouchMove = (e) => {
             if (!this.isRunning || this.activeTouchId === null) return;
             for(let i=0; i<e.changedTouches.length; i++) {
                 if (e.changedTouches[i].identifier === this.activeTouchId) {
-                    this.updateTouchPos(e.changedTouches[i]);
+                    this.updateScreenCoords(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
                     break;
                 }
             }
         };
-        const onTouchEnd = (e) => {
+        this._onTouchEnd = (e) => {
             for(let i=0; i<e.changedTouches.length; i++) {
                 if (e.changedTouches[i].identifier === this.activeTouchId) {
                     this.activeTouchId = null;
@@ -487,107 +572,97 @@ window.FunkenflugEngine = class FunkenflugEngine {
             }
         };
 
-        this.container.addEventListener('pointerdown', onPointerDown);
-        window.addEventListener('pointermove', onPointerMove);
+        this.container.addEventListener('pointerdown', this._onPointerDown, { passive: true });
+        window.addEventListener('pointermove', this._onPointerMove, { passive: true });
         
-        this.container.addEventListener('touchstart', onTouchStart, {passive: false});
-        window.addEventListener('touchmove', onTouchMove, {passive: false});
-        window.addEventListener('touchend', onTouchEnd);
-        window.addEventListener('touchcancel', onTouchEnd);
+        this.container.addEventListener('touchstart', this._onTouchStart, { passive: true });
+        window.addEventListener('touchmove', this._onTouchMove, { passive: true });
+        window.addEventListener('touchend', this._onTouchEnd, { passive: true });
+        window.addEventListener('touchcancel', this._onTouchEnd, { passive: true });
+    }
+
+    updateScreenCoords(clientX, clientY) {
+        if (typeof clientX !== 'number' || typeof clientY !== 'number') return;
+        if (!this.canvasRect || this.canvasRect.width === 0 || this.canvasRect.height === 0) {
+            this.updateCanvasRect();
+            if (!this.canvasRect || this.canvasRect.width === 0 || this.canvasRect.height === 0) return;
+        }
+
+        const rect = this.canvasRect;
+        const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
+        const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        this._rayVec.set(nx, ny, 0.5).unproject(this.camera);
+        this._rayDir.copy(this._rayVec).sub(this.camera.position).normalize();
+        this._ray.set(this.camera.position, this._rayDir);
+        
+        if (this._ray.intersectPlane(this._z0Plane, this._intersectTarget)) {
+            this.pointerPos.x = this._intersectTarget.x;
+            this.pointerPos.y = this._intersectTarget.y + 5; // Offset because finger covers ship
+            this.pointerPos.z = 0;
+        }
     }
 
     updatePointerPos(e) {
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        if (typeof e.clientX !== 'number' || typeof e.clientY !== 'number') return;
-
-        const clientX = e.clientX;
-        const clientY = e.clientY;
-
-        const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
-        const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-        const vec = new THREE.Vector3(nx, ny, 0.5);
-        vec.unproject(this.camera);
-        const dir = vec.sub(this.camera.position).normalize();
-        
-        const z0plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-        const ray = new THREE.Ray(this.camera.position, dir);
-        const target = new THREE.Vector3();
-        
-        if (ray.intersectPlane(z0plane, target)) {
-            this.pointerPos.x = target.x;
-            this.pointerPos.y = target.y + 5; // Offset because finger covers ship
-            this.pointerPos.z = 0;
-        }
+        if (e) this.updateScreenCoords(e.clientX, e.clientY);
     }
 
     updateTouchPos(touch) {
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) return;
-        if (!touch || typeof touch.clientX !== 'number' || typeof touch.clientY !== 'number') return;
-
-        const clientX = touch.clientX;
-        const clientY = touch.clientY;
-
-        const nx = ((clientX - rect.left) / rect.width) * 2 - 1;
-        const ny = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-        const vec = new THREE.Vector3(nx, ny, 0.5);
-        vec.unproject(this.camera);
-        const dir = vec.sub(this.camera.position).normalize();
-        
-        const z0plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-        const ray = new THREE.Ray(this.camera.position, dir);
-        const target = new THREE.Vector3();
-        
-        if (ray.intersectPlane(z0plane, target)) {
-            this.pointerPos.x = target.x;
-            this.pointerPos.y = target.y + 5; // Offset because finger covers ship
-            this.pointerPos.z = 0;
-        }
+        if (touch) this.updateScreenCoords(touch.clientX, touch.clientY);
     }
 
     cleanup() {
         this.isRunning = false;
         this.isGameOver = true;
         this.isPaused = false;
+        window.__PauseBackgroundCanvas = false;
         if(this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+        if(this._settleInterval) clearInterval(this._settleInterval);
+        if(this._boundsTimeout) clearTimeout(this._boundsTimeout);
         window.removeEventListener('keydown', this._kd);
         window.removeEventListener('keyup', this._ku);
-        if(this._jts) {
-            const joyZone = document.getElementById('ff-joystick-zone');
-            if(joyZone){
-                 joyZone.removeEventListener('pointerdown', this._jts);
-                 joyZone.removeEventListener('pointermove', this._jtm);
-                 window.removeEventListener('pointerup', this._jte);
-                 window.removeEventListener('pointercancel', this._jte);
-            }
+        window.removeEventListener('scroll', this._onScroll);
+        window.removeEventListener('pointermove', this._onPointerMove);
+        window.removeEventListener('touchmove', this._onTouchMove);
+        window.removeEventListener('touchend', this._onTouchEnd);
+        window.removeEventListener('touchcancel', this._onTouchEnd);
+        if (this.container) {
+            this.container.removeEventListener('pointerdown', this._onPointerDown);
+            this.container.removeEventListener('touchstart', this._onTouchStart);
         }
         if(this.resizeObserver) this.resizeObserver.disconnect();
 
         if (this.scene) {
             this.scene.clear();
         }
-        if (this.renderer && this.renderer.domElement.parentNode) {
-            this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+        if (this.renderer) {
+            if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+                this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+            }
+            this.renderer.dispose();
         }
     }
 
     start() {
+        // Pause background decorative canvas during active gameplay for maximum mobile FPS
+        window.__PauseBackgroundCanvas = true;
+
         // Force a layout recalculation now that the game is fully visible
         this.resize();
         
         // Alpine transitions and flexbox layout might take a moment to settle.
-        // We poll resize for 1.5 seconds to guarantee the math perfectly matches the visual screen.
+        if (this._settleInterval) clearInterval(this._settleInterval);
         let resizeTicks = 0;
-        const settleInterval = setInterval(() => {
+        this._settleInterval = setInterval(() => {
             this.resize();
             resizeTicks++;
-            if (resizeTicks > 15) clearInterval(settleInterval);
+            if (resizeTicks > 10) {
+                clearInterval(this._settleInterval);
+                this._settleInterval = null;
+            }
         }, 100);
 
-        // Reset state
+        // Reset state & telemetry
         this.isRunning = true;
         this.isGameOver = false;
         this.isPaused = false;
@@ -595,6 +670,13 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.shieldHP = 0; // Starts at 0, goes to 100 when skill activated
         this.currentSpeed = this.baseSpeed;
         this.timeScale = 1.0;
+        this.fps = 60;
+        this.frameTimeMs = 16.67;
+        this.minFps = 60;
+        this.maxFrameTimeMs = 0;
+        this.framesRendered = 0;
+        this._fpsAccumulator = 0;
+        this._fpsFrames = 0;
         this.ship.position.set(0, -10, 0);
         this.shipTargetPos.set(0, -10, 0);
         this.pointerPos.set(0, -10, 0);
@@ -625,12 +707,17 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.callbacks.onShieldUpdate(this.shieldHP);
         this.callbacks.onDistanceUpdate(0);
 
+        if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
         this.animate();
     }
 
-    pause() { this.isPaused = true; }
+    pause() {
+        this.isPaused = true;
+        window.__PauseBackgroundCanvas = false;
+    }
     resume() {
         this.isPaused = false;
+        window.__PauseBackgroundCanvas = true;
         this.lastTime = performance.now(); // Prevents huge delta time jump
     }
 
@@ -709,10 +796,12 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.ship.position.copy(this.pointerPos);
         this.shipTargetPos.copy(this.pointerPos);
         
-        let tpAudio = new Audio('{{ asset("shop/customer/gamification/sounds/teleport_active.mp3") }}');
-        let vol = window.alpineComponentContext ? (window.alpineComponentContext.bgmVolumeUi / 100) : 0.5;
-        tpAudio.volume = Math.min(1.0, vol * 1.5); // Make it slightly louder than BGM
-        tpAudio.play().catch(e => console.warn(e));
+        if (this.tpAudio) {
+            let vol = window.alpineComponentContext ? (window.alpineComponentContext.bgmVolumeUi / 100) : 0.5;
+            this.tpAudio.volume = Math.min(1.0, vol * 1.5);
+            this.tpAudio.currentTime = 0;
+            this.tpAudio.play().catch(e => {});
+        }
 
         // Create warp particle effect
         for(let i=0; i<30; i++) { this.spawnParticle(this.ship.position, 0xc084fc); }
@@ -727,12 +816,32 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.animationFrameId = requestAnimationFrame(() => this.animate());
 
         const now = performance.now();
-        const dtRaw = Math.min((now - this.lastTime) / 1000, 0.1); // Max 100ms dt
+        const elapsedMs = now - this.lastTime;
+        const dtRaw = Math.min(elapsedMs / 1000, 0.1); // Max 100ms dt
         this.lastTime = now;
 
-        const dt = dtRaw * this.timeScale;
-
         if (this.isGameOver || this.isPaused) return; // Freeze processing
+
+        // FPS & Frame-Time Telemetry
+        if (elapsedMs > 0 && elapsedMs < 250) {
+            this.frameTimeMs = elapsedMs;
+            this.framesRendered++;
+            this._fpsAccumulator += elapsedMs;
+            this._fpsFrames++;
+            if (this.framesRendered > 10 && elapsedMs > this.maxFrameTimeMs) {
+                this.maxFrameTimeMs = elapsedMs;
+            }
+            if (this._fpsAccumulator >= 250) {
+                this.fps = Math.round((this._fpsFrames * 1000) / this._fpsAccumulator);
+                if (this.framesRendered > 30 && this.fps < this.minFps) {
+                    this.minFps = this.fps;
+                }
+                this._fpsAccumulator = 0;
+                this._fpsFrames = 0;
+            }
+        }
+
+        const dt = dtRaw * this.timeScale;
 
         // Progression
         if (this.timeScale === 1.0) {
@@ -746,21 +855,20 @@ window.FunkenflugEngine = class FunkenflugEngine {
             // Move exactly to pointer
             this.shipTargetPos.copy(this.pointerPos);
 
-            
-        // Bounds dynamically calculated from the camera frustum at Z=0 plane
-        if (this.bounds) {
-            let clampedX = Math.max(this.bounds.xMin, Math.min(this.bounds.xMax, this.shipTargetPos.x));
-            let clampedY = Math.max(this.bounds.yMin, Math.min(this.bounds.yMax, this.shipTargetPos.y));
-            this.shipTargetPos.x = isNaN(clampedX) ? 0 : clampedX;
-            this.shipTargetPos.y = isNaN(clampedY) ? 0 : clampedY;
-        } else {
-            this.shipTargetPos.x = Math.max(-15, Math.min(15, this.shipTargetPos.x));
-            this.shipTargetPos.y = Math.max(-5, Math.min(20, this.shipTargetPos.y));
-        }
+            // Bounds dynamically calculated from the camera frustum at Z=0 plane
+            if (this.bounds) {
+                let clampedX = Math.max(this.bounds.xMin, Math.min(this.bounds.xMax, this.shipTargetPos.x));
+                let clampedY = Math.max(this.bounds.yMin, Math.min(this.bounds.yMax, this.shipTargetPos.y));
+                this.shipTargetPos.x = isNaN(clampedX) ? 0 : clampedX;
+                this.shipTargetPos.y = isNaN(clampedY) ? 0 : clampedY;
+            } else {
+                this.shipTargetPos.x = Math.max(-15, Math.min(15, this.shipTargetPos.x));
+                this.shipTargetPos.y = Math.max(-5, Math.min(20, this.shipTargetPos.y));
+            }
         }
 
-        // Smooth translation
-        this.ship.position.lerp(this.shipTargetPos, 30 * dt); // Doubled lerp speed for instant reaction
+        // Smooth translation (clamped factor <= 1.0 for high-refresh 120Hz/60Hz stability)
+        this.ship.position.lerp(this.shipTargetPos, Math.min(1.0, 30 * dt));
 
         // Physik: Neigung und Rollen basierend auf der Bewegung
         const deltaX = this.shipTargetPos.x - this.ship.position.x;
@@ -774,21 +882,21 @@ window.FunkenflugEngine = class FunkenflugEngine {
             this.ship.rotation.y += 20 * dt; // Spin rapidly during ultimate
         } else {
             // Apply smoothly to parent group (so base config stays completely untouched)
-            this.ship.rotation.y += (targetRoll - this.ship.rotation.y) * 10 * dt;
+            this.ship.rotation.y += (targetRoll - this.ship.rotation.y) * Math.min(1.0, 10 * dt);
         }
-        this.ship.rotation.z += (targetYaw - this.ship.rotation.z) * 10 * dt;
-        this.ship.rotation.x += (targetPitch - this.ship.rotation.x) * 10 * dt;
+        this.ship.rotation.z += (targetYaw - this.ship.rotation.z) * Math.min(1.0, 10 * dt);
+        this.ship.rotation.x += (targetPitch - this.ship.rotation.x) * Math.min(1.0, 10 * dt);
 
-        // Firing Logic (Auto fire always active)
+        // Firing Logic (Auto fire always active, Zero-Allocation)
         let fireRate = this.activeSkills.multishoot.active ? (50 / this.timeScale) : (150 / this.timeScale);
         if (now - this.lastFireTime > fireRate) {
             let bulletsToFire = Math.floor((now - this.lastFireTime) / fireRate);
             bulletsToFire = Math.min(bulletsToFire, 3); // Prevent massive bursts on extreme lag
 
             for(let i = 0; i < bulletsToFire; i++) {
-                let offsetPos = this.ship.position.clone();
-                offsetPos.y += i * 2.0; // Space them out visually if firing multiple in one frame
-                this.fireBullet(offsetPos);
+                this._tempVec.copy(this.ship.position);
+                this._tempVec.y += i * 2.0; // Space them out visually if firing multiple in one frame
+                this.fireBullet(this._tempVec, this._bulletDefaultDir, 0x38bdf8);
             }
             this.lastFireTime = now;
         }
@@ -839,19 +947,17 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 this.activeSkills.shield.mesh.rotation.y += dt * 2;
                 this.activeSkills.shield.mesh.rotation.x += dt;
             }
-        } else {
-            // Natural shield regen? (Optional, skipping for now)
         }
 
         // Ultimate Drones
         if (this.activeSkills.ultimate.active) {
             this.activeSkills.ultimate.timer -= dt;
 
-            // Golden trail effect
-            let trailPos = this.ship.position.clone();
-            trailPos.x += (Math.random() - 0.5) * 1.5;
-            trailPos.y -= 1.0;
-            this.spawnParticle(trailPos, 0xfde047, 0.8);
+            // Golden trail effect (Zero-Allocation)
+            this._tempVec.copy(this.ship.position);
+            this._tempVec.x += (Math.random() - 0.5) * 1.5;
+            this._tempVec.y -= 1.0;
+            this.spawnParticle(this._tempVec, 0xfde047, 1);
 
             if (this.activeSkills.ultimate.timer <= 0) {
                 this.activeSkills.ultimate.active = false;
@@ -875,7 +981,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 // Drone movement and firing taking into timescale
                 const droneDt = dt * (this.timeScale === 0.1 ? 10 : 1); // Drones ignore slow-mo!
 
-                this.drones.forEach(d => {
+                for (let di = 0; di < this.drones.length; di++) {
+                    const d = this.drones[di];
                     d.userData.offsetAngle += droneDt * 3;
                     d.position.x = this.ship.position.x + Math.cos(d.userData.offsetAngle) * 3;
                     d.position.y = this.ship.position.y + Math.sin(d.userData.offsetAngle) * 3;
@@ -884,18 +991,22 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     if (now - d.userData.lastFire > 150) {
                         // Find closest enemy
                         let closest = null, minDist = 10000;
-                        this.enemies.forEach(em => {
-                            let dist = em.position.distanceToSquared(d.position);
-                            if (dist < minDist && em.position.y > d.position.y - 5) { minDist = dist; closest = em; }
-                        });
+                        for (let ei = 0; ei < this.enemies.length; ei++) {
+                            const em = this.enemies[ei];
+                            const dist = em.position.distanceToSquared(d.position);
+                            if (dist < minDist && em.position.y > d.position.y - 5) {
+                                minDist = dist;
+                                closest = em;
+                            }
+                        }
 
                         if (closest) {
-                            let dir = closest.position.clone().sub(d.position).normalize();
-                            this.fireBullet(d.position, dir, 0xfde047);
+                            this._droneDir.copy(closest.position).sub(d.position).normalize();
+                            this.fireBullet(d.position, this._droneDir, 0xfde047);
                             d.userData.lastFire = now;
                         }
                     }
-                });
+                }
             }
         }
     }
@@ -1005,19 +1116,29 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
     }
 
-    fireBullet(pos, dir = new THREE.Vector3(0,1,0), color = 0x38bdf8) {
+    fireBullet(pos, dir, color = 0x38bdf8) {
         if(this.pools.bullets.length > 0) {
             let m = this.pools.bullets.pop();
             m.position.copy(pos);
             m.position.y += 1.0;
-            m.userData.dir = dir;
-            m.material.color.setHex(color);
+            m.userData.dir.copy(dir || this._bulletDefaultDir);
+            m.material = (color === 0xfde047 && this.matBulletGold) ? this.matBulletGold : this.matBullet;
             m.visible = true;
             this.bullets.push(m);
         }
     }
 
+    _removeAtSwap(arr, index) {
+        const last = arr.length - 1;
+        if (index !== last) {
+            arr[index] = arr[last];
+        }
+        arr.pop();
+    }
+
     updateEntities(dt) {
+        const now = this.lastTime || performance.now();
+
         // --- Exhaust Particles (Fire) ---
         if (Math.random() < 0.6) {
             if(this.pools.particles.length > 0) {
@@ -1045,7 +1166,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
             let b = this.bullets[i];
             b.position.addScaledVector(b.userData.dir, 120 * dt);
             if(b.position.y > 60 || b.position.y < -30 || b.position.x > 80 || b.position.x < -80) {
-                b.visible = false; this.pools.bullets.push(b); this.bullets.splice(i, 1);
+                b.visible = false;
+                this.pools.bullets.push(b);
+                this._removeAtSwap(this.bullets, i);
             }
         }
 
@@ -1059,7 +1182,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
             
             // Drift / Zick-Zack logic
             if (e.userData.driftSpeed > 0 && !e.userData.isWall) {
-                let elapsed = (performance.now() - e.userData.spawnTime) / 1000;
+                let elapsed = (now - e.userData.spawnTime) / 1000;
                 e.position.x = e.userData.baseX + (Math.sin(elapsed * e.userData.driftSpeed) * e.userData.driftRange);
             }
             
@@ -1073,17 +1196,20 @@ window.FunkenflugEngine = class FunkenflugEngine {
             if(e.position.y < -20) {
                 e.visible = false; 
                 this.pools.enemies.push(e); 
-                this.enemies.splice(i, 1);
+                this._removeAtSwap(this.enemies, i);
             }
         }
 
         // Collectibles
+        const pulseScale = 1.0 + Math.sin(now * 0.01) * 0.2;
         for(let i=this.collectibles.length-1; i>=0; i--) {
             let c = this.collectibles[i];
             c.position.y -= baseFallSpeed;
-            c.scale.setScalar(1.0 + Math.sin(performance.now() * 0.01) * 0.2); // Pulse
+            c.scale.setScalar(pulseScale);
             if(c.position.y < -20) {
-                c.visible = false; this.pools.collectibles.push(c); this.collectibles.splice(i, 1);
+                c.visible = false;
+                this.pools.collectibles.push(c);
+                this._removeAtSwap(this.collectibles, i);
             }
         }
 
@@ -1092,7 +1218,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
             let p = this.particles[i];
             p.userData.life -= dt * 2.0;
             if(p.userData.life <= 0) {
-                p.visible = false; this.pools.particles.push(p); this.particles.splice(i, 1);
+                p.visible = false;
+                this.pools.particles.push(p);
+                this._removeAtSwap(this.particles, i);
             } else {
                 p.position.addScaledVector(p.userData.vel, dt);
                 p.scale.setScalar(p.userData.life);
@@ -1111,10 +1239,11 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 const dy = b.position.y - em.position.y;
                 
                 // Stretch hitbox vertically slightly based on bullet speed to prevent phasing through enemies at low fps
-                let speedStretch = b.userData.dir.y * 120 * (1/60) * 0.5; // rough half-frame travel distance
+                let speedStretch = b.userData.dir.y * 120 * (1/60) * 0.5;
                 let dyStretched = Math.max(0, Math.abs(dy) - Math.abs(speedStretch));
+                const rSum = em.userData.radius + 0.8;
 
-                if ((dx * dx + dyStretched * dyStretched) < Math.pow(em.userData.radius + 0.8, 2)) {
+                if ((dx * dx + dyStretched * dyStretched) < (rSum * rSum)) {
                     hit = true;
                     // Apply DMG
                     em.userData.hp -= 1;
@@ -1128,14 +1257,17 @@ window.FunkenflugEngine = class FunkenflugEngine {
                 }
             }
             if(hit) {
-                b.visible = false; this.pools.bullets.push(b); this.bullets.splice(i, 1);
+                b.visible = false;
+                this.pools.bullets.push(b);
+                this._removeAtSwap(this.bullets, i);
             }
         }
 
         // Check Ship vs Collectibles
         for(let i=this.collectibles.length-1; i>=0; i--) {
             let c = this.collectibles[i];
-            if (this.ship.position.distanceToSquared(c.position) < Math.pow(this.shipBounds + c.userData.radius, 2)) {
+            const rSum = this.shipBounds + c.userData.radius;
+            if (this.ship.position.distanceToSquared(c.position) < (rSum * rSum)) {
 
                 // Collect effect
                 for(let k=0; k<10; k++) this.spawnParticle(c.position, c.material.color.getHex());
@@ -1148,7 +1280,9 @@ window.FunkenflugEngine = class FunkenflugEngine {
                     this.audio.playPickup();
                 }
 
-                c.visible = false; this.pools.collectibles.push(c); this.collectibles.splice(i, 1);
+                c.visible = false;
+                this.pools.collectibles.push(c);
+                this._removeAtSwap(this.collectibles, i);
             }
         }
 
@@ -1168,7 +1302,8 @@ window.FunkenflugEngine = class FunkenflugEngine {
             if (em.userData.isWall) {
                 if (Math.abs(dx) < 16 + collisionDist && Math.abs(dy) < 0.75 + collisionDist) hit = true;
             } else {
-                if ((dx * dx + dy * dy) < Math.pow(collisionDist + em.userData.radius, 2)) hit = true;
+                const rSum = collisionDist + em.userData.radius;
+                if ((dx * dx + dy * dy) < (rSum * rSum)) hit = true;
             }
 
             if (hit) {
@@ -1204,7 +1339,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
 
         enemyMesh.visible = false;
         this.pools.enemies.push(enemyMesh);
-        this.enemies.splice(index, 1);
+        this._removeAtSwap(this.enemies, index);
 
         // Small chance to drop collectible
         if (Math.random() < 0.2) {
@@ -1247,9 +1382,35 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
     }
 
+    getPerformanceMetrics() {
+        return {
+            fps: this.fps,
+            minFps: this.minFps,
+            frameTimeMs: Number(this.frameTimeMs.toFixed(2)),
+            maxFrameTimeMs: Number(this.maxFrameTimeMs.toFixed(2)),
+            framesRendered: this.framesRendered,
+            loadedModels: this.loadedModels,
+            isMobile: this.isMobile,
+            activeEntities: {
+                bullets: this.bullets.length,
+                enemies: this.enemies.length,
+                particles: this.particles.length,
+                collectibles: this.collectibles.length,
+                drones: this.drones.length
+            },
+            renderInfo: this.renderer ? {
+                calls: this.renderer.info.render.calls,
+                triangles: this.renderer.info.render.triangles,
+                geometries: this.renderer.info.memory.geometries,
+                textures: this.renderer.info.memory.textures
+            } : null
+        };
+    }
+
     triggerGameOver() {
         this.isRunning = false;
         this.isGameOver = true;
+        window.__PauseBackgroundCanvas = false;
         this.callbacks.onGameOver();
     }
 };

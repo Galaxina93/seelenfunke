@@ -1,9 +1,12 @@
 <style>
-    #threejs-match3-container canvas {
+    #threejs-match3-container canvas,
+    #funkenflug-container canvas {
         position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 10;
         display: block; width: 100% !important; height: 100% !important; outline: none;
         touch-action: none; /* WICHTIG FÜR MOBILE DRAG AND DROP */
         -webkit-user-select: none; user-select: none;
+        transform: translateZ(0);
+        will-change: transform;
     }
     .floating-score {
         position: absolute; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 900; font-size: 1.5rem;

@@ -9,37 +9,59 @@ use App\Services\Gamification\GameConfig;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Carbon\Carbon;
 
 #[Layout('components.layouts.customer_layout')]
 class GameProfileComponent extends Component
 {
+    #[Locked]
     public $currentEnergy = 0;
+    #[Locked]
     public $timeUntilNextEnergy = '';
+    #[Locked]
     public $personalHighscoreFF = 0;
+    #[Locked]
     public $globalHighscoreFF = 0;
+    #[Locked]
     public $hasOptedIn = false;
 
+    #[Locked]
     public $currentRankName = 'Funken-Novize';
+    #[Locked]
     public $level = 1;
 
+    #[Locked]
     public $modelPath;
+    #[Locked]
     public $imagePath;
+    #[Locked]
     public $titlesData = [];
 
+    #[Locked]
     public $balance = 0;
+    #[Locked]
     public $energyBalance = 5;
+    #[Locked]
     public $maxEnergy = 5;
+    #[Locked]
     public $progressPercentage = 0;
+    #[Locked]
     public $missingSparks = 0;
+    #[Locked]
     public $upgradeCost = 0;
+    #[Locked]
     public $canUpgrade = false;
+    #[Locked]
     public $isMaxLevel = false;
 
+    #[Locked]
     public $activeTitleKey = null;
 
+    #[Locked]
     public $unlockedCoupons = [];
+    #[Locked]
     public $milestonesConfig = [];
 
     public function mount()

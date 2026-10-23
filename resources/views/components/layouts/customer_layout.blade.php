@@ -233,16 +233,18 @@
                 }
 
                 const loop = () => {
-                    ctx.clearRect(0, 0, width, height);
-                    stars.forEach(s => {
-                        s.angle += s.speed;
-                        let currentAlpha = s.baseAlpha + Math.sin(s.angle) * 0.3;
-                        if (currentAlpha < 0) currentAlpha = 0;
-                        s.x -= 0.1;
-                        if (s.x < 0) s.x = width;
-                        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(${config.color}, ${currentAlpha})`; ctx.fill();
-                    });
+                    if (!window.__PauseBackgroundCanvas && !document.hidden) {
+                        ctx.clearRect(0, 0, width, height);
+                        stars.forEach(s => {
+                            s.angle += s.speed;
+                            let currentAlpha = s.baseAlpha + Math.sin(s.angle) * 0.3;
+                            if (currentAlpha < 0) currentAlpha = 0;
+                            s.x -= 0.1;
+                            if (s.x < 0) s.x = width;
+                            ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                            ctx.fillStyle = `rgba(${config.color}, ${currentAlpha})`; ctx.fill();
+                        });
+                    }
                     requestAnimationFrame(loop);
                 }; loop();
             }

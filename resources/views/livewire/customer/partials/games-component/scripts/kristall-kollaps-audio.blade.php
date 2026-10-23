@@ -1,7 +1,27 @@
 window.ArcadeAudio = class ArcadeAudio {
-constructor() { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+constructor() {
+    if (window.__sharedArcadeAudioCtx) {
+        this.ctx = window.__sharedArcadeAudioCtx;
+    } else {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        this.ctx = AudioCtx ? new AudioCtx() : null;
+        window.__sharedArcadeAudioCtx = this.ctx;
+    }
+    if (this.ctx && !window.__sharedArcadeNoiseBuffer) {
+        const maxNoiseDur = 0.45;
+        const bufferSize = Math.floor(this.ctx.sampleRate * maxNoiseDur);
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        window.__sharedArcadeNoiseBuffer = buffer;
+    }
+    this.noiseBuffer = window.__sharedArcadeNoiseBuffer || null;
+}
 
 playTone(freq, type, duration, vol = 0.1) {
+if(!this.ctx) return;
 if(this.ctx.state === 'suspended') this.ctx.resume();
 const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
 osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
@@ -13,6 +33,7 @@ playSwap() { this.playTone(300, 'sine', 0.1, 0.05); setTimeout(() => this.playTo
 playMatch() { this.playTone(523.25, 'sine', 0.3, 0.1); this.playTone(659.25, 'sine', 0.3, 0.1); this.playTone(783.99, 'sine', 0.4, 0.1); }
 
 playLaser() {
+if(!this.ctx) return;
 if(this.ctx.state === 'suspended') this.ctx.resume();
 const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
 osc.type = 'sawtooth'; osc.frequency.setValueAtTime(800, this.ctx.currentTime);
@@ -23,6 +44,7 @@ osc.connect(gain); gain.connect(this.ctx.destination); osc.start(); osc.stop(thi
 
 playShoot() { this.playTone(600, 'square', 0.1, 0.02); }
 playExplosion() { 
+    if(!this.ctx) return;
     if(this.ctx.state === 'suspended') this.ctx.resume();
     const now = this.ctx.currentTime;
     
@@ -61,15 +83,10 @@ playExplosion() {
     osc.start(now); 
     osc.stop(now + dropTime + 0.1);
 
-    // 2. Mattes, kurzes Rauschen ("Puff"-Geräusch)
-    const bufferSize = Math.floor(this.ctx.sampleRate * noiseDur);
-    if (bufferSize > 0) {
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
-        
+    // 2. Mattes, kurzes Rauschen ("Puff"-Geräusch) aus gecachtem Buffer (Zero-Allocation!)
+    if (this.noiseBuffer) {
         const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
+        noise.buffer = this.noiseBuffer;
         
         const noiseFilter = this.ctx.createBiquadFilter();
         noiseFilter.type = 'lowpass';
@@ -83,11 +100,12 @@ playExplosion() {
         noise.connect(noiseFilter);
         noiseFilter.connect(noiseGain);
         noiseGain.connect(this.ctx.destination);
-        noise.start(now);
+        noise.start(now, 0, noiseDur);
     }
 }
 playPickup() { this.playTone(800, 'sine', 0.1, 0.05); setTimeout(() => this.playTone(1200, 'sine', 0.1, 0.05), 100); }
 playTeleport() {
+    if(!this.ctx) return;
     if(this.ctx.state === 'suspended') this.ctx.resume();
     const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
     osc.type = 'sine'; osc.frequency.setValueAtTime(200, this.ctx.currentTime);
