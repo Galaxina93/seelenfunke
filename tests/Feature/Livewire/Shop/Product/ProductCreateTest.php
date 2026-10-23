@@ -306,4 +306,41 @@ class ProductCreateTest extends TestCase
             ->assertSee('Physical Book')
             ->assertDontSee('Ebook PDF');
     }
+
+    #[Test]
+    public function it_switches_and_persists_layout_mode_for_product_overview()
+    {
+        Product::create([
+            'name' => 'Ansichts-Testprodukt',
+            'slug' => 'ansichts-testprodukt',
+            'sku' => 'VIEW-001',
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2990,
+            'completion_step' => 4,
+        ]);
+
+        // Default layout is 'large' and renders all 3 view toggle buttons
+        Livewire::test(ProductCreate::class)
+            ->assertSet('layoutMode', 'large')
+            ->assertSee('Groß')
+            ->assertSee('Mittel')
+            ->assertSee('Liste')
+            ->call('setLayoutMode', 'medium')
+            ->assertSet('layoutMode', 'medium')
+            ->call('setLayoutMode', 'list')
+            ->assertSet('layoutMode', 'list')
+            ->call('setLayoutMode', 'invalid_mode')
+            ->assertSet('layoutMode', 'list');
+
+        $this->assertDatabaseHas('shop_settings', [
+            'key' => 'admin_products_layout_mode',
+            'value' => 'list',
+        ]);
+
+        // Fresh component mount automatically restores the saved layout mode from SystemSetting
+        Livewire::test(ProductCreate::class)
+            ->assertSet('layoutMode', 'list')
+            ->assertSee('Ansichts-Testprodukt');
+    }
 }

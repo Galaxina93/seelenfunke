@@ -14,7 +14,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}?v=2">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}?v=2">
 
-    <link href="{{ asset('css/app.css') }}" rel="stylesheet">
+    <link href="{{ asset('css/app.css') }}?v={{ file_exists(public_path('css/app.css')) ? filemtime(public_path('css/app.css')) : 1 }}" rel="stylesheet">
     <script src="{{ mix('js/app.js') }}" defer></script>
     <script src="{{ mix('js/admin-bundle.js') }}" defer></script>
     <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>

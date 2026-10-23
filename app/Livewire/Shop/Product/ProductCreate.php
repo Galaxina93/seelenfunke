@@ -22,6 +22,7 @@ class ProductCreate extends Component
     public string $themingDepartment = 'Produkte';
 
     public $viewMode = 'list';
+    public string $layoutMode = 'large'; // 'large' (Groß), 'medium' (Mittel), 'list' (Listenansicht)
     public $showArchived = false;
     public Product $product;
 
@@ -150,8 +151,27 @@ class ProductCreate extends Component
             abort(403, 'Zugriff verweigert.');
         }
 
+        $savedLayout = \App\Models\System\SystemSetting::where('key', 'admin_products_layout_mode')->value('value');
+        if (in_array($savedLayout, ['large', 'medium', 'list'], true)) {
+            $this->layoutMode = $savedLayout;
+        }
+
         // Wenn es ein neues Produkt ist oder ein bestehendes geladen wird:
         $this->configSettings = $configService->mergeWithDefaults($this->product->config_settings ?? []);
+    }
+
+    public function setLayoutMode(string $mode): void
+    {
+        if (!in_array($mode, ['large', 'medium', 'list'], true)) {
+            return;
+        }
+
+        $this->layoutMode = $mode;
+
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'admin_products_layout_mode'],
+            ['value' => $mode]
+        );
     }
 
     #[On('product-updated')]

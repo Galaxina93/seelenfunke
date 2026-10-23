@@ -1,7 +1,11 @@
-<div>
+@php
+    $currentLayout = in_array($layoutMode ?? 'large', ['large', 'medium', 'list'], true) ? $layoutMode : 'large';
+@endphp
+
+<div x-data x-init="try { const saved = localStorage.getItem('admin_products_layout_mode'); if (saved && ['large', 'medium', 'list'].includes(saved) && saved !== '{{ $currentLayout }}') { $wire.setLayoutMode(saved); } else { localStorage.setItem('admin_products_layout_mode', '{{ $currentLayout }}'); } } catch (e) {}">
 
     {{-- HEADER BEREICH --}}
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6 animate-fade-in-up">
+    <div class="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-10 gap-6 animate-fade-in-up">
         <div>
             <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white mb-2 tracking-tight">Deine Kollektion</h1>
             <div class="flex items-center gap-4 text-gray-600 dark:text-gray-400">
@@ -12,7 +16,57 @@
             </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+        <div class="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4 w-full xl:w-auto">
+            {{-- ANSICHTSAUSWAHL (Groß / Mittel / Liste) --}}
+            <div class="inline-flex items-center p-1.5 bg-white dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] dark:shadow-inner self-start sm:self-auto" role="group" aria-label="Ansichtsauswahl">
+                {{-- Groß (Standard) --}}
+                <button type="button"
+                        wire:click="setLayoutMode('large')"
+                        onclick="try { localStorage.setItem('admin_products_layout_mode', 'large'); } catch (e) {}"
+                        class="px-3.5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'large' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        title="Große Kachelansicht">
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    </svg>
+                    <span>Groß</span>
+                </button>
+
+                {{-- Mittel --}}
+                <button type="button"
+                        wire:click="setLayoutMode('medium')"
+                        onclick="try { localStorage.setItem('admin_products_layout_mode', 'medium'); } catch (e) {}"
+                        class="px-3.5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'medium' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        title="Mittlere Kachelansicht">
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="4.5" height="4.5" rx="1" />
+                        <rect x="9.75" y="3" width="4.5" height="4.5" rx="1" />
+                        <rect x="16.5" y="3" width="4.5" height="4.5" rx="1" />
+                        <rect x="3" y="9.75" width="4.5" height="4.5" rx="1" />
+                        <rect x="9.75" y="9.75" width="4.5" height="4.5" rx="1" />
+                        <rect x="16.5" y="9.75" width="4.5" height="4.5" rx="1" />
+                        <rect x="3" y="16.5" width="4.5" height="4.5" rx="1" />
+                        <rect x="9.75" y="16.5" width="4.5" height="4.5" rx="1" />
+                        <rect x="16.5" y="16.5" width="4.5" height="4.5" rx="1" />
+                    </svg>
+                    <span>Mittel</span>
+                </button>
+
+                {{-- Listenansicht --}}
+                <button type="button"
+                        wire:click="setLayoutMode('list')"
+                        onclick="try { localStorage.setItem('admin_products_layout_mode', 'list'); } catch (e) {}"
+                        class="px-3.5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 {{ $currentLayout === 'list' ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        title="Listenansicht">
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <span>Liste</span>
+                </button>
+            </div>
+
             {{-- SUCHE --}}
             <div class="relative w-full sm:w-72 group">
                 <input type="text" wire:model.live="search" placeholder="Produkt suchen..."
@@ -59,173 +113,335 @@
             $threshold = \App\Models\System\SystemSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5;
         @endphp
 
-        {{-- PRODUKT GRID --}}
-        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8 animate-fade-in-up" style="animation-delay: 100ms;">
-            @foreach($products as $prod)
-                {{-- Logik für Steps berechnen --}}
-                @php
-                    $isPhysical = $prod->type === 'physical';
-                    $maxSteps = $isPhysical ? 4 : 3;
-                    $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
-                    $isComplete = $prod->completion_step >= $maxSteps;
-                @endphp
+        @if($currentLayout === 'list')
+            {{-- ===================================================================== --}}
+            {{-- 1. LISTENANSICHT (KOMPAKTE ZEILEN)                                    --}}
+            {{-- ===================================================================== --}}
+            <div wire:key="products-layout-list" class="flex flex-col gap-3 animate-fade-in-up" style="animation-delay: 100ms;">
+                @foreach($products as $prod)
+                    @php
+                        $isPhysical = $prod->type === 'physical';
+                        $maxSteps = $isPhysical ? 4 : 3;
+                        $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
+                        $isComplete = $prod->completion_step >= $maxSteps;
+                    @endphp
 
-                <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-5 sm:p-6 rounded-[2.5rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl hover:border-gray-300 dark:hover:border-gray-700 dark:hover:shadow-[0_0_40px_rgba(0,0,0,0.6)] transition-all duration-300 flex flex-col h-full relative overflow-hidden group">
+                    <div wire:key="product-list-row-{{ $prod->id }}"
+                         class="bg-white dark:bg-gray-900/80 backdrop-blur-md p-4 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-xl hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-300 flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative overflow-hidden group">
 
-                    {{-- Fortschrittsbalken Oben --}}
-                    <div class="absolute top-0 left-0 w-full h-1 bg-gray-100 dark:bg-gray-950 z-30">
-                        <div class="h-full transition-all duration-500 {{ $isComplete ? 'bg-[var(--theme-color)] dark:shadow-[0_0_10px_rgba(197,160,89,0.8)]' : 'bg-red-500 dark:shadow-[0_0_10px_rgba(239,68,68,0.8)]' }}" style="width: {{ $percentComplete }}%"></div>
-                    </div>
-
-                    {{-- Status Switcher --}}
-                    <div class="absolute top-6 right-6 z-20" x-data="{ open: false }">
-                        <button @click="open = !open" @click.away="open = false" class="px-3.5 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl border shadow-sm flex items-center gap-2 transition-all backdrop-blur-md {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-white dark:bg-gray-950/80 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
-                            <span class="w-1.5 h-1.5 rounded-full {{ $prod->status == 'active' ? 'bg-emerald-500 dark:shadow-[0_0_8px_currentColor] animate-pulse' : 'bg-gray-400 dark:bg-gray-500' }}"></span>
-                            {{ $prod->status == 'active' ? 'Aktiv' : 'Entwurf' }}
-                            <svg class="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-
-                        <div x-show="open" class="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-950 rounded-2xl shadow-xl dark:shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-gray-200 dark:border-gray-800 overflow-hidden z-30" style="display: none;" x-transition>
-                            <button wire:click="updateStatus('{{ $prod->id }}', 'active'); open = false" class="w-full text-left px-5 py-3.5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-emerald-700 dark:text-emerald-400 border-b border-gray-200 dark:border-gray-800 transition-colors flex items-center gap-2">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktiv
-                            </button>
-                            <button wire:click="updateStatus('{{ $prod->id }}', 'draft'); open = false" class="w-full text-left px-5 py-3.5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-500 transition-colors flex items-center gap-2">
-                                <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500"></span> Entwurf
-                            </button>
+                        {{-- Fortschrittsbalken Links --}}
+                        <div class="absolute top-0 left-0 w-1.5 h-full bg-gray-100 dark:bg-gray-950 z-20">
+                            <div class="w-full transition-all duration-500 {{ $isComplete ? 'bg-[var(--theme-color)]' : 'bg-red-500' }}" style="height: {{ $percentComplete }}%"></div>
                         </div>
-                    </div>
 
-                    {{-- Bild mit Schleifen --}}
-                    <div class="aspect-square bg-gray-100 dark:bg-gray-950 rounded-[1.5rem] mb-6 overflow-hidden relative mt-2 border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
-
-                        {{-- BLAUE SCHLEIFE: DIGITAL --}}
-                        @if($prod->type === 'digital')
-                            <div class="absolute top-7 -left-12 z-10 pointer-events-none">
-                                <div class="bg-blue-600/90 backdrop-blur-sm text-white text-[9px] font-black py-1.5 w-48 transform -rotate-45 dark:shadow-[0_0_15px_rgba(37,99,235,0.5)] border-b border-blue-400/50 uppercase tracking-widest text-center">
-                                    Digital
-                                </div>
-                            </div>
-                        @endif
-
-                        {{-- ORANGE SCHLEIFE: DIENSTLEISTUNG --}}
-                        @if($prod->type === 'service')
-                            <div class="absolute top-7 -left-12 z-10 pointer-events-none">
-                                <div class="bg-orange-500/90 backdrop-blur-sm text-white dark:text-gray-900 text-[9px] font-black py-1.5 w-48 transform -rotate-45 dark:shadow-[0_0_15px_rgba(249,115,22,0.5)] border-b border-orange-300 uppercase tracking-widest text-center">
-                                    Service
-                                </div>
-                            </div>
-                        @endif
-
-                        @if(!empty($prod->media_gallery[0]))
-                            @if(isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
-                                <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"></video>
-                            @else
-                                <img src="{{ asset('storage/'. (is_array($prod->media_gallery[0]) ? $prod->media_gallery[0]['path'] : $prod->media_gallery[0])) }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100">
-                            @endif
-                        @else
-                            <div class="flex items-center justify-center h-full text-gray-400 dark:text-gray-700 text-[10px] flex-col gap-3 font-black uppercase tracking-widest">
-                                <svg class="w-10 h-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                                <span>Kein Bild</span>
-                            </div>
-                        @endif
-                    </div>
-
-                    <h3 class="font-serif text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate mb-1.5 tracking-wide">{{ $prod->name }}</h3>
-                    <p class="text-sm md:text-base text-[var(--theme-color)] font-mono font-bold mb-6 dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
-
-                    {{-- Lagerbestand Anzeige --}}
-                    <div class="mb-6 h-8 flex items-center gap-3"
-                         x-data="{
-                             editing: false,
-                             qty: {{ $prod->quantity }}
-                         }">
-
-                        @if($prod->track_quantity)
-                            {{-- ANZEIGE MODUS --}}
-                            <div x-show="!editing"
-                                 @click="editing = true; $nextTick(() => $refs.qtyInput.focus())"
-                                 class="cursor-pointer group/qty relative transition-transform hover:scale-[1.02] flex items-center gap-2">
-
-                                @if($prod->quantity <= 0)
-                                    {{-- Ausverkauft / Voll --}}
-                                    <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 dark:shadow-inner group-hover/qty:border-red-400 transition-colors">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-red-500 dark:shadow-[0_0_8px_currentColor]"></span>
-                                        {{ $prod->type === 'service' ? 'Ausgebucht' : 'Ausverkauft' }}
-                                        <svg class="w-3.5 h-3.5 ml-1 text-red-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                                    </span>
-                                @elseif($prod->quantity < $threshold)
-                                    {{-- Kritischer Bestand --}}
-                                    <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 dark:shadow-inner group-hover/qty:border-amber-400 transition-colors">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse dark:shadow-[0_0_8px_currentColor]"></span>
-                                        <span x-text="qty"></span> {{ $prod->type === 'service' ? 'Plätze' : 'Stk.' }} (Knapp)
-                                        <svg class="w-3.5 h-3.5 ml-1 text-amber-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                                    </span>
+                        {{-- Links: Vorschaubild + Name + Typ/SKU --}}
+                        <div class="flex items-center gap-4 min-w-0 pl-2 flex-1">
+                            <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden shrink-0 relative">
+                                @if(!empty($prod->media_gallery[0]))
+                                    @if(isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
+                                        <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover"></video>
+                                    @else
+                                        <img src="{{ asset('storage/'. (is_array($prod->media_gallery[0]) ? $prod->media_gallery[0]['path'] : $prod->media_gallery[0])) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                    @endif
                                 @else
-                                    {{-- OK --}}
-                                    <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 dark:shadow-inner group-hover/qty:border-emerald-400 transition-colors">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:shadow-[0_0_8px_currentColor]"></span>
-                                        <span x-text="qty"></span> {{ $prod->type === 'service' ? 'Plätze' : 'auf Lager' }}
-                                        <svg class="w-3.5 h-3.5 ml-1 text-emerald-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                    <div class="flex items-center justify-center h-full text-gray-400 dark:text-gray-700">
+                                        <svg class="w-6 h-6 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    </div>
+                                @endif
+                            </div>
+
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2.5 flex-wrap mb-1">
+                                    <h3 class="font-serif text-base sm:text-lg font-bold text-gray-900 dark:text-white truncate">{{ $prod->name }}</h3>
+                                    @if($prod->type === 'digital')
+                                        <span class="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20 text-[9px] font-black uppercase tracking-widest">Digital</span>
+                                    @elseif($prod->type === 'service')
+                                        <span class="px-2.5 py-0.5 rounded-lg bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20 text-[9px] font-black uppercase tracking-widest">Service</span>
+                                    @else
+                                        <span class="px-2.5 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[9px] font-black uppercase tracking-widest">Physisch</span>
+                                    @endif
+                                </div>
+
+                                <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                                    <span class="text-[var(--theme-color)] font-mono font-bold text-sm">{{ number_format($prod->price / 100, 2, ',', '.') }} €</span>
+                                    @if(!empty($prod->sku))
+                                        <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500">SKU: {{ $prod->sku }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Rechts: Bestand + Status + Fortschritt + Aktionen --}}
+                        <div class="flex flex-wrap items-center justify-between lg:justify-end gap-3 sm:gap-5 pl-2 lg:pl-0 border-t lg:border-t-0 pt-3 lg:pt-0 border-gray-100 dark:border-gray-800/80">
+
+                            {{-- Lagerbestand (Inline Edit) --}}
+                            <div class="flex items-center gap-2"
+                                 x-data="{
+                                     editing: false,
+                                     qty: {{ $prod->quantity }}
+                                 }">
+                                @if($prod->track_quantity)
+                                    <div x-show="!editing"
+                                         @click="editing = true; $nextTick(() => $refs.qtyListInput.focus())"
+                                         class="cursor-pointer group/qty flex items-center gap-2">
+                                        @if($prod->quantity <= 0)
+                                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                                {{ $prod->type === 'service' ? 'Ausgebucht' : 'Ausverkauft' }}
+                                            </span>
+                                        @elseif($prod->quantity < $threshold)
+                                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                                <span x-text="qty"></span> {{ $prod->type === 'service' ? 'Plätze' : 'Stk.' }}
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                <span x-text="qty"></span> {{ $prod->type === 'service' ? 'Plätze' : 'auf Lager' }}
+                                            </span>
+                                        @endif
+                                    </div>
+
+                                    <div x-show="editing" style="display: none;" class="flex items-center gap-1.5" @click.outside="editing = false; qty = {{ $prod->quantity }}">
+                                        <input x-ref="qtyListInput"
+                                               type="number"
+                                               x-model="qty"
+                                               class="w-16 px-2 py-1 text-xs font-bold text-center border border-[var(--theme-color)] bg-white dark:bg-gray-950 text-gray-900 dark:text-white rounded-lg outline-none"
+                                               @keydown.enter="$wire.updateStock('{{ $prod->id }}', qty); editing = false"
+                                               @keydown.escape="editing = false; qty = {{ $prod->quantity }}">
+                                        <button @click="$wire.updateStock('{{ $prod->id }}', qty); editing = false" class="bg-[var(--theme-color)] text-white dark:text-gray-900 p-1.5 rounded-lg">
+                                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    </div>
+                                @else
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500 border border-blue-200 dark:border-blue-500/30 opacity-70">
+                                        Unbegrenzt
                                     </span>
                                 @endif
                             </div>
 
-                            {{-- Nachbestellen Link (Wenn kritisch oder 0 UND Link vorhanden) --}}
-                            @if($prod->quantity < $threshold && !empty($prod->reorder_url))
-                                <a href="{{ $prod->reorder_url }}" target="_blank" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 dark:shadow-inner hover:bg-blue-600 dark:hover:bg-blue-500 hover:text-white hover:border-blue-600 transition-all z-10" title="Nachbestellen beim Lieferanten">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                                    Nachbestellen
-                                </a>
-                            @endif
-
-                            {{-- EDITIER MODUS --}}
-                            <div x-show="editing" style="display: none;" class="flex items-center gap-2" @click.outside="editing = false; qty = {{ $prod->quantity }}">
-                                <input x-ref="qtyInput"
-                                       type="number"
-                                       x-model="qty"
-                                       class="w-20 px-3 py-1.5 text-xs font-bold text-center border border-[var(--theme-color)] bg-white dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none dark:shadow-inner"
-                                       @keydown.enter="$wire.updateStock('{{ $prod->id }}', qty); editing = false"
-                                       @keydown.escape="editing = false; qty = {{ $prod->quantity }}">
-
-                                <button @click="$wire.updateStock('{{ $prod->id }}', qty); editing = false" class="bg-[var(--theme-color)] text-white dark:text-gray-900 p-2 rounded-xl hover:bg-black/90 dark:hover:bg-white transition-colors dark:shadow-[0_0_10px_rgba(197,160,89,0.3)]">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                            {{-- Status Dropdown --}}
+                            <div class="relative" x-data="{ open: false }">
+                                <button @click="open = !open" @click.away="open = false" class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-1.5 transition-all {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                                    <span class="w-1.5 h-1.5 rounded-full {{ $prod->status == 'active' ? 'bg-emerald-500' : 'bg-gray-400' }}"></span>
+                                    {{ $prod->status == 'active' ? 'Aktiv' : 'Entwurf' }}
+                                    <svg class="w-3 h-3 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                 </button>
+
+                                <div x-show="open" class="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-950 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden z-30" style="display: none;" x-transition>
+                                    <button wire:click="updateStatus('{{ $prod->id }}', 'active'); open = false" class="w-full text-left px-4 py-2.5 text-[9px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-emerald-700 dark:text-emerald-400 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktiv
+                                    </button>
+                                    <button wire:click="updateStatus('{{ $prod->id }}', 'draft'); open = false" class="w-full text-left px-4 py-2.5 text-[9px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-500 flex items-center gap-2">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Entwurf
+                                    </button>
+                                </div>
                             </div>
-                        @else
-                            {{-- Unbegrenzt --}}
-                            <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500 border border-blue-200 dark:border-blue-500/30 cursor-not-allowed opacity-60 dark:shadow-inner" title="Unbegrenzter Bestand">
-                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                Unbegrenzt
+
+                            {{-- Schritt-Status --}}
+                            <span class="text-[10px] font-black uppercase tracking-widest {{ $isComplete ? 'text-[var(--theme-color)]' : 'text-red-500 dark:text-red-400' }}">
+                                @if($isComplete)
+                                    <span class="inline-flex items-center gap-1"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Fertig</span>
+                                @else
+                                    Schritt {{ $prod->completion_step }}/{{ $maxSteps }}
+                                @endif
                             </span>
-                        @endif
-                    </div>
 
-                    {{-- Footer Steps (Dynamisch) --}}
-                    <div class="mt-auto pt-5 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                        <span class="{{ $isComplete ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]' : 'text-red-500 dark:text-red-400' }}">
-                            @if($isComplete)
-                                <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Fertig</span>
-                            @else
-                                Schritt {{ $prod->completion_step }}/{{ $maxSteps }}
-                            @endif
-                        </span>
-                        @if($showArchived)
-                            <button wire:click="restoreProduct('{{ $prod->id }}')" class="text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors border-b border-emerald-600 hover:border-emerald-700 dark:hover:border-emerald-400 pb-0.5">
-                                Wiederherstellen
+                            {{-- Aktionen --}}
+                            <div class="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest">
+                                @if($showArchived)
+                                    <button wire:click="restoreProduct('{{ $prod->id }}')" class="text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 transition-colors border-b border-emerald-600 pb-0.5">
+                                        Wiederherstellen
+                                    </button>
+                                @else
+                                    <button wire:click="archiveProduct('{{ $prod->id }}')" onclick="confirm('Produkt wirklich ins Archiv verschieben?') || event.stopImmediatePropagation()" class="text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors border-b border-gray-300 dark:border-gray-600 hover:border-red-600 pb-0.5">
+                                        Löschen
+                                    </button>
+                                    <button wire:click="edit('{{ $prod->id }}')" class="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors border-b border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-white pb-0.5">
+                                        Bearbeiten &rarr;
+                                    </button>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            {{-- ===================================================================== --}}
+            {{-- 2. GROSSE & MITTLERE KACHELANSICHT (GRID)                             --}}
+            {{-- ===================================================================== --}}
+            <div wire:key="products-layout-{{ $currentLayout }}"
+                 class="grid {{ $currentLayout === 'medium' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5' : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-8' }} animate-fade-in-up"
+                 style="animation-delay: 100ms;">
+                @foreach($products as $prod)
+                    {{-- Logik für Steps berechnen --}}
+                    @php
+                        $isPhysical = $prod->type === 'physical';
+                        $maxSteps = $isPhysical ? 4 : 3;
+                        $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
+                        $isComplete = $prod->completion_step >= $maxSteps;
+                    @endphp
+
+                    <div wire:key="product-card-{{ $currentLayout }}-{{ $prod->id }}"
+                         class="bg-white dark:bg-gray-900/80 backdrop-blur-md {{ $currentLayout === 'medium' ? 'p-4 rounded-3xl' : 'p-5 sm:p-6 rounded-[2.5rem]' }} border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl hover:border-gray-300 dark:hover:border-gray-700 dark:hover:shadow-[0_0_40px_rgba(0,0,0,0.6)] transition-all duration-300 flex flex-col h-full relative overflow-hidden group">
+
+                        {{-- Fortschrittsbalken Oben --}}
+                        <div class="absolute top-0 left-0 w-full h-1 bg-gray-100 dark:bg-gray-950 z-30">
+                            <div class="h-full transition-all duration-500 {{ $isComplete ? 'bg-[var(--theme-color)] dark:shadow-[0_0_10px_rgba(197,160,89,0.8)]' : 'bg-red-500 dark:shadow-[0_0_10px_rgba(239,68,68,0.8)]' }}" style="width: {{ $percentComplete }}%"></div>
+                        </div>
+
+                        {{-- Status Switcher --}}
+                        <div class="absolute {{ $currentLayout === 'medium' ? 'top-4 right-4' : 'top-6 right-6' }} z-20"
+                             x-data="{ open: false }">
+                            <button @click="open = !open" @click.away="open = false"
+                                    class="{{ $currentLayout === 'medium' ? 'px-2.5 py-1.5 text-[8px]' : 'px-3.5 py-2 text-[9px]' }} font-black uppercase tracking-widest rounded-xl border shadow-sm flex items-center gap-2 transition-all backdrop-blur-md {{ $prod->status == 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-white dark:bg-gray-950/80 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
+                                <span class="w-1.5 h-1.5 rounded-full {{ $prod->status == 'active' ? 'bg-emerald-500 dark:shadow-[0_0_8px_currentColor] animate-pulse' : 'bg-gray-400 dark:bg-gray-500' }}"></span>
+                                {{ $prod->status == 'active' ? 'Aktiv' : 'Entwurf' }}
+                                <svg class="w-3.5 h-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-                        @else
-                            <div class="flex items-center gap-4">
-                                <button wire:click="archiveProduct('{{ $prod->id }}')" onclick="confirm('Produkt wirklich ins Archiv verschieben?') || event.stopImmediatePropagation()" class="text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors border-b border-gray-300 dark:border-gray-600 hover:border-red-600 dark:hover:border-red-400 pb-0.5">
-                                    Löschen
+
+                            <div x-show="open" class="absolute right-0 mt-2 w-36 bg-white dark:bg-gray-950 rounded-2xl shadow-xl dark:shadow-[0_0_30px_rgba(0,0,0,0.8)] border border-gray-200 dark:border-gray-800 overflow-hidden z-30" style="display: none;" x-transition>
+                                <button wire:click="updateStatus('{{ $prod->id }}', 'active'); open = false" class="w-full text-left px-5 py-3.5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-emerald-700 dark:text-emerald-400 border-b border-gray-200 dark:border-gray-800 transition-colors flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktiv
                                 </button>
-                                <button wire:click="edit('{{ $prod->id }}')" class="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors border-b border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-white pb-0.5">
-                                    Bearbeiten &rarr;
+                                <button wire:click="updateStatus('{{ $prod->id }}', 'draft'); open = false" class="w-full text-left px-5 py-3.5 text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-500 transition-colors flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-500"></span> Entwurf
                                 </button>
                             </div>
-                        @endif
+                        </div>
+
+                        {{-- Bild mit Schleifen --}}
+                        <div class="{{ $currentLayout === 'medium' ? 'h-48 rounded-2xl mb-4 mt-1.5' : 'aspect-square rounded-[1.5rem] mb-6 mt-2' }} bg-gray-100 dark:bg-gray-950 overflow-hidden relative border border-gray-200 dark:border-gray-800 dark:shadow-inner group-hover:border-gray-300 dark:group-hover:border-gray-700 transition-colors">
+
+                            {{-- BLAUE SCHLEIFE: DIGITAL --}}
+                            @if($prod->type === 'digital')
+                                <div class="absolute top-7 -left-12 z-10 pointer-events-none">
+                                    <div class="bg-blue-600/90 backdrop-blur-sm text-white text-[9px] font-black py-1.5 w-48 transform -rotate-45 dark:shadow-[0_0_15px_rgba(37,99,235,0.5)] border-b border-blue-400/50 uppercase tracking-widest text-center">
+                                        Digital
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- ORANGE SCHLEIFE: DIENSTLEISTUNG --}}
+                            @if($prod->type === 'service')
+                                <div class="absolute top-7 -left-12 z-10 pointer-events-none">
+                                    <div class="bg-orange-500/90 backdrop-blur-sm text-white dark:text-gray-900 text-[9px] font-black py-1.5 w-48 transform -rotate-45 dark:shadow-[0_0_15px_rgba(249,115,22,0.5)] border-b border-orange-300 uppercase tracking-widest text-center">
+                                        Service
+                                    </div>
+                                </div>
+                            @endif
+
+                            @if(!empty($prod->media_gallery[0]))
+                                @if(isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
+                                    <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"></video>
+                                @else
+                                    <img src="{{ asset('storage/'. (is_array($prod->media_gallery[0]) ? $prod->media_gallery[0]['path'] : $prod->media_gallery[0])) }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100">
+                                @endif
+                            @else
+                                <div class="flex items-center justify-center h-full text-gray-400 dark:text-gray-700 text-[10px] flex-col gap-3 font-black uppercase tracking-widest">
+                                    <svg class="w-10 h-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    <span>Kein Bild</span>
+                                </div>
+                            @endif
+                        </div>
+
+                        <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base mb-1' : 'text-lg md:text-xl mb-1.5' }} font-bold text-gray-900 dark:text-white truncate tracking-wide">{{ $prod->name }}</h3>
+                        <p class="{{ $currentLayout === 'medium' ? 'text-xs sm:text-sm mb-3.5' : 'text-sm md:text-base mb-6' }} text-[var(--theme-color)] font-mono font-bold dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
+
+                        {{-- Lagerbestand Anzeige --}}
+                        <div class="{{ $currentLayout === 'medium' ? 'mb-3.5' : 'mb-6' }} h-8 flex items-center gap-3"
+                             x-data="{
+                                 editing: false,
+                                 qty: {{ $prod->quantity }}
+                             }">
+
+                            @if($prod->track_quantity)
+                                {{-- ANZEIGE MODUS --}}
+                                <div x-show="!editing"
+                                     @click="editing = true; $nextTick(() => $refs.qtyInput.focus())"
+                                     class="cursor-pointer group/qty relative transition-transform hover:scale-[1.02] flex items-center gap-2">
+
+                                    @if($prod->quantity <= 0)
+                                        {{-- Ausverkauft / Voll --}}
+                                        <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/30 dark:shadow-inner group-hover/qty:border-red-400 transition-colors">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-red-500 dark:shadow-[0_0_8px_currentColor]"></span>
+                                            {{ $prod->type === 'service' ? 'Ausgebucht' : 'Ausverkauft' }}
+                                            <svg class="w-3.5 h-3.5 ml-1 text-red-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        </span>
+                                    @elseif($prod->quantity < $threshold)
+                                        {{-- Kritischer Bestand --}}
+                                        <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 dark:shadow-inner group-hover/qty:border-amber-400 transition-colors">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse dark:shadow-[0_0_8px_currentColor]"></span>
+                                            <span x-text="qty"></span> {{ $prod->type === 'service' ? 'Plätze' : 'Stk.' }} (Knapp)
+                                            <svg class="w-3.5 h-3.5 ml-1 text-amber-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        </span>
+                                    @else
+                                        {{-- OK --}}
+                                        <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 dark:shadow-inner group-hover/qty:border-emerald-400 transition-colors">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:shadow-[0_0_8px_currentColor]"></span>
+                                            <span x-text="qty"></span> {{ $prod->type === 'service' ? 'Plätze' : 'auf Lager' }}
+                                            <svg class="w-3.5 h-3.5 ml-1 text-emerald-500 opacity-50 group-hover/qty:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                        </span>
+                                    @endif
+                                </div>
+
+                                {{-- Nachbestellen Link (Wenn kritisch oder 0 UND Link vorhanden) --}}
+                                @if($prod->quantity < $threshold && !empty($prod->reorder_url))
+                                    <a href="{{ $prod->reorder_url }}" target="_blank" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 dark:shadow-inner hover:bg-blue-600 dark:hover:bg-blue-500 hover:text-white hover:border-blue-600 transition-all z-10" title="Nachbestellen beim Lieferanten">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                        Nachbestellen
+                                    </a>
+                                @endif
+
+                                {{-- EDITIER MODUS --}}
+                                <div x-show="editing" style="display: none;" class="flex items-center gap-2" @click.outside="editing = false; qty = {{ $prod->quantity }}">
+                                    <input x-ref="qtyInput"
+                                           type="number"
+                                           x-model="qty"
+                                           class="w-20 px-3 py-1.5 text-xs font-bold text-center border border-[var(--theme-color)] bg-white dark:bg-gray-950 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-[var(--theme-color-50)] outline-none dark:shadow-inner"
+                                           @keydown.enter="$wire.updateStock('{{ $prod->id }}', qty); editing = false"
+                                           @keydown.escape="editing = false; qty = {{ $prod->quantity }}">
+
+                                    <button @click="$wire.updateStock('{{ $prod->id }}', qty); editing = false" class="bg-[var(--theme-color)] text-white dark:text-gray-900 p-2 rounded-xl hover:bg-black/90 dark:hover:bg-white transition-colors dark:shadow-[0_0_10px_rgba(197,160,89,0.3)]">
+                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                </div>
+                            @else
+                                {{-- Unbegrenzt --}}
+                                <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-500 border border-blue-200 dark:border-blue-500/30 cursor-not-allowed opacity-60 dark:shadow-inner" title="Unbegrenzter Bestand">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                    Unbegrenzt
+                                </span>
+                            @endif
+                        </div>
+
+                        {{-- Footer Steps (Dynamisch) --}}
+                        <div class="mt-auto {{ $currentLayout === 'medium' ? 'pt-3.5' : 'pt-5' }} border-t border-gray-200 dark:border-gray-800 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
+                            <span class="{{ $isComplete ? 'text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]' : 'text-red-500 dark:text-red-400' }}">
+                                @if($isComplete)
+                                    <span class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Fertig</span>
+                                @else
+                                    Schritt {{ $prod->completion_step }}/{{ $maxSteps }}
+                                @endif
+                            </span>
+                            @if($showArchived)
+                                <button wire:click="restoreProduct('{{ $prod->id }}')" class="text-emerald-600 dark:text-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-400 transition-colors border-b border-emerald-600 hover:border-emerald-700 dark:hover:border-emerald-400 pb-0.5">
+                                    Wiederherstellen
+                                </button>
+                            @else
+                                <div class="flex items-center gap-4">
+                                    <button wire:click="archiveProduct('{{ $prod->id }}')" onclick="confirm('Produkt wirklich ins Archiv verschieben?') || event.stopImmediatePropagation()" class="text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors border-b border-gray-300 dark:border-gray-600 hover:border-red-600 dark:hover:border-red-400 pb-0.5">
+                                        Löschen
+                                    </button>
+                                    <button wire:click="edit('{{ $prod->id }}')" class="text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors border-b border-gray-300 dark:border-gray-600 hover:border-gray-900 dark:hover:border-white pb-0.5">
+                                        Bearbeiten &rarr;
+                                    </button>
+                                </div>
+                            @endif
+                        </div>
                     </div>
-                </div>
-            @endforeach
-        </div>
+                @endforeach
+            </div>
+        @endif
     @endif
 </div>

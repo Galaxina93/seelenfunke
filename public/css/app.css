@@ -1506,6 +1506,15 @@ video {
 .z-\[21\] {
   z-index: 21;
 }
+.z-\[15\] {
+  z-index: 15;
+}
+.z-\[18\] {
+  z-index: 18;
+}
+.z-\[22\] {
+  z-index: 22;
+}
 .order-1 {
   order: 1;
 }
@@ -3993,6 +4002,12 @@ video {
 .rounded-xl {
   border-radius: 0.75rem;
 }
+.rounded-\[1\.1rem\] {
+  border-radius: 1.1rem;
+}
+.rounded-\[1\.75rem\] {
+  border-radius: 1.75rem;
+}
 .rounded-b-2xl {
   border-bottom-right-radius: 1rem;
   border-bottom-left-radius: 1rem;
@@ -5013,6 +5028,9 @@ video {
 }
 .border-amber-500\/25 {
   border-color: rgb(245 158 11 / 0.25);
+}
+.border-gray-700\/90 {
+  border-color: rgb(55 65 81 / 0.9);
 }
 .border-b-primary\/20 {
   border-bottom-color: rgb(201 166 107 / 0.2);
@@ -7052,6 +7070,9 @@ video {
 .stroke-\[3\] {
   stroke-width: 3;
 }
+.stroke-\[2\.2\] {
+  stroke-width: 2.2;
+}
 .object-contain {
   -o-object-fit: contain;
      object-fit: contain;
@@ -8735,6 +8756,9 @@ video {
 .opacity-95 {
   opacity: 0.95;
 }
+.opacity-55 {
+  opacity: 0.55;
+}
 .mix-blend-multiply {
   mix-blend-mode: multiply;
 }
@@ -9697,6 +9721,11 @@ video {
 .shadow-xl {
   --tw-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+}
+.shadow-\[0_0_15px_rgba\(197\2c 160\2c 89\2c 0\.25\)\] {
+  --tw-shadow: 0 0 15px rgba(197,160,89,0.25);
+  --tw-shadow-colored: 0 0 15px var(--tw-shadow-color);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 .shadow-\[var\(--theme-color-10\)\] {
@@ -11237,6 +11266,9 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(234 179 8 / var(--tw-border-opacity, 1));
 }
+.hover\:border-primary\/60:hover {
+  border-color: rgb(201 166 107 / 0.6);
+}
 .hover\:bg-\[\#C5A059\]\/20:hover {
   background-color: rgb(197 160 89 / 0.2);
 }
@@ -12241,6 +12273,9 @@ video {
 .hover\:ring-gray-500:hover {
   --tw-ring-opacity: 1;
   --tw-ring-color: rgb(107 114 128 / var(--tw-ring-opacity, 1));
+}
+.hover\:ring-primary\/60:hover {
+  --tw-ring-color: rgb(201 166 107 / 0.6);
 }
 .hover\:brightness-105:hover {
   --tw-brightness: brightness(1.05);
@@ -19875,6 +19910,9 @@ video {
   .lg\:pt-6 {
     padding-top: 1.5rem;
   }
+  .lg\:pl-0 {
+    padding-left: 0px;
+  }
   .lg\:text-left {
     text-align: left;
   }
@@ -20048,6 +20086,9 @@ video {
   }
   .xl\:flex-row {
     flex-direction: row;
+  }
+  .xl\:items-end {
+    align-items: flex-end;
   }
   .xl\:items-center {
     align-items: center;
