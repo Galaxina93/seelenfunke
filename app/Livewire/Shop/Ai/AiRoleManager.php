@@ -85,7 +85,7 @@ class AiRoleManager extends Component
 
     public function save()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check()) {
             abort(403);
         }
 
@@ -120,7 +120,7 @@ class AiRoleManager extends Component
 
     public function delete($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check()) {
             abort(403);
         }
 

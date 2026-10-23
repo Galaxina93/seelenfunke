@@ -90,8 +90,19 @@ class AccountingLiquidity extends Component
         'cashflow' => 'Cash-Flow (Gewinn + Abschreibungen)',
     ];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Liquiditätsplanung.');
+        }
+    }
+
     public function mount()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Liquiditätsplanung.');
+        }
+
         $config = shop_setting('liquidity_planner_config');
         if (is_array($config)) {
             $this->configStartYear = (int)($config['start_year'] ?? 2026);
@@ -337,7 +348,10 @@ class AccountingLiquidity extends Component
 
     private function injectLiveData()
     {
-        $adminId = Auth::guard('admin')->id() ?? \Illuminate\Support\Facades\DB::table('admins')->value('id');
+        $adminId = Auth::guard('admin')->id();
+        if (!$adminId) {
+            abort(403, 'Nicht authentifiziert.');
+        }
         $dbData = [];
 
         $orders = OrderOrder::where('payment_status', 'paid')->get();
@@ -1012,7 +1026,7 @@ class AccountingLiquidity extends Component
             'expenseRows' => $this->expenseRows,
             'adjustmentRows' => $this->adjustmentRows,
             'startBalance' => $this->startBalance,
-        ])->setPaper('a4', 'landscape');
+        ])->setPaper('a4', 'landscape')->setOptions(['isRemoteEnabled' => false]);
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();

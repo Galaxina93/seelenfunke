@@ -82,6 +82,23 @@ class AccountingInvoice extends Component
 
     protected $listeners = ['refreshComponent' => '$refresh'];
 
+    protected array $allowedSortFields = [
+        'invoice_date',
+        'invoice_number',
+        'total',
+        'status',
+        'recipient',
+        'created_at',
+        'due_date',
+    ];
+
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Nicht autorisierter Zugriff auf die Rechnungsverwaltung.');
+        }
+    }
+
     public function updatedSelectedCustomerId($value)
     {
         if ($value) {
@@ -262,7 +279,7 @@ class AccountingInvoice extends Component
             'invoice' => $invoice,
             'items' => $invoice->order ? $invoice->order->items : collect($invoice->custom_items),
             'isStorno' => $invoice->status === 'cancelled' || $invoice->type === 'cancellation',
-        ]);
+        ])->setOptions(['isRemoteEnabled' => false]);
 
 
         return response()->streamDownload(function () use ($pdf) {
@@ -557,6 +574,10 @@ class AccountingInvoice extends Component
     // Methode zum Sortieren hinzufügen:
     public function sortBy($field)
     {
+        if (!in_array($field, $this->allowedSortFields, true)) {
+            return;
+        }
+
         if ($this->sortField === $field) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
@@ -689,13 +710,16 @@ class AccountingInvoice extends Component
             }
         }
 
-        // SORTIERUNG ANWENDEN
-        if ($this->sortField === 'recipient') {
+        // SORTIERUNG ANWENDEN (Whitelisted gegen SQL-Injection)
+        $safeSortField = in_array($this->sortField, $this->allowedSortFields, true) ? $this->sortField : 'invoice_date';
+        $safeSortDir = strtolower((string) $this->sortDirection) === 'asc' ? 'asc' : 'desc';
+
+        if ($safeSortField === 'recipient') {
             // Spezialfall für JSON-Feld (Empfänger-Nachname)
-            $query->orderBy('billing_address->last_name', $this->sortDirection);
+            $query->orderBy('billing_address->last_name', $safeSortDir);
         } else {
             // Standardsortierung für normale Spalten (invoice_number, total, status, invoice_date)
-            $query->orderBy($this->sortField, $this->sortDirection)
+            $query->orderBy($safeSortField, $safeSortDir)
                 ->orderBy('created_at', 'desc'); // Zweitrangige Sortierung für absolute Aktualität
         }
 

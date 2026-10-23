@@ -24,8 +24,19 @@ class AiWidget extends Component
     
     // UI Pool for AI context (Managed exclusively in Alpine.js frontend)
     
+    public function boot(): void
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            abort(403, 'Nicht autorisierter Zugriff auf das KI-Widget.');
+        }
+    }
+
     public function mount($agentId = null)
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            abort(403, 'Nicht autorisierter Zugriff auf das KI-Widget.');
+        }
+
         $this->loadDefaultChatSession();
         $this->agentId = $agentId;
         

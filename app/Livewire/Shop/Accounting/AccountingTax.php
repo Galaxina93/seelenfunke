@@ -54,15 +54,35 @@ class AccountingTax extends Component
     public $apiStatus = 'checking'; // checking, online, offline
     public $apiStatusMessage = 'Kontaktiere ELSTER Server (Warte auf Antwort)...';
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Steuerzentrale.');
+        }
+    }
+
+    protected function sanitizeCertFilename(?string $certName): string
+    {
+        $clean = basename(trim((string) $certName));
+        if ($clean === '' || $clean === '.' || $clean === '..' || !str_ends_with(strtolower($clean), '.pfx')) {
+            return '';
+        }
+        return $clean;
+    }
+
     public function mount()
     {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Steuerzentrale.');
+        }
+
         $this->selectedYear = date('Y');
         $this->selectedMonth = date('n') == 1 ? 12 : date('n') - 1;
         if(date('n') == 1) {
             $this->selectedYear--;
         }
         
-        $this->selectedCertName = shop_setting('eric_default_cert', '');
+        $this->selectedCertName = $this->sanitizeCertFilename(shop_setting('eric_default_cert', ''));
         $this->scanTresorCertificates();
         
         // Prüfen ob ein Tresor-Passwort absolut sicher in der .env liegt!
@@ -92,13 +112,16 @@ class AccountingTax extends Component
 
     public function updatedSelectedCertName($val)
     {
+        $safeCert = $this->sanitizeCertFilename((string) $val);
+        $this->selectedCertName = $safeCert;
+
         \App\Models\System\SystemSetting::updateOrCreate(
             ['key' => 'eric_default_cert'],
-            ['value' => $val]
+            ['value' => $safeCert]
         );
         \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
         
-        $this->addLog('info', "Standard-Zertifikat im Tresor auf '{$val}' festgelegt.");
+        $this->addLog('info', "Standard-Zertifikat im Tresor auf '{$safeCert}' festgelegt.");
     }
 
     // --- LOGGING SYSTEM ---
@@ -353,6 +376,7 @@ class AccountingTax extends Component
 
         // Laufzeit-Prüfung, ob das konfigurierte Software-Zertifikat existiert!
         if ($this->authMethod === 'software') {
+            $this->selectedCertName = $this->sanitizeCertFilename($this->selectedCertName);
             $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
             $isAbs = str_starts_with($tresorPath, '/');
             $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);
@@ -514,7 +538,8 @@ class AccountingTax extends Component
             'tax_id' => shop_setting('owner_tax_id', 'XX/XXX/XXXXX'),
             'ust_id' => shop_setting('owner_ust_id', 'DE XXXXXXXXX'),
         ];
-        $pdf = Pdf::loadView('global.pdf.ustva_report', ['data' => $data]);
+        $pdf = Pdf::loadView('global.pdf.ustva_report', ['data' => $data])
+            ->setOptions(['isRemoteEnabled' => false]);
         $pdf->save($pdfPath);
         $this->addLog('success', 'Rechtssicheres PDF-Steuerprotokoll generiert.');
 
@@ -613,6 +638,7 @@ class AccountingTax extends Component
         }
         
         if ($this->authMethod === 'software') {
+            $this->selectedCertName = $this->sanitizeCertFilename($this->selectedCertName);
             $tresorPath = env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
             $isAbs = str_starts_with($tresorPath, '/');
             $fullPath = $isAbs ? $tresorPath : base_path($tresorPath);

@@ -1082,10 +1082,12 @@ class MasterAnalytics extends Component
             abort(403);
         }
 
-        $this->validate(['uploadFile' => 'required|file|max:10240']);
+        $this->validate([
+            'uploadFile' => 'required|file|mimes:pdf,jpg,jpeg,png,webp,csv,xml,txt|max:10240'
+        ]);
         $issue = AccountingSpecialIssue::find($issueId);
         if ($issue) {
-            $path = $this->uploadFile->store('buchhaltung/receipts', 'public');
+            $path = $this->uploadFile->store('buchhaltung/receipts', 'local');
             $files = $issue->file_paths ?? [];
             $files[] = $path;
             $issue->update(['file_paths' => $files]);
@@ -1933,7 +1935,7 @@ class MasterAnalytics extends Component
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [
                 'htmlContent' => $htmlContent,
                 'agentName' => $agent->name
-            ]);
+            ])->setOptions(['isRemoteEnabled' => false]);
 
             return response()->streamDownload(fn () => print($pdf->output()), 'CEO-Strategie-Report.pdf');
 

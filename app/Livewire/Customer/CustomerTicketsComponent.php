@@ -223,7 +223,8 @@ class CustomerTicketsComponent extends Component
         $this->validate([
             'newSubject' => 'required|min:5|max:100',
             'newCategory' => 'required',
-            'newMessage' => 'required|min:10'
+            'newMessage' => 'required|min:10',
+            'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:5120',
         ], [
             'newSubject.required' => 'Bitte gib einen Betreff für deine Anfrage ein.',
             'newSubject.min' => 'Der Betreff ist zu kurz (mindestens 5 Zeichen).',

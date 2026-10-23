@@ -47,8 +47,19 @@ class AiWorkspace extends Component
     public $newPlanFeatures = [['title' => '', 'description' => '']];
     public ?int $editingPlanId = null;
 
+    public function boot(): void
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf den KI-Workspace.');
+        }
+    }
+
     public function mount()
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf den KI-Workspace.');
+        }
+
         if (\App\Services\AI\AiAuthHelper::check()) {
             $setting = \App\Models\Ai\AiUserWorkspaceSetting::where('user_id', \App\Services\AI\AiAuthHelper::getUserId())->first();
             if ($setting) {

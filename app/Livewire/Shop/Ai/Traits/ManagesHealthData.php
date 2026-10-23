@@ -23,12 +23,19 @@ trait ManagesHealthData
     #[Computed]
     public function activeMedications()
     {
-        return AiHealthMedication::orderBy('name', 'asc')->get();
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return collect();
+        }
+        $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
+        return AiHealthMedication::where('user_id', $adminId)->orderBy('name', 'asc')->get();
     }
 
     #[Computed]
     public function doctors()
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return collect();
+        }
         return ManagementContact::where('relation_type', 'like', '%arzt%')
             ->orWhere('relation_type', 'like', '%Praxis%')
             ->orderBy('is_favorite', 'desc')
@@ -43,8 +50,12 @@ trait ManagesHealthData
 
     public function editMedication($id = null)
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Gesundheitsdaten bearbeiten.');
+        }
         if ($id) {
-            $med = AiHealthMedication::find($id);
+            $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
+            $med = AiHealthMedication::where('user_id', $adminId)->find($id);
             if ($med) {
                 $this->medicationForm = $med->toArray();
             }
@@ -64,17 +75,25 @@ trait ManagesHealthData
 
     public function saveMedication()
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Gesundheitsdaten speichern.');
+        }
+
         $this->validate([
             'medicationForm.name' => 'required|string|max:255',
             'medicationForm.dosage' => 'nullable|string|max:255',
             'medicationForm.frequency' => 'nullable|string|max:255',
         ]);
 
+        $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
         $data = $this->medicationForm;
-        $data['user_id'] = auth()->id() ?? \App\Models\System\SystemUser::first()->id;
+        $data['user_id'] = $adminId;
 
-        if ($data['id']) {
-            AiHealthMedication::find($data['id'])->update($data);
+        if (!empty($data['id'])) {
+            $med = AiHealthMedication::where('user_id', $adminId)->find($data['id']);
+            if ($med) {
+                $med->update($data);
+            }
         } else {
             AiHealthMedication::create($data);
         }
@@ -85,7 +104,11 @@ trait ManagesHealthData
 
     public function deleteMedication($id)
     {
-        AiHealthMedication::destroy($id);
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Gesundheitsdaten löschen.');
+        }
+        $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
+        AiHealthMedication::where('user_id', $adminId)->where('id', $id)->delete();
         unset($this->activeMedications); // clear cache
     }
 }

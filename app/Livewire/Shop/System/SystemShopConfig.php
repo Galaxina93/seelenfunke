@@ -319,6 +319,10 @@ class SystemShopConfig extends Component
 
     public function confirmSmallBusinessTransition()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $targetState = (bool)$this->pendingSmallBusinessState;
         $mode = $this->smallBusinessTransitionMode;
 
@@ -389,6 +393,10 @@ class SystemShopConfig extends Component
 
     public function generateEmergencyPdf()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
         $this->save(); // Save current state before generating PDF
         
         $groups = \App\Models\Accounting\AccountingGroup::with('items')->where('admin_id', auth()->guard('admin')->id())->get();
@@ -398,7 +406,7 @@ class SystemShopConfig extends Component
             'settings' => $this->settings,
             'groups' => $groups,
             'date' => $date
-        ]);
+        ])->setOptions(['isRemoteEnabled' => false]);
 
         $fileName = 'notfall_handbuch_' . now()->format('Y_m_d_H_i') . '.pdf';
         

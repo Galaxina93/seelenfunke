@@ -53,8 +53,19 @@ class AccountingQuickEntry extends Component
     // UI Feedback für Auto-Erkennung
     public $isAutoFilled = false;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Beleg-Schnellerfassung.');
+        }
+    }
+
     public function mount()
     {
+        if (!Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Beleg-Schnellerfassung.');
+        }
+
         $this->specialDate = date('Y-m-d');
         $this->specialTaxRate = (float)shop_setting('default_tax_rate', 19.0);
     }
@@ -202,13 +213,17 @@ class AccountingQuickEntry extends Component
     private function parseInvoiceXml($xmlContent)
     {
         try {
+            if (!is_string($xmlContent) || preg_match('/<!(DOCTYPE|ENTITY)/i', $xmlContent)) {
+                return false;
+            }
+
             libxml_use_internal_errors(true);
 
             // TRICK: Wir entfernen alle Namespaces (rsm:, ram:, etc.) aus dem String.
             // Das ist zwar "dirty", aber für das Auslesen von Werten viel robuster,
             // weil wir uns nicht um Namespace-Registrierung kümmern müssen.
             $cleanXml = preg_replace('/(<\/?)(\w+):([^>]*>)/', '$1$3', $xmlContent);
-            $xml = simplexml_load_string($cleanXml);
+            $xml = simplexml_load_string($cleanXml, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOCDATA);
 
             if (!$xml) return false;
 

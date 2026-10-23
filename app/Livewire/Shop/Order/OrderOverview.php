@@ -76,6 +76,26 @@ class OrderOverview extends Component
         'sortDirection' => ['except' => 'asc']
     ];
 
+    protected array $allowedSortFields = [
+        'default_workflow',
+        'customer',
+        'total',
+        'total_price',
+        'payment',
+        'payment_status',
+        'status',
+        'order_number',
+        'created_at',
+        'is_express',
+    ];
+
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Nicht autorisierter Zugriff auf die Bestellübersicht.');
+        }
+    }
+
     // Reset aller Filter auf Standard
     public function resetFilters()
     {
@@ -140,6 +160,10 @@ class OrderOverview extends Component
 
     public function sortBy($field)
     {
+        if (!in_array($field, $this->allowedSortFields, true)) {
+            return;
+        }
+
         if ($this->sortField === $field) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
@@ -862,24 +886,32 @@ class OrderOverview extends Component
 
     private function applyCustomSort($query)
     {
-        switch ($this->sortField) {
+        $safeDir = strtolower((string) $this->sortDirection) === 'desc' ? 'desc' : 'asc';
+        $safeField = in_array($this->sortField, $this->allowedSortFields, true) ? $this->sortField : 'created_at';
+
+        switch ($safeField) {
             case 'customer':
-                $query->orderBy('billing_address->last_name', $this->sortDirection);
+                $query->orderBy('billing_address->last_name', $safeDir);
                 break;
             case 'total':
-                $query->orderBy('total_price', $this->sortDirection);
+            case 'total_price':
+                $query->orderBy('total_price', $safeDir);
                 break;
             case 'payment':
-                $query->orderBy('payment_status', $this->sortDirection);
+            case 'payment_status':
+                $query->orderBy('payment_status', $safeDir);
                 break;
             case 'status':
-                $query->orderBy('status', $this->sortDirection);
+                $query->orderBy('status', $safeDir);
                 break;
             case 'order_number':
-                $query->orderBy('order_number', $this->sortDirection);
+                $query->orderBy('order_number', $safeDir);
+                break;
+            case 'is_express':
+                $query->orderBy('is_express', $safeDir);
                 break;
             default:
-                $query->orderBy($this->sortField, $this->sortDirection);
+                $query->orderBy('created_at', $safeDir);
         }
     }
 }

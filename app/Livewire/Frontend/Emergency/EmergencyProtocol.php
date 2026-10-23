@@ -205,7 +205,7 @@ class EmergencyProtocol extends Component
             'settings' => $settings,
             'groups' => $groups,
             'date' => $date
-        ]);
+        ])->setOptions(['isRemoteEnabled' => false]);
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -223,7 +223,7 @@ class EmergencyProtocol extends Component
             'item' => $item,
             'settings' => $settings,
             'date' => $date
-        ]);
+        ])->setOptions(['isRemoteEnabled' => false]);
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();

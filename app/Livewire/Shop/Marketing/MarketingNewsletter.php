@@ -43,6 +43,13 @@ class MarketingNewsletter extends Component
     public $new_manual_title = '';
     public $new_manual_send_at = '';
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+            abort(403, 'Nicht autorisierter Zugriff auf die Newsletter-Verwaltung.');
+        }
+    }
+
     public function setTab($tab)
     {
         $this->activeTab = $tab;

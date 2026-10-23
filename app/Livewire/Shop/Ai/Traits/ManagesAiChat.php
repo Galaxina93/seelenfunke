@@ -393,7 +393,7 @@ trait ManagesAiChat
     public function searchFilesForMention($query)
     {
         $this->mentionQuery = $query;
-        if (strlen($query) < 2) {
+        if (strlen($query) < 2 || !AiAuthHelper::isAdmin()) {
             $this->mentionResults = [];
             return;
         }
@@ -428,6 +428,9 @@ trait ManagesAiChat
 
     protected function isAllowedProjectAttachmentPath($filePath): bool
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return false;
+        }
         if (!is_string($filePath) || trim($filePath) === '') {
             return false;
         }
@@ -493,6 +496,20 @@ trait ManagesAiChat
         }
     }
 
+    protected function isSafeChatUploadedFile($file): bool
+    {
+        if (!is_object($file) || !method_exists($file, 'getClientOriginalName')) {
+            return false;
+        }
+        $origName = (string) $file->getClientOriginalName();
+        if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|cgi|pl|py|asp|aspx|jsp|shtml|env|htaccess|html?|svg|js|mjs)(\.|$)/i', $origName)) {
+            return false;
+        }
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'txt', 'csv', 'md', 'json', 'doc', 'docx', 'xls', 'xlsx', 'mp3', 'wav', 'ogg', 'm4a'];
+        return in_array($ext, $allowedExts, true);
+    }
+
     public function sendMessage()
     {
         if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) {
@@ -503,6 +520,9 @@ trait ManagesAiChat
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
+                if (!$this->isSafeChatUploadedFile($file)) {
+                    continue;
+                }
                 $path = $file->store('agenten/workspace/chat-medien', 'public');
                 $localUploads[] = [
                     'path' => $path,
@@ -968,12 +988,13 @@ trait ManagesAiChat
                             \Illuminate\Support\Facades\Log::info("DEBUG_MAP: map-fly-to verarbeitet.", ['detail' => $detail]);
                         }
                         
+                        $safeEventName = preg_replace('/[^a-zA-Z0-9_\-\:]/', '', (string) $name);
                         $jsonDetail = htmlspecialchars(json_encode($detail), ENT_QUOTES, 'UTF-8');
-                        $imgHtml = "<img src=\"x\" onerror=\"window.dispatchEvent(new CustomEvent('{$name}', { detail: {$jsonDetail} })); this.remove();\" style=\"display:none;\">";
+                        $imgHtml = "<img src=\"x\" onerror=\"window.dispatchEvent(new CustomEvent('{$safeEventName}', { detail: {$jsonDetail} })); this.remove();\" style=\"display:none;\">";
                         $this->stream('thought_' . $agentId, $imgHtml, false);
                         
                         // Fallback/redundant standard Livewire dispatch, just in case
-                        $this->dispatch($name, ...$detail);
+                        $this->dispatch($safeEventName, ...$detail);
                     }
                 }
             }
@@ -1286,6 +1307,9 @@ trait ManagesAiChat
         $localUploads = [];
         if (!empty($this->uploadedFiles)) {
             foreach ($this->uploadedFiles as $file) {
+                if (!$this->isSafeChatUploadedFile($file)) {
+                    continue;
+                }
                 $path = $file->store('agenten/workspace/chat-medien', 'public');
                 $localUploads[] = [
                     'path' => $path,

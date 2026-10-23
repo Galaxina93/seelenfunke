@@ -55,8 +55,19 @@ class AccountingBank extends Component
     public $quickUploadFile;
     public ?string $uploadingBankTxId = null;
 
+    public function boot(): void
+    {
+        if (!auth('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf das Bankmodul.');
+        }
+    }
+
     public function mount(BankApiService $finapi)
     {
+        if (!auth('admin')->check()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf das Bankmodul.');
+        }
+
         if (request()->has('finapi_sync')) {
             return $this->importAccountsFromFinapi($finapi);
         }
@@ -703,7 +714,7 @@ class AccountingBank extends Component
     public function importCsvTransactions()
     {
         $this->validate([
-            'csvFile' => 'required|file|max:10240',
+            'csvFile' => 'required|file|mimes:csv,txt|max:10240',
             'csvTargetAccountId' => 'required',
         ]);
 

@@ -53,6 +53,20 @@ class SystemUserManagement extends Component
 
     protected $queryString = ['search', 'filterRole', 'showArchive', 'sortField', 'sortDirection'];
 
+    public function boot()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
+
+    public function mount()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
+
     public function toggleArchive()
     {
         $this->showArchive = !$this->showArchive;
