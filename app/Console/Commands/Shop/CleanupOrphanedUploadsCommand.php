@@ -54,28 +54,35 @@ class CleanupOrphanedUploadsCommand extends Command
         $this->line("2. Scanne verwaiste Dateien (älter als {$hours} Stunden)...");
         $fileStats = $cleanupService->cleanupOrphanedFiles($hours, $isDryRun);
 
-        $mbFreed = round($fileStats['bytes_freed'] / (1024 * 1024), 2);
+        // 3. Abgelaufene Temp-Dateien (24h), KI-Exporte (7d) & KI-Chat-Uploads (30d) bereinigen
+        $this->line("3. Scanne Temp-Zone (24h), KI-Exporte (7 Tage) & KI-Chat-Uploads (30 Tage)...");
+        $tempStats = $cleanupService->cleanupExpiredTempAndExports($isDryRun);
+
+        $totalBytesFreed = $fileStats['bytes_freed'] + $tempStats['bytes_freed'];
+        $totalDeleted = $fileStats['deleted'] + $tempStats['deleted'];
+        $mbFreed = round($totalBytesFreed / (1024 * 1024), 2);
 
         $this->table(
             ['Metrik', 'Wert'],
             [
-                ['Gescannte Dateien', $fileStats['scanned']],
+                ['Gescannte Dateien (Warenkorb/Snapshots)', $fileStats['scanned']],
                 ['Aktive/Geschützte Dateien (übersprungen)', $fileStats['skipped_active']],
-                ['Verwaiste Dateien gelöscht', $fileStats['deleted']],
-                ['Freigegebener Speicherplatz', "{$mbFreed} MB ({$fileStats['bytes_freed']} Bytes)"],
+                ['Verwaiste Shop-Dateien gelöscht', $fileStats['deleted']],
+                ['Abgelaufene Temp & KI-Export Dateien gelöscht', $tempStats['deleted'] . ' (von ' . $tempStats['scanned'] . ' gescannt)'],
+                ['Freigegebener Speicherplatz Gesamt', "{$mbFreed} MB ({$totalBytesFreed} Bytes)"],
                 ['Abgelaufene Warenkörbe entfernt', $deletedCarts],
                 ['Modus', $isDryRun ? 'DRY-RUN' : 'LIVE'],
             ]
         );
 
-        // 3. System-Log schreiben
+        // 4. System-Log schreiben
         if (class_exists(SystemLog::class) && !$isDryRun) {
             try {
                 SystemLog::create([
                     'type' => 'system',
                     'action_id' => 'shop:cleanup_orphaned_uploads',
-                    'title' => 'Dateibereinigung: Verwaiste Uploads & Warenkörbe',
-                    'message' => "Erfolgreich {$fileStats['deleted']} verwaiste Dateien ({$mbFreed} MB) und {$deletedCarts} alte Warenkörbe bereinigt.",
+                    'title' => 'Dateibereinigung: Verwaiste Uploads, Temp & Exporte',
+                    'message' => "Erfolgreich {$totalDeleted} Dateien ({$mbFreed} MB) sowie {$deletedCarts} alte Warenkörbe bereinigt.",
                     'status' => 'success',
                     'started_at' => now(),
                     'finished_at' => now(),

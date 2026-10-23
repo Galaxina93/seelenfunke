@@ -4,8 +4,10 @@ namespace App\Services;
 
 use App\Models\Cart\Cart;
 use App\Models\Cart\CartItem;
+use App\Models\Management\Mail\MailMessage;
 use App\Models\Order\OrderOrderItem;
 use App\Models\Order\OrderQuoteRequestItem;
+use App\Models\Product\ProductTemplate;
 use App\Models\System\SystemLog;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -112,8 +114,8 @@ class CartFileCleanupService
                     continue;
                 }
 
-                // 2. Reference checks: Order, Quote, Cart
-                if ($this->isFileUsedInOrders($basename) || $this->isFileUsedInQuotes($basename) || $this->isFileUsedInCarts($basename)) {
+                // 2. Reference checks: Order, Quote, Cart, ProductTemplate
+                if ($this->isFileUsedInOrders($basename) || $this->isFileUsedInQuotes($basename) || $this->isFileUsedInCarts($basename) || $this->isFileUsedInTemplates($basename)) {
                     $skippedActive++;
                     continue;
                 }
@@ -145,6 +147,123 @@ class CartFileCleanupService
             'deleted' => $deletedCount,
             'bytes_freed' => $bytesFreed,
             'skipped_active' => $skippedActive,
+            'deleted_files' => $deletedFiles,
+            'dry_run' => $dryRun,
+        ];
+    }
+
+    /**
+     * Clean up expired temporary files, AI exports, and ephemeral chat uploads
+     * across both private (local) and public storage disks.
+     */
+    public function cleanupExpiredTempAndExports(
+        bool $dryRun = false,
+        int $tempHours = 24,
+        int $exportDays = 7,
+        int $chatUploadDays = 30
+    ): array {
+        $rules = [
+            // Temp Zone (local disk -> storage/app/temp/*)
+            ['disk' => 'local', 'dir' => 'temp/livewire-tmp', 'cutoff' => now()->subHours($tempHours)->timestamp],
+            ['disk' => 'local', 'dir' => 'temp/mail-attachments', 'cutoff' => now()->subHours($tempHours)->timestamp],
+            ['disk' => 'local', 'dir' => 'temp/backup-temp', 'cutoff' => now()->subHours($tempHours)->timestamp],
+            // AI Exports Zone (public disk -> storage/app/public/agenten/exports/*)
+            ['disk' => 'public', 'dir' => 'agenten/exports/dossiers', 'cutoff' => now()->subDays($exportDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/exports/holidays', 'cutoff' => now()->subDays($exportDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/exports/maps', 'cutoff' => now()->subDays($exportDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/exports/places', 'cutoff' => now()->subDays($exportDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/exports/reports', 'cutoff' => now()->subDays($exportDays)->timestamp],
+            // Ephemeral AI Chat Uploads (both local & public)
+            ['disk' => 'local', 'dir' => 'agenten/ai-chat-uploads', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/ai-chat-uploads', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
+            ['disk' => 'local', 'dir' => 'agenten/workspace/chat-medien', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
+            ['disk' => 'public', 'dir' => 'agenten/workspace/chat-medien', 'cutoff' => now()->subDays($chatUploadDays)->timestamp],
+        ];
+
+        $scanned = 0;
+        $deleted = 0;
+        $bytesFreed = 0;
+        $deletedFiles = [];
+
+        foreach ($rules as $rule) {
+            $disk = Storage::disk($rule['disk']);
+            $dir = $rule['dir'];
+
+            if (!$disk->exists($dir)) {
+                continue;
+            }
+
+            foreach ($disk->allFiles($dir) as $file) {
+                $basename = basename($file);
+                if (str_starts_with($basename, '.')) {
+                    continue;
+                }
+
+                $scanned++;
+
+                try {
+                    $lastModified = $disk->lastModified($file);
+                } catch (\Throwable $e) {
+                    continue;
+                }
+
+                if ($lastModified > $rule['cutoff']) {
+                    continue;
+                }
+
+                $size = 0;
+                try {
+                    $size = $disk->size($file);
+                } catch (\Throwable $e) {
+                    $size = 0;
+                }
+
+                if (!$dryRun) {
+                    if ($disk->delete($file)) {
+                        $deleted++;
+                        $bytesFreed += $size;
+                        $deletedFiles[] = $rule['disk'] . ':' . $file;
+                    }
+                } else {
+                    $deleted++;
+                    $bytesFreed += $size;
+                    $deletedFiles[] = $rule['disk'] . ':' . $file;
+                }
+            }
+        }
+
+        // Clean up orphaned CRM mail-attachment folders whose MailMessage no longer exists
+        $localDisk = Storage::disk('local');
+        if ($localDisk->exists('leitung/crm/mail-attachments')) {
+            foreach ($localDisk->directories('leitung/crm/mail-attachments') as $mailDir) {
+                $msgId = basename($mailDir);
+                if (!ctype_digit((string) $msgId)) {
+                    continue;
+                }
+                if (!MailMessage::where('id', (int) $msgId)->exists()) {
+                    foreach ($localDisk->allFiles($mailDir) as $orphanFile) {
+                        $scanned++;
+                        $size = 0;
+                        try {
+                            $size = $localDisk->size($orphanFile);
+                        } catch (\Throwable $e) {
+                            $size = 0;
+                        }
+                        $deleted++;
+                        $bytesFreed += $size;
+                        $deletedFiles[] = 'local:' . $orphanFile;
+                    }
+                    if (!$dryRun) {
+                        $localDisk->deleteDirectory($mailDir);
+                    }
+                }
+            }
+        }
+
+        return [
+            'scanned' => $scanned,
+            'deleted' => $deleted,
+            'bytes_freed' => $bytesFreed,
             'deleted_files' => $deletedFiles,
             'dry_run' => $dryRun,
         ];
@@ -203,6 +322,17 @@ class CartFileCleanupService
     {
         if (empty($basename)) return false;
         return CartItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
+    }
+
+    /**
+     * Check if a file basename is used in any ProductTemplate.
+     */
+    public function isFileUsedInTemplates(string $basename): bool
+    {
+        if (empty($basename)) return false;
+        return ProductTemplate::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
+            ->orWhere('preview_image', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
+            ->exists();
     }
 
     /**

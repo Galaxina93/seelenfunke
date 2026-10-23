@@ -93,7 +93,7 @@ class SystemCronjobSeeder extends Seeder
             ],
             [
                 'name' => 'Verwaiste Uploads & Warenkörbe bereinigen',
-                'description' => 'Bereinigt nächtlich unbestellte temporäre Dateien, Snapshots und veraltete Warenkörbe',
+                'description' => 'Bereinigt nächtlich unbestellte Uploads/Snapshots (>48h), Temp-Zone (>24h), KI-Exporte (>7d), Chat-Uploads (>30d) & alte Warenkörbe (>14d)',
                 'command' => 'shop:cleanup-orphaned-uploads',
                 'schedule' => '0 4 * * *',
                 'is_active' => true,

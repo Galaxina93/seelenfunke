@@ -7,7 +7,7 @@ return [
          * The name of this application. You can use this name to monitor
          * the backups.
          */
-        'name' => env('APP_NAME', 'laravel') . '-db-backup',
+        'name' => 'system/' . env('APP_NAME', 'laravel') . '-db-backup',
 
         'source' => [
             'files' => [
@@ -26,6 +26,12 @@ return [
                 'exclude' => [
                     base_path('vendor'),
                     base_path('node_modules'),
+                    storage_path('app/buchhaltung/erictresor/eric-linux'),
+                    storage_path('app/temp'),
+                    storage_path('app/system/livewire-tmp'),
+                    storage_path('logs'),
+                    storage_path('framework'),
+                    storage_path('debugbar'),
                 ],
 
                 /*
@@ -158,7 +164,7 @@ return [
         /*
          * The directory where the temporary files will be stored.
          */
-        'temporary_directory' => storage_path('app/backup-temp'),
+        'temporary_directory' => storage_path('app/temp/backup-temp'),
 
         /*
          * The password to be used for archive encryption.
