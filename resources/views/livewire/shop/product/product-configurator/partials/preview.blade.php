@@ -108,13 +108,13 @@
     <div class="relative overflow-hidden border-[6px] group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
          :class="isMaximized ? 'shadow-2xl rounded-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]'"
          :style="isMaximized
-             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (((!showDrawingBoard || !config.fallbackImg || config.area_shape === 'custom') && activeBgImage) ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
-             : (((!showDrawingBoard || !config.fallbackImg || config.area_shape === 'custom') && activeBgImage) ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
+             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (((!showDrawingBoard || !config.fallbackImg || hasTransparentOverlay || config.area_shape === 'custom') && activeBgImage) ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
+             : (((!showDrawingBoard || !config.fallbackImg || hasTransparentOverlay || config.area_shape === 'custom') && activeBgImage) ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
          x-ref="container"
          @mousedown="deselectAll($event)"
          @touchstart="deselectAll($event)">
 
-        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D, nahtlos per Screen-Blend) --}}
+        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D, bei Cutout-Overlays wie Seelenanhänger im Hintergrund hinter dem Produkt) --}}
         <template x-if="activeBgVideo && !isCapturing">
             <video x-ref="bgVideo"
                    :src="activeBgVideo"
@@ -123,15 +123,47 @@
                    muted
                    playsinline
                    class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none transition-opacity duration-500"
-                   :class="showDrawingBoard ? 'z-[21] opacity-65' : 'z-[5] opacity-95'"></video>
+                   :class="(showDrawingBoard && !hasTransparentOverlay) ? 'z-[18] opacity-55' : 'z-[5] opacity-90'"></video>
         </template>
 
-        {{-- MAXIMAL / MINIMAL TOGGLE BUTTON --}}
+        {{-- UNDO / REDO CONTROLS (ZURÜCK / VOR) - OBEN LINKS AUF GLEICHER EBENE WIE MAXIMAL --}}
         @if($context !== 'preview')
-        <div x-show="!isCapturing && context !== 'preview'" class="absolute top-3 right-3 z-30 pointer-events-auto">
+        <div x-show="(showDrawingBoard || !config.modelPath) && !isCapturing && context !== 'preview'"
+             class="absolute top-3 left-3 z-40 flex items-center gap-0.5 p-1 rounded-xl shadow-md border backdrop-blur-md transition-all pointer-events-auto {{ $isDark ? 'bg-gray-900/95 border-gray-700/90 text-gray-100' : 'bg-white/95 border-gray-200/90 text-gray-800' }}">
+            <button type="button"
+                    @click.stop="undo()"
+                    :disabled="!canUndo"
+                    :class="canUndo
+                        ? '{{ $isDark ? 'text-white hover:bg-gray-800 active:scale-95' : 'text-gray-900 hover:bg-gray-100 active:scale-95' }} cursor-pointer'
+                        : '{{ $isDark ? 'text-gray-500 opacity-70' : 'text-gray-400 opacity-80' }} cursor-not-allowed'"
+                    class="px-2 py-1 rounded-lg transition-all flex items-center gap-1.5 select-none"
+                    title="Rückgängig (Strg+Z)">
+                <span :class="canUndo ? 'text-primary' : ''" class="flex items-center shrink-0 transition-colors">
+                    <x-heroicon-m-arrow-uturn-left class="w-4 h-4 stroke-[2.2]" />
+                </span>
+                <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Zurück</span>
+            </button>
+            <div class="w-px h-4 {{ $isDark ? 'bg-gray-700' : 'bg-gray-300' }}"></div>
+            <button type="button"
+                    @click.stop="redo()"
+                    :disabled="!canRedo"
+                    :class="canRedo
+                        ? '{{ $isDark ? 'text-white hover:bg-gray-800 active:scale-95' : 'text-gray-900 hover:bg-gray-100 active:scale-95' }} cursor-pointer'
+                        : '{{ $isDark ? 'text-gray-500 opacity-70' : 'text-gray-400 opacity-80' }} cursor-not-allowed'"
+                    class="px-2 py-1 rounded-lg transition-all flex items-center gap-1.5 select-none"
+                    title="Wiederholen (Strg+Y)">
+                <span class="text-[10px] font-black uppercase tracking-wider hidden sm:inline">Vor</span>
+                <span :class="canRedo ? 'text-primary' : ''" class="flex items-center shrink-0 transition-colors">
+                    <x-heroicon-m-arrow-uturn-right class="w-4 h-4 stroke-[2.2]" />
+                </span>
+            </button>
+        </div>
+
+        {{-- MAXIMAL / MINIMAL TOGGLE BUTTON --}}
+        <div x-show="!isCapturing && context !== 'preview'" class="absolute top-3 right-3 z-40 pointer-events-auto">
             <button type="button"
                     @click.stop="toggleMaximize()"
-                    class="px-2.5 py-1.5 rounded-xl shadow-md border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/80 border-gray-700/80 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/80 border-gray-200/80 text-gray-700 hover:text-gray-900 hover:bg-gray-100' }}"
+                    class="px-2.5 py-1.5 rounded-xl shadow-md border backdrop-blur-md transition-all flex items-center gap-1.5 cursor-pointer {{ $isDark ? 'bg-gray-900/95 border-gray-700/90 text-gray-200 hover:text-white hover:bg-gray-800' : 'bg-white/95 border-gray-200/90 text-gray-800 hover:text-gray-950 hover:bg-gray-100' }}"
                     :title="isMaximized ? 'Normalansicht (Esc)' : 'Maximal-Ansicht'">
                 <template x-if="!isMaximized">
                     <div class="flex items-center gap-1.5">
@@ -167,35 +199,13 @@
         </div>
 
         {{-- 2D Ansicht & Zeichenbrett --}}
-        <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full z-20 pointer-events-auto transition-opacity duration-500">
-
-            {{-- UNDO / REDO CONTROLS --}}
-            <div x-show="context !== 'preview' && !isCapturing"
-                 class="absolute top-3 left-3 z-30 flex items-center gap-1 p-1 rounded-xl shadow-md border backdrop-blur-md transition-all {{ $isDark ? 'bg-gray-900/80 border-gray-700/80' : 'bg-white/80 border-gray-200/80' }}">
-                <button type="button"
-                        @click.stop="undo()"
-                        :disabled="!canUndo"
-                        :class="canUndo ? '{{ $isDark ? 'text-gray-200 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100' }} cursor-pointer' : 'opacity-30 cursor-not-allowed text-gray-400'"
-                        class="p-1.5 rounded-lg transition-colors flex items-center justify-center"
-                        title="Rückgängig (Strg+Z)">
-                    <x-heroicon-m-arrow-uturn-left class="w-4 h-4" />
-                </button>
-                <div class="w-px h-4 {{ $isDark ? 'bg-gray-700' : 'bg-gray-200' }}"></div>
-                <button type="button"
-                        @click.stop="redo()"
-                        :disabled="!canRedo"
-                        :class="canRedo ? '{{ $isDark ? 'text-gray-200 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-100' }} cursor-pointer' : 'opacity-30 cursor-not-allowed text-gray-400'"
-                        class="p-1.5 rounded-lg transition-colors flex items-center justify-center"
-                        title="Wiederholen (Strg+Y)">
-                    <x-heroicon-m-arrow-uturn-right class="w-4 h-4" />
-                </button>
-            </div>
+        <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full pointer-events-auto">
 
             <template x-if="config.fallbackImg">
-                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
+                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
             </template>
 
-            <div x-show="!isCapturing" class="absolute border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
+            <div x-show="!isCapturing" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
                  :style="`
                     top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
                     left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
@@ -212,11 +222,11 @@
             </div>
 
             {{-- Hilfslinien fürs Snapping --}}
-            <div x-show="showGuideX && !isCapturing" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" style="left: 50%; z-index: 10;"></div>
-            <div x-show="showGuideY && !isCapturing" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" style="top: 50%; z-index: 10;"></div>
+            <div x-show="showGuideX && !isCapturing" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" style="left: 50%; z-index: 23;"></div>
+            <div x-show="showGuideY && !isCapturing" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" style="top: 50%; z-index: 23;"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
-            <div class="absolute overflow-hidden pointer-events-none transition-all duration-300"
+            <div class="absolute z-[25] overflow-hidden pointer-events-none transition-all duration-300"
                  :style="`
                         top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
                         left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
@@ -231,7 +241,9 @@
                      `">
 
                 <div x-show="currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !isCapturing" class="absolute inset-0 flex items-center justify-center pointer-events-auto">
-                    <button @click="addFallbackText()" class="px-6 py-3 backdrop-blur-sm border rounded-2xl shadow-lg text-[10px] font-black uppercase tracking-widest transition-all {{ $isDark ? 'bg-gray-900/90 text-gray-300 border-gray-700 hover:bg-primary hover:text-gray-900 hover:border-primary' : 'bg-white/90 text-gray-800 border-gray-200 hover:bg-primary hover:text-white hover:border-primary' }}">
+                    <button @click="addFallbackText()"
+                            :class="isDarkSurface ? 'bg-gray-900/90 text-white border-gray-600 hover:bg-primary hover:text-gray-900 hover:border-primary' : '{{ $isDark ? 'bg-gray-900/90 text-gray-300 border-gray-700 hover:bg-primary hover:text-gray-900 hover:border-primary' : 'bg-white/90 text-gray-800 border-gray-200 hover:bg-primary hover:text-white hover:border-primary' }}'"
+                            class="px-6 py-3 backdrop-blur-sm border rounded-2xl shadow-lg text-[10px] font-black uppercase tracking-widest transition-all">
                         + Text hinzufügen
                     </button>
                 </div>
@@ -248,7 +260,10 @@
                          @mousedown.stop="startAction($event,'text',index,'drag')"
                          @touchstart.stop="startAction($event,'text',index,'drag')">
 
-                        <div class="relative transition-all rounded-lg p-1.5" :class="selectedIndex===index && context!=='preview'?'border-[1.5px] border-primary border-dashed {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg':'border-[1.5px] border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}'">
+                        <div class="relative transition-all rounded-lg p-1.5 border-[1.5px]"
+                             :class="selectedIndex===index && context!=='preview'
+                                 ? (isDarkSurface ? 'border-primary border-dashed bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'border-primary border-dashed {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg')
+                                 : (isDarkSurface ? 'border-transparent hover:border-primary/60 hover:bg-white/5' : 'border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
 
                             <template x-if="currentTexts[index] !== undefined && !isCapturing">
                                 <textarea x-model="textItem.text"
@@ -271,9 +286,12 @@
                                                 font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
                                                 font-family: ${fontMap[textItem.font] || 'Arial'};
                                                 line-height: 1.15;
-                                                color: rgba({{ $isDark ? '255,255,255' : '0,0,0' }}, 1);
-                                                filter: {{ $isDark ? 'drop-shadow(0px 0px 5px rgba(255,255,255,0.4)) grayscale(100%) brightness(1.5)' : 'drop-shadow(0px 0px 3px rgba(0,0,0,0.3)) grayscale(100%)' }};
-                                                -webkit-text-fill-color: {{ $isDark ? 'white' : 'black' }};
+                                                color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.96)' : 'rgba(17, 24, 39, 0.95)'};
+                                                -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
+                                                caret-color: #C5A059;
+                                                filter: ${isDarkSurface
+                                                    ? 'drop-shadow(0px 1px 3px rgba(0,0,0,0.9)) drop-shadow(0px 0px 6px rgba(255,255,255,0.25))'
+                                                    : 'drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25))'};
                                                 white-space: pre !important;
                                             `"
                                           placeholder="Text eingeben...">
@@ -289,9 +307,11 @@
                                            font-size: ${(20 * (textItem.size || 1)) * scaleFactor}px;
                                            font-family: ${fontMap[textItem.font] || 'Arial'};
                                            line-height: 1.15;
-                                           color: rgba({{ $isDark ? '255,255,255' : '0,0,0' }}, 1);
-                                           filter: {{ $isDark ? 'drop-shadow(0px 0px 5px rgba(255,255,255,0.4)) grayscale(100%) brightness(1.5)' : 'drop-shadow(0px 0px 3px rgba(0,0,0,0.3)) grayscale(100%)' }};
-                                           -webkit-text-fill-color: {{ $isDark ? 'white' : 'black' }};
+                                           color: ${isDarkSurface ? 'rgba(248, 250, 252, 0.96)' : 'rgba(17, 24, 39, 0.95)'};
+                                           -webkit-text-fill-color: ${isDarkSurface ? '#f8fafc' : '#111827'};
+                                           filter: ${isDarkSurface
+                                               ? 'drop-shadow(0px 1px 3px rgba(0,0,0,0.9)) drop-shadow(0px 0px 6px rgba(255,255,255,0.25))'
+                                               : 'drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25))'};
                                            white-space: pre !important;
                                        `">
                                 </div>
@@ -321,9 +341,17 @@
                          @mousedown.stop="startAction($event,'logo',index,'drag')"
                          @touchstart.stop="startAction($event,'logo',index,'drag')">
 
-                        <div class="relative transition-all rounded-lg ring-2" :class="selectedIndex===index && context!=='preview'?'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg':'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}'">
+                        <div class="relative transition-all rounded-lg ring-2"
+                             :class="selectedIndex===index && context!=='preview'
+                                 ? (isDarkSurface ? 'ring-primary bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg')
+                                 : (isDarkSurface ? 'ring-transparent hover:ring-primary/60 hover:bg-white/5' : 'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
                             <template x-if="currentLogos[index] !== undefined">
-                                <img crossorigin="anonymous" :src="currentLogos[index].url" class="w-full h-auto pointer-events-none opacity-90 drop-shadow-md rounded-lg {{ $isDark ? 'filter invert brightness-0' : '' }}">
+                                <img crossorigin="anonymous"
+                                     :src="currentLogos[index].url"
+                                     class="w-full h-auto pointer-events-none rounded-lg transition-all duration-200"
+                                     :style="isDarkSurface
+                                         ? 'filter: brightness(0) invert(1) opacity(0.93) drop-shadow(0px 1px 3px rgba(0,0,0,0.85)) drop-shadow(0px 0px 5px rgba(255,255,255,0.2));'
+                                         : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));'">
                             </template>
 
                             <template x-if="selectedIndex===index && context!=='preview' && currentLogos[index] !== undefined">

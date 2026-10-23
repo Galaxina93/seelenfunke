@@ -446,11 +446,16 @@
                             const drawW = scale;
                             const drawH = scale / aspect;
 
-                            // VISUELLER FILTER: Macht alle eingefügten Logos optisch weiß für die "Lasergravur-Optik"
+                            // VISUELLER FILTER: Macht alle eingefügten Logos optisch weiß/silber für die "Lasergravur-Optik"
                             // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
-                            ctx.filter = 'brightness(0) invert(1) opacity(0.85)';
+                            if (this.config.material_type === 'metal') {
+                                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                                ctx.shadowBlur = cw <= 1024 ? 3 : 6;
+                            }
+                            ctx.filter = 'brightness(0) invert(1) opacity(0.92)';
                             ctx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
                             ctx.filter = 'none'; // Filter zurücksetzen für andere Operationen
+                            ctx.shadowBlur = 0;
 
                             ctx.restore();
                             if(textureObj) textureObj.needsUpdate = true;
@@ -472,13 +477,16 @@
                         ctx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
 
                         ctx.filter = 'grayscale(100%) brightness(1.5)';
-                        ctx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(255,255,255,0.95)';
+                        ctx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(248,250,252,0.96)';
                         ctx.textAlign = item.align || 'center';
                         ctx.textBaseline = 'middle';
 
                         if(this.config.material_type === 'glass') {
                             ctx.shadowColor = 'rgba(255,255,255,0.8)';
                             ctx.shadowBlur = cw <= 1024 ? 5 : 15;
+                        } else if(this.config.material_type === 'metal') {
+                            ctx.shadowColor = 'rgba(0,0,0,0.65)';
+                            ctx.shadowBlur = cw <= 1024 ? 3 : 8;
                         }
 
                         const lines = item.text.split('\n');

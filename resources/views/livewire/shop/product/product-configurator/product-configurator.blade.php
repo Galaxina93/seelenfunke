@@ -6,6 +6,12 @@
     $isService       = $type === 'service';
     $isPhysical      = $type === 'physical';
 
+    $overlayAnalysis = app(\App\Services\ConfiguratorService::class)->analyzeOverlayImage(
+        $this->product->preview_image_path ?? null,
+        $configSettings ?? []
+    );
+    $isDarkSurface = !empty($overlayAnalysis['is_dark_surface']);
+    $hasTransparentOverlay = !empty($overlayAnalysis['has_transparent_overlay']);
 @endphp
 
 <div :class="isMaximized ? 'configurator-studio-root overflow-hidden flex flex-col {{ $isDark ? 'bg-gray-950 text-gray-200' : 'bg-white text-gray-900' }}' : 'relative w-full h-full {{ $isDark ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-900' }}'"
@@ -26,6 +32,9 @@
             modelPath: '{{ ($product->three_d_active && $product->three_d_model_path) ? asset("storage/".$product->three_d_model_path) : "" }}',
             bgPath: '{{ $this->resolvedBackgroundPath }}',
             fallbackImg: '{{ $this->previewImage }}',
+            isDarkSurface: {{ $isDarkSurface ? 'true' : 'false' }},
+            hasTransparentOverlay: {{ $hasTransparentOverlay ? 'true' : 'false' }},
+            surfaceLuminance: {{ (float) ($overlayAnalysis['surface_luminance'] ?? 140) }},
             templatePackage: '{{ $configSettings["template_package"] ?? "custom" }}',
             enableBgVideo: {{ (!isset($configSettings['enable_background_video']) || $configSettings['enable_background_video']) ? 'true' : 'false' }},
             customBgVideo: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/".$configSettings["background_video_path"]) : "" }}',

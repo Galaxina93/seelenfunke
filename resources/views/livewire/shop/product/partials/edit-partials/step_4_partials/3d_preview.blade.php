@@ -9,9 +9,9 @@
          @mousedown="addPoint($event)"
          :style="((!showDrawingBoard || !fallbackImg || configSettings.area_shape === 'custom') && bgPath) ? `background-image: url('${bgPath}'); background-size: cover; background-position: center;` : ''">
 
-        {{-- ANIMIERTES THEMEN-HINTERGRUNDVIDEO (2D & 3D, nahtlos per Screen-Blend) --}}
+        {{-- ANIMIERTES THEMEN-HINTERGRUNDVIDEO (2D & 3D, bei Cutout-Overlays im Hintergrund hinter dem Produkt) --}}
         <template x-if="bgVideoUrl && (configSettings.enable_background_video !== false)">
-            <video x-ref="adminBgVideo" :src="bgVideoUrl" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none" :class="showDrawingBoard ? 'z-[25] opacity-65' : 'z-[5] opacity-95'"></video>
+            <video x-ref="adminBgVideo" :src="bgVideoUrl" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none" :class="(showDrawingBoard && configSettings.area_shape !== 'custom') ? 'z-[25] opacity-55' : 'z-[5] opacity-90'"></video>
         </template>
 
         {{-- LADEBILDSCHIRM FÜR RAYCASTING --}}

@@ -24,6 +24,8 @@
             activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
             backgroundTheme: params.wireModels.backgroundTheme !== undefined ? params.wireModels.backgroundTheme : 'standard',
             videoEnabled: (params.config && params.config.enableBgVideo !== undefined) ? Boolean(params.config.enableBgVideo) : true,
+            isDarkSurface: Boolean(params.config && params.config.isDarkSurface),
+            hasTransparentOverlay: Boolean(params.config && params.config.hasTransparentOverlay),
 
             selectedIndex: null,
             selectedType: null,
@@ -114,6 +116,59 @@
                 });
             },
 
+            analyzeOverlayContrast() {
+                if (!this.config || !this.config.fallbackImg) return;
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        const size = 64;
+                        canvas.width = size;
+                        canvas.height = size;
+                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                        if (!ctx) return;
+                        ctx.drawImage(img, 0, 0, size, size);
+                        const data = ctx.getImageData(0, 0, size, size).data;
+
+                        // 1. Ecken auf Alpha-Transparenz prüfen (Cutout-PNG wie beim Seelenanhänger)
+                        const corners = [
+                            (1 * size + 1) * 4,
+                            (1 * size + (size - 2)) * 4,
+                            ((size - 2) * size + 1) * 4,
+                            ((size - 2) * size + (size - 2)) * 4
+                        ];
+                        let transCorners = 0;
+                        corners.forEach(idx => {
+                            if (data[idx + 3] < 128) transCorners++;
+                        });
+                        this.hasTransparentOverlay = transCorners >= 2;
+
+                        // 2. Durchschnittliche Helligkeit im zentralen Gravurbereich (30%..70%) messen
+                        let lumSum = 0;
+                        let count = 0;
+                        const start = Math.floor(size * 0.30);
+                        const end = Math.floor(size * 0.70);
+                        for (let y = start; y <= end; y++) {
+                            for (let x = start; x <= end; x++) {
+                                const idx = (y * size + x) * 4;
+                                if (data[idx + 3] > 100) {
+                                    lumSum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+                                    count++;
+                                }
+                            }
+                        }
+                        if (count > 0) {
+                            const avgLum = lumSum / count;
+                            this.isDarkSurface = avgLum < 65;
+                        }
+                    } catch (e) {
+                        // Fallback auf Server-Analyse
+                    }
+                };
+                img.src = this.config.fallbackImg;
+            },
+
             init() {
                 window._frontendConfiguratorDataInstance = this;
                 this.isInitializing = false;
@@ -163,6 +218,8 @@
                 const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
                 this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
                 this.draftExists = localStorage.getItem(this.storageDraftKey) !== null;
+
+                this.analyzeOverlayContrast();
 
                 this.$nextTick(() => {
                     if (this.$refs.container) {

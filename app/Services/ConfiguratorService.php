@@ -8,6 +8,115 @@ use Illuminate\Support\Facades\File;
 
 class ConfiguratorService
 {
+    protected static array $overlayAnalysisCache = [];
+
+    /**
+     * Analysiert das 2D-Overlay-Bild (PNG/JPG/WEBP) intelligent auf:
+     * 1. Transparenz am Außenrand (Cutout-PNG wie beim Seelenanhänger vs. Vollbild-Szene)
+     * 2. Durchschnittliche Helligkeit (Luminanz) der Gravurfläche, um automatisch zwischen
+     *    dunkler Gravur (auf hellem Grund) und silber-weißer Lasergravur (auf schwarzem Grund wie beim Seelenanhänger) umzuschalten.
+     */
+    public function analyzeOverlayImage(?string $previewImagePath, array $configSettings = []): array
+    {
+        $pkgKey = $configSettings['template_package'] ?? 'custom';
+        $packages = $this->getTemplatePackages();
+        if (!$previewImagePath && isset($packages[$pkgKey]['preview_image_path'])) {
+            $previewImagePath = $packages[$pkgKey]['preview_image_path'];
+        }
+
+        $fallbackDark = ($configSettings['material_type'] ?? '') === 'metal' || $pkgKey === 'seelen-anhaenger';
+        $fallbackTrans = ($configSettings['area_shape'] ?? '') === 'custom' || $pkgKey === 'seelen-anhaenger';
+
+        if (!$previewImagePath) {
+            return [
+                'is_dark_surface'         => $fallbackDark,
+                'has_transparent_overlay' => $fallbackTrans,
+                'surface_luminance'       => $fallbackDark ? 10.0 : 140.0,
+            ];
+        }
+
+        $cleanRel = ltrim(preg_replace('/\?.*$/', '', $previewImagePath), '/');
+        if (str_starts_with($cleanRel, 'storage/')) {
+            $cleanRel = substr($cleanRel, strlen('storage/'));
+        }
+
+        $diskPath = storage_path('app/public/' . $cleanRel);
+        if (!is_file($diskPath)) {
+            return [
+                'is_dark_surface'         => $fallbackDark,
+                'has_transparent_overlay' => $fallbackTrans,
+                'surface_luminance'       => $fallbackDark ? 10.0 : 140.0,
+            ];
+        }
+
+        $cacheKey = $diskPath . ':' . @filemtime($diskPath);
+        if (isset(self::$overlayAnalysisCache[$cacheKey])) {
+            return self::$overlayAnalysisCache[$cacheKey];
+        }
+
+        $ext = strtolower(pathinfo($diskPath, PATHINFO_EXTENSION));
+        $im = match ($ext) {
+            'png'         => @imagecreatefrompng($diskPath),
+            'jpg', 'jpeg' => @imagecreatefromjpeg($diskPath),
+            'webp'        => @imagecreatefromwebp($diskPath),
+            default       => null,
+        };
+
+        if (!$im) {
+            return self::$overlayAnalysisCache[$cacheKey] = [
+                'is_dark_surface'         => $fallbackDark,
+                'has_transparent_overlay' => $fallbackTrans,
+                'surface_luminance'       => $fallbackDark ? 10.0 : 140.0,
+            ];
+        }
+
+        $w = imagesx($im);
+        $h = imagesy($im);
+
+        // 1. Prüfe Ecken auf Alpha-Transparenz (PHP GD: 0 = deckend, 127 = voll transparent)
+        $corners = [
+            [2, 2],
+            [max(0, $w - 3), 2],
+            [2, max(0, $h - 3)],
+            [max(0, $w - 3), max(0, $h - 3)],
+        ];
+        $transparentCorners = 0;
+        foreach ($corners as [$cx, $cy]) {
+            $rgba = @imagecolorsforindex($im, @imagecolorat($im, $cx, $cy));
+            if (is_array($rgba) && ($rgba['alpha'] ?? 0) > 64) {
+                $transparentCorners++;
+            }
+        }
+        $hasTransparency = $transparentCorners >= 2;
+
+        // 2. Messe die durchschnittliche Luminanz im zentralen Gravurbereich (30% bis 70%)
+        $lumSum = 0.0;
+        $sampleCount = 0;
+        $stepX = max(1, (int) floor($w / 25));
+        $stepY = max(1, (int) floor($h / 25));
+
+        for ($x = (int) floor($w * 0.30); $x <= (int) floor($w * 0.70); $x += $stepX) {
+            for ($y = (int) floor($h * 0.30); $y <= (int) floor($h * 0.70); $y += $stepY) {
+                $rgba = @imagecolorsforindex($im, @imagecolorat($im, $x, $y));
+                if (is_array($rgba) && ($rgba['alpha'] ?? 0) < 100) {
+                    $lumSum += (0.299 * $rgba['red']) + (0.587 * $rgba['green']) + (0.114 * $rgba['blue']);
+                    $sampleCount++;
+                }
+            }
+        }
+
+        imagedestroy($im);
+
+        $avgLuminance = $sampleCount > 0 ? round($lumSum / $sampleCount, 1) : 140.0;
+        $isDarkSurface = $avgLuminance < 65.0;
+
+        return self::$overlayAnalysisCache[$cacheKey] = [
+            'is_dark_surface'         => $isDarkSurface,
+            'has_transparent_overlay' => $hasTransparency,
+            'surface_luminance'       => $avgLuminance,
+        ];
+    }
+
     /**
      * Gibt die Standard-Schriftarten für den Konfigurator zurück.
      * So hast du nur eine zentrale Stelle, wenn neue Fonts hinzukommen.
