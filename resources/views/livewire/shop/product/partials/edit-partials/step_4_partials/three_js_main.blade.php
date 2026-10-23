@@ -7,6 +7,7 @@ transformTarget: 'none',
 transformMode: 'translate',
 modelPath: '{{ ($product?->three_d_active && $product?->three_d_model_path) ? asset("storage/" . $product->three_d_model_path) : "" }}',
 bgPath: '{{ !empty($product?->three_d_background_path) ? asset("storage/" . $product->three_d_background_path) : "" }}',
+bgVideoUrl: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/" . $configSettings["background_video_path"]) : asset("storage/produkte/configurator-presets/videos/" . ($configSettings["default_background_theme"] ?? "standard") . ".mp4") }}',
 fallbackImg: '{{ $product?->preview_image_path ? asset("storage/" . $product->preview_image_path) : "" }}',
 configSettings: @entangle('configSettings'),
 
@@ -779,3 +780,4 @@ this.applyModelTransforms();
 @3d-model-updated.window="modelPath = $event.detail.url; reinit3D();"
 @3d-bg-updated.window="bgPath = $event.detail.url;"
 @2d-preview-updated.window="fallbackImg = $event.detail.url;"
+@3d-theme-video-updated.window="bgVideoUrl = $event.detail.videoUrl || ''; if ($event.detail.imageUrl) bgPath = $event.detail.imageUrl; if ($refs.adminBgVideo) { $nextTick(() => { $refs.adminBgVideo.load(); $refs.adminBgVideo.play().catch(()=>{}); }); }"

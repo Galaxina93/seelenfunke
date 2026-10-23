@@ -119,22 +119,15 @@ class SystemNeuralAnalysisIndex extends Component
             }
         }
 
-        $dir = storage_path('app/public/agenten/workspace/Dokumente/Berichte');
-        if (!File::exists($dir)) {
-            File::makeDirectory($dir, 0755, true);
-        }
-
         $safeName = str_replace(['/', '\\'], '_', $node->file_path);
-        $filePath = $dir . '/Struktur_' . $safeName . '.md';
 
-        File::put($filePath, $content);
-
-        // Auch im internen Workspace sichern
+        // Im internen Workspace sichern (kein Duplikat mehr in public/)
         $privDir = storage_path('app/agenten/workspace/Dokumente/Berichte');
         if (!File::exists($privDir)) {
             File::makeDirectory($privDir, 0755, true);
         }
-        File::put($privDir . '/Struktur_' . $safeName . '.md', $content);
+        $filePath = $privDir . '/Struktur_' . $safeName . '.md';
+        File::put($filePath, $content);
 
         return $filePath;
     }

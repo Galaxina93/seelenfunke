@@ -52,6 +52,8 @@ class ProductConfigurator extends Component
 
     public array $fonts = [];
     public array $vectors = [];
+    public array $backgroundThemes = [];
+    public string $backgroundTheme = 'standard';
     public string $selectedCategory = 'Allgemein';
     public $design = 'light';
 
@@ -68,6 +70,7 @@ class ProductConfigurator extends Component
     {
         $this->fonts = $configService->getFonts();
         $this->vectors = $configService->getStandardVectors();
+        $this->backgroundThemes = $configService->getBackgroundThemes();
         
         if (!empty($this->vectors)) {
             $this->selectedCategory = array_key_first($this->vectors);
@@ -121,6 +124,14 @@ class ProductConfigurator extends Component
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
         $source = !empty($initialData) ? $initialData : ($this->cartItem ? $this->cartItem->configuration : []);
+
+        $defaultTheme = $this->configSettings['default_background_theme'] ?? 'standard';
+        $autoTheme = $configService->getCurrentActiveTheme()['theme_key'] ?? 'standard';
+        $effectiveDefault = ($defaultTheme === 'standard' || $defaultTheme === 'auto') ? $autoTheme : $defaultTheme;
+        $initialTheme = $source['background_theme'] ?? $source['holiday'] ?? null;
+        $this->backgroundTheme = ($initialTheme && $initialTheme !== 'standard')
+            ? $configService->resolveThemeKey($initialTheme, $effectiveDefault)
+            : $effectiveDefault;
 
         if ($qty !== null) {
             $this->qty = $qty;
@@ -202,7 +213,9 @@ class ProductConfigurator extends Component
         foreach ($this->logos as &$logo) {
             if (isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
-                    $logo['url'] = asset('shop/product/configurator/' . $logo['value']);
+                    $vecDisk = public_path('shop/product/configurator/' . $logo['value']);
+                    $v = is_file($vecDisk) ? '?v=' . filemtime($vecDisk) : '';
+                    $logo['url'] = asset('shop/product/configurator/' . $logo['value']) . $v;
                 } else {
                     $logo['url'] = asset('storage/' . $logo['value']);
                 }
@@ -212,7 +225,9 @@ class ProductConfigurator extends Component
         foreach ($this->logos_back as &$logo) {
             if (isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
-                    $logo['url'] = asset('shop/product/configurator/' . $logo['value']);
+                    $vecDisk = public_path('shop/product/configurator/' . $logo['value']);
+                    $v = is_file($vecDisk) ? '?v=' . filemtime($vecDisk) : '';
+                    $logo['url'] = asset('shop/product/configurator/' . $logo['value']) . $v;
                 } else {
                     $logo['url'] = asset('storage/' . $logo['value']);
                 }
@@ -716,6 +731,7 @@ class ProductConfigurator extends Component
                     'variant_name' => $this->variantName,
                     'snapshot_path' => $finalSnapshotPath,
                     'is_express' => $this->is_express,
+                    'background_theme' => $this->backgroundTheme,
                 ];
 
                 if ($this->context !== 'template_admin') {
@@ -833,8 +849,36 @@ class ProductConfigurator extends Component
 
     public function getPreviewImageProperty()
     {
-        $path = $this->product->preview_image_path ?? collect($this->product->media_gallery)->firstWhere('type', 'image')['path'] ?? null;
-        return $path ? asset('storage/' . $path) : null;
+        $pkgKey = $this->configSettings['template_package'] ?? 'custom';
+        $packages = app(ConfiguratorService::class)->getTemplatePackages();
+        $pkgOverlay = ($pkgKey !== 'custom' && isset($packages[$pkgKey]['preview_image_path']))
+            ? $packages[$pkgKey]['preview_image_path']
+            : null;
+
+        $path = $this->product->preview_image_path ?? $pkgOverlay ?? collect($this->product->media_gallery)->firstWhere('type', 'image')['path'] ?? null;
+        if (!$path) {
+            return null;
+        }
+        $diskPath = storage_path('app/public/' . $path);
+        $ver = is_file($diskPath) ? '?v=' . filemtime($diskPath) : '';
+        return asset('storage/' . $path) . $ver;
+    }
+
+    public function getResolvedBackgroundPathProperty()
+    {
+        $pkgKey = $this->configSettings['template_package'] ?? 'custom';
+        $packages = app(ConfiguratorService::class)->getTemplatePackages();
+        $pkgBg = ($pkgKey !== 'custom' && isset($packages[$pkgKey]['three_d_background_path']))
+            ? $packages[$pkgKey]['three_d_background_path']
+            : null;
+
+        $path = $this->product->three_d_background_path ?? $pkgBg;
+        if (!$path) {
+            return '';
+        }
+        $diskPath = storage_path('app/public/' . $path);
+        $ver = is_file($diskPath) ? '?v=' . filemtime($diskPath) : '';
+        return asset('storage/' . $path) . $ver;
     }
 
     protected function sanitizeSvg(string $filePath): bool

@@ -175,15 +175,15 @@ trait AiHolidayPlannerFuncs
             ])->setOption(['isRemoteEnabled' => false]);
 
             // Ensure the directory exists via Storage disk
-            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory('holidays');
+            \Illuminate\Support\Facades\Storage::disk('public')->makeDirectory('agenten/exports/holidays');
 
             // Save PDF
             $slug = Str::slug($title) ?: 'plan';
             $filename = 'urlaubsplan_' . $slug . '_' . time() . '_' . Str::random(6) . '.pdf';
-            $filePath = storage_path('app/public/holidays/' . $filename);
+            $filePath = storage_path('app/public/agenten/exports/holidays/' . $filename);
             $pdf->save($filePath);
 
-            $downloadUrl = url('storage/holidays/' . $filename);
+            $downloadUrl = url('storage/agenten/exports/holidays/' . $filename);
 
             if ($action === 'email') {
                 if (empty($recipient) || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {

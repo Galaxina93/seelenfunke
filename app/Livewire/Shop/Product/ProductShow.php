@@ -65,7 +65,14 @@ class ProductShow extends Component
     {
         $template = ProductTemplate::find($templateId);
         if ($template) {
-            $this->currentConfig = $template->configuration ?? [];
+            $config = $template->configuration ?? [];
+            if (empty($config['background_theme'])) {
+                $config['background_theme'] = app(\App\Services\ConfiguratorService::class)
+                    ->resolveThemeKey($template->holiday ?? $template->name);
+            }
+            $config['holiday'] = $template->holiday;
+            $config['template_name'] = $template->name;
+            $this->currentConfig = $config;
             ProductTrackingService::trackTemplateSelected($this->product->id, $templateId, $template->name ?? $template->title ?? ('Vorlage #' . $templateId));
         } else {
             $this->currentConfig = [];

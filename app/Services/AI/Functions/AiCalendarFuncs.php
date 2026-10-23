@@ -551,9 +551,10 @@ trait AiCalendarFuncs
 
             $workspaceRelativePath = 'agenten/workspace/Dokumente/Kalender/' . $icsFilename;
             try {
-                Storage::disk('public')->put($workspaceRelativePath, $icsContent);
                 if ( array_key_exists('workspace', config('filesystems.disks', [])) ) {
                     Storage::disk('workspace')->put($workspaceRelativePath, $icsContent);
+                } else {
+                    Storage::disk('local')->put($workspaceRelativePath, $icsContent);
                 }
             } catch (\Throwable $storageEx) {
                 // Storage ist optional, E-Mail-Versand hat Priorität

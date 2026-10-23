@@ -117,11 +117,14 @@ trait HandlesConfiguratorLogic
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
+        $vecFile = public_path('shop/product/configurator/vectors/' . $filename);
+        $ver = is_file($vecFile) ? '?v=' . filemtime($vecFile) : '';
+
         $newItem = [
             'id' => Str::uuid()->toString(),
             'type' => 'vector',
             'value' => 'vectors/' . $filename,
-            'url' => asset('shop/product/configurator/vectors/' . $filename),
+            'url' => asset('shop/product/configurator/vectors/' . $filename) . $ver,
             'x' => $centerX,
             'y' => $centerY,
             'size' => 100,
@@ -245,7 +248,13 @@ trait HandlesConfiguratorLogic
     {
         $rendered = [];
         foreach ($this->logos as $logo) {
-            $url = Str::startsWith($logo['value'], 'vectors/') ? asset('shop/product/configurator/' . $logo['value']) : asset('storage/' . $logo['value']);
+            if (Str::startsWith($logo['value'], 'vectors/')) {
+                $vecDisk = public_path('shop/product/configurator/' . $logo['value']);
+                $v = is_file($vecDisk) ? '?v=' . filemtime($vecDisk) : '';
+                $url = asset('shop/product/configurator/' . $logo['value']) . $v;
+            } else {
+                $url = asset('storage/' . $logo['value']);
+            }
             $rendered[] = array_merge($logo, ['url' => $url]);
         }
         return $rendered;

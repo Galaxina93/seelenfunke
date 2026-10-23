@@ -168,7 +168,7 @@
         {{-- Bild linksbündig --}}
         <div class="h-56 sm:h-72 md:absolute md:left-0 md:h-full md:w-1/2 bg-white flex items-center justify-center">
             <img class="w-full h-full object-contain object-center p-4 md:p-0"
-                 src="{{ asset('shop/projekt/funki/funki.webp') }}"
+                 src="{{ funki_asset('shop/projekt/funki/funki.webp') }}"
                  alt="Funki Maskottchen hilft bei Kontaktfragen"
                  loading="lazy">
         </div>

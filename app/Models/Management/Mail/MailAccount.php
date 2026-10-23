@@ -15,6 +15,15 @@ class MailAccount extends Model
         'last_sync_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (MailAccount $account) {
+            foreach ($account->messages()->get() as $message) {
+                $message->delete();
+            }
+        });
+    }
+
     public function messages()
     {
         return $this->hasMany(MailMessage::class);

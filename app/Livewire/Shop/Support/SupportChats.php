@@ -118,11 +118,11 @@ class SupportChats extends Component
         })->where('is_active', true)->first();
         
         $agentName = 'Funki';
-        $agentImage = asset('shop/ai/images/funki_selfie.png');
+        $agentImage = funki_asset('shop/ai/images/funki_selfie.png');
         if ($supportAgent) {
             $agentName = $supportAgent->name;
             if ($supportAgent->profile_picture) {
-                $agentImage = \Illuminate\Support\Str::startsWith($supportAgent->profile_picture, 'shop/') ? asset($supportAgent->profile_picture) : Storage::url($supportAgent->profile_picture);
+                $agentImage = \Illuminate\Support\Str::startsWith($supportAgent->profile_picture, 'shop/') ? funki_asset($supportAgent->profile_picture) : Storage::url($supportAgent->profile_picture);
             }
         }
 

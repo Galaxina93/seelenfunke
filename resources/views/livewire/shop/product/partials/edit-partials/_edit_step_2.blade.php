@@ -26,18 +26,45 @@
 
                     @if($product->digital_download_path)
                         {{-- STATUS: DATEI VORHANDEN --}}
-                        <div class="bg-white dark:bg-gray-950 p-5 rounded-2xl border border-blue-200 dark:border-blue-500/30 dark:shadow-inner flex items-center justify-between">
-                            <div class="flex items-center gap-5">
+                        @php
+                            $digAbs = \Illuminate\Support\Facades\Storage::disk('local')->exists($product->digital_download_path)
+                                ? \Illuminate\Support\Facades\Storage::disk('local')->path($product->digital_download_path)
+                                : null;
+                            $digSize = $digAbs && is_file($digAbs) ? (int) @filesize($digAbs) : 0;
+                            $digSizeStr = $digSize >= 1048576 ? number_format($digSize / 1048576, 2, ',', '.') . ' MB' : ($digSize > 0 ? number_format($digSize / 1024, 1, ',', '.') . ' KB' : 'Unbekannt');
+                            $digMod = $digAbs && is_file($digAbs) ? date('d.m.Y H:i', (int) @filemtime($digAbs)) : '-';
+                        @endphp
+                        <div x-data="{ copied: false }" class="bg-white dark:bg-gray-950 p-5 rounded-2xl border border-blue-200 dark:border-blue-500/30 dark:shadow-inner flex items-center justify-between">
+                            <div class="flex items-center gap-5 min-w-0">
                                 <div class="w-14 h-14 bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl flex items-center justify-center text-gray-600 dark:text-gray-500 font-black text-[10px] uppercase tracking-widest dark:shadow-inner shrink-0">
                                     {{ pathinfo($product->digital_download_path, PATHINFO_EXTENSION) }}
                                 </div>
                                 <div class="min-w-0">
-                                    <p class="font-bold text-gray-900 dark:text-white text-sm truncate max-w-[200px] sm:max-w-md">
-                                        {{ $product->digital_filename ?? basename($product->digital_download_path) }}
-                                    </p>
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <p class="font-bold text-gray-900 dark:text-white text-sm truncate max-w-[200px] sm:max-w-md">
+                                            {{ $product->digital_filename ?? basename($product->digital_download_path) }}
+                                        </p>
+                                        <span class="text-[9px] font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">{{ $digSizeStr }}</span>
+                                        <button type="button"
+                                                @click="navigator.clipboard.writeText(@js($product->digital_download_path)); copied = true; setTimeout(() => copied = false, 2000)"
+                                                class="text-gray-500 hover:text-blue-500 transition-colors p-0.5 cursor-pointer"
+                                                title="Speicherpfad kopieren">
+                                            <x-heroicon-s-clipboard-document x-show="!copied" class="w-3.5 h-3.5 text-gray-500 hover:text-blue-500 transition-colors" />
+                                            <x-heroicon-s-check x-show="copied" style="display: none;" class="w-3.5 h-3.5 text-emerald-500" />
+                                        </button>
+                                        <div class="relative group/diginfo inline-flex items-center">
+                                            <span class="w-4 h-4 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-500 hover:text-white flex items-center justify-center text-[9px] font-black cursor-help transition-colors">!</span>
+                                            <div class="absolute bottom-full left-0 mb-2 hidden group-hover/diginfo:block z-50 w-64 p-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl text-[10px] font-mono text-gray-700 dark:text-gray-300 space-y-1 pointer-events-none">
+                                                <div class="font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1 mb-1">Geschützte Digital-Datei</div>
+                                                <div><span class="text-gray-400">Pfad:</span> <span class="break-all">private/{{ $product->digital_download_path }}</span></div>
+                                                <div><span class="text-gray-400">Größe:</span> {{ $digSizeStr }}</div>
+                                                <div><span class="text-gray-400">Geändert:</span> {{ $digMod }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <p class="text-[9px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 flex items-center gap-2 mt-2 dark:drop-shadow-[0_0_8px_currentColor]">
                                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                        Sicher gespeichert
+                                        Sicher gespeichert ({{ $digSizeStr }})
                                     </p>
                                 </div>
                             </div>

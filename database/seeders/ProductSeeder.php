@@ -47,7 +47,7 @@ class ProductSeeder extends Seeder
         }
 
         // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
-        $p1 = Product::firstOrCreate(['slug' => 'seelen-kristall'], [
+        $p1 = Product::updateOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
             'type' => 'physical',
             'description' => 'Halten Sie besondere Momente für die Ewigkeit fest – mit einem meisterhaft geschliffenen K9-Kristall. Dank unserer detailverliebten 3D-Gravurmethode schwebt Ihr persönliches Wunschmotiv förmlich im Inneren des massiven, glasklaren Blocks. Der Seelen Kristall brilliert durch seine hohe optische Reinheit, die das Licht in faszinierenden Facetten bricht. Ob als tiefgründiges Geschenk für einen geliebten Menschen oder als bedeutungsvolle Erinnerung für Sie selbst: Er entfaltet in jedem Raum seine beeindruckende Präsenz und wird garantiert zum Blickfang. Jedes Exemplar wird in einer schützenden Premium-Geschenkbox geliefert, optimal vorbereitet für die sofortige Übergabe.',
@@ -83,6 +83,9 @@ class ProductSeeder extends Seeder
                 ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'alt' => 'Seelen Kristall Frontansicht']
             ],
             'configurator_settings' => [
+                'template_package' => 'seelen-kristall',
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
                 'allow_logo' => true,
                 'area_shape' => 'circle',
@@ -135,7 +138,7 @@ class ProductSeeder extends Seeder
         ]);
 
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
-        $p2 = Product::firstOrCreate(['slug' => 'seelen-anhaenger'], [
+        $p2 = Product::updateOrCreate(['slug' => 'seelen-anhaenger'], [
             'name' => 'Der Seelenanhänger',
             'type' => 'physical',
             'description' => 'Der Seelenanhänger verkörpert pure Emotion in einer greifbaren Form. Dieses außergewöhnlich schwere und massiv gefertigte Aluminium-Herz besticht durch eine Handschmeichler-Haptik, die beruhigend und überzeugend zugleich wirkt. Durch unsere exklusive Laser-Veredelung können Sie das Herz sowohl auf der Vorder- als auch auf der Rückseite mit feinsten Botschaften, Koordinaten oder Initialen versehen lassen. Ein idealer ständiger Begleiter, sei es am Schlüsselbund oder als stiller Glücksbringer in der Hosentasche.',
@@ -171,6 +174,9 @@ class ProductSeeder extends Seeder
                 ['type' => 'image', 'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger_s.jpg', 'is_main' => true, 'alt' => 'Seelenanhänger Frontansicht'],
             ],
             'configurator_settings' => [
+                'template_package' => 'seelen-anhaenger',
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
                 'allow_logo' => true,
                 'has_back_side' => true,
@@ -241,7 +247,7 @@ class ProductSeeder extends Seeder
         $p2->categories()->sync($catIds2);
 
         // --- PRODUKT 3: Der Feierabend-Funke (NEU) ---
-        $p3 = Product::firstOrCreate(['slug' => 'weizenglas-personalisiert'], [
+        $p3 = Product::updateOrCreate(['slug' => 'weizenglas-personalisiert'], [
             'name' => 'Der Feierabend-Funke',
             'type' => 'physical',
             'description' => 'Krönen Sie den wohlverdienten Feierabend mit einem Glas, das genauso einzigartig ist wie Sie! Der Feierabend-Funke is ein klassisch geformtes, hochwertiges Kristall-Weizenbierglas, das durch eine atemberaubende 360° Rundum-Gravur Ihr persönliches Highlight wird. Mittels feinster Laser-Rotationstechnik brennen wir Ihre Texte, Vereinslogos oder humorvollen Sprüche tief und abriebfest ins Material ein. Das Glas bleibt dabei zu 100% spülmaschinenfest und behält auch nach vielen Einsätzen seine vollkommene Brillanz.',
@@ -272,11 +278,14 @@ class ProductSeeder extends Seeder
             'shipping_class' => 'paket_m',
             'preview_image_path' => 'produkte/products/weizenglas-personalisiert/overlay.png',
             'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
-            'three_d_background_path' => null,
+            'three_d_background_path' => 'produkte/products/weizenglas-personalisiert/header_bg.png',
             'media_gallery' => [
                 ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'alt' => 'Weizenglas Frontansicht']
             ],
             'configurator_settings' => [
+                'template_package' => 'weizenglas-personalisiert',
+                'enable_background_video' => true,
+                'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
                 'allow_logo' => true,
                 'xtool_d_top' => 74.0,           // Max Breite des Glases
@@ -347,12 +356,12 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
             'digital_download_path' => 'produkte/products-secure/KI_Agenten_Management_Paket.zip',
             'digital_filename' => 'KI_Agenten_Management_Paket.zip',
-            'preview_image_path' => 'system/testdata/ki-agenten-playbook/playbook-cover.jpg',
+            'preview_image_path' => 'produkte/products/ki-agenten-playbook/playbook-cover.jpg',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'system/testdata/ki-agenten-playbook/playbook-cover.jpg', 'is_main' => true, 'alt' => 'KI-Agenten im E-Commerce Cover'],
-                ['type' => 'video', 'path' => 'system/testdata/ki-agenten-playbook/playbook-promo.mp4', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Promo-Video'],
-                ['type' => 'image', 'path' => 'system/testdata/ki-agenten-playbook/playbook-perspective-tablet.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Tablet-Ansicht'],
-                ['type' => 'image', 'path' => 'system/testdata/ki-agenten-playbook/playbook-perspective-devices.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Multi-Device-Ansicht']
+                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-cover.jpg', 'is_main' => true, 'alt' => 'KI-Agenten im E-Commerce Cover'],
+                ['type' => 'video', 'path' => 'produkte/products/ki-agenten-playbook/playbook-promo.mp4', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Promo-Video'],
+                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-perspective-tablet.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Tablet-Ansicht'],
+                ['type' => 'image', 'path' => 'produkte/products/ki-agenten-playbook/playbook-perspective-devices.jpg', 'is_main' => false, 'alt' => 'KI-Agenten im E-Commerce Multi-Device-Ansicht']
             ],
             'configurator_settings' => [
                 'allow_text_pos' => false,

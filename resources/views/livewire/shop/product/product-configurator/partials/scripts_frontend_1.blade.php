@@ -22,6 +22,8 @@
             saved: false,
 
             activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
+            backgroundTheme: params.wireModels.backgroundTheme !== undefined ? params.wireModels.backgroundTheme : 'standard',
+            videoEnabled: (params.config && params.config.enableBgVideo !== undefined) ? Boolean(params.config.enableBgVideo) : true,
 
             selectedIndex: null,
             selectedType: null,
@@ -82,6 +84,35 @@
 
             get currentTexts() { return this.activeSide === 'front' ? this.texts : this.texts_back; },
             get currentLogos() { return this.activeSide === 'front' ? this.logos : this.logos_back; },
+
+            get activeThemeObj() {
+                const themes = (this.config && this.config.themes) ? this.config.themes : {};
+                const key = this.backgroundTheme || 'standard';
+                return themes[key] || themes['standard'] || null;
+            },
+            get activeBgVideo() {
+                if (!this.videoEnabled) return '';
+                if (this.config && this.config.customBgVideo && (!this.backgroundTheme || this.backgroundTheme === 'standard')) {
+                    return this.config.customBgVideo;
+                }
+                return (this.activeThemeObj && this.activeThemeObj.videoUrl) ? this.activeThemeObj.videoUrl : '';
+            },
+            get activeBgImage() {
+                if (this.activeThemeObj && this.activeThemeObj.imageUrl && this.backgroundTheme && this.backgroundTheme !== 'standard') {
+                    return this.activeThemeObj.imageUrl;
+                }
+                return (this.config && this.config.bgPath) ? this.config.bgPath : ((this.activeThemeObj && this.activeThemeObj.imageUrl) ? this.activeThemeObj.imageUrl : '');
+            },
+            setBackgroundTheme(themeKey) {
+                this.backgroundTheme = themeKey;
+                this.$nextTick(() => {
+                    const vid = this.$refs.bgVideo;
+                    if (vid && this.activeBgVideo) {
+                        vid.load();
+                        vid.play().catch(() => {});
+                    }
+                });
+            },
 
             init() {
                 window._frontendConfiguratorDataInstance = this;
@@ -521,8 +552,13 @@
                                         }
 
                                         engine.controls.update();
+                                        const prevSceneBg = engine.scene.background;
+                                        if (engine._envTexture) {
+                                            engine.scene.background = engine._envTexture;
+                                        }
                                         engine.renderer.render(engine.scene, engine.camera);
                                         snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                        engine.scene.background = prevSceneBg;
 
                                         // Back Snapshot
                                         if (engine.defaultCamPos) {
@@ -551,8 +587,13 @@
                                             engine.controls.update();
                                         }
 
+                                        const prevSceneBg = engine.scene.background;
+                                        if (engine._envTexture) {
+                                            engine.scene.background = engine._envTexture;
+                                        }
                                         engine.renderer.render(engine.scene, engine.camera);
                                         snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                        engine.scene.background = prevSceneBg;
                                         
                                         engine.camera.position.copy(origPos);
                                         engine.controls.target.copy(origTarget);

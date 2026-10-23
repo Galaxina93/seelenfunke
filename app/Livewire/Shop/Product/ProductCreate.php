@@ -82,6 +82,8 @@ class ProductCreate extends Component
     // NEU: Für den 3D Upload
     public $new_3d_model;
     public $new_3d_background;
+    public $new_background_video;
+    public bool $autoOptimize3dOnUpload = true;
 
     // NEU: Für den Digital-Upload
     public $new_digital_file;
@@ -313,6 +315,12 @@ class ProductCreate extends Component
         }
 
         $this->configSettings = array_merge($this->configSettings, $savedConfig);
+
+        // Automatische Erkennung des Vorlage-Pakets für bestehende Standard-Produkte
+        $packages = app(ConfiguratorService::class)->getTemplatePackages();
+        if (($this->configSettings['template_package'] ?? 'custom') === 'custom' && isset($packages[$this->product->slug])) {
+            $this->configSettings['template_package'] = $this->product->slug;
+        }
 
         $this->viewMode = 'edit';
 
@@ -674,8 +682,12 @@ class ProductCreate extends Component
     public function removePreviewImage()
     {
         if($this->product->preview_image_path) {
-            Storage::disk('public')->delete($this->product->preview_image_path);
+            if (str_contains($this->product->preview_image_path, '/configurator/')) {
+                Storage::disk('public')->delete($this->product->preview_image_path);
+            }
             $this->product->preview_image_path = null;
+            $this->configSettings['template_package'] = 'custom';
+            $this->product->configurator_settings = $this->configSettings;
             $this->product->save();
             $this->product->refresh();
 
@@ -702,13 +714,50 @@ class ProductCreate extends Component
 
         $path = $this->new_3d_model->storeAs($folder, $filename, 'public');
 
+        $optNotice = '';
+        if ($this->autoOptimize3dOnUpload) {
+            $absPath = Storage::disk('public')->path($path);
+            $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+            $stats = $optimizer->inspectGlb($absPath);
+            if (!empty($stats['needs_optimization'])) {
+                $optResult = $optimizer->optimizeGlb($absPath);
+                if (!empty($optResult['success'])) {
+                    $optNotice = " (Automatisch 3D-optimiert: {$optResult['original_size_mb']} MB → {$optResult['new_size_mb']} MB, -{$optResult['saved_percent']}%)";
+                }
+            }
+        }
+
         $this->product->three_d_model_path = $path;
         $this->product->save();
         $this->product->refresh(); // Erzwingt das sofortige Neuladen der Variable im HTML
         $this->new_3d_model = null;
 
-        $this->dispatch('3d-model-updated', url: asset('storage/' . $path));
-        session()->flash('success', '3D-Modell erfolgreich hochgeladen!');
+        $this->dispatch('3d-model-updated', url: asset('storage/' . $path) . '?v=' . time());
+        session()->flash('success', '3D-Modell erfolgreich hochgeladen!' . $optNotice);
+    }
+
+    public function optimizeCurrent3dModel()
+    {
+        if (!$this->product->three_d_model_path || !Storage::disk('public')->exists($this->product->three_d_model_path)) {
+            session()->flash('error', 'Kein 3D-Modell zum Optimieren gefunden.');
+            return;
+        }
+
+        $absPath = Storage::disk('public')->path($this->product->three_d_model_path);
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+        $result = $optimizer->optimizeGlb($absPath);
+
+        if (!empty($result['success'])) {
+            $this->product->refresh();
+            $this->dispatch('3d-model-updated', url: asset('storage/' . $this->product->three_d_model_path) . '?v=' . time());
+            session()->flash(
+                'success',
+                "3D-Modell erfolgreich optimiert: {$result['original_size_mb']} MB → {$result['new_size_mb']} MB (-{$result['saved_percent']}% | " .
+                number_format((int) ($result['new_triangles'] ?? 0), 0, ',', '.') . " Polygone)."
+            );
+        } else {
+            session()->flash('error', '3D-Optimierung fehlgeschlagen: ' . ($result['error'] ?? 'Unbekannter Fehler'));
+        }
     }
 
     public function remove3dModel()
@@ -751,13 +800,139 @@ class ProductCreate extends Component
     public function remove3dBackground()
     {
         if($this->product->three_d_background_path) {
-            Storage::disk('public')->delete($this->product->three_d_background_path);
+            if (str_contains($this->product->three_d_background_path, '/configurator/')) {
+                Storage::disk('public')->delete($this->product->three_d_background_path);
+            }
             $this->product->three_d_background_path = null;
+            $this->configSettings['template_package'] = 'custom';
+            $this->product->configurator_settings = $this->configSettings;
             $this->product->save();
             $this->product->refresh();
 
             $this->dispatch('3d-bg-updated', url: '');
             session()->flash('success', 'Hintergrund entfernt.');
+        }
+    }
+
+    /**
+     * Weist dem Produkt ein Vorlage-Paket zu und setzt automatisch das passende
+     * "2D Vorschau Overlay (PNG)", "3D Hintergrund (.jpg/.png)" sowie die Themen-Videos.
+     */
+    public function applyTemplatePackage(string $packageKey)
+    {
+        $configService = app(ConfiguratorService::class);
+        $packages = $configService->getTemplatePackages();
+
+        if (!isset($packages[$packageKey])) {
+            return;
+        }
+
+        $pkg = $packages[$packageKey];
+        $this->configSettings['template_package'] = $packageKey;
+
+        if ($packageKey !== 'custom') {
+            if (!empty($pkg['preview_image_path'])) {
+                $this->product->preview_image_path = $pkg['preview_image_path'];
+            }
+            if (!empty($pkg['three_d_background_path'])) {
+                $this->product->three_d_background_path = $pkg['three_d_background_path'];
+            }
+            $this->configSettings['enable_background_video'] = true;
+            $this->configSettings['default_background_theme'] = $pkg['default_background_theme'] ?? 'standard';
+        }
+
+        $this->product->configurator_settings = $this->configSettings;
+        $this->product->save();
+        $this->product->refresh();
+
+        $previewUrl = $this->product->preview_image_path ? asset('storage/' . $this->product->preview_image_path) : '';
+        $bgUrl = $this->product->three_d_background_path ? asset('storage/' . $this->product->three_d_background_path) : '';
+
+        $themes = $configService->getBackgroundThemes();
+        $activeThemeKey = $this->configSettings['default_background_theme'] ?? 'standard';
+        $activeTheme = $themes[$activeThemeKey] ?? $themes['standard'];
+        $videoUrl = (!empty($this->configSettings['enable_background_video']) && !empty($activeTheme['video']))
+            ? asset('storage/' . $activeTheme['video'])
+            : '';
+
+        $this->dispatch('2d-preview-updated', url: $previewUrl);
+        $this->dispatch('3d-bg-updated', url: $bgUrl);
+        $this->dispatch('3d-theme-video-updated', videoUrl: $videoUrl, imageUrl: $bgUrl, theme: $activeThemeKey);
+
+        session()->flash('success', "Vorlage-Paket „{$pkg['name']}“ erfolgreich zugewiesen!");
+    }
+
+    /**
+     * Wechselt das aktive Standard-Hintergrundthema (inkl. komprimiertem Themen-Video) in der Vorschau & Produkt-Konfiguration.
+     */
+    public function selectBackgroundTheme(string $themeKey)
+    {
+        $configService = app(ConfiguratorService::class);
+        $themes = $configService->getBackgroundThemes();
+
+        if (!isset($themes[$themeKey])) {
+            return;
+        }
+
+        $this->configSettings['default_background_theme'] = $themeKey;
+        $this->product->configurator_settings = $this->configSettings;
+        $this->product->save();
+
+        $activeTheme = $themes[$themeKey];
+        $videoUrl = (!empty($this->configSettings['enable_background_video']) && !empty($activeTheme['video']))
+            ? asset('storage/' . $activeTheme['video'])
+            : '';
+        $imageUrl = !empty($activeTheme['image'])
+            ? asset('storage/' . $activeTheme['image'])
+            : ($this->product->three_d_background_path ? asset('storage/' . $this->product->three_d_background_path) : '');
+
+        $this->dispatch('3d-theme-video-updated', videoUrl: $videoUrl, imageUrl: $imageUrl, theme: $themeKey);
+    }
+
+    public function updatedNewBackgroundVideo()
+    {
+        $this->validate([
+            'new_background_video' => 'required|file|mimes:mp4,webm|max:20480',
+        ]);
+
+        $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
+
+        if (!empty($this->configSettings['background_video_path']) && str_contains($this->configSettings['background_video_path'], '/configurator/')) {
+            Storage::disk('public')->delete($this->configSettings['background_video_path']);
+        }
+
+        $originalName = $this->new_background_video->getClientOriginalName();
+        $ext = strtolower($this->new_background_video->getClientOriginalExtension());
+        $filename = time() . '_bgvid_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.' . $ext;
+
+        $path = $this->new_background_video->storeAs($folder, $filename, 'public');
+
+        $this->configSettings['background_video_path'] = $path;
+        $this->configSettings['enable_background_video'] = true;
+        $this->product->configurator_settings = $this->configSettings;
+        $this->product->save();
+        $this->product->refresh();
+        $this->new_background_video = null;
+
+        $videoUrl = asset('storage/' . $path);
+        $bgUrl = $this->product->three_d_background_path ? asset('storage/' . $this->product->three_d_background_path) : '';
+        $this->dispatch('3d-theme-video-updated', videoUrl: $videoUrl, imageUrl: $bgUrl, theme: 'custom');
+        session()->flash('success', 'Hintergrund-Video erfolgreich hochgeladen!');
+    }
+
+    public function removeBackgroundVideo()
+    {
+        if (!empty($this->configSettings['background_video_path'])) {
+            if (str_contains($this->configSettings['background_video_path'], '/configurator/')) {
+                Storage::disk('public')->delete($this->configSettings['background_video_path']);
+            }
+            $this->configSettings['background_video_path'] = null;
+            $this->product->configurator_settings = $this->configSettings;
+            $this->product->save();
+            $this->product->refresh();
+
+            $this->selectBackgroundTheme($this->configSettings['default_background_theme'] ?? 'standard');
+            session()->flash('success', 'Eigenes Hintergrund-Video entfernt (Themen-Videos aktiv).');
         }
     }
 

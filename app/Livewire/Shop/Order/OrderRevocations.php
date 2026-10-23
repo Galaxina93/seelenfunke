@@ -39,7 +39,10 @@ class OrderRevocations extends Component
         $orderCancelled = false;
         if ($order && $order->status !== 'cancelled') {
             $order->handleCancellation('Widerruf akzeptiert und abgewickelt');
-            $updateData = ['status' => 'cancelled'];
+            $updateData = [
+                'status' => 'cancelled',
+                'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt',
+            ];
             if ($order->payment_status === 'paid') {
                 $updateData['payment_status'] = 'refunded';
             }

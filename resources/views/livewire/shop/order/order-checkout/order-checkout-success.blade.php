@@ -55,7 +55,7 @@
             <div>
                 {{-- Funki Visual --}}
                 <div class="flex justify-center mb-2" wire:key="success-image-container">
-                    <img src="/shop/projekt/funki/checkout/funki_happy.webp"
+                    <img src="{{ funki_asset('shop/projekt/funki/checkout/funki_happy.webp') }}"
                          alt="Vielen Dank"
                          class="h-28 sm:h-32 w-auto object-contain filter drop-shadow-xs animate-float-gentle">
                 </div>

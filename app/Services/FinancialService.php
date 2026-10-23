@@ -498,7 +498,7 @@ class FinancialService
             ];
         }
 
-        $dir = storage_path('app/private/exports');
+        $dir = storage_path('app/buchhaltung/exports');
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }

@@ -96,8 +96,10 @@
                 const loader = new window.THREE.TextureLoader();
                 loader.load(this.bgPath, (t) => {
                     t.mapping = window.THREE.EquirectangularReflectionMapping;
-                    this.scene.background = t;
-                    // HDRI Environment auf Mobile weglassen, um Speicher zu sparen
+                    this._envTexture = t;
+                    // Transparente WebGL-Szene, damit das scharfe CSS-Hintergrundbild & Themen-Video sichtbar sind
+                    this.scene.background = null;
+                    // HDRI Environment sorgt weiterhin für realistische Spiegelungen im Glas/Metall
                     if (!isMobile) {
                         this.scene.environment = t;
                     }

@@ -68,7 +68,7 @@ class CrmOutgoingMailToCustomer extends Mailable
             if (
                 empty($path)
                 || str_contains($path, '..')
-                || !\Illuminate\Support\Str::startsWith($path, ['temp/mail-attachments/', 'mail-attachments/', 'crm/'])
+                || !\Illuminate\Support\Str::startsWith($path, ['temp/mail-attachments/', 'leitung/crm/mail-attachments/', 'mail-attachments/', 'crm/'])
             ) {
                 continue;
             }

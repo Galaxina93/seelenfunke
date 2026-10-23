@@ -525,7 +525,7 @@ trait AiPersonaFuncs
             ]);
             $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
-            $dir = storage_path('app/public/dossiers');
+            $dir = storage_path('app/public/agenten/exports/dossiers');
             if (!file_exists($dir)) {
                 mkdir($dir, 0755, true);
             }
@@ -534,7 +534,7 @@ trait AiPersonaFuncs
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
-            $downloadUrl = url('storage/dossiers/' . $filename);
+            $downloadUrl = url('storage/agenten/exports/dossiers/' . $filename);
 
             if ($action === 'email') {
                 if (empty($recipient)) {

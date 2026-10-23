@@ -17,14 +17,28 @@
             logos: $wire.entangle('logos').live,
             texts_back: $wire.entangle('texts_back').live,
             logos_back: $wire.entangle('logos_back').live,
-            activeSide: $wire.entangle('activeSide').live
+            activeSide: $wire.entangle('activeSide').live,
+            backgroundTheme: $wire.entangle('backgroundTheme').live
         },
         fonts: @js($fonts),
         context: '{{$context}}',
         config: {
             modelPath: '{{ ($product->three_d_active && $product->three_d_model_path) ? asset("storage/".$product->three_d_model_path) : "" }}',
-            bgPath: '{{$product->three_d_background_path ? asset("storage/".$product->three_d_background_path) : ""}}',
+            bgPath: '{{ $this->resolvedBackgroundPath }}',
             fallbackImg: '{{ $this->previewImage }}',
+            templatePackage: '{{ $configSettings["template_package"] ?? "custom" }}',
+            enableBgVideo: {{ (!isset($configSettings['enable_background_video']) || $configSettings['enable_background_video']) ? 'true' : 'false' }},
+            customBgVideo: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/".$configSettings["background_video_path"]) : "" }}',
+            themes: @js(collect($backgroundThemes ?? [])->map(function($t) {
+                $vDisk = storage_path('app/public/' . $t['video']);
+                $iDisk = storage_path('app/public/' . $t['image']);
+                $vVer = is_file($vDisk) ? '?v=' . filemtime($vDisk) : '';
+                $iVer = is_file($iDisk) ? '?v=' . filemtime($iDisk) : '';
+                return array_merge($t, [
+                    'videoUrl' => asset('storage/' . $t['video']) . $vVer,
+                    'imageUrl' => asset('storage/' . $t['image']) . $iVer,
+                ]);
+            })),
             has_back_side: {{!empty($configSettings['has_back_side']) && $configSettings['has_back_side'] ? 'true' : 'false'}},
             area_top: {{$configSettings['area_top'] ?? 10}},
             area_left: {{$configSettings['area_left'] ?? 10}},

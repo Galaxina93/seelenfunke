@@ -50,15 +50,14 @@ class CustomerForcePasswordChange extends Component
                 'regex:/[a-z]/',
                 'regex:/[A-Z]/',
                 'regex:/[0-9]/',
-                'same:passwordConfirm',
             ],
-            'passwordConfirm' => 'required|string',
+            'passwordConfirm' => 'required|string|same:password',
         ], [
             'password.required' => 'Bitte gib ein Passwort ein.',
             'password.min' => 'Das Passwort muss mindestens 8 Zeichen lang sein.',
             'password.regex' => 'Das Passwort muss mindestens einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.',
-            'password.same' => 'Die Passwörter stimmen nicht überein.',
             'passwordConfirm.required' => 'Bitte bestätige dein Passwort.',
+            'passwordConfirm.same' => 'Die Passwörter stimmen nicht überein.',
         ]);
 
         $customer->update([

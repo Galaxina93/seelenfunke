@@ -252,8 +252,8 @@
         @endphp
 
         @if($isPersonalizable)
-            <div x-data="{ showFiles: false }" class="bg-white dark:bg-gray-900/50 rounded-[2rem] shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800 overflow-hidden transition-all duration-300">
-            <div @click="showFiles = !showFiles" class="bg-gray-50 dark:bg-gray-950 px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <div x-data="{ showFiles: false }" :class="showFiles ? 'overflow-visible' : 'overflow-hidden'" class="bg-white dark:bg-gray-900/50 rounded-[2rem] shadow-sm dark:shadow-inner border border-gray-200 dark:border-gray-800 transition-all duration-300">
+            <div @click="showFiles = !showFiles" class="bg-gray-50 dark:bg-gray-950 px-6 py-4 rounded-t-[2rem] border-b border-gray-200 dark:border-gray-800 flex justify-between items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                 <h3 class="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-3">
                     <div class="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow-sm dark:shadow-inner">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -353,15 +353,103 @@
                                     $isResolved = !empty($photoIssue['resolved']);
                                 }
                             }
+
+                            // Datei-Metadaten für Hover-Info & Copy ermitteln
+                            $fileSizeFormatted = null;
+                            $fileDimensions = null;
+                            $fileMime = null;
+                            $fileModified = isset($fileObj['created_at']) ? $fileObj['created_at']->format('d.m.Y H:i') : $model->created_at->format('d.m.Y H:i');
+                            $copyValue = $filePath ?: ($fileObj['download_url'] ?? $fileLabel);
+                            $storageZoneLabel = $filePath ? ('public/' . ltrim($filePath, '/')) : 'Dynamischer PDF-Stream';
+
+                            if ($filePath) {
+                                $absCandidate = null;
+                                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
+                                    $absCandidate = \Illuminate\Support\Facades\Storage::disk('public')->path($filePath);
+                                    $storageZoneLabel = 'public/' . ltrim($filePath, '/');
+                                } elseif (\Illuminate\Support\Facades\Storage::disk('local')->exists($filePath)) {
+                                    $absCandidate = \Illuminate\Support\Facades\Storage::disk('local')->path($filePath);
+                                    $storageZoneLabel = 'private/' . ltrim($filePath, '/');
+                                }
+
+                                if ($absCandidate && is_file($absCandidate)) {
+                                    $bytes = (int) @filesize($absCandidate);
+                                    $fileSizeFormatted = $bytes >= 1048576
+                                        ? number_format($bytes / 1048576, 2, ',', '.') . ' MB'
+                                        : number_format($bytes / 1024, 1, ',', '.') . ' KB';
+                                    $fileMime = @mime_content_type($absCandidate) ?: strtoupper($fileObj['ext'] ?? '');
+                                    $fileModified = date('d.m.Y H:i', (int) @filemtime($absCandidate));
+                                    if (in_array(strtolower($fileObj['ext'] ?? ''), ['png', 'jpg', 'jpeg', 'webp', 'gif'])) {
+                                        $imgDims = @getimagesize($absCandidate);
+                                        if ($imgDims) {
+                                            $fileDimensions = $imgDims[0] . ' × ' . $imgDims[1] . ' px';
+                                        }
+                                    }
+                                }
+                            }
                         @endphp
-                        <div class="flex items-center justify-between p-3.5 rounded-2xl border transition-colors group shadow-sm dark:shadow-inner {{ $hasIssue && !$isResolved ? 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/20' : ($isResolved ? 'border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/10' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700') }}">
+                        <div x-data="{ copied: false }" class="relative flex items-center justify-between p-3.5 rounded-2xl border transition-colors group shadow-sm dark:shadow-inner {{ $hasIssue && !$isResolved ? 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/20' : ($isResolved ? 'border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/10' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700') }}">
                             <div class="flex items-center gap-4 min-w-0">
                                 <div class="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm {{ $hasIssue && !$isResolved ? 'bg-amber-500/10 text-amber-500 border border-amber-500/30' : ($isResolved ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20') }}">
                                     <span class="text-[11px] font-black uppercase tracking-wider">{{ $fileObj['ext'] }}</span>
                                 </div>
                                 <div class="min-w-0">
-                                    <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-2 flex-wrap">
                                         <p class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $fileObj['label'] }}</p>
+
+                                        {{-- Info Hover Icon (!) + Copy Icon --}}
+                                        <div class="inline-flex items-center gap-1.5 shrink-0">
+                                            <div class="relative group/fileinfo inline-flex items-center">
+                                                <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] flex items-center justify-center text-[9px] font-black cursor-help transition-colors" title="Datei-Details anzeigen">!</span>
+                                                <div class="absolute bottom-full left-0 mb-2 hidden group-hover/fileinfo:block z-50 w-72 p-3.5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl text-[10px] font-mono text-gray-700 dark:text-gray-300 space-y-1.5">
+                                                    <div class="font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1.5 mb-1 flex items-center justify-between gap-2">
+                                                        <span class="truncate">{{ $fileObj['label'] }}</span>
+                                                        @if($fileSizeFormatted)
+                                                            <span class="text-[var(--theme-color)] shrink-0">{{ $fileSizeFormatted }}</span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="flex items-start justify-between gap-2">
+                                                        <span class="text-gray-400 shrink-0">Speicherort:</span>
+                                                        <span class="text-right break-all text-gray-800 dark:text-gray-200">{{ $storageZoneLabel }}</span>
+                                                    </div>
+                                                    @if($fileMime)
+                                                        <div class="flex justify-between gap-2">
+                                                            <span class="text-gray-400">Typ / MIME:</span>
+                                                            <span>{{ $fileMime }}</span>
+                                                        </div>
+                                                    @endif
+                                                    @if($fileDimensions)
+                                                        <div class="flex justify-between gap-2">
+                                                            <span class="text-gray-400">Auflösung:</span>
+                                                            <span>{{ $fileDimensions }}</span>
+                                                        </div>
+                                                    @endif
+                                                    <div class="flex justify-between gap-2">
+                                                        <span class="text-gray-400">Zeitstempel:</span>
+                                                        <span>{{ $fileModified }}</span>
+                                                    </div>
+                                                    <div class="pt-1.5 mt-1 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                                                        <span class="text-[9px] text-gray-400">Pfad in Zwischenablage:</span>
+                                                        <button type="button"
+                                                                @click.stop="navigator.clipboard.writeText(@js($copyValue)); copied = true; setTimeout(() => copied = false, 2000)"
+                                                                class="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 hover:bg-[var(--theme-color)] hover:text-gray-950 text-gray-700 dark:text-gray-300 font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer">
+                                                            <x-heroicon-s-clipboard-document x-show="!copied" class="w-3 h-3 text-gray-500" />
+                                                            <x-heroicon-s-check x-show="copied" style="display: none;" class="w-3 h-3 text-emerald-500" />
+                                                            <span x-text="copied ? 'Kopiert!' : 'Kopieren'"></span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <button type="button"
+                                                    @click.stop="navigator.clipboard.writeText(@js($copyValue)); copied = true; setTimeout(() => copied = false, 2000)"
+                                                    class="text-gray-500 hover:text-[var(--theme-color)] transition-colors p-0.5 cursor-pointer"
+                                                    title="Dateipfad kopieren">
+                                                <x-heroicon-s-clipboard-document x-show="!copied" class="w-3.5 h-3.5 text-gray-500 hover:text-[var(--theme-color)] transition-colors" />
+                                                <x-heroicon-s-check x-show="copied" style="display: none;" class="w-3.5 h-3.5 text-emerald-500" />
+                                            </button>
+                                        </div>
+
                                         @if($hasIssue && !$isResolved)
                                             <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
                                                 Nachbesserung angefordert
@@ -372,8 +460,11 @@
                                             </span>
                                         @endif
                                     </div>
-                                    <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5">
-                                        Hinterlegt am {{ isset($fileObj['created_at']) ? $fileObj['created_at']->format('d.m.Y') : $model->created_at->format('d.m.Y') }}
+                                    <p class="text-[10px] font-medium uppercase tracking-widest text-gray-500 mt-0.5 flex items-center gap-2">
+                                        <span>Hinterlegt am {{ isset($fileObj['created_at']) ? $fileObj['created_at']->format('d.m.Y') : $model->created_at->format('d.m.Y') }}</span>
+                                        @if($fileSizeFormatted)
+                                            <span class="text-gray-400">• {{ $fileSizeFormatted }}</span>
+                                        @endif
                                     </p>
                                     @if($hasIssue && !$isResolved)
                                         <p class="text-[11px] text-amber-800 dark:text-amber-300 mt-1 font-medium">

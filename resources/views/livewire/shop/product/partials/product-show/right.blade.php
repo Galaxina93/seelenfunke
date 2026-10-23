@@ -143,7 +143,7 @@
                 </div>
             </div>
         @else
-            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all hover:shadow-2xl w-full min-h-[400px] flex flex-col relative">
+            <div class="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden transition-all w-full min-h-[400px] flex flex-col relative">
 
                 @if($showTemplateSelection)
                     {{-- 1. STARTBILDSCHIRM: VORLAGE ODER SELBER MACHEN --}}

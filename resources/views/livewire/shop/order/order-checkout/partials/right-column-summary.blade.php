@@ -11,7 +11,7 @@
 
         <div x-show="isProcessing" x-cloak class="flex flex-col items-center justify-center py-12 space-y-6 animate-fade-in">
             <div x-data x-init="window.scrollTo({ top: 0, behavior: 'smooth' })" class="relative w-64 h-64 sm:w-80 sm:h-80 mx-auto">
-                <img src="{{ asset('shop/projekt/funki/checkout/funki_happy.webp') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
+                <img src="{{ funki_asset('shop/projekt/funki/checkout/funki_happy.webp') }}" class="w-full h-full object-contain animate-bounce-slow" alt="Verarbeite Bestellung">
             </div>
             <div class="text-center space-y-2">
                 <h3 class="text-xl font-bold text-gray-900 flex items-center justify-center gap-3">

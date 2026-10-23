@@ -4,11 +4,14 @@
     'title',
     'subtitle' => null, // z.B. Gutscheincode
     'state' => 'future', // Optionen: 'past', 'next', 'future'
-    'type' => 'mail', // Optionen: 'mail', 'voucher' (steuert die Farbe bei 'next')
+    'type' => 'mail', // Optionen: 'mail', 'voucher', 'animation' (steuert die Farbe bei 'next')
     'badgeText' => 'Nächster Job',
     'eventKey' => null,
     'eventName' => null,
-    'templateId' => null // Neu: Für die Action-Buttons
+    'templateId' => null, // Neu: Für die Action-Buttons
+    'countdownLabel' => 'Versand in',
+    'isActiveNow' => false,
+    'activeEndDate' => null,
 ])
 
 @php
@@ -27,7 +30,7 @@
         'future' => 'text-gray-500',
     };
 
-    // Icon Mapping für Feiertage
+    // Icon Mapping für Feiertage & Jahreszeiten
     $eventIcon = match($eventKey) {
         'valentines' => '❤️',
         'womens_day' => '💐',
@@ -40,6 +43,11 @@
         'new_year' => '🎆',
         'sale_summer' => '☀️',
         'sale_winter' => '❄️',
+        'season_spring' => '🌸',
+        'season_summer' => '☀️',
+        'season_autumn' => '🍂',
+        'season_winter' => '❄️',
+        'standard_fallback' => '✨',
         'registered_date' => '🎂',
         default => '📅'
     };
@@ -123,10 +131,25 @@
         @endif
 
         {{-- Progress Bar (Only show if not in the past) --}}
-        @if($state !== 'past')
+        @if($isActiveNow)
             <div class="mt-4 w-full">
                 <div class="flex justify-between items-end mb-1.5">
-                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">Versand in</span>
+                    <span class="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                        Jetzt im System aktiv
+                    </span>
+                    @if($activeEndDate)
+                        <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">bis {{ $activeEndDate->format('d.m.') }}</span>
+                    @endif
+                </div>
+                <div class="w-full bg-gray-100 dark:bg-gray-950 rounded-full h-1.5 border border-emerald-500/30 overflow-hidden relative">
+                    <div class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-1.5 rounded-full transition-all duration-1000 ease-out" style="width: 100%"></div>
+                </div>
+            </div>
+        @elseif($state !== 'past')
+            <div class="mt-4 w-full">
+                <div class="flex justify-between items-end mb-1.5">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500">{{ $countdownLabel }}</span>
                     <span class="text-[10px] font-bold {{ $progressText }}">{{ $daysLeft }} {{ $daysLeft === 1 ? 'Tag' : 'Tagen' }}</span>
                 </div>
                 <div class="w-full bg-gray-100 dark:bg-gray-950 rounded-full h-1.5 border border-gray-200 dark:border-gray-800 overflow-hidden relative">

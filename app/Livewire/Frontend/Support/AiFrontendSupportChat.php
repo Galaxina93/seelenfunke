@@ -53,7 +53,7 @@ class AiFrontendSupportChat extends Component
         if ($supportAgent) {
             $this->agentName = $supportAgent->name;
             if ($supportAgent->profile_picture) {
-                $this->agentImage = \Illuminate\Support\Str::startsWith($supportAgent->profile_picture, 'shop/') ? asset($supportAgent->profile_picture) : Storage::url($supportAgent->profile_picture);
+                $this->agentImage = \Illuminate\Support\Str::startsWith($supportAgent->profile_picture, 'shop/') ? funki_asset($supportAgent->profile_picture) : Storage::url($supportAgent->profile_picture);
             }
         }
         // Hole die aktuelle Chat ID zuverlässig aus der Laravel Session

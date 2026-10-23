@@ -160,7 +160,7 @@ class ProductTemplates extends Component
         $this->resetErrorBag();
     }
 
-    public function render()
+    public function render(\App\Services\ConfiguratorService $configService)
     {
         $templates = ProductTemplate::with('product')->orderBy('created_at', 'desc')->get();
         $products = Product::where('status', 'active')
@@ -169,8 +169,11 @@ class ProductTemplates extends Component
             ->get();
 
         return view('livewire.shop.product.product-templates', [
-            'templates' => $templates,
-            'products' => $products,
+            'templates'              => $templates,
+            'products'               => $products,
+            'animationTimeline'      => $configService->getAnimationTimeline(),
+            'currentActiveAnimation' => $configService->getCurrentActiveTheme(),
+            'backgroundThemes'       => $configService->getBackgroundThemes(),
         ]);
     }
 }

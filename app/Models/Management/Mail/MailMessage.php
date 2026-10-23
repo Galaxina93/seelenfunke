@@ -16,6 +16,18 @@ class MailMessage extends Model
         'tags' => 'array',
     ];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (MailMessage $message) {
+            foreach ($message->attachments()->get() as $attachment) {
+                $attachment->delete();
+            }
+            if ($message->id) {
+                \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory('leitung/crm/mail-attachments/' . $message->id);
+            }
+        });
+    }
+
     public function account()
     {
         return $this->belongsTo(MailAccount::class, 'mail_account_id');

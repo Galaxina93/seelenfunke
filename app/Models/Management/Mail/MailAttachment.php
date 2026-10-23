@@ -8,6 +8,15 @@ class MailAttachment extends Model
 {
     protected $guarded = [];
 
+    protected static function booted(): void
+    {
+        static::deleting(function (MailAttachment $attachment) {
+            if (!empty($attachment->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($attachment->path)) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($attachment->path);
+            }
+        });
+    }
+
     public function message()
     {
         return $this->belongsTo(MailMessage::class, 'mail_message_id');

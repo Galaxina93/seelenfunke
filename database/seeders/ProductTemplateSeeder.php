@@ -67,6 +67,7 @@ class ProductTemplateSeeder extends Seeder
     private function createChristmasTemplate(Product $product)
     {
         $config = [
+            'background_theme' => 'winter',
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
@@ -79,7 +80,19 @@ class ProductTemplateSeeder extends Seeder
                     'rotation' => 0
                 ]
             ],
-            'logos' => [],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Feiertage/weihnachtsbaum.svg',
+                    'url' => '/shop/product/configurator/vectors/Feiertage/weihnachtsbaum.svg',
+                    'x' => 50,
+                    'y' => 32,
+                    'size' => 90,
+                    'rotation' => 0
+                ]
+            ],
+            'logo_path' => 'vectors/Feiertage/weihnachtsbaum.svg',
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
@@ -91,13 +104,15 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Frohe Weihnachten',
             'configuration' => $config,
             'is_active' => true,
-            'holiday' => 'Weihnachten'
+            'holiday' => 'Weihnachten',
+            'preview_image' => "produkte/product-templates/{$product->slug}-weihnachten.jpg",
         ]);
     }
 
     private function createEasterTemplate(Product $product)
     {
         $config = [
+            'background_theme' => 'ostern',
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
@@ -105,12 +120,24 @@ class ProductTemplateSeeder extends Seeder
                     'font' => 'Pacifico',
                     'align' => 'center',
                     'x' => 50,
-                    'y' => 50,
-                    'size' => 1.8,
+                    'y' => 58,
+                    'size' => 1.7,
                     'rotation' => 0
                 ]
             ],
-            'logos' => [],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Tiere/haeschen.svg',
+                    'url' => '/shop/product/configurator/vectors/Tiere/haeschen.svg',
+                    'x' => 50,
+                    'y' => 32,
+                    'size' => 90,
+                    'rotation' => 0
+                ]
+            ],
+            'logo_path' => 'vectors/Tiere/haeschen.svg',
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
@@ -122,13 +149,15 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Frohes Osterfest',
             'configuration' => $config,
             'is_active' => true,
-            'holiday' => 'Ostern'
+            'holiday' => 'Ostern',
+            'preview_image' => "produkte/product-templates/{$product->slug}-ostern.jpg",
         ]);
     }
 
     private function createWeddingTemplate(Product $product)
     {
         $config = [
+            'background_theme' => 'hochzeit',
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
@@ -136,12 +165,24 @@ class ProductTemplateSeeder extends Seeder
                     'font' => 'Great Vibes',
                     'align' => 'center',
                     'x' => 50,
-                    'y' => 50,
+                    'y' => 58,
                     'size' => 1.6,
                     'rotation' => 0
                 ]
             ],
-            'logos' => [],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Liebe/eheringe.svg',
+                    'url' => '/shop/product/configurator/vectors/Liebe/eheringe.svg',
+                    'x' => 50,
+                    'y' => 32,
+                    'size' => 90,
+                    'rotation' => 0
+                ]
+            ],
+            'logo_path' => 'vectors/Liebe/eheringe.svg',
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
@@ -153,13 +194,15 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Lieblingsmensch / Hochzeit',
             'configuration' => $config,
             'is_active' => true,
-            'holiday' => 'Hochzeit'
+            'holiday' => 'Hochzeit',
+            'preview_image' => "produkte/product-templates/{$product->slug}-hochzeit.jpg",
         ]);
     }
 
     private function createBirthdayTemplate(Product $product)
     {
         $config = [
+            'background_theme' => 'geburtstag',
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
@@ -167,12 +210,24 @@ class ProductTemplateSeeder extends Seeder
                     'font' => 'Montserrat',
                     'align' => 'center',
                     'x' => 50,
-                    'y' => 50,
+                    'y' => 58,
                     'size' => 1.4,
                     'rotation' => 0
                 ]
             ],
-            'logos' => [],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Feiertage/geschenk.svg',
+                    'url' => '/shop/product/configurator/vectors/Feiertage/geschenk.svg',
+                    'x' => 50,
+                    'y' => 32,
+                    'size' => 85,
+                    'rotation' => 0
+                ]
+            ],
+            'logo_path' => 'vectors/Feiertage/geschenk.svg',
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
@@ -184,7 +239,8 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Alles Gute zum Geburtstag',
             'configuration' => $config,
             'is_active' => true,
-            'holiday' => 'Kein Feiertag'
+            'holiday' => 'Kein Feiertag',
+            'preview_image' => "produkte/product-templates/{$product->slug}-geburtstag.jpg",
         ]);
     }
 }

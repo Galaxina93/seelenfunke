@@ -90,7 +90,7 @@ class ManagementLinktreeManager extends Component
         );
 
         if ($this->profileImage) {
-            $path = $this->profileImage->store('linktree', 'public');
+            $path = $this->profileImage->store('marketing/linktree', 'public');
             SystemSetting::updateOrCreate(
                 ['key' => 'linktree_profile_image'],
                 ['value' => '/storage/' . $path]

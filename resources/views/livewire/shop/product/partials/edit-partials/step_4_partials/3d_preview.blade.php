@@ -7,7 +7,12 @@
     {{-- DIE VORSCHAU-KACHEL (3D / 2D) --}}
     <div class="relative w-full aspect-square rounded-[2.5rem] overflow-hidden shadow-inner border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-950 shrink-0"
          @mousedown="addPoint($event)"
-         :style="bgPath ? `background-image: url('${bgPath}'); background-size: cover; background-position: center;` : ''">
+         :style="((!showDrawingBoard || !fallbackImg || configSettings.area_shape === 'custom') && bgPath) ? `background-image: url('${bgPath}'); background-size: cover; background-position: center;` : ''">
+
+        {{-- ANIMIERTES THEMEN-HINTERGRUNDVIDEO (2D & 3D, nahtlos per Screen-Blend) --}}
+        <template x-if="bgVideoUrl && (configSettings.enable_background_video !== false)">
+            <video x-ref="adminBgVideo" :src="bgVideoUrl" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none" :class="showDrawingBoard ? 'z-[25] opacity-65' : 'z-[5] opacity-95'"></video>
+        </template>
 
         {{-- LADEBILDSCHIRM FÜR RAYCASTING --}}
         <div x-show="isRaycasting" x-transition.opacity
@@ -27,10 +32,10 @@
         <div x-ref="adminContainer2d"
              x-show="showDrawingBoard"
              x-transition.opacity.duration.300ms
-             class="absolute inset-0 w-full h-full z-20 pointer-events-auto" :class="modelPath ? 'bg-white/60 dark:bg-gray-950/60 backdrop-blur-[2px]' : 'bg-gray-100/40 dark:bg-gray-900/40'">
+             class="absolute inset-0 w-full h-full z-20 pointer-events-auto" :class="modelPath ? 'bg-black/25 backdrop-blur-[1px]' : 'bg-gray-100/20 dark:bg-gray-900/20'">
 
             <template x-if="fallbackImg">
-                <img :src="fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-40 mix-blend-screen">
+                <img :src="fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-100">
             </template>
 
             {{-- Pulsierendes Glühen (Eckig/Rund) --}}

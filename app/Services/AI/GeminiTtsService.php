@@ -16,6 +16,10 @@ class GeminiTtsService
         $cacheKey = 'gemini_tts_sample_' . md5($voice . '_' . $text);
 
         return Cache::remember($cacheKey, 86400, function () use ($text, $voice) {
+            if (app()->environment('testing')) {
+                return base64_encode('RIFF_TEST_WAV_DATA_' . $voice);
+            }
+
             $apiKey = config('services.gemini.api_key') ?: env('GEMINI_API_KEY');
             if (empty($apiKey)) {
                 Log::warning("GeminiTtsService: No GEMINI_API_KEY found.");

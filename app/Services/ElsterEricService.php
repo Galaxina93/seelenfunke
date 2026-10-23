@@ -215,7 +215,12 @@ class ElsterEricService
         }
 
         // Analyseergebnis
+        $logFile = $absoluteTresorPath . '/eric.log';
+
         if (str_contains($output, 'fehlerfrei') || str_contains($output, 'Erfolgreich')) {
+            if (file_exists($logFile)) {
+                @unlink($logFile);
+            }
             $ticketId = 'ELSTER-NATIV-' . strtoupper(Str::random(10));
             // Falls das Skript uns ein echtes SupportTicket zurückgegeben hat, filtern wir es:
             if (preg_match('/Transferhandle:\s*([0-9]+)/i', $output, $matches)) {
@@ -229,6 +234,9 @@ class ElsterEricService
         }
 
         if ($this->isTestMode) {
+            if (file_exists($logFile)) {
+                @unlink($logFile);
+            }
             $ticketId = "ELSTER-SIM-" . floatval(microtime(true) * 10000) . "-" . strtoupper(Str::random(6));
             return [
                 'success' => true,
@@ -240,7 +248,6 @@ class ElsterEricService
 
         // Falls es einen Fehler gab, holen wir uns sofort die eric.log Details!
         $ericLogFallback = '';
-        $logFile = $absoluteTresorPath . '/eric.log';
         if (file_exists($logFile)) {
             $logLines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             $errorLines = array_filter($logLines, function($line) {

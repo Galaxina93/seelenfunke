@@ -123,29 +123,8 @@
         </div>
     @endif
 
-    {{-- RECHTER BEREICH: KUNDENNUMMER & PROFIL-DOCK --}}
+    {{-- RECHTER BEREICH: PROFIL-DOCK --}}
     <div class="flex-1 flex items-center justify-end h-full min-w-0">
-        @php
-            $cId = (string) auth()->guard('customer')->id();
-            $kdCode = $cId ? strtoupper(explode('-', $cId)[0]) : '';
-        @endphp
-        @if($kdCode)
-            <div x-data="{ copied: false, code: '{{ $kdCode }}' }"
-                 class="hidden 2xl:flex items-center gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-900 border border-primary/30 rounded-2xl shadow-sm mr-3 shrink-0 group">
-                <span class="text-[9px] text-gray-500 dark:text-gray-400 font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                    </svg>
-                    Kd-Nr:
-                </span>
-                <span class="text-xs font-black text-primary font-mono tracking-wider" x-text="code"></span>
-                <button type="button" @click="navigator.clipboard.writeText(code); copied = true; setTimeout(() => copied = false, 2000)" class="text-gray-400 hover:text-primary transition-colors focus:outline-none" title="Nummer kopieren">
-                    <svg x-show="!copied" class="w-3.5 h-3.5 cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                    <svg x-show="copied" style="display: none;" class="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
-                </button>
-            </div>
-        @endif
-
         <div class="flex items-center justify-end h-full overflow-x-auto no-scrollbar scroll-smooth">
             @livewire('auth.auth-profile-dropdown')
         </div>

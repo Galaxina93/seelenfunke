@@ -108,11 +108,23 @@
     <div class="relative overflow-hidden border-[6px] group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
          :class="isMaximized ? 'shadow-2xl rounded-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]'"
          :style="isMaximized
-             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + ((!showDrawingBoard && config.bgPath) ? ` background-image: url('${config.bgPath}'); background-size: cover; background-position: center;` : '')
-             : ((!showDrawingBoard && config.bgPath) ? `background-image: url('${config.bgPath}'); background-size: cover; background-position: center;` : '')"
+             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (((!showDrawingBoard || !config.fallbackImg || config.area_shape === 'custom') && activeBgImage) ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
+             : (((!showDrawingBoard || !config.fallbackImg || config.area_shape === 'custom') && activeBgImage) ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
          x-ref="container"
          @mousedown="deselectAll($event)"
          @touchstart="deselectAll($event)">
+
+        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D, nahtlos per Screen-Blend) --}}
+        <template x-if="activeBgVideo && !isCapturing">
+            <video x-ref="bgVideo"
+                   :src="activeBgVideo"
+                   autoplay
+                   loop
+                   muted
+                   playsinline
+                   class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none transition-opacity duration-500"
+                   :class="showDrawingBoard ? 'z-[21] opacity-65' : 'z-[5] opacity-95'"></video>
+        </template>
 
         {{-- MAXIMAL / MINIMAL TOGGLE BUTTON --}}
         @if($context !== 'preview')
@@ -180,7 +192,7 @@
             </div>
 
             <template x-if="config.fallbackImg">
-                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-20 mix-blend-screen filter invert brightness-0 group-hover:opacity-40' : 'opacity-40 mix-blend-multiply group-hover:opacity-60' }}">
+                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
             </template>
 
             <div x-show="!isCapturing" class="absolute border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"

@@ -17,7 +17,7 @@
     <div class="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-cyan-600 to-cyan-500 rounded-t-3xl shadow-md z-10 shrink-0">
         <div class="flex items-center space-x-3">
             <div class="relative">
-                <img src="{{ $agentImage ?: asset('shop/ai/images/funki_selfie.png') }}" alt="{{ $agentName }}" class="w-10 h-10 rounded-full border-2 border-white/30 object-cover shadow-inner">
+                <img src="{{ $agentImage ?: funki_asset('shop/ai/images/funki_selfie.png') }}" alt="{{ $agentName }}" class="w-10 h-10 rounded-full border-2 border-white/30 object-cover shadow-inner">
                 <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-400 border-2 border-cyan-500 rounded-full"></span>
             </div>
             <div>
@@ -69,7 +69,7 @@
                 </div>
             @elseif($msg['sender'] === 'ai')
                 <div class="flex justify-start space-x-2" style="--dept-color: {{ $this->themeColorHex }}">
-                    <img src="{{ $agentImage ?: asset('shop/ai/images/funki_selfie.png') }}" alt="AI" class="w-8 h-8 rounded-full border border-gray-200 mt-1 shrink-0">
+                    <img src="{{ $agentImage ?: funki_asset('shop/ai/images/funki_selfie.png') }}" alt="AI" class="w-8 h-8 rounded-full border border-gray-200 mt-1 shrink-0">
                     <div class="bg-white border border-gray-100 text-gray-700 text-sm px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm max-w-[85%] overflow-x-auto leading-relaxed prose prose-sm [&_a]:!text-[var(--dept-color)] [&_a]:!font-bold [&_a]:!underline [&_a]:hover:!opacity-80 transition-all">
                         {!! \Illuminate\Support\Str::markdown($msg['text'], ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
                     </div>
@@ -85,7 +85,7 @@
 
         @if($isTyping)
             <div class="flex justify-start space-x-2 animate-fade-in-up">
-                <img src="{{ $agentImage ?: asset('shop/ai/images/funki_selfie.png') }}" alt="AI" class="w-8 h-8 rounded-full border border-gray-200 mt-1 shrink-0">
+                <img src="{{ $agentImage ?: funki_asset('shop/ai/images/funki_selfie.png') }}" alt="AI" class="w-8 h-8 rounded-full border border-gray-200 mt-1 shrink-0">
                 <div class="bg-white border border-gray-100 text-gray-500 text-sm px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-2">
                     <span class="text-xs font-semibold">{{ $agentName }} tippt</span>
                     <div class="flex space-x-1.5 items-center">

@@ -76,3 +76,46 @@ function resolve_snapshot_url(?string $path, ?string $fallback = null): ?string
 
     return $fallback;
 }
+
+/**
+ * Gibt automatisch die zur aktuellen Jahreszeit bzw. zum aktuellen Feiertag passende
+ * "Funki"-Grafik zurück (z. B. mit Weihnachtsmütze im Winter, Osterohren zu Ostern,
+ * Sonnenhut im Sommer, Herbstlaub im Herbst, Herzen am Valentinstag/Muttertag, Partyhut an Silvester).
+ * Fällt bei 'standard' oder nicht vorhandener Variante automatisch auf das Originalbild zurück.
+ */
+function funki_asset(string $path, ?string $theme = null): string
+{
+    $clean = ltrim($path, '/');
+
+    try {
+        $activeTheme = $theme ?: (app(\App\Services\ConfiguratorService::class)->getCurrentActiveTheme()['theme_key'] ?? 'standard');
+    } catch (\Throwable $e) {
+        $activeTheme = 'standard';
+    }
+
+    if ($activeTheme && $activeTheme !== 'standard') {
+        if (str_starts_with($clean, 'shop/projekt/funki/')) {
+            $subPath = substr($clean, strlen('shop/projekt/funki/'));
+            if (!str_starts_with($subPath, 'seasons/')) {
+                $seasonalRel = 'shop/projekt/funki/seasons/' . $activeTheme . '/' . $subPath;
+                $diskPath = public_path($seasonalRel);
+                if (is_file($diskPath)) {
+                    return asset($seasonalRel) . '?v=' . filemtime($diskPath);
+                }
+            }
+        } elseif (str_starts_with($clean, 'shop/ai/images/')) {
+            $subPath = substr($clean, strlen('shop/ai/images/'));
+            if (!str_starts_with($subPath, 'seasons/')) {
+                $seasonalRel = 'shop/ai/images/seasons/' . $activeTheme . '/' . $subPath;
+                $diskPath = public_path($seasonalRel);
+                if (is_file($diskPath)) {
+                    return asset($seasonalRel) . '?v=' . filemtime($diskPath);
+                }
+            }
+        }
+    }
+
+    $origDisk = public_path($clean);
+    $ver = is_file($origDisk) ? '?v=' . filemtime($origDisk) : '';
+    return asset($clean) . $ver;
+}
