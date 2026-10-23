@@ -26,32 +26,44 @@ use Illuminate\Auth\Events\Verified;
 
 /*Cronjob & System-Wartung*/
 Route::get('/system/cronjob/{token}', function ($token) {
-    $expected = config('services.system.cron_secret') ?: env('SYSTEM_CRON_SECRET');
-    if (empty($expected) || !hash_equals((string)$expected, (string)$token)) {
-        abort(403, 'Ungültiger Sicherheitstoken.');
-    }
-
     $throttleKey = 'cronjob_run_' . request()->ip();
     if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 60)) {
         abort(429, 'Zu viele Aufrufe.');
     }
     \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 60);
 
+    $expected = config('services.system.cron_secret') ?: env('SYSTEM_CRON_SECRET');
+    if (empty($expected) || !hash_equals((string)$expected, (string)$token)) {
+        \App\Services\System\SystemSecurityService::logEvent(
+            'security:cron_token_invalid',
+            'Ungültiges Cronjob-Token abgewehrt',
+            'Unbefugter Aufruf der System-Cronjob-Route mit falschem Sicherheitstoken.',
+            'warning'
+        );
+        abort(403, 'Ungültiger Sicherheitstoken.');
+    }
+
     Artisan::call('schedule:run');
     return 'Cronjob erfolgreich ausgeführt.';
 });
 
 Route::get('/system/cache/clear/{token}', function ($token) {
-    $expected = config('services.system.cache_secret') ?: env('SYSTEM_CACHE_SECRET');
-    if (empty($expected) || !hash_equals((string)$expected, (string)$token)) {
-        abort(403, 'Ungültiger Sicherheitstoken.');
-    }
-
     $throttleKey = 'cache_clear_' . request()->ip();
     if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 3)) {
         abort(429, 'Zu viele Cache-Leerungsversuche.');
     }
     \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+
+    $expected = config('services.system.cache_secret') ?: env('SYSTEM_CACHE_SECRET');
+    if (empty($expected) || !hash_equals((string)$expected, (string)$token)) {
+        \App\Services\System\SystemSecurityService::logEvent(
+            'security:cron_token_invalid',
+            'Ungültiges Cache-Clear-Token abgewehrt',
+            'Unbefugter Aufruf der System-Cache-Clear-Route mit falschem Sicherheitstoken.',
+            'warning'
+        );
+        abort(403, 'Ungültiger Sicherheitstoken.');
+    }
 
     Artisan::call('optimize:clear');
     return 'Cache erfolgreich geleert und optimiert.';
@@ -219,13 +231,16 @@ Route::post('/email/verification-notification', function (\Illuminate\Http\Reque
 
 // --- 6. Rechnungsdownload Route ---
 Route::get('/invoice/{invoice}/download', [\App\Http\Controllers\Accounting\InvoiceDownloadController::class, 'download'])
+    ->middleware('throttle:30,1')
     ->name('invoice.download');
 
 // --- 7. Digitaler Produkt-Download Route ---
 Route::get('/digital-product/{item}/download', [\App\Http\Controllers\Customer\DigitalProductDownloadController::class, 'download'])
+    ->middleware('throttle:30,1')
     ->name('digital-product.download');
 
 // --- 8. Legacy Snapshot URL Fallback Route (Leitet alte Pfade auf GoBD/System-Pfad um) ---
 Route::get('/storage/snapshots/{path}', function ($path) {
-    return redirect('/storage/system/snapshots/' . $path, 301);
+    $cleanPath = ltrim(str_replace(['..', '\\', "\0"], '', (string) $path), '/');
+    return redirect('/storage/system/snapshots/' . $cleanPath, 301);
 })->where('path', '.*');

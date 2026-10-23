@@ -37,6 +37,10 @@ Route::post('/device/register', function (Request $request) {
     return response()->json(['success' => true]);
 });
 
-Route::get('/funki/command', function (FunkiBotService $bot) {
+Route::get('/funki/command', function (Request $request, FunkiBotService $bot) {
+    $user = $request->user();
+    if (!$user instanceof \App\Models\Admin\Admin && !$user instanceof \App\Models\Employee\Employee) {
+        abort(403, 'Nur für Administratoren und Mitarbeiter verfügbar.');
+    }
     return response()->json($bot->getUltimateCommand());
 });

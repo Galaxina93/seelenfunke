@@ -209,19 +209,19 @@ class SystemSecurityService
 
     private static function inferCategory(string $actionId): string
     {
-        if (str_contains($actionId, '2fa') || str_contains($actionId, 'oauth')) {
+        if (str_contains($actionId, '2fa') || str_contains($actionId, 'oauth') || str_contains($actionId, 'emergency_auth') || str_contains($actionId, 'password_reset')) {
             return 'auth_2fa';
         }
-        if (str_contains($actionId, 'honeypot') || str_contains($actionId, 'bot') || str_contains($actionId, 'spam')) {
+        if (str_contains($actionId, 'honeypot') || str_contains($actionId, 'bot') || str_contains($actionId, 'spam') || str_contains($actionId, 'flood') || str_contains($actionId, 'voucher_brute')) {
             return 'bot_defense';
         }
         if (str_contains($actionId, 'rate_limit') || str_contains($actionId, 'brute') || str_contains($actionId, 'ip_ban')) {
             return 'brute_force';
         }
-        if (str_contains($actionId, 'ai') || str_contains($actionId, 'bridge') || str_contains($actionId, 'sandbox') || str_contains($actionId, 'api')) {
+        if (str_contains($actionId, 'ai') || str_contains($actionId, 'bridge') || str_contains($actionId, 'sandbox') || str_contains($actionId, 'api') || str_contains($actionId, 'telegram') || str_contains($actionId, 'webhook') || str_contains($actionId, 'cron_token')) {
             return 'api_ai_sandbox';
         }
-        if (str_contains($actionId, 'idor') || str_contains($actionId, 'checkout') || str_contains($actionId, 'path') || str_contains($actionId, 'ssrf') || str_contains($actionId, 'cheat') || str_contains($actionId, 'revocation')) {
+        if (str_contains($actionId, 'idor') || str_contains($actionId, 'checkout') || str_contains($actionId, 'path') || str_contains($actionId, 'lfi') || str_contains($actionId, 'ssrf') || str_contains($actionId, 'cheat') || str_contains($actionId, 'revocation') || str_contains($actionId, 'tampering') || str_contains($actionId, 'redirect')) {
             return 'idor_integrity';
         }
         return 'general';

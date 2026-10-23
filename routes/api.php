@@ -424,6 +424,6 @@ Route::post('/product-telemetry/beacon', function (\Illuminate\Http\Request $req
     } catch (\Throwable $e) {
         return response()->json(['success' => false], 200);
     }
-});
+})->middleware('throttle:60,1');
 
 

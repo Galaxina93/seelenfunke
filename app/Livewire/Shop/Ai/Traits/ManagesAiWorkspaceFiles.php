@@ -20,6 +20,42 @@ trait ManagesAiWorkspaceFiles
 
     public ?string $dateitrichterMessage = null;
 
+    protected function sanitizeWorkspacePath(?string $path): ?string
+    {
+        if (!is_string($path)) {
+            return null;
+        }
+        $clean = trim(str_replace('\\', '/', $path), '/');
+        if ($clean === '' || str_contains($clean, '..') || str_contains($clean, "\0")) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:workspace_path_traversal',
+                'Ungültiger Pfad im KI-Workspace blockiert',
+                "Pfad-Manipulation im KI-Workspace abgewiesen: " . substr($path, 0, 120),
+                'error',
+                ['path' => substr($path, 0, 120)]
+            );
+            return null;
+        }
+        if ($clean !== 'agenten/workspace' && !str_starts_with($clean, 'agenten/workspace/')) {
+            return null;
+        }
+        return $clean;
+    }
+
+    protected function isSafeWorkspaceFilename(string $filename): bool
+    {
+        if ($filename === '' || str_contains($filename, '..') || str_contains($filename, '/') || str_contains($filename, '\\') || str_contains($filename, "\0")) {
+            return false;
+        }
+        if (str_starts_with($filename, '.')) {
+            return false;
+        }
+        if (preg_match('/\.(php[0-9]?|phtml|phar|sh|bash|exe|bat|cmd|cgi|pl|py|asp|aspx|jsp|shtml|env|htaccess)(\.|$)/i', $filename)) {
+            return false;
+        }
+        return true;
+    }
+
     public function getAllWorkspaceDirectories(): array
     {
         $dirs = Storage::disk('workspace')->allDirectories('agenten/workspace');
@@ -34,9 +70,13 @@ trait ManagesAiWorkspaceFiles
 
     public function openFilePreview($path)
     {
-        if (Storage::disk('workspace')->exists($path)) {
-            $this->previewFilename = basename($path);
-            $this->previewContent = Storage::disk('workspace')->get($path);
+        $safePath = $this->sanitizeWorkspacePath((string) $path);
+        if (!$safePath) {
+            return;
+        }
+        if (Storage::disk('workspace')->exists($safePath)) {
+            $this->previewFilename = basename($safePath);
+            $this->previewContent = Storage::disk('workspace')->get($safePath);
         }
     }
 
@@ -61,6 +101,8 @@ trait ManagesAiWorkspaceFiles
                 Storage::disk('workspace')->makeDirectory($folder);
             }
         }
+
+        $this->currentFilePath = $this->sanitizeWorkspacePath((string) $this->currentFilePath) ?? 'agenten/workspace';
 
         if (!Storage::disk('workspace')->exists($this->currentFilePath)) {
             Storage::disk('workspace')->makeDirectory($this->currentFilePath);
@@ -158,7 +200,12 @@ trait ManagesAiWorkspaceFiles
 
     public function openFileManagerFolder($folderName)
     {
-        $this->currentFilePath .= '/' . trim($folderName, '/');
+        $cleanFolder = basename(trim((string) $folderName, '/\\'));
+        if ($cleanFolder === '' || $cleanFolder === '.' || $cleanFolder === '..') {
+            return;
+        }
+        $candidate = ($this->sanitizeWorkspacePath((string) $this->currentFilePath) ?? 'agenten/workspace') . '/' . $cleanFolder;
+        $this->currentFilePath = $this->sanitizeWorkspacePath($candidate) ?? 'agenten/workspace';
         $this->loadFileManagerFiles();
     }
 
@@ -269,7 +316,15 @@ trait ManagesAiWorkspaceFiles
             'fileUpload' => 'required|file|max:10240' // 10MB max
         ]);
 
-        $filename = $this->fileUpload->getClientOriginalName();
+        $this->currentFilePath = $this->sanitizeWorkspacePath((string) $this->currentFilePath) ?? 'agenten/workspace';
+        $filename = basename((string) $this->fileUpload->getClientOriginalName());
+
+        if (!$this->isSafeWorkspaceFilename($filename)) {
+            $this->dateitrichterMessage = 'Ungültiger oder aus Sicherheitsgründen blockierter Dateiname.';
+            $this->fileUpload = null;
+            return;
+        }
+
         $fileSize = $this->fileUpload->getSize();
         $sizeFormatted = round($fileSize / 1024, 1) . ' KB';
         $this->fileUpload->storeAs($this->currentFilePath, $filename, 'workspace');
@@ -330,13 +385,24 @@ trait ManagesAiWorkspaceFiles
 
     public function deleteFileManagerItem($path)
     {
-        if (Storage::disk('workspace')->exists($path) || in_array($path, Storage::disk('workspace')->directories(dirname($path)))) {
-            if (in_array($path, Storage::disk('workspace')->directories(dirname($path)))) {
-                Storage::disk('workspace')->deleteDirectory($path);
-                AiWorkspaceDocument::where('file_path', 'like', $path . '/%')->delete();
+        $safePath = $this->sanitizeWorkspacePath((string) $path);
+        $protectedPaths = [
+            'agenten/workspace',
+            'agenten/workspace/Berufsleben',
+            'agenten/workspace/Dokumente',
+            'agenten/workspace/Gesundheit',
+        ];
+        if (!$safePath || in_array($safePath, $protectedPaths, true)) {
+            return;
+        }
+
+        if (Storage::disk('workspace')->exists($safePath) || in_array($safePath, Storage::disk('workspace')->directories(dirname($safePath)))) {
+            if (in_array($safePath, Storage::disk('workspace')->directories(dirname($safePath)))) {
+                Storage::disk('workspace')->deleteDirectory($safePath);
+                AiWorkspaceDocument::where('file_path', 'like', $safePath . '/%')->delete();
             } else {
-                Storage::disk('workspace')->delete($path);
-                AiWorkspaceDocument::where('file_path', $path)->delete();
+                Storage::disk('workspace')->delete($safePath);
+                AiWorkspaceDocument::where('file_path', $safePath)->delete();
             }
             $this->loadFileManagerFiles();
         }
@@ -344,35 +410,40 @@ trait ManagesAiWorkspaceFiles
 
     public function renameFileManagerItem($path, $newName)
     {
-        $newName = trim($newName);
-        if (empty($newName)) return;
+        $safePath = $this->sanitizeWorkspacePath((string) $path);
+        $newName = basename(trim((string) $newName));
+        if (!$safePath || $safePath === 'agenten/workspace' || empty($newName)) return;
 
         // Wenn es sich um einen Ordner handelt: Regel für einteilige Namen durchsetzen
-        if (Storage::disk('workspace')->exists($path) && is_dir(Storage::disk('workspace')->path($path))) {
+        if (Storage::disk('workspace')->exists($safePath) && is_dir(Storage::disk('workspace')->path($safePath))) {
             if (preg_match('/[\s_\-]+/u', $newName)) {
                 $this->dateitrichterMessage = 'Ordnernamen dürfen nur aus einem einzelnen Wort bestehen.';
                 return;
             }
+        } elseif (!$this->isSafeWorkspaceFilename($newName)) {
+            $this->dateitrichterMessage = 'Ungültiger oder blockierter Dateiname.';
+            return;
         }
 
-        $dir = dirname($path);
-        $newPath = $dir . '/' . $newName;
+        $dir = dirname($safePath);
+        $newPath = $this->sanitizeWorkspacePath($dir . '/' . $newName);
+        if (!$newPath) return;
 
-        if ($path !== $newPath && Storage::disk('workspace')->exists($path)) {
-            $oldFullPath = Storage::disk('workspace')->path($path);
+        if ($safePath !== $newPath && Storage::disk('workspace')->exists($safePath)) {
+            $oldFullPath = Storage::disk('workspace')->path($safePath);
             $newFullPath = Storage::disk('workspace')->path($newPath);
             
             if (is_dir($oldFullPath)) {
                 rename($oldFullPath, $newFullPath);
                 // Pfade aller Unterdokumente aktualisieren
-                $docs = AiWorkspaceDocument::where('file_path', 'like', $path . '/%')->get();
+                $docs = AiWorkspaceDocument::where('file_path', 'like', $safePath . '/%')->get();
                 foreach ($docs as $doc) {
-                    $doc->file_path = $newPath . substr($doc->file_path, strlen($path));
+                    $doc->file_path = $newPath . substr($doc->file_path, strlen($safePath));
                     $doc->save();
                 }
             } else {
-                Storage::disk('workspace')->move($path, $newPath);
-                $doc = AiWorkspaceDocument::where('file_path', $path)->first();
+                Storage::disk('workspace')->move($safePath, $newPath);
+                $doc = AiWorkspaceDocument::where('file_path', $safePath)->first();
                 if ($doc) {
                     $doc->file_path = $newPath;
                     $doc->filename = $newName;
@@ -385,28 +456,31 @@ trait ManagesAiWorkspaceFiles
 
     public function moveFileManagerItem($sourcePath, $targetFolder)
     {
-        if (empty($sourcePath) || empty($targetFolder)) return;
+        $safeSource = $this->sanitizeWorkspacePath((string) $sourcePath);
+        $safeTarget = $this->sanitizeWorkspacePath((string) $targetFolder);
+        if (!$safeSource || !$safeTarget || $safeSource === 'agenten/workspace') return;
 
-        if (str_starts_with($targetFolder, $sourcePath . '/')) return;
-        if ($sourcePath === $targetFolder) return;
+        if (str_starts_with($safeTarget, $safeSource . '/')) return;
+        if ($safeSource === $safeTarget) return;
 
-        $fileName = basename($sourcePath);
-        $newPath = $targetFolder . '/' . $fileName;
+        $fileName = basename($safeSource);
+        $newPath = $this->sanitizeWorkspacePath($safeTarget . '/' . $fileName);
+        if (!$newPath) return;
 
-        if (Storage::disk('workspace')->exists($sourcePath) && !Storage::disk('workspace')->exists($newPath)) {
-            $oldFullPath = Storage::disk('workspace')->path($sourcePath);
+        if (Storage::disk('workspace')->exists($safeSource) && !Storage::disk('workspace')->exists($newPath)) {
+            $oldFullPath = Storage::disk('workspace')->path($safeSource);
             $newFullPath = Storage::disk('workspace')->path($newPath);
             
             if (is_dir($oldFullPath)) {
                 rename($oldFullPath, $newFullPath);
-                $docs = AiWorkspaceDocument::where('file_path', 'like', $sourcePath . '/%')->get();
+                $docs = AiWorkspaceDocument::where('file_path', 'like', $safeSource . '/%')->get();
                 foreach ($docs as $doc) {
-                    $doc->file_path = $newPath . substr($doc->file_path, strlen($sourcePath));
+                    $doc->file_path = $newPath . substr($doc->file_path, strlen($safeSource));
                     $doc->save();
                 }
             } else {
-                Storage::disk('workspace')->move($sourcePath, $newPath);
-                $doc = AiWorkspaceDocument::where('file_path', $sourcePath)->first();
+                Storage::disk('workspace')->move($safeSource, $newPath);
+                $doc = AiWorkspaceDocument::where('file_path', $safeSource)->first();
                 if ($doc) {
                     $doc->file_path = $newPath;
                     $doc->save();
@@ -418,9 +492,12 @@ trait ManagesAiWorkspaceFiles
 
     public function archiveFileManagerItem($path)
     {
-        if (Storage::disk('workspace')->exists($path)) {
-            $fullPath = Storage::disk('workspace')->path($path);
-            $zipPath = Storage::disk('workspace')->path($path . '.zip');
+        $safePath = $this->sanitizeWorkspacePath((string) $path);
+        if (!$safePath) return;
+
+        if (Storage::disk('workspace')->exists($safePath)) {
+            $fullPath = Storage::disk('workspace')->path($safePath);
+            $zipPath = Storage::disk('workspace')->path($safePath . '.zip');
 
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {

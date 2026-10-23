@@ -22,6 +22,12 @@ class TelegramAgentController extends Controller
 
         if (!$agent) {
             Log::warning("Telegram Webhook hit with invalid or inactive token: " . $token);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:telegram_unauthorized',
+                'Telegram-Webhook mit ungültigem Token',
+                'Aufruf des Telegram-Webhooks mit unbekanntem oder inaktivem Bot-Token abgewiesen.',
+                'warning'
+            );
             return response()->json(['status' => 'error', 'message' => 'Agent not found'], 404);
         }
 
@@ -44,6 +50,13 @@ class TelegramAgentController extends Controller
         
         if (!$isPublic && !in_array((string)$chatId, $allowedIds, true)) {
             Log::warning("Unauthorized Telegram Access Attempt", ['chat_id' => $chatId, 'agent' => $agent->name]);
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:telegram_unauthorized',
+                'Unautorisierter Telegram-Zugriff blockiert',
+                "Nicht-autorisierte Telegram Chat-ID ({$chatId}) wollte auf Agent '{$agent->name}' zugreifen.",
+                'warning',
+                ['chat_id' => $chatId, 'agent_name' => $agent->name]
+            );
             $rejectMessage = "⛔️ *Sicherheitsbereich*\n\nDu bist nicht berechtigt, mit diesem Agenten zu kommunizieren.\n\n_System-Log:_ Deine Telegram-ID lautet `" . $chatId . "`.\nBitte informiere den System-Administrator, damit er diese ID in die Agenten-Whitelist aufnehmen kann.";
             $this->sendTelegramMessage($token, $chatId, $rejectMessage);
             return response()->json(['status' => 'unauthorized', 'message' => 'Chat ID not whitelisted']);
@@ -258,11 +271,14 @@ class TelegramAgentController extends Controller
             throw new \Exception("Could not download file from Telegram.");
         }
         $fileContent = $fileResponse->body();
+        if (strlen($fileContent) > 20 * 1024 * 1024) {
+            throw new \Exception("File exceeds maximum allowed size of 20 MB.");
+        }
         
         // 3. Save to Public Storage mimicking Standard UI Uploads
-        // Extract and whitelist extension
+        // Extract and whitelist extension (SVG excluded from public storage to prevent stored XSS)
         $rawExt = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'docx', 'doc', 'txt', 'mp3', 'ogg', 'wav', 'm4a', 'csv', 'svg'];
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'docx', 'doc', 'txt', 'mp3', 'ogg', 'wav', 'm4a', 'csv'];
         $ext = in_array($rawExt, $allowedExts, true) ? $rawExt : 'dat';
 
         $filename = 'telegram_' . uniqid() . '.' . $ext;

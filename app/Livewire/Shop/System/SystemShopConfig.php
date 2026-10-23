@@ -265,6 +265,9 @@ class SystemShopConfig extends Component
         ]);
 
         foreach ($this->settings as $key => $value) {
+            if (!in_array($key, $this->configKeys, true)) {
+                continue;
+            }
             if ($key === 'emergency_master_password') {
                 if (!empty($value)) {
                     SystemSetting::updateOrCreate(

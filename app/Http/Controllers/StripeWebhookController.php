@@ -29,6 +29,12 @@ class StripeWebhookController extends Controller
             $event = Webhook::constructEvent($payload, $sig_header, $endpoint_secret);
         } catch (SignatureVerificationException $e) {
             Log::error('Stripe Webhook Signatur Fehler: ' . $e->getMessage());
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:webhook_signature_invalid',
+                'Ungültige Stripe-Webhook-Signatur',
+                'Ein Aufruf an /stripe/webhook wurde wegen ungültiger kryptografischer Signatur abgewiesen.',
+                'warning'
+            );
             return response('Error: Invalid Signature', 400);
         } catch (\UnexpectedValueException $e) {
             Log::error('Stripe Webhook Payload Fehler: ' . $e->getMessage());

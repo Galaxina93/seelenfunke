@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Rule;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Livewire\WithFileUploads;
@@ -63,6 +64,7 @@ class AccountingFixCosts extends Component
     public $itemFile;
     public $itemIsBusiness = false;
     public $itemRequiresContract = true;
+    #[Locked]
     public ?string $itemExistingFile = null;
     public $itemTaxRate = 0;
     public $itemLastPaymentDate;

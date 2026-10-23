@@ -133,8 +133,16 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     if ($request->hasFile('file')) {
         $paths = [];
         $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
 
         foreach ($files as $file) {
+            if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
+                continue;
+            }
+            $ext = strtolower($file->getClientOriginalExtension());
+            if (!in_array($ext, $allowedExts, true)) {
+                continue;
+            }
             $path = $file->store('buchhaltung/receipts', 'local');
             $paths[] = $path;
         }
@@ -226,8 +234,8 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
 });
 
 Route::get('/funki/financials/variable', function (Request $request) {
-    // Wir lesen das Limit aus der URL, Standard ist 50
-    $limit = $request->query('limit', 50);
+    // Wir lesen das Limit aus der URL, Standard ist 50 (geclampt auf 1..200 gegen Speicher-DoS)
+    $limit = max(1, min(200, (int) $request->query('limit', 50)));
 
     return AccountingSpecialIssue::where('admin_id', $request->user()->id)
         ->orderBy('execution_date', 'desc')
@@ -269,7 +277,15 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
             $files = [$files];
         }
 
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
         foreach ($files as $file) {
+            if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
+                continue;
+            }
+            $ext = strtolower($file->getClientOriginalExtension());
+            if (!in_array($ext, $allowedExts, true)) {
+                continue;
+            }
             $existingPaths[] = $file->store('buchhaltung/receipts', 'local');
         }
 

@@ -87,7 +87,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/ai/workspace', \App\Livewire\Shop\Ai\AiWorkspace::class)->name('admin.ai.workspace');
     Route::get('/admin/ai/workspace/file', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
+        if (!$path || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\') || !str_starts_with($path, 'agenten/workspace/') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             abort(404);
         }
         $mime = \Illuminate\Support\Facades\Storage::disk('workspace')->mimeType($path) ?: 'application/octet-stream';
