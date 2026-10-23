@@ -50,11 +50,13 @@ trait ManagesAiChat
     public function chatSessions()
     {
         $userId = AiAuthHelper::getUserId();
-        $query = \App\Models\Ai\AiChatSession::where('is_archived', false);
-        if ($userId) {
-            $query->where('user_id', $userId);
+        if (!$userId) {
+            return collect();
         }
-        return $query->orderBy('updated_at', 'desc')->get();
+        return \App\Models\Ai\AiChatSession::where('is_archived', false)
+            ->where('user_id', $userId)
+            ->orderBy('updated_at', 'desc')
+            ->get();
     }
 
     public function createNewChat()
@@ -836,12 +838,26 @@ trait ManagesAiChat
                     $upNames = collect($ctx['local_uploads'])->pluck('name')->implode(', ');
                     $contentToAPI .= "\n\n[LOKALE DATEI-UPLOADS IN DIESER NACHRICHT: " . $upNames . "]\n";
 
+                    $storageReal = realpath(storage_path('app'));
                     foreach ($ctx['local_uploads'] as $up) {
-                        $mime = $up['mime'] ?? 'unknown';
-                        $fullPath = storage_path('app/public/' . $up['path']);
-                        if (!file_exists($fullPath)) {
-                            $fullPath = storage_path('app/' . $up['path']);
+                        $relPath = is_array($up) ? ($up['path'] ?? '') : '';
+                        if (!is_string($relPath) || $relPath === '' || str_contains($relPath, '..') || str_contains($relPath, "\0")) {
+                            continue;
                         }
+                        $cleanRel = str_replace('\\', '/', ltrim($relPath, '/'));
+                        if (!str_starts_with($cleanRel, 'agenten/workspace/chat-medien/') && !str_starts_with($cleanRel, 'telegram_uploads/')) {
+                            continue;
+                        }
+                        $mime = $up['mime'] ?? 'unknown';
+                        $fullPath = storage_path('app/public/' . $cleanRel);
+                        if (!file_exists($fullPath)) {
+                            $fullPath = storage_path('app/' . $cleanRel);
+                        }
+                        $resolvedPath = realpath($fullPath);
+                        if (!$resolvedPath || !$storageReal || !str_starts_with($resolvedPath, $storageReal . DIRECTORY_SEPARATOR) || !is_file($resolvedPath)) {
+                            continue;
+                        }
+                        $fullPath = $resolvedPath;
 
                         if (file_exists($fullPath)) {
                             if (str_starts_with($mime, 'image/')) {
@@ -962,9 +978,18 @@ trait ManagesAiChat
                     \Illuminate\Support\Facades\Log::info("DEBUG_MAP: EVENT RECEIVED FROM AI AGENT", ['eventMsg' => $eventMsg]);
                     
                     if ($evtType === 'navigate' && !empty($eventMsg['url'])) {
-                        $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
-                        $this->redirect($eventMsg['url'], navigate: true);
-                        return; 
+                        $targetUrl = trim((string) $eventMsg['url']);
+                        $isSafeInternal = (str_starts_with($targetUrl, '/') && !str_starts_with($targetUrl, '//'));
+                        if (!$isSafeInternal && preg_match('/^https?:\/\//i', $targetUrl)) {
+                            $appHost = parse_url((string) config('app.url'), PHP_URL_HOST);
+                            $targetHost = parse_url($targetUrl, PHP_URL_HOST);
+                            $isSafeInternal = ($appHost && $targetHost && strcasecmp($appHost, $targetHost) === 0);
+                        }
+                        if ($isSafeInternal) {
+                            $this->typingAgents = array_diff($this->typingAgents, [$agentId]);
+                            $this->redirect($targetUrl, navigate: true);
+                            return;
+                        }
                     } elseif ($evtType === 'dispatch' || !empty($eventMsg['name'])) {
                         $name = $eventMsg['name'] ?? 'ai-global-event';
                         $detail = $eventMsg['detail'] ?? [];

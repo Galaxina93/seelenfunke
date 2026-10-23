@@ -31,6 +31,13 @@ class AiRoleManager extends Component
 
     public $topTools = [];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
@@ -145,9 +152,12 @@ class AiRoleManager extends Component
         // Lädt alle verfügbaren Tools anhand der Searchbar
         $query = AiTool::query();
         if (!empty($this->searchTool)) {
-            $query->where('name', 'like', '%' . $this->searchTool . '%')
-                  ->orWhere('identifier', 'like', '%' . $this->searchTool . '%')
-                  ->orWhere('description', 'like', '%' . $this->searchTool . '%');
+            $escaped = addcslashes((string) $this->searchTool, '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('name', 'like', '%' . $escaped . '%')
+                  ->orWhere('identifier', 'like', '%' . $escaped . '%')
+                  ->orWhere('description', 'like', '%' . $escaped . '%');
+            });
         }
         $allTools = $query->orderBy('name')->get();
 

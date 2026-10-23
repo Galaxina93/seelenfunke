@@ -14,9 +14,16 @@ class ProductVariants extends Component
     // Die Matrix der Endprodukte
     public array $variants = [];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount(Product $product)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

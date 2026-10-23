@@ -93,12 +93,12 @@ class AiWidget extends Component
     public function getListeners()
     {
         return [
-            "echo:workspace,AiWidgetSpeechEvent" => 'handleSpeechEvent',
-            "echo:workspace,.App\\Events\\AiWidgetSpeechEvent" => 'handleSpeechEvent',
-            "echo:workspace,AiFrontendEvent" => 'handleFrontendEvent',
-            "echo:workspace,.App\\Events\\AiFrontendEvent" => 'handleFrontendEvent',
-            "echo:workspace,TaskUpdated" => 'handleTaskUpdated',
-            "echo:workspace,.App\\Events\\TaskUpdated" => 'handleTaskUpdated',
+            "echo-private:workspace,AiWidgetSpeechEvent" => 'handleSpeechEvent',
+            "echo-private:workspace,.App\\Events\\AiWidgetSpeechEvent" => 'handleSpeechEvent',
+            "echo-private:workspace,AiFrontendEvent" => 'handleFrontendEvent',
+            "echo-private:workspace,.App\\Events\\AiFrontendEvent" => 'handleFrontendEvent',
+            "echo-private:workspace,TaskUpdated" => 'handleTaskUpdated',
+            "echo-private:workspace,.App\\Events\\TaskUpdated" => 'handleTaskUpdated',
         ];
     }
 

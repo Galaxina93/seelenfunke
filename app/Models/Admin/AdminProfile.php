@@ -34,7 +34,7 @@ class AdminProfile extends Model
     }
 
     protected $hidden = [
-        'password', 'rememberToken', 'two_factor_recovery_codes', 'two_factor_secret',
+        'password', 'rememberToken', 'two_factor_recovery_codes', 'two_factor_secret', 'internal_note',
     ];
 
     public function admin(): \Illuminate\Database\Eloquent\Relations\BelongsTo

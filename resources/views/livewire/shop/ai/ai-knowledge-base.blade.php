@@ -128,7 +128,7 @@
                         </style>
 
                         <div class="kb-content max-w-4xl text-gray-800 dark:text-gray-300">
-                            {!! $activeArticle->content !!}
+                            {!! \App\Livewire\Shop\Ai\AiKnowledgeBase::sanitizeKnowledgeHtml((string) $activeArticle->content) !!}
                         </div>
                     </div>
 

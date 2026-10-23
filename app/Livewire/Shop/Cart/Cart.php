@@ -32,6 +32,10 @@ class Cart extends Component
         if ($this->editingItemId === $itemId) {
             $this->closeModal();
         } else {
+            $cart = $this->cartService->getCart(false);
+            if (!$cart || !$cart->items()->where('id', $itemId)->exists()) {
+                return;
+            }
             $this->editingItemId = $itemId;
         }
     }
@@ -95,7 +99,7 @@ class Cart extends Component
             $qty = max(1, min(100, (int) $qty));
             $config = is_array($config) ? $config : null;
             DB::transaction(function () use ($productId, $qty, $config) {
-                $product = \App\Models\Product\Product::find($productId);
+                $product = \App\Models\Product\Product::where('status', 'active')->find($productId);
                 if($product) {
                     $this->cartService->addItem($product, $qty, $config);
 

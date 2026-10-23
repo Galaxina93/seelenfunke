@@ -21,9 +21,16 @@ class ProductControlReviews extends Component
     public $filterStatus = 'pending';
     public $search = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -87,15 +94,16 @@ class ProductControlReviews extends Component
         }
 
         if (!empty($this->search)) {
-            $query->where(function($q) {
-                $q->where('title', 'like', '%' . $this->search . '%')
-                    ->orWhere('content', 'like', '%' . $this->search . '%')
-                    ->orWhereHas('customer', function($c) {
-                        $c->where('first_name', 'like', '%' . $this->search . '%')
-                            ->orWhere('last_name', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('title', 'like', '%' . $escapedSearch . '%')
+                    ->orWhere('content', 'like', '%' . $escapedSearch . '%')
+                    ->orWhereHas('customer', function($c) use ($escapedSearch) {
+                        $c->where('first_name', 'like', '%' . $escapedSearch . '%')
+                            ->orWhere('last_name', 'like', '%' . $escapedSearch . '%');
                     })
-                    ->orWhereHas('product', function($p) {
-                        $p->where('name', 'like', '%' . $this->search . '%');
+                    ->orWhereHas('product', function($p) use ($escapedSearch) {
+                        $p->where('name', 'like', '%' . $escapedSearch . '%');
                     });
             });
         }

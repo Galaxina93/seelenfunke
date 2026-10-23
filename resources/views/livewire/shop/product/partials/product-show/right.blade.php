@@ -166,6 +166,49 @@
                                 <p class="text-gray-500 text-xs">Starte mit einem leeren Produkt und werde kreativ.</p>
                             </button>
                         </div>
+
+                        @php
+                            $tutorialConfig = app(\App\Services\ProductConfiguratorService::class)->getTutorialConfig();
+                        @endphp
+                        @if(!empty($tutorialConfig['enabled']) && !empty($tutorialConfig['exists']) && !empty($tutorialConfig['url']))
+                            <div x-data="{ showTutorial: false }" class="w-full mt-6 pt-6 border-t border-gray-200/80 flex flex-col items-center">
+                                <button type="button"
+                                        @click="showTutorial = !showTutorial"
+                                        class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-2xl border transition-all text-xs font-bold cursor-pointer select-none"
+                                        :class="showTutorial
+                                            ? 'bg-white text-gray-900 border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)] shadow-sm hover:bg-gray-50'
+                                            : 'bg-white text-gray-700 border-gray-200 shadow-xs hover:border-[var(--theme-color)] hover:text-gray-900 hover:shadow-md'">
+                                    <span class="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                                          :class="showTutorial ? 'bg-[var(--theme-color-20)] text-gray-900' : 'bg-[var(--theme-color-10)] text-[var(--theme-color)]'">
+                                        <svg x-show="!showTutorial" class="w-3.5 h-3.5 translate-x-[0.5px]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                        <svg x-show="showTutorial" x-cloak class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </span>
+                                    <span x-text="showTutorial ? 'Tutorial schließen' : 'Tutorial ansehen'">Tutorial ansehen</span>
+                                    <span x-show="!showTutorial" class="text-[10px] font-medium text-gray-400 hidden sm:inline">• Kurz erklärt</span>
+                                </button>
+
+                                {{-- Lazy-Loaded Video Player: Wird erst beim Klick auf "Tutorial ansehen" geladen --}}
+                                <template x-if="showTutorial">
+                                    <div class="w-full mt-4 rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-lg transition-all">
+                                        <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-200/80 flex items-center justify-between">
+                                            <div class="flex items-center gap-2">
+                                                <span class="w-2 h-2 rounded-full bg-[var(--theme-color)] animate-pulse"></span>
+                                                <span class="text-[11px] font-bold text-gray-800 tracking-wide">So nutzt du den Produktkonfigurator</span>
+                                            </div>
+                                            <span class="text-[10px] text-gray-500 font-medium">Schritt-für-Schritt Anleitung</span>
+                                        </div>
+                                        <video src="{{ $tutorialConfig['url'] }}"
+                                               controls
+                                               autoplay
+                                               playsinline
+                                               preload="metadata"
+                                               class="w-full aspect-video object-contain bg-[#FAF8F5] block">
+                                            Dein Browser unterstützt leider keine HTML5-Videos.
+                                        </video>
+                                    </div>
+                                </template>
+                            </div>
+                        @endif
                     </div>
 
                 @elseif($showTemplatesList)
@@ -214,16 +257,7 @@
 
                 @else
                     {{-- 3. DER EIGENTLICHE KONFIGURATOR --}}
-                    @if(!empty($productTemplates))
-                        <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center shrink-0">
-                            <span class="text-sm font-medium text-gray-600">Gestaltung</span>
-                            <button type="button" wire:click="cancelConfig" class="text-xs text-gray-500 hover:text-red-500 transition-colors">
-                                Andere Vorlage wählen
-                            </button>
-                        </div>
-                    @endif
-
-                    <div class="p-0">
+                    <div class="p-0" @cancel-configurator.window="$wire.cancelConfig()">
                         <livewire:shop.product.product-configurator.product-configurator
                             :product="$product"
                             context="add"

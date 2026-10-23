@@ -354,7 +354,8 @@ trait AiTaskFuncs
             }
 
             if (!empty($args['search'])) {
-                $query->where('title', 'like', '%' . $args['search'] . '%');
+                $escapedSearch = addcslashes((string) $args['search'], '%_\\');
+                $query->where('title', 'like', '%' . $escapedSearch . '%');
             }
 
             $tasks = $query->orderByRaw("FIELD(COALESCE(priority, 'niedrig'), 'hoch', 'mittel', 'niedrig')")
@@ -621,7 +622,10 @@ trait AiTaskFuncs
                 $task = ManagementTask::find($args['task_id']);
             }
             if (!$task) {
-                $task = ManagementTask::where('title', 'like', '%' . $args['task_id'] . '%')->first();
+                $taskIdQuery = trim((string) $args['task_id']);
+                if (mb_strlen($taskIdQuery) >= 2) {
+                    $task = ManagementTask::where('title', 'like', '%' . addcslashes($taskIdQuery, '%_\\') . '%')->first();
+                }
             }
 
             if (!$task) {
@@ -866,7 +870,8 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Der alte Name der Liste fehlt.'];
             }
 
-            $list = ManagementTaskList::where('name', 'like', $args['old_name'])->first();
+            $escapedOldListName = addcslashes((string) $args['old_name'], '%_\\');
+            $list = ManagementTaskList::where('name', 'like', $escapedOldListName)->first();
 
             if (!$list) {
                 return ['status' => 'error', 'message' => "Liste '{$args['old_name']}' nicht gefunden."];
@@ -913,7 +918,8 @@ trait AiTaskFuncs
             if (!$deleteAll) {
                 $query->where(function($q) use ($listNames) {
                     foreach ($listNames as $lName) {
-                        $q->orWhere('name', 'like', '%' . $lName . '%');
+                        $escapedLName = addcslashes((string) $lName, '%_\\');
+                        $q->orWhere('name', 'like', '%' . $escapedLName . '%');
                     }
                 });
             }

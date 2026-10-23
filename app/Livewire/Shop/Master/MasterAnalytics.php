@@ -354,6 +354,13 @@ class MasterAnalytics extends Component
         ];
     }
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount(AnalyticsService $service)
     {
         if (!Auth::guard('admin')->check()) {
@@ -1061,7 +1068,7 @@ class MasterAnalytics extends Component
             abort(403);
         }
 
-        $this->validate(['uploadFile' => 'required|file|max:10240']);
+        $this->validate(['uploadFile' => 'required|file|mimes:pdf,jpg,jpeg,png,webp,doc,docx,txt|max:10240']);
         $item = AccountingCostItem::find($itemId);
         if ($item) {
             $path = app(\App\Services\Accounting\ContractDocumentService::class)->storeContractFile(

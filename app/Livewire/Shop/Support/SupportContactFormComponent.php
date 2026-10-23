@@ -26,9 +26,16 @@ class SupportContactFormComponent extends Component
     public $selectedRequestId = null;
     public $replyMessage = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -150,12 +157,13 @@ class SupportContactFormComponent extends Component
         }
 
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('ticket_number', 'like', "%{$this->search}%")
-                  ->orWhere('first_name', 'like', "%{$this->search}%")
-                  ->orWhere('last_name', 'like', "%{$this->search}%")
-                  ->orWhere('email', 'like', "%{$this->search}%")
-                  ->orWhere('subject', 'like', "%{$this->search}%");
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('ticket_number', 'like', "%{$escapedSearch}%")
+                  ->orWhere('first_name', 'like', "%{$escapedSearch}%")
+                  ->orWhere('last_name', 'like', "%{$escapedSearch}%")
+                  ->orWhere('email', 'like', "%{$escapedSearch}%")
+                  ->orWhere('subject', 'like', "%{$escapedSearch}%");
             });
         }
 

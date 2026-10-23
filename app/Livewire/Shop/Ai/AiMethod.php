@@ -13,6 +13,13 @@ class AiMethod extends Component
     public string $themingDepartment = 'Agenten';
     public $search = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {

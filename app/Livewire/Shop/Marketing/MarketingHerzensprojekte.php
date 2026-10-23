@@ -51,9 +51,16 @@ class MarketingHerzensprojekte extends Component
         ];
     }
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
         $this->centsPerOrder = (string) shop_setting('herzensprojekt_cents_per_order', 200);

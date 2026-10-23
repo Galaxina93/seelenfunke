@@ -62,9 +62,16 @@ class ProductAnalytics extends Component
     }
 
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf das Produkt Analytics.');
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nur Administratoren haben Zugriff auf das Produkt Analytics.');
         }
 

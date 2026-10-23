@@ -19,9 +19,16 @@ class MarketingLandingPages extends Component
     public $loadingMessage = '';
     public $actionError = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }

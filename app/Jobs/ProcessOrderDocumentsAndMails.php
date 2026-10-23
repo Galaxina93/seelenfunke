@@ -44,8 +44,8 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
 
             // A) PDF Generieren & über InvoiceService GoBD-konform archivieren
             if ($invoice) {
-                $invoiceService->storePdf($invoice);
-                $pdfPath = \Illuminate\Support\Facades\Storage::disk('local')->path("buchhaltung/invoices/{$invoice->invoice_number}.pdf");
+                $storedPdfRelativePath = $invoiceService->storePdf($invoice);
+                $pdfPath = \Illuminate\Support\Facades\Storage::disk('local')->path($storedPdfRelativePath);
             }
 
             // B) XML Generieren (Nur für gewerbliche Kunden)
@@ -77,6 +77,28 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             // Sammle alle Snapshots der konfigurierten Artikel
             $snapshotPaths = [];
             $itemIndex = 1;
+            $publicRoot = realpath(storage_path('app/public'));
+            $resolveSafeSnapshot = function ($rawPath) use ($publicRoot): ?string {
+                if (!is_string($rawPath) || $rawPath === '' || str_contains($rawPath, '..') || str_contains($rawPath, "\0")) {
+                    return null;
+                }
+                $clean = ltrim(str_replace('\\', '/', $rawPath), '/');
+                $normPath = str_starts_with($clean, 'snapshots/') ? 'system/' . $clean : $clean;
+                $ext = strtolower(pathinfo($normPath, PATHINFO_EXTENSION));
+                if (!in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                    return null;
+                }
+                $fullPath = storage_path('app/public/' . $normPath);
+                if (!file_exists($fullPath) || !is_file($fullPath)) {
+                    return null;
+                }
+                $real = realpath($fullPath);
+                if (!$real || !$publicRoot || !str_starts_with($real, $publicRoot . DIRECTORY_SEPARATOR)) {
+                    return null;
+                }
+                return $real;
+            };
+
             foreach ($this->order->items as $item) {
                 if (!empty($item->configuration['snapshot_path'])) {
                     $configSnapshots = $item->configuration['snapshot_path'];
@@ -84,18 +106,16 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
                     
                     if (is_array($configSnapshots)) {
                         foreach ($configSnapshots as $key => $path) {
-                            $normPath = str_starts_with($path, 'snapshots/') ? 'system/' . $path : $path;
-                            $fullPath = storage_path('app/public/' . $normPath);
-                            if (file_exists($fullPath)) {
+                            $fullPath = $resolveSafeSnapshot($path);
+                            if ($fullPath) {
                                 $sideName = ($key === 'back') ? 'Rückseite' : 'Vorderseite';
                                 $filename = $cleanProductName . '-' . $itemIndex . '-' . $sideName . '-Sicherung.jpg';
                                 $snapshotPaths[$filename] = $fullPath;
                             }
                         }
                     } else {
-                        $normPath = str_starts_with($configSnapshots, 'snapshots/') ? 'system/' . $configSnapshots : $configSnapshots;
-                        $fullPath = storage_path('app/public/' . $normPath);
-                        if (file_exists($fullPath)) {
+                        $fullPath = $resolveSafeSnapshot($configSnapshots);
+                        if ($fullPath) {
                             $filename = $cleanProductName . '-' . $itemIndex . '-Vorderseite-Sicherung.jpg';
                             $snapshotPaths[$filename] = $fullPath;
                         }

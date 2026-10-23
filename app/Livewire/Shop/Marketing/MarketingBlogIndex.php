@@ -46,9 +46,10 @@ class MarketingBlogIndex extends Component
 
         // Suche
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('title', 'like', '%' . $this->search . '%')
-                    ->orWhere('content', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('title', 'like', '%' . $escapedSearch . '%')
+                    ->orWhere('content', 'like', '%' . $escapedSearch . '%');
             });
         }
 

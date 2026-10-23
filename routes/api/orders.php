@@ -19,7 +19,7 @@ Route::group(['middleware' => [function ($request, $next) {
         $query = OrderOrder::with(['items.product']);
         
         if ($search) {
-            $searchTerm = '%' . $search . '%';
+            $searchTerm = '%' . addcslashes((string) $search, '%_\\') . '%';
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('order_number', 'like', $searchTerm)
                     ->orWhere('email', 'like', $searchTerm)

@@ -20,8 +20,9 @@ class ContractDocumentService
         $cleanDate = $this->sanitizeDate($date);
         $cleanProvider = $this->sanitizeSlug($provider ?? '', 35);
         $cleanName = $this->sanitizeSlug($itemName ?? '', 45);
-        $cleanExt = strtolower(ltrim(trim($extension), '.'));
-        if (empty($cleanExt)) {
+        $cleanExt = preg_replace('/[^a-z0-9]/', '', strtolower(ltrim(trim($extension), '.')));
+        $allowedExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx', 'txt', 'csv', 'xlsx', 'xls', 'zip'];
+        if (empty($cleanExt) || !in_array($cleanExt, $allowedExtensions, true)) {
             $cleanExt = 'pdf';
         }
 
@@ -192,15 +193,20 @@ class ContractDocumentService
     protected function getFileContents(UploadedFile|string $file): string
     {
         if ($file instanceof UploadedFile) {
-            return file_get_contents($file->getRealPath());
+            return (string) file_get_contents($file->getRealPath());
+        }
+
+        if (str_contains($file, '..') || str_contains($file, "\0")) {
+            return '';
         }
 
         if (Storage::disk('local')->exists($file)) {
-            return Storage::disk('local')->get($file);
+            return (string) Storage::disk('local')->get($file);
         }
 
-        if (file_exists($file)) {
-            return file_get_contents($file);
+        $realPath = $this->getRealPath($file);
+        if ($realPath && is_file($realPath)) {
+            return (string) file_get_contents($realPath);
         }
 
         return '';
@@ -247,6 +253,11 @@ class ContractDocumentService
      */
     protected function cleanupOldFile(string $oldPath, string $disk): void
     {
+        $normalized = str_replace('\\', '/', $oldPath);
+        if (str_contains($normalized, '..') || str_contains($normalized, "\0") || !str_starts_with(ltrim($normalized, '/'), 'buchhaltung/')) {
+            return;
+        }
+
         try {
             if (Storage::disk($disk)->exists($oldPath)) {
                 Storage::disk($disk)->delete($oldPath);
@@ -267,13 +278,31 @@ class ContractDocumentService
             return $file->getRealPath();
         }
 
+        if (str_contains($file, '..') || str_contains($file, "\0")) {
+            return null;
+        }
+
+        $storageRoot = realpath(storage_path());
+        $tempRoot = realpath(sys_get_temp_dir());
+
+        $checkAllowed = function (?string $candidate) use ($storageRoot, $tempRoot): ?string {
+            if (!$candidate) {
+                return null;
+            }
+            if (($storageRoot && str_starts_with($candidate, $storageRoot . DIRECTORY_SEPARATOR))
+                || ($tempRoot && str_starts_with($candidate, $tempRoot . DIRECTORY_SEPARATOR))) {
+                return $candidate;
+            }
+            return null;
+        };
+
         if (file_exists($file)) {
-            return realpath($file);
+            return $checkAllowed(realpath($file) ?: null);
         }
 
         $storagePath = storage_path('app/' . ltrim($file, '/'));
         if (file_exists($storagePath)) {
-            return realpath($storagePath);
+            return $checkAllowed(realpath($storagePath) ?: null);
         }
 
         return null;

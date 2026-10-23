@@ -21,7 +21,9 @@ class EmergencyProtocol extends Component
 
     // Workflow state
     public $currentStep = 1;
+    #[Locked]
     public $todoStates = [];
+    #[Locked]
     public $financeStates = [];
 
     protected $allTodos = [
@@ -198,6 +200,7 @@ class EmergencyProtocol extends Component
     {
         $this->ensureAuthenticated();
         $settings = SystemSetting::pluck('value', 'key')->toArray();
+        unset($settings['emergency_master_password'], $settings['stripe_secret_key'], $settings['stripe_webhook_secret']);
         $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
         $date = now()->format('d.m.Y H:i');
 
@@ -217,6 +220,7 @@ class EmergencyProtocol extends Component
         $this->ensureAuthenticated();
         $item = \App\Models\Accounting\AccountingCostItem::findOrFail($itemId);
         $settings = SystemSetting::pluck('value', 'key')->toArray();
+        unset($settings['emergency_master_password'], $settings['stripe_secret_key'], $settings['stripe_webhook_secret']);
         $date = now()->format('d.m.Y');
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.emergency-cancellation-single', [
@@ -241,6 +245,7 @@ class EmergencyProtocol extends Component
 
         if ($this->isAuthenticated && session('emergency_access_granted') === true) {
             $settings = SystemSetting::pluck('value', 'key')->toArray();
+            unset($settings['emergency_master_password'], $settings['stripe_secret_key'], $settings['stripe_webhook_secret']);
             $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
             $isMaintenanceMode = filter_var($settings['maintenance_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);
             

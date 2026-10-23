@@ -63,7 +63,9 @@ class ProductShow extends Component
 
     public function selectTemplate($templateId)
     {
-        $template = ProductTemplate::find($templateId);
+        $template = ProductTemplate::where('product_id', $this->product->id)
+            ->where('is_active', true)
+            ->find($templateId);
         if ($template) {
             $config = $template->configuration ?? [];
             if (empty($config['background_theme'])) {

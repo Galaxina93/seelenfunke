@@ -26,8 +26,8 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/device/register', function (Request $request) {
     $data = $request->validate([
-        'fcm_token' => 'required|string',
-        'device_name' => 'nullable|string',
+        'fcm_token' => 'required|string|max:512',
+        'device_name' => 'nullable|string|max:255',
     ]);
     $user = $request->user();
     SystemUserDevice::updateOrCreate(

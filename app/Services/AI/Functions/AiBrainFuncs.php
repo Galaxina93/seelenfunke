@@ -87,6 +87,10 @@ trait AiBrainFuncs
 
     public static function executeUpdateBrainEntry(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Das Langzeitgedächtnis (Brain) ist ausschließlich der Geschäftsführung (Admin) vorbehalten.'];
+        }
+
         try {
             $query = trim($args['search_query'] ?? '');
             $newContent = trim($args['new_content'] ?? '');
@@ -95,10 +99,16 @@ trait AiBrainFuncs
                 return ['status' => 'error', 'message' => 'Suchbegriff und neuer Inhalt sind erforderlich.'];
             }
 
+            $escapedQuery = addcslashes($query, '%_\\');
+
             // Prioritize title match first to prevent broad content match collision
-            $kb = AiKnowledgeBase::where('title', 'like', "%{$query}%")->first();
-            if (!$kb && strlen($query) >= 4) {
-                $kb = AiKnowledgeBase::where('content', 'like', "%{$query}%")->first();
+            if (mb_strlen($query) < 4) {
+                $kb = AiKnowledgeBase::where('title', $query)->first();
+            } else {
+                $kb = AiKnowledgeBase::where('title', 'like', "%{$escapedQuery}%")->first();
+                if (!$kb) {
+                    $kb = AiKnowledgeBase::where('content', 'like', "%{$escapedQuery}%")->first();
+                }
             }
 
             if ($kb) {
@@ -114,6 +124,10 @@ trait AiBrainFuncs
 
     public static function executeDeleteBrainEntry(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Das Langzeitgedächtnis (Brain) ist ausschließlich der Geschäftsführung (Admin) vorbehalten.'];
+        }
+
         try {
             $query = trim($args['search_query'] ?? '');
 
@@ -121,10 +135,16 @@ trait AiBrainFuncs
                 return ['status' => 'error', 'message' => 'Suchbegriff zum Löschen ist erforderlich.'];
             }
 
+            $escapedQuery = addcslashes($query, '%_\\');
+
             // Wiki Delete: Prioritize title match, only fall back to content if query is specific (>= 4 chars)
-            $kb = AiKnowledgeBase::where('title', 'like', "%{$query}%")->first();
-            if (!$kb && strlen($query) >= 4) {
-                $kb = AiKnowledgeBase::where('content', 'like', "%{$query}%")->first();
+            if (mb_strlen($query) < 4) {
+                $kb = AiKnowledgeBase::where('title', $query)->first();
+            } else {
+                $kb = AiKnowledgeBase::where('title', 'like', "%{$escapedQuery}%")->first();
+                if (!$kb) {
+                    $kb = AiKnowledgeBase::where('content', 'like', "%{$escapedQuery}%")->first();
+                }
             }
 
             if ($kb) {
@@ -140,6 +160,10 @@ trait AiBrainFuncs
 
     public static function executeSaveToBrain(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Das Langzeitgedächtnis (Brain) ist ausschließlich der Geschäftsführung (Admin) vorbehalten.'];
+        }
+
         try {
             if (empty($args['title']) || empty($args['content'])) {
                 return ['status' => 'error', 'message' => 'Titel und Inhalt sind für das Speichern erforderlich.'];
@@ -199,6 +223,10 @@ trait AiBrainFuncs
 
     public static function executeSearchBrain(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Das Langzeitgedächtnis (Brain) ist ausschließlich der Geschäftsführung (Admin) vorbehalten.'];
+        }
+
         try {
             $queryStr = trim($args['query'] ?? '');
             if (empty($queryStr)) {
@@ -233,9 +261,10 @@ trait AiBrainFuncs
 
                 $kbQuery->where(function ($rootQ) use ($queryStr, $segments) {
                     // Exact literal match
-                    $rootQ->where(function ($subQ) use ($queryStr) {
-                        $subQ->where('title', 'like', "%{$queryStr}%")
-                             ->orWhere('content', 'like', "%{$queryStr}%");
+                    $escapedQueryStr = addcslashes($queryStr, '%_\\');
+                    $rootQ->where(function ($subQ) use ($escapedQueryStr) {
+                        $subQ->where('title', 'like', "%{$escapedQueryStr}%")
+                             ->orWhere('content', 'like', "%{$escapedQueryStr}%");
                     });
 
                     // Multi-topic & synonym segments
@@ -272,10 +301,11 @@ trait AiBrainFuncs
 
                         $rootQ->orWhere(function ($segQ) use ($synonyms) {
                             foreach ($synonyms as $syn) {
-                                $segQ->orWhere('title', 'like', "%{$syn}%")
-                                     ->orWhere('content', 'like', "%{$syn}%")
-                                     ->orWhereHas('tags', fn($t) => $t->where('name', 'like', "%{$syn}%"))
-                                     ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$syn}%"));
+                                $escapedSyn = addcslashes((string) $syn, '%_\\');
+                                $segQ->orWhere('title', 'like', "%{$escapedSyn}%")
+                                     ->orWhere('content', 'like', "%{$escapedSyn}%")
+                                     ->orWhereHas('tags', fn($t) => $t->where('name', 'like', "%{$escapedSyn}%"))
+                                     ->orWhereHas('category', fn($c) => $c->where('name', 'like', "%{$escapedSyn}%"));
                             }
                         });
                     }

@@ -39,11 +39,11 @@ class ManagementLinktreePage extends Component
     protected function trackVisit()
     {
         // Simple anonymized tracking using session ID or hashed IP
-        $ipHash = md5(request()->ip() . env('APP_KEY'));
+        $ipHash = md5(request()->ip() . config('app.key'));
         $referrer = request()->headers->get('referer');
         
         // Basic device detection
-        $userAgent = request()->header('User-Agent');
+        $userAgent = (string) request()->header('User-Agent');
         $deviceType = 'desktop';
         if (preg_match('/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i', $userAgent)) {
             $deviceType = 'mobile';
@@ -51,7 +51,7 @@ class ManagementLinktreePage extends Component
 
         ManagementLinktreeVisit::create([
             'ip_hash' => $ipHash,
-            'referrer' => $referrer,
+            'referrer' => $referrer ? \Illuminate\Support\Str::limit((string) $referrer, 250, '') : null,
             'device_type' => $deviceType,
         ]);
     }

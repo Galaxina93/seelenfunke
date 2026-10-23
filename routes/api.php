@@ -253,9 +253,12 @@ Route::get('/flights', function (\Illuminate\Http\Request $request) {
             $url .= '?' . http_build_query($queryParams);
         }
         
-        $response = \Illuminate\Support\Facades\Http::get($url);
+        $data = \Illuminate\Support\Facades\Cache::remember('opensky_flights_' . md5($url), 10, function () use ($url) {
+            $response = \Illuminate\Support\Facades\Http::timeout(5)->get($url);
+            return $response->successful() ? $response->json() : [];
+        });
         
-        return response()->json($response->json());
+        return response()->json($data);
     } catch (\Exception $e) {
         return response()->json(['error' => 'Flight API Proxy failed'], 500);
     }
@@ -320,13 +323,14 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
     $mime = mime_content_type($fullPath) ?: 'application/octet-stream';
     $safeInlineMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     $disposition = in_array($mime, $safeInlineMimes, true) ? 'inline' : 'attachment';
+    $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($fullPath));
 
     return response()->file($fullPath, [
         'Content-Type' => $mime,
-        'Content-Disposition' => $disposition . '; filename="' . basename($fullPath) . '"',
+        'Content-Disposition' => $disposition . '; filename="' . $safeFilename . '"',
         'X-Content-Type-Options' => 'nosniff',
     ]);
-});
+})->middleware('throttle:30,1');
 
 // --- Secure Laser SVG Download for Mobile App ---
 Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illuminate\Http\Request $request, $itemId, $side, \App\Services\Export\FileDownloadService $downloadService) {
@@ -349,7 +353,7 @@ Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illu
     }
 
     return $downloadService->downloadLaserSvg($itemId, $side);
-});
+})->middleware('throttle:30,1');
 
 // --- 2. Geschützte API-Routen (Sanctum) ---
 Route::middleware('auth:sanctum')->group(function () {

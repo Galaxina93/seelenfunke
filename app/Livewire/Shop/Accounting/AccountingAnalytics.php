@@ -51,9 +51,16 @@ class AccountingAnalytics extends Component
     public array $groupData = [];
 
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Finanzen.');
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nur Administratoren haben Zugriff auf die Finanzen.');
         }
 
@@ -133,8 +140,10 @@ class AccountingAnalytics extends Component
         }
         $this->invoiceData = ['labels' => $invLabels, 'data' => $invData];
 
-        // 2. Special Issues
-        $issues = AccountingSpecialIssue::whereBetween('execution_date', [$this->dateFrom, $this->dateTo])->get();
+        // 2. Special Issues (Mandanten-isoliert nach admin_id)
+        $issues = AccountingSpecialIssue::where('admin_id', $this->getAdminId())
+            ->whereBetween('execution_date', [$this->dateFrom, $this->dateTo])
+            ->get();
         $issGrouped = $issues->groupBy(fn($i) => Carbon::parse($i->execution_date)->format('Y-m'));
         $issLabels = [];
         $issData = [];
@@ -150,9 +159,11 @@ class AccountingAnalytics extends Component
         }
         $this->specialIssueData = ['labels' => $issLabels, 'data' => $issData];
 
-        // 3. Cost Items
+        // 3. Cost Items (Mandanten-isoliert nach group.admin_id)
         // Show newly generated fixing items or total fixed cost by group
-        $costs = AccountingCostItem::with('group')->get();
+        $costs = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $this->getAdminId()))
+            ->with('group')
+            ->get();
         // Wir berechnen das monatliche Äquivalent ("Gewichtung") für die Kategorien.
         $cLabels = [];
         $cData = [];

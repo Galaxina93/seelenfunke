@@ -107,7 +107,7 @@ class AiWorkspace extends Component
         }
     }
 
-    #[On('echo:workspace,TaskUpdated')]
+    #[On('echo-private:workspace,TaskUpdated')]
     public function refreshWorkspaceTasks()
     {
         // Just refresh the component

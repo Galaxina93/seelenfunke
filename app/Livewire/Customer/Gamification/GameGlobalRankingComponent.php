@@ -31,6 +31,7 @@ class GameGlobalRankingComponent extends Component
     public function optIn()
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) return;
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
 
         if ($profile) {

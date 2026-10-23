@@ -19,7 +19,7 @@
     @php
     if (!function_exists('make_links_clickable_places')) {
         function make_links_clickable_places($text) {
-            return preg_replace('!(((f|ht)tp(s)?://)[-a-zA-Zа-яА-Я()0-9@:%_+.~#?&;//=]+)!i', '<a href="$1" target="_blank">$1</a>', e($text));
+            return preg_replace('!(https?://[-a-zA-Z0-9@:%_+.~#?&/=]+)!i', '<a href="$1" target="_blank">$1</a>', e($text));
         }
     }
     @endphp

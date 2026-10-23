@@ -40,9 +40,16 @@ class SupportAnalytics extends Component
     public $kpiTicketsOpen = 0;
     public $kpiAvgResolutionHrs = 0;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf das Support Analytics.');
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nur Administratoren haben Zugriff auf das Support Analytics.');
         }
 

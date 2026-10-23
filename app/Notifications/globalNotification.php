@@ -35,9 +35,16 @@ class globalNotification extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
+        $viewTemplate = (string) ($this->emailData['viewTemplate'] ?? '');
+        if (!str_starts_with($viewTemplate, 'global.mails.') || str_contains($viewTemplate, '..')) {
+            throw new \InvalidArgumentException('Unzulässiges E-Mail-Template.');
+        }
+
+        $subject = str_replace(["\r", "\n"], ' ', (string) ($this->emailData['subject'] ?? 'Benachrichtigung'));
+
         return (new MailMessage)
-            ->subject($this->emailData['subject'])
-            ->view($this->emailData['viewTemplate'], [
+            ->subject($subject)
+            ->view($viewTemplate, [
                 'emailData' => $this->emailData
             ]);
     }

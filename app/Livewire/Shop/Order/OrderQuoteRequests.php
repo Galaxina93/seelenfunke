@@ -33,9 +33,16 @@ class OrderQuoteRequests extends Component
     public $selectedQuoteId = null;
     public $selectedQuoteItemId = null; // NEU: Für die Vorschau rechts
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -51,11 +58,12 @@ class OrderQuoteRequests extends Component
         $query = OrderQuoteRequest::query()->latest();
 
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('quote_number', 'like', '%'.$this->search.'%')
-                    ->orWhere('email', 'like', '%'.$this->search.'%')
-                    ->orWhere('last_name', 'like', '%'.$this->search.'%')
-                    ->orWhere('company', 'like', '%'.$this->search.'%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('quote_number', 'like', '%'.$escapedSearch.'%')
+                    ->orWhere('email', 'like', '%'.$escapedSearch.'%')
+                    ->orWhere('last_name', 'like', '%'.$escapedSearch.'%')
+                    ->orWhere('company', 'like', '%'.$escapedSearch.'%');
             });
         }
 
@@ -87,11 +95,13 @@ class OrderQuoteRequests extends Component
         $this->selectedQuoteItemId = $itemId;
     }
 
-    // NEU: Property für die View
+    // NEU: Property für die View (strikt an das ausgewählte Angebot gebunden)
     public function getPreviewItemProperty()
     {
         if (!$this->selectedQuoteId || !$this->selectedQuoteItemId) return null;
-        return OrderQuoteRequestItem::with('product')->find($this->selectedQuoteItemId);
+        return OrderQuoteRequestItem::where('quote_request_id', $this->selectedQuoteId)
+            ->with('product')
+            ->find($this->selectedQuoteItemId);
     }
 
     public function closeDetail()

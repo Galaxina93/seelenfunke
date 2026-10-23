@@ -23,9 +23,16 @@ class ManagementRoutine extends Component
     // Form fields
     public $r_id, $r_time, $r_title, $r_message, $r_duration, $r_type = 'general', $r_days_of_week = 'all';
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }

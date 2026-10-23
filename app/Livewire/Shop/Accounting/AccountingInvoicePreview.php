@@ -15,9 +15,16 @@ class AccountingInvoicePreview extends Component
 
     protected $listeners = ['openInvoicePreview' => 'loadInvoice'];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -64,17 +71,18 @@ class AccountingInvoicePreview extends Component
         }
 
         $invoice = AccountingInvoice::findOrFail($this->invoiceId);
+        $safeInvoiceNumber = basename((string) $invoice->invoice_number);
 
         // Prüfung auf physisches Archiv ( storage/app/invoices )
-        $fileName = "buchhaltung/invoices/{$invoice->invoice_number}.pdf";
-        if (Storage::disk('local')->exists($fileName)) {
+        $fileName = "buchhaltung/invoices/{$safeInvoiceNumber}.pdf";
+        if ($safeInvoiceNumber !== '' && Storage::disk('local')->exists($fileName)) {
             return Storage::disk('local')->download($fileName);
         }
 
         // Fallback: On-the-fly generieren
         return response()->streamDownload(function () use ($service, $invoice) {
             echo $service->generatePdf($invoice)->output();
-        }, "Rechnung_{$invoice->invoice_number}.pdf");
+        }, "Rechnung_{$safeInvoiceNumber}.pdf");
     }
 
     public function render()

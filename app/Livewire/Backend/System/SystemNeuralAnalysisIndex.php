@@ -17,16 +17,23 @@ class SystemNeuralAnalysisIndex extends Component
 
     protected $updatesQueryString = ['search', 'filterGroup'];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     public function generateStructure($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -46,15 +53,31 @@ class SystemNeuralAnalysisIndex extends Component
      */
     public static function generateMarkdownForFile(string $absolutePath): ?string
     {
+        if (str_contains($absolutePath, "\0")) {
+            return null;
+        }
+
         // Wandle in relativen Pfad um (falls absolut)
         $base = rtrim(base_path(), '/\\') . DIRECTORY_SEPARATOR;
         $filePathStr = str_replace($base, '', $absolutePath);
-        $filePathStr = str_replace('\\', '/', $filePathStr); // Normalize
+        $filePathStr = ltrim(str_replace('\\', '/', $filePathStr), '/'); // Normalize
+
+        if ($filePathStr === '' || str_contains($filePathStr, '..') || str_starts_with(basename($filePathStr), '.env')) {
+            return null;
+        }
 
         $node = \App\Models\System\SystemNeuralNode::where('file_path', $filePathStr)->first();
 
-        // Fallback: Wenn die Datei existiert, aber nicht in der DB ist
-        if (!$node && \Illuminate\Support\Facades\File::exists(base_path($filePathStr))) {
+        // Fallback: Wenn die Datei existiert, aber nicht in der DB ist (mit Realpath-Containment)
+        $resolvedBase = realpath(base_path());
+        $resolvedTarget = \Illuminate\Support\Facades\File::exists(base_path($filePathStr)) ? realpath(base_path($filePathStr)) : false;
+        if (
+            !$node
+            && $resolvedBase !== false
+            && $resolvedTarget !== false
+            && str_starts_with($resolvedTarget, $resolvedBase . DIRECTORY_SEPARATOR)
+            && is_file($resolvedTarget)
+        ) {
             $methods = [];
             if (str_ends_with($filePathStr, '.php') && !str_ends_with($filePathStr, '.blade.php')) {
                 $contentCode = file_get_contents(base_path($filePathStr));
@@ -157,8 +180,11 @@ class SystemNeuralAnalysisIndex extends Component
         $query = SystemNeuralNode::query();
 
         if ($this->search) {
-            $query->where('file_path', 'like', '%' . $this->search . '%')
-                  ->orWhere('name', 'like', '%' . $this->search . '%');
+            $escaped = addcslashes((string) $this->search, '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('file_path', 'like', '%' . $escaped . '%')
+                  ->orWhere('name', 'like', '%' . $escaped . '%');
+            });
         }
 
         if ($this->filterGroup) {

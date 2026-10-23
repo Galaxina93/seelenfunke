@@ -42,9 +42,16 @@ class AccountingVariableCosts extends Component
     #[Rule('required|file|max:10240')]
     public $quickUploadFile;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -288,8 +295,10 @@ class AccountingVariableCosts extends Component
             $files = is_string($model->file_paths) ? json_decode($model->file_paths, true) : $model->file_paths;
             if (isset($files[$fileIndex])) {
                 $path = $files[$fileIndex];
-                if (Storage::disk('local')->exists($path)) {
-                    Storage::disk('local')->delete($path);
+                if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'buchhaltung/')) {
+                    if (Storage::disk('local')->exists($path)) {
+                        Storage::disk('local')->delete($path);
+                    }
                 }
                 unset($files[$fileIndex]);
                 $model->update(['file_paths' => array_values($files)]);
@@ -308,8 +317,10 @@ class AccountingVariableCosts extends Component
             }
             if (is_array($files) && count($files) > 0) {
                 foreach ($files as $path) {
-                    if (Storage::disk('local')->exists($path)) {
-                        Storage::disk('local')->delete($path);
+                    if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'buchhaltung/')) {
+                        if (Storage::disk('local')->exists($path)) {
+                            Storage::disk('local')->delete($path);
+                        }
                     }
                 }
             }

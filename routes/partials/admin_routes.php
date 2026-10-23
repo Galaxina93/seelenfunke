@@ -119,6 +119,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/product-suppliers', \App\Livewire\Shop\Product\ProductSuppliers::class)->name('admin.product-suppliers');
     Route::get('/admin/product-crawler', \App\Livewire\Shop\Product\ProductCrawler::class)->name('admin.product-crawler');
     Route::get('/admin/product-templates', \App\Livewire\Shop\Product\ProductTemplates::class)->name('admin.product-templates');
+    Route::get('/admin/product-configurator', \App\Livewire\Shop\Product\ProductConfiguratorSettings::class)->name('admin.product-configurator');
     Route::get('/admin/reviews', \App\Livewire\Shop\Product\ProductControlReviews::class)->name('admin.product-control-reviews');
 
     // -----------------------------------------------------------------------

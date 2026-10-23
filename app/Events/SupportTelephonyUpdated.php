@@ -19,6 +19,6 @@ class SupportTelephonyUpdated implements ShouldBroadcastNow
 
     public function broadcastOn()
     {
-        return new Channel('telephony');
+        return new PrivateChannel('telephony');
     }
 }

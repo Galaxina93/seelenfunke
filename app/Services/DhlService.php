@@ -234,7 +234,8 @@ class DhlService
 
             // Save PDF to private local storage (DSGVO-geschützt)
             $safeOrderNo = Str::slug($order->order_number);
-            $fileName = "bestellungen/dhl_labels/label_{$safeOrderNo}_{$trackingNumber}.pdf";
+            $safeTrackingNo = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $trackingNumber);
+            $fileName = "bestellungen/dhl_labels/label_{$safeOrderNo}_{$safeTrackingNo}.pdf";
             Storage::disk('local')->put($fileName, base64_decode($labelBase64));
 
             // Create Shipments Record

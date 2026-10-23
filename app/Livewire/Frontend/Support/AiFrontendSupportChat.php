@@ -24,18 +24,24 @@ class AiFrontendSupportChat extends Component
     #[Locked]
     public $chatId = null;
     public $message = '';
+    #[Locked]
     public $messages = [];
     public $isTyping = false;
+    #[Locked]
     public $agentName = 'Funki AI';
+    #[Locked]
     public $agentImage = '';
+    #[Locked]
     public $guestLimitReached = false;
     public $hasAcceptedPrivacy = false;
     public $privacyChecked = false;
     
     // Rating / Resolution State
+    #[Locked]
     public $isResolved = false;
     public $rating = 0;
     public $feedbackText = '';
+    #[Locked]
     public $ratingSubmitted = false;
 
     public function mount()
@@ -234,7 +240,9 @@ class AiFrontendSupportChat extends Component
         }
         $isGuest = !($isCustomer || $isSystem || auth()->check());
 
-        $userMsgCount = collect($this->messages)->where('sender', 'customer')->count();
+        $userMsgCount = SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
+            ->where('sender', 'customer')
+            ->count();
 
         if ($isGuest && $userMsgCount >= 3) {
             $leadText = "Möchtest du unseren Chat fortsetzen? Damit ich dir uneingeschränkt weiterhelfen und unseren bisherigen Verlauf sicher speichern kann, erstelle bitte kurz ein kostenloses Kundenkonto. Danach bin ich sofort wieder für dich da! ✨";
@@ -439,6 +447,8 @@ class AiFrontendSupportChat extends Component
         } catch (\Exception $e) {
             $this->messages[] = ['sender' => 'ai', 'text' => 'Ich bin aktuell leider offline.'];
             Log::error('Support Chat Error: ' . $e->getMessage());
+        } finally {
+            \App\Services\AI\AIFunctionsRegistry::setGlobalContext([]);
         }
 
         $chat->refresh();
@@ -524,7 +534,9 @@ class AiFrontendSupportChat extends Component
         }
         $isGuest = !($isCustomer || $isSystem || auth()->check());
         
-        $userMsgCount = collect($this->messages)->where('sender', 'customer')->count();
+        $userMsgCount = SupportCustomerChatMessage::where('support_customer_chat_id', $this->chatId)
+            ->where('sender', 'customer')
+            ->count();
         
         // Wenn 3 Nachrichten gesendet wurden, rendern wir den Input als gesperrt
         if ($isGuest && $userMsgCount >= 3) {

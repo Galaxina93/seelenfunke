@@ -34,9 +34,16 @@ class SupportTicket extends Component
     public $kpiOpenCount = 0;
     public $kpiAvgResolutionHrs = 0;
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -165,13 +172,14 @@ class SupportTicket extends Component
         }
 
         if (!empty($this->search)) {
-            $query->where(function ($q) {
-                $q->where('ticket_number', 'like', '%' . $this->search . '%')
-                    ->orWhere('subject', 'like', '%' . $this->search . '%')
-                    ->orWhereHas('customer', function ($subQ) {
-                        $subQ->where('email', 'like', '%' . $this->search . '%')
-                            ->orWhere('first_name', 'like', '%' . $this->search . '%')
-                            ->orWhere('last_name', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('ticket_number', 'like', '%' . $escapedSearch . '%')
+                    ->orWhere('subject', 'like', '%' . $escapedSearch . '%')
+                    ->orWhereHas('customer', function ($subQ) use ($escapedSearch) {
+                        $subQ->where('email', 'like', '%' . $escapedSearch . '%')
+                            ->orWhere('first_name', 'like', '%' . $escapedSearch . '%')
+                            ->orWhere('last_name', 'like', '%' . $escapedSearch . '%');
                     });
             });
         }

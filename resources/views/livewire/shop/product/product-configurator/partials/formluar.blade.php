@@ -133,7 +133,7 @@
                                 title="{{ $v['name'] }}"
                                 aria-label="{{ $v['name'] }}"
                                 class="aspect-square rounded-2xl border shadow-sm hover:border-primary hover:shadow-[0_0_15px_rgba(197,160,89,0.3)] hover:scale-105 transition-all p-3 flex flex-col items-center justify-center group relative cursor-pointer {{ $isDark ? 'bg-amber-500/10 border-amber-500/30' : 'bg-amber-50/50 border-amber-200' }}">
-                            <img src="{{ asset('shop/product/configurator/vectors/'.$v['file']) }}"
+                            <img src="{{ $v['url'] ?? asset('shop/product/configurator/vectors/'.$v['file']) }}"
                                  alt="{{ $v['name'] }}"
                                  class="w-full h-full object-contain opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
                             <span class="absolute -bottom-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md text-[10px] font-bold whitespace-nowrap shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-30 {{ $isDark ? 'bg-gray-800 text-gray-100 border border-gray-700' : 'bg-gray-900 text-white' }}">

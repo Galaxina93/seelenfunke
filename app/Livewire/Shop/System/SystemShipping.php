@@ -21,9 +21,16 @@ class SystemShipping extends Component
     public $activeZoneId = null;
     public bool $showArchived = false;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -211,8 +218,10 @@ class SystemShipping extends Component
 
     public function addCountry()
     {
+        $this->selectedCountryToAdd = strtoupper(trim((string) $this->selectedCountryToAdd));
+
         $this->validate([
-            'selectedCountryToAdd' => 'required|size:2',
+            'selectedCountryToAdd' => ['required', 'size:2', \Illuminate\Validation\Rule::in(array_keys($this->getAllCountries()))],
         ]);
 
         $exists = LogisticsShippingZoneCountry::where('country_code', $this->selectedCountryToAdd)->exists();
@@ -321,7 +330,10 @@ class SystemShipping extends Component
             $legend[$label] = $color;
 
             foreach ($zone->countries as $country) {
-                $code = strtoupper($country->country_code);
+                $code = preg_replace('/[^A-Z]/', '', strtoupper((string) $country->country_code));
+                if (strlen($code) !== 2) {
+                    continue;
+                }
                 $opacity = $isActive ? '0.65' : '0.25';
                 $css .= ".jvm-region[data-code='{$code}'] { fill: {$color} !important; fill-opacity: {$opacity} !important; stroke: rgba(255,255,255,0.2) !important; stroke-width: 1px !important; } ";
                 $activeCodes[$code] = $label;

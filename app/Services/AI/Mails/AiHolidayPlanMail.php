@@ -36,7 +36,7 @@ class AiHolidayPlanMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: $this->messageSubject,
+            subject: str_replace(["\r", "\n"], ' ', trim((string) $this->messageSubject)),
         );
     }
 
@@ -59,6 +59,9 @@ class AiHolidayPlanMail extends Mailable
     {
         $atts = [];
         foreach ($this->attachmentPaths as $path) {
+            if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
+                continue;
+            }
             $atts[] = \Illuminate\Mail\Mailables\Attachment::fromPath($path);
         }
         return $atts;

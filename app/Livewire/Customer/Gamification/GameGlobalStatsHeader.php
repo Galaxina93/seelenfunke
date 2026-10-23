@@ -103,6 +103,7 @@ class GameGlobalStatsHeader extends Component
     public function upgrade(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) return;
         $result = $gameService->upgradeLevel($user);
 
         if ($result['success']) {

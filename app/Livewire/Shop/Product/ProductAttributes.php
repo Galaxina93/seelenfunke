@@ -27,9 +27,16 @@ class ProductAttributes extends Component
     public $editingAttributeId = null;
     public $editingAttributeName = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount(Product $product)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -47,7 +54,8 @@ class ProductAttributes extends Component
         $query = ProductAttribute::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where('name', 'like', '%' . $escapedSearch . '%');
         }
 
         // Wir laden alle, sortieren aber so, dass die zum Typ passenden oben stehen

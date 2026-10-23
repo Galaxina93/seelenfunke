@@ -31,9 +31,16 @@ class OrderShoppingCarts extends Component
     public $cartRedLimit = 24;
     public $cartRequireConsent = true;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -104,7 +111,9 @@ class OrderShoppingCarts extends Component
 
     public function edit($itemId)
     {
-        $this->editingItemId = $itemId;
+        $item = CartItem::when($this->detailCartId, fn($q) => $q->where('cart_id', $this->detailCartId))->find($itemId);
+        if (!$item) return;
+        $this->editingItemId = $item->id;
     }
 
     #[On('close-modal')]
@@ -115,7 +124,7 @@ class OrderShoppingCarts extends Component
 
     public function removeItem($itemId, CartService $cartService)
     {
-        $item = CartItem::find($itemId);
+        $item = CartItem::when($this->detailCartId, fn($q) => $q->where('cart_id', $this->detailCartId))->find($itemId);
         if ($item) {
             $cart = Cart::find($item->cart_id);
             $cartService->removeItem($itemId);
@@ -134,7 +143,7 @@ class OrderShoppingCarts extends Component
 
     public function increment($itemId, CartService $cartService)
     {
-        $item = CartItem::find($itemId);
+        $item = CartItem::when($this->detailCartId, fn($q) => $q->where('cart_id', $this->detailCartId))->find($itemId);
         if ($item) {
             $cartService->updateQuantity($itemId, $item->quantity + 1);
             $this->viewDetails($item->cart_id);
@@ -143,7 +152,7 @@ class OrderShoppingCarts extends Component
 
     public function decrement($itemId, CartService $cartService)
     {
-        $item = CartItem::find($itemId);
+        $item = CartItem::when($this->detailCartId, fn($q) => $q->where('cart_id', $this->detailCartId))->find($itemId);
         if ($item && $item->quantity > 1) {
             $cartService->updateQuantity($itemId, $item->quantity - 1);
             $this->viewDetails($item->cart_id);
@@ -153,7 +162,7 @@ class OrderShoppingCarts extends Component
     // Erhält die manuelle Eingabe aus Input Feldern
     public function updateQuantity($itemId, CartService $cartService)
     {
-        $item = CartItem::find($itemId);
+        $item = CartItem::when($this->detailCartId, fn($q) => $q->where('cart_id', $this->detailCartId))->find($itemId);
         $newQuantity = $this->quantityUpdates[$itemId] ?? null;
 
         if ($item && $newQuantity !== null && $newQuantity > 0) {
@@ -206,11 +215,12 @@ class OrderShoppingCarts extends Component
     {
         return Cart::with(['customer.profile', 'items.product'])
             ->when($this->search, function ($query) {
-                $query->where('session_id', 'like', '%' . $this->search . '%')
-                    ->orWhereHas('customer', function ($q) {
-                        $q->where('first_name', 'like', '%' . $this->search . '%')
-                          ->orWhere('last_name', 'like', '%' . $this->search . '%')
-                          ->orWhere('email', 'like', '%' . $this->search . '%');
+                $escapedSearch = addcslashes((string) $this->search, '%_\\');
+                $query->where('session_id', 'like', '%' . $escapedSearch . '%')
+                    ->orWhereHas('customer', function ($q) use ($escapedSearch) {
+                        $q->where('first_name', 'like', '%' . $escapedSearch . '%')
+                          ->orWhere('last_name', 'like', '%' . $escapedSearch . '%')
+                          ->orWhere('email', 'like', '%' . $escapedSearch . '%');
                     });
             })
             ->orderBy('updated_at', 'desc')

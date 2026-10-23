@@ -146,8 +146,15 @@ class ProductCreate extends Component
         ];
     }
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount(ConfiguratorService $configService) {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -361,8 +368,13 @@ class ProductCreate extends Component
         // Ordnerstruktur: products-secure/{slug}/
         $folder = 'produkte/products-secure/' . ($this->product->slug ?? 'draft');
 
-        // Original-Dateiname speichern
-        $originalName = $this->new_digital_file->getClientOriginalName();
+        // Original-Dateiname speichern (bereinigt gegen Path Traversal & gefährliche Erweiterungen)
+        $rawOriginalName = basename((string) $this->new_digital_file->getClientOriginalName());
+        $ext = strtolower(pathinfo($rawOriginalName, PATHINFO_EXTENSION));
+        $allowedDigitalExts = ['pdf', 'zip', 'rar', 'mp3', 'wav', 'mp4', 'mov', 'epub', 'mobi'];
+        $safeExt = in_array($ext, $allowedDigitalExts, true) ? $ext : 'bin';
+        $safeBase = Str::slug(pathinfo($rawOriginalName, PATHINFO_FILENAME)) ?: 'digital_file';
+        $originalName = $safeBase . '.' . $safeExt;
 
         // Datei speichern (privat)
         $path = $this->new_digital_file->storeAs($folder, time() . '_' . $originalName, 'local'); // Default disk ist meist 'local' (storage/app)
@@ -678,16 +690,18 @@ class ProductCreate extends Component
 
     public function updatedNewPreviewImage()
     {
-        $this->validate(['new_preview_image' => 'image|max:10240']);
+        $this->validate(['new_preview_image' => 'image|mimes:jpg,jpeg,png,webp|max:10240']);
         $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
         if ($this->product->preview_image_path) {
             Storage::disk('public')->delete($this->product->preview_image_path);
         }
 
-        // Originalen Dateinamen verwenden
-        $originalName = $this->new_preview_image->getClientOriginalName();
-        $filename = time() . '_2d_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.' . $this->new_preview_image->getClientOriginalExtension();
+        // Originalen Dateinamen verwenden (mit strikter Extension-Whitelist auf public Disk)
+        $originalName = basename((string) $this->new_preview_image->getClientOriginalName());
+        $ext = strtolower((string) $this->new_preview_image->getClientOriginalExtension());
+        $safeExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true) ? $ext : 'jpg';
+        $filename = time() . '_2d_' . (Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'preview') . '.' . $safeExt;
 
         $path = $this->new_preview_image->storeAs($folder, $filename, 'public');
         $this->product->preview_image_path = $path;
@@ -718,8 +732,14 @@ class ProductCreate extends Component
 
     public function updatedNew3dModel()
     {
-        // Max 100MB
+        // Max 100MB & strikte .glb Dateiendungs-Prüfung
         $this->validate(['new_3d_model' => 'file|max:102400']);
+        $ext = strtolower((string) $this->new_3d_model->getClientOriginalExtension());
+        if ($ext !== 'glb') {
+            $this->addError('new_3d_model', 'Nur .glb 3D-Modelldateien sind erlaubt.');
+            $this->new_3d_model = null;
+            return;
+        }
 
         $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
@@ -796,16 +816,18 @@ class ProductCreate extends Component
     // NEU: Hintergrund Upload Logik
     public function updatedNew3dBackground()
     {
-        $this->validate(['new_3d_background' => 'image|max:10240']);
+        $this->validate(['new_3d_background' => 'image|mimes:jpg,jpeg,png,webp|max:10240']);
         $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
         if ($this->product->three_d_background_path) {
             Storage::disk('public')->delete($this->product->three_d_background_path);
         }
 
-        // Originalen Dateinamen verwenden
-        $originalName = $this->new_3d_background->getClientOriginalName();
-        $filename = time() . '_bg_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.' . $this->new_3d_background->getClientOriginalExtension();
+        // Originalen Dateinamen verwenden (mit strikter Extension-Whitelist auf public Disk)
+        $originalName = basename((string) $this->new_3d_background->getClientOriginalName());
+        $ext = strtolower((string) $this->new_3d_background->getClientOriginalExtension());
+        $safeExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true) ? $ext : 'jpg';
+        $filename = time() . '_bg_' . (Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'bg') . '.' . $safeExt;
 
         $path = $this->new_3d_background->storeAs($folder, $filename, 'public');
         $this->product->three_d_background_path = $path;
@@ -921,9 +943,10 @@ class ProductCreate extends Component
             Storage::disk('public')->delete($this->configSettings['background_video_path']);
         }
 
-        $originalName = $this->new_background_video->getClientOriginalName();
-        $ext = strtolower($this->new_background_video->getClientOriginalExtension());
-        $filename = time() . '_bgvid_' . Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) . '.' . $ext;
+        $originalName = basename((string) $this->new_background_video->getClientOriginalName());
+        $ext = strtolower((string) $this->new_background_video->getClientOriginalExtension());
+        $safeExt = in_array($ext, ['mp4', 'webm'], true) ? $ext : 'mp4';
+        $filename = time() . '_bgvid_' . (Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'bgvid') . '.' . $safeExt;
 
         $path = $this->new_background_video->storeAs($folder, $filename, 'public');
 
@@ -1007,7 +1030,8 @@ class ProductCreate extends Component
         }
         
         if($this->search) {
-            $query->where('name', 'like', '%'.$this->search.'%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where('name', 'like', '%'.$escapedSearch.'%');
         }
 
         $products = ($this->viewMode === 'list') ? $query->latest()->get() : [];

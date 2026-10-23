@@ -36,9 +36,16 @@ class MarketingAnalytics extends Component
     public array $topLandingPages = [];
 
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf das Marketing Analytics.');
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nur Administratoren haben Zugriff auf das Marketing Analytics.');
         }
 

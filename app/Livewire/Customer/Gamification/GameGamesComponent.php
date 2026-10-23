@@ -168,7 +168,7 @@ class GameGamesComponent extends Component
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
     }
 
-    public function loadGamificationData(GamificationService $gameService, $profile)
+    protected function loadGamificationData(GamificationService $gameService, $profile)
     {
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
@@ -256,6 +256,7 @@ class GameGamesComponent extends Component
     public function upgrade(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) return;
         $result = $gameService->upgradeLevel($user);
 
         if ($result['success']) {

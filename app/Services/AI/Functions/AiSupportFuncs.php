@@ -397,6 +397,11 @@ trait AiSupportFuncs
         }
     }
 
+    private static function isPublicSupportChatContext(array $args): bool
+    {
+        return !empty($args['__chat_id']);
+    }
+
     public static function executeGetTicketStatus(array $args)
     {
         try {
@@ -406,7 +411,7 @@ trait AiSupportFuncs
             $ticketEsc = addcslashes($ticketNumber, '%_\\');
             $query = SupportTicket::where('ticket_number', 'LIKE', "%{$ticketEsc}%");
             
-            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
@@ -441,7 +446,7 @@ trait AiSupportFuncs
                   ->orWhere('email', 'LIKE', "%{$idEsc}%");
             });
 
-            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
@@ -667,7 +672,7 @@ trait AiSupportFuncs
             $orderEsc = addcslashes($orderNumber, '%_\\');
             $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('items');
 
-            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt. Bitte den Kunden höflich, sich einzuloggen.'];
@@ -730,7 +735,7 @@ trait AiSupportFuncs
             $orderEsc = addcslashes($orderNumber, '%_\\');
             $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%");
 
-            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
@@ -929,7 +934,7 @@ trait AiSupportFuncs
             $orderEsc = addcslashes($orderNumber, '%_\\');
             $query = \App\Models\Order\OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('items');
 
-            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
@@ -1130,7 +1135,7 @@ trait AiSupportFuncs
             $orderEsc = addcslashes($orderNumber, '%_\\');
             $query = OrderOrder::where('order_number', 'LIKE', "%{$orderEsc}%")->with('invoices');
 
-            if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            if (self::isPublicSupportChatContext($args) || !\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
                     return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Aus Datenschutzgründen verweigert. Der Nutzer ist nicht eingeloggt.'];
@@ -1204,9 +1209,11 @@ trait AiSupportFuncs
             if (empty($term)) return ['status' => 'error', 'message' => 'Suchbegriff fehlt.'];
 
             $termEsc = addcslashes($term, '%_\\');
-            $chats = SupportCustomerChat::where('top_topic', 'LIKE', "%{$termEsc}%")
-                ->orWhere('ai_summary', 'LIKE', "%{$termEsc}%")
-                ->orWhere('mentioned_product', 'LIKE', "%{$termEsc}%")
+            $chats = SupportCustomerChat::where(function ($q) use ($termEsc) {
+                    $q->where('top_topic', 'LIKE', "%{$termEsc}%")
+                      ->orWhere('ai_summary', 'LIKE', "%{$termEsc}%")
+                      ->orWhere('mentioned_product', 'LIKE', "%{$termEsc}%");
+                })
                 ->orderBy('updated_at', 'desc')
                 ->take(5)
                 ->get();
@@ -1309,8 +1316,10 @@ trait AiSupportFuncs
         try {
             $limit = min(max((int)($args['limit'] ?? 5), 1), 50);
 
-            $chats = SupportCustomerChat::where('rating', '<=', 2)
-                ->orWhere('status', 'needs_employee')
+            $chats = SupportCustomerChat::where(function ($q) {
+                    $q->where('rating', '<=', 2)
+                      ->orWhere('status', 'needs_employee');
+                })
                 ->orderBy('updated_at', 'desc')
                 ->take($limit)
                 ->get();
@@ -1381,12 +1390,14 @@ trait AiSupportFuncs
 
             $termEsc = addcslashes($term, '%_\\');
             $tickets = \App\Models\Support\SupportTicket::with('customer')
-                ->where('ticket_number', 'LIKE', "%{$termEsc}%")
-                ->orWhere('subject', 'LIKE', "%{$termEsc}%")
-                ->orWhereHas('customer', function($q) use ($termEsc) {
-                    $q->where('email', 'LIKE', "%{$termEsc}%")
-                      ->orWhere('first_name', 'LIKE', "%{$termEsc}%")
-                      ->orWhere('last_name', 'LIKE', "%{$termEsc}%");
+                ->where(function ($query) use ($termEsc) {
+                    $query->where('ticket_number', 'LIKE', "%{$termEsc}%")
+                        ->orWhere('subject', 'LIKE', "%{$termEsc}%")
+                        ->orWhereHas('customer', function ($q) use ($termEsc) {
+                            $q->where('email', 'LIKE', "%{$termEsc}%")
+                              ->orWhere('first_name', 'LIKE', "%{$termEsc}%")
+                              ->orWhere('last_name', 'LIKE', "%{$termEsc}%");
+                        });
                 })
                 ->orderBy('updated_at', 'desc')
                 ->take(5)

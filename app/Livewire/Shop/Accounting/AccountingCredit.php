@@ -42,9 +42,16 @@ class AccountingCredit extends Component
     public $selectedCustomerId = null;
     public $customerStats = null;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -247,10 +254,11 @@ class AccountingCredit extends Component
         // Alle Rechnungen vom Typ Gutschrift oder Storno
         $credits = AccountingInvoice::whereIn('type', ['credit_note', 'cancellation'])
             ->when($this->search, function ($query) {
-                $query->where('invoice_number', 'like', "%{$this->search}%")
-                      ->orWhereHas('customer', function ($q) {
-                          $q->where('last_name', 'like', "%{$this->search}%")
-                            ->orWhere('first_name', 'like', "%{$this->search}%");
+                $escapedSearch = addcslashes((string) $this->search, '%_\\');
+                $query->where('invoice_number', 'like', "%{$escapedSearch}%")
+                      ->orWhereHas('customer', function ($q) use ($escapedSearch) {
+                          $q->where('last_name', 'like', "%{$escapedSearch}%")
+                            ->orWhere('first_name', 'like', "%{$escapedSearch}%");
                       });
             })
             ->orderBy('created_at', 'desc')
@@ -259,9 +267,10 @@ class AccountingCredit extends Component
         // Kunden für Suche vorschlagen
         $customers = collect();
         if (strlen($this->searchCustomer) >= 2) {
-            $customers = Customer::where('first_name', 'like', "%{$this->searchCustomer}%")
-                ->orWhere('last_name', 'like', "%{$this->searchCustomer}%")
-                ->orWhere('email', 'like', "%{$this->searchCustomer}%")
+            $escapedCustomerSearch = addcslashes((string) $this->searchCustomer, '%_\\');
+            $customers = Customer::where('first_name', 'like', "%{$escapedCustomerSearch}%")
+                ->orWhere('last_name', 'like', "%{$escapedCustomerSearch}%")
+                ->orWhere('email', 'like', "%{$escapedCustomerSearch}%")
                 ->take(5)
                 ->get();
         }

@@ -43,7 +43,8 @@ Route::prefix('funki/calendar')->group(function () {
             $simDate = $tmpl->start_date->copy();
 
             if ($simDate < Carbon::today()) {
-                while ($simDate < Carbon::today()) {
+                $fastForwardGuard = 0;
+                while ($simDate < Carbon::today() && $fastForwardGuard++ < 2000) {
                     switch ($tmpl->recurrence) {
                         case 'daily': $simDate->addDay(); break;
                         case 'weekly': $simDate->addWeek(); break;
@@ -54,7 +55,8 @@ Route::prefix('funki/calendar')->group(function () {
                 }
             }
 
-            while ($simDate <= $calcEnd) {
+            $expandGuard = 0;
+            while ($simDate <= $calcEnd && $expandGuard++ < 500) {
                 if ($tmpl->recurrence_end_date && $simDate > $tmpl->recurrence_end_date) break;
 
                 $duration = $tmpl->start_date->diffInSeconds($tmpl->end_date);
@@ -104,15 +106,15 @@ Route::prefix('funki/calendar')->group(function () {
         }
  
         $data = $request->validate([
-            'title' => 'required|string',
+            'title' => 'required|string|max:255',
             'start' => 'required|date',
             'end' => 'nullable|date',
             'is_all_day' => 'boolean',
-            'category' => 'nullable|string',
+            'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
-            'recurrence' => 'nullable|string',
+            'recurrence' => 'nullable|string|in:none,daily,weekly,monthly,yearly',
             'reminder_minutes' => 'nullable|integer',
-            'priority' => 'nullable|string',
+            'priority' => 'nullable|string|in:low,medium,high',
             'send_email' => 'boolean'
         ]);
  
@@ -151,15 +153,15 @@ Route::prefix('funki/calendar')->group(function () {
         }
 
         $data = $request->validate([
-            'title' => 'required|string',
+            'title' => 'required|string|max:255',
             'start' => 'required|date',
             'end' => 'nullable|date',
             'is_all_day' => 'boolean',
-            'category' => 'nullable|string',
+            'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
-            'recurrence' => 'nullable|string',
+            'recurrence' => 'nullable|string|in:none,daily,weekly,monthly,yearly',
             'reminder_minutes' => 'nullable|integer',
-            'priority' => 'nullable|string'
+            'priority' => 'nullable|string|in:low,medium,high'
         ]);
 
         $event->update([

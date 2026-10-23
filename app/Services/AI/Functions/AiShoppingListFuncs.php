@@ -308,14 +308,16 @@ trait AiShoppingListFuncs
 
             // Wenn eine Kategorie angegeben wurde, suche nach Produkten in dieser Kategorie
             if (!empty($categoryName)) {
-                $query->whereHas('category', function($q) use ($categoryName) {
-                    $q->where('name', 'like', '%' . $categoryName . '%');
+                $escapedCategory = addcslashes((string) $categoryName, '%_\\');
+                $query->whereHas('category', function($q) use ($escapedCategory) {
+                    $q->where('name', 'like', '%' . $escapedCategory . '%');
                 });
             } else {
                 // Ansonsten nur die spezifischen Produkte suchen
                 $query->where(function($q) use ($itemNames) {
                     foreach ($itemNames as $name) {
-                        $q->orWhere('name', 'like', '%' . $name . '%');
+                        $escapedName = addcslashes((string) $name, '%_\\');
+                        $q->orWhere('name', 'like', '%' . $escapedName . '%');
                     }
                 });
             }
@@ -387,7 +389,8 @@ trait AiShoppingListFuncs
             if (!empty($args['item_id'])) {
                 $item = ManagementShoppingItem::find($args['item_id']);
             } else {
-                $item = ManagementShoppingItem::where('name', 'like', '%' . $args['old_name'] . '%')->first();
+                $escapedOldName = addcslashes((string) $args['old_name'], '%_\\');
+                $item = ManagementShoppingItem::where('name', 'like', '%' . $escapedOldName . '%')->first();
             }
 
             if (!$item) {
@@ -430,7 +433,8 @@ trait AiShoppingListFuncs
                 $query->whereHas('category', function($q) use ($categoryNames) {
                     $q->where(function($subQ) use ($categoryNames) {
                         foreach ($categoryNames as $cName) {
-                            $subQ->orWhere('name', 'like', '%' . $cName . '%');
+                            $escapedCName = addcslashes((string) $cName, '%_\\');
+                            $subQ->orWhere('name', 'like', '%' . $escapedCName . '%');
                         }
                     });
                 });
@@ -438,7 +442,8 @@ trait AiShoppingListFuncs
                 // Nur spezifische Produkte suchen
                 $query->where(function($q) use ($itemNames) {
                     foreach ($itemNames as $name) {
-                        $q->orWhere('name', 'like', '%' . $name . '%');
+                        $escapedName = addcslashes((string) $name, '%_\\');
+                        $q->orWhere('name', 'like', '%' . $escapedName . '%');
                     }
                 });
             }
@@ -522,7 +527,8 @@ trait AiShoppingListFuncs
                 return ['status' => 'error', 'message' => 'Der alte Name der Kategorie fehlt.'];
             }
 
-            $category = ManagementShoppingCategory::where('name', 'like', $args['old_name'])->first();
+            $escapedOldCatName = addcslashes((string) $args['old_name'], '%_\\');
+            $category = ManagementShoppingCategory::where('name', 'like', $escapedOldCatName)->first();
 
             if (!$category) {
                 return ['status' => 'error', 'message' => "Kategorie '{$args['old_name']}' nicht gefunden."];
@@ -566,7 +572,8 @@ trait AiShoppingListFuncs
             if (!$deleteAll) {
                 $query->where(function($q) use ($categoryNames) {
                     foreach ($categoryNames as $cName) {
-                        $q->orWhere('name', 'like', '%' . $cName . '%');
+                        $escapedCName = addcslashes((string) $cName, '%_\\');
+                        $q->orWhere('name', 'like', '%' . $escapedCName . '%');
                     }
                 });
             }
@@ -650,7 +657,8 @@ trait AiShoppingListFuncs
                 return ['status' => 'error', 'message' => 'Der Produktname (item_name) fehlt.'];
             }
 
-            $item = ManagementShoppingItem::where('name', 'like', '%' . $args['item_name'] . '%')->first();
+            $escapedItemName = addcslashes((string) $args['item_name'], '%_\\');
+            $item = ManagementShoppingItem::where('name', 'like', '%' . $escapedItemName . '%')->first();
 
             if (!$item) {
                 return ['status' => 'error', 'message' => "Produkt '{$args['item_name']}' nicht gefunden."];

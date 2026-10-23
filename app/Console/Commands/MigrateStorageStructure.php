@@ -49,6 +49,7 @@ class MigrateStorageStructure extends Command
         'images' => 'shopverwaltung/images',
         'invoices' => 'buchhaltung/invoices',
         'person_profiles' => 'leitung/person_profiles',
+        'configurator' => 'produkte/configurator',
         'product-templates' => 'produkte/product-templates',
         'products' => 'produkte/products',
         'receipts' => 'buchhaltung/receipts',

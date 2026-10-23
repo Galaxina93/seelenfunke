@@ -65,6 +65,17 @@ class CustomerForcePasswordChange extends Component
             'needs_password_change' => false,
             'temporary_password' => null,
         ]);
+        $customer->setRememberToken(\Illuminate\Support\Str::random(60));
+        $customer->save();
+
+        try {
+            \Illuminate\Support\Facades\DB::table('sessions')
+                ->where('user_id', $customer->id)
+                ->where('id', '!=', session()->getId())
+                ->delete();
+        } catch (\Throwable $e) {
+            // Ignore if session driver is not database
+        }
 
         session()->forget('force_password_change_customer_id');
 

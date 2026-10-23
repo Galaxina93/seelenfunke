@@ -136,9 +136,10 @@ class ProductFrontendFilterArea extends Component
 
         // 1. Suche nach Name oder Beschreibung
         if (!empty($this->search)) {
-            $query->where(function($q) {
-                $q->where('name', 'like', '%' . $this->search . '%')
-                    ->orWhere('short_description', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('name', 'like', '%' . $escapedSearch . '%')
+                    ->orWhere('short_description', 'like', '%' . $escapedSearch . '%');
             });
         }
 

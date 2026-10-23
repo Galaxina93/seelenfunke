@@ -479,9 +479,10 @@ trait AiProductFuncs
                 $longestWord = mb_strtolower($words[0] ?? '');
                 
                 if (mb_strlen($longestWord) >= 4) {
+                    $escapedWord = addcslashes($longestWord, '%_\\');
                     $product = \App\Models\Product\Product::with(['supplier', 'packagings'])
                         ->withTrashed()
-                        ->whereRaw("REPLACE(REPLACE(LOWER(name), ' ', ''), '-', '') LIKE ?", ['%' . $longestWord . '%'])
+                        ->whereRaw("REPLACE(REPLACE(LOWER(name), ' ', ''), '-', '') LIKE ?", ['%' . $escapedWord . '%'])
                         ->first();
                 }
             }

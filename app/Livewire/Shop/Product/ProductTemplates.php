@@ -35,9 +35,16 @@ class ProductTemplates extends Component
     public $existingTemplateImagePath = null;
     public $removeExistingImage = false;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -111,7 +118,7 @@ class ProductTemplates extends Component
 
         $this->validate([
             'templateName' => 'required|string|max:255',
-            'templateImage' => 'nullable|image|max:5120',
+            'templateImage' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
         ], [
             'templateName.required' => 'Bitte geben Sie der Vorlage einen Namen.',
             'templateImage.image' => 'Die Datei muss ein gültiges Bildformat sein.',

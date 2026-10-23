@@ -17,6 +17,10 @@ class TelegramAgentController extends Controller
      */
     public function handleWebhook(Request $request, $token)
     {
+        if (!is_string($token) || strlen(trim($token)) < 20 || str_contains($token, '/') || str_contains($token, '..') || str_contains($token, "\0")) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid token'], 404);
+        }
+
         // 1. Identify the Agent by Token
         $agent = AiAgent::where('telegram_bot_token', $token)->where('is_active', true)->first();
 
@@ -44,11 +48,14 @@ class TelegramAgentController extends Controller
         $firstName = preg_replace('/[^\p{L}\p{N}\s\-_]/u', '', substr($rawFirstName, 0, 50)) ?: 'User';
         $text = $message['text'] ?? '';
         
-        // 2.1 Security: Check Whitelist (Zero Trust by Default) BEFORE downloading attachments or spending AI quota
-        $allowedIds = $agent->telegram_allowed_chat_ids ?? [];
-        $isPublic = in_array('*', $allowedIds, true);
+        // 2.1 Security: Check Whitelist (Zero Trust by Default, wildcard '*' is strictly forbidden) BEFORE downloading attachments or spending AI quota
+        $rawAllowedIds = is_array($agent->telegram_allowed_chat_ids) ? $agent->telegram_allowed_chat_ids : [];
+        $allowedIds = array_values(array_filter(
+            array_map(fn($id) => trim((string) $id), $rawAllowedIds),
+            fn($id) => $id !== '' && $id !== '*'
+        ));
         
-        if (!$isPublic && !in_array((string)$chatId, $allowedIds, true)) {
+        if (!in_array((string) $chatId, $allowedIds, true)) {
             Log::warning("Unauthorized Telegram Access Attempt", ['chat_id' => $chatId, 'agent' => $agent->name]);
             \App\Services\System\SystemSecurityService::logEvent(
                 'security:telegram_unauthorized',
@@ -156,9 +163,8 @@ class TelegramAgentController extends Controller
             // Add a dynamic prompt to clarify we are in Telegram
             $brain->setDynamicSystemPrompt("WICHTIG: Du chattest aktuell über die Telegram Messenger API mit einem Nutzer namens '{$firstName}'. Nutze Emojis und halte Antworten kompakt wie in einem Messenger. Keine Markdown-Tabellen, da Telegram diese nicht perfekt rendert. Du darfst und sollst System-Werkzeuge ausführen, das Resultat wird dem Nutzer per Telegram geschickt.");
 
-            // Wir können noch einen temporären Session-Mock bauen, falls interne Tools session()->getId() brauchen.
-            session()->setId($sessionId);
-            session()->start();
+            // Setze Session-ID für AI-Tools im aktuellen Request-Kontext
+            config(['ai.current_session_id' => $sessionId]);
 
             // 5. Ask the AI (Executes Loop & Tool Calling automatically!)
             $responsePayload = $brain->ask($history);
@@ -256,13 +262,17 @@ class TelegramAgentController extends Controller
     private function processTelegramFile($token, $fileId, $mimeType)
     {
         // 1. Get File Path
-        $url = "https://api.telegram.org/bot{$token}/getFile?file_id={$fileId}";
+        $safeFileId = rawurlencode((string) $fileId);
+        $url = "https://api.telegram.org/bot{$token}/getFile?file_id={$safeFileId}";
         $response = Http::timeout(15)->get($url);
         if (!$response->successful() || !$response->json('ok')) {
              throw new \Exception("Could not get file info from Telegram API.");
         }
         
-        $filePath = $response->json('result.file_path');
+        $filePath = ltrim((string) $response->json('result.file_path'), '/');
+        if ($filePath === '' || str_contains($filePath, '..') || str_contains($filePath, '://') || str_contains($filePath, "\0")) {
+            throw new \Exception("Invalid file path received from Telegram API.");
+        }
         
         // 2. Download File
         $downloadUrl = "https://api.telegram.org/file/bot{$token}/{$filePath}";

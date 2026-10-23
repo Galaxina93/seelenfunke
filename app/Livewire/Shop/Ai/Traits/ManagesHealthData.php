@@ -36,8 +36,10 @@ trait ManagesHealthData
         if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return collect();
         }
-        return ManagementContact::where('relation_type', 'like', '%arzt%')
-            ->orWhere('relation_type', 'like', '%Praxis%')
+        return ManagementContact::where(function ($q) {
+                $q->where('relation_type', 'like', '%arzt%')
+                  ->orWhere('relation_type', 'like', '%Praxis%');
+            })
             ->orderBy('is_favorite', 'desc')
             ->orderBy('last_name', 'asc')
             ->get();
@@ -81,21 +83,31 @@ trait ManagesHealthData
 
         $this->validate([
             'medicationForm.name' => 'required|string|max:255',
+            'medicationForm.description' => 'nullable|string|max:2000',
+            'medicationForm.active_ingredients' => 'nullable|string|max:500',
             'medicationForm.dosage' => 'nullable|string|max:255',
             'medicationForm.frequency' => 'nullable|string|max:255',
+            'medicationForm.is_long_term' => 'nullable|boolean',
         ]);
 
         $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
-        $data = $this->medicationForm;
-        $data['user_id'] = $adminId;
+        $payload = [
+            'name' => (string) ($this->medicationForm['name'] ?? ''),
+            'description' => $this->medicationForm['description'] ?? null,
+            'active_ingredients' => $this->medicationForm['active_ingredients'] ?? null,
+            'dosage' => $this->medicationForm['dosage'] ?? null,
+            'frequency' => $this->medicationForm['frequency'] ?? null,
+            'is_long_term' => (bool) ($this->medicationForm['is_long_term'] ?? false),
+            'user_id' => $adminId,
+        ];
 
-        if (!empty($data['id'])) {
-            $med = AiHealthMedication::where('user_id', $adminId)->find($data['id']);
+        if (!empty($this->medicationForm['id'])) {
+            $med = AiHealthMedication::where('user_id', $adminId)->find($this->medicationForm['id']);
             if ($med) {
-                $med->update($data);
+                $med->update($payload);
             }
         } else {
-            AiHealthMedication::create($data);
+            AiHealthMedication::create($payload);
         }
 
         $this->showMedicationModal = false;

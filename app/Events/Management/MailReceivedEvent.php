@@ -30,7 +30,7 @@ class MailReceivedEvent implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new Channel('crm-inbox'),
+            new PrivateChannel('crm-inbox'),
         ];
     }
 

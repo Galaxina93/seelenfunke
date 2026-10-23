@@ -267,7 +267,8 @@ trait AiSuppliersFuncs
     {
         $supplier = ProductSupplier::find($identifier);
         if (!$supplier) {
-            $supplier = ProductSupplier::where('name', 'like', '%' . $identifier . '%')->first();
+            $escaped = addcslashes((string) $identifier, '%_\\');
+            $supplier = ProductSupplier::where('name', 'like', '%' . $escaped . '%')->first();
         }
         return $supplier;
     }

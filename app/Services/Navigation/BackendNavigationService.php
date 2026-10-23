@@ -69,6 +69,7 @@ class BackendNavigationService
                             ['id' => 'product-fracture', 'title' => 'Schaden', 'route' => '/admin/product-fracture', 'icon' => 'exclamation-triangle'],
                             ['id' => 'products', 'title' => 'Produkte', 'route' => '/admin/products', 'icon' => 'cube'],
                             ['id' => 'product-templates', 'title' => 'Vorlagen', 'route' => '/admin/product-templates', 'icon' => 'clipboard-document-list'],
+                            ['id' => 'product-configurator', 'title' => 'Konfigurator', 'route' => '/admin/product-configurator', 'icon' => 'adjustments-horizontal'],
                             ['id' => 'product-suppliers', 'title' => 'Lieferanten', 'route' => '/admin/product-suppliers', 'icon' => 'truck'],
                             ['id' => 'reviews', 'title' => 'Bewertungen', 'route' => '/admin/reviews', 'icon' => 'star'],
                             ['id' => 'product-crawler', 'title' => 'Crawler', 'route' => '/admin/product-crawler', 'icon' => 'magnifying-glass'],

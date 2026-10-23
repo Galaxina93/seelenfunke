@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-white">
+<div class="min-h-screen bg-white" style="--theme-color: #C9A66B; --theme-color-10: #C9A66B1A; --theme-color-20: #C9A66B33; --theme-color-30: #C9A66B4D; --theme-color-50: #C9A66B80;">
 
     {{-- SEO Meta Tags (Push in den Head Bereich deines Layouts) --}}
     @push('head')

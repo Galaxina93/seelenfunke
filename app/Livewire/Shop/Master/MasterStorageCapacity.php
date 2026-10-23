@@ -41,6 +41,13 @@ class MasterStorageCapacity extends Component
         'backup:run',
     ];
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
         if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {

@@ -59,6 +59,10 @@ trait AiMasterFuncs
 
     public static function executeGetCoreKpis(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Master-Werkzeuge erfordern Administrator-Berechtigungen.'];
+        }
+
         try {
             $allowedTimeframes = ['this_month', 'last_month', 'this_year', 'last_year'];
             $timeframe = strtolower(trim($args['timeframe'] ?? 'this_month'));
@@ -95,6 +99,10 @@ trait AiMasterFuncs
 
     public static function executeGetOperationalHealth(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Master-Werkzeuge erfordern Administrator-Berechtigungen.'];
+        }
+
         try {
             $issues = [];
             
@@ -135,6 +143,10 @@ trait AiMasterFuncs
 
     public static function executeToggleMaintenance(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Master-Werkzeuge erfordern Administrator-Berechtigungen.'];
+        }
+
         $pass = $args['secret_passphrase'] ?? '';
         
         if ($pass !== 'CONFIRM_CEO_OVERRIDE') {

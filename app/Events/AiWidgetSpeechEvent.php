@@ -34,7 +34,7 @@ class AiWidgetSpeechEvent implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new Channel('workspace'),
+            new PrivateChannel('workspace'),
         ];
     }
 }

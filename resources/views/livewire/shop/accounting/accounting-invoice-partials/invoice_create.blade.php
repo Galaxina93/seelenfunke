@@ -384,11 +384,11 @@
                             $previewFooter = str_replace(
                                 ['[%ZAHLUNGSZIEL%]', '[%KONTAKTPERSON%]', '[%RECHNUNGSNUMMER%]'],
                                 [
-                                    '<span class="text-[var(--theme-color)] font-bold px-1 bg-[var(--theme-color)]/5 rounded">'.($manualInvoice['due_date'] ? date('d.m.Y', strtotime($manualInvoice['due_date'])) : '---').'</span>',
-                                    '<span class="font-bold text-gray-900">'.shop_setting('owner_proprietor', 'Alina Steinhauer').'</span>',
-                                    '<span class="font-mono font-bold bg-gray-100 px-1 rounded">'.$manualInvoice['invoice_number'].'</span>'
+                                    '<span class="text-[var(--theme-color)] font-bold px-1 bg-[var(--theme-color)]/5 rounded">'.e($manualInvoice['due_date'] ? date('d.m.Y', strtotime($manualInvoice['due_date'])) : '---').'</span>',
+                                    '<span class="font-bold text-gray-900">'.e(shop_setting('owner_proprietor', 'Alina Steinhauer')).'</span>',
+                                    '<span class="font-mono font-bold bg-gray-100 px-1 rounded">'.e($manualInvoice['invoice_number']).'</span>'
                                 ],
-                                $manualInvoice['footer_text']
+                                e($manualInvoice['footer_text'])
                             );
                         @endphp
                         {!! $previewFooter !!}

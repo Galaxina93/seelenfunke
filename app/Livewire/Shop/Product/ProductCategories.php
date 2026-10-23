@@ -25,9 +25,16 @@ class ProductCategories extends Component
     public $editingCategoryId = null;
     public $editingCategoryName = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount(Product $product)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -44,7 +51,8 @@ class ProductCategories extends Component
         $query = ProductCategory::query();
 
         if ($this->search) {
-            $query->where('name', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where('name', 'like', '%' . $escapedSearch . '%');
         }
 
         // Als Array laden für Performance und Morph-Map Vermeidung

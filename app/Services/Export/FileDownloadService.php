@@ -25,7 +25,7 @@ class FileDownloadService
 
         $pdf = Pdf::loadView('global.pdf.health-treatment-plan', [
             'plan' => $plan,
-        ]);
+        ])->setOption('isRemoteEnabled', false);
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'Behandlungsplan_' . Str::slug($plan->title) . '.pdf');
@@ -49,7 +49,7 @@ class FileDownloadService
             'date' => now()->format('d.m.Y H:i')
         ]);
 
-        $pdf->setPaper('a4', 'landscape');
+        $pdf->setPaper('a4', 'landscape')->setOption('isRemoteEnabled', false);
 
         $finalFilename = now()->format('Y-m-d_H-i') . '_Produkt_Analyse_Gesamtbericht.pdf';
         
@@ -70,7 +70,7 @@ class FileDownloadService
             'date' => now()->format('d.m.Y H:i')
         ]);
 
-        $pdf->setPaper('a4', 'portrait');
+        $pdf->setPaper('a4', 'portrait')->setOption('isRemoteEnabled', false);
 
         $finalFilename = now()->format('Y-m-d_H-i') . '_LUCID_Jahresbericht_' . $lucidData['year'] . '.pdf';
         
@@ -117,7 +117,7 @@ class FileDownloadService
             'aiAgentName' => $aiAgentName,
             'docTitle' => $docTitle,
             'date' => now()->format('d.m.Y H:i')
-        ]);
+        ])->setOption('isRemoteEnabled', false);
 
         $finalFilename = now()->format('Y-m-d_H-i') . '_' . $filenamePrefix . '.pdf';
         
@@ -286,8 +286,9 @@ class FileDownloadService
                     }) ?? $fontFiles->first();
 
                     $base64 = base64_encode(file_get_contents($bestFont->getPathname()));
+                    $safeCssFontFamily = preg_replace('/[^a-zA-Z0-9_\-\s]/', '', (string) $fontFamily);
                     $svg .= "    @font-face {\n";
-                    $svg .= "      font-family: '{$fontFamily}';\n";
+                    $svg .= "      font-family: '{$safeCssFontFamily}';\n";
                     $svg .= "      src: url('data:font/woff2;charset=utf-8;base64,{$base64}') format('woff2');\n";
                     $svg .= "      font-weight: normal;\n";
                     $svg .= "      font-style: normal;\n";
@@ -357,18 +358,26 @@ class FileDownloadService
                     // Fallback-Suche: Falls Datei nicht am direkten Pfad liegt (z.B. verschoben oder alter Pfad)
                     if (!$localPath || !file_exists($localPath)) {
                         $baseName = basename($urlPath);
+                        $storageVectorPath = storage_path('app/public/produkte/configurator/vectors/' . $baseName);
                         $vectorPath = public_path('shop/product/configurator/vectors/' . $baseName);
-                        if (file_exists($vectorPath)) {
+                        if (file_exists($storageVectorPath)) {
+                            $localPath = $storageVectorPath;
+                        } elseif (file_exists($vectorPath)) {
                             $localPath = $vectorPath;
                         } else {
-                            // Rekursive Suche im Vektoren-Verzeichnis (Unterordner wie Familie, Feiertage, etc.)
-                            $vectorsDir = public_path('shop/product/configurator/vectors');
-                            if (File::isDirectory($vectorsDir)) {
-                                $allVectors = File::allFiles($vectorsDir);
-                                foreach ($allVectors as $vFile) {
-                                    if ($vFile->getFilename() === $baseName) {
-                                        $localPath = $vFile->getPathname();
-                                        break;
+                            // Rekursive Suche in beiden Vektoren-Verzeichnissen (Storage & Public)
+                            $searchDirs = [
+                                storage_path('app/public/produkte/configurator/vectors'),
+                                public_path('shop/product/configurator/vectors'),
+                            ];
+                            foreach ($searchDirs as $vectorsDir) {
+                                if (File::isDirectory($vectorsDir)) {
+                                    $allVectors = File::allFiles($vectorsDir);
+                                    foreach ($allVectors as $vFile) {
+                                        if ($vFile->getFilename() === $baseName) {
+                                            $localPath = $vFile->getPathname();
+                                            break 2;
+                                        }
                                     }
                                 }
                             }
@@ -408,13 +417,26 @@ class FileDownloadService
                         $host = $parsedUrl['host'] ?? '';
                         $scheme = strtolower($parsedUrl['scheme'] ?? '');
 
-                        if (in_array($scheme, ['http', 'https'], true) && !empty($host) && $host !== 'localhost') {
-                            $ip = gethostbyname($host);
-                            $isPublicIp = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+                        if (
+                            in_array($scheme, ['http', 'https'], true)
+                            && !empty($host)
+                            && !in_array(strtolower($host), ['localhost', '0.0.0.0', '::1'], true)
+                            && !str_ends_with(strtolower($host), '.local')
+                            && !str_ends_with(strtolower($host), '.internal')
+                        ) {
+                            $resolvedIps = @gethostbynamel($host) ?: [];
+                            $allPublicIps = !empty($resolvedIps);
+                            foreach ($resolvedIps as $ip) {
+                                $isPublicIp = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+                                if (!$isPublicIp || $ip === '127.0.0.1' || str_starts_with($ip, '169.254.') || str_starts_with($ip, '127.')) {
+                                    $allPublicIps = false;
+                                    break;
+                                }
+                            }
 
-                            if ($isPublicIp && $ip !== '127.0.0.1' && !str_starts_with($ip, '169.254.') && !str_starts_with($ip, '127.')) {
+                            if ($allPublicIps) {
                                 try {
-                                    $resp = \Illuminate\Support\Facades\Http::timeout(5)->get($url);
+                                    $resp = \Illuminate\Support\Facades\Http::timeout(5)->withoutRedirecting()->get($url);
                                     if ($resp->successful()) {
                                         $data = $resp->body();
                                         $ext = strtolower(pathinfo($urlPath, PATHINFO_EXTENSION));
@@ -442,9 +464,11 @@ class FileDownloadService
 
                         // XSS / Malicious Elements Prevention: Strip script, iframe, object, foreignObject, embed
                         $innerSvg = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/<script\b[^>]*\/?>/is', '', $innerSvg);
                         $innerSvg = preg_replace('/<(foreignObject|iframe|object|embed)\b[^>]*>(.*?)<\/\1>/is', '', $innerSvg);
+                        $innerSvg = preg_replace('/<(foreignObject|iframe|object|embed)\b[^>]*\/?>/is', '', $innerSvg);
                         $innerSvg = preg_replace('/\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $innerSvg);
-                        $innerSvg = preg_replace('/href\s*=\s*["\']\s*javascript:[^"\']*["\']/i', '', $innerSvg);
+                        $innerSvg = preg_replace('/(?:xlink:)?href\s*=\s*["\']\s*(?:javascript|data:text\/html|vbscript):[^"\']*["\']/i', '', $innerSvg);
 
                         $viewBoxW = 24; $viewBoxH = 24; $vX = 0; $vY = 0;
                         if (preg_match('/<svg[^>]*viewBox="([^"]+)"/i', $innerSvg, $m)) {

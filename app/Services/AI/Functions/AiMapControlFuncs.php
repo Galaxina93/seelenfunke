@@ -872,7 +872,7 @@ trait AiMapControlFuncs
     {
         $filePath = $args['file_path'] ?? '';
         $action = $args['action'] ?? 'save_to_workspace';
-        $title = $args['title'] ?? 'Kamera-Snapshot';
+        $title = str_replace(["\r", "\n"], ' ', trim((string) ($args['title'] ?? 'Kamera-Snapshot')));
         $description = $args['description'] ?? '';
         $recipient = $args['recipient_email'] ?? null;
         if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
@@ -908,7 +908,7 @@ trait AiMapControlFuncs
                     'places' => []
                 ])->setOptions(['isRemoteEnabled' => false]);
 
-                $pdfFilename = 'snapshot_' . \Illuminate\Support\Str::slug($title) . '_' . time() . '.pdf';
+                $pdfFilename = 'snapshot_' . (\Illuminate\Support\Str::slug($title) ?: 'snapshot') . '_' . time() . '.pdf';
                 $pdfPath = 'agenten/workspace/Dokumente/Snapshots/' . $pdfFilename;
                 
                 \Illuminate\Support\Facades\Storage::disk('public')->put($pdfPath, $pdf->output());
@@ -928,7 +928,9 @@ trait AiMapControlFuncs
                     return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse.'];
                 }
 
-                $design = $args['design'] ?? 'seelenfunke';
+                $design = in_array($args['design'] ?? 'seelenfunke', ['seelenfunke', 'generic'], true)
+                    ? $args['design']
+                    : 'seelenfunke';
                 \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Services\AI\Mails\AiHolidayPlanMail(
                     "Snapshot: $title",
                     $description,

@@ -17,15 +17,22 @@ class SupportTelephony extends Component
 
     public $currentTab = 'calls'; // calls, contacts, settings
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
     #[On('refreshTelephony')]
-    #[On('echo:telephony,SupportTelephonyUpdated')]
+    #[On('echo-private:telephony,SupportTelephonyUpdated')]
     public function refreshList()
     {
         // Löst einfach ein Livewire-Rerender aus, da render() danach automatisch aufgerufen wird

@@ -525,8 +525,20 @@ trait AiFinanceFuncs
         ];
     }
 
+    protected static function assertAdminAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Finanz-Werkzeuge erfordern Administrator-Berechtigungen.'];
+        }
+        return null;
+    }
+
     public static function executeCheckMissingExpenses(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         return [
             'status' => 'success',
             'has_missing_expenses' => false,
@@ -536,14 +548,21 @@ trait AiFinanceFuncs
 
     protected static function getAdminId()
     {
-        return \App\Services\AI\AiAuthHelper::getAdminId() ?? \App\Models\Admin\Admin::first()->id;
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return null;
+        }
+        return \App\Services\AI\AiAuthHelper::getAdminId() ?? \App\Models\Admin\Admin::first()?->id;
     }
 
     public static function executeGetFinances(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
-            $month = $args['month'] ?? date('n');
-            $year = $args['year'] ?? date('Y');
+            $month = isset($args['month']) ? max(1, min(12, (int)$args['month'])) : (int)date('n');
+            $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
             $isNet = $args['is_net'] ?? true; // Standard: Netto
             
             $service = new \App\Services\FinancialService();
@@ -564,6 +583,10 @@ trait AiFinanceFuncs
 
     public static function executeGetDailyShopRevenue(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $date = $args['date'] ?? date('Y-m-d');
             $isNet = $args['is_net'] ?? true;
@@ -753,6 +776,10 @@ trait AiFinanceFuncs
 
     public static function executeListFixedCosts(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
             $groups = \App\Models\Accounting\AccountingGroup::with('items')->where('admin_id', $adminId)->get();
@@ -908,6 +935,10 @@ trait AiFinanceFuncs
 
     public static function executeCreateFixedCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
 
@@ -1085,6 +1116,10 @@ trait AiFinanceFuncs
 
     public static function executeEditFixedCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
 
@@ -1271,6 +1306,10 @@ trait AiFinanceFuncs
 
     public static function executeDeleteFixedCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
 
@@ -1332,6 +1371,10 @@ trait AiFinanceFuncs
 
     public static function executeListArchivedFixedCosts(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
             $query = \App\Models\Accounting\AccountingCostItem::onlyTrashed()
@@ -1390,6 +1433,10 @@ trait AiFinanceFuncs
 
     public static function executeRestoreFixedCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
 
@@ -1456,6 +1503,10 @@ trait AiFinanceFuncs
 
     public static function executeForceDeleteFixedCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
 
@@ -1484,7 +1535,7 @@ trait AiFinanceFuncs
             $amount = $item->amount;
 
             // Clean up contract file if present
-            if ($item->contract_file_path) {
+            if ($item->contract_file_path && !str_contains($item->contract_file_path, '..') && !str_contains($item->contract_file_path, "\0")) {
                 if (\Illuminate\Support\Facades\Storage::disk('local')->exists($item->contract_file_path)) {
                     \Illuminate\Support\Facades\Storage::disk('local')->delete($item->contract_file_path);
                 } elseif (\Illuminate\Support\Facades\Storage::disk('private')->exists($item->contract_file_path)) {
@@ -1605,6 +1656,10 @@ trait AiFinanceFuncs
 
     public static function executeReadFixedCostContract(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
             $queryOrId = $args['id'] ?? $args['name'] ?? $args['query'] ?? null;
@@ -1667,13 +1722,30 @@ trait AiFinanceFuncs
                 $absolutePath = storage_path('app/' . $filePath);
             } elseif (file_exists($filePath)) {
                 $realCheck = realpath($filePath);
-                $storageCheck = realpath(storage_path());
-                if ($realCheck && $storageCheck && str_starts_with($realCheck, $storageCheck)) {
-                    $absolutePath = $filePath;
+                $storageAppCheck = realpath(storage_path('app'));
+                if ($realCheck && $storageAppCheck && str_starts_with($realCheck, $storageAppCheck . DIRECTORY_SEPARATOR)) {
+                    $absolutePath = $realCheck;
                 }
             }
 
-            if (!$absolutePath || !file_exists($absolutePath)) {
+            if ($absolutePath && file_exists($absolutePath)) {
+                $resolvedAbs = realpath($absolutePath);
+                $allowedStorageRoot = realpath(storage_path('app'));
+                $allowedTestingRoot = realpath(storage_path('framework/testing'));
+                $isInsideAllowed = ($resolvedAbs && $allowedStorageRoot && str_starts_with($resolvedAbs, $allowedStorageRoot . DIRECTORY_SEPARATOR))
+                    || ($resolvedAbs && $allowedTestingRoot && str_starts_with($resolvedAbs, $allowedTestingRoot . DIRECTORY_SEPARATOR));
+                if (!$isInsideAllowed) {
+                    return [
+                        'status' => 'error',
+                        'item_id' => $item->id,
+                        'item_name' => $item->name,
+                        'message' => "Ungültiger oder außerhalb des erlaubten Verzeichnisses liegender Dateipfad."
+                    ];
+                }
+                $absolutePath = $resolvedAbs;
+            }
+
+            if (!$absolutePath || !is_file($absolutePath)) {
                 return [
                     'status' => 'error',
                     'item_id' => $item->id,
@@ -1688,7 +1760,7 @@ trait AiFinanceFuncs
 
             if ($extension === 'pdf') {
                 $content = self::extractPdfContent($absolutePath);
-            } elseif (in_array($extension, ['txt', 'csv', 'md', 'json', 'xml', 'log'])) {
+            } elseif (in_array($extension, ['txt', 'csv', 'md', 'json', 'xml'], true)) {
                 $content = file_get_contents($absolutePath);
             } elseif (in_array($extension, ['png', 'jpg', 'jpeg', 'webp', 'gif'])) {
                 $mime = match ($extension) {
@@ -1739,9 +1811,13 @@ trait AiFinanceFuncs
 
     public static function executeListVariableCosts(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
-            $month = $args['month'] ?? date('n');
-            $year = $args['year'] ?? date('Y');
+            $month = isset($args['month']) ? max(1, min(12, (int)$args['month'])) : (int)date('n');
+            $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
             $adminId = self::getAdminId();
 
             $specials = \App\Models\Accounting\AccountingSpecialIssue::where('admin_id', $adminId)
@@ -1798,8 +1874,12 @@ trait AiFinanceFuncs
 
     public static function executeGetYearlyMatrix(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
-            $year = $args['year'] ?? date('Y');
+            $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
             $isNet = $args['is_net'] ?? true;
 
             $service = new \App\Services\FinancialService();
@@ -1844,9 +1924,13 @@ trait AiFinanceFuncs
 
     public static function executeGenerateTaxExport(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
-            $month = $args['month'];
-            $year = $args['year'];
+            $month = isset($args['month']) ? max(1, min(12, (int)$args['month'])) : (int)date('n');
+            $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
             $adminId = self::getAdminId();
 
             $service = new \App\Services\FinancialService();
@@ -1871,6 +1955,10 @@ trait AiFinanceFuncs
 
     public static function executeGenerateAndSendReport(array $args, $agent = null)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $email = trim($args['email'] ?? '');
             $month = isset($args['month']) ? max(1, min(12, (int)$args['month'])) : (int)date('n');
@@ -1906,6 +1994,10 @@ trait AiFinanceFuncs
 
     public static function executeCreateQuickEntryExpense(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
 
@@ -1960,6 +2052,10 @@ trait AiFinanceFuncs
 
     public static function executeSearchVariableCosts(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $query = \App\Models\Accounting\AccountingSpecialIssue::where('admin_id', self::getAdminId());
             
@@ -2006,6 +2102,10 @@ trait AiFinanceFuncs
 
     public static function executeEditVariableCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $entry = \App\Models\Accounting\AccountingSpecialIssue::where('admin_id', self::getAdminId())
                 ->where('id', $args['id'])
@@ -2065,6 +2165,10 @@ trait AiFinanceFuncs
 
     public static function executeDeleteVariableCost(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $entry = \App\Models\Accounting\AccountingSpecialIssue::where('admin_id', self::getAdminId())
                 ->where('id', $args['id'])
@@ -2087,6 +2191,10 @@ trait AiFinanceFuncs
 
     public static function executeListCategories(array $args)
     {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
         try {
             $adminId = self::getAdminId();
             $categories = \App\Models\Accounting\AccountingCategory::where('admin_id', $adminId)

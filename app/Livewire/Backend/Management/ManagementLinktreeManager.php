@@ -41,9 +41,16 @@ class ManagementLinktreeManager extends Component
     public $profileImage;
     public $currentProfileImage;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -80,7 +87,7 @@ class ManagementLinktreeManager extends Component
         }
 
         $this->validate([
-            'themeColor' => 'required|string|max:20',
+            'themeColor' => ['required', 'string', 'max:20', 'regex:/^#[0-9a-fA-F]{3,8}$/'],
             'profileImage' => 'nullable|image|max:2048', // max 2MB
         ]);
 
@@ -144,7 +151,7 @@ class ManagementLinktreeManager extends Component
 
         $this->validate([
             'title' => 'required|string|max:255',
-            'url' => 'required|url',
+            'url' => ['required', 'url', 'max:2048', 'regex:/^https?:\/\//i'],
             'icon' => 'nullable|string',
             'type' => 'required|in:standard,secure,highlight',
         ]);

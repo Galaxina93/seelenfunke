@@ -125,8 +125,18 @@ trait AiContactFuncs
         ];
     }
 
+    protected static function assertContactStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Kontakt-Werkzeuge erfordern Mitarbeiter- oder Administrator-Berechtigungen.'];
+        }
+        return null;
+    }
+
     public static function executeContactGetAll(array $args)
     {
+        if ($denied = self::assertContactStaffAccess()) return $denied;
+
         $profiles = ManagementContact::limit(100)->get();
         if ($profiles->isEmpty()) {
             return ['status' => 'success', 'message' => 'Es sind aktuell gar keine Personenprofile gespeichert.'];
@@ -144,6 +154,8 @@ trait AiContactFuncs
 
     public static function executeContactSearch(array $args)
     {
+        if ($denied = self::assertContactStaffAccess()) return $denied;
+
         if (empty($args['query'])) {
             return ['status' => 'error', 'message' => 'Es wurde kein Suchbegriff angegeben.'];
         }
@@ -200,6 +212,8 @@ trait AiContactFuncs
 
     public static function executeContactCreate(array $args)
     {
+        if ($denied = self::assertContactStaffAccess()) return $denied;
+
         if (empty($args['first_name'])) {
             return ['status' => 'error', 'message' => 'Vorname ist erforderlich.'];
         }
@@ -223,6 +237,8 @@ trait AiContactFuncs
 
     public static function executeContactAddInfo(array $args)
     {
+        if ($denied = self::assertContactStaffAccess()) return $denied;
+
         if (empty($args['first_name']) || empty($args['content'])) {
             return ['status' => 'error', 'message' => 'Vorname und Inhalt sind erforderlich.'];
         }
@@ -243,6 +259,8 @@ trait AiContactFuncs
 
     public static function executeContactUpdateInfo(array $args)
     {
+        if ($denied = self::assertContactStaffAccess()) return $denied;
+
         if (empty($args['first_name']) || empty($args['old_content_substring']) || empty($args['new_content'])) {
             return ['status' => 'error', 'message' => 'Parameter unvollständig.'];
         }
@@ -264,6 +282,8 @@ trait AiContactFuncs
 
     public static function executeContactDeleteInfo(array $args)
     {
+        if ($denied = self::assertContactStaffAccess()) return $denied;
+
         if (empty($args['first_name']) || empty($args['content_substring_to_delete'])) {
             return ['status' => 'error', 'message' => 'Parameter unvollständig.'];
         }

@@ -178,7 +178,7 @@
 
         {{-- ACTUAL CONTENT (Eingehüllt in unser neues Styling) --}}
         <div class="ck-content-output">
-            {!! $post->content !!}
+            {!! \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) $post->content) !!}
         </div>
 
         {{-- FOOTER / SHARE / TAGS --}}

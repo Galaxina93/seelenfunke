@@ -75,8 +75,17 @@ def add_page_number(run):
     run._r.append(fldChar2)
     run._r.append(fldChar3)
 
+_XML_CONTROL_CHARS_RE = re.compile(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]')
+
+def sanitize_xml_text(value):
+    """Strips control characters that are illegal in XML 1.0 (prevents python-docx ValueError)."""
+    if value is None:
+        return ''
+    return _XML_CONTROL_CHARS_RE.sub('', str(value))
+
 def add_formatted_text(paragraph, text, default_font_size=11, font_color=None, default_font_name='Calibri'):
     """Parses markdown-like inline styles (**bold**, *italic*, `code`) and adds runs."""
+    text = sanitize_xml_text(text)
     pattern = re.compile(r'(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*.*?\*|`.*?`)')
     parts = pattern.split(text)
     
@@ -219,10 +228,12 @@ def parse_markdown_table(lines):
     return rows
 
 def generate_document(data):
-    title = data.get('title', 'Bericht')
-    content_markdown = data.get('content_markdown', '')
+    title = sanitize_xml_text(data.get('title', 'Bericht'))
+    content_markdown = sanitize_xml_text(data.get('content_markdown', ''))
     design = data.get('design', 'seelenfunke')
-    agent_name = data.get('agentName', 'System')
+    if design not in ('seelenfunke', 'generic'):
+        design = 'seelenfunke'
+    agent_name = sanitize_xml_text(data.get('agentName', 'System'))
     logo_path = data.get('logo_path', None)
     output_path = data.get('output_path', 'report.docx')
     owner_name = data.get('owner_name', 'Mein Seelenfunke')

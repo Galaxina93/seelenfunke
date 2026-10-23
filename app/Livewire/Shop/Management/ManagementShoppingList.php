@@ -28,9 +28,16 @@ class ManagementShoppingList extends Component
         'heart', 'cake', 'fire', 'gift', 'star', 'scissors', 'cube', 'sun', 'moon'
     ];
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
@@ -96,7 +103,7 @@ class ManagementShoppingList extends Component
         $cleanName = trim($this->newItemName);
         $cleanQty = !empty($this->newItemQuantity) ? trim($this->newItemQuantity) : null;
 
-        $existing = ManagementShoppingItem::where('name', 'like', $cleanName)->first();
+        $existing = ManagementShoppingItem::where('name', 'like', addcslashes($cleanName, '%_\\'))->first();
 
         $catId = empty($this->selectedCategoryId) ? null : $this->selectedCategoryId;
 
@@ -134,7 +141,7 @@ class ManagementShoppingList extends Component
     {
         $this->validate([
             'newCategoryName' => 'required|string|max:255',
-            'newCategoryIcon' => 'required|string'
+            'newCategoryIcon' => 'required|string|in:' . implode(',', $this->availableIcons)
         ]);
         
         ManagementShoppingCategory::create([

@@ -551,6 +551,9 @@ class AccountingTax extends Component
         foreach ($data['raw_specials'] as $special) {
             if (!empty($special->file_paths)) {
                 foreach ($special->file_paths as $idx => $path) {
+                    if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
+                        continue;
+                    }
                     $source = str_starts_with($path, 'buchhaltung/') ? storage_path('app/' . $path) : storage_path('app/buchhaltung/' . $path);
                     if (File::exists($source)) {
                         $ext = pathinfo($source, PATHINFO_EXTENSION);
@@ -563,6 +566,9 @@ class AccountingTax extends Component
         foreach ($data['raw_fixed'] as $fixed) {
             if (!empty($fixed->contract_file_path)) {
                 $path = $fixed->contract_file_path;
+                if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
+                    continue;
+                }
                 $source = str_starts_with($path, 'buchhaltung/') ? storage_path('app/' . $path) : storage_path('app/buchhaltung/' . $path);
                 if (File::exists($source)) {
                     $ext = pathinfo($source, PATHINFO_EXTENSION);
@@ -609,13 +615,15 @@ class AccountingTax extends Component
         foreach ($data['raw_orders'] as $order) {
             $amount = number_format($order->total_price / 100, 2, ',', '');
             $date = $order->created_at->format('dm');
-            $csv .= '"'.$amount.'";"S";"1200";"8400";"'.$date.'";"'.$order->order_number.'";"Bestellung '.$order->order_number.'"' . "\n";
+            $safeOrderNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $order->order_number));
+            $csv .= '"'.$amount.'";"S";"1200";"8400";"'.$date.'";"'.$safeOrderNo.'";"Bestellung '.$safeOrderNo.'"' . "\n";
         }
         
         foreach ($data['raw_credits'] ?? [] as $credit) {
             $amount = number_format(abs($credit->total / 100), 2, ',', '');
             $date = $credit->created_at->format('dm');
-            $csv .= '"'.$amount.'";"H";"1200";"8400";"'.$date.'";"'.$credit->invoice_number.'";"Gutschrift / Storno '.$credit->invoice_number.'"' . "\n";
+            $safeCreditNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $credit->invoice_number));
+            $csv .= '"'.$amount.'";"H";"1200";"8400";"'.$date.'";"'.$safeCreditNo.'";"Gutschrift / Storno '.$safeCreditNo.'"' . "\n";
         }
         
         return $csv;

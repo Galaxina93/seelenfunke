@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Request;
 #[Layout('components.layouts.frontend_layout')]
 class LandingPageView extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public MarketingLandingPage $landingPage;
 
     public function mount($slug)

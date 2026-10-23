@@ -196,6 +196,13 @@ class AiAgentEditor extends Component
         }
     }
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount($id = 'new')
     {
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
@@ -476,7 +483,8 @@ class AiAgentEditor extends Component
         $agent->telegram_bot_token = empty($this->telegram_bot_token) ? null : $this->telegram_bot_token;
         
         if (!empty(trim($this->telegram_allowed_chat_ids))) {
-            $agent->telegram_allowed_chat_ids = array_map('trim', explode(',', $this->telegram_allowed_chat_ids));
+            $parsedIds = array_map('trim', explode(',', $this->telegram_allowed_chat_ids));
+            $agent->telegram_allowed_chat_ids = array_values(array_filter($parsedIds, fn($cid) => $cid !== '' && $cid !== '*'));
         } else {
             $agent->telegram_allowed_chat_ids = [];
         }
@@ -535,10 +543,11 @@ class AiAgentEditor extends Component
         // Alle Tools laden und optional via searchSkill filtern
         $query = AiTool::query();
         if (!empty($this->searchSkill)) {
-            $query->where(function($q) {
-                $q->where('name', 'like', '%' . $this->searchSkill . '%')
-                  ->orWhere('identifier', 'like', '%' . $this->searchSkill . '%')
-                  ->orWhere('description', 'like', '%' . $this->searchSkill . '%');
+            $escaped = addcslashes((string) $this->searchSkill, '%_\\');
+            $query->where(function($q) use ($escaped) {
+                $q->where('name', 'like', '%' . $escaped . '%')
+                  ->orWhere('identifier', 'like', '%' . $escaped . '%')
+                  ->orWhere('description', 'like', '%' . $escaped . '%');
             });
         }
         $allTools = $query->orderBy('name')->get();

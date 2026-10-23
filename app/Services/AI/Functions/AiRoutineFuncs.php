@@ -23,6 +23,10 @@ trait AiRoutineFuncs
 
     public static function executeGetDayRoutines(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Tagesroutinen sind nur für Mitarbeiter und Administratoren abrufbar.'];
+        }
+
         try {
             $routines = ManagementDayRoutine::where('is_active', true)
                 ->with(['steps' => function($q) {

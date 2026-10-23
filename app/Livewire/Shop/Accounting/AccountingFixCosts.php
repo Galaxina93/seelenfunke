@@ -115,9 +115,16 @@ class AccountingFixCosts extends Component
     public string $cancellationDateType = 'next_possible';
     public $cancellationCustomDate;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren haben Zugriff auf die Finanzen.');
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Nur Administratoren haben Zugriff auf die Finanzen.');
         }
 
@@ -287,7 +294,10 @@ class AccountingFixCosts extends Component
 
     public function createGroup()
     {
-        $this->validate(['newGroupName' => 'required|min:3']);
+        $this->validate([
+            'newGroupName' => 'required|min:3',
+            'newGroupType' => 'required|in:income,expense',
+        ]);
         $position = AccountingGroup::where('admin_id', $this->getAdminId())->max('position') + 1;
 
         AccountingGroup::create([
@@ -696,8 +706,10 @@ class AccountingFixCosts extends Component
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
 
         if ($item->contract_file_path) {
-            if (Storage::disk('local')->exists($item->contract_file_path)) {
-                Storage::disk('local')->delete($item->contract_file_path);
+            if (is_string($item->contract_file_path) && !str_contains($item->contract_file_path, '..') && !str_contains($item->contract_file_path, "\0")) {
+                if (Storage::disk('local')->exists($item->contract_file_path)) {
+                    Storage::disk('local')->delete($item->contract_file_path);
+                }
             }
             $item->update(['contract_file_path' => null]);
             $this->itemExistingFile = null;
@@ -979,7 +991,7 @@ class AccountingFixCosts extends Component
 
         $name = $item->name;
 
-        if ($item->contract_file_path) {
+        if (is_string($item->contract_file_path) && $item->contract_file_path !== '' && !str_contains($item->contract_file_path, '..') && !str_contains($item->contract_file_path, "\0")) {
             if (Storage::disk('local')->exists($item->contract_file_path)) {
                 Storage::disk('local')->delete($item->contract_file_path);
             } elseif (Storage::disk('private')->exists($item->contract_file_path)) {
@@ -1021,7 +1033,7 @@ class AccountingFixCosts extends Component
             'shopSetting' => $shopSetting,
             'cancellationDateText' => $cancellationDateText,
             'date' => now()->format('d.m.Y'),
-        ]);
+        ])->setOption('isRemoteEnabled', false);
 
         $this->cancellingItemId = null;
         
@@ -1168,7 +1180,7 @@ class AccountingFixCosts extends Component
             abort(403);
         }
 
-        if ($item->contract_file_path) {
+        if (is_string($item->contract_file_path) && $item->contract_file_path !== '' && !str_contains($item->contract_file_path, '..') && !str_contains($item->contract_file_path, "\0")) {
             if (Storage::disk('local')->exists($item->contract_file_path)) {
                 return Storage::disk('local')->download($item->contract_file_path);
             } elseif (Storage::disk('private')->exists($item->contract_file_path)) {

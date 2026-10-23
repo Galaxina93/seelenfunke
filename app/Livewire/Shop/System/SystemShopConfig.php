@@ -151,6 +151,13 @@ class SystemShopConfig extends Component
 
     public $saved = false;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         if (!Auth::guard('admin')->check()) {

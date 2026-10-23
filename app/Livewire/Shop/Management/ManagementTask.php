@@ -35,9 +35,16 @@ class ManagementTask extends Component
 
     public $newTask_title = '';
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -170,8 +177,10 @@ class ManagementTask extends Component
         if ($task) {
             if (!empty($task->file_paths)) {
                 foreach ($task->file_paths as $path) {
-                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                    if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'leitung/')) {
+                        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                            \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                        }
                     }
                 }
             }
@@ -182,12 +191,29 @@ class ManagementTask extends Component
     public function updatedTaskFilesUpload()
     {
         if ($this->uploadingTaskId && $this->taskFilesUpload) {
+            if (is_array($this->taskFilesUpload)) {
+                $this->validate([
+                    'taskFilesUpload.*' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,zip,txt',
+                ]);
+            } else {
+                $this->validate([
+                    'taskFilesUpload' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,zip,txt',
+                ]);
+            }
+
             $task = TaskModel::find($this->uploadingTaskId);
             if ($task) {
                 $files = is_array($this->taskFilesUpload) ? $this->taskFilesUpload : [$this->taskFilesUpload];
                 $existing = $task->file_paths ?? [];
+                $forbiddenExts = ['php', 'phtml', 'php3', 'php4', 'php5', 'phar', 'sh', 'pl', 'py', 'cgi', 'exe', 'bat', 'cmd', 'js', 'html', 'htm', 'svg'];
                 
                 foreach ($files as $file) {
+                    $ext = strtolower((string) $file->getClientOriginalExtension());
+                    if (in_array($ext, $forbiddenExts, true)) {
+                        $this->addError('taskFilesUpload', 'Dateityp aus Sicherheitsgründen nicht erlaubt.');
+                        $this->reset(['taskFilesUpload', 'uploadingTaskId']);
+                        return;
+                    }
                     $path = $file->store('leitung/tasks/attachments', 'local');
                     $existing[] = $path;
                 }
@@ -206,8 +232,10 @@ class ManagementTask extends Component
             $files = $task->file_paths ?? [];
             if (isset($files[$fileIndex])) {
                 $path = $files[$fileIndex];
-                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                    \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'leitung/')) {
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                    }
                 }
                 unset($files[$fileIndex]);
                 $task->update(['file_paths' => array_values($files)]);
@@ -305,7 +333,7 @@ class ManagementTask extends Component
                     $q->orderBy('is_completed', 'asc')
                       ->orderBy('created_at', 'asc');
                 }])
-                ->when($this->search, fn($q) => $q->where('title', 'like', '%'.$this->search.'%'))
+                ->when($this->search, fn($q) => $q->where('title', 'like', '%'.addcslashes((string) $this->search, '%_\\').'%'))
                 ->when($this->quickFilter === 'high_prio', fn($q) => $q->where('priority', 'hoch'))
                 ->when($this->quickFilter === 'due_today', fn($q) => $q->where(function($sub) {
                     $sub->whereDate('relevant_from', '<=', now()->toDateString())

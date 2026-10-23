@@ -146,7 +146,7 @@ class CartService
         if (!$item) return;
 
         // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb modifizieren
-        if (!auth()->guard('admin')->check()) {
+        if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
             $currentCart = $this->getCart();
             if ($item->cart_id !== $currentCart->id) {
                 \Illuminate\Support\Facades\Log::warning("Unberechtigter Zugriffsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
@@ -197,7 +197,7 @@ class CartService
         if (!$item) return;
 
         // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb modifizieren
-        if (!auth()->guard('admin')->check()) {
+        if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
             $currentCart = $this->getCart();
             if ($item->cart_id !== $currentCart->id) {
                 \Illuminate\Support\Facades\Log::warning("Unberechtigter Mengen-Änderungsversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
@@ -236,7 +236,7 @@ class CartService
         $item = CartItem::find($itemId);
         if ($item) {
             // IDOR-Schutz: Kunden dürfen nur Artikel aus ihrem eigenen aktiven Warenkorb entfernen
-            if (!auth()->guard('admin')->check()) {
+            if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
                 $currentCart = $this->getCart();
                 if ($item->cart_id !== $currentCart->id) {
                     \Illuminate\Support\Facades\Log::warning("Unberechtigter Löschversuch auf fremdes CartItem {$itemId} aus Cart {$currentCart->id}");
@@ -353,9 +353,9 @@ class CartService
     }
 
     /**
-     * Bereinigt und validiert Artikelkonfigurationen gegen Preis- und Gutschein-Manipulation.
+     * Bereinigt und validiert Artikelkonfigurationen gegen Preis-, Gutschein- und Pfad-Manipulation.
      */
-    private function sanitizeConfiguration(Product $product, ?array $configuration): ?array
+    public function sanitizeConfiguration(Product $product, ?array $configuration): ?array
     {
         if ($configuration === null) {
             return null;
@@ -385,6 +385,33 @@ class CartService
             }
             $configuration['amount_cents'] = max(500, min(100000, $rawCents));
             $configuration['is_gift_voucher'] = true;
+        }
+
+        // Pfad-Validierung gegen Path Traversal in Konfigurator-Dateien
+        if (isset($configuration['files']) && is_array($configuration['files'])) {
+            $configuration['files'] = array_values(array_filter($configuration['files'], function ($f) {
+                return is_string($f) && !str_contains($f, '..') && !str_contains($f, "\0") && !str_starts_with($f, '/') && !str_starts_with($f, '\\');
+            }));
+        }
+
+        foreach (['logos', 'logos_back'] as $logoKey) {
+            if (isset($configuration[$logoKey]) && is_array($configuration[$logoKey])) {
+                $configuration[$logoKey] = array_values(array_filter($configuration[$logoKey], function ($logo) {
+                    if (!is_array($logo) || !isset($logo['value']) || !is_string($logo['value'])) {
+                        return false;
+                    }
+                    $v = $logo['value'];
+                    return !str_contains($v, '..') && !str_contains($v, "\0") && !str_starts_with($v, '/') && !str_starts_with($v, '\\');
+                }));
+            }
+        }
+
+        foreach (['logo_path', 'snapshot_path', 'snapshot_back_path'] as $pathKey) {
+            if (isset($configuration[$pathKey]) && is_string($configuration[$pathKey])) {
+                if (str_contains($configuration[$pathKey], '..') || str_contains($configuration[$pathKey], "\0")) {
+                    unset($configuration[$pathKey]);
+                }
+            }
         }
 
         return $configuration;

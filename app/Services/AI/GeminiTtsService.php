@@ -12,7 +12,8 @@ class GeminiTtsService
      */
     public static function synthesizeWav(string $text, string $voice = 'Aoede'): ?string
     {
-        $voice = trim($voice) ?: 'Aoede';
+        $voice = preg_replace('/[^a-zA-Z0-9_\-]/', '', trim($voice)) ?: 'Aoede';
+        $text = mb_substr(trim($text), 0, 2000);
         $cacheKey = 'gemini_tts_sample_' . md5($voice . '_' . $text);
 
         return Cache::remember($cacheKey, 86400, function () use ($text, $voice) {
@@ -20,13 +21,13 @@ class GeminiTtsService
                 return base64_encode('RIFF_TEST_WAV_DATA_' . $voice);
             }
 
-            $apiKey = config('services.gemini.api_key') ?: env('GEMINI_API_KEY');
+            $apiKey = config('services.gemini.key') ?: config('services.gemini.api_key') ?: env('GEMINI_API_KEY');
             if (empty($apiKey)) {
                 Log::warning("GeminiTtsService: No GEMINI_API_KEY found.");
                 return null;
             }
 
-            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=' . $apiKey;
+            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent';
 
             $promptText = "Lies folgenden Text freundlich und natürlich vor: " . $text;
 
@@ -55,10 +56,16 @@ class GeminiTtsService
             try {
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'x-goog-api-key: ' . $apiKey,
+                ]);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
                 curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, !app()->environment('local', 'testing'));
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, app()->environment('local', 'testing') ? 0 : 2);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                 $response = curl_exec($ch);
                 curl_close($ch);
 

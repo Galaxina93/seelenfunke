@@ -15,8 +15,13 @@ use Stripe\Stripe;
 
 class OrderCheckoutSuccess extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public $finalOrderNumber = '';
+
+    #[\Livewire\Attributes\Locked]
     public $email = '';
+
+    #[\Livewire\Attributes\Locked]
     public $referralCode = '';
 
     public function mount()
@@ -45,6 +50,11 @@ class OrderCheckoutSuccess extends Component
             return;
         }
 
+        if (Auth::guard('customer')->check() && $order->customer_id && (string) $order->customer_id !== (string) Auth::guard('customer')->id()) {
+            Log::warning("CheckoutSuccess: Unberechtigter Zugriffsversuch auf fremde Order {$order->id}");
+            return;
+        }
+
         $this->finalOrderNumber = $order->order_number;
         $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
         $this->resolveReferralCode($order);
@@ -55,6 +65,12 @@ class OrderCheckoutSuccess extends Component
         try {
             Stripe::setApiKey($stripeSecret);
             $intent = PaymentIntent::retrieve($intentId);
+
+            $clientSecretParam = request()->query('payment_intent_client_secret');
+            if ($clientSecretParam && isset($intent->client_secret) && !hash_equals((string) $intent->client_secret, (string) $clientSecretParam)) {
+                Log::warning("CheckoutSuccess: Ungültiges payment_intent_client_secret für Intent {$intentId}");
+                return;
+            }
 
             if ($intent->status === 'succeeded') {
 

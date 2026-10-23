@@ -81,7 +81,7 @@ Route::prefix('funki/emails')->group(function () {
         }
 
         if ($request->has('search') && !empty($request->search)) {
-            $search = '%' . $request->search . '%';
+            $search = '%' . addcslashes((string) $request->search, '%_\\') . '%';
             $query->where(function ($q) use ($search) {
                 $q->where('subject', 'like', $search)
                   ->orWhere('from_email', 'like', $search)
@@ -148,6 +148,17 @@ Route::prefix('funki/emails')->group(function () {
 
         if (!$account->smtp_host) {
             return response()->json(['error' => 'SMTP Konfiguration fehlt'], 400);
+        }
+
+        if (!\App\Services\System\SystemSecurityService::isSafeMailHost((string) $account->smtp_host)) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:ssrf_mail_host_blocked',
+                'ERROR',
+                'Unsicherer SMTP-Server Host beim Versand über API blockiert (SSRF-Schutz).',
+                ['smtp_host' => $account->smtp_host],
+                'idor_integrity'
+            );
+            return response()->json(['error' => 'Ungültiger oder intern gesperrter SMTP-Host.'], 422);
         }
 
         $attachmentDataParams = [];
@@ -247,9 +258,13 @@ Route::prefix('funki/emails')->group(function () {
 
     // 5. Move Message
     Route::put('/messages/{id}/move', function (Request $request, $id) {
-        $data = $request->validate(['folder' => 'required|string']);
+        $data = $request->validate(['folder' => 'required|string|max:50']);
+        $folder = trim($data['folder']);
+        if ($folder === '' || preg_match('/(\.\.|[\/\\\\\x00-\x1F])/', $folder)) {
+            return response()->json(['error' => 'Ungültiger Ordnername.'], 422);
+        }
         $msg = MailMessage::findOrFail($id);
-        $msg->update(['folder' => $data['folder'], 'is_archived' => ($data['folder'] === 'Archive')]);
+        $msg->update(['folder' => $folder, 'is_archived' => ($folder === 'Archive')]);
         return response()->json(['success' => true]);
     });
 
@@ -378,9 +393,14 @@ Route::prefix('funki/emails')->group(function () {
             'name' => 'required|string|max:50'
         ]);
 
+        $folderName = trim($data['name']);
+        if ($folderName === '' || preg_match('/(\.\.|[\/\\\\\x00-\x1F])/', $folderName)) {
+            return response()->json(['error' => 'Ungültiger Ordnername.'], 422);
+        }
+
         $folder = \App\Models\Management\Mail\MailFolder::firstOrCreate([
             'mail_account_id' => $data['account_id'],
-            'name' => trim($data['name'])
+            'name' => $folderName
         ]);
 
         return response()->json(['success' => true, 'data' => $folder]);

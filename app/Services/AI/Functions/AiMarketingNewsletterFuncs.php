@@ -191,13 +191,15 @@ trait AiMarketingNewsletterFuncs
         }
 
         $daysOffset = max(0, min(365, (int)($args['days_offset'] ?? 0)));
+        $safeSubject = substr(str_replace(["\r", "\n"], ' ', trim((string) ($args['subject'] ?? ''))), 0, 255);
+        $safeContent = \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) ($args['content'] ?? ''));
 
         $template = MarketingNewsletter::create([
             'type' => 'automated',
             'title' => substr(ucfirst(str_replace('_', ' ', $eventKey)) . ' Kampagne', 0, 255),
             'target_event_key' => $eventKey,
-            'subject' => substr(trim($args['subject'] ?? ''), 0, 255),
-            'content' => $args['content'] ?? '',
+            'subject' => $safeSubject,
+            'content' => $safeContent,
             'days_offset' => $daysOffset,
             'is_active' => true
         ]);
@@ -213,12 +215,16 @@ trait AiMarketingNewsletterFuncs
             return ['status' => 'error', 'message' => 'Ungültiges Datumsformat für send_at. Nutze YYYY-MM-DD HH:MM'];
         }
 
+        $safeTitle = substr(str_replace(["\r", "\n"], ' ', trim((string) ($args['title'] ?? ''))), 0, 255);
+        $safeSubject = substr(str_replace(["\r", "\n"], ' ', trim((string) ($args['subject'] ?? ''))), 0, 255);
+        $safeContent = \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) ($args['content'] ?? ''));
+
         $template = MarketingNewsletter::create([
             'type' => 'manual',
-            'title' => substr(trim($args['title'] ?? ''), 0, 255),
+            'title' => $safeTitle,
             'target_event_key' => null,
-            'subject' => substr(trim($args['subject'] ?? ''), 0, 255),
-            'content' => $args['content'] ?? '',
+            'subject' => $safeSubject,
+            'content' => $safeContent,
             'send_at' => $sendAt,
             'days_offset' => 0,
             'is_active' => true

@@ -39,7 +39,7 @@ class StealthCrawlerService
             'base_uri' => 'https://www.etsy.com/',
             'timeout'  => 60.0,
             'cookies'  => true,
-            'verify' => false,
+            'verify' => !app()->environment('local', 'testing'),
         ]);
 
         for ($page = 1; $page <= $pages; $page++) {
@@ -62,7 +62,7 @@ class StealthCrawlerService
 
                 if ($scraperApiKey) {
                     $updateJobState((int)$progress, "Routing via ScraperAPI (Stealth Mode) für Seite {$page}...");
-                    $apiUrl = "http://api.scraperapi.com?api_key={$scraperApiKey}&url=" . urlencode($targetUrl) . "&keep_headers=true";
+                    $apiUrl = "https://api.scraperapi.com?api_key={$scraperApiKey}&url=" . urlencode($targetUrl) . "&keep_headers=true";
                     $response = $client->request('GET', $apiUrl, [
                         'headers' => $this->getRandomHeaders()
                     ]);
@@ -226,7 +226,7 @@ class StealthCrawlerService
             $targetUrl = "https://www.amazon.de/s?k=" . urlencode($keyword) . "&page={$page}";
             
             try {
-                $response = $client->request('GET', 'http://api.scraperapi.com', [
+                $response = $client->request('GET', 'https://api.scraperapi.com', [
                     'query' => [
                         'api_key' => $apiKey,
                         'url' => $targetUrl,
@@ -346,7 +346,7 @@ class StealthCrawlerService
             $targetUrl = "https://www.alibaba.com/trade/search?SearchText=" . urlencode($keyword) . "&page={$page}";
             
             try {
-                $response = $client->request('GET', 'http://api.scraperapi.com', [
+                $response = $client->request('GET', 'https://api.scraperapi.com', [
                     'query' => [
                         'api_key' => $apiKey,
                         'url' => $targetUrl,

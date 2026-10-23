@@ -23,19 +23,23 @@ class NewsletterAutomaticMail extends Mailable implements ShouldQueue
 
     public function build()
     {
-        // Name ermitteln (Datenbank oder Fallback)
+        // Name ermitteln (Datenbank oder Fallback) und gegen HTML-Injection escapen
         $nameToUse = !empty($this->subscriber->first_name)
-            ? $this->subscriber->first_name
+            ? e((string) $this->subscriber->first_name)
             : 'du';
+
+        $safeTemplateContent = \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) ($this->template->content ?? ''));
 
         // Platzhalter ersetzen (Unterstützt alte und neue Tag-Syntax)
         $contentReplaced = str_replace(
             ['{first_name}', '{NAME}', '{year}', '{URL}', '{UNSUBSCRIBE_LINK}'],
             [$nameToUse, $nameToUse, date('Y'), url('/'), url('/newsletter')],
-            $this->template->content
+            $safeTemplateContent
         );
 
-        return $this->subject($this->template->subject)
+        $safeSubject = str_replace(["\r", "\n"], ' ', trim((string) ($this->template->subject ?? 'Newsletter')));
+
+        return $this->subject($safeSubject)
             ->view('global.mails.newsletter.new_newsletter_test_mail_to_admin')
             ->with(['content' => $contentReplaced]);
     }

@@ -150,7 +150,8 @@ class MarketingVoucherPurchasePage extends Component
 
         // 3. Add to Cart
         try {
-            $cartService->addItem($this->product, 1, $config);
+            $voucherProduct = Product::where('slug', 'geschenkgutschein')->firstOrFail();
+            $cartService->addItem($voucherProduct, 1, $config);
             $this->dispatch('cart-updated');
             session()->flash('success', 'Der Gutschein wurde in den Warenkorb gelegt.');
             return redirect()->route('cart');

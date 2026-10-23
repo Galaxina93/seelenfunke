@@ -19,9 +19,16 @@ class SystemLogs extends Component
     public $agentFilter = '';
     public $domainFilter = '';
     
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -110,12 +117,13 @@ class SystemLogs extends Component
             ->selectRaw('*, (SELECT COUNT(*) FROM system_logs as l2 WHERE l2.message = system_logs.message AND l2.status IN ("error", "warning")) as error_count');
 
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('message', 'like', '%' . $this->search . '%')
-                  ->orWhere('title', 'like', '%' . $this->search . '%')
-                  ->orWhere('action_id', 'like', '%' . $this->search . '%')
-                  ->orWhere('type', 'like', '%' . $this->search . '%')
-                  ->orWhere('payload', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('message', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('title', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('action_id', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('type', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('payload', 'like', '%' . $escapedSearch . '%');
             });
         }
 
@@ -136,7 +144,7 @@ class SystemLogs extends Component
         }
 
         if ($this->domainFilter) {
-            $query->where('action_id', 'like', $this->domainFilter . '%');
+            $query->where('action_id', 'like', addcslashes((string) $this->domainFilter, '%_\\') . '%');
         }
 
         $logs = $query->latest()->paginate(50);

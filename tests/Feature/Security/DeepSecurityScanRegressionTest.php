@@ -634,4 +634,819 @@ class DeepSecurityScanRegressionTest extends TestCase
             'filename' => '../../.env',
         ])['error'] ?? false);
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_hardens_system_backups_neural_analysis_and_shipping_against_traversal_and_injection(): void
+    {
+        Storage::fake('local');
+        $this->actingAs($this->admin, 'admin');
+
+        // 1. SystemBackups blocks deleting or downloading .zip files outside the configured backup folder
+        config(['backup.backup.name' => 'Laravel', 'backup.backup.destination.disks' => ['local']]);
+        Storage::disk('local')->put('other-folder/secret-archive.zip', 'secret');
+        Storage::disk('local')->put('Laravel/2026-10-23-backup.zip', 'valid-backup');
+
+        Livewire::test(\App\Livewire\Shop\System\SystemBackups::class)
+            ->call('deleteBackup', 'other-folder/secret-archive.zip');
+
+        $this->assertTrue(Storage::disk('local')->exists('other-folder/secret-archive.zip'));
+
+        Livewire::test(\App\Livewire\Shop\System\SystemBackups::class)
+            ->call('deleteBackup', 'Laravel/2026-10-23-backup.zip');
+
+        $this->assertFalse(Storage::disk('local')->exists('Laravel/2026-10-23-backup.zip'));
+
+        // 2. SystemNeuralAnalysisIndex blocks .env and path traversal in generateMarkdownForFile
+        $this->assertNull(\App\Livewire\Backend\System\SystemNeuralAnalysisIndex::generateMarkdownForFile('.env'));
+        $this->assertNull(\App\Livewire\Backend\System\SystemNeuralAnalysisIndex::generateMarkdownForFile('../../.env'));
+        $this->assertNull(\App\Livewire\Backend\System\SystemNeuralAnalysisIndex::generateMarkdownForFile('/etc/passwd'));
+
+        // 3. SystemShipping blocks non-whitelisted country codes & CSS injection payloads
+        $zone = \App\Models\Logistics\LogisticsShippingZone::create([
+            'name' => 'Testzone',
+            'is_active' => true,
+        ]);
+
+        Livewire::test(\App\Livewire\Shop\System\SystemShipping::class)
+            ->call('editZone', $zone->id)
+            ->set('selectedCountryToAdd', "']")
+            ->call('addCountry')
+            ->assertHasErrors(['selectedCountryToAdd']);
+
+        $this->assertDatabaseMissing('logistics_shipping_zone_countries', [
+            'country_code' => "']",
+        ]);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_prevents_xss_and_smtp_ssrf_in_management_emails_and_sanitizes_contract_extensions(): void
+    {
+        $this->actingAs($this->admin, 'admin');
+
+        $account = \App\Models\Management\Mail\MailAccount::forceCreate([
+            'name' => 'Internal Test Account',
+            'email' => 'office@example.com',
+            'password' => encrypt('secret'),
+            'imap_host' => 'imap.example.com',
+            'smtp_host' => '127.0.0.1',
+            'smtp_port' => '465',
+            'smtp_encryption' => 'ssl',
+            'status' => 'connected',
+            'is_default' => true,
+        ]);
+
+        $msg = \App\Models\Management\Mail\MailMessage::create([
+            'mail_account_id' => $account->id,
+            'message_id' => 'xss-msg-1',
+            'folder' => 'INBOX',
+            'subject' => 'Anfrage',
+            'from_name' => '<img src=x onerror=alert(1)>',
+            'from_email' => 'attacker@example.com',
+            'to_email' => 'office@example.com',
+            'body_plain' => 'Hallo Welt',
+            'received_at' => now(),
+        ]);
+
+        $comp = Livewire::test(\App\Livewire\Shop\Management\ManagementEMails::class)
+            ->call('openCompose', 'reply', $msg->id);
+
+        $composeBody = (string) $comp->get('composeBody');
+        $this->assertStringNotContainsString('<img src=x onerror=alert(1)>', $composeBody);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;', $composeBody);
+
+        // Sending via internal/loopback SMTP host (127.0.0.1) is blocked by SSRF protection
+        $comp->set('composeTo', 'customer@example.com')
+            ->set('composeSubject', 'Test')
+            ->call('sendMail')
+            ->assertSet('showComposeModal', true);
+
+        // ContractDocumentService blocks executable extensions and defaults them to .pdf
+        $contractService = new \App\Services\Accounting\ContractDocumentService();
+        $fileName = $contractService->generateLogicalFileName('2026-10-23', 'ACME', 'Wartungsvertrag', 'php');
+        $this->assertStringEndsWith('.pdf', $fileName);
+        $this->assertStringNotContainsString('.php', $fileName);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_strips_path_traversal_from_cart_and_configurator_configurations(): void
+    {
+        $product = Product::create([
+            'name' => 'Konfigurierbares Glas',
+            'slug' => 'konfigurierbares-glas',
+            'price' => 2990,
+            'type' => 'physical',
+            'status' => 'active',
+        ]);
+
+        $cartService = app(\App\Services\CartService::class);
+        $sanitized = $cartService->sanitizeConfiguration($product, [
+            'files' => ['bestellungen/cart-uploads/valid.png', '../../.env', '/etc/passwd'],
+            'logos' => [
+                ['value' => 'vectors/heart.svg', 'x' => 50, 'y' => 50],
+                ['value' => '../../../.env', 'x' => 50, 'y' => 50],
+            ],
+            'logo_path' => '../../.env',
+            'snapshot_path' => '../secret.png',
+        ]);
+
+        $this->assertEquals(['bestellungen/cart-uploads/valid.png'], $sanitized['files']);
+        $this->assertCount(1, $sanitized['logos']);
+        $this->assertEquals('vectors/heart.svg', $sanitized['logos'][0]['value']);
+        $this->assertArrayNotHasKey('logo_path', $sanitized);
+        $this->assertArrayNotHasKey('snapshot_path', $sanitized);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_blocks_unauthenticated_password_reset_token_injection_and_open_mail_relay_via_traits(): void
+    {
+        $resetRef = new \ReflectionClass(\App\Traits\handlePasswordResetTrait::class);
+        $this->assertTrue($resetRef->getMethod('updatePasswordResetToken')->isProtected());
+        $this->assertTrue($resetRef->getMethod('generateToken')->isProtected());
+        $this->assertTrue($resetRef->getMethod('resetPassword')->isProtected());
+
+        $mailRef = new \ReflectionClass(\App\Traits\handleMailsTrait::class);
+        $this->assertTrue($mailRef->getMethod('sendMail')->isProtected());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $notification = new \App\Notifications\globalNotification([
+            'subject' => "Test\r\nBcc: victim@example.com",
+            'viewTemplate' => 'livewire.auth.auth-login',
+        ]);
+        $notification->toMail(new \stdClass());
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_broadcasts_internal_workspace_telephony_and_crm_events_only_on_private_channels(): void
+    {
+        $speechEvent = new \App\Events\AiWidgetSpeechEvent('agent-1', 'Geheimer Text');
+        $speechChannels = $speechEvent->broadcastOn();
+        $this->assertInstanceOf(\Illuminate\Broadcasting\PrivateChannel::class, $speechChannels[0]);
+        $this->assertEquals('private-workspace', $speechChannels[0]->name);
+
+        $frontendEvent = new \App\Events\AiFrontendEvent('test-event', []);
+        $frontendChannels = $frontendEvent->broadcastOn();
+        $this->assertInstanceOf(\Illuminate\Broadcasting\PrivateChannel::class, $frontendChannels[0]);
+        $this->assertEquals('private-workspace', $frontendChannels[0]->name);
+
+        $telephonyEvent = new \App\Events\SupportTelephonyUpdated();
+        $telephonyChannel = $telephonyEvent->broadcastOn();
+        $this->assertInstanceOf(\Illuminate\Broadcasting\PrivateChannel::class, $telephonyChannel);
+        $this->assertEquals('private-telephony', $telephonyChannel->name);
+
+        $mailEvent = new \App\Events\Management\MailReceivedEvent();
+        $mailChannels = $mailEvent->broadcastOn();
+        $this->assertInstanceOf(\Illuminate\Broadcasting\PrivateChannel::class, $mailChannels[0]);
+        $this->assertEquals('private-crm-inbox', $mailChannels[0]->name);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_locks_qr_code_svg_and_blocks_javascript_urls_in_profile_dropdown(): void
+    {
+        $ref = new \ReflectionProperty(\App\Livewire\Auth\AuthProfileDropdown::class, 'qrCodeSvg');
+        $lockedAttrs = $ref->getAttributes(\Livewire\Attributes\Locked::class);
+        $this->assertNotEmpty($lockedAttrs, 'AuthProfileDropdown::$qrCodeSvg must be #[Locked]');
+
+        $customer = Customer::factory()->create();
+        $this->actingAs($customer, 'customer');
+
+        Livewire::test(\App\Livewire\Auth\AuthProfileDropdown::class)
+            ->set('firstName', 'Max')
+            ->set('lastName', 'Mustermann')
+            ->set('email', $customer->email)
+            ->set('url', 'javascript:alert(document.cookie)')
+            ->call('saveProfile')
+            ->assertHasErrors(['url']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_locks_frontend_support_chat_state_and_enforces_customer_isolation_in_ai_support_funcs(): void
+    {
+        foreach (['messages', 'agentName', 'agentImage', 'guestLimitReached', 'isResolved', 'ratingSubmitted'] as $prop) {
+            $ref = new \ReflectionProperty(\App\Livewire\Frontend\Support\AiFrontendSupportChat::class, $prop);
+            $this->assertNotEmpty(
+                $ref->getAttributes(\Livewire\Attributes\Locked::class),
+                "AiFrontendSupportChat::\${$prop} must be #[Locked]"
+            );
+        }
+
+        $admin = Admin::factory()->create();
+        $victimCustomer = Customer::factory()->create();
+        $order = OrderOrder::create([
+            'order_number' => 'ORD-ISOLATION-999',
+            'customer_id' => $victimCustomer->id,
+            'email' => $victimCustomer->email,
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'billing_address' => ['first_name' => 'Victim', 'last_name' => 'User'],
+            'shipping_address' => [],
+            'subtotal_price' => 1000,
+            'tax_amount' => 190,
+            'shipping_price' => 0,
+            'total_price' => 1000,
+        ]);
+
+        // Even if an admin guard is active in the browser, public support chat context (__chat_id present)
+        // must never bypass customer_id scoping when no customer is logged in.
+        $this->actingAs($admin, 'admin');
+        $res = \App\Services\AI\Functions\AiSupportFuncs::executeGetOrderStatus([
+            'identifier' => $order->order_number,
+            '__chat_id' => 'public-support-chat-123',
+        ]);
+        $this->assertEquals('error', $res['status']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_blocks_cross_site_and_cross_origin_csrf_on_cookie_authenticated_ai_api_routes(): void
+    {
+        $admin = Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
+
+        $crossSite = $this->withHeaders([
+            'Sec-Fetch-Site' => 'cross-site',
+        ])->postJson('/api/ai/execute', [
+            'function' => 'system_health',
+        ]);
+        $crossSite->assertStatus(403);
+
+        $crossOrigin = $this->withHeaders([
+            'Origin' => 'https://evil-attacker.example.com',
+        ])->postJson('/api/ai/execute', [
+            'function' => 'system_health',
+        ]);
+        $crossOrigin->assertStatus(403);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_rejects_wildcard_chat_ids_and_short_tokens_in_telegram_agent_webhook(): void
+    {
+        // Short token (< 20 chars) must be rejected immediately
+        $shortTokenResp = $this->postJson('/api/telegram/webhook/short-token', [
+            'message' => ['chat' => ['id' => 123456], 'text' => 'Hallo'],
+        ]);
+        $shortTokenResp->assertStatus(404);
+
+        // Agent with wildcard '*' in telegram_allowed_chat_ids must NOT allow arbitrary chat IDs
+        $validToken = '1234567890:AAH_test_valid_length_telegram_token_xyz';
+        \App\Models\Ai\AiAgent::create([
+            'name' => 'TelegramSecTestAgent',
+            'model' => 'gemini-2.5-flash',
+            'is_active' => true,
+            'telegram_bot_token' => $validToken,
+            'telegram_allowed_chat_ids' => ['*'],
+        ]);
+
+        \Illuminate\Support\Facades\Http::fake([
+            'https://api.telegram.org/*' => \Illuminate\Support\Facades\Http::response(['ok' => true], 200),
+        ]);
+
+        $wildcardResp = $this->postJson('/api/telegram/webhook/' . $validToken, [
+            'message' => ['chat' => ['id' => 999888777], 'text' => 'Secret Command'],
+        ]);
+        $wildcardResp->assertStatus(200)
+            ->assertJson(['status' => 'unauthorized']);
+
+        \Illuminate\Support\Facades\Http::assertSent(function ($request) {
+            return str_contains($request->url(), 'sendMessage')
+                && str_contains((string) ($request['text'] ?? ''), 'nicht berechtigt');
+        });
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_blocks_ssrf_smtp_host_and_folder_traversal_in_funki_emails_api(): void
+    {
+        $admin = Admin::factory()->create();
+        \Laravel\Sanctum\Sanctum::actingAs($admin, ['*']);
+
+        $unsafeAccount = \App\Models\Management\Mail\MailAccount::create([
+            'name' => 'Loopback SMTP',
+            'email' => 'loopback@example.com',
+            'password' => 'secret',
+            'imap_host' => '127.0.0.1',
+            'imap_port' => 993,
+            'smtp_host' => '127.0.0.1',
+            'smtp_port' => 587,
+            'status' => 'connected',
+            'is_default' => true,
+        ]);
+
+        $sendResp = $this->postJson('/api/funki/emails/send', [
+            'account_id' => $unsafeAccount->id,
+            'to' => 'customer@example.com',
+            'subject' => 'Test',
+            'body' => 'Hello',
+        ]);
+        $sendResp->assertStatus(422);
+
+        $folderResp = $this->postJson('/api/funki/emails/folders', [
+            'account_id' => $unsafeAccount->id,
+            'name' => '../etc/passwd',
+        ]);
+        $folderResp->assertStatus(422);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_rotates_remember_token_on_forced_customer_password_change(): void
+    {
+        $customer = Customer::factory()->create([
+            'needs_password_change' => true,
+            'remember_token' => 'old-static-remember-token-12345',
+        ]);
+
+        $this->actingAs($customer, 'customer');
+
+        Livewire::test(\App\Livewire\Customer\CustomerForcePasswordChange::class)
+            ->set('password', 'NewSecurePass99!')
+            ->set('passwordConfirm', 'NewSecurePass99!')
+            ->call('submit')
+            ->assertHasNoErrors();
+
+        $customer->refresh();
+        $this->assertFalse((bool) $customer->needs_password_change);
+        $this->assertNotEquals('old-static-remember-token-12345', $customer->remember_token);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_enforces_boot_auth_guards_on_master_and_ai_admin_livewire_components(): void
+    {
+        $classes = [
+            \App\Livewire\Shop\Master\MasterAnalytics::class,
+            \App\Livewire\Shop\Master\MasterShopCapacity::class,
+            \App\Livewire\Shop\Master\MasterStorageCapacity::class,
+            \App\Livewire\Shop\Ai\PartialsAiWorkspace\TabCronjobs::class,
+            \App\Livewire\Shop\Ai\AiAgentEditor::class,
+            \App\Livewire\Shop\Ai\AiRoleManager::class,
+            \App\Livewire\Shop\Ai\AiKnowledgeBase::class,
+            \App\Livewire\Shop\Ai\AiKnowledgeBaseCategories::class,
+            \App\Livewire\Shop\Ai\AiKnowledgeBaseTags::class,
+            \App\Livewire\Shop\Ai\AiCompanyStructure::class,
+            \App\Livewire\Shop\Ai\AiAnalytics::class,
+            \App\Livewire\Shop\Ai\AiMethod::class,
+        ];
+
+        foreach ($classes as $class) {
+            $this->assertTrue(
+                method_exists($class, 'boot'),
+                "{$class} must implement boot() to guard all subsequent Livewire requests"
+            );
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_locks_db_products_in_product_calculator_and_enforces_product_scoped_templates(): void
+    {
+        $ref = new \ReflectionProperty(\App\Livewire\Shop\Product\ProductCalculator\ProductCalculator::class, 'dbProducts');
+        $this->assertNotEmpty(
+            $ref->getAttributes(\Livewire\Attributes\Locked::class),
+            'ProductCalculator::$dbProducts must be #[Locked] to prevent client-side price manipulation'
+        );
+
+        $productA = \App\Models\Product\Product::create([
+            'name' => 'Produkt A',
+            'slug' => 'produkt-a-sec-test',
+            'price' => 2500,
+            'status' => 'active',
+            'type' => 'physical',
+            'is_personalizable' => true,
+        ]);
+        $productB = \App\Models\Product\Product::create([
+            'name' => 'Produkt B',
+            'slug' => 'produkt-b-sec-test',
+            'price' => 4500,
+            'status' => 'active',
+            'type' => 'physical',
+            'is_personalizable' => true,
+        ]);
+
+        $foreignTemplate = \App\Models\Product\ProductTemplate::create([
+            'product_id' => $productB->id,
+            'name' => 'Fremde Vorlage',
+            'configuration' => ['text' => 'Injected Foreign Config'],
+            'is_active' => true,
+        ]);
+
+        Livewire::test(\App\Livewire\Shop\Product\ProductShow::class, ['product' => $productA])
+            ->call('selectTemplate', $foreignTemplate->id)
+            ->assertSet('currentConfig', []);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_enforces_boot_auth_guards_on_product_and_marketing_admin_livewire_components(): void
+    {
+        $classes = [
+            \App\Livewire\Shop\Product\ProductAnalytics::class,
+            \App\Livewire\Shop\Product\ProductConfiguratorSettings::class,
+            \App\Livewire\Shop\Product\ProductPackagingConfigurator::class,
+            \App\Livewire\Shop\Product\ProductTierPricing::class,
+            \App\Livewire\Shop\Product\ProductVariants::class,
+            \App\Livewire\Shop\Marketing\MarketingHerzensprojekte::class,
+        ];
+
+        foreach ($classes as $class) {
+            $this->assertTrue(
+                method_exists($class, 'boot'),
+                "{$class} must implement boot() to guard all subsequent Livewire requests"
+            );
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_blocks_path_traversal_in_glb_optimizer_and_validates_calendar_api(): void
+    {
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+        $resTraversal = $optimizer->optimizeGlb('../../etc/passwd');
+        $this->assertFalse($resTraversal['success']);
+
+        $resWrongExt = $optimizer->optimizeGlb(storage_path('app/test.txt'));
+        $this->assertFalse($resWrongExt['success']);
+
+        $admin = Admin::factory()->create();
+        \Laravel\Sanctum\Sanctum::actingAs($admin, ['*']);
+
+        $calResp = $this->postJson('/api/funki/calendar/events', [
+            'title' => 'Test Event',
+            'start' => now()->toIso8601String(),
+            'recurrence' => 'infinite_loop_attack',
+            'priority' => 'invalid_priority',
+        ]);
+        $calResp->assertStatus(422)
+            ->assertJsonValidationErrors(['recurrence', 'priority']);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_locks_sensitive_properties_in_checkout_success_quote_acceptance_emergency_and_landing_page(): void
+    {
+        $lockedChecks = [
+            [\App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess::class, 'finalOrderNumber'],
+            [\App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess::class, 'email'],
+            [\App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess::class, 'referralCode'],
+            [\App\Livewire\Shop\Order\OrderQuoteAcceptance::class, 'quote'],
+            [\App\Livewire\Shop\Order\OrderQuoteAcceptance::class, 'editingItem'],
+            [\App\Livewire\Frontend\Emergency\EmergencyProtocol::class, 'todoStates'],
+            [\App\Livewire\Frontend\Emergency\EmergencyProtocol::class, 'financeStates'],
+            [\App\Livewire\Landing\LandingPageView::class, 'landingPage'],
+        ];
+
+        foreach ($lockedChecks as [$class, $property]) {
+            $ref = new \ReflectionProperty($class, $property);
+            $this->assertNotEmpty(
+                $ref->getAttributes(\Livewire\Attributes\Locked::class),
+                "{$class}::\${$property} must be #[Locked]"
+            );
+        }
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_enforces_gobd_immutability_in_accounting_invoice_and_boot_guard_in_system_shop_config(): void
+    {
+        $this->assertTrue(
+            method_exists(\App\Livewire\Shop\System\SystemShopConfig::class, 'boot'),
+            'SystemShopConfig must implement boot() to guard all subsequent Livewire requests'
+        );
+
+        $admin = Admin::factory()->create();
+        $paidInvoice = \App\Models\Accounting\AccountingInvoice::create([
+            'invoice_number' => 'RE-GOBD-TEST-001',
+            'type' => 'invoice',
+            'status' => 'paid',
+            'invoice_date' => now(),
+            'subtotal' => 1000,
+            'tax_amount' => 190,
+            'total' => 1190,
+            'billing_address' => [
+                'first_name' => 'Max',
+                'last_name' => 'Mustermann',
+                'email' => 'max@example.com',
+            ],
+            'custom_items' => [],
+        ]);
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Accounting\AccountingInvoice::class)
+            ->call('editDraft', $paidInvoice->id)
+            ->assertForbidden();
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_prevents_infinite_loan_loop_in_accounting_liquidity_and_enforces_cart_item_ownership_in_cart_edit(): void
+    {
+        $admin = Admin::factory()->create();
+
+        // Attempting configRepaymentMonths = 1 with negative cashflow previously caused an infinite while-loop
+        Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Accounting\AccountingLiquidity::class)
+            ->set('configLoadDemoData', false)
+            ->set('configRepaymentMonths', 1)
+            ->set('configInterestRate', 999)
+            ->call('updateValue', (int) date('Y'), (int) date('n'), 'out', 'other_out', '5000')
+            ->assertSet('configRepaymentMonths', 2)
+            ->assertSet('configInterestRate', 50.0);
+
+        // Cart::edit() must not allow opening a foreign CartItem ID
+        $product = \App\Models\Product\Product::create([
+            'name' => 'Cart Ownership Produkt',
+            'slug' => 'cart-ownership-produkt',
+            'price' => 1990,
+            'status' => 'active',
+            'type' => 'physical',
+        ]);
+        $foreignCart = \App\Models\Cart\Cart::create(['session_id' => 'foreign-session-xyz']);
+        $foreignItem = \App\Models\Cart\CartItem::create([
+            'cart_id' => $foreignCart->id,
+            'product_id' => $product->id,
+            'quantity' => 1,
+            'unit_price' => 1990,
+            'total_price' => 1990,
+        ]);
+
+        Livewire::test(\App\Livewire\Shop\Cart\Cart::class)
+            ->call('edit', $foreignItem->id)
+            ->assertSet('editingItemId', null);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_restricts_ceo_financial_prompt_context_and_private_brain_categories_from_employees(): void
+    {
+        $employee = Employee::create([
+            'first_name' => 'Test',
+            'last_name' => 'Mitarbeiter',
+            'email' => 'mitarbeiter-r9@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+        $admin = Admin::factory()->create();
+
+        $privateCat = \App\Models\Ai\AiKnowledgeBaseCategory::firstOrCreate(
+            ['slug' => 'gesundheit-sozialrecht-bkk-firmus'],
+            ['name' => 'Gesundheit & Sozialrecht (BKK firmus)']
+        );
+        $publicCat = \App\Models\Ai\AiKnowledgeBaseCategory::firstOrCreate(
+            ['slug' => 'allgemeines-shop-wissen'],
+            ['name' => 'Allgemeines Shop-Wissen']
+        );
+
+        $privateArticle = \App\Models\Ai\AiKnowledgeBase::create([
+            'title' => 'Geheime BKK Akte',
+            'slug' => 'geheime-bkk-akte',
+            'ai_knowledge_base_category_id' => $privateCat->id,
+            'content' => '<p>Vertrauliche Diagnose</p>',
+            'is_published' => true,
+        ]);
+
+        // Employee cannot select, edit, or delete private CEO category articles in AiKnowledgeBase
+        Livewire::actingAs($employee, 'employee')
+            ->test(\App\Livewire\Shop\Ai\AiKnowledgeBase::class)
+            ->call('selectArticle', $privateArticle->id)
+            ->assertForbidden();
+
+        Livewire::actingAs($employee, 'employee')
+            ->test(\App\Livewire\Shop\Ai\AiKnowledgeBase::class)
+            ->call('deleteArticle', $privateArticle->id)
+            ->assertForbidden();
+
+        // Employee cannot read private CEO category via AiSystemFuncs::executeReadKnowledge
+        \Illuminate\Support\Facades\Auth::guard('employee')->login($employee);
+        $readRes = \App\Services\AI\Functions\AiSystemFuncs::executeReadKnowledge(['topic' => 'geheime-bkk-akte']);
+        $this->assertSame('error', $readRes['status']);
+
+        // Employee cannot search or delete CEO Brain via AiBrainFuncs
+        $brainSearchRes = \App\Services\AI\Functions\AiBrainFuncs::executeSearchBrain(['query' => 'Diagnose']);
+        $this->assertSame('error', $brainSearchRes['status']);
+
+        $brainDeleteRes = \App\Services\AI\Functions\AiBrainFuncs::executeDeleteBrainEntry(['search_query' => 'Geheime']);
+        $this->assertSame('error', $brainDeleteRes['status']);
+        \Illuminate\Support\Facades\Auth::guard('employee')->logout();
+
+        // Admin CAN access private CEO category via executeReadKnowledge and AiKnowledgeBase::sanitizeKnowledgeHtml strips XSS
+        \Illuminate\Support\Facades\Auth::guard('admin')->login($admin);
+        $adminReadRes = \App\Services\AI\Functions\AiSystemFuncs::executeReadKnowledge(['topic' => 'geheime-bkk-akte']);
+        $this->assertSame('success', $adminReadRes['status']);
+        \Illuminate\Support\Facades\Auth::guard('admin')->logout();
+
+        $sanitizedKb = \App\Livewire\Shop\Ai\AiKnowledgeBase::sanitizeKnowledgeHtml(
+            '<p onclick="alert(1)">Text</p><script>alert(2)</script><a href="javascript:alert(3)">Link</a>'
+        );
+        $this->assertStringNotContainsString('<script', $sanitizedKb);
+        $this->assertStringNotContainsString('onclick=', $sanitizedKb);
+        $this->assertStringNotContainsString('javascript:', $sanitizedKb);
+
+        // Public category article can be created by employee and XSS is stripped
+        Livewire::actingAs($employee, 'employee')
+            ->test(\App\Livewire\Shop\Ai\AiKnowledgeBase::class)
+            ->set('editForm.title', 'Sicherer Artikel')
+            ->set('editForm.ai_knowledge_base_category_id', $publicCat->id)
+            ->set('editForm.content', '<p>Hallo</p><script>evil()</script>')
+            ->call('saveArticle')
+            ->assertHasNoErrors();
+
+        $savedArticle = \App\Models\Ai\AiKnowledgeBase::where('title', 'Sicherer Artikel')->firstOrFail();
+        $this->assertStringNotContainsString('<script>', $savedArticle->content);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_sanitizes_blog_html_and_hardens_blade_templates_and_ssl_verification(): void
+    {
+        $admin = Admin::factory()->create();
+
+        $res = \App\Services\AI\Functions\AiMarketingBlogFuncs::marketing_blog_create_post([
+            'title' => 'Security Blog Post',
+            'content' => '<h2>Willkommen</h2><script>stealCookies()</script><img src="x" onerror="alert(1)"><a href="javascript:evil()">Klick</a>',
+            'status' => 'published',
+        ]);
+        $this->assertSame('success', $res['status']);
+
+        $post = \App\Models\Marketing\MarketingBlogPost::findOrFail($res['id']);
+        $this->assertStringNotContainsString('<script>', $post->content);
+        $this->assertStringNotContainsString('onerror=', $post->content);
+        $this->assertStringNotContainsString('javascript:', $post->content);
+        $this->assertStringContainsString('<h2>Willkommen</h2>', $post->content);
+
+        // Verify GeminiAgent::processVisionPrompt configures CURLOPT_SSL_VERIFYPEER
+        $geminiSource = file_get_contents(base_path('app/Services/AI/GeminiAgent.php'));
+        $this->assertSame(
+            3,
+            substr_count($geminiSource, 'CURLOPT_SSL_VERIFYPEER'),
+            'All 3 cURL endpoints in GeminiAgent must explicitly configure CURLOPT_SSL_VERIFYPEER'
+        );
+
+        // Verify FileDownloadService::downloadLaserSvg uses withoutRedirecting()
+        $downloadSource = file_get_contents(base_path('app/Services/Export/FileDownloadService.php'));
+        $this->assertStringContainsString('->withoutRedirecting()->get($url)', $downloadSource);
+
+        // Verify Blade templates strip unsafe HTML/links
+        $invoiceCreateBlade = file_get_contents(base_path('resources/views/livewire/shop/accounting/accounting-invoice-partials/invoice_create.blade.php'));
+        $this->assertStringContainsString("e(\$manualInvoice['footer_text'])", $invoiceCreateBlade);
+
+        $configuratorBlade = file_get_contents(base_path('resources/views/livewire/shop/product/product-configurator/product-configurator.blade.php'));
+        $this->assertStringNotContainsString('{!! $product->description !!}', $configuratorBlade);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_enforces_rbac_and_path_traversal_guards_in_ai_finance_master_scout_calendar_contact_and_routine_funcs(): void
+    {
+        $admin = Admin::factory()->create(['first_name' => 'Alina']);
+        $employee = Employee::create([
+            'first_name' => 'Test',
+            'last_name' => 'MitarbeiterR10',
+            'email' => 'mitarbeiter-r10@example.com',
+            'password' => bcrypt('password123'),
+        ]);
+        $customer = Customer::factory()->create();
+
+        $runner = new class {
+            use \App\Services\AI\Functions\AiFinanceFuncs;
+            use \App\Services\AI\Functions\AiMasterFuncs;
+            use \App\Services\AI\Functions\AiScoutFuncs;
+            use \App\Services\AI\Functions\AiCalendarFuncs;
+            use \App\Services\AI\Functions\AiContactFuncs;
+            use \App\Services\AI\Functions\AiRoutineFuncs;
+        };
+
+        // 1. Authenticated customer must be blocked from Finance, Master, Scout, Calendar, Contact & Routine tools
+        $this->actingAs($customer, 'customer');
+
+        $this->assertSame('error', $runner::executeGetFinances([])['status']);
+        $this->assertSame('error', $runner::executeListFixedCosts([])['status']);
+        $this->assertSame('error', $runner::executeReadFixedCostContract(['keyword' => 'Test'])['status']);
+        $this->assertSame('error', $runner::executeDeleteFixedCost(['id' => '123'])['status']);
+
+        $this->assertSame('error', $runner::executeGetCoreKpis([])['status']);
+        $this->assertSame('error', $runner::executeGetOperationalHealth([])['status']);
+        $this->assertSame('error', $runner::executeToggleMaintenance(['action' => 'down', 'secret_passphrase' => 'CONFIRM_CEO_OVERRIDE'])['status']);
+
+        $this->assertSame('error', $runner::executeGetCurrentMission([])['status']);
+        $this->assertSame('error', $runner::executeGetGamificationLeaderboard([])['status']);
+        $this->assertSame('error', $runner::executeSearchCustomers(['search_query' => 'Test'])['status']);
+
+        $this->assertSame('error', $runner::executeGetCalendarEvents([])['status']);
+        $this->assertSame('error', $runner::executeCreateCalendarEvent(['title' => 'Hack', 'start_date' => '2026-06-01 10:00:00'])['status']);
+        $this->assertSame('error', $runner::executeContactGetAll([])['status']);
+        $this->assertSame('error', $runner::executeContactSearch(['query' => 'Alina'])['status']);
+        $this->assertSame('error', $runner::executeGetDayRoutines([])['status']);
+
+        \Illuminate\Support\Facades\Auth::guard('customer')->logout();
+
+        // 2. Authenticated employee must be blocked from Admin-only Finance, Master & CEO Mission tools
+        $this->actingAs($employee, 'employee');
+
+        $this->assertSame('error', $runner::executeGetFinances([])['status']);
+        $this->assertSame('error', $runner::executeGetCoreKpis([])['status']);
+        $this->assertSame('error', $runner::executeToggleMaintenance(['action' => 'down', 'secret_passphrase' => 'CONFIRM_CEO_OVERRIDE'])['status']);
+        $this->assertSame('error', $runner::executeGetCurrentMission([])['status']);
+
+        \Illuminate\Support\Facades\Auth::guard('employee')->logout();
+
+        // 3. Path traversal in AccountingCostItem::contract_file_path must be blocked even for Admin
+        $this->actingAs($admin, 'admin');
+
+        $group = \App\Models\Accounting\AccountingGroup::create([
+            'admin_id' => $admin->id,
+            'name' => 'Fixkosten Test',
+            'type' => 'expense',
+            'position' => 1,
+        ]);
+
+        \App\Models\Accounting\AccountingCostItem::create([
+            'accounting_group_id' => $group->id,
+            'name' => 'Manipulierter Vertrag',
+            'amount' => 99.00,
+            'interval_months' => 1,
+            'first_payment_date' => now()->startOfMonth(),
+            'is_business' => true,
+            'tax_rate' => 19,
+            'contract_file_path' => '../../.env',
+        ]);
+
+        $traversalRes = $runner::executeReadFixedCostContract(['query' => 'Manipulierter Vertrag']);
+        $this->assertSame('error', $traversalRes['status']);
+        $this->assertStringContainsString('Ungültiger oder verdächtiger Dateipfad', $traversalRes['message']);
+
+        \Illuminate\Support\Facades\Auth::guard('admin')->logout();
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function it_sanitizes_newsletter_html_and_svg_uploads_and_prevents_configurator_path_traversal(): void
+    {
+        // 1. NewsletterAutomaticMail must escape subscriber first_name and sanitize template HTML
+        $template = \App\Models\Marketing\MarketingNewsletter::create([
+            'type' => 'manual',
+            'title' => 'Sicherheits-Newsletter',
+            'subject' => "Wichtige Info\r\nBcc: attacker@evil.com",
+            'content' => '<p>Hallo {first_name}</p><script>steal()</script><img src="x" onerror="alert(1)">',
+            'days_offset' => 0,
+            'is_active' => true,
+        ]);
+
+        $subscriber = \App\Models\Marketing\MarketingNewsletterSubscriber::create([
+            'email' => 'sub@example.com',
+            'is_verified' => true,
+        ]);
+        $subscriber->first_name = '<script>evilSub()</script>Anna';
+
+        $mail = new \App\Mail\NewsletterAutomaticMail($template, $subscriber);
+        $built = $mail->build();
+        $this->assertStringNotContainsString("\r", (string) $built->subject);
+        $this->assertStringNotContainsString("\n", (string) $built->subject);
+
+        $renderedHtml = $mail->render();
+        $this->assertStringNotContainsString('<script>steal()</script>', $renderedHtml);
+        $this->assertStringNotContainsString('<script>evilSub()</script>', $renderedHtml);
+        $this->assertStringNotContainsString('onerror=', $renderedHtml);
+        $this->assertStringContainsString('&lt;script&gt;evilSub()&lt;/script&gt;Anna', $renderedHtml);
+
+        // 2. AiMarketingNewsletterFuncs must sanitize campaign HTML and strip CRLF from subject
+        $nlRunner = new class {
+            use \App\Services\AI\Functions\AiMarketingNewsletterFuncs;
+        };
+
+        $campaignRes = $nlRunner::marketing_newsletter_create_manual_campaign([
+            'title' => "Sommer Aktion\r\nInjected",
+            'subject' => "Rabatt\r\nBcc: evil@example.com",
+            'content' => '<h2>Hallo</h2><script>evil()</script><a href="javascript:alert(1)">Link</a>',
+            'send_at' => now()->addDay()->format('Y-m-d H:i'),
+        ]);
+        $this->assertSame('success', $campaignRes['status']);
+        $savedCampaign = \App\Models\Marketing\MarketingNewsletter::findOrFail($campaignRes['id']);
+        $this->assertStringNotContainsString('<script>', $savedCampaign->content);
+        $this->assertStringNotContainsString('javascript:', $savedCampaign->content);
+        $this->assertStringNotContainsString("\r", $savedCampaign->subject);
+        $this->assertStringNotContainsString("\n", $savedCampaign->subject);
+
+        // 3. ProductConfiguratorService::sanitizeSvgContent must strip XXE, foreignObject, self-closing script, unquoted on*, and javascript: xlink:href
+        $prodConfigService = app(\App\Services\ProductConfiguratorService::class);
+        $maliciousSvg = '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>'
+            . '<svg onload=alert(1) xmlns="http://www.w3.org/2000/svg">'
+            . '<script xlink:href="https://evil.com/x.js" />'
+            . '<foreignObject><iframe src="javascript:alert(2)"></iframe></foreignObject>'
+            . '<a xlink:href="javascript:alert(3)"><path d="M0 0"/></a>'
+            . '</svg>';
+
+        $cleanSvg = $prodConfigService->sanitizeSvgContent($maliciousSvg);
+        $this->assertStringNotContainsString('<!DOCTYPE', $cleanSvg);
+        $this->assertStringNotContainsString('<!ENTITY', $cleanSvg);
+        $this->assertStringNotContainsString('<script', $cleanSvg);
+        $this->assertStringNotContainsString('<foreignObject', $cleanSvg);
+        $this->assertStringNotContainsString('<iframe', $cleanSvg);
+        $this->assertStringNotContainsString('onload=', $cleanSvg);
+        $this->assertStringNotContainsString('javascript:', $cleanSvg);
+        $this->assertStringContainsString('<path d="M0 0"/>', $cleanSvg);
+
+        // 4. Path traversal in resolveVectorDiskPath, resolveVectorUrl, and ConfiguratorService::analyzeOverlayImage
+        $this->assertNull($prodConfigService->resolveVectorDiskPath('../../.env'));
+        $this->assertSame('', $prodConfigService->resolveVectorUrl('../../.env'));
+
+        $configService = app(\App\Services\ConfiguratorService::class);
+        $overlayRes = $configService->analyzeOverlayImage('../../.env');
+        $this->assertIsArray($overlayRes);
+        $this->assertArrayHasKey('surface_luminance', $overlayRes);
+
+        // 5. AiAgentMessageMail must strip CRLF from subject and reject traversal attachments
+        $agentMail = new \App\Services\AI\Mails\AiAgentMessageMail(
+            "Test Betreff\r\nBcc: victim@example.com",
+            'Inhalt',
+            'Funkira',
+            ['/var/www/html/storage/app/../../.env']
+        );
+        $this->assertStringNotContainsString("\r", $agentMail->envelope()->subject);
+        $this->assertStringNotContainsString("\n", $agentMail->envelope()->subject);
+        $this->assertCount(0, $agentMail->attachments());
+    }
 }

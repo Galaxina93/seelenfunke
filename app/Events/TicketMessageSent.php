@@ -26,10 +26,15 @@ class TicketMessageSent implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('admin.tickets'),
-            new PrivateChannel('customer.' . $this->customerId),
         ];
+
+        if (!empty($this->customerId)) {
+            $channels[] = new PrivateChannel('customer.' . $this->customerId);
+        }
+
+        return $channels;
     }
 
     // HIER IST DER FIX: Ein sauberer Name ohne "\" oder Ordnerpfade!

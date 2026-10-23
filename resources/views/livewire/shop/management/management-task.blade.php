@@ -368,8 +368,8 @@
                                                      'text-gray-900 dark:text-gray-100' => !$task->is_completed
                                                  ])>
                                                 {!! preg_replace(
-                                                      '/((?:https?|ftp|file):\/\/|www\.)[a-z0-9+&@#\/%?=~_|!:,.;\*\-]*[a-z0-9+&@#\/%=~_|]/i',
-                                                      '<a href="$0" target="_blank" class="text-[var(--theme-color)] underline hover:text-gray-900 dark:hover:text-white transition-colors" @click.stop>$0</a>',
+                                                      '/((?:https?):\/\/|www\.)[a-z0-9+&@#\/%?=~_|!:,.;\*\-]*[a-z0-9+&@#\/%=~_|]/i',
+                                                      '<a href="$0" target="_blank" rel="noopener noreferrer" class="text-[var(--theme-color)] underline hover:text-gray-900 dark:hover:text-white transition-colors" @click.stop>$0</a>',
                                                       e($task->title)
                                                   ) !!}
                                             </div>

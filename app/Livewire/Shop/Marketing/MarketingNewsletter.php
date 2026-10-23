@@ -121,9 +121,10 @@ class MarketingNewsletter extends Component
 
     public function createTemplate()
     {
+        $availableKeys = implode(',', array_keys($this->getAvailableEvents()));
         $this->validate([
             'new_type' => 'required|in:automated,manual',
-            'new_target_event_key' => 'required_if:new_type,automated',
+            'new_target_event_key' => 'required_if:new_type,automated|in:' . $availableKeys,
             'new_manual_title' => 'required_if:new_type,manual|string|max:255',
             'new_manual_send_at' => 'required_if:new_type,manual|date',
         ], [
@@ -146,16 +147,17 @@ class MarketingNewsletter extends Component
                 'title' => $eventName . ' Kampagne', // Interne Bezeichnung
                 'target_event_key' => $this->new_target_event_key,
                 'subject' => 'Neue Kampagne für ' . $eventName,
-                'content' => "<div style=\"font-family: sans-serif; padding: 20px;\">\n  <h2>Hallo {first_name},</h2>\n  <p>Hier steht dein Text für $eventName.</p>\n</div>",
+                'content' => "<div style=\"font-family: sans-serif; padding: 20px;\">\n  <h2>Hallo {first_name},</h2>\n  <p>Hier steht dein Text für " . e($eventName) . ".</p>\n</div>",
                 'days_offset' => 14,
                 'is_active' => true
             ]);
         } else {
+            $safeManualTitle = substr(str_replace(["\r", "\n"], ' ', trim((string) $this->new_manual_title)), 0, 255);
             $template = NewsletterModel::create([
                 'type' => 'manual',
-                'title' => $this->new_manual_title, // Interne Bezeichnung
+                'title' => $safeManualTitle, // Interne Bezeichnung
                 'target_event_key' => null,
-                'subject' => $this->new_manual_title, // Kann im Editor geändert werden
+                'subject' => $safeManualTitle, // Kann im Editor geändert werden
                 'content' => "<div style=\"font-family: sans-serif; padding: 20px;\">\n  <h2>Hallo {first_name},</h2>\n  <p>Hier steht dein Text für diese Sonder-Kampagne.</p>\n</div>",
                 'send_at' => Carbon::parse($this->new_manual_send_at),
                 'days_offset' => 0,
@@ -170,31 +172,31 @@ class MarketingNewsletter extends Component
 
     public function saveTemplate()
     {
-        $t = NewsletterModel::find($this->editingTemplateId);
+        $t = NewsletterModel::findOrFail($this->editingTemplateId);
 
         if ($t->type === 'manual') {
             $this->validate([
-                'edit_subject' => 'required|string',
+                'edit_subject' => 'required|string|max:255',
                 'edit_content' => 'required|string',
                 'edit_event_date' => 'required|date'
             ]);
 
             $t->update([
-                'subject' => $this->edit_subject,
-                'content' => $this->edit_content,
+                'subject' => substr(str_replace(["\r", "\n"], ' ', trim((string) $this->edit_subject)), 0, 255),
+                'content' => MarketingBlog::sanitizeBlogHtml((string) $this->edit_content),
                 'send_at' => Carbon::parse($this->edit_event_date)
             ]);
         } else {
             $this->validate([
-                'edit_subject' => 'required|string',
+                'edit_subject' => 'required|string|max:255',
                 'edit_content' => 'required|string',
-                'edit_offset' => 'required|integer'
+                'edit_offset' => 'required|integer|min:0|max:365'
             ]);
 
             $t->update([
-                'subject' => $this->edit_subject,
-                'content' => $this->edit_content,
-                'days_offset' => $this->edit_offset
+                'subject' => substr(str_replace(["\r", "\n"], ' ', trim((string) $this->edit_subject)), 0, 255),
+                'content' => MarketingBlog::sanitizeBlogHtml((string) $this->edit_content),
+                'days_offset' => max(0, min(365, (int) $this->edit_offset))
             ]);
         }
 
@@ -232,19 +234,20 @@ class MarketingNewsletter extends Component
     public function sendTestMail()
     {
         $this->validate([
-            'edit_subject' => 'required|string|min:3',
+            'edit_subject' => 'required|string|min:3|max:255',
             'edit_content' => 'required|string|min:3',
         ]);
 
         try {
             $adminEmail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
-            $testSubject = '[TEST] ' . $this->edit_subject;
+            $testSubject = '[TEST] ' . str_replace(["\r", "\n"], ' ', trim((string) $this->edit_subject));
+            $sanitizedContent = MarketingBlog::sanitizeBlogHtml((string) $this->edit_content);
 
             // 1. Ersetze die Standard-Tags mit echten Test-Werten
             $contentReplaced = str_replace(
                 ['{first_name}', '{year}', '{NAME}', '{URL}', '{UNSUBSCRIBE_LINK}'],
                 ['Admin', date('Y'), 'Admin', url('/'), url('/newsletter')],
-                $this->edit_content
+                $sanitizedContent
             );
 
             // 2. Erzeuge Dummy-Objekte
@@ -387,7 +390,8 @@ class MarketingNewsletter extends Component
     {
         $subscribers = collect();
         if ($this->activeTab === 'subscribers') {
-            $subscribers = MarketingNewsletterSubscriber::where('email', 'like', "%{$this->search}%")
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $subscribers = MarketingNewsletterSubscriber::where('email', 'like', "%{$escapedSearch}%")
                 ->paginate(15);
         }
 

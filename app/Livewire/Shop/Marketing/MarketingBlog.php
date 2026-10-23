@@ -45,9 +45,16 @@ class MarketingBlog extends Component
     public $existingHeaderImage;
     public $author_name;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
@@ -116,7 +123,8 @@ class MarketingBlog extends Component
     {
         $posts = MarketingBlogPost::query()
             ->when($this->search, function($q) {
-                $q->where('title', 'like', '%'.$this->search.'%');
+                $escapedSearch = addcslashes((string) $this->search, '%_\\');
+                $q->where('title', 'like', '%'.$escapedSearch.'%');
             })
             ->with(['author', 'category'])
             ->orderBy('created_at', 'desc')
@@ -171,9 +179,25 @@ class MarketingBlog extends Component
         $this->author_name = $post->author_name;
     }
 
+    public static function sanitizeBlogHtml(string $html): string
+    {
+        $clean = preg_replace('/<\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $html) ?? $html;
+        $clean = preg_replace('/<\s*\/?\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\'>\s]*\2/i', '$1="#"', $clean) ?? $clean;
+
+        return $clean;
+    }
+
     public function save()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+
         $this->validate();
+
+        $this->content = self::sanitizeBlogHtml((string) $this->content);
 
         $data = [
             'title' => $this->title,

@@ -21,9 +21,16 @@ class SupportChats extends Component
     public $ratingFilter = '';
     public $showDetails = false;
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
@@ -41,10 +48,11 @@ class SupportChats extends Component
         $query = SupportCustomerChat::with(['messages']);
 
         if (!empty($this->search)) {
-            $query->where(function($q) {
-                $q->where('top_topic', 'like', '%' . $this->search . '%')
-                  ->orWhere('mentioned_product', 'like', '%' . $this->search . '%')
-                  ->orWhere('session_token', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('top_topic', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('mentioned_product', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('session_token', 'like', '%' . $escapedSearch . '%');
             });
         }
 

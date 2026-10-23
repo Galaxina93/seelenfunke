@@ -310,9 +310,15 @@
                                 Welche Icons und Vektoren aus der Symbol-Bibliothek am häufigsten auf das Holz graviert werden.
                             </p>
                         </div>
-                        <span class="text-xs font-black text-gray-400">
-                            {{ $configuratorStats['symbols_used'] ?? 0 }} Gravuren
-                        </span>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-black text-gray-400">
+                                {{ $configuratorStats['symbols_used'] ?? 0 }} Gravuren
+                            </span>
+                            <a href="{{ route('admin.product-configurator') }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline flex items-center gap-1">
+                                <span>Verwalten</span>
+                                <x-heroicon-m-arrow-top-right-on-square class="w-3.5 h-3.5" />
+                            </a>
+                        </div>
                     </div>
 
                     @if(count($topSymbols) > 0)
@@ -320,7 +326,7 @@
                             @foreach($topSymbols as $sym)
                                 <div class="bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700/60 rounded-2xl p-3 flex flex-col items-center text-center group hover:border-[var(--theme-color)] hover:shadow-md transition-all">
                                     <div class="w-12 h-12 rounded-xl bg-white dark:bg-gray-800 flex items-center justify-center p-2 mb-2 border border-gray-100 dark:border-gray-700 group-hover:scale-110 transition-transform">
-                                        <img src="{{ asset('shop/product/configurator/vectors/' . $sym['file']) }}"
+                                        <img src="{{ app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($sym['file']) }}"
                                              alt="{{ $sym['name'] }}"
                                              onerror="this.style.display='none'"
                                              class="w-full h-full object-contain filter dark:invert">

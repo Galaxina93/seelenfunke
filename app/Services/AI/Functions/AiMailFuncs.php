@@ -279,10 +279,14 @@ trait AiMailFuncs
                 return ['status' => 'error', 'message' => 'Mail nicht gefunden.'];
             }
 
-            if (isset($args['priority'])) $mail->priority = $args['priority'];
-            if (isset($args['category'])) $mail->category = $args['category'];
+            if (isset($args['priority']) && in_array($args['priority'], ['low', 'normal', 'high'], true)) {
+                $mail->priority = $args['priority'];
+            }
+            if (isset($args['category'])) $mail->category = mb_substr((string) $args['category'], 0, 100);
             if (isset($args['tags'])) $mail->tags = is_array($args['tags']) ? $args['tags'] : [];
-            if (isset($args['ai_status'])) $mail->ai_status = $args['ai_status'];
+            if (isset($args['ai_status']) && in_array($args['ai_status'], ['pending', 'processed', 'needs_human_review', 'replied'], true)) {
+                $mail->ai_status = $args['ai_status'];
+            }
 
             $mail->save();
 
@@ -303,7 +307,10 @@ trait AiMailFuncs
             }
 
             $id = $args['email_id'];
-            $folder = $args['target_folder'];
+            $folder = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $args['target_folder']))), 0, 64);
+            if ($folder === '') {
+                return ['status' => 'error', 'message' => 'Ungültiger Ordnername.'];
+            }
 
             $mail = MailMessage::find($id);
             if (!$mail) {
@@ -338,22 +345,28 @@ trait AiMailFuncs
                 $mail = MailMessage::find($data['email_id']);
                 if (!$mail) continue;
 
-                if (isset($data['priority'])) $mail->priority = $data['priority'];
-                if (isset($data['category'])) $mail->category = $data['category'];
+                if (isset($data['priority']) && in_array($data['priority'], ['low', 'normal', 'high'], true)) {
+                    $mail->priority = $data['priority'];
+                }
+                if (isset($data['category'])) $mail->category = mb_substr((string) $data['category'], 0, 100);
                 if (isset($data['tags'])) $mail->tags = is_array($data['tags']) ? $data['tags'] : [];
-                if (isset($data['ai_status'])) $mail->ai_status = $data['ai_status'];
+                if (isset($data['ai_status']) && in_array($data['ai_status'], ['pending', 'processed', 'needs_human_review', 'replied'], true)) {
+                    $mail->ai_status = $data['ai_status'];
+                }
                 
                 if (!empty($data['target_folder']) && $data['target_folder'] !== 'INBOX') {
-                    $folderName = $data['target_folder'];
-                    $baseFolders = ['Sent', 'Drafts', 'Junk', 'Trash', 'Archive'];
-                    
-                    if (!in_array($folderName, $baseFolders)) {
-                        \App\Models\Management\Mail\MailFolder::firstOrCreate([
-                            'mail_account_id' => $mail->mail_account_id,
-                            'name' => $folderName
-                        ]);
+                    $folderName = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $data['target_folder']))), 0, 64);
+                    if ($folderName !== '') {
+                        $baseFolders = ['Sent', 'Drafts', 'Junk', 'Trash', 'Archive'];
+                        
+                        if (!in_array($folderName, $baseFolders)) {
+                            \App\Models\Management\Mail\MailFolder::firstOrCreate([
+                                'mail_account_id' => $mail->mail_account_id,
+                                'name' => $folderName
+                            ]);
+                        }
+                        $mail->folder = $folderName;
                     }
-                    $mail->folder = $folderName;
                 }
 
                 $mail->save();
@@ -402,8 +415,9 @@ trait AiMailFuncs
             }
 
             if (!empty($subject)) {
+                $escapedSubject = addcslashes((string) $subject, '%_\\');
                 $mails = MailMessage::where('is_read', !$isRead)
-                    ->where('subject', 'like', '%' . $subject . '%')
+                    ->where('subject', 'like', '%' . $escapedSubject . '%')
                     ->get();
 
                 if ($mails->isEmpty()) {

@@ -96,7 +96,15 @@ class AuthPasswordReset extends Component
 
         // Aktualisieren des Passworts des Benutzers
         $user->password = Hash::make($this->password);
+        $user->setRememberToken(\Illuminate\Support\Str::random(60));
         $user->save();
+
+        // Alle bestehenden Sessions dieses Benutzers invalidieren
+        if (config('session.driver') === 'database') {
+            \Illuminate\Support\Facades\DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)
+                ->delete();
+        }
 
         // Löschen des Passwort-Reset-Tokens
         SystemPasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();

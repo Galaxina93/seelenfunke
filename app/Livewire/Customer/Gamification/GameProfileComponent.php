@@ -67,16 +67,17 @@ class GameProfileComponent extends Component
     public function mount()
     {
         $user = Auth::guard('customer')->user();
-        if ($user) {
-            $profile = CustomerGamification::where('customer_id', $user->id)->first();
-            if ($profile && $profile->is_active) {
-                $this->hasOptedIn = true;
-                $gameService = app(GamificationService::class);
-                $this->loadGamificationData($gameService, $profile);
-            } else {
-                $this->redirect(route('customer.games'));
-                return;
-            }
+        if (!$user) {
+            return redirect()->route('login');
+        }
+        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        if ($profile && $profile->is_active) {
+            $this->hasOptedIn = true;
+            $gameService = app(GamificationService::class);
+            $this->loadGamificationData($gameService, $profile);
+        } else {
+            $this->redirect(route('customer.games'));
+            return;
         }
         $this->updateEnergyState();
     }
@@ -168,7 +169,7 @@ class GameProfileComponent extends Component
         $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
     }
 
-    public function loadGamificationData(GamificationService $gameService, $profile)
+    protected function loadGamificationData(GamificationService $gameService, $profile)
     {
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
@@ -255,6 +256,7 @@ class GameProfileComponent extends Component
     public function upgrade(GamificationService $gameService)
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) return;
         $result = $gameService->upgradeLevel($user);
 
         if ($result['success']) {

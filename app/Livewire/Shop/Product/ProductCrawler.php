@@ -30,9 +30,16 @@ class ProductCrawler extends Component
     public $historicalTop3Data = null;
 
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -218,7 +225,8 @@ class ProductCrawler extends Component
 
 
         if (!empty($this->search)) {
-            $query->where('title', 'like', '%' . $this->search . '%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where('title', 'like', '%' . $escapedSearch . '%');
         }
 
         if (!empty($this->filterPlatform)) {

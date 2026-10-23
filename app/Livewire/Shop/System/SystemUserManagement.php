@@ -204,10 +204,15 @@ class SystemUserManagement extends Component
 
     public function saveInline()
     {
+        if (!in_array($this->editingType, ['admin', 'customer', 'employee'], true)) {
+            abort(400, 'Ungültiger Benutzertyp.');
+        }
+
         $this->validate([
             'formData.first_name' => 'required|string|max:255',
             'formData.last_name' => 'required|string|max:255',
             'formData.email' => 'required|email|unique:'.($this->editingType === 'admin' ? 'admins' : ($this->editingType === 'customer' ? 'customers' : 'employees')).',email,'.$this->editingId,
+            'formData.password' => 'nullable|string|min:8',
         ]);
 
         $model = $this->getModelInstance($this->editingType, $this->editingId);
@@ -450,7 +455,12 @@ class SystemUserManagement extends Component
 
     protected function getModelInstance($type, $id, $withTrashed = false)
     {
-        $class = match($type) { 'admin' => Admin::class, 'customer' => Customer::class, 'employee' => Employee::class };
+        $class = match($type) {
+            'admin' => Admin::class,
+            'customer' => Customer::class,
+            'employee' => Employee::class,
+            default => abort(400, 'Ungültiger Benutzertyp.'),
+        };
         return $withTrashed ? $class::withTrashed()->findOrFail($id) : $class::findOrFail($id);
     }
 
@@ -466,8 +476,9 @@ class SystemUserManagement extends Component
             $terms = explode(' ', $this->search);
             foreach ($terms as $term) {
                 if (empty(trim($term))) continue;
-                $s = '%' . trim($term) . '%';
-                $sId = trim($term) . '%';
+                $escapedTerm = addcslashes(trim($term), '%_\\');
+                $s = '%' . $escapedTerm . '%';
+                $sId = $escapedTerm . '%';
                 
                 $filter = function($q) use ($s, $sId) {
                     $q->where(function($subQ) use ($s, $sId) {

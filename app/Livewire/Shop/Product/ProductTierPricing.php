@@ -22,9 +22,16 @@ class ProductTierPricing extends Component
         'tier_pricing' => 'Definieren Sie Mengenrabatte für dieses Produkt. Der Preis reduziert sich automatisch im Warenkorb, sobald die angegebene Stückzahl erreicht wird.',
     ];
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount(Product $product)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

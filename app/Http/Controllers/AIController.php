@@ -347,7 +347,7 @@ class AIController extends Controller
                 }
 
                 $voiceName = $aiAgent->tts_voice ?: 'Puck';
-                $apiKey = env('GEMINI_API_KEY');
+                $apiKey = config('services.gemini.key') ?: env('GEMINI_API_KEY');
                 
                 // Wir nutzen gemini-3.1-flash-tts-preview, was Audio Modalitäten nativ unterstützt.
                 $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=' . $apiKey;
@@ -427,6 +427,10 @@ class AIController extends Controller
 
     public function saveCameraSnapshot(Request $request)
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee() && !auth('admin')->check() && !auth('employee')->check()) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
         $request->validate([
             'image' => 'required|file|mimes:jpeg,png,jpg,webp|max:10240' // max 10MB
         ]);

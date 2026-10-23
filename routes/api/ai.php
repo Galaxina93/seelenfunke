@@ -35,6 +35,43 @@ Route::prefix('ai')->group(function () {
             abort(403, 'Zugriff verweigert. Nur Administratoren und Mitarbeiter.');
         }
 
+        // CSRF- & Cross-Origin-Schutz für Cookie-basierte (nicht-Bearer) schreibende Anfragen
+        if (!$request->isMethodSafe() && !$request->bearerToken()) {
+            $secFetchSite = strtolower((string) $request->header('Sec-Fetch-Site', ''));
+            if ($secFetchSite === 'cross-site') {
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:ai_csrf_blocked',
+                    'Cross-Site KI-API Aufruf blockiert',
+                    'Cross-Site Request (Sec-Fetch-Site: cross-site) auf ' . $request->path() . ' abgewehrt.',
+                    'error'
+                );
+                abort(403, 'Cross-site request blocked.');
+            }
+
+            $origin = (string) $request->header('Origin', '');
+            if ($origin !== '') {
+                $originHost = strtolower((string) parse_url($origin, PHP_URL_HOST));
+                $requestHost = strtolower((string) $request->getHost());
+                if ($originHost === '' || $originHost !== $requestHost) {
+                    \App\Services\System\SystemSecurityService::logEvent(
+                        'security:ai_csrf_blocked',
+                        'Cross-Origin KI-API Aufruf blockiert',
+                        "Abweichender Origin-Header ({$origin}) auf " . $request->path() . " abgewehrt.",
+                        'error'
+                    );
+                    abort(403, 'Cross-origin request blocked.');
+                }
+            }
+
+            if (!app()->runningUnitTests() && $request->hasSession()) {
+                $sessionToken = (string) $request->session()->token();
+                $providedToken = (string) ($request->header('X-CSRF-TOKEN') ?: $request->input('_token', ''));
+                if ($sessionToken === '' || $providedToken === '' || !hash_equals($sessionToken, $providedToken)) {
+                    abort(419, 'CSRF token mismatch.');
+                }
+            }
+        }
+
         return $next($request);
     }]], function () {
         // Gibt das JSON-Schema für die Ollama Function-Calling Tools zurück

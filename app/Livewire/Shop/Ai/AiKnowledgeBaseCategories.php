@@ -16,6 +16,13 @@ class AiKnowledgeBaseCategories extends Component
     public $selectedCategoryId = null;
     public $isManaging = false;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount($selectedCategoryId = null)
     {
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
@@ -35,7 +42,8 @@ class AiKnowledgeBaseCategories extends Component
         if (empty($this->search)) {
             $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::orderBy('name')->get()->toArray();
         } else {
-            $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::where('name', 'like', '%' . $this->search . '%')
+            $escaped = addcslashes((string) $this->search, '%_\\');
+            $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::where('name', 'like', '%' . $escaped . '%')
                 ->orderBy('name')->get()->toArray();
         }
     }

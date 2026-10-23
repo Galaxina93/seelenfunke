@@ -404,9 +404,12 @@ trait AiPersonaFuncs
     {
         if (empty($url)) return $url;
 
-        // Falls es schon eine lokale oder base64 URL ist, ignorieren
-        if (str_starts_with($url, 'data:') || str_starts_with($url, url('/'))) {
+        // Falls es schon eine lokale oder sichere base64-Bild-URL ist, ignorieren
+        if (preg_match('#^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=\s]+$#i', (string) $url) || str_starts_with($url, url('/'))) {
             return $url;
+        }
+        if (str_starts_with((string) $url, 'data:')) {
+            return null;
         }
 
         if (!self::isSafeExternalUrl($url)) {
@@ -471,7 +474,7 @@ trait AiPersonaFuncs
             }
         }
 
-        return $url;
+        return null;
     }
 
     // [AREA: FRONTEND WIDGETS]

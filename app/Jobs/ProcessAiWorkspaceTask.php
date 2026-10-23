@@ -70,34 +70,73 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 $contentArray[] = ['type' => 'text', 'text' => "SWARM ORCHESTRATOR INSTRUCTION:\nDu bist im PLANUNGSMODUS. Bevor du die eigentliche Aufgabe startest, musst du die Aufgabe zwingend in Einzelschritte zerlegen.\nDeine Ausgabe darf AUSSCHLIESSLICH ein valides JSON-Array sein, nichts anderes! Formatiere es als: [{\"id\": 1, \"description\": \"...\"}, {\"id\": 2, \"description\": \"...\"}]. VERWENDE KEINE WERKZEUGE JETZT!\n\nBEACHTE: Du hast bereits vollen Zugriff auf die angehängten Dateien (siehe [FILE ATTACHMENT] oder [UPLOADED FILE] weiter unten). Du MUSST NICHT mehr nach diesen Dateien suchen oder sie einlesen. Dein Plan kann direkt mit der Verarbeitung/Modifikation dieser Dateien beginnen!\n\nAUFGABE: " . $this->task->prompt];
 
                 // Append Attachments for Context during planning
-                if (!empty($metadata['attachments'])) {
+                if (!empty($metadata['attachments']) && is_array($metadata['attachments'])) {
+                    $baseReal = realpath(base_path());
+                    $allowedPrefixes = ['app/', 'config/', 'resources/', 'routes/', 'database/', 'tests/', 'storage/app/agenten/workspace/'];
                     foreach ($metadata['attachments'] as $fPath) {
+                        if (!is_string($fPath) || str_contains($fPath, '..') || str_contains($fPath, "\0")) {
+                            continue;
+                        }
+                        $normalized = str_replace('\\', '/', ltrim($fPath, '/'));
+                        if (preg_match('/(\.env|\.key|\.pem|id_rsa|\.sqlite)$/i', $normalized)) {
+                            continue;
+                        }
+                        $hasAllowedPrefix = false;
+                        foreach ($allowedPrefixes as $prefix) {
+                            if (str_starts_with($normalized, $prefix)) {
+                                $hasAllowedPrefix = true;
+                                break;
+                            }
+                        }
+                        if (!$hasAllowedPrefix) {
+                            continue;
+                        }
                         try {
-                            $fileStr = file_get_contents($fPath);
-                            $ext = strtolower(pathinfo($fPath, PATHINFO_EXTENSION));
+                            $resolved = realpath(base_path($normalized));
+                            if (!$resolved || !$baseReal || !str_starts_with($resolved, $baseReal . DIRECTORY_SEPARATOR) || !is_file($resolved)) {
+                                continue;
+                            }
+                            $fileStr = file_get_contents($resolved);
+                            $ext = strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
                             if (in_array($ext, ['png','jpg','jpeg','webp','gif'])) {
                                 $b64 = base64_encode($fileStr);
                                 $mime = 'image/' . ($ext === 'jpg' ? 'jpeg' : $ext);
                                 $contentArray[] = ['type' => 'image_url', 'image_url' => ['url' => "data:{$mime};base64,{$b64}"]];
                             } else {
-                                $contentArray[] = ['type' => 'text', 'text' => "\n\n--- [FILE ATTACHMENT: ".basename($fPath)."] ---\n" . $fileStr . "\n--- [END OF FILE] ---\n\n"];
+                                $contentArray[] = ['type' => 'text', 'text' => "\n\n--- [FILE ATTACHMENT: ".basename($resolved)."] ---\n" . $fileStr . "\n--- [END OF FILE] ---\n\n"];
                             }
                         } catch (\Exception $e) {}
                     }
                 }
 
-                if (!empty($metadata['local_uploads'])) {
+                if (!empty($metadata['local_uploads']) && is_array($metadata['local_uploads'])) {
+                    $storageReal = realpath(storage_path('app'));
                     foreach ($metadata['local_uploads'] as $upl) {
+                        $relPath = is_array($upl) ? ($upl['path'] ?? '') : '';
+                        if (!is_string($relPath) || $relPath === '' || str_contains($relPath, '..') || str_contains($relPath, "\0")) {
+                            continue;
+                        }
+                        $cleanRel = str_replace('\\', '/', ltrim($relPath, '/'));
+                        if (!str_starts_with($cleanRel, 'agenten/workspace/chat-medien/') && !str_starts_with($cleanRel, 'telegram_uploads/')) {
+                            continue;
+                        }
                         try {
-                            $fPath = storage_path('app/public/' . $upl['path']);
-                            $fileStr = file_get_contents($fPath);
-                            $ext = strtolower(pathinfo($fPath, PATHINFO_EXTENSION));
+                            $fPath = storage_path('app/public/' . $cleanRel);
+                            if (!file_exists($fPath)) {
+                                $fPath = storage_path('app/' . $cleanRel);
+                            }
+                            $resolved = realpath($fPath);
+                            if (!$resolved || !$storageReal || !str_starts_with($resolved, $storageReal . DIRECTORY_SEPARATOR) || !is_file($resolved)) {
+                                continue;
+                            }
+                            $fileStr = file_get_contents($resolved);
+                            $ext = strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
                             if (in_array($ext, ['png','jpg','jpeg','webp','gif'])) {
                                 $b64 = base64_encode($fileStr);
                                 $mime = 'image/' . ($ext === 'jpg' ? 'jpeg' : $ext);
                                 $contentArray[] = ['type' => 'image_url', 'image_url' => ['url' => "data:{$mime};base64,{$b64}"]];
                             } else {
-                                $contentArray[] = ['type' => 'text', 'text' => "\n\n--- [UPLOADED FILE: ".basename($upl['name'])."] ---\n" . $fileStr . "\n--- [END OF FILE] ---\n\n"];
+                                $contentArray[] = ['type' => 'text', 'text' => "\n\n--- [UPLOADED FILE: ".basename((string) ($upl['name'] ?? $resolved))."] ---\n" . $fileStr . "\n--- [END OF FILE] ---\n\n"];
                             }
                         } catch (\Exception $e) {}
                     }

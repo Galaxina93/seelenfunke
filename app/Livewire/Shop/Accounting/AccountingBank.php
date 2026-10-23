@@ -193,8 +193,10 @@ class AccountingBank extends Component
             $files = is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths;
             if (isset($files[$fileIndex])) {
                 $path = $files[$fileIndex];
-                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                    \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'buchhaltung/')) {
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                    }
                 }
                 unset($files[$fileIndex]);
                 $tx->update(['file_paths' => array_values($files)]);
@@ -209,6 +211,9 @@ class AccountingBank extends Component
         $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         if ($tx) {
             $value = empty($categoryId) ? null : $categoryId;
+            if ($value !== null && !AccountingCategory::where('admin_id', $adminId)->where('id', $value)->exists()) {
+                return;
+            }
             $tx->update([
                 'accounting_category_id' => $value,
                 'accounting_cost_item_id' => null, // Mutually exclusive
@@ -229,6 +234,9 @@ class AccountingBank extends Component
         $tx = AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))->find($transactionId);
         if ($tx) {
             $value = empty($costItemId) ? null : $costItemId;
+            if ($value !== null && !AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $adminId))->where('id', $value)->exists()) {
+                return;
+            }
             $tx->update([
                 'accounting_cost_item_id' => $value,
                 'accounting_category_id' => null, // Mutually exclusive
@@ -528,12 +536,15 @@ class AccountingBank extends Component
 
                 if (json_last_error() === JSON_ERROR_NONE && isset($json['mappings'])) {
                     $learnedRules = 0;
+                    $allowedCatIds = collect($this->availableCategories)->pluck('id')->map(fn($id) => (string) $id)->all();
+                    $allowedCostIds = collect($this->availableCostItems)->pluck('id')->map(fn($id) => (string) $id)->all();
                     foreach ($json['mappings'] as $mapping) {
                         $currentTx = $uniqueTxs->values()->firstWhere('id', $mapping['tx_id'] ?? null);
                         if ($currentTx) {
                             $rawCatId = $mapping['category_id'] ?? $mapping['product_category_id'] ?? null;
-                            $catId = empty($rawCatId) ? null : $rawCatId;
-                            $costId = empty($mapping['cost_item_id']) ? null : $mapping['cost_item_id'];
+                            $catId = (!empty($rawCatId) && in_array((string) $rawCatId, $allowedCatIds, true)) ? $rawCatId : null;
+                            $rawCostId = $mapping['cost_item_id'] ?? null;
+                            $costId = (!empty($rawCostId) && in_array((string) $rawCostId, $allowedCostIds, true)) ? $rawCostId : null;
                             
                             // Prevent array syntax passing logic errors
                             if ($catId !== null && $costId !== null) {
@@ -593,6 +604,9 @@ class AccountingBank extends Component
             $userToken = $finapi->getUserToken($adminId);
 
             $redirectUrl = url()->previous();
+            if (!str_starts_with($redirectUrl, url('/'))) {
+                $redirectUrl = url()->current();
+            }
             $separator = parse_url($redirectUrl, PHP_URL_QUERY) ? '&' : '?';
             $redirectUrl = $redirectUrl . $separator . 'finapi_sync=1';
             $redirectUrl = str_replace('http://', 'https://', $redirectUrl);
@@ -1088,10 +1102,11 @@ class AccountingBank extends Component
 
         // 2. Search Text
         if (!empty($this->searchTx)) {
-            $query->where(function($q) {
-                $q->where('purpose', 'like', '%' . $this->searchTx . '%')
-                  ->orWhere('counterpart_name', 'like', '%' . $this->searchTx . '%')
-                  ->orWhere('counterpart_iban', 'like', '%' . $this->searchTx . '%');
+            $escapedSearch = addcslashes((string) $this->searchTx, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('purpose', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('counterpart_name', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('counterpart_iban', 'like', '%' . $escapedSearch . '%');
             });
         }
 

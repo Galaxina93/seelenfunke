@@ -4,6 +4,7 @@ namespace App\Livewire\Shop\System;
 
 use Livewire\Component;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use App\Livewire\Traits\WithDepartmentTheming;
 use Spatie\Backup\BackupDestination\BackupDestination;
 use Illuminate\Support\Facades\Storage;
@@ -16,14 +17,24 @@ class SystemBackups extends Component
     use \Livewire\WithPagination;
 
     public string $themingDepartment = 'System';
+    #[Locked]
     public $appName;
+    #[Locked]
     public $backupName;
+    #[Locked]
     public $diskName;
     public $cronjobSchedule;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -33,6 +44,22 @@ class SystemBackups extends Component
         
         $cronjob = \App\Models\System\SystemCronjob::where('command', 'backup:clean')->first();
         $this->cronjobSchedule = $cronjob ? $cronjob->schedule : 'Nicht konfiguriert';
+    }
+
+    private function isValidBackupPath($path): bool
+    {
+        if (!is_string($path) || $path === '') {
+            return false;
+        }
+        $normalizedPath = str_replace('\\', '/', $path);
+        if (str_contains($normalizedPath, '..') || str_contains($normalizedPath, "\0") || str_starts_with($normalizedPath, '/') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
+            return false;
+        }
+        $expectedPrefix = trim((string) ($this->backupName ?: config('backup.backup.name')), '/');
+        if ($expectedPrefix !== '' && !str_starts_with($normalizedPath, $expectedPrefix . '/')) {
+            return false;
+        }
+        return true;
     }
 
     public function getBackupsProperty()
@@ -106,13 +133,13 @@ class SystemBackups extends Component
 
     public function deleteBackup($path)
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
         try {
-            $normalizedPath = str_replace('\\', '/', $path);
-            if (str_contains($normalizedPath, '..') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
+            $normalizedPath = str_replace('\\', '/', (string) $path);
+            if (!$this->isValidBackupPath($normalizedPath)) {
                 session()->flash('error', 'Ungültiger Backup-Pfad.');
                 return;
             }
@@ -130,12 +157,12 @@ class SystemBackups extends Component
 
     public function downloadBackup($path)
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
-        $normalizedPath = str_replace('\\', '/', $path);
-        if (str_contains($normalizedPath, '..') || !str_ends_with(strtolower($normalizedPath), '.zip')) {
+        $normalizedPath = str_replace('\\', '/', (string) $path);
+        if (!$this->isValidBackupPath($normalizedPath)) {
             session()->flash('error', 'Ungültiger Backup-Pfad.');
             return;
         }

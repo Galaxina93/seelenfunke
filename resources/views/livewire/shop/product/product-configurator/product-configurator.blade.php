@@ -12,6 +12,7 @@
     );
     $isDarkSurface = !empty($overlayAnalysis['is_dark_surface']);
     $hasTransparentOverlay = !empty($overlayAnalysis['has_transparent_overlay']);
+    $hasProductTemplates = ($context === 'add') && \App\Models\Product\ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->exists();
 @endphp
 
 <div :class="isMaximized ? 'configurator-studio-root overflow-hidden flex flex-col {{ $isDark ? 'bg-gray-950 text-gray-200' : 'bg-white text-gray-900' }}' : 'relative w-full h-full {{ $isDark ? 'bg-gray-950 text-gray-300' : 'bg-white text-gray-900' }}'"
@@ -213,15 +214,39 @@
                 </div>
             @endif
 
-            {{-- Rechte Seite: Verkleinern / Esc & Hinweise --}}
+            {{-- Rechte Seite: Hinweis, Animation & Normalansicht / Esc --}}
             <div class="flex items-center gap-2">
                 @if(!$isDigital && !$isService)
                 <button type="button"
-                        @click="showNotice = !showNotice"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-sm cursor-pointer {{ $isDark ? 'bg-gray-900 hover:bg-gray-800 text-gray-300 border-gray-700 hover:text-white' : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200' }}"
-                        :title="showNotice ? 'Hinweise ausblenden' : 'Hinweise anzeigen'">
-                    <x-heroicon-s-information-circle class="w-4 h-4 text-primary" />
-                    <span x-text="showNotice ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
+                        @click="toggleNotice()"
+                        :class="showNotice
+                            ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
+                            : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
+                        class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                        :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
+                    <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
+                        <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                    </span>
+                    <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
+                        <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                    </span>
+                    <span>Hinweis</span>
+                </button>
+
+                <button type="button"
+                        @click="toggleAnimation()"
+                        :class="videoEnabled
+                            ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
+                            : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
+                        class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                        :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
+                    <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
+                        <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                    </span>
+                    <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
+                        <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                    </span>
+                    <span>Animation</span>
                 </button>
                 @endif
 
@@ -234,6 +259,53 @@
                 </button>
             </div>
         </div>
+
+        {{-- GESTALTUNGS-LEISTE (direkt im Alpine-Scope des Konfigurators für Produktseite, Warenkorb & Bestell-Bearbeitung) --}}
+        @if($context !== 'preview' && !$isDigital && !$isService && $this->product->isPersonalizable())
+            <div x-show="!isMaximized" class="px-4 sm:px-6 py-2.5 border-b flex flex-wrap justify-between items-center gap-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
+                <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+                    <span class="text-sm font-medium mr-0.5 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">Gestaltung</span>
+
+                    <button type="button"
+                            @click="toggleNotice()"
+                            :class="showNotice
+                                ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
+                                : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
+                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                            :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
+                        <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
+                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                        </span>
+                        <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
+                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                        </span>
+                        <span>Hinweis</span>
+                    </button>
+
+                    <button type="button"
+                            @click="toggleAnimation()"
+                            :class="videoEnabled
+                                ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
+                                : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
+                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none"
+                            :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
+                        <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
+                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                        </span>
+                        <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
+                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                        </span>
+                        <span>Animation</span>
+                    </button>
+                </div>
+
+                @if($hasProductTemplates)
+                    <button type="button" @click="$dispatch('cancel-configurator')" class="text-xs text-gray-500 hover:text-red-500 transition-colors cursor-pointer">
+                        Andere Vorlage wählen
+                    </button>
+                @endif
+            </div>
+        @endif
 
         {{-- Varianten Auswahl ganz oben, VOR der Scroll-Area! (Nur in Normalansicht anzeigen) --}}
         @if(!empty($this->activeVariants) && $context !== 'preview')
@@ -319,7 +391,7 @@
                         <div class="relative z-10 mt-8 p-6 sm:p-8 rounded-[2rem] text-left w-full shadow-inner border {{ $isDark ? 'bg-gray-900/80 backdrop-blur-xl border-gray-800 text-gray-300' : 'bg-gray-50 border-gray-100 text-gray-700' }}">
                             <h4 class="text-[10px] font-black uppercase tracking-[0.2em] mb-4 {{ $isDark ? 'text-primary' : 'text-gray-500' }}">Beschreibung & Details</h4>
                             <div class="prose max-w-none text-sm {{ $isDark ? 'prose-invert prose-p:text-gray-400 prose-headings:text-white' : '' }}">
-                                {!! $product->description !!}
+                                {!! nl2br(e($product->description)) !!}
                             </div>
                         </div>
                     @endif
@@ -347,7 +419,7 @@
                         <div class="relative z-10 mt-8 p-6 sm:p-8 rounded-[2rem] text-left w-full shadow-inner border {{ $isDark ? 'bg-gray-900/80 backdrop-blur-xl border-gray-800 text-gray-300' : 'bg-gray-50 border-gray-100 text-gray-700' }}">
                             <h4 class="text-[10px] font-black uppercase tracking-[0.2em] mb-4 {{ $isDark ? 'text-primary' : 'text-gray-500' }}">Beschreibung & Details</h4>
                             <div class="prose max-w-none text-sm {{ $isDark ? 'prose-invert prose-p:text-gray-400 prose-headings:text-white' : '' }}">
-                                {!! $product->description !!}
+                                {!! nl2br(e($product->description)) !!}
                             </div>
                         </div>
                     @endif

@@ -190,7 +190,7 @@ trait AiMarketingBlogFuncs
         $post = MarketingBlogPost::create([
             'title' => substr($title, 0, 255),
             'slug' => $slug,
-            'content' => $args['content'] ?? '',
+            'content' => \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) ($args['content'] ?? '')),
             'excerpt' => isset($args['excerpt']) ? substr($args['excerpt'], 0, 1000) : null,
             'blog_category_id' => $args['blog_category_id'] ?? null,
             'status' => $status,
@@ -224,7 +224,9 @@ trait AiMarketingBlogFuncs
             }
             $post->slug = $slug;
         }
-        if (isset($args['content'])) $post->content = $args['content'];
+        if (isset($args['content'])) {
+            $post->content = \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) $args['content']);
+        }
         if (isset($args['status'])) {
             $status = strtolower(trim($args['status']));
             if (in_array($status, ['draft', 'published', 'scheduled'], true)) {

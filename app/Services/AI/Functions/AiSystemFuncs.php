@@ -1243,7 +1243,7 @@ trait AiSystemFuncs
 
             if ($asPdf) {
                 // Convert Markdown to HTML for PDF
-                $htmlForPdf = \Illuminate\Support\Str::markdown($markdownContent);
+                $htmlForPdf = \Illuminate\Support\Str::markdown($markdownContent, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
                 $agentName = $agent ? $agent->name : 'System';
                 
                 $viewName = $design === 'generic' ? 'global.pdf.ai-report-generic' : 'global.pdf.ai-report-seelenfunke';
@@ -1570,7 +1570,8 @@ trait AiSystemFuncs
             $filePath = $args['file_path'] ?? '';
             if (!$filePath) return ['status' => 'error', 'message' => 'Kein Dateipfad angegeben.'];
             
-            $node = \App\Models\System\SystemNeuralNode::where('file_path', 'like', "%{$filePath}%")->first();
+            $escapedFilePath = addcslashes((string) $filePath, '%_\\');
+            $node = \App\Models\System\SystemNeuralNode::where('file_path', 'like', "%{$escapedFilePath}%")->first();
             if (!$node) return ['status' => 'error', 'message' => 'Datei im Gehirn nicht gefunden.'];
             
             // Ermittle, ob Fehler (simuliert)
@@ -1685,7 +1686,8 @@ trait AiSystemFuncs
     public static function executeSwitchAgent(array $args)
     {
         $agentName = $args['agent_name'] ?? '';
-        $agent = \App\Models\Ai\AiAgent::where('name', 'LIKE', '%' . $agentName . '%')->first();
+        $escapedAgentName = addcslashes((string) $agentName, '%_\\');
+        $agent = \App\Models\Ai\AiAgent::where('name', 'LIKE', '%' . $escapedAgentName . '%')->first();
         if ($agent) {
             return [
                 'status' => 'success',
@@ -1987,7 +1989,8 @@ trait AiSystemFuncs
             }
 
             if ($keyword) {
-                $q->where('content', 'like', '%' . $keyword . '%');
+                $escapedKeyword = addcslashes((string) $keyword, '%_\\');
+                $q->where('content', 'like', '%' . $escapedKeyword . '%');
             }
         };
 
@@ -2324,28 +2327,33 @@ trait AiSystemFuncs
             $query = \App\Models\System\SystemLog::query();
             
             if ($errorContains) {
-                $query->where(function($q) use ($errorContains) {
-                    $q->where('message', 'like', '%' . $errorContains . '%')
-                      ->orWhere('title', 'like', '%' . $errorContains . '%');
+                $escapedErrorContains = addcslashes((string) $errorContains, '%_\\');
+                $query->where(function($q) use ($escapedErrorContains) {
+                    $q->where('message', 'like', '%' . $escapedErrorContains . '%')
+                      ->orWhere('title', 'like', '%' . $escapedErrorContains . '%');
                 });
             }
             if ($searchTime) {
-                $query->whereTime('created_at', 'like', $searchTime . '%');
+                $escapedSearchTime = addcslashes((string) $searchTime, '%_\\');
+                $query->whereTime('created_at', 'like', $escapedSearchTime . '%');
             }
             if ($searchAgent) {
                 if (strtolower($searchAgent) === 'systemi' || strtolower($searchAgent) === 'system') {
                     $query->whereNull('ai_agent_id');
                 } else {
-                    $query->whereHas('agent', function($q) use ($searchAgent) {
-                        $q->where('name', 'like', '%' . $searchAgent . '%');
+                    $escapedSearchAgent = addcslashes((string) $searchAgent, '%_\\');
+                    $query->whereHas('agent', function($q) use ($escapedSearchAgent) {
+                        $q->where('name', 'like', '%' . $escapedSearchAgent . '%');
                     });
                 }
             }
             if ($searchType && $searchType !== 'all') {
-                $query->where('type', 'like', '%' . $searchType . '%');
+                $escapedSearchType = addcslashes((string) $searchType, '%_\\');
+                $query->where('type', 'like', '%' . $escapedSearchType . '%');
             }
             if ($searchActionId) {
-                $query->where('action_id', 'like', '%' . $searchActionId . '%');
+                $escapedSearchActionId = addcslashes((string) $searchActionId, '%_\\');
+                $query->where('action_id', 'like', '%' . $escapedSearchActionId . '%');
             }
             
             $searchStatus = $args['status'] ?? ($args['search_status'] ?? null);
@@ -2857,7 +2865,7 @@ trait AiSystemFuncs
             }
 
             // Convert Markdown to HTML
-            $htmlContent = \Illuminate\Support\Str::markdown($markdown);
+            $htmlContent = \Illuminate\Support\Str::markdown($markdown, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
 
             // Select View
             $viewName = $design === 'generic' ? 'global.pdf.ai-report-generic' : 'global.pdf.ai-report-seelenfunke';
@@ -3227,7 +3235,7 @@ trait AiSystemFuncs
                 $prompt .= "Schreibe eine Executive Summary, analysiere die finanzielle Gesundheit, nenne kritische Punkte und gebe eine klare Roadmap. Nutze sauberes Markdown, keine Emojis. Alles auf Deutsch.";
 
                 $markdownResponse = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
-                $htmlContent = \Illuminate\Support\Str::markdown($markdownResponse);
+                $htmlContent = \Illuminate\Support\Str::markdown($markdownResponse, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
                 $htmlContent = mb_convert_encoding($htmlContent, 'HTML-ENTITIES', 'UTF-8');
 
                 $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [
@@ -3686,7 +3694,7 @@ trait AiSystemFuncs
         }
 
         $frontendStreamHtml = '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-emerald-500/50 p-1.5 rounded bg-black/20">
-                               <div class="text-gray-300 truncate max-w-full font-bold">' . basename($path) . '</div>
+                               <div class="text-gray-300 truncate max-w-full font-bold">' . htmlspecialchars(basename($path), ENT_QUOTES, 'UTF-8') . '</div>
                                <div class="flex gap-2.5 mt-0.5">
                                    <span class="text-emerald-400">+' . $totalAddedLines . ' Zeilen</span>
                                    <span class="text-red-400">-' . $totalDeletedLines . ' Zeilen</span>
@@ -3780,7 +3788,7 @@ trait AiSystemFuncs
             'status' => 'success',
             'message' => "Die Datei '$path' wurde erfolgreich komplett überschrieben / angelegt!",
             '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-emerald-500/50 p-1.5 rounded bg-black/20">
-                               <div class="text-gray-300 truncate max-w-full font-bold">' . basename($path) . '</div>
+                               <div class="text-gray-300 truncate max-w-full font-bold">' . htmlspecialchars(basename($path), ENT_QUOTES, 'UTF-8') . '</div>
                                <div class="flex gap-2.5 mt-0.5">
                                    <span class="text-emerald-400">+' . $addedLines . ' Zeilen</span>
                                    <span class="text-gray-500 italic">überschrieben/neu angelegt</span>
@@ -3961,12 +3969,23 @@ trait AiSystemFuncs
              return ['status' => 'error', 'message' => 'Wissensdatenbank-System ist offline.'];
         }
 
-        $article = \App\Models\Ai\AiKnowledgeBase::where('title', str_replace('_', ' ', $topic))
-                                                 ->orWhere('slug', \Illuminate\Support\Str::slug($topic))
-                                                 ->first();
+        $article = \App\Models\Ai\AiKnowledgeBase::with('category')
+            ->where(function ($q) use ($topic) {
+                $q->where('title', str_replace('_', ' ', $topic))
+                  ->orWhere('slug', \Illuminate\Support\Str::slug($topic));
+            })
+            ->first();
         
         if (!$article) {
              return ['status' => 'empty', 'message' => "Das Knowledge Item '{$topic}' existiert nicht in der Datenbank."];
+        }
+
+        if (
+            !\App\Services\AI\AiAuthHelper::isAdmin()
+            && $article->category
+            && in_array($article->category->slug, \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS, true)
+        ) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese Wissens-Kategorie ist ausschließlich der Geschäftsführung (Admin) vorbehalten.'];
         }
 
         return [

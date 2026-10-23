@@ -128,6 +128,11 @@ class AccountingLiquidity extends Component
 
     public function updatePlanConfig()
     {
+        $this->configStartYear = max(2020, min(2100, (int) $this->configStartYear));
+        $this->configStartMonth = max(1, min(12, (int) $this->configStartMonth));
+        $this->configInterestRate = max(0.0, min(50.0, (float) $this->configInterestRate));
+        $this->configRepaymentMonths = max(2, min(360, (int) $this->configRepaymentMonths));
+
         $config = [
             'start_year' => (int) $this->configStartYear,
             'start_month' => (int) $this->configStartMonth,
@@ -172,6 +177,21 @@ class AccountingLiquidity extends Component
     // NEU: Funktion umgeht das JS-Dot-Notation Problem bei Livewire
     public function updateValue($year, $month, $type, $key, $value)
     {
+        $year = (int) $year;
+        $month = (int) $month;
+        if (!in_array($year, $this->years, true) || $month < 1 || $month > 12) {
+            return;
+        }
+        $allowedKeys = match ($type) {
+            'in' => array_keys($this->receiptRows),
+            'out' => array_keys($this->expenseRows),
+            'adj' => array_keys($this->adjustmentRows),
+            default => [],
+        };
+        if (!in_array((string) $key, $allowedKeys, true)) {
+            return;
+        }
+
         // Falls leer oder null, setzen wir es auf null, ansonsten als Float
         $val = ($value === '' || $value === null) ? null : (float) str_replace(',', '.', $value);
         $this->data[$year][$month][$type][$key] = $val;
@@ -509,6 +529,9 @@ class AccountingLiquidity extends Component
 
     public function calculate()
     {
+        $this->configInterestRate = max(0.0, min(50.0, (float) $this->configInterestRate));
+        $this->configRepaymentMonths = max(2, min(360, (int) $this->configRepaymentMonths));
+
         // 1. Reset all auto-injections from previous calculation cycles before recalculating
         foreach ($this->years as $year) {
             for ($month = 1; $month <= 12; $month++) {
@@ -623,7 +646,9 @@ class AccountingLiquidity extends Component
 
                 // B) Automatische Darlehens-Injection inkl. Iterationsschleife zur Absicherung der 1. Rate (Notfall)
                 $addedLoanThisMonth = 0;
-                while (!$this->configLoadDemoData && $preEnd < 0 && ($year > $this->configStartYear || ($year == $this->configStartYear && $month >= $this->configStartMonth))) {
+                $loanLoopGuard = 0;
+                while (!$this->configLoadDemoData && $preEnd < 0 && ($year > $this->configStartYear || ($year == $this->configStartYear && $month >= $this->configStartMonth)) && $loanLoopGuard < 50) {
+                    $loanLoopGuard++;
                     $neededLoan = abs($preEnd);
                     $increment = max(ceil($neededLoan / 1000) * 1000, 3000); // Minimum 3000€
                     

@@ -11,7 +11,7 @@ class MailAttachment extends Model
     protected static function booted(): void
     {
         static::deleting(function (MailAttachment $attachment) {
-            if (!empty($attachment->path) && \Illuminate\Support\Facades\Storage::disk('local')->exists($attachment->path)) {
+            if (!empty($attachment->path) && !str_contains((string) $attachment->path, '..') && \Illuminate\Support\Facades\Storage::disk('local')->exists($attachment->path)) {
                 \Illuminate\Support\Facades\Storage::disk('local')->delete($attachment->path);
             }
         });

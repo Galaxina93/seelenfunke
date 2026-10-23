@@ -508,6 +508,15 @@ class FinancialService
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
 
+            $sanitizeCsvCell = static function ($value): string {
+                $str = (string) $value;
+                $trimmed = ltrim($str, " \t\n\r\0\x0B");
+                if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                    return "'" . $str;
+                }
+                return $str;
+            };
+
             $csvHandle = fopen('php://temp', 'r+');
             fprintf($csvHandle, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($csvHandle, ['Datum', 'Typ', 'Bezeichnung', 'Kategorie', 'Brutto', 'Steuersatz', 'Netto', 'Steuer'], ';');
@@ -516,13 +525,16 @@ class FinancialService
                 $net = $s->amount / (1 + (($s->tax_rate ?? 0) / 100));
                 $tax = $s->amount - $net;
                 fputcsv($csvHandle, [
-                    $s->execution_date->format('d.m.Y'), 'Variabel', $s->title, $s->category,
+                    $s->execution_date->format('d.m.Y'), 'Variabel', $sanitizeCsvCell($s->title), $sanitizeCsvCell($s->category),
                     number_format($s->amount, 2, ',', '.'), ($s->tax_rate ?? 0).'%', 
                     number_format($net, 2, ',', '.'), number_format($tax, 2, ',', '.')
                 ], ';');
 
                 if($s->file_paths) {
                     foreach($s->file_paths as $index => $filePath) {
+                        if (!is_string($filePath) || str_contains($filePath, '..') || str_contains($filePath, "\0")) {
+                            continue;
+                        }
                         $sourcePath = Storage::disk('local')->exists($filePath)
                             ? Storage::disk('local')->path($filePath)
                             : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
@@ -539,15 +551,19 @@ class FinancialService
             
             foreach ($bankTxs as $tx) {
                 $catName = $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges';
-                $title = '🏦 ' . ($tx->counterpart_name ?? $tx->purpose ?? 'Unbekannte Abbuchung');
+                $rawTxLabel = $tx->counterpart_name ?? $tx->purpose ?? 'Unbekannte Abbuchung';
+                $title = '🏦 ' . $sanitizeCsvCell($rawTxLabel);
                 fputcsv($csvHandle, [
-                    \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y'), 'Variabel (Bank)', $title, $catName,
+                    \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y'), 'Variabel (Bank)', $sanitizeCsvCell($title), $sanitizeCsvCell($catName),
                     number_format($tx->amount, 2, ',', '.'), '0%', 
                     number_format($tx->amount, 2, ',', '.'), '0,00'
                 ], ';');
 
                 if($tx->file_paths) {
                     foreach($tx->file_paths as $index => $filePath) {
+                        if (!is_string($filePath) || str_contains($filePath, '..') || str_contains($filePath, "\0")) {
+                            continue;
+                        }
                         $sourcePath = Storage::disk('local')->exists($filePath)
                             ? Storage::disk('local')->path($filePath)
                             : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
@@ -567,7 +583,7 @@ class FinancialService
                 $net = $f->amount / (1 + (($f->tax_rate ?? 0) / 100));
                 $tax = $f->amount - $net;
                 fputcsv($csvHandle, [
-                    Carbon::create($year, $month, 1)->format('d.m.Y'), 'Fixkosten', $f->name, $f->category,
+                    Carbon::create($year, $month, 1)->format('d.m.Y'), 'Fixkosten', $sanitizeCsvCell($f->name), $sanitizeCsvCell($f->category),
                     number_format($f->amount, 2, ',', '.'), ($f->tax_rate ?? 0).'%', 
                     number_format($net, 2, ',', '.'), number_format($tax, 2, ',', '.')
                 ], ';');

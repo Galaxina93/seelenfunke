@@ -123,6 +123,9 @@ class AccountingInvoice extends Component
     public function editDraft($id)
     {
         $invoice = InvoiceModel::findOrFail($id);
+        if ($invoice->status !== 'draft') {
+            abort(403, 'GoBD-Schutz: Abgeschlossene Rechnungen dürfen nicht nachträglich bearbeitet werden.');
+        }
 
         $this->manualInvoice = [
             'id' => $invoice->id,
@@ -269,10 +272,11 @@ class AccountingInvoice extends Component
     public function downloadPdf($id)
     {
         $invoice = InvoiceModel::findOrFail($id);
+        $safeInvoiceNumber = basename((string) $invoice->invoice_number);
 
         // Prüfung ob archiviertes PDF existiert (GoBD Konformität)
-        if (Storage::disk('local')->exists("buchhaltung/invoices/{$invoice->invoice_number}.pdf")) {
-            return Storage::disk('local')->download("buchhaltung/invoices/{$invoice->invoice_number}.pdf");
+        if ($safeInvoiceNumber !== '' && Storage::disk('local')->exists("buchhaltung/invoices/{$safeInvoiceNumber}.pdf")) {
+            return Storage::disk('local')->download("buchhaltung/invoices/{$safeInvoiceNumber}.pdf");
         }
 
         $pdf = Pdf::loadView('global.mails.invoice_pdf_template', [
@@ -284,7 +288,7 @@ class AccountingInvoice extends Component
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, "Rechnung_{$invoice->invoice_number}.pdf");
+        }, "Rechnung_{$safeInvoiceNumber}.pdf");
     }
 
     public function generateForPaidOrders(InvoiceService $service)
@@ -331,8 +335,16 @@ class AccountingInvoice extends Component
 
     public function saveManualInvoice($finalStatus = 'paid', $isAutoSave = false)
     {
+        $finalStatus = in_array($finalStatus, ['draft', 'open', 'paid'], true) ? $finalStatus : 'draft';
+
         // 1. Die ID der aktuellen Rechnung holen (falls vorhanden)
         $currentId = $this->manualInvoice['id'] ?? null;
+        if ($currentId) {
+            $existingInvoice = InvoiceModel::find($currentId);
+            if ($existingInvoice && $existingInvoice->status !== 'draft') {
+                abort(403, 'GoBD-Schutz: Abgeschlossene Rechnungen dürfen nicht nachträglich bearbeitet werden.');
+            }
+        }
 
         // 2. Validierung
         if ($finalStatus === 'draft') {
@@ -690,9 +702,10 @@ class AccountingInvoice extends Component
         $query = InvoiceModel::query()->with(['order', 'customer', 'parent']);
 
         if ($this->search) {
-            $query->where(function($q) {
-                $q->where('invoice_number', 'like', '%'.$this->search.'%')
-                    ->orWhere('billing_address->last_name', 'like', '%'.$this->search.'%');
+            $escapedSearch = addcslashes((string) $this->search, '%_\\');
+            $query->where(function($q) use ($escapedSearch) {
+                $q->where('invoice_number', 'like', '%'.$escapedSearch.'%')
+                    ->orWhere('billing_address->last_name', 'like', '%'.$escapedSearch.'%');
             });
         }
 

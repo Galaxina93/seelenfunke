@@ -256,8 +256,18 @@ trait AiCalendarFuncs
         ];
     }
 
+    protected static function assertCalendarStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Kalender-Werkzeuge erfordern Mitarbeiter- oder Administrator-Berechtigungen.'];
+        }
+        return null;
+    }
+
     public static function executeGetCalendarEvents(array $args)
     {
+        if ($denied = self::assertCalendarStaffAccess()) return $denied;
+
         try {
             $dateFrom = $args['date_from'] ?? null;
             $dateTo = $args['date_to'] ?? null;
@@ -339,6 +349,8 @@ trait AiCalendarFuncs
 
     public static function executeCreateCalendarEvent(array $args, $agent = null)
     {
+        if ($denied = self::assertCalendarStaffAccess()) return $denied;
+
         try {
             if (empty($args['title']) || empty($args['start_date'])) {
                 return ['status' => 'error', 'message' => 'Titel und Startdatum (start_date) sind zwingend erforderlich!'];
@@ -412,6 +424,8 @@ trait AiCalendarFuncs
 
     public static function executeSendCalendarIcsEmail(array $args, $agent = null)
     {
+        if ($denied = self::assertCalendarStaffAccess()) return $denied;
+
         try {
             $events = collect();
             $location = !empty($args['location']) ? trim((string) $args['location']) : null;
@@ -621,6 +635,12 @@ trait AiCalendarFuncs
         $resolvedEmails = [];
 
         foreach ($parts as $part) {
+            if (preg_match('/[\r\n]/', $part)) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Ungültige Zeichen in der Empfängeradresse.'
+                ];
+            }
             $lower = strtolower($part);
             if (str_contains($lower, 'example.') || str_contains($lower, 'test.com') || str_contains($lower, 'dummy') || str_contains($lower, 'domain.de') || str_contains($lower, 'platzhalter')) {
                 return [
@@ -673,6 +693,8 @@ trait AiCalendarFuncs
 
     public static function executeUpdateCalendarEvent(array $args, $agent = null)
     {
+        if ($denied = self::assertCalendarStaffAccess()) return $denied;
+
         try {
              if (empty($args['event_id'])) {
                 return ['status' => 'error', 'message' => 'Du musst eine event_id angeben. Hole sie dir vorher mit calendar_get_events.'];
@@ -733,6 +755,8 @@ trait AiCalendarFuncs
 
     public static function executeDeleteCalendarEvent(array $args)
     {
+        if ($denied = self::assertCalendarStaffAccess()) return $denied;
+
         try {
             if (empty($args['event_id']) && empty($args['title_suche'])) {
                  return ['status' => 'error', 'message' => 'Bitte entweder event_id oder title_suche übergeben.'];

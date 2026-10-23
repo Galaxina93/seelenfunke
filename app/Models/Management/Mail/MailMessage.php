@@ -66,16 +66,16 @@ class MailMessage extends Model
                 }
             }
 
-            // 3. Jegliche Inline Event-Handler Attribute löschen (ohne Regex)
-            foreach ($xpath->query('//@*[starts-with(name(), "on")]') as $attr) {
+            // 3. Jegliche Inline Event-Handler Attribute und srcdoc löschen (ohne Regex)
+            foreach ($xpath->query('//@*[starts-with(name(), "on") or name()="srcdoc"]') as $attr) {
                 $attr->ownerElement->removeAttributeNode($attr);
             }
 
             // 4. "javascript:" und "data:text/html" URLs in href/src/action/formaction löschen
-            foreach (['href', 'src', 'action', 'formaction'] as $urlAttr) {
+            foreach (['href', 'src', 'action', 'formaction', 'xlink:href'] as $urlAttr) {
                 foreach ($xpath->query('//@' . $urlAttr) as $attr) {
                     $val = strtolower(trim(preg_replace('/[\x00-\x20]+/', '', $attr->value)));
-                    if (str_starts_with($val, 'javascript:') || str_starts_with($val, 'vbscript:') || str_starts_with($val, 'data:text/html')) {
+                    if (str_starts_with($val, 'javascript:') || str_starts_with($val, 'vbscript:') || str_starts_with($val, 'data:text/html') || str_starts_with($val, 'data:image/svg')) {
                         $attr->ownerElement->setAttribute($urlAttr, '#');
                     }
                 }
@@ -95,6 +95,8 @@ class MailMessage extends Model
                     ->whereNotNull('content_id')
                     ->get();
 
+                $allowedInlineMimes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
                 foreach ($xpath->query('//img') as $img) {
                     $src = trim($img->getAttribute('src'));
                     if (str_starts_with(strtolower($src), 'cid:')) {
@@ -104,10 +106,11 @@ class MailMessage extends Model
                             return trim($att->content_id, '<>') === trim($cidSource, '<>');
                         });
 
-                        if ($match && \Illuminate\Support\Facades\Storage::exists($match->path)) {
+                        if ($match && !empty($match->path) && !str_contains((string) $match->path, '..') && \Illuminate\Support\Facades\Storage::exists($match->path)) {
                             $content = \Illuminate\Support\Facades\Storage::get($match->path);
                             $base64 = base64_encode($content);
-                            $mime = $match->content_type ?: 'image/png';
+                            $rawMime = strtolower(trim((string) ($match->content_type ?: 'image/png')));
+                            $mime = in_array($rawMime, $allowedInlineMimes, true) ? $rawMime : 'image/png';
                             $img->setAttribute('src', 'data:' . $mime . ';base64,' . $base64);
                         } else {
                             // Transparentes Pixel einkleben um Browser-Fehler (ERR_UNKNOWN_URL_SCHEME) zu vermeiden

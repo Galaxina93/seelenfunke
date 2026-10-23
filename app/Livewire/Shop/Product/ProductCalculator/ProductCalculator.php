@@ -61,6 +61,8 @@ class ProductCalculator extends Component
     ];
 
     public $agb_accepted = false;
+
+    #[\Livewire\Attributes\Locked]
     public $dbProducts = [];
 
     protected $rules = [
@@ -95,8 +97,12 @@ class ProductCalculator extends Component
         $validItems = [];
         foreach($this->cartItems as $item) {
             if(isset($item['product_id']) && isset($this->dbProducts[$item['product_id']])) {
+                $dbProd = $this->dbProducts[$item['product_id']];
                 $rawQty = isset($item['qty']) && is_numeric($item['qty']) ? (int)$item['qty'] : 1;
                 $item['qty'] = max(1, min(10000, $rawQty));
+                $item['name'] = $dbProd['name'];
+                $item['image_ref'] = $dbProd['image'];
+                $item['preview_ref'] = $dbProd['preview_image'] ?? $dbProd['image'];
                 $validItems[] = $item;
             }
         }
@@ -218,7 +224,10 @@ class ProductCalculator extends Component
 
     public function selectTemplate($templateId)
     {
-        $template = ProductTemplate::find($templateId);
+        $currentProductId = $this->currentProduct['id'] ?? null;
+        $template = $currentProductId
+            ? ProductTemplate::where('product_id', $currentProductId)->where('is_active', true)->find($templateId)
+            : null;
 
         if ($template) {
             $this->currentConfig = $template->configuration ?? [];
@@ -582,6 +591,7 @@ class ProductCalculator extends Component
             throw $e;
         }
 
+        $this->loadProducts();
         $this->validateCartItems();
         $this->calculateTotal();
 

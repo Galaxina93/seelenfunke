@@ -213,6 +213,13 @@ class OrderOverview extends Component
     {
         if (!$this->selectedOrder) return;
 
+        $allowedStatuses = ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'refunded', 'failed'];
+        $allowedPaymentStatuses = ['unpaid', 'paid', 'refunded', 'failed'];
+        if (!in_array($this->status, $allowedStatuses, true) || !in_array($this->payment_status, $allowedPaymentStatuses, true)) {
+            session()->flash('error', 'Ungültiger Bestell- oder Zahlungsstatus.');
+            return;
+        }
+
         // Sicherheits-Modal für Versand
         if ($this->status === 'shipped' && $this->selectedOrder->status !== 'shipped') {
             $this->confirmingShipmentId = $this->selectedOrder->id;
@@ -283,6 +290,12 @@ class OrderOverview extends Component
 
     public function updateStatus($orderId, $newStatus)
     {
+        $allowedStatuses = ['pending', 'processing', 'shipped', 'completed', 'cancelled', 'refunded', 'failed'];
+        if (!in_array($newStatus, $allowedStatuses, true)) {
+            session()->flash('error', 'Ungültiger Bestellstatus.');
+            return;
+        }
+
         $order = OrderOrder::find($orderId);
         if (!$order) return;
 
@@ -707,7 +720,7 @@ class OrderOverview extends Component
     public function downloadDhlLabel($shipmentId)
     {
         $shipment = \App\Models\Order\OrderShipment::find($shipmentId);
-        if ($shipment && $shipment->shipping_label_path) {
+        if ($shipment && is_string($shipment->shipping_label_path) && $shipment->shipping_label_path !== '' && !str_contains($shipment->shipping_label_path, '..') && !str_contains($shipment->shipping_label_path, "\0")) {
             if (\Illuminate\Support\Facades\Storage::disk('local')->exists($shipment->shipping_label_path)) {
                 return \Illuminate\Support\Facades\Storage::disk('local')->download($shipment->shipping_label_path);
             }
@@ -733,7 +746,7 @@ class OrderOverview extends Component
             }
 
             foreach ($order->shipments as $shipment) {
-                if ($shipment->shipping_label_path) {
+                if (is_string($shipment->shipping_label_path) && $shipment->shipping_label_path !== '' && !str_contains($shipment->shipping_label_path, '..') && !str_contains($shipment->shipping_label_path, "\0")) {
                     $path = null;
                     if (\Illuminate\Support\Facades\Storage::disk('local')->exists($shipment->shipping_label_path)) {
                         $path = \Illuminate\Support\Facades\Storage::disk('local')->path($shipment->shipping_label_path);
@@ -788,7 +801,9 @@ class OrderOverview extends Component
     public function getPreviewItemProperty()
     {
         if (!$this->selectedOrderId || !$this->selectedOrderItemId) return null;
-        return OrderOrderItem::with('product')->find($this->selectedOrderItemId);
+        return OrderOrderItem::where('order_id', $this->selectedOrderId)
+            ->with('product')
+            ->find($this->selectedOrderItemId);
     }
 
     public function downloadLaserFile($itemId, $side, \App\Services\Export\FileDownloadService $exportService)
@@ -836,7 +851,7 @@ class OrderOverview extends Component
 
         // 1. Suche
         if ($this->search) {
-            $searchTerm = '%' . $this->search . '%';
+            $searchTerm = '%' . addcslashes((string) $this->search, '%_\\') . '%';
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('order_number', 'like', $searchTerm)
                     ->orWhere('email', 'like', $searchTerm)

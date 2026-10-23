@@ -169,9 +169,54 @@
                 img.src = this.config.fallbackImg;
             },
 
+            toggleNotice(val = null) {
+                this.showNotice = (typeof val === 'boolean') ? val : !this.showNotice;
+                try {
+                    localStorage.setItem('seelenfunke_config_show_notice', this.showNotice ? '1' : '0');
+                } catch (e) {}
+                window.dispatchEvent(new CustomEvent('configurator-prefs-synced', {
+                    detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
+                }));
+            },
+
+            toggleAnimation(val = null) {
+                this.videoEnabled = (typeof val === 'boolean') ? val : !this.videoEnabled;
+                try {
+                    localStorage.setItem('seelenfunke_config_show_animation', this.videoEnabled ? '1' : '0');
+                } catch (e) {}
+                window.dispatchEvent(new CustomEvent('configurator-prefs-synced', {
+                    detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
+                }));
+                if (this.videoEnabled) {
+                    this.$nextTick(() => {
+                        const vid = this.$refs.bgVideo;
+                        if (vid && this.activeBgVideo) {
+                            vid.load();
+                            vid.play().catch(() => {});
+                        }
+                    });
+                }
+            },
+
             init() {
                 window._frontendConfiguratorDataInstance = this;
                 this.isInitializing = false;
+
+                // Gespeicherte Kunden-Präferenzen (Hinweis & Jahreszeiten-Animation) produktübergreifend aus localStorage laden
+                try {
+                    const savedNotice = localStorage.getItem('seelenfunke_config_show_notice');
+                    if (savedNotice !== null) {
+                        this.showNotice = savedNotice !== '0';
+                    }
+                    const savedAnim = localStorage.getItem('seelenfunke_config_show_animation');
+                    if (savedAnim !== null) {
+                        this.videoEnabled = savedAnim !== '0';
+                    }
+                } catch (e) {}
+
+                window.dispatchEvent(new CustomEvent('configurator-prefs-synced', {
+                    detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
+                }));
 
                 window.addEventListener('cart-updated', () => {
                     this.saved = true;
@@ -180,9 +225,17 @@
 
                 window.addEventListener('toggle-configurator-hints', (e) => {
                     if (e.detail && typeof e.detail.show !== 'undefined') {
-                        this.showNotice = e.detail.show;
+                        this.toggleNotice(Boolean(e.detail.show));
                     } else {
-                        this.showNotice = !this.showNotice;
+                        this.toggleNotice();
+                    }
+                });
+
+                window.addEventListener('toggle-configurator-animation', (e) => {
+                    if (e.detail && typeof e.detail.enable !== 'undefined') {
+                        this.toggleAnimation(Boolean(e.detail.enable));
+                    } else {
+                        this.toggleAnimation();
                     }
                 });
 

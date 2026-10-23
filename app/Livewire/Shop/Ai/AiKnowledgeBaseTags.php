@@ -16,6 +16,13 @@ class AiKnowledgeBaseTags extends Component
     public $selectedTagIds = [];
     public $isManaging = false;
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount($selectedTagIds = null)
     {
         if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
@@ -35,7 +42,8 @@ class AiKnowledgeBaseTags extends Component
         if (empty($this->search)) {
             $this->tags = \App\Models\Ai\AiKnowledgeBaseTag::orderBy('name')->get()->toArray();
         } else {
-            $this->tags = \App\Models\Ai\AiKnowledgeBaseTag::where('name', 'like', '%' . $this->search . '%')
+            $escaped = addcslashes((string) $this->search, '%_\\');
+            $this->tags = \App\Models\Ai\AiKnowledgeBaseTag::where('name', 'like', '%' . $escaped . '%')
                 ->orderBy('name')->get()->toArray();
         }
     }

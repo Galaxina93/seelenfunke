@@ -39,7 +39,7 @@ class ManagementLinkTreeSeeder extends Seeder
             ],
             [
                 'title' => 'Zum Shop',
-                'url' => route('shop'),
+                'url' => 'https://www.mein-seelenfunke.de/shop/',
                 'icon' => 'shopping-bag', // Example icon
                 'type' => 'secure',
                 'is_active' => true,

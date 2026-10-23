@@ -253,7 +253,7 @@ class InvoiceService
         // Einfaches XML-Schema nach E-Commerce Richtlinien
         $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"/>');
         $header = $xml->addChild('ExchangedDocumentContext');
-        $header->addChild('ID', $invoice->invoice_number);
+        $header->addChild('ID', htmlspecialchars((string) $invoice->invoice_number, ENT_XML1 | ENT_QUOTES, 'UTF-8'));
 
         // Speicherung der XML-Komponente
         Storage::disk('local')->put($fileName, $xml->asXML());

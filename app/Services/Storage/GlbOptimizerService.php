@@ -110,10 +110,32 @@ class GlbOptimizerService
      */
     public function optimizeGlb(string $absolutePath, int $targetMaxTriangles = 55000, int $maxTextureSize = 2048): array
     {
+        if (str_contains($absolutePath, '..') || str_contains($absolutePath, "\0") || strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION)) !== 'glb') {
+            return [
+                'success' => false,
+                'error' => 'Ungültiger Dateipfad oder Dateityp (nur .glb erlaubt).',
+            ];
+        }
+
         if (!is_file($absolutePath) || !is_writable($absolutePath)) {
             return [
                 'success' => false,
                 'error' => '3D-Datei existiert nicht oder ist schreibgeschützt: ' . basename($absolutePath),
+            ];
+        }
+
+        $realFile = realpath($absolutePath);
+        $storageRoot = realpath(storage_path());
+        $publicRoot = realpath(public_path());
+        $inAllowedRoot = $realFile && (
+            ($storageRoot && str_starts_with($realFile, $storageRoot . DIRECTORY_SEPARATOR))
+            || ($publicRoot && str_starts_with($realFile, $publicRoot . DIRECTORY_SEPARATOR))
+        );
+
+        if (!$inAllowedRoot) {
+            return [
+                'success' => false,
+                'error' => '3D-Datei liegt außerhalb des autorisierten Storage-Verzeichnisses.',
             ];
         }
 

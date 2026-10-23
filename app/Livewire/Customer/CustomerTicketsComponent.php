@@ -68,6 +68,9 @@ class CustomerTicketsComponent extends Component
 
     private function enforceCustomerId(): string
     {
+        if (!Auth::guard('customer')->check()) {
+            abort(403, 'Zugriff verweigert.');
+        }
         $authId = (string) Auth::guard('customer')->id();
         if ($this->customerId !== '' && $this->customerId !== $authId) {
             SystemSecurityService::logEvent(

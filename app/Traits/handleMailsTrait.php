@@ -10,7 +10,7 @@ trait handleMailsTrait
 {
     use WithFileUploads;
 
-    public function sendMail(array $emailData): void
+    protected function sendMail(array $emailData): void
     {
         $to = $emailData['to'] ?? shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
         

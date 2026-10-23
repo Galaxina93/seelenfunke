@@ -136,7 +136,7 @@
     </div>
 
     <div class="protocol-content">
-        {!! \Illuminate\Support\Str::markdown($protocol->content) !!}
+        {!! \Illuminate\Support\Str::markdown((string) $protocol->content, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
     </div>
 
     <div class="footer">

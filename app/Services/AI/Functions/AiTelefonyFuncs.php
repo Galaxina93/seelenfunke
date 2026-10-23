@@ -224,8 +224,10 @@ trait AiTelefonyFuncs
             $escapedName = addcslashes($firstName, '%_\\');
             $p = self::findPersonProfile($firstName);
             if ($p) {
-                $query->where('phone', preg_replace('/[^0-9+]/', '', $p->phone))
+                $query->where(function ($q) use ($p) {
+                    $q->where('phone', preg_replace('/[^0-9+]/', '', $p->phone))
                       ->orWhere('contact_name', 'like', '%' . addcslashes($p->first_name, '%_\\') . '%');
+                });
             } else {
                 $query->where('contact_name', 'like', '%' . $escapedName . '%');
             }

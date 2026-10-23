@@ -258,8 +258,9 @@ class ReferralService
             }
 
             // Idempotenz: Verhindere Doppelgutschriften für dieselbe Order
+            $escapedOrderNumber = addcslashes((string) $order->order_number, '%_\\');
             $alreadyRewarded = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
-                ->where('personal_message', 'like', "%{$order->order_number}%")
+                ->where('personal_message', 'like', "%{$escapedOrderNumber}%")
                 ->exists();
             if ($alreadyRewarded) {
                 return null;
@@ -343,8 +344,9 @@ class ReferralService
             }
 
             // Suche den Gutschein, auf dem die Belohnung für diese Order vermerkt ist
+            $escapedOrderNumber = addcslashes((string) $order->order_number, '%_\\');
             $voucher = MarketingGiftVoucher::where('recipient_email', $referral->referrer_email)
-                ->where('personal_message', 'like', "%{$order->order_number}%")
+                ->where('personal_message', 'like', "%{$escapedOrderNumber}%")
                 ->lockForUpdate()
                 ->first();
 

@@ -73,9 +73,11 @@ Route::prefix('funki/tasks')->group(function () {
 
     Route::post('/lists/{listId}/tasks', function (Request $request, $listId) {
         $data = $request->validate([
-            'title' => 'required|string',
+            'title' => 'required|string|max:255',
             'priority' => 'nullable|in:niedrig,mittel,hoch'
         ]);
+
+        ManagementTaskList::findOrFail($listId);
 
         $task = ManagementTask::create([
             'id' => Str::uuid(),
@@ -92,10 +94,10 @@ Route::prefix('funki/tasks')->group(function () {
     Route::put('/{id}', function (Request $request, $id) {
         $task = ManagementTask::findOrFail($id);
         $data = $request->validate([
-            'title' => 'sometimes|required',
+            'title' => 'sometimes|required|string|max:255',
             'priority' => 'sometimes|in:niedrig,mittel,hoch',
             'is_completed' => 'sometimes|boolean',
-            'relevant_from' => 'nullable|string'
+            'relevant_from' => 'nullable|date'
         ]);
         if (array_key_exists('relevant_from', $data) || $request->has('relevant_from')) {
             $relevantVal = $request->input('relevant_from');
@@ -132,8 +134,9 @@ Route::prefix('funki/tasks')->group(function () {
         foreach ($subtasks as $sub) {
             if (!empty($sub->file_paths)) {
                 foreach ($sub->file_paths as $path) {
-                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                        \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                    $pathStr = (string) $path;
+                    if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'leitung/tasks/') && \Illuminate\Support\Facades\Storage::disk('local')->exists($pathStr)) {
+                        \Illuminate\Support\Facades\Storage::disk('local')->delete($pathStr);
                     }
                 }
             }
@@ -141,8 +144,9 @@ Route::prefix('funki/tasks')->group(function () {
         }
         if (!empty($task->file_paths)) {
             foreach ($task->file_paths as $path) {
-                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                    \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                $pathStr = (string) $path;
+                if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'leitung/tasks/') && \Illuminate\Support\Facades\Storage::disk('local')->exists($pathStr)) {
+                    \Illuminate\Support\Facades\Storage::disk('local')->delete($pathStr);
                 }
             }
         }
@@ -190,8 +194,9 @@ Route::prefix('funki/tasks')->group(function () {
         $existing = $task->file_paths ?? [];
         if (($key = array_search($path, $existing)) !== false) {
             unset($existing[$key]);
-            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-                \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+            $pathStr = (string) $path;
+            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'leitung/tasks/') && \Illuminate\Support\Facades\Storage::disk('local')->exists($pathStr)) {
+                \Illuminate\Support\Facades\Storage::disk('local')->delete($pathStr);
             }
             $task->update(['file_paths' => array_values($existing)]);
         }

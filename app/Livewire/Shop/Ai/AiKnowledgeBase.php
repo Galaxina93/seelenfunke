@@ -39,10 +39,64 @@ class AiKnowledgeBase extends Component
         'editForm.content' => 'required|string',
     ];
 
+    public const ADMIN_ONLY_CATEGORY_SLUGS = [
+        'ai-memory',
+        'gesundheit-sozialrecht-bkk-firmus',
+        'existenzgruendung-arbeitsagentur',
+        'steuern-buchhaltung',
+        'workspace-dokumentenkatalog',
+    ];
+
     protected $queryString = [
         'search' => ['except' => ''],
         'selectedCategoryId' => ['except' => null],
     ];
+
+    protected function isRestrictedCategory(?string $slug): bool
+    {
+        if (Auth::guard('admin')->check()) {
+            return false;
+        }
+
+        return $slug !== null && in_array($slug, self::ADMIN_ONLY_CATEGORY_SLUGS, true);
+    }
+
+    protected function assertCanAccessArticle(KB $article): void
+    {
+        $article->loadMissing('category');
+        if ($this->isRestrictedCategory($article->category?->slug)) {
+            abort(403);
+        }
+    }
+
+    protected function assertCanAccessCategory($categoryId): void
+    {
+        if (!$categoryId || Auth::guard('admin')->check()) {
+            return;
+        }
+
+        $category = AiKnowledgeBaseCategory::find($categoryId);
+        if ($category && $this->isRestrictedCategory($category->slug)) {
+            abort(403);
+        }
+    }
+
+    public static function sanitizeKnowledgeHtml(string $html): string
+    {
+        $clean = preg_replace('/<\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $html) ?? $html;
+        $clean = preg_replace('/<\s*\/?\s*(script|iframe|object|embed|applet|meta|base|form)\b[^>]*>/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $clean) ?? $clean;
+        $clean = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\'>\s]*\2/i', '$1="#"', $clean) ?? $clean;
+
+        return $clean;
+    }
+
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+            abort(403);
+        }
+    }
 
     public function mount()
     {
@@ -56,6 +110,7 @@ class AiKnowledgeBase extends Component
     #[On('ai-knowledge-base-category-selected')]
     public function setFormCategory($id)
     {
+        $this->assertCanAccessCategory($id);
         $this->editForm['ai_knowledge_base_category_id'] = $id;
     }
 
@@ -67,12 +122,15 @@ class AiKnowledgeBase extends Component
 
     public function selectArticle($id)
     {
-        $this->activeArticleId = $id;
+        $article = KB::with('category')->findOrFail($id);
+        $this->assertCanAccessArticle($article);
+        $this->activeArticleId = $article->id;
         $this->isEditing = false;
     }
 
     public function setCategory($categoryId)
     {
+        $this->assertCanAccessCategory($categoryId);
         $this->selectedCategoryId = $categoryId;
         $this->activeArticleId = null; // Reset article when category changes
         $this->isEditing = false;
@@ -101,7 +159,8 @@ class AiKnowledgeBase extends Component
 
     public function editArticle($id)
     {
-        $article = KB::with('tags')->findOrFail($id);
+        $article = KB::with(['tags', 'category'])->findOrFail($id);
+        $this->assertCanAccessArticle($article);
         $this->activeArticleId = $article->id;
         $this->isEditing = true;
 
@@ -126,13 +185,18 @@ class AiKnowledgeBase extends Component
         }
 
         $this->validate();
+        $this->assertCanAccessCategory($this->editForm['ai_knowledge_base_category_id']);
+
+        $sanitizedContent = self::sanitizeKnowledgeHtml((string) $this->editForm['content']);
+        $this->editForm['content'] = $sanitizedContent;
 
         if ($this->editForm['id']) {
-            $article = KB::findOrFail($this->editForm['id']);
+            $article = KB::with('category')->findOrFail($this->editForm['id']);
+            $this->assertCanAccessArticle($article);
             $article->update([
                 'title' => $this->editForm['title'],
                 'ai_knowledge_base_category_id' => $this->editForm['ai_knowledge_base_category_id'],
-                'content' => $this->editForm['content'],
+                'content' => $sanitizedContent,
             ]);
             $article->tags()->sync($this->editForm['tags']);
             session()->flash('success', 'Eintrag erfolgreich aktualisiert.');
@@ -141,7 +205,7 @@ class AiKnowledgeBase extends Component
                 'title' => $this->editForm['title'],
                 'slug' => \Illuminate\Support\Str::slug($this->editForm['title']) . '-' . rand(1000, 9999),
                 'ai_knowledge_base_category_id' => $this->editForm['ai_knowledge_base_category_id'],
-                'content' => $this->editForm['content'],
+                'content' => $sanitizedContent,
                 'is_published' => true,
             ]);
             if (!empty($this->editForm['tags'])) {
@@ -160,7 +224,8 @@ class AiKnowledgeBase extends Component
             abort(403);
         }
 
-        $article = KB::findOrFail($id);
+        $article = KB::with('category')->findOrFail($id);
+        $this->assertCanAccessArticle($article);
         $article->delete();
 
         if ($this->activeArticleId == $id) {
@@ -231,20 +296,31 @@ class AiKnowledgeBase extends Component
 
     public function render()
     {
-        $categories = AiKnowledgeBaseCategory::orderBy('name')->get();
+        $categoriesQuery = AiKnowledgeBaseCategory::orderBy('name');
+        if (!Auth::guard('admin')->check()) {
+            $categoriesQuery->whereNotIn('slug', self::ADMIN_ONLY_CATEGORY_SLUGS);
+        }
+        $categories = $categoriesQuery->get();
 
         $query = KB::with(['category', 'tags'])->where('is_published', true);
+
+        if (!Auth::guard('admin')->check()) {
+            $query->whereDoesntHave('category', function ($q) {
+                $q->whereIn('slug', self::ADMIN_ONLY_CATEGORY_SLUGS);
+            });
+        }
 
         if ($this->selectedCategoryId) {
             $query->where('ai_knowledge_base_category_id', $this->selectedCategoryId);
         }
 
         if (!empty($this->search)) {
-            $query->where(function ($q) {
-                $q->where('title', 'like', '%' . $this->search . '%')
-                    ->orWhere('content', 'like', '%' . $this->search . '%')
-                    ->orWhereHas('tags', function ($t) {
-                        $t->where('name', 'like', '%' . $this->search . '%');
+            $escaped = addcslashes((string) $this->search, '%_\\');
+            $query->where(function ($q) use ($escaped) {
+                $q->where('title', 'like', '%' . $escaped . '%')
+                    ->orWhere('content', 'like', '%' . $escaped . '%')
+                    ->orWhereHas('tags', function ($t) use ($escaped) {
+                        $t->where('name', 'like', '%' . $escaped . '%');
                     });
             });
         }
@@ -257,6 +333,10 @@ class AiKnowledgeBase extends Component
         }
 
         $activeArticle = $this->activeArticleId ? KB::with(['category', 'tags'])->find($this->activeArticleId) : null;
+        if ($activeArticle && $this->isRestrictedCategory($activeArticle->category?->slug)) {
+            $activeArticle = null;
+            $this->activeArticleId = null;
+        }
 
         return view('livewire.shop.ai.ai-knowledge-base', [
             'categories' => $categories,

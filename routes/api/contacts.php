@@ -11,7 +11,7 @@ Route::prefix('funki/contacts')->group(function () {
         $query = ManagementContact::query();
         
         if ($request->has('search') && !empty($request->search)) {
-            $search = '%' . $request->search . '%';
+            $search = '%' . addcslashes((string) $request->search, '%_\\') . '%';
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', $search)
                   ->orWhere('last_name', 'like', $search)

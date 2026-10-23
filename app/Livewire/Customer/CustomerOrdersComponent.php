@@ -235,12 +235,16 @@ class CustomerOrdersComponent extends Component
     public function render()
     {
         $user = Auth::guard('customer')->user();
+        if (!$user) {
+            abort(403);
+        }
 
         $query = OrderOrder::where('customer_id', $user->id)
             ->with(['items.product', 'shipments']); // Eager Loading für Performance
 
         if (!empty($this->searchOrder)) {
-            $query->where('order_number', 'like', '%' . $this->searchOrder . '%');
+            $escapedSearch = addcslashes((string) $this->searchOrder, '%_\\');
+            $query->where('order_number', 'like', '%' . $escapedSearch . '%');
         }
 
         $orders = $query->orderBy('created_at', 'desc')->paginate(10);

@@ -35,13 +35,22 @@ class ConfiguratorService
             ];
         }
 
-        $cleanRel = ltrim(preg_replace('/\?.*$/', '', $previewImagePath), '/');
+        $cleanRel = ltrim(str_replace('\\', '/', preg_replace('/\?.*$/', '', $previewImagePath)), '/');
+        if (str_contains($cleanRel, '..') || str_contains($cleanRel, "\0")) {
+            return [
+                'is_dark_surface'         => $fallbackDark,
+                'has_transparent_overlay' => $fallbackTrans,
+                'surface_luminance'       => $fallbackDark ? 10.0 : 140.0,
+            ];
+        }
         if (str_starts_with($cleanRel, 'storage/')) {
             $cleanRel = substr($cleanRel, strlen('storage/'));
         }
 
         $diskPath = storage_path('app/public/' . $cleanRel);
-        if (!is_file($diskPath)) {
+        $realDiskPath = realpath($diskPath);
+        $allowedRoot = realpath(storage_path('app/public'));
+        if ($realDiskPath === false || !is_file($realDiskPath) || ($allowedRoot !== false && !str_starts_with($realDiskPath, $allowedRoot . DIRECTORY_SEPARATOR))) {
             return [
                 'is_dark_surface'         => $fallbackDark,
                 'has_transparent_overlay' => $fallbackTrans,
@@ -150,51 +159,12 @@ class ConfiguratorService
     }
 
     /**
-     * Liest automatisch alle SVGs aus dem public-Ordner aus und gruppiert sie nach Unterordnern.
+     * Liest alle aktiven (nicht archivierten) Symbole über den ProductConfiguratorService
+     * aus storage/app/public/produkte/configurator/vectors (inkl. Kategorien-Sortierung & benutzerdefinierten Titeln).
      */
     public function getStandardVectors(): array
     {
-        $vectorPath = public_path('shop/product/configurator/vectors');
-        $vectors = [];
-
-        if (File::exists($vectorPath)) {
-            // Finde alle Dateien rekursiv
-            $allFiles = File::allFiles($vectorPath);
-            
-            foreach ($allFiles as $file) {
-                if (strtolower($file->getExtension()) === 'svg') {
-                    $filename = $file->getRelativePathname(); // e.g. "Floral/flower.svg"
-                    $rawName = str_replace('.svg', '', $file->getFilename());
-                    $name = $this->formatVectorTitle($rawName);
-
-                    // Kategorie aus dem relativen Pfad ermitteln
-                    $relativePath = $file->getRelativePath();
-                    $category = $relativePath ? ucwords(str_replace(['-', '_'], ' ', $relativePath)) : 'Allgemein';
-
-                    if (!isset($vectors[$category])) {
-                        $vectors[$category] = [];
-                    }
-
-                    $vectors[$category][] = [
-                        'file' => str_replace('\\', '/', $filename), // Windows fallback
-                        'name' => $name
-                    ];
-                }
-            }
-            
-            // Sortierung: Liebe, Familie, Tiere, Natur, Symbole, Ornamente, Feiertage, Allgemein, Rest alphabetisch
-            $order = ['Liebe', 'Familie', 'Tiere', 'Natur', 'Symbole', 'Ornamente', 'Feiertage', 'Allgemein'];
-            uksort($vectors, function ($a, $b) use ($order) {
-                $posA = array_search($a, $order, true);
-                $posB = array_search($b, $order, true);
-                if ($posA !== false && $posB !== false) return $posA <=> $posB;
-                if ($posA !== false) return -1;
-                if ($posB !== false) return 1;
-                return strcasecmp($a, $b);
-            });
-        }
-
-        return $vectors;
+        return app(ProductConfiguratorService::class)->getActiveVectorsGrouped();
     }
 
     /**

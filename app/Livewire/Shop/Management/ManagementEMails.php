@@ -79,9 +79,16 @@ class ManagementEMails extends Component
     public $composeAttachments = [];
     public $uploadedFiles = [];
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -107,7 +114,7 @@ class ManagementEMails extends Component
         $this->selectedMessageId = null;
     }
 
-    #[On('echo:crm-inbox,.MailReceivedEvent')]
+    #[On('echo-private:crm-inbox,.MailReceivedEvent')]
     public function refreshInbox()
     {
         // Re-renders the component to display the newly fetched messages from the DB
@@ -121,7 +128,7 @@ class ManagementEMails extends Component
         }
 
         try {
-            $artisan = base_path('artisan');
+            $artisan = escapeshellarg(base_path('artisan'));
             exec("nohup php {$artisan} crm:fetch-mails > /dev/null 2>&1 &");
             session()->flash('success_message', 'E-Mail Synchronisation im Hintergrund gestartet...');
         } catch (\Throwable $e) {
@@ -547,14 +554,18 @@ class ManagementEMails extends Component
             if ($msg) {
                 $this->composeTo = $msg->from_email;
                 $this->composeSubject = 'Re: ' . $msg->subject;
-                $this->composeBody = "<br><br><hr><p>Am " . $msg->received_at->format('d.m.Y H:i') . " schrieb " . $msg->from_name . ":<br><i>" . str_replace("\n", "<br>", strip_tags($msg->body_plain ?? $msg->body_html)) . "</i></p>" . $signature;
+                $safeFromName = e((string) ($msg->from_name ?: $msg->from_email));
+                $receivedFormatted = $msg->received_at ? $msg->received_at->format('d.m.Y H:i') : '';
+                $this->composeBody = "<br><br><hr><p>Am " . $receivedFormatted . " schrieb " . $safeFromName . ":<br><i>" . str_replace("\n", "<br>", e(strip_tags((string) ($msg->body_plain ?? $msg->body_html)))) . "</i></p>" . $signature;
             }
         } elseif ($type === 'forward' && $messageId) {
             $msg = MailMessage::find($messageId);
             if ($msg) {
                 $this->composeTo = '';
                 $this->composeSubject = 'Fwd: ' . $msg->subject;
-                $this->composeBody = "<br><br><hr><p>Weitergeleitete Nachricht von: " . $msg->from_email . "<br>Datum: " . $msg->received_at->format('d.m.Y H:i') . "</p><br>" . ($msg->safe_body_html ?? nl2br(e($msg->body_plain))) . $signature;
+                $safeFromEmail = e((string) $msg->from_email);
+                $receivedFormatted = $msg->received_at ? $msg->received_at->format('d.m.Y H:i') : '';
+                $this->composeBody = "<br><br><hr><p>Weitergeleitete Nachricht von: " . $safeFromEmail . "<br>Datum: " . $receivedFormatted . "</p><br>" . ($msg->safe_body_html ?? nl2br(e($msg->body_plain))) . $signature;
                 
                 // Get all attachments from the original message and store them to be forwarded
                 foreach (\App\Models\Management\Mail\MailAttachment::where('mail_message_id', $msg->id)->get() as $att) {
@@ -691,6 +702,11 @@ class ManagementEMails extends Component
 
         if (!$account || !$account->smtp_host) {
             session()->flash('error_message', 'SMTP Konfiguration für dieses Konto fehlt!');
+            return;
+        }
+
+        if (!\App\Services\System\SystemSecurityService::isSafeMailHost((string) $account->smtp_host)) {
+            session()->flash('error_message', 'Ungültiger oder interner SMTP-Host ist aus Sicherheitsgründen gesperrt.');
             return;
         }
 
@@ -848,8 +864,9 @@ class ManagementEMails extends Component
             $query = MailMessage::query();
 
             $query->where(function ($q) {
-                $search = '%' . $this->searchQuery . '%';
-                $searchLower = '%' . strtolower($this->searchQuery) . '%';
+                $escapedQuery = addcslashes((string) $this->searchQuery, '%_\\');
+                $search = '%' . $escapedQuery . '%';
+                $searchLower = '%' . strtolower($escapedQuery) . '%';
                 
                 $q->where('subject', 'like', $search)
                   ->orWhere('from_email', 'like', $search)

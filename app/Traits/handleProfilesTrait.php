@@ -15,7 +15,7 @@ trait handleProfilesTrait
 {
     use WithFileUploads;
 
-    public function updateUserProfilePhoto(): void
+    protected function updateUserProfilePhoto(): void
     {
         $this->validate([
             'photo' => 'required|image|mimes:png,jpg,jpeg|max:2048',
@@ -28,13 +28,15 @@ trait handleProfilesTrait
 
         $photo = Image::make($this->photo)->fit(400, 400);
         $filename = strtolower($this->photo->hashName());
-        $folderPath = 'dashboard/user/' . $this->guard . '/' . auth()->id() . '/profile-photo/';
+        $folderPath = 'dashboard/user/' . $this->guard . '/' . $this->user->id . '/profile-photo/';
         $fullPath = $folderPath . $filename;
 
         Storage::disk('public')->put($fullPath, (string) $photo->encode());
 
         if ($this->user->profile->photo_path) {
-            Storage::disk('public')->delete($this->user->profile->photo_path);
+            if (str_starts_with($this->user->profile->photo_path, 'dashboard/user/') && !str_contains($this->user->profile->photo_path, '..')) {
+                Storage::disk('public')->delete($this->user->profile->photo_path);
+            }
         }
 
         $this->user->profile->photo_path = $fullPath;
@@ -43,7 +45,7 @@ trait handleProfilesTrait
         $this->photo = null;
     }
 
-    public function deleteUserProfilePhoto(): void
+    protected function deleteUserProfilePhoto(): void
     {
         if ($this->user->profile->photo_path) {
             if (str_starts_with($this->user->profile->photo_path, 'dashboard/user/') && !str_contains($this->user->profile->photo_path, '..')) {
@@ -54,7 +56,7 @@ trait handleProfilesTrait
         }
     }
 
-    public function mountUserProfileData(): void
+    protected function mountUserProfileData(): void
     {
         $this->firstName = $this->user->first_name;
         $this->lastName = $this->user->last_name;
@@ -85,7 +87,7 @@ trait handleProfilesTrait
         }
     }
 
-    public function saveUserProfileData($data): void
+    protected function saveUserProfileData($data): void
     {
         $table = match($this->guard) {
             'admin' => 'admins',
@@ -99,7 +101,7 @@ trait handleProfilesTrait
             'email' => 'required|email|max:191|unique:' . $table . ',email,' . $this->user->id,
             'phoneNumber' => 'nullable|string|max:50',
             'about' => 'nullable|string|max:1000',
-            'url' => 'nullable|string|max:255',
+            'url' => ['nullable', 'string', 'max:255', 'not_regex:/^\s*(javascript|data|vbscript):/i'],
             'street' => 'nullable|string|max:150',
             'houseNumber' => 'nullable|string|max:20',
             'postal' => 'nullable|string|max:20',
@@ -217,7 +219,7 @@ trait handleProfilesTrait
         session()->flash('message', 'Profil erfolgreich aktualisiert.');
     }
 
-    public function updateUserPassword(): void
+    protected function updateUserPassword(): void
     {
         $this->validate([
             'currentPassword' => 'required',
@@ -239,7 +241,15 @@ trait handleProfilesTrait
         }
 
         $this->user->password = Hash::make($this->newPassword);
+        $this->user->setRememberToken(\Illuminate\Support\Str::random(60));
         $this->user->save();
+
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $this->user->id)
+                ->where('id', '!=', session()->getId())
+                ->delete();
+        }
 
         \App\Models\System\SystemLog::create([
             'type' => 'system',
@@ -266,12 +276,17 @@ trait handleProfilesTrait
         session()->flash('password-updated', 'Passwort erfolgreich aktualisiert.');
     }
 
-    public function getBrowserSessions($user)
+    public function getBrowserSessions($user = null)
     {
-        return DB::table('sessions')->where('user_id', $user->id)->orderBy('last_activity', 'desc')->get();
+        $targetUserId = $this->user?->id;
+        if (!$targetUserId) {
+            return collect();
+        }
+
+        return DB::table('sessions')->where('user_id', $targetUserId)->orderBy('last_activity', 'desc')->get();
     }
 
-    public function removeOtherSessions(): void
+    protected function removeOtherSessions(): void
     {
         $currentSessionId = session()->getId();
         $userId = $this->user->id;
@@ -287,7 +302,7 @@ trait handleProfilesTrait
         }
     }
 
-    public function deleteUserAccount()
+    protected function deleteUserAccount()
     {
         $user = Auth::guard($this->guard)->user();
         if (!$user) return;

@@ -1,5 +1,46 @@
 {{-- LINKE SEITE: Medien Galerie, Details & Bewertungen --}}
-<div class="w-full lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar lg:pb-12">
+<div class="w-full lg:sticky lg:top-24 lg:self-start relative"
+     x-data="{
+        canScrollDown: true,
+        canScrollUp: false,
+        checkScroll() {
+            const el = this.$refs.leftScrollContainer;
+            if (!el) return;
+            this.canScrollUp = el.scrollTop > 16;
+            this.canScrollDown = (el.scrollHeight - el.scrollTop - el.clientHeight) > 20;
+        },
+        scrollDownStep() {
+            const el = this.$refs.leftScrollContainer;
+            if (!el) return;
+            el.scrollBy({ top: Math.round(el.clientHeight * 0.55), behavior: 'smooth' });
+        }
+     }"
+     x-init="
+        $nextTick(() => {
+            checkScroll();
+            setTimeout(() => checkScroll(), 400);
+            if (window.ResizeObserver && $refs.leftScrollContainer) {
+                const ro = new ResizeObserver(() => checkScroll());
+                ro.observe($refs.leftScrollContainer);
+                if ($refs.leftScrollContent) ro.observe($refs.leftScrollContent);
+            }
+        });
+     "
+     @resize.window.passive="checkScroll()">
+
+    {{-- Sanfter Fade-Übergang oben (wenn nach unten gescrollt wurde) --}}
+    <div x-show="canScrollUp"
+         x-cloak
+         x-transition.opacity.duration.300ms
+         class="hidden lg:block pointer-events-none absolute top-0 inset-x-0 h-10 bg-gradient-to-b from-white via-white/75 to-transparent z-20">
+    </div>
+
+    {{-- Scrollbarer Container (Desktop) --}}
+    <div x-ref="leftScrollContainer"
+         @scroll.passive="checkScroll()"
+         class="w-full lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto no-scrollbar lg:pb-20">
+
+        <div x-ref="leftScrollContent">
 
     {{-- ========================================== --}}
     {{-- 1. MEDIEN GALERIE (Immer sichtbar) --}}
@@ -136,6 +177,24 @@
         <div id="kundenbewertungen-desktop" class="mt-20 scroll-mt-24 w-full block clear-both">
             <livewire:shop.product.product-reviews :product="$product" />
         </div>
+    </div>
+
+        </div>
+    </div>
+
+    {{-- Fließender Fade-Übergang unten + pulsierender Scroll-Pfeil (Desktop) --}}
+    <div x-show="canScrollDown"
+         x-transition.opacity.duration.300ms
+         class="hidden lg:flex pointer-events-none absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-white via-white/80 to-transparent z-20 items-end justify-center pb-2.5">
+        <button type="button"
+                @click="scrollDownStep()"
+                aria-label="Weiter nach unten scrollen"
+                title="Weiter nach unten scrollen"
+                class="pointer-events-auto group flex items-center justify-center w-9 h-9 rounded-full bg-white/80 hover:bg-white backdrop-blur-xs border border-primary/40 hover:border-primary shadow-xs hover:shadow-md text-primary transition-all duration-300 cursor-pointer animate-pulse hover:animate-none">
+            <svg class="w-4 h-4 translate-y-[0.5px] transition-transform duration-300 group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
     </div>
 
 </div>

@@ -43,9 +43,16 @@ class ManagementCalender extends Component
     public $editRecurrenceEnd;
     public $editReminderMinutes = null;
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -164,6 +171,11 @@ class ManagementCalender extends Component
             if($end < $start) $end = $start->copy()->addHour();
         }
 
+        $allowedRecurrences = ['daily', 'weekly', 'monthly', 'yearly'];
+        $allowedPriorities = ['low', 'medium', 'high'];
+        $recurrence = in_array($this->editRecurrence, $allowedRecurrences, true) ? $this->editRecurrence : null;
+        $priority = in_array($this->editPriority, $allowedPriorities, true) ? $this->editPriority : 'low';
+
         $data = [
             'title' => $this->editTitle,
             'start_date' => $start,
@@ -171,8 +183,8 @@ class ManagementCalender extends Component
             'is_all_day' => $this->editIsAllDay,
             'category' => $this->editCategory,
             'description' => $this->editDescription,
-            'priority' => $this->editPriority,
-            'recurrence' => $this->editRecurrence === '' ? null : $this->editRecurrence,
+            'priority' => $priority,
+            'recurrence' => $recurrence,
             'recurrence_end_date' => $this->editRecurrenceEnd ? Carbon::parse($this->editRecurrenceEnd) : null,
             'reminder_minutes' => $this->editReminderMinutes === '' ? null : $this->editReminderMinutes,
         ];
@@ -231,7 +243,10 @@ class ManagementCalender extends Component
         preg_match_all('/BEGIN:VEVENT(.*?)END:VEVENT/s', $content, $matches);
         $count = 0;
 
-        foreach ($matches[1] as $eventBlock) {
+        $eventBlocks = array_slice($matches[1], 0, 1000);
+        $validTimezones = timezone_identifiers_list();
+
+        foreach ($eventBlocks as $eventBlock) {
             preg_match('/UID:(.*?)(?:\r\n|\n|$)/', $eventBlock, $mUid);
             $uid = isset($mUid[1]) ? trim($mUid[1]) : null;
 
@@ -249,8 +264,8 @@ class ManagementCalender extends Component
             $params = $mStart[1];
             $rawDate = $mStart[2];
             $timezone = config('app.timezone');
-            if (preg_match('/TZID=([^;]+)/', $params, $mTz)) {
-                $timezone = $mTz[1];
+            if (preg_match('/TZID=([^;]+)/', $params, $mTz) && in_array(trim($mTz[1]), $validTimezones, true)) {
+                $timezone = trim($mTz[1]);
             }
 
             preg_match('/DTEND([^:]*):(\d{8}(?:T\d{6}Z?)?)/', $eventBlock, $mEnd);
@@ -402,7 +417,9 @@ class ManagementCalender extends Component
             }
 
             // Loop durch die Tage des View-Zeitraums
-            while ($simDate <= $end) {
+            $iterations = 0;
+            while ($simDate <= $end && $iterations < 1500) {
+                $iterations++;
                 if ($simDate >= $start && $simDate <= $end) {
                     if ($template->recurrence_end_date && $simDate > $template->recurrence_end_date) break;
 

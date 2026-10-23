@@ -23,6 +23,7 @@ class OrderQuoteAcceptance extends Component
 
     #[Locked]
     public $token;
+    #[Locked]
     public $quote;
 
     // UI States
@@ -35,6 +36,7 @@ class OrderQuoteAcceptance extends Component
     public $activeCoupon = null;
 
     // Editing State
+    #[Locked]
     public $editingItem = null; // Das QuoteRequestItem Model, das gerade bearbeitet wird
 
     public function mount($token)
@@ -70,7 +72,7 @@ class OrderQuoteAcceptance extends Component
      */
     public function editItem($itemId)
     {
-        if (!$this->quote->isValid()) return;
+        if (!$this->quote || !$this->quote->isValid()) return;
 
         $this->editingItem = $this->quote->items->find($itemId);
 
@@ -94,19 +96,22 @@ class OrderQuoteAcceptance extends Component
     #[On('calculator-save')]
     public function saveItem($data)
     {
-        if (!$this->editingItem || !$this->isValidAction() || !$this->quote->isValid()) return;
+        if (!$this->quote || !$this->editingItem || !$this->isValidAction() || !$this->quote->isValid()) return;
         if ($this->editingItem->quote_request_id !== $this->quote->id) return;
 
         // 1. Konfiguration & Menge updaten (Mindestmenge 1, Max 10.000 absichern)
+        $product = $this->editingItem->product;
+        if (!$product) return;
+
+        $data = is_array($data) ? $data : [];
         $qty = min(10000, max(1, (int) ($data['qty'] ?? 1)));
         $data['qty'] = $qty;
+        $data = app(\App\Services\CartService::class)->sanitizeConfiguration($product, $data) ?? $data;
 
         $this->editingItem->quantity = $qty;
         $this->editingItem->configuration = $data;
 
         // 2. Einzelpreis neu berechnen (Staffelpreise beachten!)
-        $product = $this->editingItem->product;
-        if (!$product) return;
         $unitPriceCents = $this->calculateTierPrice($product, $qty);
 
         $this->editingItem->unit_price = $unitPriceCents;
@@ -305,6 +310,8 @@ class OrderQuoteAcceptance extends Component
      */
     public function applyCoupon()
     {
+        if (!$this->quote || !$this->isValidAction()) return;
+
         $this->validate(['couponCodeInput' => 'required|string|max:64']);
 
         $ip = request()->ip();
@@ -365,7 +372,7 @@ class OrderQuoteAcceptance extends Component
      */
     public function proceedToCheckout(CartService $cartService)
     {
-        if (!$this->isValidAction()) return;
+        if (!$this->quote || !$this->isValidAction()) return;
 
         Session::put('checkout_from_quote_id', $this->quote->id);
 
@@ -398,6 +405,7 @@ class OrderQuoteAcceptance extends Component
 
     public function rejectQuote()
     {
+        if (!$this->quote || !$this->isValidAction()) return;
         if ($this->quote->status !== 'open') return;
         $this->quote->update(['status' => 'rejected']);
         $this->viewState = 'success_rejected';
@@ -405,6 +413,11 @@ class OrderQuoteAcceptance extends Component
 
     private function isValidAction()
     {
+        if (!$this->quote) {
+            $this->errorMessage = 'Angebot nicht gefunden.';
+            $this->viewState = 'error';
+            return false;
+        }
         if ($this->quote->status === 'converted') {
             $this->errorMessage = 'Dieses Angebot wurde bereits angenommen.';
             $this->viewState = 'error';

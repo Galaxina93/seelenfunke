@@ -51,6 +51,10 @@ trait AiScoutFuncs
 
     public static function executeGetCurrentMission(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Die CEO-Mission ist nur für Administratoren abrufbar.'];
+        }
+
         try {
             $botService = app(\App\Services\AI\AiSupportService::class);
             $missionData = $botService->getUltimateCommand();
@@ -69,6 +73,10 @@ trait AiScoutFuncs
 
     public static function executeGetGamificationLeaderboard(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Keine Berechtigung für Kunden-Rankings.'];
+        }
+
         try {
             $leaders = CustomerGamification::with('customer')
                 ->orderBy('total_xp', 'desc')
@@ -98,6 +106,10 @@ trait AiScoutFuncs
 
     public static function executeSearchCustomers(array $args)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Kundensuche erfordert Mitarbeiter- oder Admin-Berechtigungen.'];
+        }
+
         try {
             $term = trim((string)($args['search_query'] ?? ''));
             if (mb_strlen($term) < 2) {

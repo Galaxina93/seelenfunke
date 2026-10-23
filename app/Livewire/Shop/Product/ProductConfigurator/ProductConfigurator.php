@@ -769,6 +769,9 @@ class ProductConfigurator extends Component
                     $configData['product_id'] = $this->product->id;
                     $this->dispatch('calculator-save', data: $configData);
                 } elseif ($this->context === 'template_admin') {
+                    if (!auth()->guard('admin')->check() && !auth()->guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+                        abort(403);
+                    }
                     $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
                 } elseif ($this->context === 'order_edit') {
                     $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id ?? null);
@@ -798,8 +801,9 @@ class ProductConfigurator extends Component
                                     ? $orderItem->configuration['snapshot_path'] 
                                     : ['front' => $orderItem->configuration['snapshot_path']];
                         foreach($paths as $path) {
-                            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
-                                \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+                            $pathStr = (string) $path;
+                            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'snapshots/') && \Illuminate\Support\Facades\Storage::disk('public')->exists($pathStr)) {
+                                \Illuminate\Support\Facades\Storage::disk('public')->delete($pathStr);
                             }
                         }
                     }

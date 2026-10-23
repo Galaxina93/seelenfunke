@@ -34,7 +34,7 @@ class ElsterEricService
     {
         try {
             $rssRaw = Http::timeout(5)->get('https://www.elster.de/elsterweb/serverstatus_rss.xml')->body();
-            $xml = simplexml_load_string($rssRaw);
+            $xml = simplexml_load_string($rssRaw, 'SimpleXMLElement', LIBXML_NONET);
 
             if ($xml && isset($xml->channel->item)) {
                 foreach ($xml->channel->item as $item) {
@@ -140,7 +140,8 @@ class ElsterEricService
         $isAbs = str_starts_with($tresorConfigPath, '/');
         $absoluteTresorPath = $isAbs ? $tresorConfigPath : base_path($tresorConfigPath);
         
-        $certPath = $absoluteTresorPath . DIRECTORY_SEPARATOR . shop_setting('eric_default_cert', '');
+        $certName = basename((string) shop_setting('eric_default_cert', ''));
+        $certPath = $absoluteTresorPath . DIRECTORY_SEPARATOR . $certName;
         
         $ericBaseDir = $absoluteTresorPath . '/eric-linux/ERiC-43.4.6.0/Linux-x86_64';
         if (!file_exists($ericBaseDir . '/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo')) {

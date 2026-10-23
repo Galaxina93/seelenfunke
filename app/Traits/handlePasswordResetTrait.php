@@ -78,11 +78,11 @@ trait handlePasswordResetTrait
         session()->flash('status', 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.');
 
     }
-    public function generateToken(): string
+    protected function generateToken(): string
     {
         return Str::random(60);
     }
-    public function updatePasswordResetToken($email, $guard, $token): void
+    protected function updatePasswordResetToken($email, $guard, $token): void
     {
         // Füge einen neuen Token in die password_reset_tokens-Tabelle ein oder aktualisiere den vorhandenen Datensatz
         DB::table('system_password_reset_tokens')->updateOrInsert(
@@ -97,7 +97,7 @@ trait handlePasswordResetTrait
         );
     }
 
-    public function resetPassword()
+    protected function resetPassword()
     {
         $throttleKey = 'password_reset_exec_' . request()->ip();
         if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {

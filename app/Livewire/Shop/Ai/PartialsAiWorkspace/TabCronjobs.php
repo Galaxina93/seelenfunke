@@ -14,6 +14,13 @@ class TabCronjobs extends Component
     public $editingJobId = null;
     public $editingSchedule = '';
 
+    public function boot(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+    }
+
     public function mount()
     {
         if (!Auth::guard('admin')->check()) {
@@ -48,10 +55,26 @@ class TabCronjobs extends Component
             abort(403);
         }
         if (!$this->editingJobId) return;
+
+        $schedule = trim((string) $this->editingSchedule);
+        if ($schedule === '' || strlen($schedule) > 100 || !preg_match('/^[a-zA-Z0-9*\/,\-\s]+$/', $schedule)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Ungültiges Cron-Intervall.'
+            ]);
+            return;
+        }
+        if (str_contains($schedule, ' ') && class_exists(\Cron\CronExpression::class) && !\Cron\CronExpression::isValidExpression($schedule)) {
+            $this->dispatch('notify', [
+                'type' => 'error',
+                'message' => 'Ungültiger Cron-Ausdruck.'
+            ]);
+            return;
+        }
         
         $job = SystemCronjob::find($this->editingJobId);
         if ($job) {
-            $job->schedule = trim($this->editingSchedule);
+            $job->schedule = $schedule;
             $job->save();
             
             $this->dispatch('notify', [

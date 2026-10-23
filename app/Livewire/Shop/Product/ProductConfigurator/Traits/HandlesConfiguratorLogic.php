@@ -114,17 +114,20 @@ trait HandlesConfiguratorLogic
     public function addStandardVector($filename)
     {
         if ($this->context === 'preview') return;
+        $filename = basename((string) $filename);
+        if ($filename === '' || str_contains($filename, '..') || str_contains($filename, "\0")) {
+            return;
+        }
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
-        $vecFile = public_path('shop/product/configurator/vectors/' . $filename);
-        $ver = is_file($vecFile) ? '?v=' . filemtime($vecFile) : '';
+        $url = app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($filename);
 
         $newItem = [
             'id' => Str::uuid()->toString(),
             'type' => 'vector',
             'value' => 'vectors/' . $filename,
-            'url' => asset('shop/product/configurator/vectors/' . $filename) . $ver,
+            'url' => $url,
             'x' => $centerX,
             'y' => $centerY,
             'size' => 100,
@@ -148,6 +151,10 @@ trait HandlesConfiguratorLogic
     public function toggleLogo($type, $value)
     {
         if ($this->context === 'preview') return;
+        $value = (string) $value;
+        if ($value === '' || str_contains($value, '..') || str_contains($value, "\0")) {
+            return;
+        }
 
         // Bestimme das aktive Array
         $targetProperty = $this->activeSide === 'back' ? 'logos_back' : 'logos';
@@ -159,6 +166,11 @@ trait HandlesConfiguratorLogic
                 $this->$targetProperty = array_values($this->$targetProperty);
                 return;
             }
+        }
+
+        // Sicherheitscheck: Nur eigene hochgeladene Dateien oder Standard-Vektoren zulassen
+        if (!in_array($value, $this->uploaded_files ?? [], true) && !str_starts_with($value, 'vectors/')) {
+            return;
         }
 
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);

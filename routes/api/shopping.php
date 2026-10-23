@@ -64,7 +64,7 @@ Route::prefix('funki/shopping')->group(function () {
 
         $cleanName = trim($data['name']);
         $quantity = $data['quantity'] ?? 1;
-        $existing = ManagementShoppingItem::where('name', 'like', $cleanName)->first();
+        $existing = ManagementShoppingItem::where('name', 'like', addcslashes($cleanName, '%_\\'))->first();
 
         if ($existing) {
             $existing->status = 'needed';

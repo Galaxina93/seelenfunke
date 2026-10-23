@@ -25,14 +25,21 @@ class ManagementContacts extends Component
     public $activeProfileId = null;
     public $isEditing = false;
 
-    public function mount()
+    public function boot(): void
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
 
-    #[Validate('nullable|image|max:10240')]
+    public function mount()
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
+    #[Validate('nullable|image|mimes:jpg,jpeg,png,webp|max:10240')]
     public $avatar_upload;
 
     public $editForm = [
@@ -79,7 +86,8 @@ class ManagementContacts extends Component
             'editForm.country' => 'nullable|string|max:255',
             'editForm.links' => 'nullable|array',
             'editForm.links.*.name' => 'required|string|max:255',
-            'editForm.links.*.url' => 'required|url|max:255',
+            'editForm.links.*.url' => 'required|url|max:255|regex:/^https?:\/\//i',
+            'avatar_upload' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:10240',
         ];
     }
 
@@ -247,7 +255,7 @@ class ManagementContacts extends Component
                 );
                 $syncedCount++;
             } else {
-                $missingBirthdays[] = $contact->full_name;
+                $missingBirthdays[] = e((string) $contact->full_name);
             }
         }
 
@@ -269,7 +277,7 @@ class ManagementContacts extends Component
         $query = ManagementContact::query();
 
         if (!empty(trim($this->search))) {
-            $term = '%' . trim($this->search) . '%';
+            $term = '%' . addcslashes(trim((string) $this->search), '%_\\') . '%';
             $query->where(function($q) use ($term) {
                 $q->where('first_name', 'like', $term)
                   ->orWhere('last_name', 'like', $term)

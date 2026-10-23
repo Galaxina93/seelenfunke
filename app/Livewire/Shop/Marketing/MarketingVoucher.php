@@ -21,9 +21,16 @@ class MarketingVoucher extends Component
 
     public $voucherSectionMode = 'auto'; // 'auto' oder 'manual'
 
+    public function boot(): void
+    {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Zugriff verweigert.');
+        }
+    }
+
     public function mount()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
     }
@@ -160,7 +167,7 @@ class MarketingVoucher extends Component
                 'value' => $dbValue,
                 'min_order_value' => $dbMinOrder,
                 'mode' => 'manual',
-                'valid_from' => $this->manualId ? VoucherModel::find($this->manualId)->valid_from : now(),
+                'valid_from' => $this->manualId ? (VoucherModel::find($this->manualId)?->valid_from ?? now()) : now(),
             ]
         );
 
@@ -225,7 +232,7 @@ class MarketingVoucher extends Component
 
             // 1. Suche nach Code, Bestellung-Nr, E-Mail (Käufer & Empfänger), Name (Käufer & Empfänger), Nachricht
             if (!empty($this->searchCode)) {
-                $search = '%' . $this->searchCode . '%';
+                $search = '%' . addcslashes((string) $this->searchCode, '%_\\') . '%';
                 $giftVouchersQuery->where(function ($q) use ($search) {
                     $q->where('code', 'like', $search)
                       ->orWhere('recipient_name', 'like', $search)

@@ -71,8 +71,11 @@ trait AiLaserFuncs
         $agentName = $agent ? $agent->name : 'Lasi';
 
         try {
-            // Convert Markdown to HTML for the PDF
-            $htmlContent = Str::markdown($content);
+            // Convert Markdown to HTML for the PDF (strip raw HTML and unsafe links)
+            $htmlContent = Str::markdown((string) $content, [
+                'html_input' => 'strip',
+                'allow_unsafe_links' => false,
+            ]);
             
             // Choose the correct view template
             $viewName = $design === 'generic' ? 'global.pdf.ai-report-generic' : 'global.pdf.ai-report-seelenfunke';

@@ -54,7 +54,7 @@
             <h3 class="text-sm font-black text-white uppercase tracking-widest">Virtueller CFO Analyse</h3>
         </div>
         <div class="prose prose-sm prose-invert max-w-none text-gray-300">
-            {!! \Illuminate\Support\Str::markdown($aiRecommendation) !!}
+            {!! \Illuminate\Support\Str::markdown((string) $aiRecommendation, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}
         </div>
     </div>
     @endif

@@ -2,7 +2,19 @@
     $currentLayout = in_array($layoutMode ?? 'large', ['large', 'medium', 'list'], true) ? $layoutMode : 'large';
 @endphp
 
-<div x-data x-init="try { const saved = localStorage.getItem('admin_products_layout_mode'); if (saved && ['large', 'medium', 'list'].includes(saved) && saved !== '{{ $currentLayout }}') { $wire.setLayoutMode(saved); } else { localStorage.setItem('admin_products_layout_mode', '{{ $currentLayout }}'); } } catch (e) {}">
+<div x-data="{
+        syncProductLayout() {
+            try {
+                const saved = localStorage.getItem('admin_products_layout_mode');
+                if (saved && ['large', 'medium', 'list'].includes(saved) && saved !== '{{ $currentLayout }}') {
+                    $wire.setLayoutMode(saved);
+                } else {
+                    localStorage.setItem('admin_products_layout_mode', '{{ $currentLayout }}');
+                }
+            } catch (e) {}
+        }
+     }"
+     x-init="syncProductLayout()">
 
     {{-- HEADER BEREICH --}}
     <div class="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-10 gap-6 animate-fade-in-up">

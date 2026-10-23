@@ -187,8 +187,9 @@ class GeminiAgent implements AiProviderInterface
 
             // === ARTIFACT INJECTION (ANTIGRAVITY ARCHITECTURE) ===
             $sessionId = config('ai.current_session_id') ?: session()->getId();
-            if (!empty($sessionId)) {
-                $artifactPath = 'agenten/ai-artifacts/' . $sessionId;
+            $safeSessionId = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string) $sessionId);
+            if (!empty($safeSessionId)) {
+                $artifactPath = 'agenten/ai-artifacts/' . $safeSessionId;
                 $artifactsPrompt = "";
                 if (\Illuminate\Support\Facades\Storage::disk('local')->exists($artifactPath)) {
                     $files = ['implementation_plan.md', 'task.md', 'walkthrough.md'];
@@ -1008,8 +1009,9 @@ class GeminiAgent implements AiProviderInterface
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
                 curl_setopt($ch, CURLOPT_TIMEOUT, 120);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                $verifySsl = (bool) env('GEMINI_VERIFY_SSL', !app()->environment('local', 'testing'));
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verifySsl);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verifySsl ? 2 : 0);
 
                 $responseString = curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -1111,6 +1113,9 @@ class GeminiAgent implements AiProviderInterface
             // WICHTIG: Ersetze Guzzle durch puren curl_init, da Guzzle / Http::post in Docker hier wegen
             // Expect: 100-continue und TCP MTU-Fragmentierung bei der Base64 payload in Timeout 28 rennt.
             $ch = curl_init($googleUrl);
+            $verifySsl = (bool) env('GEMINI_VERIFY_SSL', !app()->environment('local', 'testing'));
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verifySsl);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verifySsl ? 2 : 0);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
