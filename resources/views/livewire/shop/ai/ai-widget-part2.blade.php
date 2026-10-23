@@ -1621,15 +1621,25 @@
 
                     this.liveWs.onclose = (event) => {
                         console.log('WebSocket Closed', event);
+                        const closeReason = (event.reason || '').toString();
+                        const reasonLower = closeReason.toLowerCase();
                         if (event.code !== 1000 && event.code !== 1005) {
-                            console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + event.reason);
+                            console.warn('WebSocket geschlossen! Code: ' + event.code + ' Reason: ' + closeReason);
                         }
                         
                         // Bei aktivem Live-Modus AudioContext & gepufferte Sprachausgabe NICHT abwürgen (keepAudioAlive = true)
                         this.cleanupLiveConnection(this.isLiveMode);
                         
+                        const isFatalBillingOrAuthError = reasonLower.includes('prepayment')
+                            || reasonLower.includes('credit')
+                            || reasonLower.includes('billing')
+                            || reasonLower.includes('quota')
+                            || reasonLower.includes('api key')
+                            || event.code === 4001
+                            || event.code === 4003;
+
                         if (this.isLiveMode) {
-                            if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                            if (!isFatalBillingOrAuthError && this.reconnectAttempts < this.maxReconnectAttempts) {
                                 this.reconnectAttempts++;
                                 console.log(`WebSocket geschlossen. Versuche nahtlosen Reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in 800ms...`);
                                 if (!this.isSpeaking && (!this.activeAudioSources || this.activeAudioSources.length === 0)) {
@@ -1642,9 +1652,15 @@
                                     }
                                 }, 800);
                             } else {
-                                console.error('Maximale Reconnect-Versuche erreicht.');
+                                console.error('Live-Verbindung beendet:', closeReason || event.code);
                                 this.stopLiveMode();
-                                alert('Die Verbindung zur Gemini Live API wurde unterbrochen. Bitte überprüfe deine Internetverbindung.');
+                                if (reasonLower.includes('prepayment') || reasonLower.includes('credit') || reasonLower.includes('billing')) {
+                                    alert('Google Gemini API (Code 402 / 1011): Dein Prepayment-Guthaben (Credits) in Google AI Studio ist aufgebraucht.\n\nOriginalmeldung von Google:\n"' + closeReason + '"\n\nBitte lade dein Guthaben unter https://ai.studio/projects auf.');
+                                } else if (closeReason) {
+                                    alert('Die Verbindung zur Gemini Live API wurde beendet (Code ' + event.code + '):\n' + closeReason);
+                                } else {
+                                    alert('Die Verbindung zur Gemini Live API wurde unterbrochen (Code ' + event.code + '). Bitte überprüfe deine Internetverbindung oder den API-Status.');
+                                }
                             }
                         } else {
                             this.stopLiveMode();
