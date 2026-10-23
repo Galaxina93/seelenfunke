@@ -384,7 +384,7 @@ trait AiMapControlFuncs
             ]);
             $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
-            $dir = storage_path('app/public/maps');
+            $dir = storage_path('app/public/agenten/exports/maps');
             if (!file_exists($dir)) {
                 mkdir($dir, 0755, true);
             }
@@ -393,7 +393,7 @@ trait AiMapControlFuncs
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
-            $downloadUrl = url('storage/maps/' . $filename);
+            $downloadUrl = url('storage/agenten/exports/maps/' . $filename);
 
             if ($action === 'email') {
                 if (empty($recipient)) {
@@ -656,7 +656,7 @@ trait AiMapControlFuncs
             ]);
             $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
-            $dir = storage_path('app/public/places');
+            $dir = storage_path('app/public/agenten/exports/places');
             if (!file_exists($dir)) {
                 mkdir($dir, 0755, true);
             }
@@ -665,7 +665,7 @@ trait AiMapControlFuncs
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
-            $downloadUrl = url('storage/places/' . $filename);
+            $downloadUrl = url('storage/agenten/exports/places/' . $filename);
 
             if ($action === 'email') {
                 if (empty($recipient)) {
@@ -880,20 +880,33 @@ trait AiMapControlFuncs
         }
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System Agent');
 
-        if (empty($filePath) || !\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
-            return ['status' => 'error', 'message' => "Fehler: Die angegebene Datei ('{$filePath}') wurde nicht gefunden. Bitte überprüfe den Dateipfad aus der [SYSTEM_INFO]."];
+        if (
+            empty($filePath)
+            || !is_string($filePath)
+            || str_contains($filePath, '..')
+            || str_contains($filePath, '\\')
+            || !str_starts_with($filePath, 'agenten/workspace/')
+            || !\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)
+        ) {
+            return ['status' => 'error', 'message' => "Fehler: Die angegebene Datei ('{$filePath}') wurde nicht gefunden oder ist unzulässig. Bitte überprüfe den Dateipfad aus der [SYSTEM_INFO]."];
         }
 
         $fullImagePath = storage_path('app/public/' . $filePath);
+        $realImagePath = realpath($fullImagePath);
+        $allowedPublicBase = realpath(storage_path('app/public'));
+        if ($realImagePath === false || ($allowedPublicBase !== false && !str_starts_with($realImagePath, $allowedPublicBase))) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Ungültiger Dateipfad.'];
+        }
 
         try {
             if ($action === 'generate_pdf' || ($action === 'send_email' && str_contains(strtolower($description), 'pdf'))) {
-                // PDF Generierung
+                // PDF Generierung (SSRF-geschützt, HTML-escaped)
+                $safeDescription = nl2br(htmlspecialchars((string) $description, ENT_QUOTES, 'UTF-8'));
                 $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.places_list', [
                     'title' => $title,
-                    'description' => $description . '<br><br><img src="data:image/jpeg;base64,' . base64_encode(file_get_contents($fullImagePath)) . '" style="max-width:100%; height:auto;">',
+                    'description' => $safeDescription . '<br><br><img src="data:image/jpeg;base64,' . base64_encode(file_get_contents($fullImagePath)) . '" style="max-width:100%; height:auto;">',
                     'places' => []
-                ]);
+                ])->setOptions(['isRemoteEnabled' => false]);
 
                 $pdfFilename = 'snapshot_' . \Illuminate\Support\Str::slug($title) . '_' . time() . '.pdf';
                 $pdfPath = 'agenten/workspace/Dokumente/Snapshots/' . $pdfFilename;
@@ -909,6 +922,10 @@ trait AiMapControlFuncs
             if ($action === 'send_email') {
                 if (empty($recipient)) {
                     $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
+                }
+
+                if (!filter_var($recipient, FILTER_VALIDATE_EMAIL) || preg_match('/[\r\n]/', (string) $recipient)) {
+                    return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse.'];
                 }
 
                 $design = $args['design'] ?? 'seelenfunke';

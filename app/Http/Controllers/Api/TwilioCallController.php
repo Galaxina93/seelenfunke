@@ -13,15 +13,23 @@ class TwilioCallController extends Controller
      */
     public function outbound(Request $request)
     {
-        $response = new VoiceResponse();
-        // Versuch, den im Vorfeld gespeicherten Kontext aus dem Cache zu holen
-        $toPhone = preg_replace('/[^0-9+]/', '', $request->input('To', ''));
-        $context = \Illuminate\Support\Facades\Cache::pull("twilio_call_" . $toPhone);
+        $configuredAccountSid = env('TWILIO_SID') ?: config('services.twilio.sid');
+        if (!empty($configuredAccountSid) && $request->filled('AccountSid') && !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
+            return response('Forbidden', 403);
+        }
 
-        // Verbinde mit dem Node.js WebSocket
+        $response = new VoiceResponse();
+        // Versuch, den im Vorfeld gespeicherten Kontext aus dem Cache zu holen (nur wenn eine gültige CallSid übergeben wurde oder lokal getestet wird)
+        $toPhone = preg_replace('/[^0-9+]/', '', $request->input('To', ''));
+        $hasValidCallSid = $request->filled('CallSid') && preg_match('/^CA[a-f0-9]{32}$/i', (string) $request->input('CallSid'));
+        $context = ($hasValidCallSid || app()->environment('local', 'testing'))
+            ? \Illuminate\Support\Facades\Cache::pull("twilio_call_" . $toPhone)
+            : null;
+
+        // Verbinde mit dem Node.js WebSocket (Host aus vertrauenswürdiger App-Konfiguration statt unvalidiertem Host-Header)
         $connect = $response->connect();
-        
-        $url = env('TWILIO_WSS_URL', 'wss://' . $request->getHost() . ':8081/twilio-stream');
+        $trustedHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
+        $url = env('TWILIO_WSS_URL', 'wss://' . $trustedHost . ':8081/twilio-stream');
         $stream = $connect->stream([
             'url' => $url,
             'track' => 'both_tracks'

@@ -85,6 +85,15 @@ trait ManagesAiChat
 
     public function switchChat($id)
     {
+        if (AiAuthHelper::check()) {
+            $ownsSession = \App\Models\Ai\AiChatSession::where('id', $id)
+                ->where('user_id', AiAuthHelper::getUserId())
+                ->exists();
+            if (!$ownsSession) {
+                return ['sessionId' => (string) $this->currentChatSessionId, 'messages' => []];
+            }
+        }
+
         $this->currentChatSessionId = $id;
         $messages = $this->messages();
         
@@ -306,11 +315,14 @@ trait ManagesAiChat
 
     public function appendLiveChatMemory($role, $text, $frontendAgentId = null, $sessionId = null)
     {
-        $trimmed = trim($text);
+        $role = in_array($role, ['user', 'assistant'], true) ? $role : 'user';
+        $trimmed = trim((string) $text);
         if (empty($trimmed)) return;
 
         if (!empty($sessionId)) {
-            $this->currentChatSessionId = $sessionId;
+            if (!AiAuthHelper::check() || \App\Models\Ai\AiChatSession::where('id', $sessionId)->where('user_id', AiAuthHelper::getUserId())->exists()) {
+                $this->currentChatSessionId = $sessionId;
+            }
         }
 
         $activeSessionId = $this->getAiSessionId();
@@ -407,17 +419,59 @@ trait ManagesAiChat
         $artifacts = $this->artifacts;
         foreach ($artifacts as $art) {
             if (str_starts_with(strtolower($query), 'plan') || stripos($art['filename'], $query) !== false) {
-                array_unshift($results, 'storage/app/ai-artifacts/' . $this->getAiSessionId() . '/' . $art['filename']);
+                array_unshift($results, 'storage/app/agenten/workspace/Berufsleben/Projekte/' . $art['filename']);
             }
         }
 
         $this->mentionResults = $results;
     }
 
+    protected function isAllowedProjectAttachmentPath($filePath): bool
+    {
+        if (!is_string($filePath) || trim($filePath) === '') {
+            return false;
+        }
+        $normalized = ltrim(str_replace('\\', '/', $filePath), '/');
+        if (str_contains($normalized, '..') || str_contains($normalized, "\0")) {
+            return false;
+        }
+        $baseName = strtolower(basename($normalized));
+        if (str_starts_with($baseName, '.env') || str_ends_with($baseName, '.key') || str_ends_with($baseName, '.pem') || str_ends_with($baseName, '.sqlite')) {
+            return false;
+        }
+        $allowedPrefixes = [
+            'app/',
+            'config/',
+            'resources/',
+            'routes/',
+            'database/',
+            'tests/',
+            'storage/app/agenten/workspace/',
+        ];
+        $matchesPrefix = false;
+        foreach ($allowedPrefixes as $prefix) {
+            if (str_starts_with($normalized, $prefix)) {
+                $matchesPrefix = true;
+                break;
+            }
+        }
+        if (!$matchesPrefix) {
+            return false;
+        }
+        $fullPath = base_path($normalized);
+        $realFull = realpath($fullPath);
+        $realBase = realpath(base_path());
+        if ($realFull === false || $realBase === false || !is_file($realFull) || !str_starts_with($realFull, $realBase)) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function addAttachment($filePath)
     {
-        if (!in_array($filePath, $this->attachments)) {
-            $this->attachments[] = $filePath;
+        if ($this->isAllowedProjectAttachmentPath($filePath) && !in_array($filePath, $this->attachments, true)) {
+            $this->attachments[] = ltrim(str_replace('\\', '/', (string) $filePath), '/');
         }
         $this->mentionQuery = '';
         $this->mentionResults = [];
@@ -504,21 +558,36 @@ trait ManagesAiChat
 
     public function submitClipboardImage($base64Data, $filename, $mimeType)
     {
-        if (empty($base64Data)) return;
+        if (empty($base64Data) || !is_string($base64Data)) return;
 
         // Extract base64
-        $base64Data = substr($base64Data, strpos($base64Data, ',') + 1);
-        $fileData = base64_decode($base64Data);
-        if (!$fileData) return;
+        $commaPos = strpos($base64Data, ',');
+        $rawBase64 = $commaPos !== false ? substr($base64Data, $commaPos + 1) : $base64Data;
+        $fileData = base64_decode($rawBase64, true);
+        if (!$fileData || strlen($fileData) > 15 * 1024 * 1024) return;
 
-        $path = 'agenten/workspace/chat-medien/' . uniqid() . '_' . preg_replace('/[^A-Za-z0-9_\-\.]/', '', $filename);
+        $imageInfo = @getimagesizefromstring($fileData);
+        $detectedMime = $imageInfo['mime'] ?? '';
+        $allowedImageMimes = [
+            'image/png' => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+        ];
+        if (!isset($allowedImageMimes[$detectedMime])) {
+            return;
+        }
+
+        $safeBaseName = pathinfo(preg_replace('/[^A-Za-z0-9_\-\.]/', '', (string) $filename), PATHINFO_FILENAME) ?: 'clipboard';
+        $safeFilename = $safeBaseName . '.' . $allowedImageMimes[$detectedMime];
+        $path = 'agenten/workspace/chat-medien/' . uniqid() . '_' . $safeFilename;
         \Illuminate\Support\Facades\Storage::disk('public')->put($path, $fileData);
 
         $localUploads = [
             [
                 'path' => $path,
-                'name' => $filename,
-                'mime' => $mimeType,
+                'name' => $safeFilename,
+                'mime' => $detectedMime,
             ]
         ];
 
@@ -731,6 +800,9 @@ trait ManagesAiChat
                 if (!empty($ctx['attachments'])) {
                     $contentToAPI .= "\n\n[PROJEKT-DATEIEN IN DIESER NACHRICHT REFERENZIERT:]\n";
                     foreach ($ctx['attachments'] as $filePath) {
+                        if (!$this->isAllowedProjectAttachmentPath($filePath)) {
+                            continue;
+                        }
                         $fullPath = base_path($filePath);
                         if (file_exists($fullPath) && is_file($fullPath)) {
                             $lines = array_slice(file($fullPath), 0, 2000);
@@ -887,7 +959,6 @@ trait ManagesAiChat
                                 $this->isMapMode = true;
                             }
                             \Illuminate\Support\Facades\Log::info("DEBUG_MAP: toggle-mapfocus verarbeitet.", ['detail' => $detail]);
-                            file_put_contents(storage_path('logs/debug_map.log'), "[" . now() . "] toggle-mapfocus verarbeitet. Payload: " . json_encode($detail) . "\n", FILE_APPEND);
                         } elseif ($name === 'toggle-livedata') {
                             $active = $detail['active'] ?? false;
                             if (property_exists($this, 'isFlightDataActive')) {
@@ -895,7 +966,6 @@ trait ManagesAiChat
                             }
                         } elseif ($name === 'map-fly-to') {
                             \Illuminate\Support\Facades\Log::info("DEBUG_MAP: map-fly-to verarbeitet.", ['detail' => $detail]);
-                            file_put_contents(storage_path('logs/debug_map.log'), "[" . now() . "] map-fly-to verarbeitet. Payload: " . json_encode($detail) . "\n", FILE_APPEND);
                         }
                         
                         $jsonDetail = htmlspecialchars(json_encode($detail), ENT_QUOTES, 'UTF-8');
@@ -1029,19 +1099,30 @@ trait ManagesAiChat
 
     public function removeGlobalFile($type, $path)
     {
+        if (!is_string($path) || trim($path) === '' || str_contains($path, '..') || str_contains($path, '\\') || str_contains($path, "\0")) {
+            return;
+        }
+
         if ($type === 'local_upload') {
+            $normalizedPath = ltrim($path, '/');
+            if (!str_starts_with($normalizedPath, 'agenten/workspace/chat-medien/') && !str_starts_with($normalizedPath, 'telegram_uploads/')) {
+                return;
+            }
+
             $sessionId = $this->getAiSessionId();
             $memories = AiChatMemory::where('session_id', $sessionId)->get();
+            $anyRemoved = false;
 
             foreach($memories as $mem) {
                 $ctx = $mem->context_data ?? [];
                 $changed = false;
 
                 if (!empty($ctx['local_uploads'])) {
-                    $filtered = array_filter($ctx['local_uploads'], fn($u) => $u['path'] !== $path);
+                    $filtered = array_filter($ctx['local_uploads'], fn($u) => ($u['path'] ?? '') !== $path && ($u['path'] ?? '') !== $normalizedPath);
                     if (count($filtered) !== count($ctx['local_uploads'])) {
                         $ctx['local_uploads'] = array_values($filtered);
                         $changed = true;
+                        $anyRemoved = true;
                     }
                 }
 
@@ -1050,8 +1131,15 @@ trait ManagesAiChat
                 }
             }
 
-            @unlink(storage_path('app/public/' . $path));
-            @unlink(storage_path('app/' . $path));
+            if ($anyRemoved) {
+                $allowedStorageBase = realpath(storage_path('app'));
+                foreach ([storage_path('app/public/' . $normalizedPath), storage_path('app/' . $normalizedPath)] as $candidate) {
+                    $realCandidate = realpath($candidate);
+                    if ($realCandidate !== false && $allowedStorageBase !== false && str_starts_with($realCandidate, $allowedStorageBase) && is_file($realCandidate)) {
+                        @unlink($realCandidate);
+                    }
+                }
+            }
 
         } elseif ($type === 'project_file') {
             $sessionId = $this->getAiSessionId();

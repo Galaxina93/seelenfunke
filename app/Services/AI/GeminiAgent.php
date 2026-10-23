@@ -447,8 +447,6 @@ class GeminiAgent implements AiProviderInterface
                     'stream' => $payload['stream'] ?? false
                 ]);*/
 
-                \Illuminate\Support\Facades\File::put(storage_path('logs/gemini_payload_dump.json'), json_encode($payload, JSON_PRETTY_PRINT));
-
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
@@ -466,8 +464,9 @@ class GeminiAgent implements AiProviderInterface
                 curl_setopt($ch, CURLOPT_TIMEOUT, 120 + ($retryCount * 30));
                 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+                $verifySsl = (bool) env('GEMINI_VERIFY_SSL', !app()->environment('local', 'testing'));
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verifySsl);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $verifySsl ? 2 : 0);
 
                 $rawResponseString = '';
                 $streamedTextAccumulator = '';

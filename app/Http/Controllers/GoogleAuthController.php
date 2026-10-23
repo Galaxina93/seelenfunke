@@ -39,6 +39,12 @@ class GoogleAuthController extends Controller
             // Google User abrufen (stateless)
             $googleUser = Socialite::driver('google')->stateless()->user();
 
+            // Kritische Validierung: Google-ID und E-Mail dürfen niemals leer/null sein (verhindert WHERE google_id IS NULL Auth-Bypass)
+            if (empty($googleUser->id) || empty($googleUser->email) || !filter_var($googleUser->email, FILTER_VALIDATE_EMAIL)) {
+                Log::warning('Google OAuth Login abgelehnt: Fehlende Google-ID oder ungültige E-Mail-Adresse.');
+                return redirect()->route('login')->with('error', 'Google-Anmeldung fehlgeschlagen: Ungültige Kontodaten übermittelt.');
+            }
+
             // Sicherheitsprüfung: Unverifizierte Google-Accounts dürfen nicht gelinkt werden
             $emailVerified = $googleUser->user['email_verified'] ?? ($googleUser->user['verified_email'] ?? null);
             if ($emailVerified === false || $emailVerified === 'false') {
@@ -62,10 +68,10 @@ class GoogleAuthController extends Controller
             // ---------------------------------------------------------
 
             // A) Check: Ist es ein Admin?
-            // Jetzt findet er die Klasse, da "use App\Models\Admin;" oben steht
-            $admin = Admin::withTrashed()->where('google_id', $googleUser->id)
-                ->orWhere('email', $googleUser->email)
-                ->first();
+            $admin = Admin::withTrashed()->where(function ($q) use ($googleUser) {
+                $q->where('google_id', $googleUser->id)
+                  ->orWhere('email', $googleUser->email);
+            })->first();
 
             if ($admin) {
                 $user = $admin;
@@ -74,9 +80,10 @@ class GoogleAuthController extends Controller
 
             // B) Check: Ist es ein Mitarbeiter? (Nur wenn kein Admin gefunden)
             if (!$user) {
-                $employee = Employee::withTrashed()->where('google_id', $googleUser->id)
-                    ->orWhere('email', $googleUser->email)
-                    ->first();
+                $employee = Employee::withTrashed()->where(function ($q) use ($googleUser) {
+                    $q->where('google_id', $googleUser->id)
+                      ->orWhere('email', $googleUser->email);
+                })->first();
 
                 if ($employee) {
                     $user = $employee;
@@ -86,9 +93,10 @@ class GoogleAuthController extends Controller
 
             // C) Check: Ist es ein Kunde? (Nur wenn bisher nichts gefunden)
             if (!$user) {
-                $customer = Customer::withTrashed()->where('google_id', $googleUser->id)
-                    ->orWhere('email', $googleUser->email)
-                    ->first();
+                $customer = Customer::withTrashed()->where(function ($q) use ($googleUser) {
+                    $q->where('google_id', $googleUser->id)
+                      ->orWhere('email', $googleUser->email);
+                })->first();
 
                 if ($customer) {
                     $user = $customer;

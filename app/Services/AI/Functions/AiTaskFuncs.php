@@ -993,10 +993,15 @@ trait AiTaskFuncs
                 return ['status' => 'success', 'message' => 'Kein Dateipfad angegeben.'];
             }
 
-            $filePath = $args['file_path'];
+            $filePath = (string) $args['file_path'];
 
             // Security check to avoid path traversal
-            if (!str_starts_with($filePath, 'leitung/tasks/attachments/')) {
+            if (
+                str_contains($filePath, '..')
+                || str_contains($filePath, '\\')
+                || str_contains($filePath, "\0")
+                || !str_starts_with($filePath, 'leitung/tasks/attachments/')
+            ) {
                 return ['status' => 'success', 'message' => 'Zugriff verweigert: Ungültiger Pfad.'];
             }
 
@@ -1005,6 +1010,11 @@ trait AiTaskFuncs
             }
 
             $absolutePath = \Illuminate\Support\Facades\Storage::disk('local')->path($filePath);
+            $realPath = realpath($absolutePath);
+            $allowedBase = realpath(\Illuminate\Support\Facades\Storage::disk('local')->path('leitung/tasks/attachments'));
+            if ($realPath === false || ($allowedBase !== false && !str_starts_with($realPath, $allowedBase))) {
+                return ['status' => 'success', 'message' => 'Zugriff verweigert: Ungültiger Pfad.'];
+            }
             $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 
             $content = '';

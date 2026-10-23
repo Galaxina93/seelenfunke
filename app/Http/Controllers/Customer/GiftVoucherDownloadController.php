@@ -43,13 +43,21 @@ class GiftVoucherDownloadController extends Controller
             if (!$isBuyer && !$isRecipient) {
                 abort(403, 'Zugriff verweigert.');
             }
+
+            if (!$voucher->is_active) {
+                abort(403, 'Dieser Gutschein ist noch nicht aktiviert.');
+            }
+
+            if ($item && $item->order && $item->order->payment_status !== 'paid') {
+                abort(403, 'Der Gutschein steht erst nach vollständigem Zahlungseingang zum Download bereit.');
+            }
         }
 
-        // Generate PDF on the fly
+        // Generate PDF on the fly (disable remote asset execution to prevent SSRF)
         $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
             'voucher' => $voucher,
-        ]);
+        ])->setOptions(['isRemoteEnabled' => false]);
 
-        return $pdf->download('Geschenkgutschein-' . $voucher->code . '.pdf');
+        return $pdf->download('Geschenkgutschein-' . preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $voucher->code) . '.pdf');
     }
 }
