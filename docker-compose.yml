@@ -14,7 +14,7 @@ services:
         command: >
             bash -c "sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
             && a2enmod rewrite
-            && (cd /var/www/html && nohup node server-twilio.js > /var/log/node-bridge.log 2>&1 &)
+            && (cd /var/www/html && nohup node server-twilio.js >> /var/www/html/storage/logs/twilio_bridge.log 2>&1 &)
             && apache2-foreground"
     db:
         image: mysql:8.0

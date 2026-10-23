@@ -2127,8 +2127,11 @@ trait AiSystemFuncs
                 }
             }
             
-            // Check bridge.log
-            $logPath = base_path('../twilio-bridge/bridge.log');
+            // Check twilio_bridge.log / bridge.log
+            $logPath = storage_path('logs/twilio_bridge.log');
+            if (!file_exists($logPath) || filesize($logPath) === 0) {
+                $logPath = base_path('../twilio-bridge/bridge.log');
+            }
             if (!file_exists($logPath)) {
                 $logPath = base_path('bridge.log');
             }

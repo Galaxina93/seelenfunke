@@ -135,11 +135,22 @@ class SystemSecurityService
             return true;
         }
 
-        $configuredSecret = config('services.gemini.bridge_secret') ?: env('BRIDGE_SECRET');
-        $providedSecret = $request->header('X-Bridge-Secret') ?: $request->input('bridge_secret');
+        $configuredSecrets = array_filter([
+            config('services.gemini.bridge_secret'),
+            env('BRIDGE_SECRET'),
+            env('AI_PROXY_SECRET'),
+        ], fn ($v) => is_string($v) && trim($v) !== '');
 
-        if (!empty($configuredSecret) && is_string($providedSecret) && hash_equals((string) $configuredSecret, $providedSecret)) {
-            return true;
+        $providedSecret = $request->header('X-Bridge-Secret')
+            ?: $request->header('X-AI-Proxy-Secret')
+            ?: $request->input('bridge_secret');
+
+        if (!empty($configuredSecrets) && is_string($providedSecret) && trim($providedSecret) !== '') {
+            foreach ($configuredSecrets as $secret) {
+                if (hash_equals((string) $secret, $providedSecret)) {
+                    return true;
+                }
+            }
         }
 
         $clientIp = (string) $request->ip();
@@ -156,8 +167,8 @@ class SystemSecurityService
             return true;
         }
 
-        // Erlaube internes Docker-Bridge-Subnetz (172.16.0.0/12), falls PHP & Node im Container-Netz laufen
-        if (preg_match('/^172\.(1[6-9]|2[0-9]|3[0-1])\./', $clientIp)) {
+        // Erlaube private/interne Container- & Server-Subnetze (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+        if (preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $clientIp)) {
             return true;
         }
 

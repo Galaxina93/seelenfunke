@@ -90,6 +90,14 @@ function diagnoseWsIssue(code, reason, source = 'google') {
     }
 
     if (numCode === 1011) {
+        if (rLower.includes('prepayment') || rLower.includes('credit') || rLower.includes('billing')) {
+            return {
+                category: 'google_prepayment_credits_depleted_1011',
+                probable_cause: `Google AI Studio Prepayment-Guthaben (Credits) für den aktuellen GEMINI_API_KEY ist aufgebraucht (${r}).`,
+                recommended_action: 'Unter https://ai.studio/projects das Google Cloud / AI Studio Billing-Guthaben aufladen oder einen aktiven GEMINI_API_KEY in der .env hinterlegen.',
+                severity: 'error'
+            };
+        }
         if (rLower.includes('quota') || rLower.includes('resource_exhausted') || rLower.includes('rate')) {
             return {
                 category: 'google_quota_exceeded_1011',
@@ -147,11 +155,13 @@ function sendLogToBackend(type, message, actionId, payload = {}) {
     };
 
     const backendUrl = process.env.APP_URL || 'http://localhost';
+    const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
     fetch(`${backendUrl}/api/log/websocket`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
+            'X-AI-Proxy-Secret': proxySecret,
+            'X-Bridge-Secret': proxySecret
         },
         body: JSON.stringify({
             type: type, // 'crash', 'error', 'info', 'warning'
@@ -194,6 +204,21 @@ function safeSend(ws, message) {
     }
 }
 
+const ROOT_LOG_PATH = join(__dirname, 'bridge.log');
+const STORAGE_LOG_DIR = join(__dirname, 'storage', 'logs');
+const TWILIO_BRIDGE_LOG_PATH = join(STORAGE_LOG_DIR, 'twilio_bridge.log');
+
+try {
+    if (!fs.existsSync(STORAGE_LOG_DIR)) {
+        fs.mkdirSync(STORAGE_LOG_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(TWILIO_BRIDGE_LOG_PATH)) {
+        fs.writeFileSync(TWILIO_BRIDGE_LOG_PATH, '', 'utf8');
+    }
+} catch (e) {
+    console.error('Initialisierung von storage/logs/twilio_bridge.log fehlgeschlagen:', e.message);
+}
+
 function debugLog(msg, err) {
     const timestamp = new Date().toISOString();
     let formattedMsg = msg;
@@ -207,11 +232,19 @@ function debugLog(msg, err) {
     // In Konsole ausgeben
     console.log(formattedMsg);
     
-    // In Datei schreiben
+    const logLine = `[${timestamp}] ${formattedMsg}\n`;
+
+    // In beide Log-Dateien schreiben (Root bridge.log & storage/logs/twilio_bridge.log)
     try {
-        fs.appendFileSync(join(__dirname, 'bridge.log'), `[${timestamp}] ${formattedMsg}\n`);
+        fs.appendFileSync(ROOT_LOG_PATH, logLine);
     } catch (e) {
         console.error('Logging to bridge.log failed:', e.message);
+    }
+
+    try {
+        fs.appendFileSync(TWILIO_BRIDGE_LOG_PATH, logLine);
+    } catch (e) {
+        console.error('Logging to storage/logs/twilio_bridge.log failed:', e.message);
     }
 
     // Integriere Fehlermeldungen direkt ins globale System-Log
@@ -222,11 +255,12 @@ function debugLog(msg, err) {
 
 // Log-Rotation beim Start
 try {
-    const logPath = join(__dirname, 'bridge.log');
-    if (fs.existsSync(logPath)) {
-        const stats = fs.statSync(logPath);
-        if (stats.size > 5 * 1024 * 1024) { // 5MB limit
-            fs.writeFileSync(logPath, `--- Log rotierte am ${new Date().toISOString()} ---\n`, 'utf8');
+    for (const logPath of [ROOT_LOG_PATH, TWILIO_BRIDGE_LOG_PATH]) {
+        if (fs.existsSync(logPath)) {
+            const stats = fs.statSync(logPath);
+            if (stats.size > 5 * 1024 * 1024) { // 5MB limit
+                fs.writeFileSync(logPath, `--- Log rotierte am ${new Date().toISOString()} ---\n`, 'utf8');
+            }
         }
     }
 } catch (e) {
@@ -425,12 +459,14 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
 
         debugLog(`💾 Sende Live-Transkript (${role}) an Backend: "${cleanText.substring(0, 60)}..." (Session: ${targetSessionId})`);
 
+        const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
         fetch(`${backendUrl}/api/ai/save-live-transcript`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
+                'X-AI-Proxy-Secret': proxySecret,
+                'X-Bridge-Secret': proxySecret
             },
             body: JSON.stringify(payload)
         })
@@ -832,11 +868,13 @@ function handleTwilioConnection(ws) {
         });
 
         const backendUrl = process.env.APP_URL || 'http://localhost';
+        const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
         fetch(`${backendUrl}/api/twilio/call-log`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
+                'X-AI-Proxy-Secret': proxySecret,
+                'X-Bridge-Secret': proxySecret
             },
             body: payload
         }).catch(e => console.error("Error sending call log to backend:", e));
@@ -1246,12 +1284,14 @@ wss.on('connection', (ws, req) => {
             controller.abort();
         }, 5000); // 5 seconds timeout
  
+        const proxySecret = process.env.AI_PROXY_SECRET || process.env.BRIDGE_SECRET || '';
         fetch(`${backendUrl}/api/ai/verify-token`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-AI-Proxy-Secret': process.env.AI_PROXY_SECRET || ''
+                'X-AI-Proxy-Secret': proxySecret,
+                'X-Bridge-Secret': proxySecret
             },
             body: JSON.stringify({ token: token }),
             signal: controller.signal
