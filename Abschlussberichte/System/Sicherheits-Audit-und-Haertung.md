@@ -142,3 +142,36 @@
 | **Mobile (390×844 Touch)** | 98 ms | **0,33 ms** | 2,0 % | **3.055 FPS** | 667 FPS | **120 FPS** (locked) |
 | **Mobile 4× CPU-Drosselung** | 141 ms | **0,97 ms** | 5,8 % | **1.037 FPS** | 278 FPS | **120 FPS** (locked) |
 
+---
+
+## 10. Phase 2 Tiefen-Audit: Weitere Module, Preis-Integrität & Dateisystem-Schutz
+
+### 10.1 Notfall- & Todesfall-Protokoll (`/notfall`): Schutz vor Auth-Bypass
+* **Problem:** Die Eigenschaft `$isAuthenticated` in der Notfall-Komponente war nicht mit `#[Locked]` gesperrt. Ein Angreifer hätte im Livewire-Payload `isAuthenticated = true` übergeben können, um ohne Master-Passwort Einblick in Systemeinstellungen, Buchhaltungsposten und offene Bestellungen zu erhalten oder den Wartungsmodus des gesamten Shops auszulösen.
+* **Lösung:** Harte Sperrung via `#[Locked]`, ausschließliches Laden sensibler Statusdaten nach verifizierter Server-Session (`session('emergency_access_granted') === true`) und direkte Anbindung von Fehlversuchen an den Security-Monitor (`security:emergency_auth_failed`).
+* **Beschreibung:** Das Notfall-Protokoll ist nun vollständig gegen clientseitiges State-Spoofing gehärtet.
+
+### 10.2 Geschenkgutschein- & Warenkorb-Preisintegrität
+* **Problem:** Bei der Zahlungsabwicklung (`completePayment`) prüfte die Gutscheingenerierung lediglich, ob im Konfigurations-Array einer Bestellposition `is_gift_voucher` gesetzt war, und übernahm ungeprüft `amount_cents` als Gutscheinwert. Durch Übergabe dieser Konfigurationsparameter an ein günstiges Standardprodukt hätte ein Käufer für wenige Euro einen hochdotierten Wertgutschein generieren lassen können. Zudem waren negative `amount_cents`-Werte bei Gutscheinen nicht nach unten begrenzt und persönliche Gutschein-Fehlermeldungen gaben die volle E-Mail-Adresse des Empfängers preis.
+* **Lösung:** Strikte Produkt-Bindung (`slug === 'geschenkgutschein'`), automatisches Stripping unzulässiger Gutschein-Flags bei Standardprodukten, Clamping des Gutscheinbetrags auf 5,00 € bis 1.000,00 € (`500`–`100000` Cents), Deckelung des generierten Gutscheinwerts auf den tatsächlich gezahlten Artikelpreis (`unit_price`), E-Mail-Maskierung bei persönlichen Gutscheinen sowie Schutz vor 0-€-Leerkorb-Bestellungen.
+* **Beschreibung:** Jegliche Manipulation von Gutscheinbeträgen oder Artikelkonfigurationen wird serverseitig abgefangen, korrigiert und sofort als `security:price_tampering_attempt` im Sicherheits-Dashboard gemeldet.
+
+### 10.3 Laser-SVG-Export & Produkt-Konfigurator: Schutz vor Local File Inclusion (LFI)
+* **Problem:** Beim Generieren der Laser-Druckdatei (`downloadLaserSvg`) wurden Logo-Pfade aus der Artikelkonfiguration ohne Prüfung auf `..` oder Verzeichnisgrenzen per `file_get_contents()` geladen und Base64-kodiert in die SVG eingebettet. Zudem war `$uploaded_files` im Konfigurator nicht gesperrt.
+* **Lösung:** `realpath()`-Verzeichnis-Jail (nur `storage/app/public`, `public/shop` und `public/shopverwaltung/images`), Dateiendungs-Whitelist (`svg`, `png`, `jpg`, `jpeg`, `webp`), XML-Attribut-Escaping, 10-MB-Limit für Snapshot-Uploads sowie `#[Locked]`-Schutz auf `$uploaded_files` und `$snapshot_path`.
+* **Beschreibung:** Selbst über manipulierte Konfigurationsdaten können niemals Systemdateien außerhalb der freigegebenen Medienordner ausgelesen oder gelöscht werden (`security:lfi_attempt_blocked`).
+
+### 10.4 Produktbewertungen, Linktree, KI-Workspace & System-Routen
+* **Problem:**
+  * Der eingebettete Login in den Produktbewertungen besaß kein Rate-Limiting und keine IP-Blocklisten-Prüfung.
+  * Die Linktree-Komponente akzeptierte die Weiterleitungs-URL als Client-Parameter (Open-Redirect-Risiko).
+  * Der Dateimanager im KI-Workspace prüfte Pfade nicht durchgängig auf `agenten/workspace/` und erlaubte beim Upload ausführbare Dateiendungen.
+  * Auf der Newsletter-Seite verriet eine Fehlermeldung, ob eine E-Mail bereits verifiziert ist (User-Enumeration), und bei den Cronjob-/Cache-Routen griff der Rate-Limiter erst nach der Token-Prüfung.
+* **Lösung:**
+  * Brute-Force-Schutz, IP-Firewall-Check und `#[Locked]`-Properties in den Produktbewertungen.
+  * Serverseitige Datenbank-Auflösung der Ziel-URL bei Linktree-Klicks (`security:open_redirect_blocked`).
+  * Strikte Pfad-Sanitisierung (`sanitizeWorkspacePath`), Löschschutz für Hauptordner und Blockade ausführbarer Skript-Endungen im KI-Workspace sowie in den Finanz-/Task-Upload-APIs.
+  * Rate-Limiting vor Token-Vergleich bei System-Routen (`security:cron_token_invalid`), Download-Throttling für Rechnungen/Gutscheine/Digitalprodukte, Ausschluss von SVGs bei öffentlichen Telegram-Uploads und einheitliche, enumerationssichere Antworten im Newsletter-Modul.
+* **Beschreibung:** Alle sekundären Login-, Upload-, Download- und Weiterleitungs-Endpunkte unterliegen denselben strengen Zero-Trust-Regeln wie der Haupt-Checkout.
+
+
