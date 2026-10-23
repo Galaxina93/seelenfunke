@@ -28,7 +28,7 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function backend_linktree_manager_renders_correctly()
     {
-        Livewire::actingAs($this->admin)
+        Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->assertStatus(200)
             ->assertSee('Linktree Verwaltung');
@@ -37,7 +37,7 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function admin_can_create_new_linktree_entry()
     {
-        Livewire::actingAs($this->admin)
+        Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->set('title', 'Test Link')
             ->set('url', 'https://example.com')
@@ -65,7 +65,7 @@ class ManagementLinktreeTest extends TestCase
             'sort_order' => 1,
         ]);
 
-        Livewire::actingAs($this->admin)
+        Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->call('edit', $link->id)
             ->set('title', 'New Title')
@@ -89,7 +89,7 @@ class ManagementLinktreeTest extends TestCase
             'sort_order' => 1,
         ]);
 
-        Livewire::actingAs($this->admin)
+        Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->call('delete', $link->id);
 
@@ -105,7 +105,7 @@ class ManagementLinktreeTest extends TestCase
 
         $file = UploadedFile::fake()->image('profile.jpg');
 
-        Livewire::actingAs($this->admin)
+        Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->set('themeColor', '#FF0000')
             ->set('profileImage', $file)
@@ -129,7 +129,7 @@ class ManagementLinktreeTest extends TestCase
             'value' => '/storage/test.jpg'
         ]);
 
-        Livewire::actingAs($this->admin)
+        Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->call('deleteProfileImage');
 

@@ -23,6 +23,8 @@ class ProductCalculatorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \Illuminate\Support\Facades\Storage::fake('local');
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         Cache::flush();
         Cache::put('shop_capacity_level', 0); // Allow express delivery in tests
         
@@ -163,11 +165,11 @@ class ProductCalculatorTest extends TestCase
         ]);
 
         // Verify Mails
-        Mail::assertQueued(NewCalcMailToCustomer::class, function ($mail) {
+        Mail::assertSent(NewCalcMailToCustomer::class, function ($mail) {
             return $mail->hasTo('max@example.com');
         });
 
-        Mail::assertQueued(NewCalcMailToAdmin::class, function ($mail) {
+        Mail::assertSent(NewCalcMailToAdmin::class, function ($mail) {
             $owner_mail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
             return $mail->hasTo($owner_mail);
         });

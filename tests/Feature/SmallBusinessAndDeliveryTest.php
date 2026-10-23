@@ -23,6 +23,12 @@ class SmallBusinessAndDeliveryTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+    }
+
     protected function setSmallBusiness(bool $value): void
     {
         SystemSetting::updateOrCreate(

@@ -74,8 +74,8 @@ class CustomerTicketsComponentTest extends TestCase
         $this->assertStringContainsString('Hallo Anna,', $adminMessage->message);
         $this->assertStringContainsString($ticket->ticket_number, $adminMessage->message);
 
-        // Verify creation email queued
-        Mail::assertQueued(\App\Mail\SupportTicketCreatedMailToCustomer::class, function ($mail) {
+        // Verify creation email sent
+        Mail::assertSent(\App\Mail\SupportTicketCreatedMailToCustomer::class, function ($mail) {
             return $mail->hasTo('anna@example.com');
         });
     }

@@ -55,8 +55,8 @@ class CustomerSecurityAndBlogAuthorizationTest extends TestCase
 
         Livewire::actingAs($customer, 'customer')
             ->test(CustomerForcePasswordChange::class)
-            ->set('password', 'new-secure-password')
-            ->set('passwordConfirm', 'new-secure-password')
+            ->set('password', 'NewSecurePassword123')
+            ->set('passwordConfirm', 'NewSecurePassword123')
             ->call('submit')
             ->assertRedirect(route('customer.dashboard'));
 

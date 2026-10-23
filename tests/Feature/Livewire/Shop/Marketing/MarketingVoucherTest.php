@@ -15,6 +15,12 @@ class MarketingVoucherTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
+    }
+
     #[Test]
     public function it_renders_the_component_in_auto_mode_by_default()
     {

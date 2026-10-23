@@ -175,6 +175,8 @@ class AiWorkspaceTest extends TestCase
             ->assertCount('artifacts', 1)
             ->assertSet('artifacts.0.name', 'implementation_plan')
             ->assertSet('artifacts.0.content', '# Test Plan');
+
+        @unlink(storage_path('app/agenten/workspace/Berufsleben/Projekte/implementation_plan.md'));
     }
 
     /** @test */

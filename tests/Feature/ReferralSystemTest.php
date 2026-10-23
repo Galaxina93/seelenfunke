@@ -155,8 +155,8 @@ class ReferralSystemTest extends TestCase
         // Referral Counter inkrementiert
         $this->assertEquals(1, $ref->fresh()->successful_referrals_count);
 
-        // Belohnungs-Mail wurde gequeued
-        Mail::assertQueued(ReferralRewardEarnedMail::class, function ($mail) {
+        // Belohnungs-Mail wurde gesendet
+        Mail::assertSent(ReferralRewardEarnedMail::class, function ($mail) {
             return $mail->hasTo('werber@example.com');
         });
 

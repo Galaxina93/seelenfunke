@@ -44,6 +44,7 @@ class AiLaserAndHolidaySecurityTest extends TestCase
 
     public function test_holiday_generate_pdf_plan_sanitizes_title_and_recipient()
     {
+        Storage::fake('local');
         Storage::fake('public');
         Mail::fake();
 
@@ -63,5 +64,9 @@ class AiLaserAndHolidaySecurityTest extends TestCase
 
         $this->assertEquals('success', $res['status']);
         Mail::assertSent(AiHolidayPlanMail::class);
+
+        if (!empty($res['file_name'])) {
+            @unlink(storage_path('app/public/agenten/exports/holidays/' . $res['file_name']));
+        }
     }
 }

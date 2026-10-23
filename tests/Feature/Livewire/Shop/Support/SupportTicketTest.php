@@ -25,6 +25,7 @@ class SupportTicketTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         
         config(['livewire.temporary_file_upload.disk' => 'local']);
         config(['broadcasting.default' => 'log']);
@@ -144,7 +145,7 @@ class SupportTicketTest extends TestCase
         ]);
 
         // Since the user is offline (no recent msg cache/profile), email must be sent
-        Mail::assertQueued(\App\Mail\SupportTicketUpdateMailToCustomer::class, function ($mail) {
+        Mail::assertSent(\App\Mail\SupportTicketUpdateMailToCustomer::class, function ($mail) {
             return $mail->hasTo('john.doe@example.com');
         });
     }
@@ -163,7 +164,7 @@ class SupportTicketTest extends TestCase
             ->call('sendReply');
 
         // Assert email was not sent because they are in the chat!
-        Mail::assertNotQueued(\App\Mail\SupportTicketUpdateMailToCustomer::class);
+        Mail::assertNotSent(\App\Mail\SupportTicketUpdateMailToCustomer::class);
     }
 
 

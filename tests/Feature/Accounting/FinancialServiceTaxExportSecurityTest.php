@@ -35,7 +35,7 @@ class FinancialServiceTaxExportSecurityTest extends TestCase
         $zipPath = $service->generateTaxExport($admin->id, 10, 2026);
 
         // Path must be located inside private storage, NEVER public storage
-        $this->assertStringContainsString('private/exports', str_replace('\\', '/', $zipPath));
+        $this->assertStringContainsString('buchhaltung/exports', str_replace('\\', '/', $zipPath));
         $this->assertStringNotContainsString('public/systemsteuerung', str_replace('\\', '/', $zipPath));
         $this->assertFileExists($zipPath);
 

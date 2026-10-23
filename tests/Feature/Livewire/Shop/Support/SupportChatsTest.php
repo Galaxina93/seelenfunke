@@ -12,6 +12,12 @@ class SupportChatsTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
+    }
+
     #[\PHPUnit\Framework\Attributes\Test]
     public function it_renders_the_analytics_view_and_computes_kpis_correctly()
     {

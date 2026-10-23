@@ -22,6 +22,7 @@ class ProductCreateTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         
         // Populate standard tax rates for test
         DB::table('tax_rates')->insert([

@@ -21,6 +21,7 @@ class AccountingCreditTest extends TestCase
     {
         parent::setUp();
         Mail::fake();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
     }
 
     public function test_send_credit_email_succeeds_for_registered_customer()
@@ -59,7 +60,7 @@ class AccountingCreditTest extends TestCase
             ->call('sendCreditEmail', $invoice->id)
             ->assertDispatched('toast', message: 'Die Gutschrift wurde an alina@example.com gesendet!', type: 'success');
 
-        Mail::assertQueued(CreditNoteMailToCustomer::class, function ($mail) {
+        Mail::assertSent(CreditNoteMailToCustomer::class, function ($mail) {
             return $mail->hasTo('alina@example.com');
         });
     }
@@ -111,7 +112,7 @@ class AccountingCreditTest extends TestCase
             ->call('sendCreditEmail', $invoice->id)
             ->assertDispatched('toast', message: 'Die Gutschrift wurde an gast@muster.de gesendet!', type: 'success');
 
-        Mail::assertQueued(CreditNoteMailToCustomer::class, function ($mail) {
+        Mail::assertSent(CreditNoteMailToCustomer::class, function ($mail) {
             return $mail->hasTo('gast@muster.de');
         });
 
@@ -146,6 +147,6 @@ class AccountingCreditTest extends TestCase
             ->call('sendCreditEmail', $invoice->id)
             ->assertDispatched('toast', message: 'Kunden- oder Beleg-Daten unvollständig (keine gültige E-Mail hinterlegt)!', type: 'error');
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 }

@@ -211,6 +211,7 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
     {
         \Illuminate\Support\Facades\Mail::fake();
         \Illuminate\Support\Facades\Storage::fake('public');
+        \Illuminate\Support\Facades\Storage::fake('workspace');
 
         $event = null;
         $adHocEvent = null;
@@ -265,7 +266,7 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
             ]);
             $this->assertSame('success', $sendExistingRes['status'] ?? null);
             $this->assertSame(1, $sendExistingRes['events_count'] ?? 0);
-            \Illuminate\Support\Facades\Storage::disk('public')->assertExists($sendExistingRes['ics_workspace_path']);
+            \Illuminate\Support\Facades\Storage::disk('workspace')->assertExists($sendExistingRes['ics_workspace_path']);
 
             // 4. Test calendar_send_ics_email tool with ad-hoc event
             $sendAdHocRes = \App\Services\AI\Functions\AiCalendarFuncs::executeSendCalendarIcsEmail([

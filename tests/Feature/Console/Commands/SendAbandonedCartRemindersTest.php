@@ -45,7 +45,7 @@ class SendAbandonedCartRemindersTest extends TestCase
         $this->artisan('shop:send-abandoned-cart-reminders')
              ->assertSuccessful();
 
-        Mail::assertQueued(AbandonedCartReminder::class, function ($mail) use ($customer) {
+        Mail::assertSent(AbandonedCartReminder::class, function ($mail) use ($customer) {
             return $mail->hasTo($customer->email);
         });
 
@@ -73,7 +73,7 @@ class SendAbandonedCartRemindersTest extends TestCase
         $this->artisan('shop:send-abandoned-cart-reminders')
              ->assertSuccessful();
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
@@ -95,7 +95,7 @@ class SendAbandonedCartRemindersTest extends TestCase
         $this->artisan('shop:send-abandoned-cart-reminders')
              ->assertSuccessful();
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
@@ -116,7 +116,7 @@ class SendAbandonedCartRemindersTest extends TestCase
         $this->artisan('shop:send-abandoned-cart-reminders')
              ->assertSuccessful();
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
@@ -135,7 +135,7 @@ class SendAbandonedCartRemindersTest extends TestCase
         $this->artisan('shop:send-abandoned-cart-reminders')
              ->assertSuccessful();
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
@@ -155,6 +155,6 @@ class SendAbandonedCartRemindersTest extends TestCase
         $this->artisan('shop:send-abandoned-cart-reminders')
              ->assertSuccessful();
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 }

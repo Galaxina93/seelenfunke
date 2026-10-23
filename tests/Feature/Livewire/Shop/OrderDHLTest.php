@@ -81,7 +81,7 @@ class OrderDHLTest extends TestCase
 
     public function test_admin_can_generate_multiple_dhl_labels_success()
     {
-        Storage::fake('public');
+        Storage::fake('local');
         $order = $this->createDummyOrder();
 
         // Fake the DHL Http API response for 2 packages
@@ -121,8 +121,8 @@ class OrderDHLTest extends TestCase
         $this->assertEquals('00340434273299990002', $shipments[1]->tracking_number);
 
         // Check if PDFs were saved to storage
-        Storage::disk('public')->assertExists($shipments[0]->shipping_label_path);
-        Storage::disk('public')->assertExists($shipments[1]->shipping_label_path);
+        Storage::disk('local')->assertExists($shipments[0]->shipping_label_path);
+        Storage::disk('local')->assertExists($shipments[1]->shipping_label_path);
         
         // Test Download Logic
         Livewire::test(OrderOverview::class)

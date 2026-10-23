@@ -22,6 +22,7 @@ class ManagementCalenderTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         
         $this->aiFunctionsDummy = new class {
             use AiCalendarFuncs;
@@ -188,7 +189,7 @@ class ManagementCalenderTest extends TestCase
     {
         $schema = $this->aiFunctionsDummy::getAiCalendarFuncsSchema();
         $this->assertIsArray($schema);
-        $this->assertCount(4, $schema); // get, create, update, delete
+        $this->assertCount(5, $schema); // get, create, update, delete, send_ics_email
         $this->assertEquals('calendar_get_events', $schema[0]['name']);
     }
 

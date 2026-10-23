@@ -19,6 +19,7 @@ class MasterShopCapacityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         Cache::flush();
         SystemSetting::truncate();
 

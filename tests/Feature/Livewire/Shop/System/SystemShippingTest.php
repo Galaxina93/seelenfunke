@@ -15,6 +15,12 @@ class SystemShippingTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
+    }
+
     public function test_it_creates_shipping_zone_with_active_flag()
     {
         Livewire::test(SystemShipping::class)

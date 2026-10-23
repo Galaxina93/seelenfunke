@@ -348,6 +348,7 @@ class AccountingTaxTest extends TestCase
         $issue->refresh();
         $this->assertNotEmpty($issue->file_paths);
         $this->assertStringContainsString('rechnung.pdf', $issue->file_paths[0]);
+        Storage::disk('local')->delete($issue->file_paths[0]);
     }
 
     #[Test]
@@ -417,6 +418,7 @@ class AccountingTaxTest extends TestCase
             ->assertSee('Steuer-Export (Zip) für');
 
         $this->assertNotEmpty($component->get('archivedExports'));
+        Storage::disk('local')->delete('buchhaltung/tax_exports/TaxExport_2026_03.zip');
     }
 
     #[Test]

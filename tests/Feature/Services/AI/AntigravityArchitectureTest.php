@@ -22,6 +22,12 @@ class AntigravityArchitectureTest extends TestCase
         Cache::flush();
     }
 
+    protected function tearDown(): void
+    {
+        @unlink(storage_path('app/agenten/workspace/Berufsleben/Projekte/implementation_plan.md'));
+        parent::tearDown();
+    }
+
     public function test_guardrail_blocks_destructive_tool_without_plan()
     {
         // "system_multi_replace_file" is a destructive tool.
@@ -115,6 +121,8 @@ class AntigravityArchitectureTest extends TestCase
         $this->assertEquals('success', $statusResult['status']);
         // output might have a newline, let's just assert containing
         $this->assertStringContainsString('hello antigravity', $statusResult['output']);
+
+        @unlink(storage_path('logs/' . $jobId . '.log'));
     }
 
     public function test_system_generate_docx_report()
@@ -135,7 +143,7 @@ class AntigravityArchitectureTest extends TestCase
         
         // Clean up generated file
         $fileName = $result['_event']['detail']['filename'];
-        $filePath = 'public/reports/' . $fileName;
+        $filePath = 'public/agenten/exports/reports/' . $fileName;
         Storage::disk('local')->delete($filePath);
     }
 }

@@ -34,7 +34,7 @@ class OrderRevocationSecurityTest extends TestCase
             ->call('submitRevocation')
             ->assertSet('isSubmitted', true);
 
-        Mail::assertNothingQueued();
+        Mail::assertNothingSent();
         $this->assertDatabaseMissing('order_revocations', [
             'email' => 'bot@spam.com',
         ]);
@@ -54,7 +54,7 @@ class OrderRevocationSecurityTest extends TestCase
             ->assertHasNoErrors()
             ->assertSet('isSubmitted', true);
 
-        Mail::assertQueued(RevocationMailToCustomer::class);
+        Mail::assertSent(RevocationMailToCustomer::class);
         $this->assertDatabaseHas('order_revocations', [
             'email' => 'erika@example.com',
             'order_number' => 'ORD-2026-1234',

@@ -17,9 +17,12 @@ class AiDeliveryNoteTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    protected function tearDown(): void
     {
-        parent::setUp();
+        foreach (glob(storage_path('app/public/agenten/exports/reports/lieferschein-*')) ?: [] as $file) {
+            @unlink($file);
+        }
+        parent::tearDown();
     }
 
     public function test_schema_contains_system_generate_delivery_note(): void
@@ -75,7 +78,7 @@ class AiDeliveryNoteTest extends TestCase
         $this->assertStringContainsString('lieferschein-seelenfunke-ls-test-1001', $response['_event']['detail']['filename']);
 
         // Verify PDF file was written to disk and has content
-        $filePath = 'public/reports/' . $response['_event']['detail']['filename'];
+        $filePath = 'public/agenten/exports/reports/' . $response['_event']['detail']['filename'];
         $this->assertTrue(Storage::exists($filePath));
         $this->assertGreaterThan(500, strlen(Storage::get($filePath)));
     }
@@ -102,7 +105,7 @@ class AiDeliveryNoteTest extends TestCase
         $filename = $response['_event']['detail']['filename'];
         $this->assertStringContainsString('lieferschein-neutral-ls-privat-2001', $filename);
 
-        $filePath = 'public/reports/' . $filename;
+        $filePath = 'public/agenten/exports/reports/' . $filename;
         $this->assertTrue(Storage::exists($filePath));
         $this->assertGreaterThan(500, strlen(Storage::get($filePath)));
     }

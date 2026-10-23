@@ -369,6 +369,7 @@ class AccountingFixCostsTest extends TestCase
         $item->refresh();
         $this->assertEquals('buchhaltung/contracts/2026/08/2026-08-11_ADAC_Autoversicherung.pdf', $item->contract_file_path);
         Storage::disk('local')->assertExists($item->contract_file_path);
+        Storage::disk('local')->delete($item->contract_file_path);
     }
 
     #[Test]

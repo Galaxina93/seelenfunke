@@ -22,6 +22,7 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         Cache::flush();
         Cache::put('shop_capacity_level', 0);
 

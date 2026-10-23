@@ -191,7 +191,8 @@ class AiBackgroundTaskTest extends TestCase
         $response = AiSystemFuncs::executeManageSystemLogs([
             'action' => 'resolve',
             'target_scope' => 'all',
-            'status' => 'error'
+            'status' => 'error',
+            'run_in_background' => true,
         ]);
 
         $this->assertEquals('queued', $response['status']);

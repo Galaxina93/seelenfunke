@@ -17,6 +17,13 @@ class MarketingNewsletterTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        \Illuminate\Support\Facades\RateLimiter::clear('newsletter_page_sub_127.0.0.1');
+        \Illuminate\Support\Facades\RateLimiter::clear('newsletter_unsub_127.0.0.1');
+    }
+
     #[Test]
     public function it_renders_the_newsletter_page()
     {
@@ -65,7 +72,7 @@ class MarketingNewsletterTest extends TestCase
         $subscriber = MarketingNewsletterSubscriber::where('email', 'test@example.com')->first();
         $this->assertNotNull($subscriber->verification_token);
 
-        Mail::assertQueued(NewsletterVerificationMail::class, function ($mail) use ($subscriber) {
+        Mail::assertSent(NewsletterVerificationMail::class, function ($mail) use ($subscriber) {
             return $mail->hasTo('test@example.com') && $mail->subscriber->id === $subscriber->id;
         });
     }
@@ -73,6 +80,8 @@ class MarketingNewsletterTest extends TestCase
     #[Test]
     public function it_prevents_duplicate_subscriptions()
     {
+        Mail::fake();
+
         MarketingNewsletterSubscriber::create([
             'email' => 'duplicate@example.com',
             'ip_address' => '127.0.0.1',
@@ -85,7 +94,11 @@ class MarketingNewsletterTest extends TestCase
             ->set('email', 'duplicate@example.com')
             ->set('privacy_accepted', true)
             ->call('subscribe')
-            ->assertHasErrors(['email' => 'unique']);
+            ->assertHasNoErrors()
+            ->assertSee('Fast geschafft! Wir haben dir eine Bestätigungs-E-Mail gesendet.');
+
+        Mail::assertNothingSent();
+        $this->assertDatabaseCount('marketing_newsletter_subscribers', 1);
     }
 
     #[Test]
@@ -138,7 +151,7 @@ class MarketingNewsletterTest extends TestCase
             ->set('email', 'leave@example.com')
             ->call('unsubscribe')
             ->assertHasNoErrors()
-            ->assertSee('Du wurdest erfolgreich aus dem Verteiler ausgetragen');
+            ->assertSee('Falls diese E-Mail-Adresse in unserem Verteiler eingetragen war, wurde sie erfolgreich abgemeldet.');
 
         $this->assertDatabaseMissing('marketing_newsletter_subscribers', [
             'email' => 'leave@example.com'
@@ -151,7 +164,8 @@ class MarketingNewsletterTest extends TestCase
         Livewire::test(NewsletterPage::class)
             ->set('email', 'unknown@example.com')
             ->call('unsubscribe')
-            ->assertHasErrors(['email']);
+            ->assertHasNoErrors()
+            ->assertSee('Falls diese E-Mail-Adresse in unserem Verteiler eingetragen war, wurde sie erfolgreich abgemeldet.');
     }
 
     #[Test]

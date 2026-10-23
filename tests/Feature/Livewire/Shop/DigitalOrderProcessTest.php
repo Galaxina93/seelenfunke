@@ -76,7 +76,7 @@ class DigitalOrderProcessTest extends TestCase
         ]);
 
         // 2. Checkout
-        Livewire::test(Checkout::class)
+        $checkout = Livewire::test(Checkout::class)
             ->set('email', 'test-digital@kunde.de')
             ->set('first_name', 'Max')
             ->set('last_name', 'Mustermann')
@@ -92,12 +92,8 @@ class DigitalOrderProcessTest extends TestCase
         $this->assertNotNull($order);
         $this->assertTrue($order->isOnlyDigital());
 
-        // Simulate Stripe webhook success (triggers status mapping)
-        $order->update(['stripe_payment_intent_id' => 'pi_digital_123']);
-
-        // Call handlePaymentSuccess directly
-        Livewire::test(Checkout::class)
-            ->call('handlePaymentSuccess', $order->id);
+        // Call handlePaymentSuccess on the active checkout session
+        $checkout->call('handlePaymentSuccess', $order->id);
 
         $order->refresh();
         $this->assertEquals('paid', $order->payment_status);
@@ -128,7 +124,7 @@ class DigitalOrderProcessTest extends TestCase
         ]);
 
         // 2. Checkout
-        Livewire::test(Checkout::class)
+        $checkout = Livewire::test(Checkout::class)
             ->set('email', 'test-mixed@kunde.de')
             ->set('first_name', 'Max')
             ->set('last_name', 'Mustermann')
@@ -144,11 +140,8 @@ class DigitalOrderProcessTest extends TestCase
         $this->assertNotNull($order);
         $this->assertFalse($order->isOnlyDigital());
 
-        // Simulate payment success
-        $order->update(['stripe_payment_intent_id' => 'pi_mixed_123']);
-
-        Livewire::test(Checkout::class)
-            ->call('handlePaymentSuccess', $order->id);
+        // Simulate payment success on the active checkout session
+        $checkout->call('handlePaymentSuccess', $order->id);
 
         $order->refresh();
         $this->assertEquals('paid', $order->payment_status);

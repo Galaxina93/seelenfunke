@@ -13,6 +13,12 @@ class SupportContactFormComponentTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
+    }
+
     public function test_renders_successfully()
     {
         Livewire::test(SupportContactFormComponent::class)

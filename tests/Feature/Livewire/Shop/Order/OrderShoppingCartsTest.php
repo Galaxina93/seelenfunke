@@ -90,7 +90,7 @@ class OrderShoppingCartsTest extends TestCase
             ->call('viewDetails', $cart->id)
             ->call('sendReminderEmail', $cart->id);
             
-        Mail::assertQueued(AbandonedCartReminder::class, function ($mail) use ($customer) {
+        Mail::assertSent(AbandonedCartReminder::class, function ($mail) use ($customer) {
             return $mail->hasTo($customer->email);
         });
     }

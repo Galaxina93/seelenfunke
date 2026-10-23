@@ -21,6 +21,7 @@ class OrderOverviewTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \Illuminate\Support\Facades\Storage::fake('local');
         
 
         $admin = \App\Models\Admin\Admin::create([

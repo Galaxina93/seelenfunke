@@ -18,6 +18,7 @@ class InvoiceServiceSecurityTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \Illuminate\Support\Facades\Storage::fake('local');
         $this->invoiceService = new InvoiceService();
     }
 

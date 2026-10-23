@@ -21,6 +21,8 @@ class SystemUserManagementSecurityTest extends TestCase
     {
         parent::setUp();
 
+        Admin::withTrashed()->forceDelete();
+
         $this->admin1 = Admin::create([
             'first_name' => 'Super',
             'last_name' => 'Admin',

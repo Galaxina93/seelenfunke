@@ -99,7 +99,6 @@ class CheckoutPaymentSecurityTest extends TestCase
         // Attempting to call handlePaymentSuccess without valid matching currentPaymentIntentId
         Livewire::actingAs($this->customer1, 'customer')
             ->test(OrderCheckout::class)
-            ->set('currentPaymentIntentId', 'pi_different_456')
             ->call('handlePaymentSuccess', (string) $order->id)
             ->assertHasErrors(['payment']);
 

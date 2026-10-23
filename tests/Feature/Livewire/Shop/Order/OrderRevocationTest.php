@@ -21,6 +21,7 @@ class OrderRevocationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->actingAs(Admin::factory()->create(), 'admin');
 
         Storage::fake('local');
         \Illuminate\Support\Facades\Mail::fake();

@@ -173,7 +173,7 @@ class AuthProfileDropdownTest extends TestCase
     public function test_can_delete_profile_photo()
     {
         Storage::fake('public');
-        $path = 'user/customer/' . $this->user->id . '/profile-photo/avatar.jpg';
+        $path = 'dashboard/user/customer/' . $this->user->id . '/profile-photo/avatar.jpg';
         Storage::disk('public')->put($path, 'dummy content');
 
         $this->user->profile->photo_path = $path;

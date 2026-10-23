@@ -28,6 +28,8 @@ class AccountingInvoiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('local');
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
         
         $this->customer = Customer::create([
             'id' => \Illuminate\Support\Str::uuid(),

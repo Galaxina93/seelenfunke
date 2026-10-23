@@ -347,12 +347,12 @@ class ProductConfiguratorFileUploadSecurityTest extends TestCase
     #[Test]
     public function total_uploaded_files_cannot_exceed_ten()
     {
+        $existing = array_map(fn($i) => "bestellungen/cart-uploads/file_{$i}.png", range(1, 8));
+
         $component = Livewire::test(ProductConfigurator::class, [
             'product' => $this->product,
+            'initialData' => ['files' => $existing],
         ]);
-
-        $existing = array_map(fn($i) => "bestellungen/cart-uploads/file_{$i}.png", range(1, 8));
-        $component->set('uploaded_files', $existing);
 
         // Trying to upload 3 more (total 11 > 10)
         $files = [
@@ -376,10 +376,10 @@ class ProductConfiguratorFileUploadSecurityTest extends TestCase
 
         $component = Livewire::test(ProductConfigurator::class, [
             'product' => $this->product,
+            'initialData' => ['files' => ['system/important.json']],
         ]);
 
-        // Attempting to set an external path in uploaded_files and call removeFile
-        $component->set('uploaded_files', ['system/important.json']);
+        // Attempting to call removeFile on an external path
         $component->call('removeFile', 0);
 
         // The critical file must NOT be deleted!

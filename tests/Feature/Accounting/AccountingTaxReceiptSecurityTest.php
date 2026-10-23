@@ -18,6 +18,12 @@ class AccountingTaxReceiptSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('local');
+    }
+
     public function test_upload_missing_receipt_enforces_mime_whitelist()
     {
         $admin = Admin::factory()->create();

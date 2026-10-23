@@ -11,6 +11,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LaserSvgExportTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->actingAs(\App\Models\Admin\Admin::factory()->create(), 'admin');
+    }
     /**
      * Test xTool laser SVG export for Order ORD-2026-D6SCCX if present in DB.
      */
