@@ -391,6 +391,43 @@ class HolidayOfferAutopilotService
     }
 
     /**
+     * Ermittelt das aktuell aktive Feiertags-Angebotsfenster (für Shop-Header-Banner & Badges),
+     * ohne Datenbank-Schreiboperationen auszuführen.
+     */
+    public function resolveActiveOfferWindow(?Carbon $referenceDate = null): ?array
+    {
+        $now = $referenceDate ? $referenceDate->copy() : Carbon::now();
+
+        foreach ($this->getEventDefinitions() as $key => $def) {
+            foreach ([$now->year, $now->year - 1, $now->year + 1] as $candidateYear) {
+                $eventDate = $this->getHolidayDate($key, $candidateYear);
+                if (!$eventDate) {
+                    continue;
+                }
+
+                $startDaysBefore = (int) ($def['start_days_before'] ?? 0);
+                $endDaysBefore = (int) ($def['end_days_before'] ?? 0);
+
+                $saleStart = $eventDate->copy()->subDays($startDaysBefore)->startOfDay();
+                $saleEnd = $eventDate->copy()->subDays($endDaysBefore)->endOfDay();
+
+                if ($now->between($saleStart, $saleEnd)) {
+                    return [
+                        'event_key'  => $key,
+                        'name'       => $def['label'] ?? $key,
+                        'label'      => $def['label'] ?? $key,
+                        'badge_text' => $def['badge_text'] ?? 'Angebot',
+                        'sale_start' => $saleStart,
+                        'sale_end'   => $saleEnd,
+                    ];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Prüft, welche Feiertags-Kampagne heute im Angebots-Fenster liegt, und schaltet
      * Streichpreise vollautomatisch ein bzw. nach Ablauf wieder auf den Basispreis zurück.
      */
