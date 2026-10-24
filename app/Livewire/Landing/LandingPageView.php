@@ -29,10 +29,10 @@ class LandingPageView extends Component
             }
         }
 
-        // Tracker logic
+        // Tracker logic (DSGVO-konform mit App-Key-Salt und Längenbegrenzung)
         try {
-            $pathFilter = '/l/' . $slug;
-            $ipHash = hash('sha256', Request::ip());
+            $pathFilter = '/l/' . mb_substr((string) $slug, 0, 180);
+            $ipHash = hash('sha256', (string) Request::ip() . config('app.key'));
             
             $alreadyVisited = PageVisit::where('path', $pathFilter)
                 ->where('ip_hash', $ipHash)
@@ -40,14 +40,19 @@ class LandingPageView extends Component
                 ->exists();
 
             if (!$alreadyVisited) {
+                $safeUrl = preg_replace('/([?&](?:token|signature|password|code|key)=)[^&]+/i', '$1[REDACTED]', (string) Request::fullUrl());
+                $safeReferer = Request::header('referer')
+                    ? preg_replace('/([?&](?:token|signature|password|code|key)=)[^&]+/i', '$1[REDACTED]', (string) Request::header('referer'))
+                    : null;
+
                 PageVisit::create([
-                    'session_id' => session()->getId() ?? 'no-session',
+                    'session_id' => mb_substr((string) (session()->getId() ?: 'no-session'), 0, 100),
                     'ip_hash' => $ipHash,
-                    'url' => Request::fullUrl(),
+                    'url' => mb_substr((string) $safeUrl, 0, 500),
                     'path' => $pathFilter,
-                    'method' => Request::method(),
-                    'user_agent' => Request::userAgent(),
-                    'referer' => Request::header('referer'),
+                    'method' => mb_substr((string) Request::method(), 0, 10),
+                    'user_agent' => Request::userAgent() ? mb_substr((string) Request::userAgent(), 0, 500) : null,
+                    'referer' => $safeReferer ? mb_substr((string) $safeReferer, 0, 500) : null,
                 ]);
             }
         } catch (\Exception $e) {

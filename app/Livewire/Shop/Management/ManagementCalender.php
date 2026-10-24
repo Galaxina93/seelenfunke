@@ -27,6 +27,7 @@ class ManagementCalender extends Component
 
     // --- EDITOR VARIABLES ---
     public $showEditModal = false;
+    #[\Livewire\Attributes\Locked]
     public $editingEventId = null;
     public $editTitle;
     public $editStartDate;
@@ -86,7 +87,9 @@ class ManagementCalender extends Component
 
     public function setView($view)
     {
-        $this->view = $view;
+        if (in_array($view, ['month', 'week', 'day', 'year', 'multi-week', 'list'], true)) {
+            $this->view = $view;
+        }
     }
 
     public function goToDay($dateStr)
@@ -153,8 +156,9 @@ class ManagementCalender extends Component
     public function saveEvent()
     {
         $this->validate([
-            'editTitle' => 'required|min:2',
+            'editTitle' => 'required|string|min:2|max:255',
             'editStartDate' => 'required|date',
+            'editDescription' => 'nullable|string|max:5000',
         ]);
 
         $startString = $this->editStartDate . ' ' . ($this->editIsAllDay ? '00:00:00' : ($this->editStartTime ?: '09:00:00'));
@@ -186,11 +190,13 @@ class ManagementCalender extends Component
             'priority' => $priority,
             'recurrence' => $recurrence,
             'recurrence_end_date' => $this->editRecurrenceEnd ? Carbon::parse($this->editRecurrenceEnd) : null,
-            'reminder_minutes' => $this->editReminderMinutes === '' ? null : $this->editReminderMinutes,
+            'reminder_minutes' => ($this->editReminderMinutes === '' || $this->editReminderMinutes === null)
+                ? null
+                : max(0, min(40320, (int) $this->editReminderMinutes)),
         ];
 
         if ($this->editingEventId) {
-            ManagementCalendarEvent::find($this->editingEventId)->update($data);
+            ManagementCalendarEvent::findOrFail($this->editingEventId)->update($data);
         } else {
             ManagementCalendarEvent::create($data);
         }
@@ -230,8 +236,16 @@ class ManagementCalender extends Component
 
     public function importEvents()
     {
-        $this->validate(['importFile' => 'required|file|max:2048']);
-        $content = file_get_contents($this->importFile->getRealPath());
+        $this->validate(['importFile' => 'required|file|max:2048|extensions:ics,txt']);
+        $realPath = $this->importFile->getRealPath();
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+        finfo_close($finfo);
+        if (!in_array($detectedMime, ['text/calendar', 'text/plain', 'application/octet-stream'], true)) {
+            $this->addError('importFile', 'Ungültiges Dateiformat. Bitte eine gültige .ics Datei hochladen.');
+            return;
+        }
+        $content = file_get_contents($realPath);
         $count = $this->parseIcs($content);
         $this->reset('importFile', 'isImporting');
         session()->flash('calendar_success', "$count Termine erfolgreich importiert.");
@@ -269,6 +283,8 @@ class ManagementCalender extends Component
             }
 
             preg_match('/DTEND([^:]*):(\d{8}(?:T\d{6}Z?)?)/', $eventBlock, $mEnd);
+
+            $uid = ($uid !== null && $uid !== '') ? $uid : ('ics_' . sha1($title . '|' . $rawDate . '|' . ($mEnd[2] ?? '')));
 
             try {
                 $isAllDay = (strlen($rawDate) === 8);

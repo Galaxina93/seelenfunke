@@ -21,7 +21,9 @@ class ManagementRoutine extends Component
     public $filterDays = 'all'; // 'all', 'weekdays', 'weekend'
 
     // Form fields
-    public $r_id, $r_time, $r_title, $r_message, $r_duration, $r_type = 'general', $r_days_of_week = 'all';
+    #[\Livewire\Attributes\Locked]
+    public $r_id;
+    public $r_time, $r_title, $r_message, $r_duration, $r_type = 'general', $r_days_of_week = 'all';
 
     public function boot(): void
     {
@@ -88,25 +90,29 @@ class ManagementRoutine extends Component
     {
         $this->validate([
             'r_time' => 'required',
-            'r_title' => 'required',
-            'r_duration' => 'required|integer',
-            'r_type' => 'required|string'
+            'r_title' => 'required|string|max:255',
+            'r_message' => 'nullable|string|max:2000',
+            'r_duration' => 'required|integer|min:1|max:1440',
+            'r_type' => 'required|string|max:50',
+            'r_days_of_week' => 'nullable|string|in:all,weekdays,weekend'
         ]);
 
         $existing = $this->r_id ? RoutineModel::find($this->r_id) : null;
+        $attributes = [
+            'start_time' => $this->r_time,
+            'title' => $this->r_title,
+            'message' => $this->r_message,
+            'duration_minutes' => (int) $this->r_duration,
+            'type' => $this->r_type,
+            'days_of_week' => $this->r_days_of_week ?? 'all',
+            'is_active' => $existing ? $existing->is_active : true,
+        ];
 
-        RoutineModel::updateOrCreate(
-            ['id' => $this->r_id ?? (string) Str::uuid()],
-            [
-                'start_time' => $this->r_time,
-                'title' => $this->r_title,
-                'message' => $this->r_message,
-                'duration_minutes' => $this->r_duration,
-                'type' => $this->r_type,
-                'days_of_week' => $this->r_days_of_week ?? 'all',
-                'is_active' => $existing ? $existing->is_active : true
-            ]
-        );
+        if ($existing) {
+            $existing->update($attributes);
+        } else {
+            RoutineModel::create($attributes);
+        }
 
         $this->isEditing = false;
         $this->resetInput();

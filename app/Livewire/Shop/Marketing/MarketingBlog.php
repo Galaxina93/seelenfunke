@@ -31,6 +31,7 @@ class MarketingBlog extends Component
     public $newCategoryName = '';
 
     // Form Fields
+    #[\Livewire\Attributes\Locked]
     public $postId = null;
     public $title;
     public $slug;
@@ -40,8 +41,10 @@ class MarketingBlog extends Component
     public $status = 'draft';
     public $published_at;
     public $image;
+    #[\Livewire\Attributes\Locked]
     public $existingImage;
     public $headerImage;
+    #[\Livewire\Attributes\Locked]
     public $existingHeaderImage;
     public $author_name;
 
@@ -215,12 +218,30 @@ class MarketingBlog extends Component
         ];
 
         if ($this->image) {
-            $path = $this->image->store('marketing/blog', 'public');
+            $realPath = $this->image->getRealPath();
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+            finfo_close($finfo);
+            $ext = strtolower((string) $this->image->getClientOriginalExtension());
+            if (!in_array($detectedMime, ['image/jpeg', 'image/png', 'image/webp'], true) || !in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                $this->addError('image', 'Das Kachelbild muss vom Typ JPEG, PNG, JPG oder WEBP sein.');
+                return;
+            }
+            $path = $this->image->storeAs('marketing/blog', Str::uuid()->toString() . '.' . $ext, 'public');
             $data['featured_image'] = $path;
         }
 
         if ($this->headerImage) {
-            $headerPath = $this->headerImage->store('marketing/blog/headers', 'public');
+            $realPath = $this->headerImage->getRealPath();
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+            finfo_close($finfo);
+            $ext = strtolower((string) $this->headerImage->getClientOriginalExtension());
+            if (!in_array($detectedMime, ['image/jpeg', 'image/png', 'image/webp'], true) || !in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                $this->addError('headerImage', 'Das Hintergrundbild muss vom Typ JPEG, PNG, JPG oder WEBP sein.');
+                return;
+            }
+            $headerPath = $this->headerImage->storeAs('marketing/blog/headers', Str::uuid()->toString() . '.' . $ext, 'public');
             $data['header_image'] = $headerPath;
         }
 

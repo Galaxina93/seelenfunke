@@ -119,7 +119,11 @@ class MasterShopCapacity extends Component
 
     public function updatedDailyWorkingHours()
     {
-        if ($this->dailyWorkingHours <= 0) $this->dailyWorkingHours = 1;
+        if ($this->dailyWorkingHours <= 0) {
+            $this->dailyWorkingHours = 1;
+        } elseif ($this->dailyWorkingHours > 24) {
+            $this->dailyWorkingHours = 24;
+        }
         SystemSetting::updateOrCreate(['key' => 'shop_daily_working_hours'], ['value' => $this->dailyWorkingHours]);
         Cache::put('shop_daily_working_hours', $this->dailyWorkingHours);
         Cache::forget('global_shop_settings');
@@ -129,7 +133,11 @@ class MasterShopCapacity extends Component
 
     public function updatedMinutesPerOrder()
     {
-        if ($this->minutesPerOrder <= 0) $this->minutesPerOrder = 1;
+        if ($this->minutesPerOrder <= 0) {
+            $this->minutesPerOrder = 1;
+        } elseif ($this->minutesPerOrder > 1440) {
+            $this->minutesPerOrder = 1440;
+        }
         SystemSetting::updateOrCreate(['key' => 'shop_minutes_per_order'], ['value' => $this->minutesPerOrder]);
         Cache::put('shop_minutes_per_order', $this->minutesPerOrder);
         Cache::forget('global_shop_settings');
@@ -139,7 +147,11 @@ class MasterShopCapacity extends Component
 
     public function updatedCapacityBuffer()
     {
-        if ($this->capacityBuffer < 0) $this->capacityBuffer = 0;
+        if ($this->capacityBuffer < 0) {
+            $this->capacityBuffer = 0;
+        } elseif ($this->capacityBuffer > 1000) {
+            $this->capacityBuffer = 1000;
+        }
         SystemSetting::updateOrCreate(['key' => 'shop_capacity_buffer'], ['value' => $this->capacityBuffer]);
         Cache::put('shop_capacity_buffer', $this->capacityBuffer);
         Cache::forget('global_shop_settings');
@@ -149,8 +161,8 @@ class MasterShopCapacity extends Component
 
     public function updateThresholds($t1, $t2, $t3)
     {
-        $this->threshold1 = max(1, min(100, (int)$t1));
-        $this->threshold2 = max($this->threshold1 + 1, min(100, (int)$t2));
+        $this->threshold1 = max(1, min(98, (int)$t1));
+        $this->threshold2 = max($this->threshold1 + 1, min(99, (int)$t2));
         $this->threshold3 = max($this->threshold2 + 1, min(100, (int)$t3));
 
         SystemSetting::updateOrCreate(['key' => 'shop_capacity_threshold_1'], ['value' => $this->threshold1]);

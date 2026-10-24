@@ -17,30 +17,36 @@ class GoogleReviewsService
             return $this->getFallbackReviews();
         }
 
+        $cached = Cache::get('google_reviews');
+        if (is_array($cached)) {
+            return $cached;
+        }
+
         try {
-            return Cache::remember('google_reviews', 86400, function () use ($apiKey, $placeId) {
-                $response = Http::timeout(5)->get('https://maps.googleapis.com/maps/api/place/details/json', [
-                    'place_id' => $placeId,
-                    'fields' => 'reviews,rating,user_ratings_total',
-                    'key' => $apiKey,
-                    'language' => 'de'
-                ]);
+            $response = Http::timeout(5)->get('https://maps.googleapis.com/maps/api/place/details/json', [
+                'place_id' => $placeId,
+                'fields' => 'reviews,rating,user_ratings_total',
+                'key' => $apiKey,
+                'language' => 'de'
+            ]);
 
-                if ($response->successful()) {
-                    $result = $response->json()['result'] ?? [];
+            if ($response->successful()) {
+                $result = $response->json()['result'] ?? [];
 
-                    return [
-                        'reviews' => $result['reviews'] ?? [],
-                        'rating' => $result['rating'] ?? 0,
-                        'total_ratings' => $result['user_ratings_total'] ?? 0,
-                    ];
-                }
+                $data = [
+                    'reviews' => $result['reviews'] ?? [],
+                    'rating' => $result['rating'] ?? 0,
+                    'total_ratings' => $result['user_ratings_total'] ?? 0,
+                ];
+                Cache::put('google_reviews', $data, 86400);
+                return $data;
+            }
 
-                Log::warning('Google Places API Fehler: ' . $response->status());
-                return $this->getFallbackReviews();
-            });
+            Log::warning('Google Places API Fehler: ' . $response->status());
+            return $this->getFallbackReviews();
         } catch (\Exception $e) {
-            Log::error('Google Reviews Exception: ' . $e->getMessage());
+            $safeMsg = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+            Log::error('Google Reviews Exception: ' . $safeMsg);
             return $this->getFallbackReviews();
         }
     }

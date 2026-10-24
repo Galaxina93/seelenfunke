@@ -64,10 +64,10 @@ class GameGlobalStatsHeader extends Component
         }
         $this->hasOptedIn = true;
 
-        // Energie Refill Check (Alle 3 Stunden)
+        // Energie Refill Check (Alle 3 Stunden, nur wenn Energie unter Maximum)
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if (!$lastRefill || $lastRefill->diffInHours($now) >= 3) {
+        if ($profile->energy_balance < $this->maxEnergy && (!$lastRefill || $lastRefill->diffInHours($now, false) >= 3)) {
             $profile->energy_balance = $this->maxEnergy;
             $profile->last_energy_refill_at = $now;
             $profile->save();

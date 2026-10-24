@@ -21,6 +21,7 @@ class MarketingHerzensprojekte extends Component
 
     // Modal state for Action (Create / Edit)
     public bool $showActionModal = false;
+    #[\Livewire\Attributes\Locked]
     public ?string $editingActionId = null;
     public string $actionTitle = '';
     public string $actionRecipient = '';
@@ -44,7 +45,7 @@ class MarketingHerzensprojekte extends Component
             'actionTitle' => 'required|string|max:255',
             'actionRecipient' => 'required|string|max:255',
             'actionDescription' => 'nullable|string|max:2000',
-            'actionAmountEuro' => 'required|numeric|min:0',
+            'actionAmountEuro' => 'required|numeric|min:0|max:100000',
             'actionStatus' => 'required|in:planned,in_progress,completed',
             'actionPublicStory' => 'nullable|string|max:3000',
             'actionIsPublic' => 'boolean',
@@ -104,18 +105,23 @@ class MarketingHerzensprojekte extends Component
 
     public function saveAction()
     {
+        $this->actionAmountEuro = str_replace(',', '.', trim((string) $this->actionAmountEuro));
         $this->validate();
 
-        $cents = (int) round(((float) str_replace(',', '.', $this->actionAmountEuro)) * 100);
+        $cents = max(0, (int) round(((float) $this->actionAmountEuro) * 100));
 
         if ($this->editingActionId) {
             $action = MarketingHerzensprojektAction::findOrFail($this->editingActionId);
+            $hasDisbursement = MarketingHerzensprojektTransaction::where('action_id', $action->id)
+                ->where('type', 'disbursement')
+                ->exists();
+
             $action->update([
                 'title' => $this->actionTitle,
                 'target_recipient' => $this->actionRecipient,
                 'description' => $this->actionDescription,
-                'allocated_amount_cents' => $cents,
-                'status' => $this->actionStatus,
+                'allocated_amount_cents' => $hasDisbursement ? $action->allocated_amount_cents : $cents,
+                'status' => $hasDisbursement ? 'completed' : $this->actionStatus,
                 'public_story' => $this->actionPublicStory,
                 'is_public' => $this->actionIsPublic,
                 'completed_at' => ($this->actionStatus === 'completed' && !$action->completed_at) ? now() : $action->completed_at,
@@ -142,6 +148,10 @@ class MarketingHerzensprojekte extends Component
     public function deleteAction($actionId)
     {
         $action = MarketingHerzensprojektAction::findOrFail($actionId);
+        if (MarketingHerzensprojektTransaction::where('action_id', $action->id)->exists()) {
+            $this->dispatch('notify', ['type' => 'error', 'message' => 'Aktionen mit bereits verbuchten Auszahlungen dürfen aus Revisionsgründen nicht gelöscht werden.']);
+            return;
+        }
         $action->delete();
 
         $this->dispatch('notify', ['type' => 'warning', 'message' => 'Aktion wurde entfernt.']);
@@ -149,40 +159,47 @@ class MarketingHerzensprojekte extends Component
 
     public function disburseForAction($actionId)
     {
-        $action = MarketingHerzensprojektAction::findOrFail($actionId);
+        $result = \Illuminate\Support\Facades\DB::transaction(function () use ($actionId) {
+            $action = MarketingHerzensprojektAction::where('id', $actionId)->lockForUpdate()->firstOrFail();
 
-        // Check if already disbursed
-        $hasDisbursement = MarketingHerzensprojektTransaction::where('action_id', $action->id)
-            ->where('type', 'disbursement')
-            ->exists();
+            // Check if already disbursed
+            $hasDisbursement = MarketingHerzensprojektTransaction::where('action_id', $action->id)
+                ->where('type', 'disbursement')
+                ->exists();
 
-        if ($hasDisbursement) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Für diese Aktion wurde bereits eine Auszahlung verbucht!']);
-            return;
-        }
+            if ($hasDisbursement) {
+                return ['type' => 'error', 'message' => 'Für diese Aktion wurde bereits eine Auszahlung verbucht!'];
+            }
 
-        if ($action->allocated_amount_cents <= 0) {
-            $this->dispatch('notify', ['type' => 'error', 'message' => 'Die Aktion hat keinen Betrag hinterlegt.']);
-            return;
-        }
+            if ($action->allocated_amount_cents <= 0) {
+                return ['type' => 'error', 'message' => 'Die Aktion hat keinen Betrag hinterlegt.'];
+            }
 
-        // Negative transaction to reduce pot
-        MarketingHerzensprojektTransaction::create([
-            'action_id' => $action->id,
-            'type' => 'disbursement',
-            'amount_cents' => -$action->allocated_amount_cents,
-            'description' => 'Auszahlung / Übergabe: ' . $action->title . ' (' . $action->target_recipient . ')',
-        ]);
+            $currentPotCents = (int) MarketingHerzensprojektTransaction::lockForUpdate()->sum('amount_cents');
+            if ($currentPotCents < $action->allocated_amount_cents) {
+                return ['type' => 'error', 'message' => 'Nicht genügend Guthaben im Herzens-Topf für diese Auszahlung vorhanden.'];
+            }
 
-        $action->update([
-            'status' => 'completed',
-            'completed_at' => $action->completed_at ?? now(),
-        ]);
+            // Negative transaction to reduce pot
+            MarketingHerzensprojektTransaction::create([
+                'action_id' => $action->id,
+                'type' => 'disbursement',
+                'amount_cents' => -$action->allocated_amount_cents,
+                'description' => 'Auszahlung / Übergabe: ' . $action->title . ' (' . $action->target_recipient . ')',
+            ]);
 
-        $this->dispatch('notify', [
-            'type' => 'success',
-            'message' => 'Betrag von ' . $action->formatted_amount . ' erfolgreich aus dem Herzens-Topf abgebucht!'
-        ]);
+            $action->update([
+                'status' => 'completed',
+                'completed_at' => $action->completed_at ?? now(),
+            ]);
+
+            return [
+                'type' => 'success',
+                'message' => 'Betrag von ' . $action->formatted_amount . ' erfolgreich aus dem Herzens-Topf abgebucht!'
+            ];
+        });
+
+        $this->dispatch('notify', $result);
     }
 
     public function openDepositModal()

@@ -140,6 +140,10 @@ class GameGamesComponent extends Component
 
     public function selectTitle($titleKey, GamificationService $gameService)
     {
+        if ($titleKey !== null && !is_string($titleKey)) {
+            return;
+        }
+
         $user = Auth::guard('customer')->user();
         if (!$user) return;
 
@@ -172,7 +176,7 @@ class GameGamesComponent extends Component
     {
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if (!$lastRefill || $lastRefill->diffInHours($now) >= 3) {
+        if ($profile->energy_balance < $this->maxEnergy && (!$lastRefill || $lastRefill->diffInHours($now, false) >= 3)) {
             $profile->energy_balance = $this->maxEnergy;
             $profile->last_energy_refill_at = $now;
             $profile->save();
@@ -199,7 +203,9 @@ class GameGamesComponent extends Component
                 $isUsed = false;
 
                 if ($dbVoucher) {
-                    $isUsed = ($dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit) || !$dbVoucher->is_active;
+                    $isUsed = ($dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit)
+                        || !$dbVoucher->is_active
+                        || ($dbVoucher->valid_until && $dbVoucher->valid_until->isPast());
                 }
 
                 $formattedCoupons['lvl_' . $lvl] = [
@@ -294,15 +300,24 @@ class GameGamesComponent extends Component
         }
         \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 3);
 
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        $consumed = \Illuminate\Support\Facades\DB::transaction(function () use ($user) {
+            $profile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->first();
+            if (!$profile || !$profile->is_active || $profile->energy_balance <= 0) {
+                return false;
+            }
 
-        if ($profile && $profile->energy_balance > 0) {
+            if ($profile->energy_balance >= $this->maxEnergy || !$profile->last_energy_refill_at) {
+                $profile->last_energy_refill_at = now();
+            }
             $profile->energy_balance -= 1;
             $profile->save();
 
             $gameService = app(GamificationService::class);
             $gameService->incrementTitleProgress($profile, 'spieler');
+            return true;
+        });
 
+        if ($consumed) {
             // Aktive Spiel-Sitzung serverseitig registrieren (Anti-Cheat & Anti-Replay)
             session([
                 'active_game_session' => [
@@ -356,13 +371,18 @@ class GameGamesComponent extends Component
         $safeAmount = max(0, min(intval($amount), 50));
 
         if ($safeAmount > 0) {
-            $profile = CustomerGamification::where('customer_id', $user->id)->first();
-
-            if ($profile) {
+            $awarded = \Illuminate\Support\Facades\DB::transaction(function () use ($user, $safeAmount) {
+                $profile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->first();
+                if (!$profile || !$profile->is_active) {
+                    return false;
+                }
                 $profile->funken_balance += $safeAmount;
                 $profile->funken_total_earned += $safeAmount;
                 $profile->save();
+                return true;
+            });
 
+            if ($awarded) {
                 $this->dispatch('sparks-awarded');
             }
         }
@@ -410,19 +430,25 @@ class GameGamesComponent extends Component
         $maxPossibleSparks = (int) ceil($safeDistance / 20) + 5;
         $safeSparks = min($rawSparks, $maxPossibleSparks, 100);
 
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
-        if ($profile) {
+        $profile = \Illuminate\Support\Facades\DB::transaction(function () use ($user, $safeSparks, $safeDistance) {
+            $lockedProfile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->first();
+            if (!$lockedProfile || !$lockedProfile->is_active) {
+                return null;
+            }
             if ($safeSparks > 0) {
-                $profile->funken_balance += $safeSparks;
-                $profile->funken_total_earned += $safeSparks;
+                $lockedProfile->funken_balance += $safeSparks;
+                $lockedProfile->funken_total_earned += $safeSparks;
             }
 
-            if ($safeDistance > ($profile->funkenflug_highscore ?? 0)) {
-                $profile->funkenflug_highscore = $safeDistance;
+            if ($safeDistance > ($lockedProfile->funkenflug_highscore ?? 0)) {
+                $lockedProfile->funkenflug_highscore = $safeDistance;
             }
 
-            $profile->save();
+            $lockedProfile->save();
+            return $lockedProfile;
+        });
 
+        if ($profile) {
             if ($safeSparks > 0) {
                 $this->dispatch('sparks-awarded');
             }

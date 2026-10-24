@@ -108,7 +108,7 @@ class ManagementLinktreeManager extends Component
 
         $this->validate([
             'themeColor' => ['required', 'string', 'max:20', 'regex:/^#[0-9a-fA-F]{3,8}$/'],
-            'profileImage' => 'nullable|image|max:2048',
+            'profileImage' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048',
         ]);
 
         SystemSetting::updateOrCreate(
@@ -170,7 +170,7 @@ class ManagementLinktreeManager extends Component
         }
 
         $normalizedUrl = trim((string) $this->url);
-        if (str_starts_with($normalizedUrl, '/')) {
+        if (str_starts_with($normalizedUrl, '/') && !str_starts_with($normalizedUrl, '//') && !str_starts_with($normalizedUrl, '/\\')) {
             $normalizedUrl = rtrim((string) (config('app.url') ?: url('/')), '/') . '/' . ltrim($normalizedUrl, '/');
             $this->url = $normalizedUrl;
         }
@@ -336,7 +336,7 @@ class ManagementLinktreeManager extends Component
             'trackingSlug' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_\-]+$/'],
             'trackingTarget' => ['required', 'string', 'max:2048', function ($attribute, $value, $fail) {
                 $val = trim((string) $value);
-                if (!str_starts_with($val, '/') && !preg_match('/^https?:\/\//i', $val)) {
+                if (str_starts_with($val, '//') || str_starts_with($val, '/\\') || (!str_starts_with($val, '/') && !preg_match('/^https?:\/\//i', $val))) {
                     $fail('Ziel muss ein interner Pfad (z.B. /shop) oder eine gültige https:// URL sein.');
                 }
             }],

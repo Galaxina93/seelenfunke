@@ -143,11 +143,14 @@ class AnalyticsService
 
     private function checkSpecialIssues(): array
     {
-        $missing = AccountingSpecialIssue::where(function ($query) {
-            $query->whereNull('file_paths')
-                ->orWhere('file_paths', '[]')
-                ->orWhere('file_paths', '');
-        })->orderBy('execution_date', 'desc')->get();
+        $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
+        $missing = AccountingSpecialIssue::when($adminId, fn($q) => $q->where('admin_id', $adminId))
+            ->where('is_business', true)
+            ->where(function ($query) {
+                $query->whereNull('file_paths')
+                    ->orWhere('file_paths', '[]')
+                    ->orWhere('file_paths', '');
+            })->orderBy('execution_date', 'desc')->get();
 
         return [
             'title' => 'Belege',
@@ -161,7 +164,12 @@ class AnalyticsService
 
     private function checkContracts(): array
     {
-        $missing = AccountingCostItem::where('requires_contract', true)->whereNull('contract_file_path')->with('group')->get();
+        $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
+        $missing = AccountingCostItem::when($adminId, fn($q) => $q->whereHas('group', fn($gq) => $gq->where('admin_id', $adminId)))
+            ->where('requires_contract', true)
+            ->whereNull('contract_file_path')
+            ->with('group')
+            ->get();
 
         return [
             'title' => 'Verträge',
@@ -361,10 +369,20 @@ class AnalyticsService
         return ['status' => $status, 'icon' => 'exclamation-triangle', 'title' => 'Schwund & Bruch', 'message' => $msg, 'count' => $openLosses, 'data' => []];
     }
 
-    public function getStats($dateStart, $dateEnd, $filterType, $lastLogins, $systemHealth = [])
+    public function getStats($dateStart, $dateEnd, $filterType = 'all', $lastLogins = [], $systemHealth = [])
     {
+        if (!in_array($filterType, ['all', 'business', 'private'], true)) {
+            $filterType = 'all';
+        }
+
         $start = Carbon::parse($dateStart)->startOfDay();
         $end = Carbon::parse($dateEnd)->endOfDay();
+        if ($start->gt($end)) {
+            [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+        }
+        if ($start->diffInDays($end) > 3660) {
+            $start = $end->copy()->subDays(3660)->startOfDay();
+        }
         $diffInDays = $start->diffInDays($end);
 
         // ==========================================
@@ -505,10 +523,30 @@ class AnalyticsService
         // ==========================================
         $chartData = ['labels' => [], 'revenue' => [], 'expenses' => [], 'profit' => []];
 
-        $costItemsQuery = AccountingCostItem::query();
+        $costItemsQuery = AccountingCostItem::with('group');
         if ($filterType === 'business') $costItemsQuery->where('is_business', true);
         if ($filterType === 'private') $costItemsQuery->where('is_business', false);
         $allCostItems = $costItemsQuery->get();
+
+        $isFixedIncome = function ($item): bool {
+            if ($item->amount < 0) {
+                return false;
+            }
+            if ($item->relationLoaded('group') && $item->group) {
+                return $item->group->type === 'income';
+            }
+            return $item->amount > 0;
+        };
+
+        $isActiveInRange = function ($item, $rangeStart, $rangeEnd): bool {
+            if ($item->first_payment_date && $item->first_payment_date->copy()->startOfMonth()->gt($rangeEnd)) {
+                return false;
+            }
+            if ($item->last_payment_date && $item->last_payment_date->copy()->endOfMonth()->lt($rangeStart)) {
+                return false;
+            }
+            return true;
+        };
 
         if ($diffInDays <= 31) {
             $period = CarbonPeriod::create($start, $end);
@@ -520,9 +558,12 @@ class AnalyticsService
                 $fixedExpenseDay = 0;
 
                 foreach ($allCostItems as $item) {
-                    $dailyAmount = ($item->amount / ($item->interval_months ?: 1)) / 30.42;
-                    if ($dailyAmount >= 0) $fixedIncomeDay += $dailyAmount;
-                    else $fixedExpenseDay += abs($dailyAmount);
+                    if (!$isActiveInRange($item, $dayStart, $dayEnd)) {
+                        continue;
+                    }
+                    $dailyAmount = (abs($item->amount) / ($item->interval_months ?: 1)) / 30.42;
+                    if ($isFixedIncome($item)) $fixedIncomeDay += $dailyAmount;
+                    else $fixedExpenseDay += $dailyAmount;
                 }
 
                 $specials = AccountingSpecialIssue::whereBetween('execution_date', [$dayStart, $dayEnd])
@@ -565,10 +606,13 @@ class AnalyticsService
                 $factor = ($mStart->diffInDays($mEnd) + 1) / $currentDate->daysInMonth;
 
                 foreach ($allCostItems as $item) {
-                    $monthlyAmount = $item->amount / ($item->interval_months ?: 1);
+                    if (!$isActiveInRange($item, $mStart, $mEnd)) {
+                        continue;
+                    }
+                    $monthlyAmount = abs($item->amount) / ($item->interval_months ?: 1);
                     $periodAmount = $monthlyAmount * $factor;
-                    if ($periodAmount >= 0) $fixedIncomeMonth += $periodAmount;
-                    else $fixedExpenseMonth += abs($periodAmount);
+                    if ($isFixedIncome($item)) $fixedIncomeMonth += $periodAmount;
+                    else $fixedExpenseMonth += $periodAmount;
                 }
 
                 $specials = AccountingSpecialIssue::whereBetween('execution_date', [$mStart, $mEnd])
@@ -620,12 +664,14 @@ class AnalyticsService
         $avgProfit = $totalProfitPeriod / $monthsCount;
         $projectedProfit = $avgProfit * 12;
 
-        $fixedIncomeTotal = $allCostItems->where('amount', '>', 0)->sum(fn($i) => $i->amount / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
+        $activePeriodCostItems = $allCostItems->filter(fn($i) => $isActiveInRange($i, $start, $end));
+
+        $fixedIncomeTotal = $activePeriodCostItems->filter(fn($i) => $isFixedIncome($i))->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
         $totalIncomePeriod = $totalRevenuePeriod + $fixedIncomeTotal;
         $margin = $totalIncomePeriod > 0 ? ($totalProfitPeriod / $totalIncomePeriod) * 100 : 0;
 
-        $fixGewerbe = $allCostItems->where('is_business', true)->where('amount', '<', 0)->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
-        $fixPrivat = $allCostItems->where('is_business', false)->where('amount', '<', 0)->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
+        $fixGewerbe = $activePeriodCostItems->where('is_business', true)->filter(fn($i) => !$isFixedIncome($i))->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
+        $fixPrivat = $activePeriodCostItems->where('is_business', false)->filter(fn($i) => !$isFixedIncome($i))->sum(fn($i) => abs($i->amount) / ($i->interval_months ?: 1)) * ($durationInDays / 30.42);
 
         $variableExpensesTotal = AccountingSpecialIssue::whereBetween('execution_date', [$start, $end])
             ->where('amount', '<', 0)

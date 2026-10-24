@@ -38,6 +38,7 @@ class ManagementEMails extends Component
     public $viewMode = 'inbox';
 
     // Account Settings Form
+    #[Locked]
     public $editAccountId = null;
     public $account_name = '';
     public $email = '';
@@ -64,6 +65,7 @@ class ManagementEMails extends Component
 
     // Routing Rules
     public $showRoutingModal = false;
+    #[Locked]
     public $routingMessageId = null;
     public $routingTargetFolder = '';
 
@@ -589,15 +591,37 @@ class ManagementEMails extends Component
     public function updatedUploadedFiles()
     {
         $this->validate([
-            'uploadedFiles.*' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,svg,zip,tar,gz,txt,json,xml', // limit of 20MB per file
+            'uploadedFiles.*' => 'file|max:20480|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,odt,ods,odp,png,jpg,jpeg,webp,gif,zip,tar,gz,txt,json,xml', // limit of 20MB per file
         ]);
 
+        $forbiddenMimes = [
+            'text/x-php',
+            'application/x-httpd-php',
+            'application/x-php',
+            'text/html',
+            'image/svg+xml',
+            'application/x-dosexec',
+            'application/x-executable',
+            'application/x-sh',
+        ];
+        $allowedExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'zip', 'tar', 'gz', 'txt', 'json', 'xml'];
+
         foreach ($this->uploadedFiles as $file) {
-            $path = $file->store('temp/mail-attachments');
+            $realPath = $file->getRealPath();
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+            finfo_close($finfo);
+            $ext = strtolower((string) $file->getClientOriginalExtension());
+            if (!$detectedMime || in_array($detectedMime, $forbiddenMimes, true) || !in_array($ext, $allowedExts, true)) {
+                $this->addError('uploadedFiles', 'Dateityp aus Sicherheitsgründen nicht erlaubt.');
+                $this->uploadedFiles = [];
+                return;
+            }
+            $path = $file->storeAs('temp/mail-attachments', Str::uuid()->toString() . '.' . $ext);
             $this->composeAttachments[] = [
                 'path' => $path,
                 'filename' => $file->getClientOriginalName(),
-                'mime' => $file->getMimeType(),
+                'mime' => $detectedMime,
                 'size' => $file->getSize(),
                 'is_uploaded' => true,
             ];

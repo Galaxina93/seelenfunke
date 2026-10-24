@@ -7,6 +7,7 @@ use Livewire\Component;
 
 class GoogleReviews extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public array $reviewsData = [];
 
     public function mount(GoogleReviewsService $service)

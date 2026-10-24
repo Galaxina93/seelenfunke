@@ -141,6 +141,10 @@ class GameProfileComponent extends Component
 
     public function selectTitle($titleKey, GamificationService $gameService)
     {
+        if ($titleKey !== null && !is_string($titleKey)) {
+            return;
+        }
+
         $user = Auth::guard('customer')->user();
         if (!$user) return;
 
@@ -173,7 +177,7 @@ class GameProfileComponent extends Component
     {
         $now = Carbon::now();
         $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if (!$lastRefill || $lastRefill->diffInHours($now) >= 3) {
+        if ($profile->energy_balance < $this->maxEnergy && (!$lastRefill || $lastRefill->diffInHours($now, false) >= 3)) {
             $profile->energy_balance = $this->maxEnergy;
             $profile->last_energy_refill_at = $now;
             $profile->save();
@@ -199,7 +203,9 @@ class GameProfileComponent extends Component
                 $isUsed = false;
 
                 if ($dbVoucher) {
-                    $isUsed = ($dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit) || !$dbVoucher->is_active;
+                    $isUsed = ($dbVoucher->usage_limit !== null && $dbVoucher->used_count >= $dbVoucher->usage_limit)
+                        || !$dbVoucher->is_active
+                        || ($dbVoucher->valid_until && $dbVoucher->valid_until->isPast());
                 }
 
                 $formattedCoupons['lvl_' . $lvl] = [

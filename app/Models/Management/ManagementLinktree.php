@@ -62,10 +62,17 @@ class ManagementLinktree extends Model
         }
 
         if (str_starts_with($trimmed, '/')) {
+            if (str_starts_with($trimmed, '//') || str_starts_with($trimmed, '/\\')) {
+                return url('/shop');
+            }
             return url($trimmed);
         }
 
         $parsed = parse_url($trimmed);
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return url('/shop');
+        }
         $host = strtolower(str_replace('www.', '', $parsed['host'] ?? ''));
 
         $internalHosts = array_filter([

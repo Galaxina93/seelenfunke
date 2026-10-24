@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 use Livewire\WithPagination;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 
 #[Layout('components.layouts.backend_layout')]
@@ -25,6 +26,7 @@ class SupportTicket extends Component
     public $viewMode = 'split'; // 'split' or 'table'
     public $filterStatus = 'open';
     public $search = '';
+    #[Locked]
     public $activeTicketId = null;
     public $replyMessage = '';
     public $replyAttachments = [];
@@ -85,9 +87,13 @@ class SupportTicket extends Component
 
     public function selectTicket($id)
     {
-        $this->activeTicketId = $id;
+        $ticket = SupportTicketModel::find($id);
+        if (!$ticket) {
+            return;
+        }
+        $this->activeTicketId = $ticket->id;
         $this->reset(['replyMessage', 'replyAttachments']);
-        $this->markAsReadAdmin($id);
+        $this->markAsReadAdmin($ticket->id);
         $this->dispatch('ticket-message-received');
         $this->dispatch('clear-admin-ticket-badge'); // Entfernt den roten Punkt sofort beim Öffnen
     }
@@ -102,15 +108,44 @@ class SupportTicket extends Component
     public function sendReply()
     {
         $this->validate([
-            'replyMessage' => 'required|min:1',
+            'replyMessage' => 'required|string|min:1|max:10000',
+            'replyAttachments' => 'nullable|array|max:10',
             'replyAttachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:10240',
         ]);
 
         $ticket = SupportTicketModel::with('customer')->findOrFail($this->activeTicketId);
 
+        $allowedMimeMap = [
+            'jpg' => ['image/jpeg'],
+            'jpeg' => ['image/jpeg'],
+            'png' => ['image/png'],
+            'webp' => ['image/webp'],
+            'gif' => ['image/gif'],
+            'pdf' => ['application/pdf'],
+            'txt' => ['text/plain'],
+            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+        ];
         $attachmentPaths = [];
         foreach ($this->replyAttachments as $photo) {
-            $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public');
+            if (!is_object($photo) || !method_exists($photo, 'getClientOriginalExtension') || !method_exists($photo, 'getRealPath')) {
+                continue;
+            }
+            $ext = strtolower((string) $photo->getClientOriginalExtension());
+            if (!isset($allowedMimeMap[$ext])) {
+                continue;
+            }
+            $realPath = $photo->getRealPath();
+            $detectedMime = ($realPath && is_file($realPath) && function_exists('finfo_open'))
+                ? strtolower((string) finfo_file(finfo_open(FILEINFO_MIME_TYPE), $realPath))
+                : strtolower((string) $photo->getMimeType());
+            if (in_array($detectedMime, ['application/x-empty', 'inode/x-empty'], true) && method_exists($photo, 'getMimeType')) {
+                $detectedMime = strtolower((string) $photo->getMimeType());
+            }
+            if (!in_array($detectedMime, $allowedMimeMap[$ext], true)) {
+                continue;
+            }
+            $safeFilename = \Illuminate\Support\Str::uuid()->toString() . '.' . $ext;
+            $attachmentPaths[] = $photo->storeAs('support/tickets/attachments', $safeFilename, 'public');
         }
 
         $message = SupportTicketMessage::create([

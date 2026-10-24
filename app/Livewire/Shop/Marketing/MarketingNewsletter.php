@@ -29,6 +29,7 @@ class MarketingNewsletter extends Component
     public $newSubscriberEmail = '';
 
     // Editor State
+    #[\Livewire\Attributes\Locked]
     public $editingTemplateId = null;
     public $edit_subject;
     public $edit_content;

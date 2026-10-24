@@ -332,7 +332,11 @@ class MasterAnalytics extends Component
         $trackPercent = min(100, max(2, round($trackPercent, 1)));
 
         // 10-Year Timeline calculation
-        $start = \Carbon\Carbon::parse($this->journeyStartDate ?: '2026-11-01');
+        try {
+            $start = \Carbon\Carbon::parse($this->journeyStartDate ?: '2026-11-01');
+        } catch (\Throwable $e) {
+            $start = \Carbon\Carbon::parse('2026-11-01');
+        }
         $end = $start->copy()->addYears(10);
         $totalDays = $start->diffInDays($end) ?: 3652;
         $now = now();
@@ -939,6 +943,10 @@ class MasterAnalytics extends Component
 
     public function saveJourneyStartDate()
     {
+        $this->validate([
+            'journeyStartDate' => 'required|date',
+        ]);
+        $this->journeyStartDate = \Carbon\Carbon::parse($this->journeyStartDate)->format('Y-m-d');
         $config = SystemCheckConfig::firstOrNew(['user_id' => auth()->id()]);
         $widgets = $config->widgets ?? [];
         $widgets['journey_start_date'] = $this->journeyStartDate;
@@ -991,6 +999,10 @@ class MasterAnalytics extends Component
     public function updated($property)
     {
         if (in_array($property, ['dateStart', 'dateEnd', 'filterType'])) {
+            if (!in_array($this->filterType, ['all', 'business', 'private'], true)) {
+                $this->filterType = 'all';
+            }
+
             $validator = \Illuminate\Support\Facades\Validator::make([
                 'dateStart' => $this->dateStart,
                 'dateEnd' => $this->dateEnd,
@@ -1011,9 +1023,14 @@ class MasterAnalytics extends Component
                 }
                 $this->resetErrorBag();
             } else {
-                // Normalisieren auf Y-m-d Format
-                $this->dateStart = \Carbon\Carbon::parse($this->dateStart)->format('Y-m-d');
-                $this->dateEnd = \Carbon\Carbon::parse($this->dateEnd)->format('Y-m-d');
+                // Normalisieren auf Y-m-d Format und Zeitspanne auf maximal 10 Jahre begrenzen
+                $parsedStart = \Carbon\Carbon::parse($this->dateStart)->startOfDay();
+                $parsedEnd = \Carbon\Carbon::parse($this->dateEnd)->startOfDay();
+                if ($parsedStart->diffInDays($parsedEnd) > 3660) {
+                    $parsedStart = (clone $parsedEnd)->subDays(3660);
+                }
+                $this->dateStart = $parsedStart->format('Y-m-d');
+                $this->dateEnd = $parsedEnd->format('Y-m-d');
 
                 $this->saveSettings('custom');
             }
@@ -1069,7 +1086,8 @@ class MasterAnalytics extends Component
         }
 
         $this->validate(['uploadFile' => 'required|file|mimes:pdf,jpg,jpeg,png,webp,doc,docx,txt|max:10240']);
-        $item = AccountingCostItem::find($itemId);
+        $adminId = Auth::guard('admin')->id();
+        $item = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $adminId))->find($itemId);
         if ($item) {
             $path = app(\App\Services\Accounting\ContractDocumentService::class)->storeContractFile(
                 $this->uploadFile,
@@ -1092,9 +1110,24 @@ class MasterAnalytics extends Component
         $this->validate([
             'uploadFile' => 'required|file|mimes:pdf,jpg,jpeg,png,webp,csv,xml,txt|max:10240'
         ]);
-        $issue = AccountingSpecialIssue::find($issueId);
+        $realPath = $this->uploadFile->getRealPath();
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+        finfo_close($finfo);
+        $ext = strtolower((string) $this->uploadFile->getClientOriginalExtension());
+        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/csv', 'text/plain', 'text/xml', 'application/xml'];
+        if (!in_array($detectedMime, $allowedMimes, true) || !in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'csv', 'xml', 'txt'], true)) {
+            $this->addError('uploadFile', 'Ungültiges Dateiformat.');
+            return;
+        }
+        $adminId = Auth::guard('admin')->id();
+        $issue = AccountingSpecialIssue::where('admin_id', $adminId)->find($issueId);
         if ($issue) {
-            $path = $this->uploadFile->store('buchhaltung/receipts', 'local');
+            $path = $this->uploadFile->storeAs(
+                'buchhaltung/receipts',
+                \Illuminate\Support\Str::uuid()->toString() . '.' . $ext,
+                'local'
+            );
             $files = $issue->file_paths ?? [];
             $files[] = $path;
             $issue->update(['file_paths' => $files]);
@@ -1445,14 +1478,19 @@ class MasterAnalytics extends Component
             abort(403);
         }
 
-        $ip = trim($this->manualBlockIp);
+        $ip = trim((string) $this->manualBlockIp);
         if (!filter_var($ip, FILTER_VALIDATE_IP)) {
             $this->addError('manualBlockIp', 'Bitte eine gültige IPv4- oder IPv6-Adresse eingeben.');
             return;
         }
 
-        $reason = trim($this->manualBlockReason) ?: 'Manuell über Sicherheit & Abwehr Firewall gesperrt';
-        $hours = $this->manualBlockHours > 0 ? $this->manualBlockHours : null;
+        if (in_array($ip, ['127.0.0.1', '::1', request()?->ip()], true)) {
+            $this->addError('manualBlockIp', 'Die eigene IP-Adresse oder Loopback darf nicht gesperrt werden.');
+            return;
+        }
+
+        $reason = mb_substr(trim((string) $this->manualBlockReason), 0, 255) ?: 'Manuell über Sicherheit & Abwehr Firewall gesperrt';
+        $hours = (int) $this->manualBlockHours > 0 ? min(8760, (int) $this->manualBlockHours) : null;
 
         SystemBlockedIp::blockIp($ip, $reason, $hours, auth()->user()?->email ?? 'Admin');
         $this->reset(['manualBlockIp', 'manualBlockReason']);
@@ -1484,7 +1522,18 @@ class MasterAnalytics extends Component
             abort(403);
         }
 
-        if (empty($ip)) return;
+        $ip = trim($ip);
+        if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            session()->flash('error', 'Ungültige IP-Adresse.');
+            return;
+        }
+
+        if (in_array($ip, ['127.0.0.1', '::1', request()?->ip()], true)) {
+            session()->flash('error', 'Die eigene IP-Adresse oder Loopback darf nicht gesperrt werden.');
+            return;
+        }
+
+        $hours = max(1, min(8760, $hours));
         SystemBlockedIp::blockIp($ip, 'Über Threat Monitor gesperrt', $hours, auth()->user()?->email ?? 'Admin');
         session()->flash('success', "IP-Adresse {$ip} wurde für {$hours} Stunden gesperrt.");
     }
@@ -1509,7 +1558,7 @@ class MasterAnalytics extends Component
         try {
             $result = \App\Services\AI\Functions\AiSystemFuncs::executeAnalyzeSecurityThreats(['send_email' => false]);
             if (($result['status'] ?? '') === 'success') {
-                $this->latestSecurityReport = $result['report_file'] ?? null;
+                $this->latestSecurityReport = !empty($result['report_file']) ? basename((string) $result['report_file']) : null;
                 $filePath = 'agenten/workspace/Dokumente/Berichte/' . $this->latestSecurityReport;
                 if (\Illuminate\Support\Facades\Storage::disk('public')->exists($filePath)) {
                     $this->securityReportContent = \Illuminate\Support\Facades\Storage::disk('public')->get($filePath);
@@ -1932,11 +1981,14 @@ class MasterAnalytics extends Component
         try {
             $markdownResponse = \App\Services\AI\AiAgentFactory::processDirectPrompt($agent, $prompt);
 
-            // Konvertiere Markdown zu HTML
-            $htmlContent = \Illuminate\Support\Str::markdown($markdownResponse);
+            // Konvertiere Markdown sicher zu HTML (ohne rohes HTML oder unsichere Links)
+            $htmlContent = \Illuminate\Support\Str::markdown((string) $markdownResponse, [
+                'html_input' => 'strip',
+                'allow_unsafe_links' => false,
+            ]);
 
-            // FIX: DomPDF hat massive Probleme mit UTF-8 Zeichen wie '€' oder Pfeilen. Konvertiere alles zu HTML-Entities!
-            $htmlContent = mb_convert_encoding($htmlContent, 'HTML-ENTITIES', 'UTF-8');
+            // FIX: DomPDF hat massive Probleme mit UTF-8 Zeichen wie '€' oder Pfeilen. Konvertiere Non-ASCII ohne deprecated HTML-ENTITIES!
+            $htmlContent = mb_encode_numericentity($htmlContent, [0x80, 0x10FFFF, 0, ~0], 'UTF-8');
 
             // Generiere PDF
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('global.pdf.ceo-report', [

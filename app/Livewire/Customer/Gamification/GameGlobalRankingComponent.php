@@ -41,8 +41,19 @@ class GameGlobalRankingComponent extends Component
         }
     }
 
+    public function updatedActiveTab($val): void
+    {
+        if (!in_array((string) $val, ['classic', 'funkenflug'], true)) {
+            $this->activeTab = 'classic';
+        }
+    }
+
     public function render()
     {
+        if (!in_array((string) $this->activeTab, ['classic', 'funkenflug'], true)) {
+            $this->activeTab = 'classic';
+        }
+
         $rankings = collect();
 
         // Rangliste nur laden, wenn der Kunde eingewilligt hat (Performance & Datenschutz)

@@ -105,7 +105,9 @@ class ManagementShoppingList extends Component
 
         $existing = ManagementShoppingItem::where('name', 'like', addcslashes($cleanName, '%_\\'))->first();
 
-        $catId = empty($this->selectedCategoryId) ? null : $this->selectedCategoryId;
+        $catId = (!empty($this->selectedCategoryId) && ManagementShoppingCategory::where('id', $this->selectedCategoryId)->exists())
+            ? $this->selectedCategoryId
+            : null;
 
         if ($existing) {
             $existing->status = 'needed';

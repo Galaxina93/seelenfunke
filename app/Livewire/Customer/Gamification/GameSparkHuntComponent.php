@@ -57,8 +57,9 @@ class GameSparkHuntComponent extends Component
             }
             RateLimiter::hit($throttleKey, 60);
 
-            // Server-Token prüfen
-            if (!session()->has('spark_hunt_token')) {
+            // Server-Token prüfen (muss zur aktuellen Customer-ID passen)
+            $token = (string) session('spark_hunt_token', '');
+            if ($token === '' || !str_starts_with($token, $user->id . '_')) {
                 return;
             }
             session()->forget('spark_hunt_token');

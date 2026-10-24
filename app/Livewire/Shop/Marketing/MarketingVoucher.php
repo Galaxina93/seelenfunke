@@ -80,6 +80,7 @@ class MarketingVoucher extends Component
     // --- MANUELLE GUTSCHEINE ---
     public $isCreatingManual = false;
     public $isEditingManual = false;
+    #[\Livewire\Attributes\Locked]
     public $manualId = null;
     public $manual_code;
     public $manual_type = 'fixed';
@@ -120,7 +121,7 @@ class MarketingVoucher extends Component
 
     public function editManualCoupon($id)
     {
-        $v = VoucherModel::where('mode', 'manual')->findOrFail($id);
+        $v = VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->findOrFail($id);
         $this->manualId = $v->id;
         $this->manual_code = $v->code;
         $this->manual_type = $v->type;
@@ -139,37 +140,42 @@ class MarketingVoucher extends Component
         $rules = [
             'manual_code' => 'required|string|min:3|max:50|alpha_dash|unique:marketing_vouchers,code,' . $this->manualId,
             'manual_type' => 'required|in:fixed,percent',
-            'manual_min_order_value' => 'nullable|numeric|min:0',
-            'manual_usage_limit' => 'nullable|integer|min:1',
+            'manual_min_order_value' => 'nullable|numeric|min:0|max:100000',
+            'manual_usage_limit' => 'nullable|integer|min:1|max:1000000',
             'manual_valid_until' => 'nullable|date',
         ];
 
         if ($this->manual_type === 'percent') {
-            $rules['manual_value'] = 'required|numeric|min:0.01|max:100';
+            $rules['manual_value'] = 'required|integer|min:1|max:100';
         } else {
-            $rules['manual_value'] = 'required|numeric|min:0.01';
+            $rules['manual_value'] = 'required|numeric|min:0.01|max:100000';
         }
 
         $this->validate($rules);
 
-        $dbValue = ($this->manual_type === 'fixed') ? (int)($this->manual_value * 100) : (int)$this->manual_value;
-        $dbMinOrder = $this->manual_min_order_value ? (int)($this->manual_min_order_value * 100) : null;
+        $dbValue = ($this->manual_type === 'fixed') ? (int) round((float) $this->manual_value * 100) : (int) $this->manual_value;
+        $dbMinOrder = $this->manual_min_order_value ? (int) round((float) $this->manual_min_order_value * 100) : null;
 
-        VoucherModel::updateOrCreate(
-            ['id' => $this->manualId],
-            [
-                'code' => strtoupper($this->manual_code),
-                'title' => 'Manueller Code: ' . strtoupper($this->manual_code),
-                'type' => $this->manual_type,
-                'is_active' => $this->manual_is_active,
-                'usage_limit' => $this->manual_usage_limit ?: null,
-                'valid_until' => $this->manual_valid_until ?: null,
-                'value' => $dbValue,
-                'min_order_value' => $dbMinOrder,
-                'mode' => 'manual',
-                'valid_from' => $this->manualId ? (VoucherModel::find($this->manualId)?->valid_from ?? now()) : now(),
-            ]
-        );
+        $payload = [
+            'code' => strtoupper($this->manual_code),
+            'title' => 'Manueller Code: ' . strtoupper($this->manual_code),
+            'type' => $this->manual_type,
+            'is_active' => $this->manual_is_active,
+            'usage_limit' => $this->manual_usage_limit ?: null,
+            'valid_until' => $this->manual_valid_until ?: null,
+            'value' => $dbValue,
+            'min_order_value' => $dbMinOrder,
+            'mode' => 'manual',
+        ];
+
+        if ($this->manualId) {
+            $existingManual = VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->findOrFail($this->manualId);
+            $payload['valid_from'] = $existingManual->valid_from ?? now();
+            $existingManual->update($payload);
+        } else {
+            $payload['valid_from'] = now();
+            VoucherModel::create($payload);
+        }
 
         session()->flash('success', $this->isEditingManual ? 'Gutschein aktualisiert.' : 'Gutschein erstellt.');
         $this->cancelManualCoupon();
@@ -177,7 +183,7 @@ class MarketingVoucher extends Component
 
     public function deleteManualCoupon($id)
     {
-        VoucherModel::where('mode', 'manual')->findOrFail($id)->delete();
+        VoucherModel::where('mode', 'manual')->whereNull('recipient_email')->findOrFail($id)->delete();
         session()->flash('success', 'Gutschein gelöscht.');
     }
 
@@ -376,6 +382,8 @@ class MarketingVoucher extends Component
 
         // Top 10 Gutscheine der letzten 12 Monate
         $topCoupons = \Illuminate\Support\Facades\DB::table('order_orders')
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('coupon_code')
             ->whereBetween('created_at', [$start, $end])
             ->select('coupon_code', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
@@ -388,6 +396,8 @@ class MarketingVoucher extends Component
 
         // Alle relevanten Bestellungen
         $orders = \Illuminate\Support\Facades\DB::table('order_orders')
+            ->whereNull('deleted_at')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->whereNotNull('coupon_code')
             ->whereBetween('created_at', [$start, $end])
             ->get(['coupon_code', 'created_at']);

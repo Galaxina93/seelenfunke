@@ -145,8 +145,13 @@ class CustomerOrdersComponent extends Component
             return;
         }
 
-        $downloadPath = (string) $item->product->digital_download_path;
-        if (str_contains($downloadPath, '..') || str_contains($downloadPath, "\0")) {
+        $downloadPath = ltrim(str_replace('\\', '/', (string) $item->product->digital_download_path), '/');
+        if (
+            $downloadPath === ''
+            || str_contains($downloadPath, '..')
+            || str_contains($downloadPath, "\0")
+            || (!str_starts_with($downloadPath, 'produkte/products-secure/') && !str_starts_with($downloadPath, 'products-secure/'))
+        ) {
             session()->flash('error', 'Ungültiger Dateipfad.');
             return;
         }
@@ -157,14 +162,19 @@ class CustomerOrdersComponent extends Component
             return;
         }
 
-        if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($downloadPath)) {
+        if (
+            !\Illuminate\Support\Facades\Storage::disk('local')->exists($downloadPath)
+            || is_link(\Illuminate\Support\Facades\Storage::disk('local')->path($downloadPath))
+        ) {
             session()->flash('error', 'Datei nicht gefunden.');
             return;
         }
 
+        $safeDownloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string) ($item->product->digital_filename ?: 'Download'))) ?: 'Download';
+
         return \Illuminate\Support\Facades\Storage::disk('local')->download(
             $downloadPath, 
-            $item->product->digital_filename ?? 'Download'
+            $safeDownloadName
         );
     }
 
@@ -203,7 +213,11 @@ class CustomerOrdersComponent extends Component
         $user = Auth::guard('customer')->user();
         if (!$user) return null;
 
-        return OrderOrder::with(['items.product', 'invoices', 'shipments'])
+        return OrderOrder::with([
+                'items.product',
+                'invoices' => fn($q) => $q->where('status', '!=', 'draft'),
+                'shipments'
+            ])
             ->where('customer_id', $user->id)
             ->find($this->selectedOrderId);
     }

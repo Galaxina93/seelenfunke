@@ -6,6 +6,7 @@ use App\Livewire\Traits\WithDepartmentTheming;
 
 use Livewire\Component;
 use App\Models\Support\SupportCustomerChat;
+use Illuminate\Support\Facades\Storage;
 use Livewire\WithPagination;
 
 class SupportChats extends Component
@@ -83,8 +84,9 @@ class SupportChats extends Component
         $trollRate = $totalChatsAll > 0 ? round(($resolvedAutoCount / $totalChatsAll) * 100) : 0;
         $escalationRate = $totalChatsAll > 0 ? round(($needsEmployeeCount / $totalChatsAll) * 100) : 0;
 
-        $avgMessagesPerChat = SupportCustomerChat::withCount('messages')->get()->avg('messages_count');
-        $avgMessagesPerChat = $avgMessagesPerChat ? round($avgMessagesPerChat, 1) : 0;
+        $avgMessagesPerChat = $totalChatsAll > 0
+            ? round(\App\Models\Support\SupportCustomerChatMessage::count() / $totalChatsAll, 1)
+            : 0;
 
         $avgCustomerLength = (int) \App\Models\Support\SupportCustomerChatMessage::where('sender', 'customer')
             ->selectRaw('AVG(LENGTH(message)) as avg_len')->value('avg_len');

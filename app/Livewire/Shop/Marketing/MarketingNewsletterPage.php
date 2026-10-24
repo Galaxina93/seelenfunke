@@ -122,6 +122,9 @@ class MarketingNewsletterPage extends Component
 
     public function switchTab($tab)
     {
+        if (!in_array($tab, ['subscribe', 'unsubscribe'], true)) {
+            return;
+        }
         $this->activeTab = $tab;
         $this->reset(['email', 'privacy_accepted', 'successMessage']);
         $this->resetValidation();

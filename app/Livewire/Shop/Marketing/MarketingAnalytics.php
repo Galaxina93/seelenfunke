@@ -60,6 +60,12 @@ class MarketingAnalytics extends Component
 
     private function updateDateRange()
     {
+        $range = is_scalar($this->dateRange) ? (string) $this->dateRange : '30';
+        if (!in_array($range, ['7', '30', '90', '365', 'all'], true)) {
+            $range = '30';
+        }
+        $this->dateRange = $range;
+
         if ($this->dateRange === '7') {
             $this->dateFrom = Carbon::now()->subDays(7)->startOfDay();
         } elseif ($this->dateRange === '30') {
@@ -169,7 +175,7 @@ class MarketingAnalytics extends Component
             $enrichedTopPages[] = [
                 'path' => $page->path,
                 'slug' => $slug,
-                'product_name' => $lp ? $lp->product->name : 'Gelöscht/Unbekannt',
+                'product_name' => $lp?->product?->name ?? ($lp?->title ?: 'Gelöscht/Unbekannt'),
                 'visits' => $page->visits_count
             ];
         }

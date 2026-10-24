@@ -447,7 +447,22 @@ class MasterStorageCapacity extends Component
         $job->update(['status' => 'running']);
 
         try {
-            $parameters = $job->parameters ? explode(' ', $job->parameters) : [];
+            $parameters = [];
+            $blockedOpts = ['--env', '--database', '--path', '--realpath', '--bootstrap'];
+            if (!empty($job->parameters)) {
+                foreach (preg_split('/\s+/', trim((string) $job->parameters), -1, PREG_SPLIT_NO_EMPTY) as $token) {
+                    if (str_starts_with($token, '--')) {
+                        if (str_contains($token, '=')) {
+                            [$optKey, $optVal] = explode('=', $token, 2);
+                            if (preg_match('/^--[a-zA-Z0-9_-]+$/', $optKey) && !in_array(strtolower($optKey), $blockedOpts, true)) {
+                                $parameters[$optKey] = $optVal;
+                            }
+                        } elseif (preg_match('/^--[a-zA-Z0-9_-]+$/', $token) && !in_array(strtolower($token), $blockedOpts, true)) {
+                            $parameters[$token] = true;
+                        }
+                    }
+                }
+            }
             Artisan::call($job->command, $parameters);
 
             $job->update([
@@ -483,8 +498,8 @@ class MasterStorageCapacity extends Component
 
     public function updateThresholds($t1, $t2, $t3)
     {
-        $this->threshold1 = max(1, min(100, (int)$t1));
-        $this->threshold2 = max($this->threshold1 + 1, min(100, (int)$t2));
+        $this->threshold1 = max(1, min(98, (int)$t1));
+        $this->threshold2 = max($this->threshold1 + 1, min(99, (int)$t2));
         $this->threshold3 = max($this->threshold2 + 1, min(100, (int)$t3));
 
         SystemSetting::updateOrCreate(['key' => 'storage_capacity_threshold_1'], ['value' => $this->threshold1]);

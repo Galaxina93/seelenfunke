@@ -22,6 +22,7 @@ class ManagementContacts extends Component
     use WithPagination, WithFileUploads;
 
     public $search = '';
+    #[\Livewire\Attributes\Locked]
     public $activeProfileId = null;
     public $isEditing = false;
 
@@ -192,13 +193,30 @@ class ManagementContacts extends Component
             'country' => $this->editForm['country']
         ];
 
+        $existingProfile = $this->activeProfileId ? ManagementContact::findOrFail($this->activeProfileId) : null;
+
         if ($this->avatar_upload) {
-            $data['avatar_path'] = $this->avatar_upload->store('leitung/person_profiles', 'public');
+            $realPath = $this->avatar_upload->getRealPath();
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+            finfo_close($finfo);
+            $ext = strtolower((string) $this->avatar_upload->getClientOriginalExtension());
+            if (!in_array($detectedMime, ['image/jpeg', 'image/png', 'image/webp'], true) || !in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                $this->addError('avatar_upload', 'Ungültiges Bildformat.');
+                return;
+            }
+            if ($existingProfile && $existingProfile->avatar_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($existingProfile->avatar_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($existingProfile->avatar_path);
+            }
+            $data['avatar_path'] = $this->avatar_upload->storeAs(
+                'leitung/person_profiles',
+                \Illuminate\Support\Str::uuid()->toString() . '.' . $ext,
+                'public'
+            );
         }
 
-        if ($this->editForm['id']) {
-            $profile = ManagementContact::findOrFail($this->editForm['id']);
-            $profile->update($data);
+        if ($existingProfile) {
+            $existingProfile->update($data);
             $message = 'Kontakt erfolgreich aktualisiert.';
         } else {
             $profile = ManagementContact::create($data);

@@ -30,8 +30,8 @@ class GamificationService
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($customer) {
             $profile = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
-            if (!$profile) {
-                $profile = $this->getProfile($customer);
+            if (!$profile || !$profile->is_active) {
+                return ['success' => false, 'message' => 'Spielmodus ist nicht aktiviert.'];
             }
 
             $cost = $this->getUpgradeCost($profile->level);
@@ -80,7 +80,11 @@ class GamificationService
                 return null;
             }
 
-            $email = $profile->customer?->email ?? ($profile->customer_id ? Customer::where('id', $profile->customer_id)->value('email') : null);
+            $customer = $profile->customer ?? ($profile->customer_id ? Customer::find($profile->customer_id) : null);
+            if (!$customer || empty($customer->email) || !$customer->hasVerifiedEmail()) {
+                return null;
+            }
+            $email = $customer->email;
 
             // Prüfen, ob in DB bereits ein Coupon für diesen Kunden und dieses Level existiert
             if ($email) {
@@ -133,7 +137,11 @@ class GamificationService
             $rewards = GameConfig::getLevelRewards();
             $unlocked = is_array($lockedProfile->unlocked_coupons) ? $lockedProfile->unlocked_coupons : [];
             $changed = false;
-            $email = $lockedProfile->customer?->email ?? ($lockedProfile->customer_id ? Customer::where('id', $lockedProfile->customer_id)->value('email') : null);
+            $customer = $lockedProfile->customer ?? ($lockedProfile->customer_id ? Customer::find($lockedProfile->customer_id) : null);
+            if (!$customer || empty($customer->email) || !$customer->hasVerifiedEmail()) {
+                return;
+            }
+            $email = $customer->email;
 
             for ($i = 1; $i <= $lockedProfile->level; $i++) {
                 if (!isset($rewards[$i])) {
@@ -210,6 +218,9 @@ class GamificationService
             }
 
             if ($source === 'website_hunt') {
+                if (!$profile->is_active) {
+                    return;
+                }
                 if ($profile->last_spark_collection_date && !$profile->last_spark_collection_date->isToday()) {
                     $profile->sparks_collected_today = 0;
                 }
@@ -264,8 +275,12 @@ class GamificationService
         $progress['bildreporter'] = $reviews->filter(fn($r) => !empty($r->media))->count();
         $progress['wortgewandt'] = $reviews->filter(fn($r) => strlen($r->content ?? '') >= 100)->count();
 
-        // ORDERS
-        $orders = OrderOrder::where('customer_id', $customer->id)->where('payment_status', 'paid')->with('items.product')->get();
+        // ORDERS (nur bezahlte und nicht stornierte/erstattete Bestellungen zählen für Ränge)
+        $orders = OrderOrder::where('customer_id', $customer->id)
+            ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->with('items.product.categories')
+            ->get();
         $progress['schatzhueter'] = $orders->count();
         $progress['massenkaeufer'] = $orders->flatMap(fn($o) => $o->items)->sum('quantity');
 
@@ -274,7 +289,15 @@ class GamificationService
             return ($order->shipping_address_id ?? null) && ($order->billing_address_id ?? null) && ($order->shipping_address_id !== $order->billing_address_id);
         })->count();
 
-        $progress['entdecker'] = $orders->flatMap(fn($o) => $o->items->map(fn($i) => $i->product->category_id ?? null))->filter()->unique()->count();
+        $progress['entdecker'] = $orders->flatMap(fn($o) => $o->items->flatMap(function ($i) {
+            if (!$i->product) {
+                return [];
+            }
+            if (!empty($i->product->category_id)) {
+                return [$i->product->category_id];
+            }
+            return $i->product->categories?->pluck('id')->all() ?? [];
+        }))->filter()->unique()->count();
         $progress['nachtschwaermer'] = $orders->filter(fn($o) => $o->created_at->hour >= 22 || $o->created_at->hour <= 4)->count();
         $progress['wochenend_shopper'] = $orders->filter(fn($o) => $o->created_at->isWeekend())->count();
         $progress['wiederholungstaeter'] = $orders->map(fn($o) => $o->created_at->format('Y-m'))->unique()->count();

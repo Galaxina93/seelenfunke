@@ -23,6 +23,7 @@ class SupportContactFormComponent extends Component
 
     public $statusFilter = '';
     public $search = '';
+    #[\Livewire\Attributes\Locked]
     public $selectedRequestId = null;
     public $replyMessage = '';
 
@@ -105,7 +106,7 @@ class SupportContactFormComponent extends Component
 
     public function sendReply()
     {
-        $this->validate(['replyMessage' => 'required']);
+        $this->validate(['replyMessage' => 'required|string|max:10000']);
 
         $req = SupportContactRequest::findOrFail($this->selectedRequestId);
         

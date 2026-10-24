@@ -35,6 +35,7 @@ class MarketingLandingPages extends Component
 
     // Modal state for editing
     public bool $showEditModal = false;
+    #[\Livewire\Attributes\Locked]
     public ?string $editingLandingPageId = null;
     public string $editTitle = '';
     public string $editHeadline = '';
@@ -189,11 +190,13 @@ class MarketingLandingPages extends Component
         $lp = MarketingLandingPage::findOrFail($landingPageId);
         $productName = $lp->product ? $lp->product->name : $lp->title;
 
-        // Delete custom blade file if one exists
-        $safeSlug = Str::slug($lp->slug);
-        $customBlade = resource_path('views/frontend/pages/landingpages/' . $safeSlug . '.blade.php');
-        if (File::exists($customBlade)) {
-            File::delete($customBlade);
+        // Delete custom blade file if one exists (nur für Administratoren und gültige Slugs)
+        $safeSlug = Str::slug((string) $lp->slug);
+        if ($safeSlug !== '' && Auth::guard('admin')->check()) {
+            $customBlade = resource_path('views/frontend/pages/landingpages/' . $safeSlug . '.blade.php');
+            if (File::exists($customBlade)) {
+                File::delete($customBlade);
+            }
         }
 
         $lp->delete();
@@ -209,13 +212,17 @@ class MarketingLandingPages extends Component
      */
     public function createCustomOverrideFile($productId)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
+        if (!Auth::guard('admin')->check()) {
+            abort(403, 'Nur Administratoren dürfen Blade-Template-Dateien im Dateisystem anlegen.');
         }
 
         try {
             $product = Product::findOrFail($productId);
-            $slug = Str::slug($product->slug);
+            $slug = Str::slug((string) $product->slug);
+            if ($slug === '') {
+                $this->actionError = 'Ungültiger Produkt-Slug.';
+                return;
+            }
             $bladePath = resource_path('views/frontend/pages/landingpages/' . $slug . '.blade.php');
 
             $stubPath = resource_path('views/stubs/landing-page-template.stub');

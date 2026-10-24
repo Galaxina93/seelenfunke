@@ -51,6 +51,17 @@ class MarketingVoucherBalanceChecker extends Component
             return;
         }
 
+        // Persönliche DANKE-Belohnungsgutscheine dürfen nur vom verifizierten Empfänger abgefragt werden
+        if (!empty($voucher->recipient_email) && str_starts_with($voucher->code, 'DANKE-')) {
+            $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+            $verifiedEmail = ($customer && $customer->hasVerifiedEmail()) ? strtolower(trim((string) $customer->email)) : null;
+            if (!$verifiedEmail || $verifiedEmail !== strtolower(trim($voucher->recipient_email))) {
+                $this->result = null;
+                $this->addError('code', 'Der eingegebene Gutscheincode ist ungültig, abgelaufen oder vollständig aufgebraucht.');
+                return;
+            }
+        }
+
         // Return only balance and expiration date for security (zero leakage of personal info)
         $this->result = [
             'balance' => number_format($voucher->current_balance / 100, 2, ',', '.') . ' €',

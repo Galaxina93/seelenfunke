@@ -24,6 +24,7 @@ class CustomerTicketsComponent extends Component
     use WithFileUploads;
 
     public $viewMode = 'list';
+    #[Locked]
     public $activeTicketId = null;
 
     // GANZ WICHTIG FÜR WEBSOCKETS BEI UUIDS: MUSS STRING SEIN!
@@ -138,6 +139,37 @@ class CustomerTicketsComponent extends Component
     public function updatedNewAttachments() { $this->processUploads('attachments', 'newAttachments'); }
     public function updatedChatNewAttachments() { $this->processUploads('chatAttachments', 'chatNewAttachments'); }
 
+    private function isSafeAttachmentFile($file): bool
+    {
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'txt', 'docx'];
+        $allowedMimes = [
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/gif',
+            'application/pdf',
+            'text/plain',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/zip',
+        ];
+
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        if (!in_array($ext, $allowedExtensions, true)) {
+            return false;
+        }
+
+        $realPath = $file->getRealPath();
+        $detectedMime = ($realPath && file_exists($realPath))
+            ? (string) (new \finfo(FILEINFO_MIME_TYPE))->file($realPath)
+            : '';
+
+        if ($detectedMime === '' || in_array($detectedMime, ['application/x-empty', 'inode/x-empty'], true)) {
+            $detectedMime = (string) $file->getMimeType();
+        }
+
+        return in_array($detectedMime, $allowedMimes, true);
+    }
+
     private function processUploads($targetArray, $newArray)
     {
         $this->uploadError = '';
@@ -146,8 +178,13 @@ class CustomerTicketsComponent extends Component
 
         foreach ($this->$targetArray as $file) { $totalSize += $file->getSize(); }
         foreach ($this->$newArray as $file) {
-            $ext = strtolower($file->getClientOriginalExtension());
-            if (!in_array($ext, $allowedExtensions, true)) {
+            if (count($this->$targetArray) >= 5) {
+                $this->uploadError = 'Achtung: Maximal 5 Anhänge erlaubt.';
+                break;
+            }
+
+            if (!$this->isSafeAttachmentFile($file)) {
+                $ext = strtolower((string) $file->getClientOriginalExtension());
                 $this->uploadError = 'Ungültiges Dateiformat (.' . $ext . '). Erlaubt sind: ' . implode(', ', $allowedExtensions) . '.';
                 break;
             }
@@ -163,19 +200,27 @@ class CustomerTicketsComponent extends Component
         $this->reset($newArray);
     }
 
-    public function removeAttachment($index, $targetArray = 'attachments') { array_splice($this->$targetArray, $index, 1); $this->uploadError = ''; }
+    public function removeAttachment($index, $targetArray = 'attachments')
+    {
+        if (!in_array($targetArray, ['attachments', 'chatAttachments'], true) || !is_array($this->$targetArray)) {
+            return;
+        }
+        array_splice($this->$targetArray, (int) $index, 1);
+        $this->uploadError = '';
+    }
 
     public function setMode($mode, $ticketId = null)
     {
         $this->enforceCustomerId();
-        $this->viewMode = $mode;
-        $this->activeTicketId = $ticketId;
+        $allowedModes = ['list', 'create', 'chat'];
+        $this->viewMode = in_array($mode, $allowedModes, true) ? $mode : 'list';
+        $this->activeTicketId = null;
         $this->reset(['attachments', 'newAttachments', 'chatAttachments', 'chatNewAttachments', 'chatMessage', 'uploadError']);
         $this->rating = 0;
         $this->feedbackText = '';
         $this->ratingSubmitted = false;
 
-        if ($mode === 'chat' && $ticketId) {
+        if ($this->viewMode === 'chat' && $ticketId) {
             // Mandantenprüfung: Ticket muss dem eingeloggten Kunden gehören
             $ticket = SupportTicket::where('customer_id', $this->customerId)->find($ticketId);
             if (!$ticket) {
@@ -190,6 +235,8 @@ class CustomerTicketsComponent extends Component
                 $this->viewMode = 'list';
                 return;
             }
+
+            $this->activeTicketId = $ticket->id;
 
             $this->markAsRead($ticket->id);
             $this->dispatch('ticket-message-received');
@@ -224,9 +271,10 @@ class CustomerTicketsComponent extends Component
         }
 
         $this->validate([
-            'newSubject' => 'required|min:5|max:100',
-            'newCategory' => 'required',
-            'newMessage' => 'required|min:10',
+            'newSubject' => 'required|string|min:5|max:100',
+            'newCategory' => 'required|string|in:support,question,return,bug,order,product,other,allgemein,reklamation,widerruf',
+            'newMessage' => 'required|string|min:10|max:5000',
+            'attachments' => 'nullable|array|max:5',
             'attachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:5120',
         ], [
             'newSubject.required' => 'Bitte gib einen Betreff für deine Anfrage ein.',
@@ -261,7 +309,12 @@ class CustomerTicketsComponent extends Component
         ]);
 
         $attachmentPaths = [];
-        foreach ($this->attachments as $photo) { $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public'); }
+        foreach ($this->attachments as $photo) {
+            if (!$this->isSafeAttachmentFile($photo)) {
+                continue;
+            }
+            $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public');
+        }
 
         $message = SupportTicketMessage::create([
             'support_ticket_id' => $ticket->id,
@@ -298,15 +351,24 @@ class CustomerTicketsComponent extends Component
         }
 
         if ($this->newCategory === 'bug') {
-            $alreadyRewardedToday = SupportTicket::where('customer_id', $this->customerId)
-                ->where('category', 'bug')
-                ->where('reward_claimed', true)
-                ->where('created_at', '>=', now()->startOfDay())
-                ->exists();
+            $rewarded = \Illuminate\Support\Facades\DB::transaction(function () use ($ticket) {
+                $alreadyRewardedToday = SupportTicket::where('customer_id', $this->customerId)
+                    ->where('category', 'bug')
+                    ->where('reward_claimed', true)
+                    ->where('created_at', '>=', now()->startOfDay())
+                    ->lockForUpdate()
+                    ->exists();
 
-            if (!$alreadyRewardedToday) {
-                $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
+                if ($alreadyRewardedToday) {
+                    return false;
+                }
+
                 $ticket->update(['reward_claimed' => true]);
+                return true;
+            });
+
+            if ($rewarded) {
+                $gameService->addFunken(Auth::guard('customer')->user(), 5, 'bug_report');
                 $this->dispatch('notify', ['type' => 'success', 'message' => 'SupportTicket eröffnet! +5 ✨ für deine Fehlermeldung!']);
                 $this->dispatch('sparks-awarded');
             } else {
@@ -323,8 +385,16 @@ class CustomerTicketsComponent extends Component
     public function sendReply()
     {
         $this->enforceCustomerId();
+        $throttleKey = 'reply_ticket_' . $this->customerId;
+        if (RateLimiter::tooManyAttempts($throttleKey, 15)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $this->addError('chatMessage', "Zu viele Nachrichten in kurzer Zeit. Bitte warte {$seconds} Sekunden.");
+            return;
+        }
+
         $this->validate([
-            'chatMessage' => 'required|min:1',
+            'chatMessage' => 'required|string|min:1|max:5000',
+            'chatAttachments' => 'nullable|array|max:5',
             'chatAttachments.*' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf,txt,docx|max:5120',
         ], [
             'chatMessage.required' => 'Bitte schreibe eine Nachricht.',
@@ -333,8 +403,20 @@ class CustomerTicketsComponent extends Component
 
         $ticket = SupportTicket::where('customer_id', $this->customerId)->where('id', $this->activeTicketId)->firstOrFail();
 
+        if ($ticket->status === 'closed') {
+            $this->addError('chatMessage', 'Dieses Ticket ist bereits geschlossen. Bitte eröffne bei Bedarf ein neues Ticket.');
+            return;
+        }
+
+        RateLimiter::hit($throttleKey, 60);
+
         $attachmentPaths = [];
-        foreach ($this->chatAttachments as $photo) { $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public'); }
+        foreach ($this->chatAttachments as $photo) {
+            if (!$this->isSafeAttachmentFile($photo)) {
+                continue;
+            }
+            $attachmentPaths[] = $photo->store('support/tickets/attachments', 'public');
+        }
 
         $message = SupportTicketMessage::create([
             'support_ticket_id' => $ticket->id,
@@ -360,7 +442,7 @@ class CustomerTicketsComponent extends Component
     {
         $this->enforceCustomerId();
         $this->validate([
-            'closeReason' => 'required|min:5'
+            'closeReason' => 'required|string|min:5|max:1000'
         ], [
             'closeReason.required' => 'Gibt bitte einen Grund für die Schließung an.',
             'closeReason.min' => 'Der Grund sollte mindestens 5 Zeichen enthalten.'

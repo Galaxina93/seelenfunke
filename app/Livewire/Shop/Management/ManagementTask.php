@@ -26,6 +26,7 @@ class ManagementTask extends Component
 
     // File Attachments State
     public $taskFilesUpload;
+    #[\Livewire\Attributes\Locked]
     public ?string $uploadingTaskId = null;
 
     // Inline Creation State
@@ -111,11 +112,13 @@ class ManagementTask extends Component
     public function addSubTask($parentId, $title)
     {
         if (empty($title)) return;
+        $parent = TaskModel::find($parentId);
+        if (!$parent) return;
 
         TaskModel::create([
             'id' => (string) Str::uuid(),
-            'task_list_id' => $this->selectedListId,
-            'parent_id' => $parentId,
+            'task_list_id' => $parent->task_list_id,
+            'parent_id' => $parent->id,
             'title' => $title,
             'priority' => 'niedrig',
         ]);
@@ -206,15 +209,20 @@ class ManagementTask extends Component
                 $files = is_array($this->taskFilesUpload) ? $this->taskFilesUpload : [$this->taskFilesUpload];
                 $existing = $task->file_paths ?? [];
                 $forbiddenExts = ['php', 'phtml', 'php3', 'php4', 'php5', 'phar', 'sh', 'pl', 'py', 'cgi', 'exe', 'bat', 'cmd', 'js', 'html', 'htm', 'svg'];
+                $forbiddenMimes = ['text/x-php', 'application/x-httpd-php', 'application/x-php', 'text/html', 'image/svg+xml', 'application/x-dosexec', 'application/x-executable', 'application/x-sh'];
                 
                 foreach ($files as $file) {
                     $ext = strtolower((string) $file->getClientOriginalExtension());
-                    if (in_array($ext, $forbiddenExts, true)) {
+                    $realPath = $file->getRealPath();
+                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                    $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+                    finfo_close($finfo);
+                    if (in_array($ext, $forbiddenExts, true) || !$detectedMime || in_array($detectedMime, $forbiddenMimes, true)) {
                         $this->addError('taskFilesUpload', 'Dateityp aus Sicherheitsgründen nicht erlaubt.');
                         $this->reset(['taskFilesUpload', 'uploadingTaskId']);
                         return;
                     }
-                    $path = $file->store('leitung/tasks/attachments', 'local');
+                    $path = $file->storeAs('leitung/tasks/attachments', Str::uuid()->toString() . '.' . $ext, 'local');
                     $existing[] = $path;
                 }
                 
@@ -277,6 +285,18 @@ class ManagementTask extends Component
     {
         $list = ManagementTaskList::find($id);
         if($list) {
+            $tasks = TaskModel::where('task_list_id', $list->id)->get();
+            foreach ($tasks as $task) {
+                if (!empty($task->file_paths) && is_array($task->file_paths)) {
+                    foreach ($task->file_paths as $path) {
+                        if (is_string($path) && !str_contains($path, '..') && !str_contains($path, "\0") && str_starts_with($path, 'leitung/')) {
+                            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+                                \Illuminate\Support\Facades\Storage::disk('local')->delete($path);
+                            }
+                        }
+                    }
+                }
+            }
             $list->delete();
             $first = ManagementTaskList::first();
             $this->selectedListId = $first ? $first->id : null;

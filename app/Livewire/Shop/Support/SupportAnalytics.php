@@ -64,6 +64,12 @@ class SupportAnalytics extends Component
 
     private function updateDateRange()
     {
+        $range = is_scalar($this->dateRange) ? (string) $this->dateRange : '30';
+        if (!in_array($range, ['7', '30', '90', '365', 'all'], true)) {
+            $range = '30';
+        }
+        $this->dateRange = $range;
+
         if ($this->dateRange === '7') {
             $this->dateFrom = Carbon::now()->subDays(7)->startOfDay();
         } elseif ($this->dateRange === '30') {

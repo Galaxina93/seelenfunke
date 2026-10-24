@@ -54,15 +54,18 @@ class CustomerDashboardComponent extends Component
         $this->isGameModeActive = (bool) \App\Models\Customer\CustomerGamification::where('customer_id', $user->id)
             ->value('is_active');
 
-        // Load active store credit / gift vouchers
-        $this->activeGiftVouchers = \App\Models\Marketing\MarketingGiftVoucher::where('recipient_email', $user->email)
-            ->where('is_active', true)
-            ->where('current_balance', '>', 0)
-            ->get();
+        // Load active store credit / gift vouchers (only when email is verified to prevent email-change hijacking)
+        $this->activeGiftVouchers = $user->hasVerifiedEmail()
+            ? \App\Models\Marketing\MarketingGiftVoucher::where('recipient_email', $user->email)
+                ->where('is_active', true)
+                ->where('current_balance', '>', 0)
+                ->get()
+            : collect();
 
-        // Check if customer has at least 1 paid order
+        // Check if customer has at least 1 paid, non-cancelled order
         $this->hasCompletedOrder = \App\Models\Order\OrderOrder::where('customer_id', $user->id)
             ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->exists();
 
         // Resolve or create persistent personal referral code ONLY if customer has purchased

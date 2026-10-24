@@ -116,6 +116,7 @@ class EmergencyProtocol extends Component
 
         if (Hash::check($this->passwordInput, $masterHash)) {
             RateLimiter::clear($throttleKey);
+            session()->regenerate();
             session(['emergency_access_granted' => true]);
             $this->isAuthenticated = true;
             $this->todoStates = json_decode(SystemSetting::where('key', 'emergency_todo_states')->value('value') ?? '{}', true);
@@ -196,11 +197,21 @@ class EmergencyProtocol extends Component
         session()->flash('success', 'Shop wurde erfolgreich in den Wartungsmodus versetzt.');
     }
 
+    protected function getSafeEmergencySettings(): array
+    {
+        $settings = SystemSetting::pluck('value', 'key')->toArray();
+        foreach (array_keys($settings) as $key) {
+            if (preg_match('/(password|secret|token|key|pin|hash|credential)/i', (string) $key)) {
+                unset($settings[$key]);
+            }
+        }
+        return $settings;
+    }
+
     public function downloadEmergencyPdf()
     {
         $this->ensureAuthenticated();
-        $settings = SystemSetting::pluck('value', 'key')->toArray();
-        unset($settings['emergency_master_password'], $settings['stripe_secret_key'], $settings['stripe_webhook_secret']);
+        $settings = $this->getSafeEmergencySettings();
         $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
         $date = now()->format('d.m.Y H:i');
 
@@ -219,8 +230,7 @@ class EmergencyProtocol extends Component
     {
         $this->ensureAuthenticated();
         $item = \App\Models\Accounting\AccountingCostItem::findOrFail($itemId);
-        $settings = SystemSetting::pluck('value', 'key')->toArray();
-        unset($settings['emergency_master_password'], $settings['stripe_secret_key'], $settings['stripe_webhook_secret']);
+        $settings = $this->getSafeEmergencySettings();
         $date = now()->format('d.m.Y');
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.emergency-cancellation-single', [
@@ -244,8 +254,7 @@ class EmergencyProtocol extends Component
         $isMaintenanceMode = false;
 
         if ($this->isAuthenticated && session('emergency_access_granted') === true) {
-            $settings = SystemSetting::pluck('value', 'key')->toArray();
-            unset($settings['emergency_master_password'], $settings['stripe_secret_key'], $settings['stripe_webhook_secret']);
+            $settings = $this->getSafeEmergencySettings();
             $groups = \App\Models\Accounting\AccountingGroup::with('items')->get();
             $isMaintenanceMode = filter_var($settings['maintenance_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);
             

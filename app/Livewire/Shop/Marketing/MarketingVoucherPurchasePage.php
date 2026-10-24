@@ -8,6 +8,7 @@ use Livewire\Component;
 
 class MarketingVoucherPurchasePage extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
 
     // Configuration Inputs
@@ -23,7 +24,7 @@ class MarketingVoucherPurchasePage extends Component
 
     public function mount()
     {
-        $product = Product::where('slug', 'geschenkgutschein')->first();
+        $product = Product::where('slug', 'geschenkgutschein')->where('status', 'active')->first();
         if (!$product) {
             abort(404, 'Gutschein-Produkt nicht gefunden.');
         }
@@ -33,9 +34,9 @@ class MarketingVoucherPurchasePage extends Component
     public function getSelectedAmountProperty()
     {
         if ($this->amount === 'custom') {
-            return (float) str_replace(',', '.', $this->customAmount);
+            return max(0.0, (float) str_replace(',', '.', $this->customAmount));
         }
-        return (float) $this->amount;
+        return in_array((int) $this->amount, $this->presets, true) ? (float) $this->amount : 50.0;
     }
 
     public function getSelectedAmountCentsProperty()
@@ -63,8 +64,14 @@ class MarketingVoucherPurchasePage extends Component
 
     public function setAmount($val)
     {
-        $this->amount = $val;
-        if ($val !== 'custom') {
+        if ($val === 'custom') {
+            $this->amount = 'custom';
+            return;
+        }
+
+        $intVal = (int) $val;
+        if (in_array($intVal, $this->presets, true)) {
+            $this->amount = $intVal;
             $this->customAmount = '';
         }
     }
@@ -150,7 +157,7 @@ class MarketingVoucherPurchasePage extends Component
 
         // 3. Add to Cart
         try {
-            $voucherProduct = Product::where('slug', 'geschenkgutschein')->firstOrFail();
+            $voucherProduct = Product::where('slug', 'geschenkgutschein')->where('status', 'active')->firstOrFail();
             $cartService->addItem($voucherProduct, 1, $config);
             $this->dispatch('cart-updated');
             session()->flash('success', 'Der Gutschein wurde in den Warenkorb gelegt.');
