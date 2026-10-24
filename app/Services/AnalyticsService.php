@@ -886,47 +886,81 @@ class AnalyticsService
     }
 
     /**
-     * Professionelle Quellenanalyse (Traffic-Akquise & Referrer)
+     * Professionelle Quellenanalyse (Traffic-Akquise, Tracking-Links & Referrer)
      * Ermittelt für jede Besuchersitzung (Session) den First-Touch-Einstiegskanal,
-     * filtert interne Shop-URLs aus, erkennt UTM-Kampagnen und kategorisiert in Standard-Kanäle.
+     * zählt zusätzlich alle tatsächlichen Seitenaufrufe (Aufrufzahlen / Views) sowie
+     * die DSGVO-konformen Tracking-Link-Aufrufe und kategorisiert sie in die Kanal-Verteilung.
      */
     public function getTrafficSourcesAnalysis(Carbon $start, Carbon $end): array
     {
-        // 1. Hole den ersten Seitenaufruf (First-Touch) jeder Sitzung im Zeitraum
-        $firstVisitIds = PageVisit::whereBetween('created_at', [$start, $end])
-            ->select(DB::raw('MIN(id) as first_id'))
+        // 1. Hole den ersten Seitenaufruf (First-Touch) + die tatsächliche Aufrufzahl (views_count) jeder Sitzung im Zeitraum
+        $sessionAggregates = PageVisit::whereBetween('created_at', [$start, $end])
+            ->select(
+                'session_id',
+                DB::raw('MIN(id) as first_id'),
+                DB::raw('COUNT(*) as views_count')
+            )
             ->groupBy('session_id')
-            ->pluck('first_id');
+            ->get();
 
-        if ($firstVisitIds->isEmpty()) {
-            return $this->getEmptyTrafficSourcesData();
+        $firstVisitIds = $sessionAggregates->pluck('first_id')->filter();
+        $sessionViewsByFirstId = $sessionAggregates->pluck('views_count', 'first_id');
+
+        $entryVisits = $firstVisitIds->isNotEmpty()
+            ? PageVisit::whereIn('id', $firstVisitIds)->get()
+            : collect();
+
+        // 2. Hole Tracking-Link-Aufrufe im gewählten Zeitraum
+        $trackingLinksWithHits = collect();
+        $hasTrackingTables = \Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')
+            && \Illuminate\Support\Facades\Schema::hasTable('management_tracking_link_hits');
+
+        if ($hasTrackingTables) {
+            $trackingLinksWithHits = \App\Models\Management\ManagementTrackingLink::query()
+                ->withCount([
+                    'hits as period_hits_count' => function ($q) use ($start, $end) {
+                        $q->whereBetween('created_at', [$start, $end]);
+                    },
+                    'hits as period_unique_count' => function ($q) use ($start, $end) {
+                        $q->whereBetween('created_at', [$start, $end])
+                          ->select(DB::raw('count(distinct ip_hash)'));
+                    },
+                ])
+                ->get();
         }
 
-        $entryVisits = PageVisit::whereIn('id', $firstVisitIds)->get();
+        $totalTrackingPeriodHits = (int) $trackingLinksWithHits->sum('period_hits_count');
+
+        if ($entryVisits->isEmpty() && $totalTrackingPeriodHits === 0) {
+            return $this->getEmptyTrafficSourcesData();
+        }
 
         // Bekannte interne Hosts ermitteln
         $internalHosts = collect([
             request() ? request()->getHost() : null,
-            parse_url(config('app.url'), PHP_URL_HOST),
+            parse_url((string) config('app.url'), PHP_URL_HOST),
+            'mein-seelenfunke.de',
             'seelenfunke.de',
+            'stage.mein-seelenfunke.de',
             'stage.seelenfunke.de',
             'localhost',
             '127.0.0.1',
         ])->filter()->map(fn($h) => strtolower(str_replace('www.', '', $h)))->unique()->toArray();
 
         $channels = [
-            'search' => ['key' => 'search', 'label' => 'Organische Suche', 'icon' => 'solar-magnifer-bold-duotone', 'color' => '#3b82f6', 'count' => 0, 'pct' => 0],
-            'social' => ['key' => 'social', 'label' => 'Social Media', 'icon' => 'solar-chat-round-line-bold-duotone', 'color' => '#ec4899', 'count' => 0, 'pct' => 0],
-            'campaign' => ['key' => 'campaign', 'label' => 'Kampagnen & Ads', 'icon' => 'solar-tag-price-bold-duotone', 'color' => '#f59e0b', 'count' => 0, 'pct' => 0],
-            'referral' => ['key' => 'referral', 'label' => 'Empfehlungen & Partner', 'icon' => 'solar-link-round-bold-duotone', 'color' => '#10b981', 'count' => 0, 'pct' => 0],
-            'direct' => ['key' => 'direct', 'label' => 'Direktzugriffe', 'icon' => 'solar-cursor-bold-duotone', 'color' => '#64748b', 'count' => 0, 'pct' => 0],
+            'search' => ['key' => 'search', 'label' => 'Organische Suche', 'icon' => 'solar-magnifer-bold-duotone', 'color' => '#3b82f6', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'social' => ['key' => 'social', 'label' => 'Social Media', 'icon' => 'solar-chat-round-line-bold-duotone', 'color' => '#ec4899', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'campaign' => ['key' => 'campaign', 'label' => 'Kampagnen & Ads', 'icon' => 'solar-tag-price-bold-duotone', 'color' => '#f59e0b', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'referral' => ['key' => 'referral', 'label' => 'Empfehlungen & Partner', 'icon' => 'solar-link-round-bold-duotone', 'color' => '#10b981', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'direct' => ['key' => 'direct', 'label' => 'Direktzugriffe', 'icon' => 'solar-cursor-bold-duotone', 'color' => '#64748b', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
         ];
 
         $sourcesMap = [];
         $campaignsMap = [];
-        $totalSessions = $entryVisits->count();
+        $attributedTrackingSlugs = [];
 
         foreach ($entryVisits as $visit) {
+            $visitViews = max(1, (int) ($sessionViewsByFirstId[$visit->id] ?? 1));
             $parsedUrl = parse_url($visit->url ?? '');
             $queryParams = [];
             if (!empty($parsedUrl['query'])) {
@@ -936,6 +970,7 @@ class AnalyticsService
             $utmSource = strtolower(trim($queryParams['utm_source'] ?? ''));
             $utmMedium = strtolower(trim($queryParams['utm_medium'] ?? ''));
             $utmCampaign = trim($queryParams['utm_campaign'] ?? '');
+            $tid = trim($queryParams['tid'] ?? '');
             $refCode = trim($queryParams['ref'] ?? '');
 
             $referer = $visit->referer ? trim($visit->referer) : null;
@@ -953,42 +988,53 @@ class AnalyticsService
             $sourceIcon = 'solar-cursor-bold-duotone';
             $sourceDomain = null;
 
-            // 1. Hat expliziten UTM-Source Parameter?
-            if ($utmSource !== '') {
-                $isPaid = in_array($utmMedium, ['cpc', 'ppc', 'paid', 'ad', 'ads', 'meta_ads', 'google_ads'])
+            // 1. Hat expliziten UTM-Source oder Tracking-ID Parameter?
+            if ($utmSource !== '' || $tid !== '') {
+                $isPaid = in_array($utmMedium, ['cpc', 'ppc', 'paid', 'ad', 'ads', 'meta_ads', 'google_ads'], true)
                     || str_contains($utmSource, 'ad')
                     || str_contains($utmMedium, 'ad');
 
                 if ($isPaid) {
                     $channelKey = 'campaign';
-                    $sourceName = ucfirst($utmSource) . ' Ads';
+                    $sourceName = ucfirst($utmSource ?: 'Kampagne') . ' Ads';
                     $sourceIcon = 'solar-tag-price-bold-duotone';
-                } elseif (in_array($utmSource, ['instagram', 'facebook', 'tiktok', 'pinterest', 'youtube', 'linkedin', 'twitter', 'x'])) {
+                } elseif (in_array($utmSource, ['instagram', 'facebook', 'tiktok', 'pinterest', 'youtube', 'linkedin', 'twitter', 'x'], true)) {
                     $channelKey = 'social';
                     $sourceName = ucfirst($utmSource);
                     $sourceIcon = 'solar-chat-round-line-bold-duotone';
-                } elseif (in_array($utmMedium, ['newsletter', 'email', 'mail']) || str_contains($utmSource, 'newsletter')) {
+                } elseif (in_array($utmMedium, ['newsletter', 'email', 'mail'], true) || str_contains($utmSource, 'newsletter')) {
                     $channelKey = 'campaign';
-                    $sourceName = 'Newsletter (' . ucfirst($utmSource) . ')';
+                    $sourceName = 'Newsletter (' . ucfirst($utmSource ?: 'Mail') . ')';
                     $sourceIcon = 'solar-letter-bold-duotone';
+                } elseif (in_array($utmSource, ['partner', 'referral', 'affiliate'], true) || $utmMedium === 'referral') {
+                    $channelKey = 'referral';
+                    $sourceName = 'Partner (' . ucfirst($utmSource) . ')';
+                    $sourceIcon = 'solar-link-round-bold-duotone';
                 } else {
                     $channelKey = 'campaign';
-                    $sourceName = ucfirst($utmSource);
+                    $sourceName = ucfirst($utmSource ?: $tid);
                     $sourceIcon = 'solar-tag-price-bold-duotone';
                 }
 
                 // Kampagne erfassen
-                $campKey = $utmCampaign !== '' ? $utmCampaign : ($utmSource . ' / ' . ($utmMedium ?: 'k.A.'));
+                $campKey = $tid !== '' ? $tid : ($utmCampaign !== '' ? $utmCampaign : ($utmSource . ' / ' . ($utmMedium ?: 'k.A.')));
+                if ($tid !== '') {
+                    $attributedTrackingSlugs[$tid] = ($attributedTrackingSlugs[$tid] ?? 0) + 1;
+                }
                 if (!isset($campaignsMap[$campKey])) {
                     $campaignsMap[$campKey] = [
-                        'name' => $campKey,
-                        'source' => $utmSource,
+                        'name' => $utmCampaign ?: $campKey,
+                        'slug' => $tid ?: null,
+                        'source' => $utmSource ?: 'tracking',
                         'medium' => $utmMedium ?: '–',
-                        'campaign' => $utmCampaign ?: '–',
-                        'count' => 0,
+                        'campaign' => $utmCampaign ?: ($tid ?: '–'),
+                        'count' => 0, // Aufrufe
+                        'unique_count' => 0, // Sitzungen
+                        'is_tracking_link' => $tid !== '',
                     ];
                 }
-                $campaignsMap[$campKey]['count']++;
+                $campaignsMap[$campKey]['count'] += $visitViews;
+                $campaignsMap[$campKey]['unique_count']++;
             }
             // 2. Hat Freunde-Werben Referral-Code (?ref=...)
             elseif ($refCode !== '') {
@@ -999,16 +1045,20 @@ class AnalyticsService
                 if (!isset($campaignsMap['ref:' . $refCode])) {
                     $campaignsMap['ref:' . $refCode] = [
                         'name' => 'Freunde-Werben: ' . $refCode,
+                        'slug' => $refCode,
                         'source' => 'Referral',
                         'medium' => 'Empfehlungs-Link',
                         'campaign' => $refCode,
                         'count' => 0,
+                        'unique_count' => 0,
+                        'is_tracking_link' => false,
                     ];
                 }
-                $campaignsMap['ref:' . $refCode]['count']++;
+                $campaignsMap['ref:' . $refCode]['count'] += $visitViews;
+                $campaignsMap['ref:' . $refCode]['unique_count']++;
             }
             // 3. Hat externen Referrer-Header
-            elseif ($refererHost !== '' && !in_array($refererHost, $internalHosts)) {
+            elseif ($refererHost !== '' && !in_array($refererHost, $internalHosts, true)) {
                 $sourceDomain = $refererHost;
 
                 // Suchmaschinen
@@ -1070,14 +1120,14 @@ class AnalyticsService
                     $sourceIcon = 'solar-link-round-bold-duotone';
                 }
             } else {
-                // Keine Referrer oder interner Referrer beim Einstieg
                 $channelKey = 'direct';
                 $sourceName = 'Direkte Eingabe / Lesezeichen';
                 $sourceIcon = 'solar-cursor-bold-duotone';
             }
 
-            // Channel count erhöhen
+            // Channel count (Sitzungen) & views (tatsächliche Aufrufe) erhöhen
             $channels[$channelKey]['count']++;
+            $channels[$channelKey]['views'] += $visitViews;
 
             // Source aggregation
             $sourceKey = $sourceName;
@@ -1089,57 +1139,126 @@ class AnalyticsService
                     'icon' => $sourceIcon,
                     'domain' => $sourceDomain,
                     'count' => 0,
+                    'views' => 0,
                     'pct' => 0,
+                    'views_pct' => 0,
                 ];
             }
             $sourcesMap[$sourceKey]['count']++;
+            $sourcesMap[$sourceKey]['views'] += $visitViews;
         }
 
-        // Prozentsätze berechnen
+        // 3. Tracking-Links aus dem Linktree-Bereich in die Kanal-Verteilung, Quellen & Kampagnen einfließen lassen
+        foreach ($trackingLinksWithHits as $trk) {
+            $periodHits = (int) ($trk->period_hits_count ?? 0);
+            $periodUnique = (int) ($trk->period_unique_count ?? 0);
+            if ($periodHits <= 0) {
+                continue;
+            }
+
+            $channelKey = isset($channels[$trk->channel])
+                ? $trk->channel
+                : \App\Models\Management\ManagementTrackingLink::resolveChannel((string) $trk->utm_source, (string) $trk->utm_medium);
+            if (!isset($channels[$channelKey])) {
+                $channelKey = 'campaign';
+            }
+
+            $channels[$channelKey]['tracking_clicks'] += $periodHits;
+
+            // Falls Aufrufe über /t/{slug} stattfanden, die noch nicht als PageVisit-Einstieg gezählt wurden:
+            $alreadyCountedSessions = (int) ($attributedTrackingSlugs[$trk->slug] ?? 0);
+            $uncountedUnique = max(0, $periodUnique - $alreadyCountedSessions);
+            $uncountedHits = max(0, $periodHits - $alreadyCountedSessions);
+
+            if ($uncountedUnique > 0) {
+                $channels[$channelKey]['count'] += $uncountedUnique;
+            }
+            if ($uncountedHits > 0) {
+                $channels[$channelKey]['views'] += $uncountedHits;
+            }
+
+            $srcLabel = ucfirst((string) $trk->utm_source) . ' (Tracking-Link)';
+            if (!isset($sourcesMap[$srcLabel])) {
+                $sourcesMap[$srcLabel] = [
+                    'name' => $srcLabel,
+                    'channel' => $channelKey,
+                    'channel_label' => $channels[$channelKey]['label'],
+                    'icon' => $channels[$channelKey]['icon'],
+                    'domain' => '/t/' . $trk->slug,
+                    'count' => 0,
+                    'views' => 0,
+                    'pct' => 0,
+                    'views_pct' => 0,
+                ];
+            }
+            $sourcesMap[$srcLabel]['count'] += max(1, $periodUnique);
+            $sourcesMap[$srcLabel]['views'] += $periodHits;
+
+            $campKey = $trk->slug;
+            $campaignsMap[$campKey] = [
+                'name' => $trk->name,
+                'slug' => $trk->slug,
+                'source' => $trk->utm_source,
+                'medium' => $trk->utm_medium ?: 'linktree',
+                'campaign' => $trk->utm_campaign ?: $trk->slug,
+                'count' => max((int) ($campaignsMap[$campKey]['count'] ?? 0), $periodHits),
+                'unique_count' => max((int) ($campaignsMap[$campKey]['unique_count'] ?? 0), $periodUnique),
+                'is_tracking_link' => true,
+            ];
+        }
+
+        $totalSessions = (int) collect($channels)->sum('count');
+        $totalViews = (int) collect($channels)->sum('views');
+
+        // Prozentsätze berechnen (sowohl für Sitzungen als auch für tatsächliche Aufrufzahlen)
         foreach ($channels as $k => $c) {
             $channels[$k]['pct'] = $totalSessions > 0 ? round(($c['count'] / $totalSessions) * 100, 1) : 0;
+            $channels[$k]['views_pct'] = $totalViews > 0 ? round(($c['views'] / $totalViews) * 100, 1) : 0;
         }
 
         $topSources = collect($sourcesMap)
-            ->map(function ($s) use ($totalSessions) {
+            ->map(function ($s) use ($totalSessions, $totalViews) {
                 $s['pct'] = $totalSessions > 0 ? round(($s['count'] / $totalSessions) * 100, 1) : 0;
+                $s['views_pct'] = $totalViews > 0 ? round(($s['views'] / $totalViews) * 100, 1) : 0;
                 return $s;
+            })
+            ->sortByDesc('views')
+            ->values()
+            ->take(8)
+            ->toArray();
+
+        $topCampaigns = collect($campaignsMap)
+            ->map(function ($c) use ($totalViews) {
+                $c['pct'] = $totalViews > 0 ? round(($c['count'] / $totalViews) * 100, 1) : 0;
+                return $c;
             })
             ->sortByDesc('count')
             ->values()
             ->take(8)
             ->toArray();
 
-        $topCampaigns = collect($campaignsMap)
-            ->map(function ($c) use ($totalSessions) {
-                $c['pct'] = $totalSessions > 0 ? round(($c['count'] / $totalSessions) * 100, 1) : 0;
-                return $c;
-            })
-            ->sortByDesc('count')
-            ->values()
-            ->take(6)
-            ->toArray();
-
-        // Chart Data für Donut / Bar Chart
+        // Chart Data für Donut / Bar Chart (nutzt tatsächliche Aufrufzahlen für präzise Gewichtung)
         $chartLabels = [];
         $chartData = [];
         $chartColors = [];
         foreach ($channels as $c) {
-            if ($c['count'] > 0 || $totalSessions === 0) {
+            if ($c['views'] > 0 || $c['count'] > 0 || $totalViews === 0) {
                 $chartLabels[] = $c['label'];
-                $chartData[] = $c['count'];
+                $chartData[] = $c['views'] > 0 ? $c['views'] : $c['count'];
                 $chartColors[] = $c['color'];
             }
         }
 
-        // Summary Text
-        $strongestChannel = collect($channels)->sortByDesc('count')->first();
-        $summaryText = $totalSessions > 0 && ($strongestChannel['count'] ?? 0) > 0
-            ? "Stärkster Akquise-Kanal ist {$strongestChannel['label']} mit {$strongestChannel['pct']}% aller Sitzungen."
+        // Summary Text inkl. konkreter Aufrufzahlen
+        $strongestChannel = collect($channels)->sortByDesc('views')->first();
+        $summaryText = $totalViews > 0 && ($strongestChannel['views'] ?? 0) > 0
+            ? "Stärkster Akquise-Kanal ist {$strongestChannel['label']} mit {$strongestChannel['views']} Aufrufen ({$strongestChannel['count']} Sitzungen / {$strongestChannel['views_pct']}% Anteil)."
             : "Noch keine ausreichenden Sitzungsdaten im Zeitraum.";
 
         return [
             'total_sessions' => $totalSessions,
+            'total_views' => $totalViews,
+            'total_tracking_clicks' => $totalTrackingPeriodHits,
             'channels' => $channels,
             'top_sources' => $topSources,
             'top_campaigns' => $topCampaigns,
@@ -1153,15 +1272,17 @@ class AnalyticsService
     public function getEmptyTrafficSourcesData(): array
     {
         $channels = [
-            'search' => ['key' => 'search', 'label' => 'Organische Suche', 'icon' => 'solar-magnifer-bold-duotone', 'color' => '#3b82f6', 'count' => 0, 'pct' => 0],
-            'social' => ['key' => 'social', 'label' => 'Social Media', 'icon' => 'solar-chat-round-line-bold-duotone', 'color' => '#ec4899', 'count' => 0, 'pct' => 0],
-            'campaign' => ['key' => 'campaign', 'label' => 'Kampagnen & Ads', 'icon' => 'solar-tag-price-bold-duotone', 'color' => '#f59e0b', 'count' => 0, 'pct' => 0],
-            'referral' => ['key' => 'referral', 'label' => 'Empfehlungen & Partner', 'icon' => 'solar-link-round-bold-duotone', 'color' => '#10b981', 'count' => 0, 'pct' => 0],
-            'direct' => ['key' => 'direct', 'label' => 'Direktzugriffe', 'icon' => 'solar-cursor-bold-duotone', 'color' => '#64748b', 'count' => 0, 'pct' => 0],
+            'search' => ['key' => 'search', 'label' => 'Organische Suche', 'icon' => 'solar-magnifer-bold-duotone', 'color' => '#3b82f6', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'social' => ['key' => 'social', 'label' => 'Social Media', 'icon' => 'solar-chat-round-line-bold-duotone', 'color' => '#ec4899', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'campaign' => ['key' => 'campaign', 'label' => 'Kampagnen & Ads', 'icon' => 'solar-tag-price-bold-duotone', 'color' => '#f59e0b', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'referral' => ['key' => 'referral', 'label' => 'Empfehlungen & Partner', 'icon' => 'solar-link-round-bold-duotone', 'color' => '#10b981', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
+            'direct' => ['key' => 'direct', 'label' => 'Direktzugriffe', 'icon' => 'solar-cursor-bold-duotone', 'color' => '#64748b', 'count' => 0, 'views' => 0, 'tracking_clicks' => 0, 'pct' => 0, 'views_pct' => 0],
         ];
 
         return [
             'total_sessions' => 0,
+            'total_views' => 0,
+            'total_tracking_clicks' => 0,
             'channels' => $channels,
             'top_sources' => [],
             'top_campaigns' => [],

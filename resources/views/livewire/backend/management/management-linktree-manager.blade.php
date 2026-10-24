@@ -14,10 +14,10 @@
                     <span class="text-[var(--theme-color)]"><x-heroicon-o-link class="w-10 h-10" /></span>
                     Linktree Verwaltung
                 </h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">Verwalte hier die Links für deine digitale Visitenkarte und Social Media Profile.</p>
+                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">Verwalte hier deine digitale Visitenkarte sowie DSGVO-konforme Tracking-Links.</p>
             </div>
             <div class="relative z-10">
-                <a href="{{ route('frontend.linktree') }}" target="_blank" class="px-5 py-2.5 rounded-xl font-bold bg-[var(--theme-color)] text-gray-950 hover:brightness-105 transition-all flex items-center gap-2 shadow-sm text-sm">
+                <a href="{{ route('frontend.linktree') }}" target="_blank" rel="noopener noreferrer" class="px-5 py-2.5 rounded-xl font-bold bg-[var(--theme-color)] text-gray-950 hover:brightness-105 transition-all flex items-center gap-2 shadow-sm text-sm">
                     <span>Live-Linktree öffnen</span>
                     <x-heroicon-o-arrow-top-right-on-square class="w-4 h-4" />
                 </a>
@@ -25,18 +25,22 @@
         </div>
 
         <!-- KPI Cards -->
-        <dl class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <dl class="mb-8 grid grid-cols-1 gap-5 sm:grid-cols-4">
             <div class="overflow-hidden rounded-2xl bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 px-4 py-5 dark:shadow sm:p-6">
                 <dt class="truncate text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Profil Aufrufe</dt>
                 <dd class="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">{{ $totalVisits }}</dd>
             </div>
             <div class="overflow-hidden rounded-2xl bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 px-4 py-5 dark:shadow sm:p-6">
-                <dt class="truncate text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Gesamt Klicks</dt>
+                <dt class="truncate text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Linktree Klicks</dt>
                 <dd class="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">{{ $totalClicks }}</dd>
             </div>
             <div class="overflow-hidden rounded-2xl bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 px-4 py-5 dark:shadow sm:p-6">
                 <dt class="truncate text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">CTR (Click-Through-Rate)</dt>
                 <dd class="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">{{ $globalCtr }}%</dd>
+            </div>
+            <div class="overflow-hidden rounded-2xl bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 px-4 py-5 dark:shadow sm:p-6">
+                <dt class="truncate text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Tracking-Link Aufrufe</dt>
+                <dd class="mt-2 text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{{ $totalTrackingClicks }}</dd>
             </div>
         </dl>
 
@@ -48,7 +52,7 @@
                 </div>
                 <div>
                     <h2 class="text-lg font-bold text-gray-900 dark:text-white">Design Einstellungen</h2>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Passe Profilbild und Akzentfarbe für deine Landingpage an.</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Passe Profilbild und Akzentfarbe für deine helle Linktree-Landingpage an.</p>
                 </div>
             </div>
 
@@ -91,12 +95,12 @@
                 <div class="sm:col-span-2 flex justify-end pt-2" x-data="{ saved: false }" @settings-saved.window="saved = true; setTimeout(() => saved = false, 3000)">
                     <button type="submit" class="px-5 py-2.5 rounded-xl font-bold text-xs hover:brightness-105 transition-all flex items-center gap-2 shadow-sm" :class="saved ? 'bg-emerald-500 text-white' : 'bg-[var(--theme-color)] text-gray-950'">
                         <div wire:loading wire:target="saveSettings" class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                        
+
                         <span x-show="!saved" class="flex items-center gap-2">
                             <x-heroicon-m-check class="w-4 h-4" />
                             Einstellungen speichern
                         </span>
-                        
+
                         <span x-show="saved" x-cloak class="flex items-center gap-2">
                             <x-heroicon-o-check-circle class="w-4 h-4" />
                             Erfolgreich gespeichert!
@@ -107,7 +111,7 @@
         </div>
 
         <!-- Links List Card -->
-        <div class="bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 rounded-3xl overflow-hidden dark:shadow-2xl transition-colors duration-300">
+        <div class="mb-8 bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 rounded-3xl overflow-hidden dark:shadow-2xl transition-colors duration-300">
             <div class="px-6 sm:px-8 py-5 bg-gray-50/50 dark:bg-gray-900/40 border-b border-gray-200/80 dark:border-gray-800 font-bold text-gray-700 dark:text-gray-300 flex justify-between items-center">
                 <div class="flex items-center gap-3">
                     <div class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] flex items-center justify-center text-[var(--theme-color)]">
@@ -164,7 +168,7 @@
                                     @error('title') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="sm:col-span-4">
-                                    <input type="url" wire:model="url" placeholder="https://" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                                    <input type="text" wire:model="url" placeholder="https:// oder /shop" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
                                     @error('url') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                                 </div>
                                 <div class="sm:col-span-2">
@@ -210,7 +214,7 @@
                                             <span class="inline-flex items-center rounded-lg bg-[var(--theme-color-10)] px-2 py-0.5 text-xs font-medium text-[var(--theme-color)] ring-1 ring-inset ring-[var(--theme-color-20)]">Highlight</span>
                                         @endif
                                     </p>
-                                    <p class="mt-0.5 truncate text-xs leading-5 text-gray-500 dark:text-gray-400 font-mono">{{ $link->url }}</p>
+                                    <p class="mt-0.5 truncate text-xs leading-5 text-gray-500 dark:text-gray-400 font-mono" title="Aufgelöst: {{ $link->resolved_url }}">{{ $link->resolved_url }}</p>
                                 </div>
                             </div>
                             <div class="flex shrink-0 items-center gap-x-4">
@@ -218,7 +222,7 @@
                                     <span class="text-xs font-bold text-gray-900 dark:text-white">{{ $link->clicks_count }}</span>
                                     <span class="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">Klicks</span>
                                 </div>
-                                
+
                                 <!-- Toggle Active Status -->
                                 <button wire:click="toggleActive('{{ $link->id }}')" class="{{ $link->is_active ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900" role="switch" aria-checked="{{ $link->is_active ? 'true' : 'false' }}" title="Status umschalten">
                                     <span class="{{ $link->is_active ? 'translate-x-5' : 'translate-x-0' }} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
@@ -241,7 +245,7 @@
                         Noch keine Links vorhanden. Füge unten deinen ersten Link hinzu!
                     </li>
                 @endforelse
-                
+
                 @if(!$editId)
                     <li class="relative flex flex-col sm:flex-row gap-4 py-4 px-6 bg-gray-50/50 dark:bg-gray-900/30 hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors border-t border-dashed border-gray-200 dark:border-gray-800">
                         <div class="flex-none flex items-center justify-center">
@@ -255,7 +259,7 @@
                                 @error('title') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                             </div>
                             <div class="sm:col-span-4">
-                                <input type="url" wire:model="url" placeholder="https://" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                                <input type="text" wire:model="url" placeholder="https:// oder /shop" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
                                 @error('url') <span class="text-red-400 text-xs">{{ $message }}</span> @enderror
                             </div>
                             <div class="sm:col-span-2">
@@ -277,6 +281,185 @@
                         </div>
                     </li>
                 @endif
+            </ul>
+        </div>
+
+        <!-- Tracking Links & Kampagnen-IDs Card -->
+        <div class="bg-white/90 dark:bg-gray-900/60 backdrop-blur-md border border-gray-200/80 dark:border-gray-800 rounded-3xl overflow-hidden dark:shadow-2xl transition-colors duration-300">
+            <div class="px-6 sm:px-8 py-5 bg-gray-50/50 dark:bg-gray-900/40 border-b border-gray-200/80 dark:border-gray-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                        <x-heroicon-o-chart-bar-square class="w-4 h-4" />
+                    </div>
+                    <div>
+                        <span class="font-bold text-sm text-gray-900 dark:text-white">Tracking-Links & Kampagnen-IDs</span>
+                        <span class="ml-2 inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">DSGVO-konform</span>
+                    </div>
+                </div>
+
+                <!-- 1-Klick Schnellvorlagen -->
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mr-1">Schnellwahl:</span>
+                    <button type="button" wire:click="applyTrackingPreset('instagram', 'bio', 'Instagram Bio')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors">Instagram Bio</button>
+                    <button type="button" wire:click="applyTrackingPreset('instagram', 'story', 'Instagram Story')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors">Insta Story</button>
+                    <button type="button" wire:click="applyTrackingPreset('tiktok', 'bio', 'TikTok Bio')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors">TikTok Bio</button>
+                    <button type="button" wire:click="applyTrackingPreset('newsletter', 'email', 'Newsletter Kampagne')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors">Newsletter</button>
+                    <button type="button" wire:click="applyTrackingPreset('qr_flyer', 'qr', 'Flyer QR-Code')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors">QR / Flyer</button>
+                </div>
+            </div>
+
+            <!-- Quick Create / Edit Bar -->
+            <div class="p-6 bg-gray-50/40 dark:bg-gray-900/20 border-b border-gray-200/80 dark:border-gray-800">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
+                    <div class="sm:col-span-3">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Bezeichnung</label>
+                        <input type="text" wire:model="trackingName" placeholder="z.B. Instagram Bio" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                        @error('trackingName') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Quelle (Source)</label>
+                        <select wire:model="trackingSource" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                            <option value="instagram">instagram</option>
+                            <option value="tiktok">tiktok</option>
+                            <option value="facebook">facebook</option>
+                            <option value="youtube">youtube</option>
+                            <option value="pinterest">pinterest</option>
+                            <option value="newsletter">newsletter</option>
+                            <option value="google_ads">google_ads</option>
+                            <option value="meta_ads">meta_ads</option>
+                            <option value="qr_flyer">qr_flyer</option>
+                            <option value="partner">partner</option>
+                        </select>
+                        @error('trackingSource') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Medium</label>
+                        <select wire:model="trackingMedium" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                            <option value="bio">bio</option>
+                            <option value="story">story</option>
+                            <option value="reel">reel</option>
+                            <option value="post">post</option>
+                            <option value="cpc">cpc (Ads)</option>
+                            <option value="email">email</option>
+                            <option value="qr">qr / print</option>
+                            <option value="referral">referral</option>
+                        </select>
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Tracking-ID (optional)</label>
+                        <div class="flex gap-1">
+                            <input type="text" wire:model="trackingSlug" placeholder="Auto-ID" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-2.5 text-xs font-mono text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                            <button type="button" wire:click="generateTrackingId" class="px-2.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 text-xs" title="Tracking-ID automatisch generieren">
+                                <x-heroicon-o-sparkles class="w-4 h-4" />
+                            </button>
+                        </div>
+                        @error('trackingSlug') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Zielseite</label>
+                        <div class="flex gap-2">
+                            <input type="text" wire:model="trackingTarget" placeholder="/shop" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs font-mono text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                            <button type="button" wire:click="saveTrackingLink" class="shrink-0 bg-[var(--theme-color)] text-gray-950 rounded-xl px-4 py-2 text-xs font-bold hover:brightness-105 transition-all shadow-sm flex items-center gap-1">
+                                <x-heroicon-m-plus class="w-4 h-4" />
+                                <span>{{ $trackingEditId ? 'Speichern' : 'Anlegen' }}</span>
+                            </button>
+                            @if($trackingEditId)
+                                <button type="button" wire:click="resetTrackingForm" class="shrink-0 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl px-3 py-2 text-xs font-semibold">
+                                    ✕
+                                </button>
+                            @endif
+                        </div>
+                        @error('trackingTarget') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
+                    </div>
+                </div>
+
+                <!-- Hinweis-Box analog zur Quellenanalyse -->
+                <div class="mt-4 p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                    <strong class="text-amber-600 dark:text-amber-400 block mb-0.5 uppercase text-[9px] tracking-widest font-black">Tipp für Werbe- & Social-Media-Links</strong>
+                    Verwende in Instagram-Bios, Newslettern oder Werbeanzeigen Tracking-Links wie
+                    <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">?utm_source=instagram&utm_medium=bio&utm_campaign=herbst2026</code>
+                    oder den Kurzlink <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">{{ url('/t/instagram-bio') }}</code>.
+                    Das System erfasst diese Aufrufe automatisch in der <strong>Quellenanalyse & Akquise-Kanäle (Kanal-Verteilung)</strong>.
+                </div>
+            </div>
+
+            <!-- Tracking Links List -->
+            <ul role="list" class="divide-y divide-gray-200/80 dark:divide-gray-800">
+                @forelse($trackingLinks as $trk)
+                    <li class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 py-4 px-6 hover:bg-gray-50/80 dark:hover:bg-gray-800/40 transition-colors"
+                        x-data="{ copiedShort: false, copiedUtm: false }">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm font-bold text-gray-900 dark:text-white">{{ $trk->name }}</span>
+                                <span class="inline-flex items-center rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] font-mono font-semibold text-gray-700 dark:text-gray-300">
+                                    ID: {{ $trk->slug }}
+                                </span>
+                                <span class="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
+                                    {{ $trk->utm_source }} / {{ $trk->utm_medium ?: 'link' }}
+                                </span>
+                            </div>
+
+                            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                                <!-- Kurzlink kopieren -->
+                                <div class="inline-flex items-center gap-1.5 bg-gray-100/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1">
+                                    <span class="text-[10px] uppercase font-bold text-gray-400">Kurzlink:</span>
+                                    <a href="{{ $trk->short_url }}" target="_blank" rel="noopener noreferrer" class="font-mono text-gray-800 dark:text-gray-200 hover:underline truncate max-w-[260px]">{{ $trk->short_url }}</a>
+                                    <button type="button"
+                                            @click="navigator.clipboard.writeText('{{ $trk->short_url }}'); copiedShort = true; setTimeout(() => copiedShort = false, 2000)"
+                                            class="ml-1 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                            title="Kurzlink kopieren">
+                                        <span x-show="!copiedShort"><x-heroicon-o-clipboard-document class="w-3.5 h-3.5" /></span>
+                                        <span x-show="copiedShort" x-cloak class="text-emerald-500 text-[10px] font-bold">Kopiert!</span>
+                                    </button>
+                                </div>
+
+                                <!-- UTM-Link kopieren -->
+                                <button type="button"
+                                        @click="navigator.clipboard.writeText('{{ $trk->full_utm_url }}'); copiedUtm = true; setTimeout(() => copiedUtm = false, 2000)"
+                                        class="inline-flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:border-[var(--theme-color)] transition-colors"
+                                        title="{{ $trk->full_utm_url }}">
+                                    <x-heroicon-o-link class="w-3.5 h-3.5 text-gray-400" />
+                                    <span x-show="!copiedUtm">UTM-URL kopieren</span>
+                                    <span x-show="copiedUtm" x-cloak class="text-emerald-500 font-bold">UTM kopiert!</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between lg:justify-end gap-5 shrink-0">
+                            <div class="flex items-center gap-4 text-right">
+                                <div>
+                                    <span class="block text-sm font-black font-mono text-gray-900 dark:text-white">{{ number_format($trk->clicks_count, 0, ',', '.') }}</span>
+                                    <span class="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Aufrufe</span>
+                                </div>
+                                <div>
+                                    <span class="block text-sm font-black font-mono text-emerald-600 dark:text-emerald-400">{{ number_format($trk->unique_clicks_count, 0, ',', '.') }}</span>
+                                    <span class="text-[10px] uppercase tracking-wider font-semibold text-gray-400">Unique</span>
+                                </div>
+                            </div>
+
+                            <button wire:click="toggleTrackingLink('{{ $trk->id }}')" class="{{ $trk->is_active ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }} relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out" role="switch" aria-checked="{{ $trk->is_active ? 'true' : 'false' }}" title="Status umschalten">
+                                <span class="{{ $trk->is_active ? 'translate-x-5' : 'translate-x-0' }} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                            </button>
+
+                            <div class="flex items-center gap-1 border-l border-gray-200 dark:border-gray-800 pl-3">
+                                <button wire:click="editTrackingLink('{{ $trk->id }}')" class="p-1.5 text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors" title="Bearbeiten">
+                                    <x-heroicon-o-pencil-square class="h-4 w-4" />
+                                </button>
+                                <button wire:click="deleteTrackingLink('{{ $trk->id }}')" wire:confirm="Tracking-Link wirklich löschen?" class="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors" title="Löschen">
+                                    <x-heroicon-o-trash class="h-4 w-4" />
+                                </button>
+                            </div>
+                        </div>
+                    </li>
+                @empty
+                    <li class="py-8 text-center text-gray-400 text-xs">
+                        Noch keine Tracking-Links angelegt. Nutze oben die Schnellwahl oder erstelle eine neue Tracking-ID.
+                    </li>
+                @endforelse
             </ul>
         </div>
     </div>

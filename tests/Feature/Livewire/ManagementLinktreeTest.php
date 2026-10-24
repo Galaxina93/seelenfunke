@@ -9,10 +9,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Management\ManagementLinktree;
+use App\Models\Management\ManagementTrackingLink;
 use App\Models\System\SystemSetting;
 use App\Models\Admin\Admin;
 use App\Livewire\Backend\Management\ManagementLinktreeManager;
 use App\Livewire\Frontend\Management\ManagementLinktreePage;
+use App\Services\AnalyticsService;
 
 class ManagementLinktreeTest extends TestCase
 {
@@ -170,5 +172,59 @@ class ManagementLinktreeTest extends TestCase
         $this->assertDatabaseHas('management_linktree_clicks', [
             'link_id' => $link->id,
         ]);
+    }
+
+    #[Test]
+    public function frontend_linktree_opens_in_new_tab_and_resolves_shop_url_across_environments()
+    {
+        $link = ManagementLinktree::create([
+            'title' => 'Zum Shop',
+            'url' => 'https://www.mein-seelenfunke.de/shop/',
+            'type' => 'highlight',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $this->assertEquals(url('/shop'), $link->resolved_url);
+
+        Livewire::test(ManagementLinktreePage::class)
+            ->assertStatus(200)
+            ->assertSee('Zum Shop')
+            ->assertSee('target="_blank"', false)
+            ->call('trackClick', $link->id);
+
+        $this->assertDatabaseHas('management_linktree_clicks', [
+            'link_id' => $link->id,
+        ]);
+    }
+
+    #[Test]
+    public function admin_can_create_tracking_link_and_redirect_tracks_analytics_channel_views()
+    {
+        Livewire::actingAs($this->admin, 'admin')
+            ->test(ManagementLinktreeManager::class)
+            ->assertSee('Tipp für Werbe- & Social-Media-Links', false)
+            ->call('applyTrackingPreset', 'instagram', 'bio', 'Instagram Bio')
+            ->call('saveTrackingLink');
+
+        $trackingLink = ManagementTrackingLink::first();
+        $this->assertNotNull($trackingLink);
+        $this->assertEquals('social', $trackingLink->channel);
+
+        $response = $this->get(route('frontend.tracking.redirect', ['slug' => $trackingLink->slug]));
+        $response->assertRedirect($trackingLink->full_utm_url);
+
+        $trackingLink->refresh();
+        $this->assertEquals(1, $trackingLink->clicks_count);
+        $this->assertEquals(1, $trackingLink->unique_clicks_count);
+
+        $analytics = app(AnalyticsService::class)->getTrafficSourcesAnalysis(now()->subDays(30), now());
+        $this->assertGreaterThanOrEqual(1, $analytics['total_views']);
+        $this->assertGreaterThanOrEqual(1, $analytics['total_tracking_clicks']);
+
+        $socialChannel = $analytics['channels']['social'] ?? null;
+        $this->assertNotNull($socialChannel);
+        $this->assertEquals('Social Media', $socialChannel['label']);
+        $this->assertGreaterThanOrEqual(1, $socialChannel['views']);
     }
 }

@@ -173,6 +173,36 @@ Route::get('/agb', function () {
 
 Route::get('/links', \App\Livewire\Frontend\Management\ManagementLinktreePage::class)->name('frontend.linktree');
 
+// DSGVO-konformer Kurz-Tracking-Link Redirect (Lokal, Stage & Live)
+Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slug) {
+    $cleanSlug = preg_replace('/[^a-zA-Z0-9_\-]/', '', $slug);
+    if ($cleanSlug === '' || !\Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')) {
+        return redirect()->route('shop');
+    }
+
+    $trackingLink = \App\Models\Management\ManagementTrackingLink::where('slug', $cleanSlug)
+        ->where('is_active', true)
+        ->first();
+
+    if (!$trackingLink) {
+        return redirect()->route('shop');
+    }
+
+    $agent = strtolower((string) $request->userAgent());
+    $isBot = $agent === '' || preg_match('/(bot|crawl|slurp|spider|mediapartners|apis-google|yandex|bing|http|monitor|inspect|health)/i', $agent);
+
+    if (!$isBot) {
+        try {
+            $trackingLink->recordHit($request->ip(), $request->userAgent(), $request->headers->get('referer'));
+            session()->put('attributed_tracking_link_id', $trackingLink->id);
+        } catch (\Throwable $e) {
+            // Tracking-Fehler dürfen die Weiterleitung niemals blockieren
+        }
+    }
+
+    return redirect()->away($trackingLink->full_utm_url);
+})->name('frontend.tracking.redirect')->middleware('throttle:120,1');
+
 Route::get('/widerruf', function () {
     return view('frontend.pages.widerruf');
 })->name('widerruf');

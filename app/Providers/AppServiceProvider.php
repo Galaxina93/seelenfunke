@@ -56,6 +56,8 @@ class AppServiceProvider extends ServiceProvider
 
             'management_mission' => 'App\Models\Management\ManagementMission',
             'management_linktree' => 'App\Models\Management\ManagementLinktree',
+            'management_tracking_link' => 'App\Models\Management\ManagementTrackingLink',
+            'management_tracking_link_hit' => 'App\Models\Management\ManagementTrackingLinkHit',
 
             'marketing_gift_voucher' => 'App\Models\Marketing\MarketingGiftVoucher',
             'marketing_voucher' => 'App\Models\Marketing\MarketingVoucher',

@@ -395,7 +395,7 @@
                                             const val = context.parsed;
                                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                             const pct = total > 0 ? Math.round((val / total) * 100) : 0;
-                                            return ` ${context.label}: ${val} Sitzungen (${pct}%)`;
+                                            return ` ${context.label}: ${val} Aufrufe (${pct}%)`;
                                         }
                                     }
                                 }

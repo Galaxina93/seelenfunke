@@ -3,7 +3,9 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Management\ManagementLinktree;
+use App\Models\Management\ManagementTrackingLink;
 
 class ManagementLinkTreeSeeder extends Seeder
 {
@@ -12,11 +14,13 @@ class ManagementLinkTreeSeeder extends Seeder
      */
     public function run(): void
     {
+        $shopUrl = rtrim((string) (config('app.url') ?: url('/')), '/') . '/shop';
+
         $links = [
             [
                 'title' => 'Instagram',
                 'url' => 'https://www.instagram.com/Mein_Seelenfunke/',
-                'icon' => 'camera', // Example icon, could also be 'photo' or 'heart'
+                'icon' => 'camera',
                 'type' => 'highlight',
                 'is_active' => true,
                 'sort_order' => 1,
@@ -24,7 +28,7 @@ class ManagementLinkTreeSeeder extends Seeder
             [
                 'title' => 'TikTok',
                 'url' => 'https://www.tiktok.com/@mein_seelenfunke',
-                'icon' => 'video-camera', // Example icon, heroicon-o-video-camera
+                'icon' => 'video-camera',
                 'type' => 'standard',
                 'is_active' => true,
                 'sort_order' => 2,
@@ -32,23 +36,52 @@ class ManagementLinkTreeSeeder extends Seeder
             [
                 'title' => 'YouTube',
                 'url' => 'https://www.youtube.com/@Mein-Seelenfunke',
-                'icon' => 'play-circle', // Example icon, heroicon-o-play-circle
+                'icon' => 'play-circle',
                 'type' => 'standard',
                 'is_active' => true,
                 'sort_order' => 3,
             ],
             [
                 'title' => 'Zum Shop',
-                'url' => 'https://www.mein-seelenfunke.de/shop/',
-                'icon' => 'shopping-bag', // Example icon
-                'type' => 'secure',
+                'url' => $shopUrl,
+                'icon' => 'shopping-bag',
+                'type' => 'standard',
                 'is_active' => true,
                 'sort_order' => 4,
-            ]
+            ],
         ];
 
         foreach ($links as $link) {
-            ManagementLinktree::firstOrCreate(['url' => $link['url']], $link);
+            ManagementLinktree::updateOrCreate(['title' => $link['title']], $link);
+        }
+
+        if (Schema::hasTable('management_tracking_links')) {
+            $defaultTrackingLinks = [
+                [
+                    'name' => 'Instagram Bio',
+                    'slug' => 'instagram-bio',
+                    'target_url' => '/shop',
+                    'channel' => 'social',
+                    'utm_source' => 'instagram',
+                    'utm_medium' => 'bio',
+                    'utm_campaign' => 'profil_linktree',
+                    'is_active' => true,
+                ],
+                [
+                    'name' => 'TikTok Profil',
+                    'slug' => 'tiktok-bio',
+                    'target_url' => '/shop',
+                    'channel' => 'social',
+                    'utm_source' => 'tiktok',
+                    'utm_medium' => 'bio',
+                    'utm_campaign' => 'profil_linktree',
+                    'is_active' => true,
+                ],
+            ];
+
+            foreach ($defaultTrackingLinks as $trk) {
+                ManagementTrackingLink::firstOrCreate(['slug' => $trk['slug']], $trk);
+            }
         }
 
         // Set default profile image if none exists

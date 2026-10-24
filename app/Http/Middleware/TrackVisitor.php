@@ -64,6 +64,32 @@ class TrackVisitor
                 'referer'     => \Illuminate\Support\Str::limit($request->headers->get('referer'), 250),
                 'customer_id' => \Illuminate\Support\Facades\Auth::guard('customer')->id(), // Erfasst, ob es ein eingeloggter Kunde ist
             ]);
+
+            // Falls der Besucher direkt über einen UTM-/Tracking-Link einsteigt (ohne vorherige /t/{slug} Weiterleitung),
+            // ordnen wir den Aufruf ebenfalls dem entsprechenden ManagementTrackingLink zu.
+            $alreadyAttributedId = session()->pull('attributed_tracking_link_id');
+            if (!$alreadyAttributedId && ($request->filled('tid') || $request->filled('utm_source'))) {
+                $tid = trim((string) $request->query('tid', ''));
+                $utmSource = strtolower(trim((string) $request->query('utm_source', '')));
+                $utmCampaign = trim((string) $request->query('utm_campaign', ''));
+
+                if (\Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')) {
+                    $trkQuery = \App\Models\Management\ManagementTrackingLink::where('is_active', true);
+                    $trk = null;
+                    if ($tid !== '') {
+                        $trk = (clone $trkQuery)->where('slug', $tid)->first();
+                    }
+                    if (!$trk && $utmSource !== '' && $utmCampaign !== '') {
+                        $trk = (clone $trkQuery)
+                            ->whereRaw('LOWER(utm_source) = ?', [$utmSource])
+                            ->where('utm_campaign', $utmCampaign)
+                            ->first();
+                    }
+                    if ($trk) {
+                        $trk->recordHit($request->ip(), $request->userAgent(), $request->headers->get('referer'));
+                    }
+                }
+            }
         } catch (\Exception $e) {
             // Falls die Datenbank mal hängt, soll das Frontend trotzdem weiter funktionieren.
         }
