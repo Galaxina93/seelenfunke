@@ -130,8 +130,18 @@ trait AiMarketingNewsletterFuncs
         ];
     }
 
+    private static function assertNewsletterStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Newsletter-Verwaltung ist nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+        return null;
+    }
+
     public static function marketing_newsletter_get_subscribers(array $args)
     {
+        if ($denied = self::assertNewsletterStaffAccess()) return $denied;
+
         $query = MarketingNewsletterSubscriber::query();
         if (isset($args['email_search']) && !empty($args['email_search'])) {
             $escaped = addcslashes(trim($args['email_search']), '%_\\');
@@ -148,6 +158,8 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_add_subscriber(array $args)
     {
+        if ($denied = self::assertNewsletterStaffAccess()) return $denied;
+
         if (empty($args['email']) || !filter_var($args['email'], FILTER_VALIDATE_EMAIL)) {
             return ['status' => 'error', 'message' => 'Ungültige Email Adresse.'];
         }
@@ -166,6 +178,8 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_get_campaigns(array $args)
     {
+        if ($denied = self::assertNewsletterStaffAccess()) return $denied;
+
         $query = MarketingNewsletter::query();
         if (isset($args['is_active'])) {
             $query->where('is_active', $args['is_active']);
@@ -181,6 +195,8 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_create_automated_campaign(array $args)
     {
+        if ($denied = self::assertNewsletterStaffAccess()) return $denied;
+
         $eventKey = substr(trim($args['target_event_key'] ?? ''), 0, 50);
         if (empty($eventKey)) {
             return ['status' => 'error', 'message' => 'Event-Key fehlt.'];
@@ -209,6 +225,8 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_create_manual_campaign(array $args)
     {
+        if ($denied = self::assertNewsletterStaffAccess()) return $denied;
+
         try {
             $sendAt = Carbon::parse($args['send_at']);
         } catch (\Exception $e) {
@@ -235,6 +253,8 @@ trait AiMarketingNewsletterFuncs
 
     public static function marketing_newsletter_toggle_archive(array $args)
     {
+        if ($denied = self::assertNewsletterStaffAccess()) return $denied;
+
         $campaign = MarketingNewsletter::find($args['id']);
         if (!$campaign) {
             return ['status' => 'error', 'message' => 'Kampagne nicht gefunden.'];

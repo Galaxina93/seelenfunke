@@ -99,8 +99,22 @@ trait AiSuppliersFuncs
         ];
     }
 
+    private static function assertSuppliersStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeSupplierGetAll(array $args)
     {
+        if ($denied = self::assertSuppliersStaffAccess()) {
+            return $denied;
+        }
         try {
             $suppliers = ProductSupplier::orderBy('name')->get()->map(function ($s) {
                 return [
@@ -124,6 +138,9 @@ trait AiSuppliersFuncs
 
     public static function executeSupplierGetDetails(array $args)
     {
+        if ($denied = self::assertSuppliersStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
             
@@ -141,6 +158,9 @@ trait AiSuppliersFuncs
 
     public static function executeSupplierCreate(array $args)
     {
+        if ($denied = self::assertSuppliersStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['name'])) return ['status' => 'error', 'message' => 'Name ist ein Pflichtfeld.'];
 
@@ -186,6 +206,9 @@ trait AiSuppliersFuncs
 
     public static function executeSupplierUpdate(array $args)
     {
+        if ($denied = self::assertSuppliersStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
             
@@ -236,6 +259,9 @@ trait AiSuppliersFuncs
 
     public static function executeSupplierDelete(array $args)
     {
+        if ($denied = self::assertSuppliersStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_supplier_id'])) return ['status' => 'error', 'message' => 'Supplier ID fehlt.'];
             

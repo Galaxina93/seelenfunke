@@ -24,6 +24,7 @@ class AiKnowledgeBase extends Component
 
     public $search = '';
     public $selectedCategoryId = null;
+    #[\Livewire\Attributes\Locked]
     public $activeArticleId = null;
 
     public $wikiFiles = []; // For dragging & dropping files
@@ -36,7 +37,9 @@ class AiKnowledgeBase extends Component
     protected $rules = [
         'editForm.title' => 'required|string|max:255',
         'editForm.ai_knowledge_base_category_id' => 'required|exists:ai_knowledge_base_categories,id',
-        'editForm.content' => 'required|string',
+        'editForm.content' => 'required|string|max:100000',
+        'editForm.tags' => 'nullable|array|max:30',
+        'editForm.tags.*' => 'integer|exists:ai_knowledge_base_tags,id',
     ];
 
     public const ADMIN_ONLY_CATEGORY_SLUGS = [
@@ -117,7 +120,12 @@ class AiKnowledgeBase extends Component
     #[On('ai-knowledge-base-tags-updated')]
     public function setFormTags($ids)
     {
-        $this->editForm['tags'] = $ids;
+        if (!is_array($ids)) {
+            $this->editForm['tags'] = [];
+            return;
+        }
+        $cleanIds = array_slice(array_values(array_unique(array_map('intval', $ids))), 0, 30);
+        $this->editForm['tags'] = AiKnowledgeBaseTag::whereIn('id', $cleanIds)->pluck('id')->toArray();
     }
 
     public function selectArticle($id)
@@ -243,12 +251,40 @@ class AiKnowledgeBase extends Component
         }
 
         $this->validate([
+            'wikiFiles' => 'required|array|min:1|max:20',
             'wikiFiles.*' => 'required|file|mimes:pdf,txt,md,docx,png,jpg,jpeg|max:10240',
         ]);
 
+        $allowedWikiExts = ['pdf', 'txt', 'md', 'docx', 'png', 'jpg', 'jpeg'];
+        $allowedWikiMimes = [
+            'application/pdf',
+            'text/plain',
+            'text/markdown',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'image/png',
+            'image/jpeg',
+        ];
         foreach ($this->wikiFiles as $file) {
-            $cleanName = basename($file->getClientOriginalName());
-            $safeName = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $cleanName);
+            $realPath = $file->getRealPath();
+            if ($realPath && is_file($realPath)) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $detectedMime = $finfo ? finfo_file($finfo, $realPath) : false;
+                if ($finfo) {
+                    finfo_close($finfo);
+                }
+                if (!in_array($detectedMime, $allowedWikiMimes, true)) {
+                    continue;
+                }
+            }
+            $cleanName = basename((string) $file->getClientOriginalName());
+            $ext = strtolower(pathinfo($cleanName, PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedWikiExts, true)) {
+                $guessed = strtolower((string) $file->guessExtension());
+                $ext = in_array($guessed, $allowedWikiExts, true) ? $guessed : 'txt';
+            }
+            $base = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string) pathinfo($cleanName, PATHINFO_FILENAME));
+            $base = trim((string) $base, '._-') ?: ('wiki_' . time());
+            $safeName = $base . '.' . $ext;
             $file->storeAs('support/wiki', $safeName, 'public');
         }
 
@@ -311,6 +347,7 @@ class AiKnowledgeBase extends Component
         }
 
         if ($this->selectedCategoryId) {
+            $this->assertCanAccessCategory($this->selectedCategoryId);
             $query->where('ai_knowledge_base_category_id', $this->selectedCategoryId);
         }
 

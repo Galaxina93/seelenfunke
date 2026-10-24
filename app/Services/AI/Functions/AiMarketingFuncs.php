@@ -107,8 +107,22 @@ trait AiMarketingFuncs
         ];
     }
 
+    private static function assertMarketingStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeCreateCoupon(array $args): array
     {
+        if ($denied = self::assertMarketingStaffAccess()) {
+            return $denied;
+        }
         $rawCode = trim($args['code'] ?? '');
         $code = strtoupper(preg_replace('/[^A-Za-z0-9_\-]/', '', $rawCode));
         
@@ -169,6 +183,9 @@ trait AiMarketingFuncs
 
     public static function executeUpdateCoupon(array $args): array
     {
+        if ($denied = self::assertMarketingStaffAccess()) {
+            return $denied;
+        }
         $id = $args['id'] ?? null;
         if (!$id) {
             return ['status' => 'error', 'message' => 'Gutschein ID fehlt.'];
@@ -228,6 +245,9 @@ trait AiMarketingFuncs
 
     public static function executeGetCoupons(array $args): array
     {
+        if ($denied = self::assertMarketingStaffAccess()) {
+            return $denied;
+        }
         $vouchers = MarketingVoucher::orderByDesc('created_at')->limit(50)->get();
         
         $mapped = $vouchers->map(function($v) {
@@ -262,6 +282,9 @@ trait AiMarketingFuncs
 
     public static function executeDeleteCoupon(array $args): array
     {
+        if ($denied = self::assertMarketingStaffAccess()) {
+            return $denied;
+        }
         $code = strtoupper(trim($args['code'] ?? ''));
         if (empty($code)) {
              return ['status' => 'error', 'message' => 'Kein Gutscheincode angegeben.'];

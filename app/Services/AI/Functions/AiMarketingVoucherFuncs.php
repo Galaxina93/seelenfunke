@@ -102,8 +102,22 @@ trait AiMarketingVoucherFuncs
         ];
     }
 
+    private static function assertMarketingVoucherStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function marketing_voucher_get_all(array $args)
     {
+        if ($denied = self::assertMarketingVoucherStaffAccess()) {
+            return $denied;
+        }
         $query = MarketingVoucher::query();
         if (isset($args['mode']) && in_array($args['mode'], ['auto', 'manual'])) {
             $query->where('mode', $args['mode']);
@@ -127,6 +141,9 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_create(array $args)
     {
+        if ($denied = self::assertMarketingVoucherStaffAccess()) {
+            return $denied;
+        }
         $rawCode = (string)($args['code'] ?? '');
         $code = strtoupper(trim($rawCode));
 
@@ -179,6 +196,9 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_toggle_active(array $args)
     {
+        if ($denied = self::assertMarketingVoucherStaffAccess()) {
+            return $denied;
+        }
         $v = MarketingVoucher::find($args['id']);
         if (!$v) return ['status' => 'error', 'message' => 'Gutschein nicht gefunden.'];
 
@@ -190,6 +210,9 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_delete(array $args)
     {
+        if ($denied = self::assertMarketingVoucherStaffAccess()) {
+            return $denied;
+        }
         $v = MarketingVoucher::where('mode', 'manual')->find($args['id']);
         if (!$v) return ['status' => 'error', 'message' => 'Gutschein nicht gefunden oder es handelt sich um keinen manuellen Gutschein.'];
 
@@ -199,6 +222,9 @@ trait AiMarketingVoucherFuncs
 
     public static function marketing_voucher_get_analytics(array $args)
     {
+        if ($denied = self::assertMarketingVoucherStaffAccess()) {
+            return $denied;
+        }
         $start = now()->subMonths(12)->startOfMonth();
         
         $topCoupons = DB::table('order_orders')

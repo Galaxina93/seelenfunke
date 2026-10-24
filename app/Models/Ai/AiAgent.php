@@ -33,6 +33,11 @@ class AiAgent extends Model
         'telegram_allowed_chat_ids',
     ];
 
+    protected $hidden = [
+        'telegram_bot_token',
+        'telegram_allowed_chat_ids',
+    ];
+
     protected $casts = [
         'is_active' => 'boolean',
         'is_in_chat' => 'boolean',
@@ -69,8 +74,17 @@ class AiAgent extends Model
     }
 
     // Accessor for backward compatibility and role inheritance
-    public function getToolsAttribute()
+    public function getToolsAttribute($value = null)
     {
+        if ($this->relationLoaded('tools')) {
+            $rel = $this->getRelation('tools');
+            if ($rel instanceof \Illuminate\Support\Collection) {
+                return $rel;
+            }
+        }
+        if ($value instanceof \Illuminate\Support\Collection) {
+            return $value;
+        }
         return $this->role ? $this->role->tools : collect();
     }
 }

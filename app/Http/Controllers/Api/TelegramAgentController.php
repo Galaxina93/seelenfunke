@@ -21,11 +21,11 @@ class TelegramAgentController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Invalid token'], 404);
         }
 
-        // 1. Identify the Agent by Token
-        $agent = AiAgent::where('telegram_bot_token', $token)->where('is_active', true)->first();
+        // 1. Identify the Agent by Token (exact case-sensitive verification via hash_equals) and eager-load role tools
+        $agent = AiAgent::with('role.tools')->where('telegram_bot_token', $token)->where('is_active', true)->first();
 
-        if (!$agent) {
-            Log::warning("Telegram Webhook hit with invalid or inactive token: " . $token);
+        if (!$agent || !hash_equals((string) $agent->telegram_bot_token, (string) $token)) {
+            Log::warning("Telegram Webhook hit with invalid or inactive token.");
             \App\Services\System\SystemSecurityService::logEvent(
                 'security:telegram_unauthorized',
                 'Telegram-Webhook mit ungültigem Token',
@@ -37,6 +37,14 @@ class TelegramAgentController extends Controller
 
         // 2. Parse Telegram Payload
         $update = $request->all();
+
+        $updateId = $update['update_id'] ?? null;
+        if ($updateId !== null && is_scalar($updateId)) {
+            $dedupKey = 'telegram_update_dedup_' . $agent->id . '_' . (string) $updateId;
+            if (!\Illuminate\Support\Facades\Cache::add($dedupKey, true, now()->addHours(6))) {
+                return response()->json(['status' => 'ignored', 'message' => 'Duplicate update_id.']);
+            }
+        }
         
         $message = $update['message'] ?? null;
         if (!$message || !isset($message['chat']['id'])) {
@@ -135,10 +143,14 @@ class TelegramAgentController extends Controller
                 'context_data' => $userCtx,
             ]);
 
-            // Load History for this specific Telegram Chat
+            // Load History for this specific Telegram Chat (bounded to last 20 rows in DB to prevent memory exhaustion)
             $history = AiChatMemory::where('session_id', $sessionId)
-                ->orderBy('created_at', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->take(20)
                 ->get()
+                ->reverse()
+                ->values()
                 ->map(function ($mem) {
                     $m = [
                         'role' => $mem->role,
@@ -151,11 +163,6 @@ class TelegramAgentController extends Controller
                     return $m;
                 })
                 ->toArray();
-
-            // Limit history to last 20 messages to prevent token limits
-            if (count($history) > 20) {
-                $history = array_slice($history, -20);
-            }
 
             // 4. Initialize the Agent Brain
             $brain = new GeminiAgent($agent);
@@ -203,8 +210,8 @@ class TelegramAgentController extends Controller
 
         } catch (\Exception $e) {
             Log::error("Telegram Agent Loop Failed", ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            $this->sendTelegramMessage($token, $chatId, "⚠️ *System Alert:* Meine kognitiven Routinen sind abgestürzt. \n\nFehler: " . substr($e->getMessage(), 0, 100));
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            $this->sendTelegramMessage($token, $chatId, "⚠️ *System Alert:* Meine kognitiven Routinen sind vorübergehend nicht erreichbar.");
+            return response()->json(['status' => 'error', 'message' => 'Internal agent processing error'], 200);
         }
     }
 
@@ -291,7 +298,19 @@ class TelegramAgentController extends Controller
         $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'docx', 'doc', 'txt', 'mp3', 'ogg', 'wav', 'm4a', 'csv'];
         $ext = in_array($rawExt, $allowedExts, true) ? $rawExt : 'dat';
 
-        $filename = 'telegram_' . uniqid() . '.' . $ext;
+        if (function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $finfo ? (string) finfo_buffer($finfo, $fileContent) : '';
+            if ($finfo) {
+                finfo_close($finfo);
+            }
+            $blockedMimes = ['text/html', 'application/xhtml+xml', 'image/svg+xml', 'text/x-php', 'application/x-httpd-php', 'application/javascript', 'text/javascript'];
+            if (in_array(strtolower($detectedMime), $blockedMimes, true)) {
+                throw new \Exception("Blocked unsafe file content type ({$detectedMime}).");
+            }
+        }
+
+        $filename = 'telegram_' . \Illuminate\Support\Str::random(24) . '.' . $ext;
         $savePath = 'telegram_uploads/' . $filename;
         
         \Illuminate\Support\Facades\Storage::disk('public')->put($savePath, $fileContent);
@@ -313,12 +332,13 @@ class TelegramAgentController extends Controller
         
         $base64 = base64_encode(file_get_contents($fullPath));
         
-        $baseUrl = config('services.gemini.url') ?: 'https://generativelanguage.googleapis.com/v1beta/openai/';
-        $apiKey = config('services.gemini.key');
+        $apiKey = (string) config('services.gemini.key', '');
+        if ($apiKey === '') {
+            return "";
+        }
         
-        // Use the native Gemini endpoint since OpenAI wrapper doesn't support ogg audio inline yet
-        // Extract base URI
-        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
+        // Use the native Gemini endpoint with header authentication (prevents API key leakage in URL logs)
+        $nativeUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
         
         $payload = [
             "contents" => [
@@ -334,23 +354,26 @@ class TelegramAgentController extends Controller
             ]
         ];
         
-        $response = Http::timeout(30)->post($nativeUrl, $payload);
+        $response = Http::timeout(30)->withHeaders(['x-goog-api-key' => $apiKey])->post($nativeUrl, $payload);
         if ($response->successful()) {
             $data = $response->json();
             return $data['candidates'][0]['content']['parts'][0]['text'] ?? "";
         }
         
-        Log::warning("Gemini STT Failed: " . $response->body());
+        Log::warning("Gemini STT Failed (HTTP " . $response->status() . ")");
         return "";
     }
 
     /**
-     * Generates a TTS Audio File locally or via external provider
+     * Generates a TTS Audio File via validated external provider
      */
     private function generateTtsAudio($agent, $text)
     {
         if ($agent->tts_provider === 'toni_xttsv2') {
-            $ttsUrl = $agent->tts_api_url ?: 'http://127.0.0.1:8020';
+            $ttsUrl = trim((string) ($agent->tts_api_url ?? ''));
+            if (!$this->isSafeExternalTtsUrl($ttsUrl)) {
+                throw new \Exception("Invalid or unsafe TTS API URL.");
+            }
             $voice = $agent->tts_voice ?: 'tania';
             
             // Assuming Toni provides a /tts or /api/tts endpoint generating a Wave file
@@ -372,5 +395,30 @@ class TelegramAgentController extends Controller
         // Native Gemini TTS Fallback (if applicable via their new endpoints, though Gemini text-to-speech is still experimental/undocumented in many Wrappers)
         // For now, if no Toni, we throw
         throw new \Exception("Unsupported or failing TTS Provider.");
+    }
+
+    private function isSafeExternalTtsUrl(string $url): bool
+    {
+        if ($url === '') {
+            return false;
+        }
+        $parsed = parse_url($url);
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        $host = strtolower(trim($parsed['host'] ?? '', '[]'));
+        if ($scheme !== 'https' || $host === '') {
+            return false;
+        }
+        if (
+            in_array($host, ['localhost', '127.0.0.1', '0.0.0.0', '::1'], true)
+            || str_ends_with($host, '.local')
+            || str_ends_with($host, '.internal')
+            || preg_match('/^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $host)
+        ) {
+            return false;
+        }
+        if (filter_var($host, FILTER_VALIDATE_IP) && !filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return false;
+        }
+        return true;
     }
 }

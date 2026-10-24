@@ -325,8 +325,22 @@ trait AiProductFuncs
 
 
     
+    private static function assertProductStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeAnalyticsGetOverview(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $data = \App\Livewire\Shop\Product\ProductAnalytics::getCombinedAnalyticsData();
             
@@ -349,6 +363,9 @@ trait AiProductFuncs
 
     public static function executeGetLucidReport(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $data = \App\Livewire\Shop\Product\ProductAnalytics::getLucidData();
             return [
@@ -371,6 +388,9 @@ trait AiProductFuncs
     
     public static function executeGetList(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $status = $args['status'] ?? 'pending';
             $limit = isset($args['limit']) ? min((int)$args['limit'], 50) : 15;
@@ -407,6 +427,9 @@ trait AiProductFuncs
 
     public static function executeModerate(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['review_id']) || empty($args['action'])) {
                 return ['status' => 'error', 'message' => 'Review ID und Action (approved/rejected) fehlen.'];
@@ -432,16 +455,39 @@ trait AiProductFuncs
 
     public static function executeProductReviewDelete(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['review_id'])) return ['status' => 'error', 'message' => 'Review ID fehlt.'];
 
             $review = ProductReview::find($args['review_id']);
             if (!$review) return ['status' => 'error', 'message' => 'Bewertung existiert nicht oder wurde bereits gelöscht.'];
 
-            // Clean up attached media to save server disk space
+            // Clean up attached media to save server disk space (restricted to safe review media paths)
             if (!empty($review->media) && is_array($review->media)) {
+                $publicRoot = realpath(Storage::disk('public')->path(''));
                 foreach ($review->media as $media) {
-                    Storage::disk('public')->delete($media);
+                    if (!is_string($media)) {
+                        continue;
+                    }
+                    $cleanMedia = ltrim(str_replace('\\', '/', trim($media)), '/');
+                    if (
+                        $cleanMedia === ''
+                        || str_contains($cleanMedia, '..')
+                        || str_contains($cleanMedia, "\0")
+                        || (!str_starts_with($cleanMedia, 'reviews/') && !str_starts_with($cleanMedia, 'produkte/reviews/'))
+                    ) {
+                        continue;
+                    }
+                    $fullMediaPath = Storage::disk('public')->path($cleanMedia);
+                    if (is_link($fullMediaPath)) {
+                        continue;
+                    }
+                    $realMediaPath = realpath($fullMediaPath);
+                    if ($realMediaPath && $publicRoot && str_starts_with($realMediaPath, $publicRoot . DIRECTORY_SEPARATOR)) {
+                        Storage::disk('public')->delete($cleanMedia);
+                    }
                 }
             }
 
@@ -467,6 +513,9 @@ trait AiProductFuncs
     
     public static function executeProductDraftGetDetails(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_id'])) return ['status' => 'error', 'message' => 'Produkt-ID fehlt.'];
             
@@ -549,6 +598,9 @@ trait AiProductFuncs
 
     public static function executeProductDraftUpdate(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_id'])) return ['status' => 'error', 'message' => 'Produkt-ID fehlt.'];
             
@@ -634,6 +686,9 @@ trait AiProductFuncs
     
     public static function executeLossGetOverview(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $metrics = [
                 'total_open_cases' => ProductLoss::whereNull('refund_received_at')->count(),
@@ -669,6 +724,9 @@ trait AiProductFuncs
 
     public static function executeGetOpenCases(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $openLosses = ProductLoss::with(['product', 'supplier'])
                 ->whereNull('refund_received_at')
@@ -699,6 +757,9 @@ trait AiProductFuncs
 
     public static function executeReportLoss(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_id']) || !isset($args['quantity']) || empty($args['reason'])) {
                 return ['status' => 'error', 'message' => 'Es fehlen benötigte Parameter (product_id, quantity, reason).'];
@@ -763,6 +824,9 @@ trait AiProductFuncs
     
     public static function executeRunCrawler(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['keyword']) || empty($args['platforms']) || !is_array($args['platforms'])) {
                 return ['status' => 'error', 'message' => 'Keyword und Plattform-Array fehlen.'];
@@ -825,6 +889,9 @@ trait AiProductFuncs
 
     public static function executeGetLiveData(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $limit = isset($args['limit']) ? min((int)$args['limit'], 25) : 10;
 
@@ -859,6 +926,9 @@ trait AiProductFuncs
 
     public static function executeSaveLiveRun(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['name'])) {
                 return ['status' => 'error', 'message' => 'Bitte einen Namens-Titel für das Archiv vergeben.'];
@@ -893,6 +963,9 @@ trait AiProductFuncs
 
     public static function executeGetHistoricalRuns(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             // Get last 20 runs
             $runs = ProductNicheCrawlerRun::orderBy('created_at', 'desc')->take(20)->get()->map(function($r) {
@@ -916,6 +989,9 @@ trait AiProductFuncs
 
     public static function executeGetHistoricalData(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_niche_crawler_run_id'])) return ['status' => 'error', 'message' => 'run_id fehlt.'];
 
@@ -955,6 +1031,9 @@ trait AiProductFuncs
     
     public static function executeGetLogic(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_id'])) return ['status' => 'error', 'message' => 'Produkt-ID fehlt.'];
             
@@ -985,6 +1064,9 @@ trait AiProductFuncs
 
     public static function executeAddMaterial(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['product_id']) || empty($args['material_type']) || !isset($args['weight_grams'])) {
                 return ['status' => 'error', 'message' => 'Es fehlen product_id, material_type oder weight_grams.'];
@@ -1025,6 +1107,9 @@ trait AiProductFuncs
 
     public static function executeUpdateWeight(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['packaging_id']) || !isset($args['weight_grams'])) {
                 return ['status' => 'error', 'message' => 'packaging_id oder weight_grams fehlt.'];
@@ -1051,6 +1136,9 @@ trait AiProductFuncs
 
     public static function executeRemoveMaterial(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['packaging_id'])) return ['status' => 'error', 'message' => 'packaging_id fehlt.'];
 
@@ -1080,6 +1168,9 @@ trait AiProductFuncs
     
     public static function executeProductTemplateGetAll(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             $query = ProductTemplate::with('product');
             
@@ -1114,6 +1205,9 @@ trait AiProductFuncs
 
     public static function executeProductTemplateUpdate(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['template_id'])) return ['status' => 'error', 'message' => 'Template ID fehlt.'];
             
@@ -1141,6 +1235,9 @@ trait AiProductFuncs
 
     public static function executeProductTemplateDelete(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['template_id'])) return ['status' => 'error', 'message' => 'Template ID fehlt.'];
             
@@ -1179,6 +1276,9 @@ trait AiProductFuncs
 
     public static function executeProductGetSupplier(array $args)
     {
+        if ($denied = self::assertProductStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args["product_id"])) return ["status" => "error", "message" => "Produkt-ID fehlt."];
             

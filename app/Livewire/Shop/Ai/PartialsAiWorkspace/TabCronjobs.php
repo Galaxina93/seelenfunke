@@ -11,6 +11,7 @@ use Livewire\Attributes\Computed;
 
 class TabCronjobs extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public $editingJobId = null;
     public $editingSchedule = '';
 
@@ -110,11 +111,40 @@ class TabCronjobs extends Component
         }
         $job = SystemCronjob::find($id);
         if ($job) {
+            $commandClean = trim((string) $job->command);
+            $commandClean = preg_replace('/^(?:\/usr\/bin\/)?php(?:[0-9.]+)?\s+/', '', $commandClean);
+            $commandClean = preg_replace('/^(?:(?:\S+)?artisan)\s+/', '', $commandClean);
+            $commandClean = trim((string) $commandClean);
+
+            $blockedCommands = ['reverb:start', 'queue:work', 'queue:listen', 'websockets:serve', 'migrate:fresh', 'migrate:reset', 'db:wipe', 'tinker'];
+            if ($commandClean === '' || !preg_match('/^[a-zA-Z0-9:_-]+$/', $commandClean) || in_array($commandClean, $blockedCommands, true)) {
+                $this->dispatch('notify', [
+                    'type' => 'error',
+                    'message' => 'Dieser Befehl darf nicht synchron über das Dashboard ausgeführt werden.'
+                ]);
+                return;
+            }
+
             $job->update(['status' => 'running']);
             
             try {
-                $parameters = $job->parameters ? explode(' ', $job->parameters) : [];
-                Artisan::call($job->command, $parameters);
+                $parameters = [];
+                $blockedOpts = ['--env', '--database', '--path', '--realpath', '--bootstrap'];
+                if (!empty($job->parameters)) {
+                    foreach (preg_split('/\s+/', trim((string) $job->parameters), -1, PREG_SPLIT_NO_EMPTY) as $token) {
+                        if (str_starts_with($token, '--')) {
+                            if (str_contains($token, '=')) {
+                                [$optKey, $optVal] = explode('=', $token, 2);
+                                if (preg_match('/^--[a-zA-Z0-9_-]+$/', $optKey) && !in_array(strtolower($optKey), $blockedOpts, true)) {
+                                    $parameters[$optKey] = $optVal;
+                                }
+                            } elseif (preg_match('/^--[a-zA-Z0-9_-]+$/', $token) && !in_array(strtolower($token), $blockedOpts, true)) {
+                                $parameters[$token] = true;
+                            }
+                        }
+                    }
+                }
+                Artisan::call($commandClean, $parameters);
                 
                 $job->update([
                     'status' => 'success',

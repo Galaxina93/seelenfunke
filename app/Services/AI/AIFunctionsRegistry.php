@@ -119,78 +119,90 @@ class AIFunctionsRegistry
     }
 
     /**
+     * Prüft zentral, ob ein KI-Werkzeug ausschließlich Administratoren vorbehalten ist
+     * und daher für Mitarbeiter (Employee) weder im Schema noch bei der Ausführung freigegeben werden darf.
+     */
+    public static function isToolRestrictedForEmployee(string $name): bool
+    {
+        $adminOnlyPrefixes = [
+            'admin_',
+            'finance_',
+            'mail_',
+            'email_',
+            'master_',
+            'workspace_',
+            'health_',
+            'brain_',
+            'persona_',
+            'call_',
+            'agents_',
+            'agent_',
+            'holiday_',
+        ];
+        $adminOnlyTools = [
+            'move_agent_to_department',
+            'analyze_agents_activity',
+            'system_write_to_file',
+            'system_multi_replace_file',
+            'system_run_command',
+            'system_read_file',
+            'system_read_code',
+            'system_search_code',
+            'system_search_files',
+            'system_list_directory',
+            'system_command_status',
+            'system_get_rights',
+            'system_execute_command',
+            'system_fix_errors',
+            'system_create_database_backup',
+            'system_export_system_report',
+            'system_manage_logs',
+            'system_clear_security_threats',
+            'system_analyze_security_threats',
+            'system_dispatch_background_task',
+            'system_get_task_status',
+            'system_assign_tool_to_role',
+            'system_view_file_outline',
+            'system_grep_search',
+            'system_find_by_name',
+            'system_list_dir',
+            'system_write_implementation_plan',
+        ];
+        $employeeAllowedSystemTools = [
+            'system_get_current_time',
+            'system_open_nav_item',
+            'system_close_ui',
+            'system_open_zentrum',
+            'system_close_zentrum',
+            'system_switch_agent',
+            'system_search_chat_history',
+            'system_read_knowledge',
+            'system_read_wiki_files',
+            'system_search_web',
+            'system_read_web_url',
+        ];
+
+        if (in_array($name, $adminOnlyTools, true) || (str_starts_with($name, 'system_') && !in_array($name, $employeeAllowedSystemTools, true))) {
+            return true;
+        }
+
+        foreach ($adminOnlyPrefixes as $prefix) {
+            if (str_starts_with($name, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Executes a function by name if it exists in the registry.
      */
     public static function execute(string $name, array $args = [], $agent = null)
     {
         // Rollen-Schranke: Authentifizierte Mitarbeiter (Employee) dürfen keine Admin-exklusiven Werkzeuge ausführen
         if (AiAuthHelper::check() && !AiAuthHelper::isAdmin()) {
-            $adminOnlyPrefixes = [
-                'finance_',
-                'mail_',
-                'email_',
-                'master_',
-                'workspace_',
-                'health_',
-                'brain_',
-                'persona_',
-                'call_',
-                'agents_',
-                'agent_',
-                'holiday_',
-            ];
-            $adminOnlyTools = [
-                'move_agent_to_department',
-                'analyze_agents_activity',
-                'system_write_to_file',
-                'system_multi_replace_file',
-                'system_run_command',
-                'system_read_file',
-                'system_read_code',
-                'system_search_code',
-                'system_search_files',
-                'system_list_directory',
-                'system_command_status',
-                'system_get_rights',
-                'system_execute_command',
-                'system_fix_errors',
-                'system_create_database_backup',
-                'system_export_system_report',
-                'system_manage_logs',
-                'system_clear_security_threats',
-                'system_analyze_security_threats',
-                'system_dispatch_background_task',
-                'system_assign_tool_to_role',
-                'system_view_file_outline',
-                'system_grep_search',
-                'system_find_by_name',
-                'system_list_dir',
-                'system_write_implementation_plan',
-            ];
-            $employeeAllowedSystemTools = [
-                'system_get_current_time',
-                'system_open_nav_item',
-                'system_close_ui',
-                'system_open_zentrum',
-                'system_close_zentrum',
-                'system_switch_agent',
-                'system_search_chat_history',
-                'system_read_knowledge',
-                'system_read_wiki_files',
-                'system_search_web',
-                'system_read_web_url',
-            ];
-            $isRestrictedForEmployee = in_array($name, $adminOnlyTools, true)
-                || (str_starts_with($name, 'system_') && !in_array($name, $employeeAllowedSystemTools, true));
-            if (!$isRestrictedForEmployee) {
-                foreach ($adminOnlyPrefixes as $prefix) {
-                    if (str_starts_with($name, $prefix)) {
-                        $isRestrictedForEmployee = true;
-                        break;
-                    }
-                }
-            }
-            if ($isRestrictedForEmployee) {
+            if (self::isToolRestrictedForEmployee($name)) {
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:ai_privilege_escalation_blocked',
                     'KI-Rechteausweitung durch Mitarbeiter blockiert',
@@ -227,8 +239,9 @@ class AIFunctionsRegistry
             }
         }
 
-        // Zero-Trust Sandbox Gate: Im öffentlichen Frontend-Support-Chat dürfen ausschließlich Support-Kunden-Werkzeuge ausgeführt werden
-        $isPublicSupportChat = !empty(self::$globalContext['__chat_id']);
+        // Zero-Trust Sandbox Gate: Im öffentlichen Frontend-Support-Chat sowie für authentifizierte Kunden (Customer) dürfen ausschließlich Support-Kunden-Werkzeuge ausgeführt werden
+        $isCustomerContext = AiAuthHelper::check() && AiAuthHelper::isCustomer() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee();
+        $isPublicSupportChat = !empty(self::$globalContext['__chat_id']) || !empty($args['__chat_id']) || $isCustomerContext;
         if ($isPublicSupportChat) {
             $publicAllowedPrefix = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
             if (!$publicAllowedPrefix) {
@@ -237,7 +250,7 @@ class AIFunctionsRegistry
                     'KI-Sandbox-Ausbruchsversuch blockiert',
                     "Im öffentlichen Support-Chat wurde der unzulässige Tool-Call '{$name}' durch die Zero-Trust-Sandbox blockiert.",
                     'error',
-                    ['tool' => $name, 'chat_id' => self::$globalContext['__chat_id'] ?? null]
+                    ['tool' => $name, 'chat_id' => self::$globalContext['__chat_id'] ?? ($args['__chat_id'] ?? null), 'customer_id' => AiAuthHelper::getCustomerId()]
                 );
                 return [
                     'error' => true,
@@ -248,20 +261,27 @@ class AIFunctionsRegistry
         }
 
         // Agenten-Berechtigungsprüfung: Verhindert Rechteausweitung und unautorisierte Tool-Calls
-        if ($agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection && $agent->tools->isNotEmpty()) {
-            $allowedTools = $agent->tools->pluck('identifier')->toArray();
-            $allowedTools[] = 'system_get_current_time';
-            if (in_array('calendar_create_event', $allowedTools, true) || in_array('calendar_get_events', $allowedTools, true)) {
-                $allowedTools[] = 'calendar_send_ics_email';
-                $allowedTools[] = 'calendar_update_event';
-                $allowedTools[] = 'calendar_delete_event';
-            }
-            if (!in_array($name, $allowedTools, true)) {
-                return [
-                    'error' => true,
-                    'status' => 'error',
-                    'message' => "PERMISSION DENIED: Agent '{$agent->name}' besitzt keine Berechtigung für das Werkzeug '{$name}'."
-                ];
+        if ($agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection) {
+            $hasExplicitToolBoundary = $agent->tools->isNotEmpty()
+                || !empty($agent->ai_role_id)
+                || (method_exists($agent, 'getAttributes') && array_key_exists('tools', $agent->getAttributes()))
+                || (method_exists($agent, 'relationLoaded') && ($agent->relationLoaded('tools') || $agent->relationLoaded('role')));
+
+            if ($hasExplicitToolBoundary) {
+                $allowedTools = $agent->tools->pluck('identifier')->toArray();
+                $allowedTools[] = 'system_get_current_time';
+                if (in_array('calendar_create_event', $allowedTools, true)) {
+                    $allowedTools[] = 'calendar_send_ics_email';
+                    $allowedTools[] = 'calendar_update_event';
+                    $allowedTools[] = 'calendar_delete_event';
+                }
+                if (!in_array($name, $allowedTools, true)) {
+                    return [
+                        'error' => true,
+                        'status' => 'error',
+                        'message' => "PERMISSION DENIED: Agent '{$agent->name}' besitzt keine Berechtigung für das Werkzeug '{$name}'."
+                    ];
+                }
             }
         }
 

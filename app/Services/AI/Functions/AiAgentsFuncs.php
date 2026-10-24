@@ -288,8 +288,33 @@ trait AiAgentsFuncs
         ];
     }
 
+    private static function assertAgentsAdminAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug erfordert Administrator-Berechtigungen.',
+            ];
+        }
+        return null;
+    }
+
+    private static function assertAgentsStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeGetAiCompanyStructure(array $args): array
     {
+        if ($denied = self::assertAgentsStaffAccess()) {
+            return $denied;
+        }
         $departments = AiDepartment::with('agents:id,name,role_description,ai_department_id')->orderBy('order_index')->get();
         $freeAgents = AiAgent::whereNull('ai_department_id')->get(['id', 'name', 'role_description']);
         
@@ -302,6 +327,9 @@ trait AiAgentsFuncs
 
     public static function executeMoveAgentToDepartment(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $agentName = trim($args['agent_name'] ?? '');
         $deptName = trim($args['department_name'] ?? '');
 
@@ -346,6 +374,9 @@ trait AiAgentsFuncs
 
     public static function executeGetAgentRoles(array $args): array
     {
+        if ($denied = self::assertAgentsStaffAccess()) {
+            return $denied;
+        }
         if (class_exists(AiRole::class)) {
             $roles = AiRole::select('id', 'name', 'description')->get();
             return ['status' => 'success', 'data' => ['Rollen' => $roles->toArray()]];
@@ -355,6 +386,9 @@ trait AiAgentsFuncs
 
     public static function executeAnalyzeAgentsActivity(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $days = $args['days'] ?? 7;
         $startDate = now()->subDays($days);
         
@@ -401,6 +435,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceCreateFolder(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
         $sub = ltrim(substr($path, strlen('agenten/workspace')), '/');
         $parts = explode('/', $sub);
@@ -437,6 +474,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceRenameFolder(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
         $newName = trim($args['new_name'] ?? '');
         if (empty($newName) || str_contains($newName, '/')) {
@@ -475,19 +515,27 @@ trait AiAgentsFuncs
 
         $oldFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path);
         $newFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($newPath);
+        $realWorkspaceRoot = realpath(\Illuminate\Support\Facades\Storage::disk('workspace')->path('agenten/workspace'));
+        $realOldFullPath = realpath($oldFullPath);
+
+        if (is_link($oldFullPath) || !$realOldFullPath || ($realWorkspaceRoot && !str_starts_with($realOldFullPath, $realWorkspaceRoot . DIRECTORY_SEPARATOR))) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Symlinks oder Pfade außerhalb des Workspace dürfen nicht umbenannt werden.'];
+        }
 
         if (is_dir($oldFullPath)) {
             rename($oldFullPath, $newFullPath);
             // Sync database paths for documents inside renamed folder
-            $docs = \App\Models\Ai\AiWorkspaceDocument::where('file_path', 'LIKE', $path . '/%')->get();
+            $pathEsc = addcslashes($path, '%_\\');
+            $docs = \App\Models\Ai\AiWorkspaceDocument::where('file_path', 'LIKE', $pathEsc . '/%')->get();
             foreach ($docs as $doc) {
                 $updatedPath = $newPath . substr($doc->file_path, strlen($path));
                 $doc->update(['file_path' => $updatedPath]);
             }
         } else {
             \Illuminate\Support\Facades\Storage::disk('workspace')->move($path, $newPath);
+            $relPath = preg_replace('#^agenten/workspace/#', '', $path);
             \App\Models\Ai\AiWorkspaceDocument::where('file_path', $path)
-                ->orWhere('file_path', 'agenten/workspace/' . ltrim($path, 'agenten/workspace/'))
+                ->orWhere('file_path', 'agenten/workspace/' . $relPath)
                 ->update(['file_path' => $newPath]);
         }
 
@@ -496,6 +544,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceDeleteFolder(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
         $protected = [
             'agenten/workspace',
@@ -522,15 +573,28 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceMoveFolder(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $sourcePath = self::secureWorkspacePath($args['source_path'] ?? '');
         $targetPath = self::secureWorkspacePath($args['target_path'] ?? '');
+
+        $protected = [
+            'agenten/workspace',
+            'agenten/workspace/Berufsleben',
+            'agenten/workspace/Dokumente',
+            'agenten/workspace/Gesundheit',
+        ];
+        if (in_array(rtrim($sourcePath, '/'), $protected, true)) {
+            return ['status' => 'error', 'message' => 'Die 3 Hauptbereiche (Berufsleben, Dokumente, Gesundheit) und das Hauptverzeichnis dürfen nicht verschoben werden.'];
+        }
 
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($sourcePath)) {
             return ['status' => 'error', 'message' => "Quellordner nicht gefunden: $sourcePath"];
         }
 
         // Prevent moving inside itself
-        if (str_starts_with($targetPath, $sourcePath . '/')) {
+        if ($targetPath === $sourcePath || str_starts_with($targetPath, $sourcePath . '/')) {
              return ['status' => 'error', 'message' => "Ordner kann nicht in sich selbst verschoben werden."];
         }
 
@@ -543,6 +607,12 @@ trait AiAgentsFuncs
 
         $oldFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($sourcePath);
         $newFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($newPath);
+        $realWorkspaceRoot = realpath(\Illuminate\Support\Facades\Storage::disk('workspace')->path('agenten/workspace'));
+        $realOldFullPath = realpath($oldFullPath);
+
+        if (is_link($oldFullPath) || !$realOldFullPath || ($realWorkspaceRoot && !str_starts_with($realOldFullPath, $realWorkspaceRoot . DIRECTORY_SEPARATOR))) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Symlinks oder Pfade außerhalb des Workspace dürfen nicht verschoben werden.'];
+        }
 
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($targetPath)) {
             \Illuminate\Support\Facades\Storage::disk('workspace')->makeDirectory($targetPath);
@@ -550,15 +620,17 @@ trait AiAgentsFuncs
 
         if (is_dir($oldFullPath)) {
             rename($oldFullPath, $newFullPath);
-            $docs = \App\Models\Ai\AiWorkspaceDocument::where('file_path', 'LIKE', $sourcePath . '/%')->get();
+            $sourceEsc = addcslashes($sourcePath, '%_\\');
+            $docs = \App\Models\Ai\AiWorkspaceDocument::where('file_path', 'LIKE', $sourceEsc . '/%')->get();
             foreach ($docs as $doc) {
                 $updatedPath = $newPath . substr($doc->file_path, strlen($sourcePath));
                 $doc->update(['file_path' => $updatedPath]);
             }
         } else {
             \Illuminate\Support\Facades\Storage::disk('workspace')->move($sourcePath, $newPath);
+            $relSource = preg_replace('#^agenten/workspace/#', '', $sourcePath);
             \App\Models\Ai\AiWorkspaceDocument::where('file_path', $sourcePath)
-                ->orWhere('file_path', 'agenten/workspace/' . ltrim($sourcePath, 'agenten/workspace/'))
+                ->orWhere('file_path', 'agenten/workspace/' . $relSource)
                 ->update(['file_path' => $newPath]);
         }
 
@@ -567,6 +639,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceArchiveFolder(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
@@ -577,21 +652,26 @@ trait AiAgentsFuncs
 
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
-            if (is_dir($fullPath)) {
+            $realFullPath = realpath($fullPath);
+            if ($realFullPath && is_dir($realFullPath)) {
                 $files = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($fullPath),
+                    new \RecursiveDirectoryIterator($realFullPath, \FilesystemIterator::SKIP_DOTS),
                     \RecursiveIteratorIterator::LEAVES_ONLY
                 );
 
                 foreach ($files as $name => $file) {
-                    if (!$file->isDir()) {
-                        $filePath = $file->getRealPath();
-                        $relativePath = substr($filePath, strlen($fullPath) + 1);
-                        $zip->addFile($filePath, $relativePath);
+                    if ($file->isLink() || $file->isDir()) {
+                        continue;
                     }
+                    $filePath = $file->getRealPath();
+                    if (!$filePath || !str_starts_with($filePath, $realFullPath . DIRECTORY_SEPARATOR)) {
+                        continue;
+                    }
+                    $relativePath = substr($filePath, strlen($realFullPath) + 1);
+                    $zip->addFile($filePath, $relativePath);
                 }
-            } else {
-                $zip->addFile($fullPath, basename($fullPath));
+            } elseif ($realFullPath && is_file($realFullPath) && !is_link($fullPath)) {
+                $zip->addFile($realFullPath, basename($realFullPath));
             }
             $zip->close();
             return ['status' => 'success', 'message' => "Ordner erfolgreich als " . basename($zipPath) . " archiviert.", 'ui_action' => 'reload_filemanager'];
@@ -601,6 +681,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceGetFolderSize(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
@@ -625,8 +708,18 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceMoveFolderContent(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $sourcePath = self::secureWorkspacePath($args['source_path'] ?? '');
         $targetPath = self::secureWorkspacePath($args['target_path'] ?? '');
+
+        if (rtrim($sourcePath, '/') === 'agenten/workspace') {
+            return ['status' => 'error', 'message' => 'Der Inhalt des Hauptverzeichnisses (Berufsleben, Dokumente, Gesundheit) darf nicht komplett verschoben werden.'];
+        }
+        if ($targetPath === $sourcePath || str_starts_with($targetPath, $sourcePath . '/')) {
+            return ['status' => 'error', 'message' => 'Der Inhalt eines Ordners kann nicht in sich selbst verschoben werden.'];
+        }
 
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($sourcePath)) {
             return ['status' => 'error', 'message' => "Quellordner nicht gefunden: $sourcePath"];
@@ -641,6 +734,10 @@ trait AiAgentsFuncs
 
         $moved = 0;
         foreach ($files as $file) {
+            $fullFile = \Illuminate\Support\Facades\Storage::disk('workspace')->path($file);
+            if (is_link($fullFile)) {
+                continue;
+            }
             $newPath = $targetPath . '/' . basename($file);
             \Illuminate\Support\Facades\Storage::disk('workspace')->move($file, $newPath);
             $moved++;
@@ -649,6 +746,9 @@ trait AiAgentsFuncs
         foreach ($directories as $dir) {
             $newPath = $targetPath . '/' . basename($dir);
             $oldFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($dir);
+            if (is_link($oldFullPath)) {
+                continue;
+            }
             $newFullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($newPath);
             rename($oldFullPath, $newFullPath);
             $moved++;
@@ -659,9 +759,20 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceDeleteFolderContent(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
+        if (rtrim($path, '/') === 'agenten/workspace') {
+            return ['status' => 'error', 'message' => 'Das Hauptverzeichnis (inkl. der 3 geschützten Hauptbereiche Berufsleben, Dokumente, Gesundheit) darf nicht komplett geleert werden.'];
+        }
         if (!\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
             return ['status' => 'error', 'message' => "Ordner nicht gefunden: $path"];
+        }
+
+        $fullFolderPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path);
+        if (is_link($fullFolderPath)) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Symlinks dürfen nicht geleert werden.'];
         }
 
         $files = \Illuminate\Support\Facades\Storage::disk('workspace')->files($path);
@@ -683,6 +794,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceArchiveFolderContent(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $path = self::secureWorkspacePath($args['folder_path'] ?? '');
         $rawArchiveName = basename(str_replace('\\', '/', (string) ($args['archive_name'] ?? 'archiv.zip')));
         $archiveName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $rawArchiveName);
@@ -702,15 +816,22 @@ trait AiAgentsFuncs
 
         $zip = new \ZipArchive();
         if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
-            $files = new \RecursiveIteratorIterator(
-                new \RecursiveDirectoryIterator($fullPath),
-                \RecursiveIteratorIterator::LEAVES_ONLY
-            );
+            $realFullPath = realpath($fullPath);
+            if ($realFullPath && is_dir($realFullPath)) {
+                $files = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($realFullPath, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::LEAVES_ONLY
+                );
 
-            foreach ($files as $name => $file) {
-                if (!$file->isDir() && $file->getFilename() !== $archiveName) {
+                foreach ($files as $name => $file) {
+                    if ($file->isLink() || $file->isDir() || $file->getFilename() === $archiveName) {
+                        continue;
+                    }
                     $filePath = $file->getRealPath();
-                    $relativePath = substr($filePath, strlen($fullPath) + 1);
+                    if (!$filePath || !str_starts_with($filePath, $realFullPath . DIRECTORY_SEPARATOR)) {
+                        continue;
+                    }
+                    $relativePath = substr($filePath, strlen($realFullPath) + 1);
                     $zip->addFile($filePath, $relativePath);
                 }
             }
@@ -722,6 +843,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceSearchFiles(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $query = strtolower($args['query'] ?? '');
         if (empty($query)) {
             return ['status' => 'error', 'message' => "Suchbegriff darf nicht leer sein."];
@@ -762,6 +886,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceRunDateitrichter(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $processAll = (bool)($args['process_all'] ?? false);
         $service = new \App\Services\AI\Workspace\DateitrichterService();
         $result = $service->processAll($processAll);
@@ -778,6 +905,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceFindDocuments(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $query = trim($args['query'] ?? '');
         $category = trim($args['category'] ?? '');
         $limit = min(max((int)($args['limit'] ?? 20), 1), 50);
@@ -838,6 +968,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceGetLatestUploads(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $limit = min(max((int)($args['limit'] ?? 5), 1), 20);
 
         if (!class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
@@ -893,6 +1026,9 @@ trait AiAgentsFuncs
 
     public static function executeWorkspaceGetDocumentInfo(array $args): array
     {
+        if ($denied = self::assertAgentsAdminAccess()) {
+            return $denied;
+        }
         $identifier = trim($args['identifier'] ?? '');
         if (empty($identifier)) {
             return ['status' => 'error', 'message' => 'Es wurde kein Dateiname oder Pfad übergeben.'];
@@ -929,6 +1065,9 @@ trait AiAgentsFuncs
 
     public static function executeCommunicationListAgents(array $args)
     {
+        if ($denied = self::assertAgentsStaffAccess()) {
+            return $denied;
+        }
         try {
             $agentsMap = \Illuminate\Support\Facades\Cache::remember('ai_agent_capabilities_full_map', 3600, function() {
                 $agents = \App\Models\Ai\AiAgent::with('role.tools')->where('is_active', true)->get();
@@ -956,6 +1095,9 @@ trait AiAgentsFuncs
 
     public static function executeCommunicationFindAgent(array $args)
     {
+        if ($denied = self::assertAgentsStaffAccess()) {
+            return $denied;
+        }
         try {
             $toolName = $args['tool_name'] ?? '';
             if (empty($toolName)) {
@@ -991,6 +1133,9 @@ trait AiAgentsFuncs
 
     public static function executeCommunicationAskAgent(array $args)
     {
+        if ($denied = self::assertAgentsStaffAccess()) {
+            return $denied;
+        }
         $targetAgentName = trim($args['agent_name'] ?? '');
         $instruction = trim($args['instruction'] ?? $args['task'] ?? '');
 
@@ -1016,9 +1161,66 @@ trait AiAgentsFuncs
             ];
         }
 
-        $originalAgent = \App\Models\Ai\AiAgent::where('name', $targetAgentName)->where('is_active', true)->first();
+        $originalAgent = \App\Models\Ai\AiAgent::with('role.tools')->where('name', $targetAgentName)->where('is_active', true)->first();
         if (!$originalAgent) {
             return ['status' => 'error', 'message' => "Der Agent '{$targetAgentName}' wurde nicht gefunden oder ist inaktiv. Nutze communication_list_agents, um gültige Agenten zu finden."];
+        }
+
+        // Prevent non-admin staff (employees) from delegating instructions to Admin-specialist agents
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            $adminOnlyToolPrefixes = [
+                'admin_',
+                'finance_',
+                'master_',
+                'workspace_',
+                'brain_',
+                'health_',
+                'persona_',
+                'mail_',
+                'email_',
+                'call_',
+            ];
+            $adminOnlyExactTools = [
+                'system_run_command',
+                'system_command_status',
+                'system_write_to_file',
+                'system_multi_replace_file',
+                'system_read_code',
+                'system_search_code',
+                'system_search_files',
+                'system_list_directory',
+                'system_execute_command',
+                'system_manage_logs',
+                'system_create_database_backup',
+                'system_export_report',
+                'system_dispatch_background_task',
+                'system_fix_errors',
+                'system_clear_security_threats',
+                'system_analyze_security_threats',
+                'system_analyze_neural_error',
+                'agent_update_system_config',
+                'agent_update_runtime_config',
+                'move_agent_to_department',
+                'analyze_agents_activity',
+            ];
+
+            $targetTools = $originalAgent->tools ? $originalAgent->tools->pluck('identifier')->toArray() : [];
+            foreach ($targetTools as $toolId) {
+                if (in_array($toolId, $adminOnlyExactTools, true)) {
+                    return [
+                        'status' => 'error',
+                        'message' => "Zugriff verweigert: Mitarbeiter dürfen keine Aufgaben an Administrator-Spezialagenten ('{$originalAgent->name}') delegieren."
+                    ];
+                }
+                foreach ($adminOnlyToolPrefixes as $prefix) {
+                    if (str_starts_with((string) $toolId, $prefix)) {
+                        return [
+                            'status' => 'error',
+                            'message' => "Zugriff verweigert: Mitarbeiter dürfen keine Aufgaben an Administrator-Spezialagenten ('{$originalAgent->name}') delegieren."
+                        ];
+                    }
+                }
+            }
         }
 
         // Push target agent onto delegation stack

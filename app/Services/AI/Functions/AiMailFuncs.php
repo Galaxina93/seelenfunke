@@ -178,8 +178,22 @@ trait AiMailFuncs
         ];
     }
 
+    private static function assertMailAdminAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: E-Mail-Werkzeuge erfordern Administrator-Berechtigungen.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeSendEmail(array $args, $agent = null)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['subject']) || empty($args['body'])) {
                 return ['status' => 'error', 'message' => 'Betreff und Text (body) sind erforderlich.'];
@@ -222,6 +236,9 @@ trait AiMailFuncs
 
     public static function executeMailListPending(array $args)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             $limit = $args['limit'] ?? 10;
             $mails = MailMessage::where('ai_status', 'pending')
@@ -242,6 +259,9 @@ trait AiMailFuncs
 
     public static function executeMailRead(array $args)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['email_id'])) {
                 return ['status' => 'error', 'message' => 'email_id fehlt.'];
@@ -270,6 +290,9 @@ trait AiMailFuncs
 
     public static function executeMailUpdateMetadata(array $args)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['email_id'])) {
                 return ['status' => 'error', 'message' => 'email_id fehlt.'];
@@ -301,6 +324,9 @@ trait AiMailFuncs
 
     public static function executeMoveEmail(array $args)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['email_id']) || empty($args['target_folder'])) {
                 return ['status' => 'error', 'message' => 'Es fehlen email_id oder target_folder.'];
@@ -332,6 +358,9 @@ trait AiMailFuncs
 
     public static function executeMailBulkUpdate(array $args)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             $updates = $args['updates'] ?? [];
             if (empty($updates) || !is_array($updates)) {
@@ -385,6 +414,9 @@ trait AiMailFuncs
 
     public static function executeMarkAsRead(array $args)
     {
+        if ($denied = self::assertMailAdminAccess()) {
+            return $denied;
+        }
         try {
             $all = $args['all'] ?? false;
             $emailId = $args['email_id'] ?? null;

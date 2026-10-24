@@ -59,10 +59,17 @@ trait AiLaserFuncs
 
     public static function executeLaserGeneratePdfAndMail(array $args, $agent = null)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Laserschutz-Dokumente sind nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+
         $title = str_replace(["\r", "\n"], '', trim($args['title'] ?? 'Laserschutz-Information'));
         $content = $args['content'] ?? '';
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
+        if (is_string($recipient) && preg_match('/[\r\n]/', $recipient)) {
+            return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse.'];
+        }
         if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
             $recipient = null;
         }
@@ -98,7 +105,7 @@ trait AiLaserFuncs
 
             // Generate File Name with collision prevention
             $safeTitle = substr(preg_replace('/[^A-Za-z0-9\-]/', '_', $title), 0, 50) ?: 'LaserReport';
-            $fileName = 'LaserReport_' . $safeTitle . '_' . now()->format('Ymd_Hi') . '_' . Str::random(6) . '.pdf';
+            $fileName = 'LaserReport_' . $safeTitle . '_' . now()->format('Ymd_Hi') . '_' . Str::random(12) . '.pdf';
             $filePath = $folderPath . '/' . $fileName;
             $absolutePath = Storage::disk('public')->path($filePath);
 

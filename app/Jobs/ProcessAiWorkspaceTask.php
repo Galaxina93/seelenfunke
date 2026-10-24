@@ -72,13 +72,13 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                 // Append Attachments for Context during planning
                 if (!empty($metadata['attachments']) && is_array($metadata['attachments'])) {
                     $baseReal = realpath(base_path());
-                    $allowedPrefixes = ['app/', 'config/', 'resources/', 'routes/', 'database/', 'tests/', 'storage/app/agenten/workspace/'];
+                    $allowedPrefixes = ['app/', 'resources/', 'routes/', 'database/', 'tests/', 'storage/app/agenten/workspace/'];
                     foreach ($metadata['attachments'] as $fPath) {
                         if (!is_string($fPath) || str_contains($fPath, '..') || str_contains($fPath, "\0")) {
                             continue;
                         }
                         $normalized = str_replace('\\', '/', ltrim($fPath, '/'));
-                        if (preg_match('/(\.env|\.key|\.pem|id_rsa|\.sqlite)$/i', $normalized)) {
+                        if (preg_match('/(\.env|\.key|\.pem|id_rsa|\.sqlite|\.sql|auth\.json)$/i', $normalized)) {
                             continue;
                         }
                         $hasAllowedPrefix = false;
@@ -92,8 +92,15 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                             continue;
                         }
                         try {
-                            $resolved = realpath(base_path($normalized));
-                            if (!$resolved || !$baseReal || !str_starts_with($resolved, $baseReal . DIRECTORY_SEPARATOR) || !is_file($resolved)) {
+                            $candidatePath = base_path($normalized);
+                            if (is_link($candidatePath)) {
+                                continue;
+                            }
+                            $resolved = realpath($candidatePath);
+                            if (!$resolved || !$baseReal || !str_starts_with($resolved, $baseReal . DIRECTORY_SEPARATOR) || !is_file($resolved) || is_link($resolved)) {
+                                continue;
+                            }
+                            if ((int) @filesize($resolved) > 5 * 1024 * 1024) {
                                 continue;
                             }
                             $fileStr = file_get_contents($resolved);
@@ -125,8 +132,14 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                             if (!file_exists($fPath)) {
                                 $fPath = storage_path('app/' . $cleanRel);
                             }
+                            if (is_link($fPath)) {
+                                continue;
+                            }
                             $resolved = realpath($fPath);
-                            if (!$resolved || !$storageReal || !str_starts_with($resolved, $storageReal . DIRECTORY_SEPARATOR) || !is_file($resolved)) {
+                            if (!$resolved || !$storageReal || !str_starts_with($resolved, $storageReal . DIRECTORY_SEPARATOR) || !is_file($resolved) || is_link($resolved)) {
+                                continue;
+                            }
+                            if ((int) @filesize($resolved) > 5 * 1024 * 1024) {
                                 continue;
                             }
                             $fileStr = file_get_contents($resolved);

@@ -360,6 +360,17 @@ trait AiPersonaFuncs
     }
 
     // [AREA: SECURITY HELPER]
+    private static function assertPersonaAdminAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: OSINT- und Persona-Werkzeuge erfordern Administrator-Berechtigungen.',
+            ];
+        }
+        return null;
+    }
+
     private static function isSafeExternalUrl(string $url): bool
     {
         if (empty($url)) {
@@ -425,14 +436,15 @@ trait AiPersonaFuncs
             if ($response->successful()) {
                 $imgContent = $response->body();
                 $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($imgContent);
+                $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
-                if (str_starts_with($mime, 'image/')) {
+                if (in_array($mime, $allowedMimes, true)) {
                     $ext = 'jpg';
                     if ($mime === 'image/png') $ext = 'png';
                     if ($mime === 'image/webp') $ext = 'webp';
                     if ($mime === 'image/gif') $ext = 'gif';
 
-                    $filename = Str::slug($name) . '_' . time() . '.' . $ext;
+                    $filename = Str::slug($name) . '_' . time() . '_' . Str::random(10) . '.' . $ext;
 
                     // Speichern im Storage-Ordner (public für Web-Zugriff)
                     $dir = storage_path('app/public/agenten/ai/persona');
@@ -480,6 +492,9 @@ trait AiPersonaFuncs
     // [AREA: FRONTEND WIDGETS]
     public static function executePersonaVisualizeProfile(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         if (!empty($args['image_url'])) {
             $args['image_url'] = self::processPersonaImage($args['image_url'], $args['name'] ?? 'Unbekannt');
         }
@@ -499,6 +514,9 @@ trait AiPersonaFuncs
     // [AREA: PDF GENERATION]
     public static function executePersonaGeneratePdf(array $args, $agent = null)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $name = trim((string)($args['name'] ?? 'Unbekannt'));
         $action = strtolower(trim((string)($args['target_action'] ?? 'download')));
         $rawRecipient = $args['recipient_email'] ?? null;
@@ -533,7 +551,7 @@ trait AiPersonaFuncs
                 mkdir($dir, 0755, true);
             }
 
-            $filename = 'profil_' . Str::slug($name) . '_' . time() . '.pdf';
+            $filename = 'profil_' . Str::slug($name) . '_' . time() . '_' . Str::random(12) . '.pdf';
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
@@ -575,6 +593,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaCloseWidgets(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         return [
             'status' => 'success',
             'message' => "Die entsprechenden Fenster wurden in der UI geschlossen.",
@@ -590,6 +611,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaFocusWidget(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         return [
             'status' => 'success',
             'message' => "Das gewünschte Element wurde für den Nutzer vergrößert/fokussiert.",
@@ -605,6 +629,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaShelfWidget(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         return [
             'status' => 'success',
             'message' => "Das Element wurde in die Seitenablage (Shelf) verschoben.",
@@ -620,6 +647,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaUnshelfWidget(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         return [
             'status' => 'success',
             'message' => "Das Element wurde aus der Seitenablage (Shelf) wiederhergestellt.",
@@ -635,6 +665,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaTransformCore(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $target = $args['target'] ?? 'default';
         $isJarvis = $target === 'jarvis';
 
@@ -652,6 +685,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaToggleSecretWorkspace(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $action = $args['action'] ?? 'open';
         $isOpen = $action === 'open';
 
@@ -670,6 +706,9 @@ trait AiPersonaFuncs
     // [AREA: KNOWLEDGE BASE / OSINT DB]
     public static function executePersonaSaveIntel(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $entityName = $args['entity_name'] ?? 'Unbekannte Entität';
         $intelContent = $args['intel_content'] ?? '';
         $customTags = $args['tags'] ?? [];
@@ -722,6 +761,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaLinkEntities(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $source = $args['source_entity'] ?? '';
         $target = $args['target_entity'] ?? '';
         $relType = $args['relationship_type'] ?? '';
@@ -768,6 +810,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaGetNetwork(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $filterEntity = $args['filter_entity'] ?? null;
 
         try {
@@ -816,6 +861,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaVisualizeIntel(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         return [
             'status' => 'success',
             'message' => "Der Intel-Fakt '{$args['title']}' wurde auf dem String-Board visualisiert.",
@@ -830,13 +878,24 @@ trait AiPersonaFuncs
 
     public static function executePersonaDeleteIntel(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $title = trim((string)($args['title'] ?? ''));
         if (empty($title)) {
             return ['status' => 'error', 'message' => 'Titel des zu löschenden Eintrags fehlt.'];
         }
 
         try {
-            $kb = AiKnowledgeBase::where('title', $title)->first();
+            $kb = AiKnowledgeBase::where('title', $title)
+                ->where(function ($query) {
+                    $query->whereHas('category', function ($q) {
+                        $q->whereIn('slug', ['osint-intel', 'osint-relation']);
+                    })->orWhereHas('tags', function ($q) {
+                        $q->where('slug', 'top_secret');
+                    });
+                })
+                ->first();
             if ($kb) {
                 $kb->delete();
                 return ['status' => 'success', 'message' => "Der Eintrag '$title' wurde dauerhaft aus der OSINT Datenbank gelöscht."];
@@ -850,6 +909,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaFetchUrl(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $url = trim((string)($args['url'] ?? ''));
         if (empty($url)) {
             return ['status' => 'error', 'message' => 'Keine URL angegeben.'];
@@ -888,6 +950,9 @@ trait AiPersonaFuncs
     }
     public static function executePersonaVisualizeOrgChart(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         return [
             'status' => 'success',
             'message' => "Das Organigramm für '{$args['organization_name']}' wurde visualisiert.",
@@ -902,6 +967,9 @@ trait AiPersonaFuncs
 
     public static function executePersonaVisualizeCamera(array $args)
     {
+        if ($denied = self::assertPersonaAdminAccess()) {
+            return $denied;
+        }
         $action = $args['action'] ?? 'open';
         $isOpen = $action === 'open';
 

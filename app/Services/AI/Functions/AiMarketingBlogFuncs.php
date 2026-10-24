@@ -137,8 +137,18 @@ trait AiMarketingBlogFuncs
         ];
     }
 
+    private static function assertBlogStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Blog-Verwaltung ist nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+        return null;
+    }
+
     public static function marketing_blog_get_posts(array $args)
     {
+        if ($denied = self::assertBlogStaffAccess()) return $denied;
+
         $query = MarketingBlogPost::with('category');
 
         if (!empty($args['search'])) {
@@ -163,6 +173,8 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_create_post(array $args)
     {
+        if ($denied = self::assertBlogStaffAccess()) return $denied;
+
         $user = auth()->user();
         $admin = ($user instanceof \App\Models\Admin\Admin) ? $user : \App\Models\Admin\Admin::first();
         if (!$admin) {
@@ -207,6 +219,8 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_update_post(array $args)
     {
+        if ($denied = self::assertBlogStaffAccess()) return $denied;
+
         $post = MarketingBlogPost::find($args['id']);
         if (!$post) {
             return ['status' => 'error', 'message' => 'Blogbeitrag nicht gefunden.'];
@@ -244,6 +258,8 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_delete_post(array $args)
     {
+        if ($denied = self::assertBlogStaffAccess()) return $denied;
+
         $post = MarketingBlogPost::find($args['id']);
         if (!$post) return ['status' => 'error', 'message' => 'Blogbeitrag nicht gefunden.'];
 
@@ -253,6 +269,8 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_get_categories(array $args)
     {
+        if ($denied = self::assertBlogStaffAccess()) return $denied;
+
         $cats = MarketingBlogCategory::all();
         return [
             'status' => 'success',
@@ -262,6 +280,8 @@ trait AiMarketingBlogFuncs
 
     public static function marketing_blog_create_category(array $args)
     {
+        if ($denied = self::assertBlogStaffAccess()) return $denied;
+
         $name = trim($args['name'] ?? '');
         if (empty($name)) {
             return ['status' => 'error', 'message' => 'Kategoriename darf nicht leer sein.'];

@@ -13,16 +13,23 @@ class TwilioCallController extends Controller
      */
     public function outbound(Request $request)
     {
-        $configuredAccountSid = env('TWILIO_SID') ?: config('services.twilio.sid');
-        if (!empty($configuredAccountSid) && $request->filled('AccountSid') && !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
+        $configuredAccountSid = config('services.twilio.sid') ?: env('TWILIO_SID') ?: env('TWILIO_ACCOUNT_SID');
+        if (!empty($configuredAccountSid)) {
+            if (!$request->filled('AccountSid') || !is_string($request->input('AccountSid')) || !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
+                return response('Forbidden', 403);
+            }
+        } elseif (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
             return response('Forbidden', 403);
         }
 
         $response = new VoiceResponse();
-        // Versuch, den im Vorfeld gespeicherten Kontext aus dem Cache zu holen (nur wenn eine gültige CallSid übergeben wurde oder lokal getestet wird)
-        $toPhone = preg_replace('/[^0-9+]/', '', $request->input('To', ''));
-        $hasValidCallSid = $request->filled('CallSid') && preg_match('/^CA[a-f0-9]{32}$/i', (string) $request->input('CallSid'));
-        $context = ($hasValidCallSid || app()->environment('local', 'testing'))
+        // Versuch, den im Vorfeld gespeicherten Kontext aus dem Cache zu holen (nur wenn eine gültige, in der DB registrierte CallSid vorliegt)
+        $toPhone = preg_replace('/[^0-9+]/', '', (string) $request->input('To', ''));
+        $callSid = is_string($request->input('CallSid')) ? trim($request->input('CallSid')) : '';
+        $hasVerifiedCall = $callSid !== ''
+            && preg_match('/^CA[a-f0-9]{16,64}$/i', $callSid)
+            && \App\Models\SupportTelephonyCall::where('twilio_sid', $callSid)->exists();
+        $context = ($toPhone !== '' && $hasVerifiedCall)
             ? \Illuminate\Support\Facades\Cache::pull("twilio_call_" . $toPhone)
             : null;
 
@@ -88,14 +95,23 @@ class TwilioCallController extends Controller
         $sid = $data['twilio_sid'] ?? $request->input('CallSid');
         
         // Direkter Twilio Fallback bei Fehlern (nur wenn eine gültige, existierende CallSid vorliegt)
-        if ($request->has('CallStatus') && in_array($request->input('CallStatus'), ['failed', 'canceled', 'no-answer', 'busy'])) {
-            if (empty($sid)) {
+        if ($request->has('CallStatus') && in_array($request->input('CallStatus'), ['failed', 'canceled', 'no-answer', 'busy'], true)) {
+            $configuredAccountSid = config('services.twilio.sid') ?: env('TWILIO_SID') ?: env('TWILIO_ACCOUNT_SID');
+            if (!empty($configuredAccountSid)) {
+                if (!$request->filled('AccountSid') || !is_string($request->input('AccountSid')) || !hash_equals((string) $configuredAccountSid, (string) $request->input('AccountSid'))) {
+                    return response()->json(['error' => 'Forbidden'], 403);
+                }
+            } elseif (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+                return response()->json(['error' => 'Forbidden'], 403);
+            }
+            if (!is_string($sid) || !preg_match('/^CA[a-f0-9]{16,64}$/i', $sid)) {
                 return response()->json(['error' => 'Missing CallSid'], 400);
             }
             $callRecord = \App\Models\SupportTelephonyCall::where('twilio_sid', $sid)->first();
             if ($callRecord) {
+                $errorCode = preg_replace('/[^A-Za-z0-9_-]/', '', (string) $request->input('ErrorCode', 'KeinCode'));
                 $callRecord->status = 'failed';
-                $callRecord->summary = "Anruf fehlgeschlagen. Twilio Status: " . $request->input('CallStatus') . ". Error: " . $request->input('ErrorCode', 'Kein Code');
+                $callRecord->summary = "Anruf fehlgeschlagen. Twilio Status: " . $request->input('CallStatus') . ". Error: " . ($errorCode !== '' ? $errorCode : 'Kein Code');
                 $callRecord->save();
                 return response()->json(['status' => 'updated_from_twilio_status']);
             }
@@ -141,8 +157,9 @@ class TwilioCallController extends Controller
                     $prompt = "Du bist eine Analyse-KI. Folgendes ist das vollständige Protokoll eines Telefonats.\nZiel des Anrufs war: " . ($data['objective'] ?? 'Unbekannt') . "\n\nTranscript:\n" . $transcriptText . "\n\nBitte bewerte, ob das Ziel erreicht wurde. Antworte ausschließlich mit einem JSON Objekt in folgendem exaktem Format (Kein Markdown, keine Backticks): {\"summary\": \"Kurzes klares Fazit\", \"next_steps\": [\"Task 1\"], \"goals\": [{\"task\": \"Erstes Ziel aus dem Objective\", \"achieved\": true}, {\"task\": \"Zweites Ziel\", \"achieved\": false}]}";
 
                     $response = \Illuminate\Support\Facades\Http::withHeaders([
-                        'Content-Type' => 'application/json'
-                    ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={$apiKey}", [
+                        'Content-Type' => 'application/json',
+                        'x-goog-api-key' => $apiKey,
+                    ])->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", [
                         'contents' => [
                             ['parts' => [['text' => $prompt]]]
                         ]
@@ -166,7 +183,8 @@ class TwilioCallController extends Controller
                         }
                     }
                 } catch (\Exception $e) {
-                    \Log::error('Fehler bei der Call-Auswertung: ' . $e->getMessage());
+                    $safeMsg = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+                    \Log::error('Fehler bei der Call-Auswertung: ' . $safeMsg);
                 }
             }
         }

@@ -352,9 +352,19 @@ trait AiMapControlFuncs
         ];
     }
 
+    private static function assertMapStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Karten- und Systemsteuerung ist nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+        return null;
+    }
+
     // [AREA: EXPORT & REPORTING]
     public static function executeMapGeneratePdfSummary(array $args, $agent = null)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
+
         $title = trim((string)($args['title'] ?? 'Zusammenfassung der Orte'));
         $description = trim((string)($args['description'] ?? ''));
         $locations = $args['locations'] ?? [];
@@ -389,7 +399,7 @@ trait AiMapControlFuncs
                 mkdir($dir, 0755, true);
             }
 
-            $filename = 'ortsbericht_' . Str::slug($title) . '_' . time() . '.pdf';
+            $filename = 'ortsbericht_' . (Str::slug($title) ?: 'map') . '_' . time() . '_' . Str::random(12) . '.pdf';
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
@@ -432,6 +442,8 @@ trait AiMapControlFuncs
     // [AREA: MAP SEARCH & NAVIGATION]
     public static function executeMapSearchAndFly(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
+
         $query = $args['query'] ?? '';
         if (empty($query)) {
             $received = json_encode($args);
@@ -559,6 +571,8 @@ trait AiMapControlFuncs
 
     public static function executeMapSearchAndMarkPlaces(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
+
         $query = $args['query'] ?? '';
         $limit = $args['limit'] ?? 5;
         if ($limit > 10) $limit = 10;
@@ -628,6 +642,8 @@ trait AiMapControlFuncs
 
     public static function executeMapGeneratePlacesPdf(array $args, $agent = null)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
+
         $title = trim((string)($args['title'] ?? 'Ortsliste'));
         $description = trim((string)($args['description'] ?? ''));
         $places = $args['places'] ?? [];
@@ -661,7 +677,7 @@ trait AiMapControlFuncs
                 mkdir($dir, 0755, true);
             }
 
-            $filename = 'ortsliste_' . \Illuminate\Support\Str::slug($title) . '_' . time() . '.pdf';
+            $filename = 'ortsliste_' . (\Illuminate\Support\Str::slug($title) ?: 'places') . '_' . time() . '_' . \Illuminate\Support\Str::random(12) . '.pdf';
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
@@ -704,6 +720,7 @@ trait AiMapControlFuncs
     // [AREA: UI & MAP CONTROLS]
     public static function executeMapToggleLivedata(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $active = $args['active'] ?? true;
         return [
             'status' => 'success',
@@ -717,6 +734,7 @@ trait AiMapControlFuncs
 
     public static function executeMapChangeStyle(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $style = $args['style'] ?? 'dark';
         return [
             'status' => 'success',
@@ -730,6 +748,7 @@ trait AiMapControlFuncs
 
     public static function executeMapToggleMapfocus(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $active = $args['active'] ?? true;
         return [
             'status' => 'success',
@@ -743,6 +762,7 @@ trait AiMapControlFuncs
 
     public static function executeSystemToggleBrain(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $active = $args['active'] ?? true;
         return [
             'status' => 'success',
@@ -756,6 +776,7 @@ trait AiMapControlFuncs
 
     public static function executeUiToggleLog(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $active = $args['active'] ?? true;
         return [
             'status' => 'success',
@@ -769,6 +790,7 @@ trait AiMapControlFuncs
 
     public static function executeUiCloseYoutube(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $index = $args['index'] ?? null;
         return [
             'status' => 'success',
@@ -782,6 +804,7 @@ trait AiMapControlFuncs
 
     public static function executeMapClearMarkers(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         return [
             'status' => 'success',
             'message' => 'Die Karte wurde bereinigt. Alle Markierungen wurden entfernt.',
@@ -794,6 +817,7 @@ trait AiMapControlFuncs
 
     public static function executeUiFocusWidget(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $type = $args['type'] ?? 'youtube';
         $index = $args['index'] ?? 0;
         return [
@@ -811,6 +835,7 @@ trait AiMapControlFuncs
 
     public static function executeUiCloseFocus(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         return [
             'status' => 'success',
             'message' => 'Der Hauptschirm wurde geschlossen, alle Widgets sind wieder im normalen Layout.',
@@ -823,6 +848,7 @@ trait AiMapControlFuncs
 
     public static function executeUiToggleYoutubeMute(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $index = $args['index'] ?? null;
         $mute = $args['mute'] ?? true;
         
@@ -841,6 +867,7 @@ trait AiMapControlFuncs
 
     public static function executeUiSummarizeYoutube(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         $index = $args['index'] ?? null;
         
         // This prompts the frontend to fetch the transcript or URL and then ask the AI to summarize it.
@@ -858,6 +885,7 @@ trait AiMapControlFuncs
 
     public static function executeUiAnalyzeCamera(array $args)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
         return [
             'status' => 'success',
             'message' => 'Kamera-Aufnahme angefordert. Das System verarbeitet nun den visuellen Feed und liefert dir in Kürze das Bild für die Analyse zurück. BITTE WARTE KURZ auf die Antwort des Frontends, bevor du dem Nutzer abschließend antwortest!',
@@ -870,6 +898,8 @@ trait AiMapControlFuncs
 
     public static function executeCameraProcessSnapshot(array $args, $agent = null)
     {
+        if ($denied = self::assertMapStaffAccess()) return $denied;
+
         $filePath = $args['file_path'] ?? '';
         $action = $args['action'] ?? 'save_to_workspace';
         $title = str_replace(["\r", "\n"], ' ', trim((string) ($args['title'] ?? 'Kamera-Snapshot')));
@@ -892,9 +922,12 @@ trait AiMapControlFuncs
         }
 
         $fullImagePath = storage_path('app/public/' . $filePath);
+        if (is_link($fullImagePath)) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Symlinks sind nicht erlaubt.'];
+        }
         $realImagePath = realpath($fullImagePath);
         $allowedPublicBase = realpath(storage_path('app/public'));
-        if ($realImagePath === false || ($allowedPublicBase !== false && !str_starts_with($realImagePath, $allowedPublicBase))) {
+        if ($realImagePath === false || ($allowedPublicBase !== false && !str_starts_with($realImagePath, $allowedPublicBase . DIRECTORY_SEPARATOR))) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Ungültiger Dateipfad.'];
         }
 
@@ -908,7 +941,7 @@ trait AiMapControlFuncs
                     'places' => []
                 ])->setOptions(['isRemoteEnabled' => false]);
 
-                $pdfFilename = 'snapshot_' . (\Illuminate\Support\Str::slug($title) ?: 'snapshot') . '_' . time() . '.pdf';
+                $pdfFilename = 'snapshot_' . (\Illuminate\Support\Str::slug($title) ?: 'snapshot') . '_' . time() . '_' . \Illuminate\Support\Str::random(12) . '.pdf';
                 $pdfPath = 'agenten/workspace/Dokumente/Snapshots/' . $pdfFilename;
                 
                 \Illuminate\Support\Facades\Storage::disk('public')->put($pdfPath, $pdf->output());

@@ -578,6 +578,9 @@ trait AiHealthFuncs
                 return ['error' => true, 'message' => 'Nicht authentifiziert.'];
             }
             $doctor = \App\Models\Management\ManagementContact::findOrFail($args['contact_id']);
+            if (!preg_match('/(arzt|ärzt|praxis|klinik|therapeut|medizin|apotheke|labor|chirurg|psych|dr\.)/iu', (string) ($doctor->relation_type ?? ''))) {
+                return ['error' => true, 'message' => 'Zugriff verweigert: Dieser Kontakt ist kein medizinischer Kontakt (Arzt/Praxis).'];
+            }
             
             $updateData = [];
             foreach (['first_name', 'last_name', 'nickname', 'relation_type', 'email', 'phone', 'street', 'postal_code', 'city', 'system_instructions'] as $field) {
@@ -606,6 +609,9 @@ trait AiHealthFuncs
                 return ['error' => true, 'message' => 'Nicht authentifiziert.'];
             }
             $doctor = \App\Models\Management\ManagementContact::findOrFail($args['contact_id']);
+            if (!preg_match('/(arzt|ärzt|praxis|klinik|therapeut|medizin|apotheke|labor|chirurg|psych|dr\.)/iu', (string) ($doctor->relation_type ?? ''))) {
+                return ['error' => true, 'message' => 'Zugriff verweigert: Dieser Kontakt ist kein medizinischer Kontakt (Arzt/Praxis).'];
+            }
             $doctor->delete();
             return ['success' => true, 'message' => 'Arzt erfolgreich aus dem System gelöscht.'];
         } catch (\Exception $e) {
@@ -752,7 +758,15 @@ trait AiHealthFuncs
             }
 
             $fullPath = \Illuminate\Support\Facades\Storage::disk($disk)->path($foundPath);
-            $mime = mime_content_type($fullPath);
+            if (is_link($fullPath)) {
+                return ['error' => true, 'message' => 'Zugriff verweigert: Symlinks sind nicht erlaubt.'];
+            }
+            $realFullPath = realpath($fullPath);
+            $allowedDiskRoot = realpath(\Illuminate\Support\Facades\Storage::disk($disk)->path(''));
+            if ($realFullPath === false || ($allowedDiskRoot !== false && !str_starts_with($realFullPath, $allowedDiskRoot . DIRECTORY_SEPARATOR))) {
+                return ['error' => true, 'message' => 'Zugriff verweigert: Ungültiger Dokumentenpfad.'];
+            }
+            $mime = mime_content_type($realFullPath);
 
             if ($mime === 'application/pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
                 $parser = new \Smalot\PdfParser\Parser();
@@ -823,8 +837,8 @@ trait AiHealthFuncs
             // Send Email if requested
             if (isset($args['send_email']) && $args['send_email']) {
                 $email = $args['email_address'] ?? $user->email;
-                if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $subject = "Behandlungsplan: " . $plan->title;
+                if (is_string($email) && !preg_match('/[\r\n]/', $email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $subject = str_replace(["\r", "\n"], ' ', "Behandlungsplan: " . $plan->title);
                     $body = $args['email_message'] ?? "Anbei erhalten Sie den aktuellen Behandlungsplan als PDF-Dokument.";
                     $agentName = $plan->agent->name ?? 'Dr. Funki';
                     $design = $args['design'] ?? 'seelenfunke';
@@ -887,8 +901,8 @@ trait AiHealthFuncs
             // Send Email if requested
             if (isset($args['send_email']) && $args['send_email']) {
                 $email = $args['email_address'] ?? $user->email;
-                if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                    $subject = "Medizinisches Protokoll vom " . $protocol->created_at->format('d.m.Y');
+                if (is_string($email) && !preg_match('/[\r\n]/', $email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $subject = str_replace(["\r", "\n"], ' ', "Medizinisches Protokoll vom " . $protocol->created_at->format('d.m.Y'));
                     $body = $args['email_message'] ?? "Anbei erhalten Sie das angeforderte medizinische Gesprächsprotokoll als PDF-Dokument.";
                     $agentName = $protocol->agent->name ?? 'Dr. Funki';
                     $design = $args['design'] ?? 'seelenfunke';

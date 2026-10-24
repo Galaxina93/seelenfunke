@@ -20,6 +20,7 @@ class AiRoleManager extends Component
     public $roles;
 
     // Inline Edit State
+    #[\Livewire\Attributes\Locked]
     public $editingRoleId = null;
     public $isCreating = false;
 
@@ -98,8 +99,8 @@ class AiRoleManager extends Component
 
         $this->validate([
             'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'selectedTools' => 'array',
+            'description' => 'nullable|string|max:5000',
+            'selectedTools' => 'nullable|array|max:200',
         ]);
 
         $roleIdToSave = $this->isCreating ? null : $this->editingRoleId;
@@ -109,9 +110,10 @@ class AiRoleManager extends Component
             'description' => $this->description,
         ]);
 
-        // Null und leere Werte rausfiltern
-        $toolIds = array_filter($this->selectedTools);
-        $role->tools()->sync($toolIds);
+        // Nur tatsächlich existierende Tool-IDs synchronisieren
+        $rawToolIds = array_slice(array_values(array_filter((array) $this->selectedTools)), 0, 200);
+        $validToolIds = AiTool::whereIn('id', $rawToolIds)->pluck('id')->toArray();
+        $role->tools()->sync($validToolIds);
 
         session()->flash('message', $roleIdToSave ? 'Rolle erfolgreich aktualisiert.' : 'Rolle erfolgreich erstellt.');
         $this->dispatch('role-saved', roleId: $role->id);

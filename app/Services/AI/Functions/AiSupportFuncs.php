@@ -316,11 +316,35 @@ trait AiSupportFuncs
         return trim($chatHistoryStr);
     }
 
+    private static function findAuthorizedCustomerChat($chatId): ?SupportCustomerChat
+    {
+        if (!$chatId) {
+            return null;
+        }
+        $chat = SupportCustomerChat::find($chatId);
+        if (!$chat) {
+            return null;
+        }
+        if (\App\Services\AI\AiAuthHelper::isAdmin() || \App\Services\AI\AiAuthHelper::isEmployee()) {
+            return $chat;
+        }
+        $authCustomerId = \App\Services\AI\AiAuthHelper::getCustomerId();
+        if ($chat->customer_id !== null && (string) $chat->customer_id !== (string) $authCustomerId) {
+            return null;
+        }
+        return $chat;
+    }
+
     public static function executePenalizeOfftopic(array $args)
     {
         try {
             $chatId = $args['__chat_id'] ?? null;
             if (!$chatId) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Chat-ID fehlt.'];
+
+            $chat = self::findAuthorizedCustomerChat($chatId);
+            if (!$chat) {
+                return ['status' => 'error', 'message' => 'HINTERGRUND-INFO: Chat nicht gefunden oder keine Berechtigung für diesen Chat.'];
+            }
 
             $severity = (int)($args['severity'] ?? 3);
             if ($severity < 1) $severity = 1;
@@ -574,8 +598,8 @@ trait AiSupportFuncs
             $reason = trim($args['escalation_reason'] ?? 'Generelle Eskalation');
 
             if ($chatId) {
-                $chat = SupportCustomerChat::find($chatId);
-                if (!$chat) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Fehler - Konnte Chat ID nicht zuordnen.'];
+                $chat = self::findAuthorizedCustomerChat($chatId);
+                if (!$chat) return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Fehler - Konnte Chat ID nicht zuordnen oder Zugriff verweigert.'];
 
                 $customerId = \App\Services\AI\AiAuthHelper::getCustomerId();
                 if (!$customerId) {
@@ -645,7 +669,11 @@ trait AiSupportFuncs
         try {
             $chatId = $args['__chat_id'] ?? null;
             if ($chatId) {
-                SupportCustomerChat::where('id', $chatId)->update([
+                $chat = self::findAuthorizedCustomerChat($chatId);
+                if (!$chat) {
+                    return ['status' => 'error', 'message' => 'HINTERGRUND-INFO FÜR KI: Der Chat konnte nicht identifiziert werden oder Zugriff verweigert.'];
+                }
+                $chat->update([
                     'status' => 'resolved',
                     'top_topic' => mb_substr($args['top_topic'] ?? 'Allgemein', 0, 100),
                     'mentioned_product' => mb_substr($args['mentioned_product'] ?? '', 0, 100) ?: null,
@@ -999,9 +1027,13 @@ trait AiSupportFuncs
             }
 
             $chatHistoryStr = "";
+            $agentId = null;
             if (isset($args['__chat_id'])) {
                 $agentId = $args['__agent_id'] ?? null;
-                $chatHistoryStr = self::fetchChatHistory($args['__chat_id']);
+                $authChat = self::findAuthorizedCustomerChat($args['__chat_id']);
+                if ($authChat) {
+                    $chatHistoryStr = self::fetchChatHistory($authChat->id);
+                }
             }
 
             $log = \App\Models\System\SystemLog::start(

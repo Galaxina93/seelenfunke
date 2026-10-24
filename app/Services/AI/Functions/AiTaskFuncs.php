@@ -337,8 +337,18 @@ trait AiTaskFuncs
         ];
     }
 
+    private static function assertTaskStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Aufgabenverwaltung ist nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+        return null;
+    }
+
     public static function executeGetTasks(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             $query = ManagementTask::where('is_completed', false)
                 ->where('is_archived', false)
@@ -408,6 +418,8 @@ trait AiTaskFuncs
 
     public static function executeGetTaskLists(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             $lists = ManagementTaskList::where('is_archived', false)
                 ->withCount(['tasks as open_tasks_count' => function ($q) {
@@ -427,6 +439,8 @@ trait AiTaskFuncs
 
     public static function executeCreateTask(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['title'])) {
                 return ['status' => 'error', 'message' => 'Es wurde kein Titel für die Aufgabe angegeben.'];
@@ -565,6 +579,8 @@ trait AiTaskFuncs
 
     public static function executeAddSubtask(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['task_id'])) {
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben-ID (task_id) angegeben.'];
@@ -612,6 +628,8 @@ trait AiTaskFuncs
 
     public static function executeUpdateTask(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['task_id'])) {
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID oder Titel angegeben.'];
@@ -695,6 +713,8 @@ trait AiTaskFuncs
 
     public static function executeCompleteTask(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['task_id'])) {
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID oder Titel angegeben.'];
@@ -734,6 +754,8 @@ trait AiTaskFuncs
 
     public static function executeDeleteTask(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             $taskIds = $args['task_ids'] ?? [];
             $taskTitles = $args['task_titles'] ?? [];
@@ -839,6 +861,8 @@ trait AiTaskFuncs
 
     public static function executeAddTaskList(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['name'])) {
                 return ['status' => 'error', 'message' => 'Der Name der Liste fehlt.'];
@@ -865,6 +889,8 @@ trait AiTaskFuncs
 
     public static function executeUpdateTaskList(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['old_name'])) {
                 return ['status' => 'error', 'message' => 'Der alte Name der Liste fehlt.'];
@@ -902,6 +928,8 @@ trait AiTaskFuncs
 
     public static function executeDeleteTaskList(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             $listNames = $args['list_names'] ?? [];
             $deleteAll = $args['delete_all'] ?? false;
@@ -994,6 +1022,8 @@ trait AiTaskFuncs
 
     public static function executeReadFile(array $args)
     {
+        if ($denied = self::assertTaskStaffAccess()) return $denied;
+
         try {
             if (empty($args['file_path'])) {
                 return ['status' => 'success', 'message' => 'Kein Dateipfad angegeben.'];
@@ -1016,9 +1046,12 @@ trait AiTaskFuncs
             }
 
             $absolutePath = \Illuminate\Support\Facades\Storage::disk('local')->path($filePath);
+            if (is_link($absolutePath)) {
+                return ['status' => 'success', 'message' => 'Zugriff verweigert: Symlinks sind nicht erlaubt.'];
+            }
             $realPath = realpath($absolutePath);
             $allowedBase = realpath(\Illuminate\Support\Facades\Storage::disk('local')->path('leitung/tasks/attachments'));
-            if ($realPath === false || ($allowedBase !== false && !str_starts_with($realPath, $allowedBase))) {
+            if ($realPath === false || ($allowedBase !== false && !str_starts_with($realPath, $allowedBase . DIRECTORY_SEPARATOR))) {
                 return ['status' => 'success', 'message' => 'Zugriff verweigert: Ungültiger Pfad.'];
             }
             $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));

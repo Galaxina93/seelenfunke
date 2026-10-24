@@ -58,11 +58,26 @@ class AiAgentMessageMail extends Mailable
     public function attachments(): array
     {
         $atts = [];
+        $storageRoot = realpath(storage_path('app'));
+        $tempRoot = realpath(sys_get_temp_dir());
+
         foreach ($this->attachmentPaths as $path) {
-            if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
+            if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || is_link($path)) {
                 continue;
             }
-            $atts[] = \Illuminate\Mail\Mailables\Attachment::fromPath($path);
+            if (preg_match('/(\.env|\.key|\.pem|id_rsa|\.sqlite|\.sql|\.php|\.phtml|\.phar|\.sh|auth\.json)$/i', $path)) {
+                continue;
+            }
+            $realPath = realpath($path);
+            if ($realPath === false || !is_file($realPath) || is_link($realPath)) {
+                continue;
+            }
+            $inStorage = $storageRoot !== false && str_starts_with($realPath, $storageRoot . DIRECTORY_SEPARATOR);
+            $inTemp = $tempRoot !== false && str_starts_with($realPath, $tempRoot . DIRECTORY_SEPARATOR);
+            if (!$inStorage && !$inTemp) {
+                continue;
+            }
+            $atts[] = \Illuminate\Mail\Mailables\Attachment::fromPath($realPath);
         }
         return $atts;
     }

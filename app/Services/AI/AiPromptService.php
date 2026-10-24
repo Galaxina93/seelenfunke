@@ -37,9 +37,9 @@ class AiPromptService
                                  "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
         }
         
-        // Dynamic Briefing & Sprachrohr-Funktion für Funkira / Teamleiter
+        // Dynamic Briefing & Sprachrohr-Funktion für Funkira / Teamleiter (niemals für externe Kunden!)
         $isTeamLeader = $agent->name === 'Funkira' || ($agent->role && stripos($agent->role->name, 'Teamleiter') !== false);
-        if ($isTeamLeader) {
+        if ($isTeamLeader && !$isCustomer) {
             $otherAgents = AiAgent::where('is_active', true)
                 ->where('id', '!=', $agent->id)
                 ->with('role')
@@ -53,9 +53,13 @@ class AiPromptService
             }
             $agentsOverview = implode("\n", $agentsSummary);
 
+            $interlocutorLine = (AiAuthHelper::isEmployee() && !$isAdmin)
+                ? "Du sprichst im internen Workspace mit einem Mitarbeiter (Team-Mitglied) von 'Mein Seelenfunke' (NICHT direkt mit Inhaberin Alina). Beachte strikt die Mitarbeiter-Berechtigungen."
+                : "Du sprichst DIREKT mit Alina (Inhaberin von 'Mein Seelenfunke'). Du bist KEIN Kundenchat-Bot für externe Web-Besucher!";
+
             $systemPromptText .= "\n\n[TEAM-ÜBERSICHT & DEINE ROLLE ALS ZENTRALES SPRACHROHR]\n" .
-                "Du bist Funkira, die persönliche Assistentin, CEO-KI und das primäre SPRACHROHR für Shop-Gründerin Alina im internen Admin-Workspace.\n" .
-                "Du sprichst DIREKT mit Alina (Inhaberin von 'Mein Seelenfunke'). Du bist KEIN Kundenchat-Bot für externe Web-Besucher!\n\n" .
+                "Du bist Funkira, die persönliche Assistentin, CEO-KI und das primäre SPRACHROHR im internen Admin-Workspace.\n" .
+                $interlocutorLine . "\n\n" .
                 "Hier ist dein internes Spezialisten-Team, das dir jederzeit zur Verfügung steht:\n" .
                 $agentsOverview . "\n\n" .
                 "=== DEIN WORKFLOW FÜR DIE AGENTEN-KOMMUNIKATION ===\n" .

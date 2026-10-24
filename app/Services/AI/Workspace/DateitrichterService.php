@@ -85,24 +85,38 @@ class DateitrichterService
      */
     public function processSingleFile(string $filePath): ?array
     {
-        $normalizedPath = str_replace('\\', '/', $filePath);
-        if (str_contains($normalizedPath, '..') || str_contains($normalizedPath, "\0")) {
-            Log::warning("DateitrichterService: Path Traversal Versuch: {$filePath}");
+        $normalizedPath = ltrim(str_replace('\\', '/', $filePath), '/');
+        if (
+            str_contains($normalizedPath, '..')
+            || str_contains($normalizedPath, "\0")
+            || !str_starts_with($normalizedPath, 'agenten/workspace/')
+        ) {
+            Log::warning("DateitrichterService: Path Traversal oder außerhalb von agenten/workspace: {$filePath}");
             return null;
         }
 
         $workspace = Storage::disk('workspace');
-        if (!$workspace->exists($filePath)) {
+        if (!$workspace->exists($normalizedPath)) {
             return null;
         }
 
-        $fullPath = $workspace->path($filePath);
-        $workspaceRoot = realpath($workspace->path(''));
+        $fullPath = $workspace->path($normalizedPath);
+        if (is_link($fullPath)) {
+            Log::warning("DateitrichterService: Symlink blockiert: {$filePath}");
+            return null;
+        }
+        $workspaceRoot = realpath($workspace->path('agenten/workspace'));
         $realFilePath = realpath($fullPath);
-        if (!$realFilePath || !$workspaceRoot || !str_starts_with($realFilePath, $workspaceRoot)) {
+        if (
+            !$realFilePath
+            || !$workspaceRoot
+            || $realFilePath === $workspaceRoot
+            || !str_starts_with($realFilePath, $workspaceRoot . DIRECTORY_SEPARATOR)
+        ) {
             Log::warning("DateitrichterService: Datei außerhalb des Workspace: {$filePath}");
             return null;
         }
+        $filePath = $normalizedPath;
 
         $rawFilename = basename($filePath);
         $extension = strtolower(pathinfo($rawFilename, PATHINFO_EXTENSION));

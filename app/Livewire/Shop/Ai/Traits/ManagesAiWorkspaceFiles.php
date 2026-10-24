@@ -20,6 +20,21 @@ trait ManagesAiWorkspaceFiles
 
     public ?string $dateitrichterMessage = null;
 
+    protected function ensureWorkspaceAdminAccess(): bool
+    {
+        return \App\Services\AI\AiAuthHelper::isAdmin();
+    }
+
+    protected function getProtectedWorkspacePaths(): array
+    {
+        return [
+            'agenten/workspace',
+            'agenten/workspace/Berufsleben',
+            'agenten/workspace/Dokumente',
+            'agenten/workspace/Gesundheit',
+        ];
+    }
+
     protected function sanitizeWorkspacePath(?string $path): ?string
     {
         if (!is_string($path)) {
@@ -58,6 +73,9 @@ trait ManagesAiWorkspaceFiles
 
     public function getAllWorkspaceDirectories(): array
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return [];
+        }
         $dirs = Storage::disk('workspace')->allDirectories('agenten/workspace');
         array_unshift($dirs, 'agenten/workspace');
         return $dirs;
@@ -65,16 +83,27 @@ trait ManagesAiWorkspaceFiles
 
     public function loadFileManagerAvailableFolders()
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            $this->availableTargetFolders = [];
+            return;
+        }
         $this->availableTargetFolders = $this->getAllWorkspaceDirectories();
     }
 
     public function openFilePreview($path)
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $safePath = $this->sanitizeWorkspacePath((string) $path);
         if (!$safePath) {
             return;
         }
         if (Storage::disk('workspace')->exists($safePath)) {
+            $fullPath = Storage::disk('workspace')->path($safePath);
+            if (!is_file($fullPath) || is_link($fullPath) || (int) @filesize($fullPath) > 2 * 1024 * 1024) {
+                return;
+            }
             $this->previewFilename = basename($safePath);
             $this->previewContent = Storage::disk('workspace')->get($safePath);
         }
@@ -88,6 +117,11 @@ trait ManagesAiWorkspaceFiles
 
     public function loadFileManagerFiles()
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            $this->fileManagerItems = [];
+            return;
+        }
+
         // Sicherstellen, dass ausschließlich die 3 Hauptordner existieren
         $defaultFolders = [
             'agenten/workspace',
@@ -200,6 +234,9 @@ trait ManagesAiWorkspaceFiles
 
     public function openFileManagerFolder($folderName)
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $cleanFolder = basename(trim((string) $folderName, '/\\'));
         if ($cleanFolder === '' || $cleanFolder === '.' || $cleanFolder === '..') {
             return;
@@ -211,6 +248,9 @@ trait ManagesAiWorkspaceFiles
 
     public function goUpFileManagerFolder()
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         if ($this->currentFilePath !== 'agenten/workspace') {
             $this->currentFilePath = dirname($this->currentFilePath);
             // Fallback safety
@@ -223,6 +263,9 @@ trait ManagesAiWorkspaceFiles
 
     public function runDateitrichter()
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         try {
             $service = app(\App\Services\AI\Workspace\DateitrichterService::class);
             // Wenn man im Root ist, sortiere alle Root-Dateien ein. Ansonsten verarbeite neu
@@ -275,6 +318,9 @@ trait ManagesAiWorkspaceFiles
 
     public function createFileManagerFolder()
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $this->validate([
             'newFolderName' => 'required|string|max:255'
         ]);
@@ -312,6 +358,10 @@ trait ManagesAiWorkspaceFiles
 
     public function uploadFileManagerFile()
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            $this->fileUpload = null;
+            return;
+        }
         $this->validate([
             'fileUpload' => 'required|file|max:10240' // 10MB max
         ]);
@@ -385,13 +435,11 @@ trait ManagesAiWorkspaceFiles
 
     public function deleteFileManagerItem($path)
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $safePath = $this->sanitizeWorkspacePath((string) $path);
-        $protectedPaths = [
-            'agenten/workspace',
-            'agenten/workspace/Berufsleben',
-            'agenten/workspace/Dokumente',
-            'agenten/workspace/Gesundheit',
-        ];
+        $protectedPaths = $this->getProtectedWorkspacePaths();
         if (!$safePath || in_array($safePath, $protectedPaths, true)) {
             return;
         }
@@ -410,12 +458,23 @@ trait ManagesAiWorkspaceFiles
 
     public function renameFileManagerItem($path, $newName)
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $safePath = $this->sanitizeWorkspacePath((string) $path);
         $newName = basename(trim((string) $newName));
-        if (!$safePath || $safePath === 'agenten/workspace' || empty($newName)) return;
+        if (!$safePath || in_array($safePath, $this->getProtectedWorkspacePaths(), true) || empty($newName)) return;
+
+        $oldFullPath = Storage::disk('workspace')->path($safePath);
+        if (is_link($oldFullPath)) {
+            return;
+        }
 
         // Wenn es sich um einen Ordner handelt: Regel für einteilige Namen durchsetzen
-        if (Storage::disk('workspace')->exists($safePath) && is_dir(Storage::disk('workspace')->path($safePath))) {
+        if (Storage::disk('workspace')->exists($safePath) && is_dir($oldFullPath)) {
+            if (dirname($safePath) === 'agenten/workspace') {
+                return;
+            }
             if (preg_match('/[\s_\-]+/u', $newName)) {
                 $this->dateitrichterMessage = 'Ordnernamen dürfen nur aus einem einzelnen Wort bestehen.';
                 return;
@@ -430,7 +489,6 @@ trait ManagesAiWorkspaceFiles
         if (!$newPath) return;
 
         if ($safePath !== $newPath && Storage::disk('workspace')->exists($safePath)) {
-            $oldFullPath = Storage::disk('workspace')->path($safePath);
             $newFullPath = Storage::disk('workspace')->path($newPath);
             
             if (is_dir($oldFullPath)) {
@@ -456,9 +514,12 @@ trait ManagesAiWorkspaceFiles
 
     public function moveFileManagerItem($sourcePath, $targetFolder)
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $safeSource = $this->sanitizeWorkspacePath((string) $sourcePath);
         $safeTarget = $this->sanitizeWorkspacePath((string) $targetFolder);
-        if (!$safeSource || !$safeTarget || $safeSource === 'agenten/workspace') return;
+        if (!$safeSource || !$safeTarget || in_array($safeSource, $this->getProtectedWorkspacePaths(), true) || $safeTarget === 'agenten/workspace') return;
 
         if (str_starts_with($safeTarget, $safeSource . '/')) return;
         if ($safeSource === $safeTarget) return;
@@ -469,6 +530,9 @@ trait ManagesAiWorkspaceFiles
 
         if (Storage::disk('workspace')->exists($safeSource) && !Storage::disk('workspace')->exists($newPath)) {
             $oldFullPath = Storage::disk('workspace')->path($safeSource);
+            if (is_link($oldFullPath)) {
+                return;
+            }
             $newFullPath = Storage::disk('workspace')->path($newPath);
             
             if (is_dir($oldFullPath)) {
@@ -492,27 +556,38 @@ trait ManagesAiWorkspaceFiles
 
     public function archiveFileManagerItem($path)
     {
+        if (!$this->ensureWorkspaceAdminAccess()) {
+            return;
+        }
         $safePath = $this->sanitizeWorkspacePath((string) $path);
-        if (!$safePath) return;
+        if (!$safePath || $safePath === 'agenten/workspace') return;
 
         if (Storage::disk('workspace')->exists($safePath)) {
             $fullPath = Storage::disk('workspace')->path($safePath);
+            if (is_link($fullPath)) {
+                return;
+            }
             $zipPath = Storage::disk('workspace')->path($safePath . '.zip');
 
             $zip = new \ZipArchive();
             if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
                 if (is_dir($fullPath)) {
+                    $realFullPath = realpath($fullPath) ?: $fullPath;
                     $files = new \RecursiveIteratorIterator(
-                        new \RecursiveDirectoryIterator($fullPath),
+                        new \RecursiveDirectoryIterator($realFullPath, \FilesystemIterator::SKIP_DOTS),
                         \RecursiveIteratorIterator::LEAVES_ONLY
                     );
 
                     foreach ($files as $name => $file) {
-                        if (!$file->isDir()) {
-                            $filePath = $file->getRealPath();
-                            $relativePath = substr($filePath, strlen($fullPath) + 1);
-                            $zip->addFile($filePath, $relativePath);
+                        if ($file->isDir() || $file->isLink()) {
+                            continue;
                         }
+                        $filePath = $file->getRealPath();
+                        if (!$filePath || !str_starts_with($filePath, $realFullPath . DIRECTORY_SEPARATOR)) {
+                            continue;
+                        }
+                        $relativePath = substr($filePath, strlen($realFullPath) + 1);
+                        $zip->addFile($filePath, $relativePath);
                     }
                 } else {
                     $zip->addFile($fullPath, basename($fullPath));

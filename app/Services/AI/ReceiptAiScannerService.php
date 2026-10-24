@@ -20,23 +20,12 @@ class ReceiptAiScannerService
     public static function analyze($file, array $availableCategories = []): ?array
     {
         try {
-            $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
-            if (empty($apiKey) && !app()->runningUnitTests()) {
-                Log::warning('ReceiptAiScannerService: GEMINI_API_KEY ist nicht konfiguriert.');
-                return null;
-            }
-
-            // In Unit Tests: Fake-Response zurückgeben, falls kein Key oder Mock
-            if (app()->runningUnitTests() && empty($apiKey)) {
-                return self::mockResponseForTests();
-            }
-
             $allowedMimes = [
                 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf'
             ];
             $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf'];
 
-            // Dateipfad und MimeType ermitteln
+            // Dateipfad und MimeType ermitteln (VOR evtl. Test-Mock-Rückgabe validieren!)
             if ($file instanceof UploadedFile) {
                 $path = $file->getRealPath();
                 $mime = $file->getMimeType();
@@ -44,23 +33,30 @@ class ReceiptAiScannerService
                 $ext = strtolower($file->getClientOriginalExtension());
             } elseif (is_string($file)) {
                 $rawFile = str_replace('\\', '/', $file);
-                if (str_contains($rawFile, '..') || str_contains($rawFile, "\0")) {
-                    Log::warning("ReceiptAiScannerService: Path Traversal Versuch abgewehrt: {$file}");
+                if (str_contains($rawFile, '..') || str_contains($rawFile, "\0") || is_link($file)) {
+                    Log::warning("ReceiptAiScannerService: Path Traversal oder Symlink abgewehrt: {$file}");
                     return null;
                 }
-                if (!file_exists($file)) {
+                if (!file_exists($file) || !is_file($file)) {
                     return null;
                 }
 
                 $realPath = realpath($file);
-                $storagePath = realpath(storage_path());
+                if ($realPath === false || is_link($realPath)) {
+                    return null;
+                }
+
+                $storageAppPath = realpath(storage_path('app'));
+                $storageTestPath = realpath(storage_path('framework/testing'));
                 $tempPath = realpath(sys_get_temp_dir());
+                $fixturesPath = defined('base_path') ? realpath(base_path('tests/fixtures')) : false;
 
-                $isAllowedDir = ($storagePath && str_starts_with($realPath, $storagePath))
-                    || ($tempPath && str_starts_with($realPath, $tempPath))
-                    || (defined('base_path') && str_starts_with($realPath, realpath(base_path('tests/fixtures'))));
+                $isAllowedDir = ($storageAppPath && str_starts_with($realPath, $storageAppPath . DIRECTORY_SEPARATOR))
+                    || ($storageTestPath && str_starts_with($realPath, $storageTestPath . DIRECTORY_SEPARATOR))
+                    || ($tempPath && str_starts_with($realPath, $tempPath . DIRECTORY_SEPARATOR))
+                    || ($fixturesPath && str_starts_with($realPath, $fixturesPath . DIRECTORY_SEPARATOR));
 
-                if (!$isAllowedDir && !app()->runningUnitTests()) {
+                if (!$isAllowedDir) {
                     Log::warning("ReceiptAiScannerService: Datei außerhalb autorisierter Verzeichnisse: {$file}");
                     return null;
                 }
@@ -73,12 +69,12 @@ class ReceiptAiScannerService
                 return null;
             }
 
-            if (!in_array($ext, $allowedExtensions) || !in_array($mime, $allowedMimes)) {
+            if (!in_array($ext, $allowedExtensions, true) || !in_array($mime, $allowedMimes, true)) {
                 Log::warning("ReceiptAiScannerService: Nicht unterstütztes Format oder MIME: {$ext} / {$mime}");
                 return null;
             }
 
-            if (!file_exists($path)) {
+            if (!$path || !file_exists($path)) {
                 return null;
             }
 
@@ -86,6 +82,17 @@ class ReceiptAiScannerService
             if (filesize($path) > 15 * 1024 * 1024) {
                 Log::warning("ReceiptAiScannerService: Datei zu groß (>15MB) für Base64-OCR: {$originalName}");
                 return null;
+            }
+
+            $apiKey = config('services.gemini.key', env('GEMINI_API_KEY'));
+            if (empty($apiKey) && !app()->runningUnitTests()) {
+                Log::warning('ReceiptAiScannerService: GEMINI_API_KEY ist nicht konfiguriert.');
+                return null;
+            }
+
+            // In Unit Tests: Fake-Response zurückgeben, falls kein Key oder Mock (nach erfolgreicher Pfad-&-Typ-Prüfung)
+            if (app()->runningUnitTests() && empty($apiKey)) {
+                return self::mockResponseForTests();
             }
 
             $content = file_get_contents($path);
@@ -148,8 +155,10 @@ PROMPT;
 
             foreach ($models as $model) {
                 try {
-                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
-                    $response = Http::timeout(40)->post($url, $payload);
+                    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+                    $response = Http::timeout(40)
+                        ->withHeaders(['x-goog-api-key' => $apiKey])
+                        ->post($url, $payload);
 
                     if ($response->successful()) {
                         $resData = $response->json();
@@ -171,7 +180,8 @@ PROMPT;
                         Log::warning("ReceiptAiScannerService Gemini HTTP {$response->status()} with {$model}: " . substr($response->body(), 0, 300));
                     }
                 } catch (\Throwable $e) {
-                    Log::warning("ReceiptAiScannerService Exception with {$model}: " . $e->getMessage());
+                    $safeMsg = $apiKey !== '' ? str_replace($apiKey, '[REDACTED]', $e->getMessage()) : $e->getMessage();
+                    Log::warning("ReceiptAiScannerService Exception with {$model}: " . $safeMsg);
                 }
             }
 

@@ -11,6 +11,7 @@ class AiKnowledgeBaseTags extends Component
     public $tags = [];
     public $search = '';
     public $newTagName = '';
+    #[\Livewire\Attributes\Locked]
     public $editingTagId = null;
     public $editingTagName = '';
     public $selectedTagIds = [];
@@ -84,15 +85,25 @@ class AiKnowledgeBaseTags extends Component
             abort(403);
         }
 
-        $this->validate(['editingTagName' => 'required|string|max:100|unique:ai_knowledge_base_tags,name,' . $this->editingTagId]);
-
         $tag = \App\Models\Ai\AiKnowledgeBaseTag::find($this->editingTagId);
-        if ($tag) {
-            $tag->update([
-                'name' => $this->editingTagName,
-                'slug' => \Illuminate\Support\Str::slug($this->editingTagName)
-            ]);
+        if (!$tag) {
+            $this->cancelEditing();
+            return;
         }
+
+        $this->validate([
+            'editingTagName' => [
+                'required',
+                'string',
+                'max:100',
+                \Illuminate\Validation\Rule::unique('ai_knowledge_base_tags', 'name')->ignore($tag->id),
+            ],
+        ]);
+
+        $tag->update([
+            'name' => $this->editingTagName,
+            'slug' => \Illuminate\Support\Str::slug($this->editingTagName)
+        ]);
         $this->cancelEditing();
         $this->loadTags();
     }

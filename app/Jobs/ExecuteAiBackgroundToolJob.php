@@ -54,6 +54,37 @@ class ExecuteAiBackgroundToolJob implements ShouldQueue
 
         $startTime = microtime(true);
 
+        $forbiddenBackgroundTools = [
+            'system_dispatch_background_task',
+            'system_run_command',
+            'system_write_to_file',
+            'system_multi_replace_file',
+            'system_get_rights',
+            'system_assign_tool_to_role',
+            'system_clear_security_threats',
+            'system_execute_command',
+            'system_fix_errors',
+            'system_create_database_backup',
+            'master_toggle_maintenance',
+            'agent_update_system_config',
+            'agent_update_runtime_config',
+            'server_execute_terminal',
+            'ai_delete_agent',
+            'ai_update_agent',
+            'support_BlockCustomerIP',
+            'system_update_setting',
+        ];
+
+        if (in_array($this->toolName, $forbiddenBackgroundTools, true)) {
+            $task->update([
+                'status' => 'failed',
+                'response_content' => "Sicherheits-Blockade: Das Werkzeug '{$this->toolName}' darf nicht als Hintergrund-Job ausgeführt werden.",
+                'completed_at' => now(),
+            ]);
+            TaskUpdated::dispatch($task);
+            return;
+        }
+
         try {
             // Flag so tool knows it's executing in worker thread and should execute directly without re-queuing
             $execArgs = array_merge($this->toolArgs, ['__is_background_job' => true]);

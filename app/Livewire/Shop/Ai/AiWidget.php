@@ -74,11 +74,14 @@ class AiWidget extends Component
     public function logWidgetError($message)
     {
         if (class_exists(SystemLog::class)) {
+            $safeMessage = is_string($message) && trim($message) !== ''
+                ? mb_substr(trim($message), 0, 1000)
+                : 'Unbekannter Fehler';
             SystemLog::create([
                 'title' => 'Widget Fehler',
                 'type' => 'Funkira Widget',
                 'action_id' => 'widget:error',
-                'message' => $message ?? 'Unbekannter Fehler',
+                'message' => $safeMessage,
                 'status' => 'error'
             ]);
         }
@@ -134,16 +137,18 @@ class AiWidget extends Component
 
     public function updatedAgentId($value)
     {
-        if (auth()->check() && $this->widgetConfig) {
-            $this->widgetConfig->update(['ai_agent_id' => empty($value) ? null : $value]);
+        $agent = !empty($value) ? \App\Models\Ai\AiAgent::where('id', $value)->where('is_active', true)->first() : null;
+        $validAgentId = $agent ? $agent->id : null;
+
+        if (\App\Services\AI\AiAuthHelper::check() && $this->widgetConfig) {
+            $this->widgetConfig->update(['ai_agent_id' => $validAgentId]);
         }
 
-        if (!empty($value)) {
-            $this->activeAgentIds = [$value];
-            $this->forcedAgentIds = [$value];
+        if ($validAgentId) {
+            $this->activeAgentIds = [$validAgentId];
+            $this->forcedAgentIds = [$validAgentId];
         }
 
-        $agent = \App\Models\Ai\AiAgent::find($value);
         if ($agent) {
             $this->dispatch('agent-changed', 
                 color: $agent->color,
@@ -157,11 +162,21 @@ class AiWidget extends Component
 
     public function saveWidgetConfig($data)
     {
-        if (auth()->check() && $this->widgetConfig) {
+        if (!is_array($data)) {
+            return;
+        }
+        if (\App\Services\AI\AiAuthHelper::check() && $this->widgetConfig) {
+            $volume = isset($data['volume']) ? max(0, min(100, (int) $data['volume'])) : $this->widgetConfig->volume;
+            $agentId = $this->widgetConfig->ai_agent_id;
+            if (array_key_exists('agentId', $data)) {
+                $agentId = (!empty($data['agentId']) && \App\Models\Ai\AiAgent::where('id', $data['agentId'])->where('is_active', true)->exists())
+                    ? $data['agentId']
+                    : null;
+            }
             $this->widgetConfig->update([
-                'volume' => $data['volume'] ?? $this->widgetConfig->volume,
-                'ai_agent_id' => isset($data['agentId']) ? (empty($data['agentId']) ? null : $data['agentId']) : $this->widgetConfig->ai_agent_id,
-                'allow_voice_interruption' => isset($data['allowVoiceInterruption']) ? $data['allowVoiceInterruption'] : $this->widgetConfig->allow_voice_interruption,
+                'volume' => $volume,
+                'ai_agent_id' => $agentId,
+                'allow_voice_interruption' => isset($data['allowVoiceInterruption']) ? (bool) $data['allowVoiceInterruption'] : $this->widgetConfig->allow_voice_interruption,
             ]);
         }
     }
@@ -169,7 +184,16 @@ class AiWidget extends Component
     #[On('generate-neural-structure')]
     public function generateNeuralStructure($file_path)
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Code-Strukturen exportieren.');
+        }
+
         $filePathStr = is_array($file_path) ? ($file_path['file_path'] ?? $file_path[0] ?? '') : $file_path;
+        $filePathStr = ltrim(str_replace('\\', '/', trim((string) $filePathStr)), '/');
+        if ($filePathStr === '' || str_contains($filePathStr, '..') || str_contains($filePathStr, "\0")) {
+            $this->dispatch('neural-structure-error', message: "Ungültiger Dateipfad.");
+            return;
+        }
         
         try {
             $markdownPath = \App\Livewire\Backend\System\SystemNeuralAnalysisIndex::generateMarkdownForFile($filePathStr);
@@ -179,7 +203,7 @@ class AiWidget extends Component
                 $this->dispatch('ai-speech-feedback', text: "Struktur generiert. Download startet.");
                 $this->dispatch('neural-structure-success', path: "Download gestartet");
                 
-                $safeName = str_replace(['/', '\\'], '_', $filePathStr);
+                $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', str_replace(['/', '\\'], '_', $filePathStr));
                 $url = asset("storage/agenten/workspace/Dokumente/Berichte/Struktur_" . $safeName . ".md");
                 $filename = 'Struktur_' . basename($filePathStr) . '.md';
                 
@@ -199,6 +223,10 @@ class AiWidget extends Component
     #[On('generate-system-brain-map')]
     public function generateSystemBrainMap()
     {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen die neuronale Strukturkarte generieren.');
+        }
+
         \Illuminate\Support\Facades\Artisan::call('system:brain:generate');
         $this->dispatch('system-brain-map-generated');
         $this->dispatch('ai-speech-feedback', text: "Ich habe die neuronale Strukturkarte erfolgreich generiert.");

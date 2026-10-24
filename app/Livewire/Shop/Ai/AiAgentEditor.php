@@ -23,6 +23,7 @@ class AiAgentEditor extends Component
     public string $themingDepartment = 'Agenten';
     use WithFileUploads;
 
+    #[\Livewire\Attributes\Locked]
     public $agentId;
     public $ai_role_id = null;
     public $name = '';
@@ -44,6 +45,7 @@ class AiAgentEditor extends Component
     public $telegram_bot_token = '';
     public $telegram_allowed_chat_ids = '';
 
+    #[\Livewire\Attributes\Locked]
     public $existing_profile_picture = null;
     public $profile_picture;
     public $inheritedDept = null;
@@ -239,7 +241,8 @@ class AiAgentEditor extends Component
             }
             
             $this->tts_enabled = (bool) ($agent->tts_enabled ?? false);
-            $this->tts_provider = $agent->tts_provider ?? 'gemini_native';
+            $rawTtsProvider = $agent->tts_provider ?? 'gemini_native';
+            $this->tts_provider = array_key_exists($rawTtsProvider, $this->ttsProviders) ? $rawTtsProvider : 'gemini_native';
             
 
 
@@ -247,10 +250,15 @@ class AiAgentEditor extends Component
             $this->tts_api_url = $agent->tts_api_url ?? '';
             $this->tts_speed = $agent->tts_speed ?? 1.0;
             
-            $this->telegram_bot_token = $agent->telegram_bot_token ?? '';
-            $this->telegram_allowed_chat_ids = is_array($agent->telegram_allowed_chat_ids) 
-                                                ? implode(', ', $agent->telegram_allowed_chat_ids) 
-                                                : ($agent->telegram_allowed_chat_ids ?? '');
+            if (Auth::guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin()) {
+                $this->telegram_bot_token = $agent->telegram_bot_token ?? '';
+                $this->telegram_allowed_chat_ids = is_array($agent->telegram_allowed_chat_ids) 
+                                                    ? implode(', ', $agent->telegram_allowed_chat_ids) 
+                                                    : ($agent->telegram_allowed_chat_ids ?? '');
+            } else {
+                $this->telegram_bot_token = '';
+                $this->telegram_allowed_chat_ids = '';
+            }
             
             $this->existing_profile_picture = $agent->profile_picture;
 
@@ -356,6 +364,13 @@ class AiAgentEditor extends Component
             abort(403);
         }
 
+        if (!array_key_exists((string) $this->model, $this->availableModels)) {
+            $this->model = 'gemini-3.8-flash';
+        }
+        if (!array_key_exists((string) $this->tts_provider, $this->ttsProviders)) {
+            $this->tts_provider = 'gemini_native';
+        }
+
         $voiceLabel = $this->getActiveVoiceLabel();
 
         if ($this->agentId && $this->agentId !== 'new') {
@@ -444,19 +459,43 @@ class AiAgentEditor extends Component
             'ai_role_id' => 'nullable|exists:ai_roles,id',
             'name' => 'required|string|max:255',
             'wake_word' => 'nullable|string|max:255',
-            'role_description' => 'nullable|string',
-            'system_prompt' => 'nullable|string',
-            'model' => 'nullable|string',
+            'role_description' => 'nullable|string|max:5000',
+            'system_prompt' => 'nullable|string|max:50000',
+            'model' => ['nullable', 'string', \Illuminate\Validation\Rule::in(array_keys($this->availableModels))],
             'temperature' => 'nullable|numeric|min:0|max:2',
             'is_active' => 'boolean',
-            'color' => 'required|string|max:50',
-            'icon' => 'required|string|max:50',
+            'color' => ['required', 'string', 'max:50', \Illuminate\Validation\Rule::in($this->availableColors)],
+            'icon' => ['required', 'string', 'max:50', \Illuminate\Validation\Rule::in($this->availableIcons)],
             'tts_enabled' => 'boolean',
-            'tts_api_url' => 'nullable|string|url|max:255',
+            'tts_provider' => ['nullable', 'string', \Illuminate\Validation\Rule::in(array_keys($this->ttsProviders))],
+            'tts_api_url' => [
+                'nullable',
+                'string',
+                'url',
+                'max:255',
+                function ($attribute, $value, $fail) {
+                    if (empty($value)) {
+                        return;
+                    }
+                    $parsedUrl = parse_url(trim((string) $value));
+                    $scheme = strtolower($parsedUrl['scheme'] ?? '');
+                    $host = strtolower(trim($parsedUrl['host'] ?? '', '[]'));
+                    if (
+                        $scheme !== 'https'
+                        || $host === ''
+                        || in_array($host, ['localhost', '127.0.0.1', '0.0.0.0', '::1'], true)
+                        || str_ends_with($host, '.local')
+                        || str_ends_with($host, '.internal')
+                        || preg_match('/^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $host)
+                    ) {
+                        $fail('Die TTS-API-URL muss über HTTPS auf einen öffentlichen Endpunkt zeigen.');
+                    }
+                },
+            ],
             'tts_speed' => 'nullable|numeric|min:0.1|max:3.0',
             'telegram_bot_token' => 'nullable|string|max:255',
             'telegram_allowed_chat_ids' => 'nullable|string|max:1000',
-            'profile_picture' => 'nullable|image|max:2048', // 2MB Max
+            'profile_picture' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048', // 2MB Max
         ]);
 
         if ($this->agentId === 'new') {
@@ -470,7 +509,7 @@ class AiAgentEditor extends Component
         $agent->wake_word = empty($this->wake_word) ? $this->name : $this->wake_word;
         $agent->role_description = $this->role_description;
         $agent->system_prompt = $this->system_prompt;
-        $agent->model = $this->model;
+        $agent->model = $this->model ?: 'gemini-3.8-flash';
         $agent->temperature = $this->temperature;
         $agent->is_active = $this->is_active;
         $agent->color = $this->color;
@@ -478,7 +517,7 @@ class AiAgentEditor extends Component
         $agent->tts_enabled = $this->tts_enabled;
         $agent->tts_provider = $this->tts_provider;
         $agent->tts_voice = empty($this->tts_voice) ? null : $this->tts_voice;
-        $agent->tts_api_url = empty($this->tts_api_url) ? null : $this->tts_api_url;
+        $agent->tts_api_url = empty($this->tts_api_url) ? null : trim((string) $this->tts_api_url);
         $agent->tts_speed = $this->tts_speed;
         $agent->telegram_bot_token = empty($this->telegram_bot_token) ? null : $this->telegram_bot_token;
         
@@ -490,6 +529,17 @@ class AiAgentEditor extends Component
         }
 
         if ($this->profile_picture) {
+            $realPath = $this->profile_picture->getRealPath();
+            $finfo = $realPath && is_file($realPath) ? finfo_open(FILEINFO_MIME_TYPE) : false;
+            $detectedMime = $finfo ? finfo_file($finfo, $realPath) : false;
+            if ($finfo) {
+                finfo_close($finfo);
+            }
+            if (!in_array($detectedMime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+                $this->addError('profile_picture', 'Ungültiges Bildformat.');
+                return;
+            }
+
             // Delete old picture if exists
             if ($agent->profile_picture && Storage::disk('public')->exists($agent->profile_picture)) {
                 Storage::disk('public')->delete($agent->profile_picture);

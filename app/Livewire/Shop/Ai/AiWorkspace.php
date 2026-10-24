@@ -45,6 +45,7 @@ class AiWorkspace extends Component
     public string $newPlanPrice = '0.00';
     public $newPlanDescription = '';
     public $newPlanFeatures = [['title' => '', 'description' => '']];
+    #[\Livewire\Attributes\Locked]
     public ?int $editingPlanId = null;
 
     public function boot(): void
@@ -121,12 +122,48 @@ class AiWorkspace extends Component
 
     public function updatedActiveTab($value)
     {
+        $allowedTabs = ['chat', 'tasks', 'files', 'health', 'plans', 'logs', 'settings'];
+        if (!in_array($value, $allowedTabs, true)) {
+            $this->activeTab = 'chat';
+            $value = 'chat';
+        }
+
         if (\App\Services\AI\AiAuthHelper::check()) {
             \App\Models\Ai\AiUserWorkspaceSetting::updateOrCreate(
                 ['user_id' => \App\Services\AI\AiAuthHelper::getUserId()],
                 ['active_tab' => $value]
             );
         }
+    }
+
+    protected function sanitizeExternalTtsUrl(?string $url): string
+    {
+        $default = 'https://generativelanguage.googleapis.com';
+        if (empty($url) || !is_string($url)) {
+            return $default;
+        }
+
+        $parsed = parse_url(trim($url));
+        $scheme = strtolower($parsed['scheme'] ?? '');
+        $host = strtolower(trim($parsed['host'] ?? '', '[]'));
+        if ($scheme !== 'https' || $host === '') {
+            return $default;
+        }
+
+        if (
+            in_array($host, ['localhost', '127.0.0.1', '0.0.0.0', '::1'], true)
+            || str_ends_with($host, '.local')
+            || str_ends_with($host, '.internal')
+            || preg_match('/^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/', $host)
+        ) {
+            return $default;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP) && !filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return $default;
+        }
+
+        return rtrim(trim($url), '/');
     }
     
     public function syncAll()
@@ -159,8 +196,8 @@ class AiWorkspace extends Component
             try {
                 $ttsResponses = \Illuminate\Support\Facades\Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($ttsAgents) {
                     foreach ($ttsAgents as $a) {
-                        $ttsUrl = $a->tts_api_url ?: 'https://generativelanguage.googleapis.com';
-                        $pool->as('tts_' . $a->id)->timeout(3)->get(rtrim($ttsUrl, '/') . '/v1beta/models');
+                        $ttsUrl = $this->sanitizeExternalTtsUrl($a->tts_api_url);
+                        $pool->as('tts_' . $a->id)->timeout(3)->get($ttsUrl . '/v1beta/models');
                     }
                 });
             } catch (\Exception $e) {
@@ -222,8 +259,8 @@ class AiWorkspace extends Component
         if ($agent->tts_enabled && $agent->tts_provider && $agent->tts_provider !== 'none') {
             try {
                 $start = microtime(true);
-                $ttsUrl = $agent->tts_api_url ?: 'https://generativelanguage.googleapis.com';
-                $response = \Illuminate\Support\Facades\Http::timeout(3)->get(rtrim($ttsUrl, '/') . '/v1beta/models');
+                $ttsUrl = $this->sanitizeExternalTtsUrl($agent->tts_api_url);
+                $response = \Illuminate\Support\Facades\Http::timeout(3)->get($ttsUrl . '/v1beta/models');
                 if ($response->successful() || $response->status() === 401 || $response->status() === 403 || $response->status() === 404) {
                     $ttsStatus = round((microtime(true) - $start) * 1000) . 'ms';
                 } else {
@@ -282,6 +319,9 @@ class AiWorkspace extends Component
 
     public function addFeatureRow()
     {
+        if (count($this->newPlanFeatures) >= 20) {
+            return;
+        }
         $this->newPlanFeatures[] = ['title' => '', 'description' => ''];
     }
 
@@ -316,9 +356,23 @@ class AiWorkspace extends Component
 
     public function saveNewPlan()
     {
-        $features = array_filter($this->newPlanFeatures, function($f) {
-            return !empty($f['title']);
+        $this->validate([
+            'newPlanName' => 'required|string|max:120',
+            'newPlanPrice' => 'required|numeric|min:0|max:999999',
+            'newPlanTokens' => 'nullable|integer|min:0',
+            'newPlanDescription' => 'nullable|string|max:2000',
+            'newPlanFeatures' => 'nullable|array|max:20',
+        ]);
+
+        $features = array_filter(array_slice((array) $this->newPlanFeatures, 0, 20), function ($f) {
+            return is_array($f) && !empty(trim((string) ($f['title'] ?? '')));
         });
+        $features = array_map(function ($f) {
+            return [
+                'title' => mb_substr(trim((string) ($f['title'] ?? '')), 0, 120),
+                'description' => mb_substr(trim((string) ($f['description'] ?? '')), 0, 500),
+            ];
+        }, array_values($features));
 
         if ($this->editingPlanId) {
             $plan = \App\Models\System\SystemAiHostingPlan::find($this->editingPlanId);

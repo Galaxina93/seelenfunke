@@ -100,8 +100,22 @@ trait AiTelefonyFuncs
         ];
     }
 
+    private static function assertTelephonyAdminAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Telefonie-Werkzeuge erfordern Administrator-Berechtigungen.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeTelephonyCallContactDraft(array $args)
     {
+        if ($denied = self::assertTelephonyAdminAccess()) {
+            return $denied;
+        }
         if (empty($args['first_name']) || empty($args['objective'])) {
             return ['status' => 'error', 'message' => 'Vorname und Ziel (objective) für den Anruf erforderlich.'];
         }
@@ -141,6 +155,9 @@ trait AiTelefonyFuncs
 
     public static function executeTelephonyCallContact(array $args)
     {
+        if ($denied = self::assertTelephonyAdminAccess()) {
+            return $denied;
+        }
         if (empty($args['first_name']) || empty($args['objective'])) {
             return ['status' => 'error', 'message' => 'Vorname und Ziel (objective) für den Anruf erforderlich.'];
         }
@@ -216,6 +233,9 @@ trait AiTelefonyFuncs
 
     public static function executeTelephonyCallGetHistory(array $args)
     {
+        if ($denied = self::assertTelephonyAdminAccess()) {
+            return $denied;
+        }
         $limit = max(1, min(50, (int)($args['limit'] ?? 3)));
         $query = \App\Models\SupportTelephonyCall::orderBy('created_at', 'desc');
 
@@ -262,6 +282,9 @@ trait AiTelefonyFuncs
 
     public static function executeTelephonyCallUpdateStatus(array $args)
     {
+        if ($denied = self::assertTelephonyAdminAccess()) {
+            return $denied;
+        }
         if (empty($args['call_id']) || empty($args['status'])) {
             return ['status' => 'error', 'message' => 'call_id und status sind erforderlich.'];
         }
@@ -292,6 +315,9 @@ trait AiTelefonyFuncs
 
     public static function executeTelephonyCallAnalyzeErrors(array $args)
     {
+        if ($denied = self::assertTelephonyAdminAccess()) {
+            return $denied;
+        }
         if (empty($args['call_id'])) {
             return ['status' => 'error', 'message' => 'call_id erforderlich.'];
         }
@@ -349,6 +375,15 @@ trait AiTelefonyFuncs
      */
     public static function triggerTwilioCall(string $toPhone)
     {
+        if ($denied = self::assertTelephonyAdminAccess()) {
+            return ['success' => false, 'error' => $denied['message']];
+        }
+
+        $trimmedPhone = trim($toPhone);
+        if (!preg_match('/^\+?[0-9\s\-\(\)]{5,25}$/', $trimmedPhone)) {
+            return ['success' => false, 'error' => 'Ungültiges Telefonnummer-Format.'];
+        }
+
         $sid = env('TWILIO_ACCOUNT_SID');
         $token = env('TWILIO_AUTH_TOKEN');
         $fromNumber = env('TWILIO_PHONE_NUMBER');
@@ -357,7 +392,7 @@ trait AiTelefonyFuncs
             return ['success' => false, 'error' => 'Twilio Credentials fehlen (SID, TOKEN oder PHONE_NUMBER).'];
         }
 
-        $toPhoneClean = preg_replace('/[^0-9+]/', '', $toPhone);
+        $toPhoneClean = preg_replace('/[^0-9+]/', '', $trimmedPhone);
         if (!str_starts_with($toPhoneClean, '+')) {
             $toPhoneClean = '+' . $toPhoneClean; // Fallback, falls + fehlt
         }

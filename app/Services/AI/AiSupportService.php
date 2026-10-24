@@ -43,9 +43,16 @@ class AiSupportService
             'icon' => 'sun'
         ];
 
-        // Alle Routinen für den Slider aufbereiten
+        // Alle Routinen für den Slider aufbereiten (inkl. Wochentag/Wochenende-Filter)
+        $isWeekend = $now->isWeekend();
+        $allowedDayFilters = $isWeekend ? ['all', 'weekend'] : ['all', 'weekdays'];
         $allRoutines = ManagementDayRoutine::with('steps')
             ->where('is_active', true)
+            ->where(function ($q) use ($allowedDayFilters) {
+                $q->whereIn('days_of_week', $allowedDayFilters)
+                  ->orWhereNull('days_of_week')
+                  ->orWhere('days_of_week', '');
+            })
             ->orderBy('start_time', 'asc')
             ->get();
 
@@ -374,12 +381,25 @@ class AiSupportService
             $accountsCount = AccountingBankAccount::count();
         }
 
-        // 2. Reale gewerbliche Fixkosten (monatlich berechnet aus AccountingCostItem)
+        // 2. Reale gewerbliche Fixkosten (monatlich berechnet aus AccountingCostItem, exkl. abgelaufener Verträge & Einnahmen)
         $monthlyBizFixedCosts = 0.0;
         $bizCostItemsList = [];
         if (class_exists(AccountingCostItem::class)) {
-            $bizCostItems = AccountingCostItem::where('is_business', true)->get();
+            $bizCostItems = AccountingCostItem::with('group')
+                ->where('is_business', true)
+                ->where(function ($q) use ($endOfMonth) {
+                    $q->whereNull('first_payment_date')
+                      ->orWhere('first_payment_date', '<=', $endOfMonth->toDateString());
+                })
+                ->where(function ($q) use ($startOfMonth) {
+                    $q->whereNull('last_payment_date')
+                      ->orWhere('last_payment_date', '>=', $startOfMonth->toDateString());
+                })
+                ->get();
             foreach ($bizCostItems as $item) {
+                if ($item->group && $item->group->type === 'income') {
+                    continue;
+                }
                 $interval = max(1, (int)$item->interval_months);
                 $monthlyAmount = abs((float)$item->amount) / $interval;
                 $monthlyBizFixedCosts += $monthlyAmount;
@@ -390,19 +410,20 @@ class AiSupportService
         }
         $monthlyBizFixedCosts = round($monthlyBizFixedCosts, 2);
 
-        // 3. Reale betriebliche Sonderausgaben / Material- & Vorbereitungskosten
+        // 3. Reale betriebliche Sonderausgaben / Material- & Vorbereitungskosten (nur gewerbliche Ausgaben!)
         $specialIssuesTotal = 0.0;
         $specialIssuesMonth = 0.0;
         if (class_exists(AccountingSpecialIssue::class)) {
-            $specialIssuesTotal = round((float) AccountingSpecialIssue::sum('amount'), 2);
-            $specialIssuesMonth = round((float) AccountingSpecialIssue::where(function($q) use ($startOfMonth, $endOfMonth, $now) {
-                $q->whereBetween('execution_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
-                  ->orWhere(function($sub) use ($now) {
-                      $sub->whereNull('execution_date')
-                          ->whereYear('created_at', $now->year)
-                          ->whereMonth('created_at', $now->month);
-                  });
-            })->sum('amount'), 2);
+            $specialIssuesTotal = round((float) AccountingSpecialIssue::where('is_business', true)->sum('amount'), 2);
+            $specialIssuesMonth = round((float) AccountingSpecialIssue::where('is_business', true)
+                ->where(function($q) use ($startOfMonth, $endOfMonth, $now) {
+                    $q->whereBetween('execution_date', [$startOfMonth->toDateString(), $endOfMonth->toDateString()])
+                      ->orWhere(function($sub) use ($now) {
+                          $sub->whereNull('execution_date')
+                              ->whereYear('created_at', $now->year)
+                              ->whereMonth('created_at', $now->month);
+                      });
+                })->sum('amount'), 2);
         }
 
         // 4. Reale gewerbliche Einnahmen (bezahlte Shop- & Auftragsbestellungen, stornierte/erstattete ausgeschlossen)

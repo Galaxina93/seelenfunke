@@ -16,9 +16,9 @@ class AiAgentService
      */
     public static function getAgent($identifier): AiAgent
     {
-        $query = AiAgent::where('is_active', true)->with('tools');
+        $query = AiAgent::where('is_active', true)->with('role.tools');
 
-        if (is_numeric($identifier)) {
+        if (is_numeric($identifier) || \Illuminate\Support\Str::isUuid((string) $identifier)) {
             $agent = $query->find($identifier);
         } else {
             $agent = $query->where('name', $identifier)->first();
@@ -42,28 +42,14 @@ class AiAgentService
     {
         $allowedToolIdentifiers = $agent->tools->pluck('identifier')->toArray();
         $allowedToolIdentifiers[] = 'system_get_current_time';
-        $allowedToolIdentifiers[] = 'system_dispatch_background_task';
-        $allowedToolIdentifiers[] = 'system_get_task_status';
 
-        if (in_array('calendar_create_event', $allowedToolIdentifiers, true) || in_array('calendar_get_events', $allowedToolIdentifiers, true)) {
-            if (!in_array('calendar_send_ics_email', $allowedToolIdentifiers, true)) {
-                try {
-                    if (class_exists(\App\Models\Ai\AiTool::class)) {
-                        $icsTool = \App\Models\Ai\AiTool::firstOrCreate(
-                            ['identifier' => 'calendar_send_ics_email'],
-                            [
-                                'name' => 'Calendar Send Ics Email',
-                                'description' => 'Versendet Kalender-Termine umfangreich als RFC-5545 kompatible .ics Datei per E-Mail (Einzeltermin, Zeitraum-Sammelmappe oder Ad-hoc-Termin) und speichert die .ics Datei im Workspace.',
-                            ]
-                        );
-                        if ($agent->role) {
-                            $agent->role->tools()->syncWithoutDetaching([$icsTool->id]);
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    // Ignore DB sync issues safely
-                }
-            }
+        $isEmployeeRestricted = AiAuthHelper::check() && !AiAuthHelper::isAdmin();
+        if (!$isEmployeeRestricted) {
+            $allowedToolIdentifiers[] = 'system_dispatch_background_task';
+            $allowedToolIdentifiers[] = 'system_get_task_status';
+        }
+
+        if (in_array('calendar_create_event', $allowedToolIdentifiers, true)) {
             $allowedToolIdentifiers[] = 'calendar_send_ics_email';
             $allowedToolIdentifiers[] = 'calendar_update_event';
             $allowedToolIdentifiers[] = 'calendar_delete_event';
@@ -74,10 +60,16 @@ class AiAgentService
             ? \App\Services\AI\AIFunctionsRegistry::getSchema()
             : [];
 
-        // Filtere das Schema: Nur Tools, die dem Agenten zugewiesen sind
-        $filteredSchema = array_filter($globalSchema, function ($toolData) use ($allowedToolIdentifiers) {
+        // Filtere das Schema: Nur Tools, die dem Agenten zugewiesen sind (und für Nicht-Admins zulässig sind)
+        $filteredSchema = array_filter($globalSchema, function ($toolData) use ($allowedToolIdentifiers, $isEmployeeRestricted) {
             $functionName = $toolData['function']['name'] ?? null;
-            return in_array($functionName, $allowedToolIdentifiers);
+            if (!$functionName || !in_array($functionName, $allowedToolIdentifiers, true)) {
+                return false;
+            }
+            if ($isEmployeeRestricted && \App\Services\AI\AIFunctionsRegistry::isToolRestrictedForEmployee($functionName)) {
+                return false;
+            }
+            return true;
         });
 
         // Key-Reset nach array_filter

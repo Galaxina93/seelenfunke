@@ -21,6 +21,7 @@ class AiCompanyStructure extends Component
     public string $themingDepartment = 'Agenten';
     public $departments = [];
     public $viewMode = 'tree'; 
+    #[\Livewire\Attributes\Locked]
     public $editingId = null;
 
     // Form: Department
@@ -83,9 +84,17 @@ class AiCompanyStructure extends Component
         $this->loadStructure();
     }
 
+    protected function assertAdminAccess(): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen die KI-Unternehmensstruktur bearbeiten.');
+        }
+    }
+
     // --- Departments ---
     public function createDepartment()
     {
+        $this->assertAdminAccess();
         $this->reset(['deptName', 'deptDescription']);
         $this->deptIcon = 'building-office';
         $this->deptColor = 'emerald-500';
@@ -95,8 +104,9 @@ class AiCompanyStructure extends Component
 
     public function editDepartment($id)
     {
+        $this->assertAdminAccess();
         $dept = AiDepartment::findOrFail($id);
-        $this->editingId = $id;
+        $this->editingId = $dept->id;
         $this->deptName = $dept->name;
         $this->deptDescription = $dept->description;
         $this->deptIcon = $dept->icon;
@@ -106,17 +116,23 @@ class AiCompanyStructure extends Component
 
     public function saveDepartment($close = true)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
 
-        $this->validate(['deptName' => 'required|string|max:255']);
+        $allowedIcons = array_merge($this->availableIcons, ['building-office']);
+        $this->validate([
+            'deptName' => 'required|string|max:255',
+            'deptDescription' => 'nullable|string|max:1000',
+            'deptIcon' => ['required', 'string', \Illuminate\Validation\Rule::in($allowedIcons)],
+            'deptColor' => ['required', 'string', \Illuminate\Validation\Rule::in($this->availableColors)],
+        ]);
+
+        $existingOrder = $this->editingId ? AiDepartment::where('id', $this->editingId)->value('order_index') : null;
         $dept = AiDepartment::updateOrCreate(['id' => $this->editingId], [
             'name' => $this->deptName,
             'description' => $this->deptDescription,
             'icon' => $this->deptIcon,
             'color' => $this->deptColor,
-            'order_index' => $this->editingId ? AiDepartment::find($this->editingId)->order_index : AiDepartment::max('order_index') + 1,
+            'order_index' => $existingOrder !== null ? $existingOrder : ((int) AiDepartment::max('order_index') + 1),
         ]);
         
         $this->editingId = $dept->id;
@@ -135,9 +151,7 @@ class AiCompanyStructure extends Component
 
     public function deleteDepartment($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
 
         $dept = AiDepartment::findOrFail($id);
         
@@ -164,9 +178,7 @@ class AiCompanyStructure extends Component
 
     public function editAgent($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
 
         return redirect()->route('admin.ai-agents.editor', ['id' => $id]);
     }
@@ -175,23 +187,27 @@ class AiCompanyStructure extends Component
 
     public function updateDepartmentOrder($orderedIds)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
+        $this->assertAdminAccess();
+
+        if (!is_array($orderedIds)) {
+            return;
         }
 
-        foreach ($orderedIds as $index => $id) {
-            AiDepartment::where('id', $id)->update(['order_index' => $index]);
+        foreach (array_slice(array_values($orderedIds), 0, 100) as $index => $id) {
+            AiDepartment::where('id', $id)->update(['order_index' => (int) $index]);
         }
         $this->loadStructure();
     }
 
     public function moveAgent($agentId, $targetDeptId)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
+        $this->assertAdminAccess();
+
+        if ($targetDeptId !== null && $targetDeptId !== '' && !AiDepartment::where('id', $targetDeptId)->exists()) {
+            return;
         }
 
-        AiAgent::where('id', $agentId)->update(['ai_department_id' => $targetDeptId]);
+        AiAgent::where('id', $agentId)->update(['ai_department_id' => $targetDeptId ?: null]);
         $this->loadStructure();
         $this->dispatch('structure-updated');
     }
@@ -200,6 +216,7 @@ class AiCompanyStructure extends Component
 
     public function editFullAgentDetails($id)
     {
+        $this->assertAdminAccess();
         return redirect()->route('admin.ai-agents.editor', ['id' => $id]);
     }
 

@@ -59,6 +59,7 @@ class GeminiAgent implements AiProviderInterface
         $isOverride = str_contains($latestUserMessage, 'ich befehle dir');
 
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
+        $isEmployee = !$isAdmin && \App\Services\AI\AiAuthHelper::isEmployee();
         
         $aiCommand = null;
         if ($isAdmin) {
@@ -69,19 +70,27 @@ class GeminiAgent implements AiProviderInterface
         $systemPromptText = \App\Services\AI\AiPromptService::getRichPrompt($this->agent);
 
         $userStatus = $isAdmin 
-            ? "System-Administrator (Mitarbeiter). Du hast höchste Freigabestufe. Nutze deine Admin-Tools für Analysen und weise den User nicht aus Datenschutzgründen ab!" 
-            : "Kunde. Beachte strikt den Datenschutz.";
+            ? "System-Administrator (Geschäftsführung). Du hast höchste Freigabestufe. Nutze deine Admin-Tools für Analysen und weise den User nicht aus Datenschutzgründen ab!" 
+            : ($isEmployee
+                ? "Interner Mitarbeiter (Staff). Du unterstützt bei operativen Shop-, Support-, Produkt- und Bestellaufgaben. Sensible Geschäftsführungs-, Finanz-, System- und Serverfunktionen sind ausschließlich dem Administrator vorbehalten."
+                : "Kunde. Beachte strikt den Datenschutz.");
 
         $customerName = '';
-        if (!$isAdmin && \App\Services\AI\AiAuthHelper::isCustomer()) {
+        if (!$isAdmin && !$isEmployee && \App\Services\AI\AiAuthHelper::isCustomer()) {
             $customerName = auth()->user()->first_name ?? (auth()->guard('customer')->user()->first_name ?? '');
+        }
+        $employeeName = '';
+        if ($isEmployee) {
+            $employeeName = auth()->guard('employee')->user()->first_name ?? (auth()->user()->first_name ?? 'Teammitglied');
         }
 
         $verhaltensregel = $isAdmin 
             ? "VERHALTENSREGEL: Du bist ein Diener-Agent des Systems. Du sprichst die Administratorin immer nur locker mit 'Alina' oder 'Hey Alina' an!\n"
-            : ($customerName 
-                ? "VERHALTENSREGEL: Du bist 'Funki', der freundliche Support-Bot von Seelenfunke. Du sprichst den Kunden freundlich mit seinem Vornamen '{$customerName}' an.\n"
-                : "VERHALTENSREGEL: Du bist 'Funki', der freundliche Support-Bot von Seelenfunke. Da der Nutzer ein nicht eingeloggter Gast ist, spreche ihn höflich an (kein Name verfügbar).\n");
+            : ($isEmployee
+                ? "VERHALTENSREGEL: Du arbeitest mit dem internen Teammitglied '{$employeeName}' zusammen. Antworte kollegial, professionell und präzise.\n"
+                : ($customerName 
+                    ? "VERHALTENSREGEL: Du bist 'Funki', der freundliche Support-Bot von Seelenfunke. Du sprichst den Kunden freundlich mit seinem Vornamen '{$customerName}' an.\n"
+                    : "VERHALTENSREGEL: Du bist 'Funki', der freundliche Support-Bot von Seelenfunke. Da der Nutzer ein nicht eingeloggter Gast ist, spreche ihn höflich an (kein Name verfügbar).\n"));
 
         $hasAskAgentTool = $this->agent->tools->contains('identifier', 'communication_ask_agent');
         $hasSwitchAgentTool = $this->agent->tools->contains('identifier', 'system_switch_agent');
@@ -288,9 +297,17 @@ class GeminiAgent implements AiProviderInterface
         $globalSchema = AIFunctionsRegistry::getSchema();
         $allowedIdentifiers = $this->agent->tools->pluck('identifier')->toArray();
         $allowedIdentifiers[] = 'system_get_current_time';
+        $isEmployeeRestricted = AiAuthHelper::check() && !AiAuthHelper::isAdmin();
 
-        $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers) {
-            return in_array($t['function']['name'] ?? '', $allowedIdentifiers);
+        $filteredSchema = array_values(array_filter($globalSchema, function ($t) use ($allowedIdentifiers, $isEmployeeRestricted) {
+            $fnName = $t['function']['name'] ?? '';
+            if ($fnName === '' || !in_array($fnName, $allowedIdentifiers, true)) {
+                return false;
+            }
+            if ($isEmployeeRestricted && AIFunctionsRegistry::isToolRestrictedForEmployee($fnName)) {
+                return false;
+            }
+            return true;
         }));
 
         // STRICT ROLE NORMALIZATION FOR GOOGLE OPENAI WRAPPER
@@ -1082,7 +1099,7 @@ class GeminiAgent implements AiProviderInterface
 
             // Nutze explizit gemini-2.5-flash-image, da dieses spezialisierte Modell nativ Base64 unterstützt
             // und nicht von den generellen 503 "High Demand" Ausfällen der Standardmodelle betroffen ist.
-            $googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' . $apiKey;
+            $googleUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
 
             // Entferne evtl. vorhandene data:image/jpeg;base64,... Header, falls Base64 nicht raw ist
             if (str_contains($base64Image, ',')) {
@@ -1119,7 +1136,10 @@ class GeminiAgent implements AiProviderInterface
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'x-goog-api-key: ' . $apiKey,
+            ]);
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($requestPayload));
             curl_setopt($ch, CURLOPT_TIMEOUT, 30);
             curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Docker IPv6 Blackholing verhindern

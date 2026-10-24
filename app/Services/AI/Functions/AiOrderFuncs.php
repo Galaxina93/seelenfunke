@@ -161,8 +161,22 @@ trait AiOrderFuncs
         ];
     }
 
+    private static function assertOrderStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeGetCurrentExpressStatus(array $args)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         $expressCount = OrderOrder::whereIn('status', ['pending', 'processing'])->where('is_express', true)->count();
         return [
             'status' => 'success',
@@ -173,31 +187,34 @@ trait AiOrderFuncs
 
     public static function executeGetOrder(array $args)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         try {
             $query = OrderOrder::with(['items', 'customer', 'invoices']);
             
             $hasFilters = false;
 
             if (!empty($args['order_number'])) {
-                $term = $args['order_number'];
-                $query->where(function($q) use ($term) {
-                    $q->where('order_number', 'like', "%{$term}%")
-                      ->orWhere('email', 'like', "%{$term}%");
+                $termEsc = addcslashes((string) $args['order_number'], '%_\\');
+                $query->where(function($q) use ($termEsc) {
+                    $q->where('order_number', 'like', "%{$termEsc}%")
+                      ->orWhere('email', 'like', "%{$termEsc}%");
                 });
                 $hasFilters = true;
             }
 
             if (!empty($args['customer_name'])) {
-                $name = $args['customer_name'];
-                $query->where(function($q) use ($name) {
-                    $q->whereHas('customer', function($cQ) use ($name) {
-                        $cQ->where('last_name', 'like', "%{$name}%")
-                           ->orWhere('first_name', 'like', "%{$name}%");
+                $nameEsc = addcslashes((string) $args['customer_name'], '%_\\');
+                $query->where(function($q) use ($nameEsc) {
+                    $q->whereHas('customer', function($cQ) use ($nameEsc) {
+                        $cQ->where('last_name', 'like', "%{$nameEsc}%")
+                           ->orWhere('first_name', 'like', "%{$nameEsc}%");
                     })
-                    ->orWhere('billing_address->first_name', 'like', "%{$name}%")
-                    ->orWhere('billing_address->last_name', 'like', "%{$name}%")
-                    ->orWhere('shipping_address->first_name', 'like', "%{$name}%")
-                    ->orWhere('shipping_address->last_name', 'like', "%{$name}%");
+                    ->orWhere('billing_address->first_name', 'like', "%{$nameEsc}%")
+                    ->orWhere('billing_address->last_name', 'like', "%{$nameEsc}%")
+                    ->orWhere('shipping_address->first_name', 'like', "%{$nameEsc}%")
+                    ->orWhere('shipping_address->last_name', 'like', "%{$nameEsc}%");
                 });
                 $hasFilters = true;
             }
@@ -311,6 +328,9 @@ trait AiOrderFuncs
 
     public static function executeOrderUpdateStatus(array $args)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         try {
             $order = OrderOrder::where('order_number', $args['order_number'])->first();
             if (!$order) {
@@ -377,6 +397,9 @@ trait AiOrderFuncs
 
     public static function executeOrderGenerateXtool(array $args, $agent = null)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         try {
             $item = OrderOrderItem::with('order')->find($args['order_item_id']);
             if (!$item) {
@@ -454,6 +477,9 @@ trait AiOrderFuncs
 
     public static function executeGetUrgentTasks(array $args)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         try {
             $limit = $args['limit'] ?? 3;
             $tasks = ManagementTask::with('list')
@@ -491,14 +517,18 @@ trait AiOrderFuncs
 
     public static function executeCheckInventory(array $args)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         try {
             $query = Product::where('status', 'active')
                 ->where('track_quantity', true);
                 
             if (!empty($args['search_query'])) {
-                $query->where(function($q) use ($args) {
-                    $q->where('name', 'like', '%' . $args['search_query'] . '%')
-                      ->orWhere('sku', 'like', '%' . $args['search_query'] . '%');
+                $searchEsc = addcslashes((string) $args['search_query'], '%_\\');
+                $query->where(function($q) use ($searchEsc) {
+                    $q->where('name', 'like', '%' . $searchEsc . '%')
+                      ->orWhere('sku', 'like', '%' . $searchEsc . '%');
                 });
             }
 
@@ -526,6 +556,9 @@ trait AiOrderFuncs
 
     public static function executeGetProductReviews(array $args)
     {
+        if ($denied = self::assertOrderStaffAccess()) {
+            return $denied;
+        }
         try {
             $reviews = ProductReview::with('product')
                 ->where('is_approved', false)

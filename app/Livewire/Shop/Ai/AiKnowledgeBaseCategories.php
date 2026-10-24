@@ -11,10 +11,20 @@ class AiKnowledgeBaseCategories extends Component
     public $categories = [];
     public $search = '';
     public $newCategoryName = '';
+    #[\Livewire\Attributes\Locked]
     public $editingCategoryId = null;
     public $editingCategoryName = '';
     public $selectedCategoryId = null;
     public $isManaging = false;
+
+    protected function isRestrictedSlug(?string $slug): bool
+    {
+        if (Auth::guard('admin')->check()) {
+            return false;
+        }
+
+        return $slug !== null && in_array($slug, \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS, true);
+    }
 
     public function boot(): void
     {
@@ -39,13 +49,17 @@ class AiKnowledgeBaseCategories extends Component
 
     public function loadCategories()
     {
-        if (empty($this->search)) {
-            $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::orderBy('name')->get()->toArray();
-        } else {
-            $escaped = addcslashes((string) $this->search, '%_\\');
-            $this->categories = \App\Models\Ai\AiKnowledgeBaseCategory::where('name', 'like', '%' . $escaped . '%')
-                ->orderBy('name')->get()->toArray();
+        $query = \App\Models\Ai\AiKnowledgeBaseCategory::orderBy('name');
+        if (!Auth::guard('admin')->check()) {
+            $query->whereNotIn('slug', \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS);
         }
+
+        if (!empty($this->search)) {
+            $escaped = addcslashes((string) $this->search, '%_\\');
+            $query->where('name', 'like', '%' . $escaped . '%');
+        }
+
+        $this->categories = $query->get()->toArray();
     }
 
     public function createCategory()
@@ -55,10 +69,14 @@ class AiKnowledgeBaseCategories extends Component
         }
 
         $this->validate(['newCategoryName' => 'required|string|max:100|unique:ai_knowledge_base_categories,name']);
+        $targetSlug = \Illuminate\Support\Str::slug($this->newCategoryName);
+        if ($this->isRestrictedSlug($targetSlug)) {
+            abort(403);
+        }
 
         $cat = \App\Models\Ai\AiKnowledgeBaseCategory::create([
             'name' => $this->newCategoryName,
-            'slug' => \Illuminate\Support\Str::slug($this->newCategoryName)
+            'slug' => $targetSlug
         ]);
 
         $this->newCategoryName = '';
@@ -68,8 +86,12 @@ class AiKnowledgeBaseCategories extends Component
 
     public function startEditing($id, $name)
     {
-        $this->editingCategoryId = $id;
-        $this->editingCategoryName = $name;
+        $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($id);
+        if (!$cat || $this->isRestrictedSlug($cat->slug)) {
+            abort(403);
+        }
+        $this->editingCategoryId = $cat->id;
+        $this->editingCategoryName = $cat->name;
     }
 
     public function cancelEditing()
@@ -84,22 +106,40 @@ class AiKnowledgeBaseCategories extends Component
             abort(403);
         }
 
-        $this->validate(['editingCategoryName' => 'required|string|max:100|unique:ai_knowledge_base_categories,name,' . $this->editingCategoryId]);
-
         $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($this->editingCategoryId);
-        if ($cat) {
-            $cat->update([
-                'name' => $this->editingCategoryName,
-                'slug' => \Illuminate\Support\Str::slug($this->editingCategoryName)
-            ]);
+        if (!$cat || $this->isRestrictedSlug($cat->slug)) {
+            abort(403);
         }
+
+        $this->validate([
+            'editingCategoryName' => [
+                'required',
+                'string',
+                'max:100',
+                \Illuminate\Validation\Rule::unique('ai_knowledge_base_categories', 'name')->ignore($cat->id),
+            ],
+        ]);
+
+        $newSlug = \Illuminate\Support\Str::slug($this->editingCategoryName);
+        if ($this->isRestrictedSlug($newSlug) || in_array($cat->slug, \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS, true)) {
+            if (!Auth::guard('admin')->check()) {
+                abort(403);
+            }
+            // Keep canonical admin-only slug intact even when display name is adjusted
+            $newSlug = $cat->slug;
+        }
+
+        $cat->update([
+            'name' => $this->editingCategoryName,
+            'slug' => $newSlug
+        ]);
         $this->cancelEditing();
         $this->loadCategories();
     }
 
     public function deleteCategory($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check()) {
             abort(403);
         }
 
@@ -115,6 +155,12 @@ class AiKnowledgeBaseCategories extends Component
 
     public function selectCategory($id)
     {
+        if ($id) {
+            $cat = \App\Models\Ai\AiKnowledgeBaseCategory::find($id);
+            if ($cat && $this->isRestrictedSlug($cat->slug)) {
+                abort(403);
+            }
+        }
         $this->selectedCategoryId = $id;
         $this->dispatch('ai-knowledge-base-category-selected', id: $id);
     }

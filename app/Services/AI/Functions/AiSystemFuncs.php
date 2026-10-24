@@ -1024,22 +1024,44 @@ trait AiSystemFuncs
         return $schema;
     }
 
+    private static function assertSystemAdminAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Dieses System-Werkzeug ist ausschließlich Administratoren vorbehalten.'];
+        }
+        return null;
+    }
+
+    private static function assertSystemStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Keine Berechtigung für dieses System-Werkzeug.'];
+        }
+        return null;
+    }
+
     public static function executeAnalyzeNeuralError(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             if (empty($args['file_path']) || !is_string($args['file_path'])) {
                 return ['status' => 'error', 'message' => 'Es wurde keine Datei übergeben.'];
             }
 
             $filePath = ltrim(str_replace('\\', '/', trim($args['file_path'])), '/');
+            $pathLower = strtolower($filePath);
             $baseName = strtolower(basename($filePath));
+            $extLower = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
             if (
                 str_contains($filePath, '..')
                 || str_contains($filePath, "\0")
                 || str_starts_with($baseName, '.env')
-                || str_ends_with($baseName, '.key')
-                || str_ends_with($baseName, '.pem')
-                || str_ends_with($baseName, '.sqlite')
+                || in_array($baseName, ['auth.json', 'composer.json', 'composer.lock'], true)
+                || in_array($extLower, ['key', 'pem', 'p12', 'pfx', 'sqlite', 'sql'], true)
+                || str_starts_with($pathLower, '.git/')
+                || str_starts_with($pathLower, 'config/')
+                || str_starts_with($pathLower, 'storage/')
             ) {
                 return ['status' => 'error', 'message' => 'Zugriff verweigert: Unzulässiger oder geschützter Dateipfad.'];
             }
@@ -1048,9 +1070,12 @@ trait AiSystemFuncs
 
             // Fetch actual file content if it exists inside base_path()
             $fullPath = base_path($filePath);
+            if (is_link($fullPath)) {
+                return ['status' => 'error', 'message' => 'Zugriff verweigert: Symlinks dürfen nicht analysiert werden.'];
+            }
             $realFull = realpath($fullPath);
             $realBase = realpath(base_path());
-            if ($realFull === false || $realBase === false || !str_starts_with($realFull, $realBase)) {
+            if ($realFull === false || $realBase === false || !str_starts_with($realFull, $realBase . DIRECTORY_SEPARATOR)) {
                 return ['status' => 'error', 'message' => 'Zugriff verweigert: Datei liegt außerhalb des Projektverzeichnisses oder existiert nicht.'];
             }
 
@@ -1088,7 +1113,7 @@ trait AiSystemFuncs
                 $reportContent .= $apiErrorResponse;
             }
 
-            $reportName = 'NeuralAnalysis_' . basename($filePath) . '_' . time() . '.md';
+            $reportName = 'NeuralAnalysis_' . basename($filePath) . '_' . time() . '_' . \Illuminate\Support\Str::random(12) . '.md';
 
             // Save report to workspace (Dokumente/Berichte)
             \Illuminate\Support\Facades\Storage::disk('workspace')->put('agenten/workspace/Dokumente/Berichte/' . $reportName, $reportContent);
@@ -1114,6 +1139,8 @@ trait AiSystemFuncs
 
     public static function executeEmailNeuralStructure(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $query = strtolower(trim($args['filename_query'] ?? ''));
             if (empty($query)) {
@@ -1326,6 +1353,8 @@ trait AiSystemFuncs
 
     public static function executeSendNeuralReportMail(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $rawReportFile = trim($args['report_file'] ?? '');
             $reportFile = basename($rawReportFile);
@@ -1376,6 +1405,8 @@ trait AiSystemFuncs
 
     public static function executeAnalyzeSecurityThreats(array $args, $agentObj = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $sendEmail = $args['send_email'] ?? false;
             $email = $args['email_address'] ?? null;
@@ -1423,7 +1454,7 @@ trait AiSystemFuncs
                 $reportContent = "# Security Threat Report\n\nDie KI konnte die Sicherheitsdaten nicht analysieren (API Limit oder Fehler).";
             }
 
-            $reportName = 'SecurityThreatReport_' . time() . '.md';
+            $reportName = 'SecurityThreatReport_' . time() . '_' . \Illuminate\Support\Str::random(12) . '.md';
             \Illuminate\Support\Facades\Storage::disk('workspace')->put('agenten/workspace/Dokumente/Berichte/' . $reportName, $reportContent);
 
             $message = "Security Analyse abgeschlossen. Bericht wurde als {$reportName} generiert.";
@@ -1463,6 +1494,8 @@ trait AiSystemFuncs
 
     public static function executeClearSecurityThreats(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $deletedLogs = 0;
             $deletedAttempts = 0;
@@ -1494,6 +1527,8 @@ trait AiSystemFuncs
 
     public static function executeScanNeuralNetwork(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $logPath = storage_path('logs/laravel.log');
             $errorsFound = [];
@@ -1566,6 +1601,8 @@ trait AiSystemFuncs
 
     public static function executeFlyToNeuralNode(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $filePath = $args['file_path'] ?? '';
             if (!$filePath) return ['status' => 'error', 'message' => 'Kein Dateipfad angegeben.'];
@@ -1604,6 +1641,8 @@ trait AiSystemFuncs
 
     public static function executeExportNeuralMap(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $nodes = \App\Models\System\SystemNeuralNode::all();
             
@@ -1660,6 +1699,8 @@ trait AiSystemFuncs
 
     public static function executeCreateDatabaseBackup(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
             $output = \Illuminate\Support\Facades\Artisan::output();
@@ -1685,9 +1726,11 @@ trait AiSystemFuncs
 
     public static function executeSwitchAgent(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         $agentName = $args['agent_name'] ?? '';
         $escapedAgentName = addcslashes((string) $agentName, '%_\\');
-        $agent = \App\Models\Ai\AiAgent::where('name', 'LIKE', '%' . $escapedAgentName . '%')->first();
+        $agent = \App\Models\Ai\AiAgent::where('is_active', true)->where('name', 'LIKE', '%' . $escapedAgentName . '%')->first();
         if ($agent) {
             return [
                 'status' => 'success',
@@ -1707,6 +1750,8 @@ trait AiSystemFuncs
 
     public static function executeSystemCommand(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             if (!defined('STDIN')) {
                 define('STDIN', fopen('php://stdin', 'r'));
@@ -1772,6 +1817,8 @@ trait AiSystemFuncs
 
     public static function executeOpenNavItem(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         try {
             if (empty($args['url'])) {
                 return ['status' => 'error', 'message' => 'Es wurde keine URL übergeben.'];
@@ -1913,6 +1960,8 @@ trait AiSystemFuncs
 
     public static function executeCallContact(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $phoneNumber = $args['phone_number'] ?? null;
         $objective = $args['objective'] ?? null;
 
@@ -2052,6 +2101,8 @@ trait AiSystemFuncs
 
     public static function executeGetSystemHealth(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $analytics = new \App\Livewire\Shop\Master\MasterAnalytics();
             $analytics->checkSystemHealth();
@@ -2083,6 +2134,8 @@ trait AiSystemFuncs
 
     public static function executeGetWebSocketStatus(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $wsUrl = config('services.gemini.proxy_ws_url')
                 ?: config('services.ai.gemini_proxy_ws_url') 
@@ -2181,6 +2234,8 @@ trait AiSystemFuncs
 
     public static function executeManageSystemLogs(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $action = $args['action'] ?? 'resolve';
 
         if ($action === 'clear_files') {
@@ -2405,6 +2460,8 @@ trait AiSystemFuncs
 
     public static function executeDispatchBackgroundTask(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $taskDescription = trim($args['task_description'] ?? '');
         if (empty($taskDescription)) {
             return [
@@ -2428,7 +2485,6 @@ trait AiSystemFuncs
             'system_clear_security_threats',
             'system_execute_command',
             'system_fix_errors',
-            'system_manage_logs',
             'system_create_database_backup',
             'agent_update_system_config',
             'agent_update_runtime_config',
@@ -2440,14 +2496,26 @@ trait AiSystemFuncs
                 'message' => "Sicherheitsrichtlinie: Das Werkzeug '{$toolToExecute}' darf nicht unbeaufsichtigt im Hintergrund ausgeführt werden."
             ];
         }
+        if ($toolToExecute === 'system_manage_logs' && strtolower((string) ($toolArgs['action'] ?? '')) === 'delete') {
+            return [
+                'status' => 'error',
+                'message' => "Sicherheitsrichtlinie: Das unwiderrufliche Löschen von System-Logs darf nicht unbeaufsichtigt im Hintergrund ausgeführt werden."
+            ];
+        }
 
-        if (!empty($toolToExecute) && $agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection && $agent->tools->isNotEmpty()) {
-            $allowedCallerTools = $agent->tools->pluck('identifier')->toArray();
-            if (!in_array($toolToExecute, $allowedCallerTools, true)) {
-                return [
-                    'status' => 'error',
-                    'message' => "Sicherheitsrichtlinie: Agent '{$agent->name}' darf kein Hintergrund-Werkzeug ('{$toolToExecute}') delegieren, für das er selbst keine Berechtigung besitzt."
-                ];
+        if (!empty($toolToExecute) && $agent && isset($agent->tools) && $agent->tools instanceof \Illuminate\Support\Collection) {
+            $hasExplicitToolBoundary = $agent->tools->isNotEmpty()
+                || !empty($agent->ai_role_id)
+                || (method_exists($agent, 'getAttributes') && array_key_exists('tools', $agent->getAttributes()))
+                || (method_exists($agent, 'relationLoaded') && ($agent->relationLoaded('tools') || $agent->relationLoaded('role')));
+            if ($hasExplicitToolBoundary) {
+                $allowedCallerTools = $agent->tools->pluck('identifier')->toArray();
+                if (!in_array($toolToExecute, $allowedCallerTools, true)) {
+                    return [
+                        'status' => 'error',
+                        'message' => "Sicherheitsrichtlinie: Agent '{$agent->name}' darf kein Hintergrund-Werkzeug ('{$toolToExecute}') delegieren, für das er selbst keine Berechtigung besitzt."
+                    ];
+                }
             }
         }
 
@@ -2507,6 +2575,8 @@ trait AiSystemFuncs
 
     public static function executeGetTaskStatus(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $taskId = $args['task_id'] ?? null;
         $limit = min(max((int)($args['limit'] ?? 5), 1), 20);
 
@@ -2578,6 +2648,8 @@ trait AiSystemFuncs
 
     public static function executeFixSystemErrors(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $target = $args['target'] ?? 'all';
         $targets = $target === 'all' ? ['database', 'redis', 'queue', 'scheduler', 'backup', 'stripe', 'smtp', 'ws'] : [$target];
         $logs = [];
@@ -2663,6 +2735,8 @@ trait AiSystemFuncs
 
     public static function executeGetSystemLogs(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             if (!class_exists(\App\Models\System\SystemLog::class)) {
                 return ['status' => 'error', 'message' => 'GlobalLog-Klasse ist im System nicht existent.'];
@@ -2764,6 +2838,8 @@ trait AiSystemFuncs
 
     public static function executeGetSystemMap(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $modelsPath = app_path('Models');
 
@@ -2826,6 +2902,8 @@ trait AiSystemFuncs
 
     public static function executeTriggerUiElement(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         try {
             if (empty($args['element_text'])) {
                 return ['status' => 'error', 'message' => 'Es wurde kein Suchtext übergeben.'];
@@ -2849,6 +2927,8 @@ trait AiSystemFuncs
 
     public static function executeGeneratePdfReport(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         try {
             $title = $args['title'] ?? 'KI-Bericht';
             $markdown = $args['content_markdown'] ?? '';
@@ -2923,6 +3003,8 @@ trait AiSystemFuncs
 
     public static function executeGenerateDocxReport(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         try {
             $title = $args['title'] ?? 'KI-Bericht';
             $markdown = $args['content_markdown'] ?? '';
@@ -2978,8 +3060,9 @@ trait AiSystemFuncs
             if (!file_exists($tempDir)) {
                 mkdir($tempDir, 0775, true);
             }
-            $tempJsonPath = $tempDir . '/temp_docx_' . uniqid() . '.json';
+            $tempJsonPath = $tempDir . '/temp_docx_' . \Illuminate\Support\Str::random(20) . '.json';
             file_put_contents($tempJsonPath, json_encode($jsonData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            @chmod($tempJsonPath, 0600);
 
             // Execute Python script
             $scriptPath = base_path('app/Services/AI/Scripts/generate_docx.py');
@@ -3040,6 +3123,8 @@ trait AiSystemFuncs
 
     public static function executeGenerateDeliveryNote(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         try {
             $recipientName = trim($args['recipient_name'] ?? '');
             if (empty($recipientName)) {
@@ -3181,6 +3266,8 @@ trait AiSystemFuncs
 
     public static function executeExportSystemReport(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         try {
             $reportType = $args['report_type'] ?? null;
             $action = $args['target_action'] ?? 'download';
@@ -3353,6 +3440,8 @@ trait AiSystemFuncs
 
     public static function executeUpdateFunkiraConfiguration(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $restrictedKeys = ['api_provider', 'api_key', 'local_tts_url'];
         $allowedKeys = [
             'active_mode',
@@ -3416,6 +3505,8 @@ trait AiSystemFuncs
     }
 
     public static function executeAgentConfig(array $args) {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $key = $args['setting_key'] ?? null;
         $val = $args['setting_value'] ?? null;
 
@@ -3453,6 +3544,8 @@ trait AiSystemFuncs
 
     public static function executeSearchFiles(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $query = $args['filename_query'] ?? '';
         if (strlen($query) < 2) return ['status' => 'error', 'message' => 'Suchbegriff zu kurz. Mindestens 2 Zeichen.'];
 
@@ -3466,7 +3559,7 @@ trait AiSystemFuncs
 
             $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path));
             foreach ($iterator as $file) {
-                if ($file->isDir()) continue;
+                if ($file->isDir() || $file->isLink()) continue;
                 if (stripos($file->getFilename(), $query) !== false) {
                     $results[] = str_replace($basePath . '/', '', $file->getPathname());
                     if (count($results) >= 50) break 2; // Stop traversing after 50 hits
@@ -3483,6 +3576,8 @@ trait AiSystemFuncs
 
     public static function executeSearchCode(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $query = $args['search_query'] ?? '';
         if (strlen($query) < 3) return ['status' => 'error', 'message' => 'Suchbegriff zu kurz (min. 3 Zeichen).'];
 
@@ -3493,8 +3588,8 @@ trait AiSystemFuncs
         $escapedQuery = escapeshellarg($query);
         
         // grep recursive, no-filename... wait we want filename, so default.
-        // -r recursive, -n line numbers, -I ignore binary, -i case insensitive
-        $cmd = "grep -rnIi $escapedQuery $searchDirs | head -n 50";
+        // -r recursive, -n line numbers, -I ignore binary, -i case insensitive, -- end of options
+        $cmd = "grep -rnIi -- $escapedQuery $searchDirs | head -n 50";
         
         exec($cmd, $output, $returnVar);
 
@@ -3505,6 +3600,15 @@ trait AiSystemFuncs
         $formatted = [];
         foreach ($output as $line) {
             $cleanLine = str_replace($basePath . '/', '', $line);
+            $matchedFile = strtolower(explode(':', $cleanLine, 2)[0] ?? '');
+            if (
+                str_contains($matchedFile, '.env')
+                || str_ends_with($matchedFile, '.sql')
+                || str_ends_with($matchedFile, '.sqlite')
+                || str_ends_with($matchedFile, 'auth.json')
+            ) {
+                continue;
+            }
             $formatted[] = $cleanLine;
         }
 
@@ -3513,6 +3617,8 @@ trait AiSystemFuncs
 
     public static function executeReadCode(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $path = ltrim(str_replace('\\', '/', (string) ($args['file_path'] ?? '')), '/');
         if (empty($path)) return ['status' => 'error', 'message' => 'Kein Dateipfad angegeben.'];
 
@@ -3522,7 +3628,7 @@ trait AiSystemFuncs
 
         $fullPath = base_path($path);
         
-        if (!file_exists($fullPath) || !is_file($fullPath)) {
+        if (is_link($fullPath) || !file_exists($fullPath) || !is_file($fullPath)) {
             return ['status' => 'error', 'message' => "Datei '$path' existiert nicht. Bitte mit system_search_files überprüfen!"];
         }
         
@@ -3540,11 +3646,7 @@ trait AiSystemFuncs
             || in_array($baseNameLower, ['auth.json', 'composer.lock'], true)
             || in_array($extLower, ['key', 'pem', 'p12', 'pfx', 'sqlite', 'sql'], true)
             || str_starts_with($relPathLower, '.git/')
-            || str_starts_with($relPathLower, 'storage/logs/')
-            || str_starts_with($relPathLower, 'storage/framework/')
-            || str_starts_with($relPathLower, 'storage/app/buchhaltung/')
-            || str_starts_with($relPathLower, 'storage/app/invoices/')
-            || str_starts_with($relPathLower, 'storage/app/backups/')
+            || str_starts_with($relPathLower, 'storage/')
         ) {
              return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Sensible System- oder Schlüsseldateien dürfen nicht gelesen werden.'];
         }
@@ -3585,6 +3687,8 @@ trait AiSystemFuncs
 
     public static function executeMultiReplaceFile(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         if (!app()->environment('local', 'testing')) {
             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Direkte Code-Modifikationen sind in der Produktionsumgebung gesperrt.'];
         }
@@ -3606,8 +3710,8 @@ trait AiSystemFuncs
 
         $fullPath = base_path($path);
 
-        // Path Traversal Check
-        if (!file_exists($fullPath) || !is_file($fullPath)) {
+        // Path Traversal & Symlink Check
+        if (is_link($fullPath) || !file_exists($fullPath) || !is_file($fullPath)) {
             return ['status' => 'error', 'message' => "Datei '$path' existiert nicht."];
         }
 
@@ -3623,11 +3727,12 @@ trait AiSystemFuncs
         if (
             str_contains($baseNameLower, '.env')
             || in_array($baseNameLower, ['artisan', 'composer.json', 'composer.lock', 'package.json', 'package-lock.json', 'server-twilio.js', 'funki', 'auth.json', '.htaccess', 'index.php'], true)
-            || in_array($extLower, ['sh', 'bash', 'phar', 'key', 'pem', 'sqlite'], true)
+            || in_array($extLower, ['sh', 'bash', 'phar', 'key', 'pem', 'p12', 'pfx', 'sqlite', 'sql'], true)
             || str_starts_with($relPathLower, '.git/')
             || str_starts_with($relPathLower, 'public/')
             || str_starts_with($relPathLower, 'config/')
             || str_starts_with($relPathLower, 'bootstrap/')
+            || str_starts_with($relPathLower, 'storage/')
             || str_starts_with($relPathLower, 'vendor/')
             || str_starts_with($relPathLower, 'node_modules/')
         ) {
@@ -3726,6 +3831,8 @@ trait AiSystemFuncs
 
     public static function executeWriteToFile(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         if (!app()->environment('local', 'testing')) {
             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Direkte Datei-Schreibzugriffe sind in der Produktionsumgebung gesperrt.'];
         }
@@ -3747,17 +3854,21 @@ trait AiSystemFuncs
         if (
             str_contains($baseNameLower, '.env')
             || in_array($baseNameLower, ['artisan', 'composer.json', 'composer.lock', 'package.json', 'package-lock.json', 'server-twilio.js', 'funki', 'auth.json', '.htaccess', 'index.php'], true)
-            || in_array($extLower, ['sh', 'bash', 'phar', 'key', 'pem', 'sqlite'], true)
+            || in_array($extLower, ['sh', 'bash', 'phar', 'key', 'pem', 'p12', 'pfx', 'sqlite', 'sql'], true)
             || str_starts_with($pathLower, 'public/')
             || str_starts_with($pathLower, 'config/')
             || str_starts_with($pathLower, 'bootstrap/')
+            || str_starts_with($pathLower, 'storage/')
             || str_starts_with($pathLower, 'vendor/')
             || str_starts_with($pathLower, 'node_modules/')
         ) {
-             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Geschützte Systemdateien (.env, artisan, composer, public, config) dürfen nicht überschrieben werden.'];
+             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Geschützte Systemdateien (.env, artisan, composer, public, config, storage) dürfen nicht überschrieben werden.'];
         }
 
         $fullPath = base_path($path);
+        if (is_link($fullPath)) {
+             return ['status' => 'error', 'message' => 'Zugriff verweigert: Symlinks dürfen nicht überschrieben werden.'];
+        }
         $dir = dirname($fullPath);
         $realBase = realpath(base_path());
 
@@ -3799,6 +3910,8 @@ trait AiSystemFuncs
 
     public static function executeWriteArtifact(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         $rawName = ltrim((string) ($args['artifact_name'] ?? ''), '/');
         $content = $args['content'] ?? '';
 
@@ -3858,6 +3971,8 @@ trait AiSystemFuncs
 
     public static function executePatchArtifact(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         $rawName = ltrim((string) ($args['artifact_name'] ?? ''), '/');
         $searchText = (string) ($args['search_text'] ?? '');
         $replaceText = (string) ($args['replace_text'] ?? '');
@@ -3914,6 +4029,8 @@ trait AiSystemFuncs
 
     public static function executeWriteKnowledge(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         $topic = ltrim($args['topic'] ?? '', '/');
         $content = $args['content'] ?? '';
 
@@ -4002,6 +4119,8 @@ trait AiSystemFuncs
 
     public static function executeRunCommand(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         if (!app()->environment('local', 'testing')) {
             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Shell-Befehle sind in der Produktionsumgebung gesperrt.'];
         }
@@ -4011,7 +4130,7 @@ trait AiSystemFuncs
             return ['status' => 'error', 'message' => 'command fehlt.'];
         }
 
-        $jobId = uniqid('cmd_');
+        $jobId = 'cmd_' . \Illuminate\Support\Str::random(20);
         $logFile = storage_path('logs/' . $jobId . '.log');
         
         $basePath = base_path();
@@ -4063,6 +4182,8 @@ trait AiSystemFuncs
 
     public static function executeCommandStatus(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         if (!app()->environment('local', 'testing')) {
             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Shell-Befehle sind in der Produktionsumgebung gesperrt.'];
         }
@@ -4106,6 +4227,8 @@ trait AiSystemFuncs
 
     public static function executeGetRights(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         if (!app()->environment('local', 'testing')) {
             return ['status' => 'error', 'message' => 'Sicherheitsrichtlinie: Systemrechte-Skript ist in der Produktionsumgebung gesperrt.'];
         }
@@ -4128,6 +4251,8 @@ trait AiSystemFuncs
 
     public static function executeAssignToolToRole(array $args, $agent = null)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied['message'];
+
         $toolId = trim((string) ($args['tool_identifier'] ?? ''));
         if (empty($toolId) || !$agent || !$agent->ai_role_id) {
             return "Fehler: Tool-Indentifier fehlt oder dir fehlt die feste Rolle im System.";
@@ -4210,6 +4335,8 @@ trait AiSystemFuncs
 
     public static function executeListDirectory(array $args)
     {
+        if ($denied = self::assertSystemAdminAccess()) return $denied;
+
         $rawDir = ltrim(str_replace('\\', '/', (string) ($args['directory_path'] ?? '')), '/');
         if (str_contains($rawDir, '..') || str_contains($rawDir, "\0")) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Pfad-Traversierung ist nicht erlaubt.'];
@@ -4377,6 +4504,8 @@ trait AiSystemFuncs
 
     public static function executeReadClipboard(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         return [
             'status' => 'success',
             'action_required' => 'frontend_clipboard_read',
@@ -4389,6 +4518,8 @@ trait AiSystemFuncs
 
     public static function executeWriteClipboard(array $args)
     {
+        if ($denied = self::assertSystemStaffAccess()) return $denied;
+
         if (!isset($args['text'])) {
             return ['status' => 'error', 'message' => 'Text parameter is required.'];
         }

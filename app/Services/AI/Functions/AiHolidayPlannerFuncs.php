@@ -131,6 +131,10 @@ trait AiHolidayPlannerFuncs
 
     public static function executeHolidayGeneratePdfPlan(array $args, $agent = null)
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Urlaubsplanung ist nur für Administratoren freigegeben.'];
+        }
+
         $title = str_replace(["\r", "\n"], '', trim($args['title'] ?? 'Urlaubsplan'));
         $description = $args['description'] ?? '';
         $startDate = $args['start_date'] ?? null;
@@ -154,6 +158,9 @@ trait AiHolidayPlannerFuncs
         $calendarEvents = $args['calendar_events_during_trip'] ?? [];
         $action = $args['target_action'] ?? 'download';
         $recipient = $args['recipient_email'] ?? null;
+        if (is_string($recipient) && preg_match('/[\r\n]/', $recipient)) {
+            return ['status' => 'error', 'message' => 'Ungültige Empfänger-E-Mail-Adresse.'];
+        }
         if (is_string($recipient) && (strtolower($recipient) === 'null' || trim($recipient) === '')) {
             $recipient = null;
         }
@@ -179,7 +186,7 @@ trait AiHolidayPlannerFuncs
 
             // Save PDF
             $slug = Str::slug($title) ?: 'plan';
-            $filename = 'urlaubsplan_' . $slug . '_' . time() . '_' . Str::random(6) . '.pdf';
+            $filename = 'urlaubsplan_' . $slug . '_' . time() . '_' . Str::random(12) . '.pdf';
             $filePath = storage_path('app/public/agenten/exports/holidays/' . $filename);
             $pdf->save($filePath);
 

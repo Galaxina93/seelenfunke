@@ -11,6 +11,7 @@ use App\Services\System\SystemSecurityService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Locked;
 use App\Livewire\Traits\WithDepartmentTheming;
@@ -51,7 +52,7 @@ class AiFrontendSupportChat extends Component
         })->where('is_active', true)->first();
         
         if (!$supportAgent) {
-            $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->first();
+            $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first();
         }
 
         $this->hasAcceptedPrivacy = session()->get('ai_chat_privacy_accepted', false);
@@ -196,9 +197,16 @@ class AiFrontendSupportChat extends Component
                     );
                     return;
                 }
+                if (in_array($chat->status, ['resolved', 'resolved_admin', 'resolved_auto', 'needs_employee', 'closed'], true)) {
+                    $this->isResolved = true;
+                    return;
+                }
                 if (empty($chat->customer_id) && $currentCustomerId) {
                     $chat->update(['customer_id' => $currentCustomerId]);
                 }
+            } else {
+                $this->chatId = null;
+                session()->forget('current_chat_id');
             }
         }
 
@@ -270,6 +278,13 @@ class AiFrontendSupportChat extends Component
     #[On('trigger-ai-inference')]
     public function generateAiResponse()
     {
+        $throttleKey = 'support_chat_inference_' . (auth()->guard('customer')->id() ?? request()->ip());
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            $this->isTyping = false;
+            return;
+        }
+        RateLimiter::hit($throttleKey, 60);
+
         $sessionChatId = session('current_chat_id');
         if ($sessionChatId && (string)$this->chatId !== (string)$sessionChatId) {
             Log::warning("Unauthorized inference attempt: session {$sessionChatId} vs chatId {$this->chatId}");
@@ -315,7 +330,7 @@ class AiFrontendSupportChat extends Component
         })->where('is_active', true)->first();
         
         if (!$supportAgent) {
-            $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->first();
+            $supportAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first();
         }
 
         if (!$supportAgent) {
@@ -507,12 +522,25 @@ class AiFrontendSupportChat extends Component
                 ->where('id', '!=', $this->chatId ?? 0)
                 ->whereNull('rating')
                 ->update(['status' => 'closed']);
-        } elseif ($sessionToken) {
-            SupportCustomerChat::where('session_token', $sessionToken)
+        } elseif (is_string($sessionToken) && strlen(trim($sessionToken)) >= 16) {
+            SupportCustomerChat::where('session_token', trim($sessionToken))
+                ->whereNull('customer_id')
                 ->where('id', '!=', $this->chatId ?? 0)
                 ->whereNull('rating')
                 ->update(['status' => 'closed']);
         }
+
+        if ($this->chatId) {
+            $currentChatQuery = SupportCustomerChat::where('id', $this->chatId);
+            if ($customerId) {
+                $currentChatQuery->where('customer_id', $customerId);
+            } else {
+                $currentChatQuery->whereNull('customer_id');
+            }
+            $currentChatQuery->update(['status' => 'closed']);
+        }
+
+        session()->forget('current_chat_id');
 
         $this->chatId = null;
         $this->messages = [];

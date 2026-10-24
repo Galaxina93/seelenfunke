@@ -14,12 +14,17 @@ class AIController extends Controller
      */
     public function schema(Request $request)
     {
-        // Here you would implement rudimentary security check.
-        // Example: if($request->header('X-AI-TOKEN') !== env('AI_SECRET')) return abort(403);
+        $tools = AIFunctionsRegistry::getSchema();
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            $tools = array_values(array_filter($tools, function ($tool) {
+                $name = $tool['function']['name'] ?? '';
+                return $name !== '' && !AIFunctionsRegistry::isToolRestrictedForEmployee($name);
+            }));
+        }
 
         return response()->json([
             'status' => 'success',
-            'tools' => AIFunctionsRegistry::getSchema(),
+            'tools' => $tools,
         ]);
     }
 
@@ -41,11 +46,11 @@ class AIController extends Controller
 
         $sessionId = $request->input('chat_session_id') ?: $request->input('session_id');
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
-        if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin() && $currentUserId) {
-            $foreignSession = \App\Models\Ai\AiChatSession::where('id', $sessionId)
-                ->where('user_id', '!=', $currentUserId)
+        if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
+                ->where('user_id', $currentUserId)
                 ->exists();
-            if ($foreignSession) {
+            if (!$ownedSession) {
                 $sessionId = null;
             }
         }
@@ -66,14 +71,18 @@ class AIController extends Controller
         $agentId = $request->input('agent_id');
         $agent = null;
         if ($agentId) {
-            $agent = \App\Models\Ai\AiAgent::find($agentId);
+            $agent = \App\Models\Ai\AiAgent::where('is_active', true)->find($agentId);
         }
         if (!$agent && \App\Services\AI\AiAuthHelper::check()) {
             $user = \App\Services\AI\AiAuthHelper::getUser();
-            $agent = $user?->ai_agent;
+            $candidateAgent = $user?->ai_agent;
+            if ($candidateAgent && $candidateAgent->is_active) {
+                $agent = $candidateAgent;
+            }
         }
         if (!$agent) {
-            $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->first() ?? \App\Models\Ai\AiAgent::first();
+            $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
         }
 
         try {
@@ -223,7 +232,7 @@ class AIController extends Controller
 
         $agentId = $request->input('agent_id');
         if ($agentId) {
-            $aiAgent = \App\Models\Ai\AiAgent::find($agentId);
+            $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->find($agentId);
         } else {
             if (\App\Services\AI\AiAuthHelper::isAdmin()) {
                 $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first();
@@ -252,8 +261,10 @@ class AIController extends Controller
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
 
         if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            $existingSession = \App\Models\Ai\AiChatSession::find($sessionId);
-            if ($existingSession && $existingSession->user_id && (string) $existingSession->user_id !== (string) $currentUserId) {
+            $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
+                ->where('user_id', $currentUserId)
+                ->exists();
+            if (!$ownedSession) {
                 $sessionId = null;
             }
         }
@@ -350,7 +361,7 @@ class AIController extends Controller
                 $apiKey = config('services.gemini.key') ?: env('GEMINI_API_KEY');
                 
                 // Wir nutzen gemini-3.1-flash-tts-preview, was Audio Modalitäten nativ unterstützt.
-                $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=' . $apiKey;
+                $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent';
                 
                 $data = [
                     "contents" => [
@@ -370,10 +381,16 @@ class AIController extends Controller
                 
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'x-goog-api-key: ' . $apiKey,
+                ]);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
                 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+                curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                 
                 $response = curl_exec($ch);
                 curl_close($ch);
@@ -466,16 +483,20 @@ class AIController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
+        $isAdminUser = \App\Services\AI\AiAuthHelper::isAdmin();
         $aiAgent = null;
         if ($request->has('agent_id') && !empty($request->agent_id)) {
-            $aiAgent = \App\Models\Ai\AiAgent::find($request->agent_id);
+            $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->find($request->agent_id);
         }
-        if (!$aiAgent && \App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!$aiAgent && $isAdminUser) {
             $user = auth()->user() ?: auth('admin')->user();
-            $aiAgent = $user ? $user->ai_agent : null;
+            $candidateAgent = $user ? $user->ai_agent : null;
+            if ($candidateAgent && $candidateAgent->is_active) {
+                $aiAgent = $candidateAgent;
+            }
         }
         if (!$aiAgent) {
-            $aiAgent = \App\Models\Ai\AiAgent::first();
+            $aiAgent = \App\Models\Ai\AiAgent::where('is_active', true)->first();
         }
         
         $voiceName = $aiAgent ? $aiAgent->tts_voice : 'Puck';
@@ -497,8 +518,9 @@ class AIController extends Controller
             $navMap .= "- " . $name . " => " . $path . "\n";
         }
 
+        $userLabel = $isAdminUser ? 'der Nutzerin (Alina)' : 'dem Mitarbeiter / Nutzer';
         $systemInstruction = "STRIKTE SPRACHREGEL & OPERATIVES VERHALTEN (HÖCHSTE PRIORITÄT):\n" .
-            "- Du sprichst und antwortest ZU 100% AUSSCHLIESSLICH AUF DEUTSCH mit der Nutzerin (Alina).\n" .
+            "- Du sprichst und antwortest ZU 100% AUSSCHLIESSLICH AUF DEUTSCH mit {$userLabel}.\n" .
             "- Gib NIEMALS englische Sätze, Systemmeldungen, Statusbestätigungen oder Einleitungen aus (z.B. STRENG VERBOTEN: 'Confirming Operational Context', 'I acknowledge...', 'Understood').\n" .
             "- Bestätige NIEMALS deine Anweisungen, Prompt oder Systemrolle! Fange sofort direkt und freundlich auf Deutsch an zu sprechen.\n\n" .
             "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
@@ -518,9 +540,8 @@ class AIController extends Controller
         // Historie anhängen, damit der Live Modus sich bei einem Neustart erinnert
         $sessionId = $request->input('chat_session_id');
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
-        $isAdminUser = \App\Services\AI\AiAuthHelper::isAdmin();
-        if ($sessionId && !$isAdminUser && $currentUserId) {
-            $ownedSession = \App\Models\Ai\AiChatSession::where('id', $sessionId)
+        if ($sessionId && !$isAdminUser) {
+            $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
                 ->where('user_id', $currentUserId)
                 ->exists();
             if (!$ownedSession) {
@@ -608,11 +629,16 @@ class AIController extends Controller
             'system_open_nav_item', 'system_open_zentrum', 'system_close_zentrum', 'system_close_ui', 
             'system_trigger_ui_element', 'system_switch_agent', 'system_search_web', 'system_read_web_url',
             'task_get_all', 'task_get_lists', 'task_create', 'task_add_subtask', 'task_update', 'task_complete',
-            'calendar_get_events', 'calendar_create_event', 'calendar_send_ics_email', 'calendar_update_event', 'calendar_delete_event',
-            'routine_get_day_routines',
-            'email_send_message', 'mail_list_pending', 'mail_read',
-            'contact_search', 'contact_get_all', 'system_get_health'
+            'system_get_health'
         ];
+        if ($isAdminUser) {
+            $voiceAllowedTools = array_merge($voiceAllowedTools, [
+                'calendar_get_events', 'calendar_create_event', 'calendar_send_ics_email', 'calendar_update_event', 'calendar_delete_event',
+                'routine_get_day_routines',
+                'email_send_message', 'mail_list_pending', 'mail_read',
+                'contact_search', 'contact_get_all',
+            ]);
+        }
         $filteredDeclarations = [];
         foreach ($functionDeclarations as $decl) {
             if (in_array($decl->name, $voiceAllowedTools, true)) {
@@ -930,8 +956,10 @@ class AIController extends Controller
         $sessionId = $request->input('chat_session_id');
 
         if ($sessionId && !$isAdminUser) {
-            $chatSession = \App\Models\Ai\AiChatSession::find($sessionId);
-            if ($chatSession && (string) $chatSession->user_id !== (string) $userId) {
+            $ownedSession = $userId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
+                ->where('user_id', $userId)
+                ->exists();
+            if (!$ownedSession) {
                 return response()->json([
                     'status' => 'error',
                     'message' => 'Kein Zugriff auf diese Chat-Session.'

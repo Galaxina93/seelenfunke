@@ -90,11 +90,21 @@ trait AiNewsFuncs
         ];
     }
 
+    private static function assertNewsStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: News- und Medien-Tools sind nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+        return null;
+    }
+
     /**
      * Search global news via NewsAPI
      */
     public static function searchGlobalNews(array $args): array
     {
+        if ($denied = self::assertNewsStaffAccess()) return $denied;
+
         $query = trim((string)($args['query'] ?? ''));
         if (empty($query)) {
             return ['status' => 'error', 'message' => 'Suchbegriff für Nachrichten fehlt.'];
@@ -143,13 +153,15 @@ trait AiNewsFuncs
                 }
 
                 $articles = array_map(function ($article) {
+                    $rawUrl = trim((string) ($article['url'] ?? ''));
+                    $rawImg = isset($article['urlToImage']) ? trim((string) $article['urlToImage']) : null;
                     return [
                         'title' => $article['title'] ?? 'Kein Titel',
                         'description' => $article['description'] ?? 'Keine Beschreibung verfügbar.',
                         'source' => $article['source']['name'] ?? 'Unbekannte Quelle',
                         'publishedAt' => $article['publishedAt'] ?? '',
-                        'url' => $article['url'] ?? '',
-                        'image' => $article['urlToImage'] ?? null,
+                        'url' => preg_match('/^https?:\/\//i', $rawUrl) ? $rawUrl : '',
+                        'image' => ($rawImg && preg_match('/^https?:\/\//i', $rawImg)) ? $rawImg : null,
                         'video' => null
                     ];
                 }, $data['articles']);
@@ -191,6 +203,7 @@ trait AiNewsFuncs
 
     public static function executeNewsHidePanel(array $args)
     {
+        if ($denied = self::assertNewsStaffAccess()) return $denied;
         return [
             'status' => 'success',
             'message' => 'Das News-Panel wurde versteckt.',
@@ -203,6 +216,7 @@ trait AiNewsFuncs
 
     public static function executeNewsHideWidget(array $args)
     {
+        if ($denied = self::assertNewsStaffAccess()) return $denied;
         $title = $args['title'] ?? null;
         $index = $args['index'] ?? null;
         
@@ -223,6 +237,7 @@ trait AiNewsFuncs
 
     public static function searchYoutubeVideo(array $args): array
     {
+        if ($denied = self::assertNewsStaffAccess()) return $denied;
         $query = trim((string)($args['query'] ?? ''));
         $title = trim((string)($args['title'] ?? 'YouTube Video'));
 

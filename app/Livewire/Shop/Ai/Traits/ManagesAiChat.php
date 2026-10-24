@@ -155,6 +155,9 @@ trait ManagesAiChat
 
     public function assignAgent($taskId, $agentId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = AiWorkspaceTask::find($taskId);
         if ($task && $task->status === 'pending') {
             $task->update([
@@ -296,12 +299,22 @@ trait ManagesAiChat
     public function toggleAgent($agentId)
     {
         $agent = AiAgent::find($agentId);
-        if ($agent) {
-            $agent->is_in_chat = !$agent->is_in_chat;
-            $agent->save();
+        if (!$agent) {
+            return;
         }
 
-        $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
+        if (AiAuthHelper::isAdmin()) {
+            $agent->is_in_chat = !$agent->is_in_chat;
+            $agent->save();
+            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->pluck('id')->toArray();
+        } else {
+            if (in_array($agent->id, $this->activeAgentIds, true)) {
+                $this->activeAgentIds = array_values(array_diff($this->activeAgentIds, [$agent->id]));
+            } else {
+                $this->activeAgentIds[] = $agent->id;
+            }
+        }
+
         $this->forcedAgentIds = $this->activeAgentIds;
     }
 
@@ -572,9 +585,6 @@ trait ManagesAiChat
     public function saveAssistantLiveMessage($text, $agentId = null, $sessionId = null)
     {
         if (empty(trim($text))) return;
-        if (!empty($sessionId)) {
-            $this->currentChatSessionId = $sessionId;
-        }
         $this->appendLiveChatMemory('assistant', $text, $agentId, $sessionId);
     }
 
@@ -693,6 +703,9 @@ trait ManagesAiChat
 
     public function cancelTask($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = AiWorkspaceTask::find($taskId);
         if ($task && $task->assigned_agent_id) {
             \Illuminate\Support\Facades\Cache::put('abort_ai_agent_' . $task->assigned_agent_id, true, 60);
@@ -706,6 +719,9 @@ trait ManagesAiChat
 
     public function pauseTask($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && $task->assigned_agent_id) {
             \Illuminate\Support\Facades\Cache::put('abort_ai_agent_' . $task->assigned_agent_id, true, 60);
@@ -718,6 +734,9 @@ trait ManagesAiChat
 
     public function pauseAllTasks()
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $tasks = \App\Models\Ai\AiWorkspaceTask::where('status', 'processing')->get();
         foreach ($tasks as $task) {
             $this->pauseTask($task->id);
@@ -734,7 +753,9 @@ trait ManagesAiChat
         if ($agent) {
             $this->activeAgentIds = [$agent->id];
             $this->forcedAgentIds = [$agent->id];
-            $agent->update(['is_in_chat' => true]);
+            if (AiAuthHelper::isAdmin()) {
+                $agent->update(['is_in_chat' => true]);
+            }
 
             $switchCtx = [
                 'name' => $agent->name,
@@ -1212,6 +1233,9 @@ trait ManagesAiChat
 
     public function archiveTask($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task) {
             $task->update(['status' => 'archived']);
@@ -1220,6 +1244,9 @@ trait ManagesAiChat
 
     public function deleteTask($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task) {
             $task->delete();
@@ -1228,6 +1255,9 @@ trait ManagesAiChat
 
     public function restartTask($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && in_array($task->status, ['completed', 'archived', 'failed', 'paused'])) {
             $agentId = $task->assigned_agent_id;
@@ -1245,6 +1275,9 @@ trait ManagesAiChat
 
     public function appendAndRestartTask($taskId, $addition)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         if (empty(trim($addition))) return;
         
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
@@ -1274,6 +1307,9 @@ trait ManagesAiChat
 
     public function approvePlan($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && $task->status === 'awaiting_approval') {
             $task->update(['status' => 'processing']);
@@ -1283,6 +1319,9 @@ trait ManagesAiChat
 
     public function approvePlanAlways($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && $task->status === 'awaiting_approval') {
             $settings = \App\Models\Ai\AiUserWorkspaceSetting::first();
@@ -1299,6 +1338,9 @@ trait ManagesAiChat
 
     public function undoTask($taskId)
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         $task = \App\Models\Ai\AiWorkspaceTask::find($taskId);
         if ($task && $task->status === 'completed') {
             $undoPrompt = "Mache folgende Aufgabe rückgängig:\n\n" . $task->prompt;
@@ -1323,6 +1365,9 @@ trait ManagesAiChat
 
     public function createTaskFromChat()
     {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
         if (trim($this->input) === '' && empty($this->attachments) && empty($this->uploadedFiles)) return;
 
         $meta = [

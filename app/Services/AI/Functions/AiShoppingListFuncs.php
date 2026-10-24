@@ -220,8 +220,22 @@ trait AiShoppingListFuncs
         ];
     }
 
+    private static function assertShoppingStaffAccess(): ?array
+    {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Dieses Werkzeug ist nur für autorisierte Mitarbeiter oder Administratoren zugänglich.',
+            ];
+        }
+        return null;
+    }
+
     public static function executeGetShoppingList(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             $onlyNeeded = $args['only_needed'] ?? false;
             
@@ -252,6 +266,9 @@ trait AiShoppingListFuncs
 
     public static function executeAddShoppingItem(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             $name = trim(substr((string) ($args['name'] ?? ''), 0, 100));
             if (empty($name)) {
@@ -294,6 +311,9 @@ trait AiShoppingListFuncs
 
     public static function executeBulkToggleShoppingItem(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             $status = $args['status'] ?? 'stocked';
             $itemNames = $args['item_names'] ?? [];
@@ -378,6 +398,9 @@ trait AiShoppingListFuncs
 
     public static function executeRenameShoppingItem(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['item_id']) && empty($args['old_name'])) {
                 return ['status' => 'error', 'message' => 'Es muss entweder item_id oder old_name angegeben werden.'];
@@ -417,6 +440,9 @@ trait AiShoppingListFuncs
 
     public static function executeDeleteShoppingItem(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             $itemNames = $args['item_names'] ?? [];
             $categoryNames = $args['category_names'] ?? [];
@@ -498,6 +524,9 @@ trait AiShoppingListFuncs
 
     public static function executeAddShoppingCategory(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['name'])) {
                 return ['status' => 'error', 'message' => 'Der Name der Kategorie fehlt.'];
@@ -522,6 +551,9 @@ trait AiShoppingListFuncs
 
     public static function executeUpdateShoppingCategory(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['old_name'])) {
                 return ['status' => 'error', 'message' => 'Der alte Name der Kategorie fehlt.'];
@@ -556,6 +588,9 @@ trait AiShoppingListFuncs
 
     public static function executeDeleteShoppingCategory(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             $categoryNames = $args['category_names'] ?? [];
             $deleteAll = $args['delete_all'] ?? false;
@@ -652,6 +687,9 @@ trait AiShoppingListFuncs
 
     public static function executeAssignShoppingCategory(array $args)
     {
+        if ($denied = self::assertShoppingStaffAccess()) {
+            return $denied;
+        }
         try {
             if (empty($args['item_name'])) {
                 return ['status' => 'error', 'message' => 'Der Produktname (item_name) fehlt.'];

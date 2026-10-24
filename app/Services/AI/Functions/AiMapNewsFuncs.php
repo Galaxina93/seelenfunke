@@ -34,6 +34,10 @@ trait AiMapNewsFuncs
 
     public static function executeMapSearchAndMarkNews(array $args): array
     {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return ['status' => 'error', 'message' => 'Zugriff verweigert: Map-News sind nur für interne Mitarbeiter und Administratoren freigegeben.'];
+        }
+
         $query = trim($args['query'] ?? '');
         $language = strtolower(trim($args['language'] ?? 'de'));
 
@@ -152,6 +156,9 @@ Format:
                         
                         $id = $marker['id'] ?? -1;
                         $url = ($id >= 0 && isset($articles[$id])) ? $articles[$id]['url'] : null;
+                        if (is_string($url) && !preg_match('/^https?:\/\//i', trim($url))) {
+                            $url = null;
+                        }
 
                         $finalMarkers[] = [
                             'lat' => $lat,
