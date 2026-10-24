@@ -25,6 +25,8 @@ class AiBackgroundTaskTest extends TestCase
     {
         parent::setUp();
         Event::fake([TaskUpdated::class, \App\Events\AiFrontendEvent::class]);
+        $admin = \App\Models\Admin\Admin::first() ?? \App\Models\Admin\Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
     }
 
     /**

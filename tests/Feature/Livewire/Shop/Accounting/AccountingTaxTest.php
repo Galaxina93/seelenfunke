@@ -68,6 +68,8 @@ class AccountingTaxTest extends TestCase
         // 4. Mock PDF generation to prevent DomPDF disk writing in tests
         $mockPdf = Mockery::mock(\Barryvdh\DomPDF\PDF::class);
         $mockPdf->shouldReceive('loadView')->andReturnSelf();
+        $mockPdf->shouldReceive('setOptions')->andReturnSelf();
+        $mockPdf->shouldReceive('setOption')->andReturnSelf();
         $mockPdf->shouldReceive('save')->andReturnSelf();
         $mockPdf->shouldReceive('output')->andReturn('pdf_content');
         Pdf::swap($mockPdf);
