@@ -1020,7 +1020,7 @@
                         },
                         body: JSON.stringify({
                             history: this.chatHistory.slice(-20),
-                            agent_id: this.activeAgentId || {!! $widgetAgent ? "'" . $widgetAgent->id . "'" : 'null' !!},
+                            agent_id: this.activeAgentId || @json($widgetAgent?->id),
                             chat_session_id: this.currentChatSessionId || (this.$wire ? this.$wire.currentChatSessionId : null)
                         }),
                         signal: this.chatAbortController.signal

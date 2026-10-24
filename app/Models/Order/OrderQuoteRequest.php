@@ -17,6 +17,10 @@ class OrderQuoteRequest extends Model
 
     protected $guarded = [];
 
+    protected $hidden = [
+        'token',
+    ];
+
     protected $casts = [
         'is_express' => 'boolean',
         'expires_at' => 'datetime',

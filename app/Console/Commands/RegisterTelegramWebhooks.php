@@ -27,10 +27,16 @@ class RegisterTelegramWebhooks extends Command
      */
     public function handle()
     {
-        $domain = $this->option('domain') ?: config('app.url');
+        $domain = trim((string) ($this->option('domain') ?: config('app.url')));
+        $parsedHost = (string) parse_url($domain, PHP_URL_HOST);
 
-        if (!str_starts_with($domain, 'https://')) {
-            $this->error('Telegram Webhooks require a secure HTTPS Domain. Set --domain=https://... or APP_URL in .env');
+        if (
+            !str_starts_with($domain, 'https://')
+            || !filter_var($domain, FILTER_VALIDATE_URL)
+            || $parsedHost === ''
+            || !\App\Services\System\SystemSecurityService::isSafeMailHost($parsedHost)
+        ) {
+            $this->error('Telegram Webhooks require a valid public HTTPS Domain. Set --domain=https://... or APP_URL in .env');
             return Command::FAILURE;
         }
 

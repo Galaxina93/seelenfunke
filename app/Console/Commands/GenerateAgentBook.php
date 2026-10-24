@@ -36,6 +36,7 @@ class GenerateAgentBook extends Command
         $pdf = Pdf::loadView('global.pdf.agenten-buch', [])
                   ->setPaper('a4', 'portrait')
                   ->setWarnings(false)
+                  ->setOption('isRemoteEnabled', false)
                   ->setOption('isPhpEnabled', true);
 
         $this->line("Sichere Speicherort...");

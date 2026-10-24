@@ -21,6 +21,10 @@ class MarketingNewsletterSubscriber extends Model
         'verified_at'
     ];
 
+    protected $hidden = [
+        'verification_token',
+    ];
+
     protected $casts = [
         'privacy_accepted' => 'boolean',
         'is_verified' => 'boolean',

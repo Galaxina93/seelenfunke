@@ -1148,7 +1148,10 @@ trait AiSystemFuncs
             }
 
             // 1. Suche in system-brain-map.json (Fuzzy Search & Index)
-            $jsonPath = storage_path('app/public/system-brain-map.json');
+            $jsonPath = storage_path('app/private/system-brain-map.json');
+            if (!\Illuminate\Support\Facades\File::exists($jsonPath)) {
+                $jsonPath = storage_path('app/public/system-brain-map.json');
+            }
             if (!\Illuminate\Support\Facades\File::exists($jsonPath)) {
                 return ['status' => 'error', 'message' => 'Die System-Brain-Map existiert nicht. Bitte führe system_execute_command(systemmap) aus.'];
             }

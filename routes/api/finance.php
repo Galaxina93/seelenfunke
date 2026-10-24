@@ -104,15 +104,18 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     Log::info('Quick-Entry Request received', ['files_count' => count($request->allFiles())]);
 
     $data = $request->validate([
-        'title' => 'required|string',
+        'title' => 'required|string|max:255',
         'amount' => 'required',
-        'category' => 'nullable|string',
+        'category' => 'nullable|string|max:100',
         'is_business' => 'boolean',
         'date' => 'nullable|date',
-        'location' => 'nullable|string'
+        'location' => 'nullable|string|max:255'
     ]);
 
     $amount = (float)str_replace(',', '.', (string)$data['amount']);
+    if (!is_finite($amount) || abs($amount) > 99999999.99) {
+        return response()->json(['error' => 'Ungültiger Betrag.'], 422);
+    }
     // WICHTIG: Sonderausgaben / Belegkosten sind im System stets negativ!
     if ($amount > 0) {
         $amount = -$amount;
@@ -133,7 +136,7 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
     // Mehrere Dateien verarbeiten (Array Key 'file')
     if ($request->hasFile('file')) {
         $paths = [];
-        $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
+        $files = is_array($request->file('file')) ? array_slice($request->file('file'), 0, 10) : [$request->file('file')];
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
         $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
@@ -373,11 +376,11 @@ Route::put('/funki/financials/groups/reorder', function (Request $request) {
 Route::post('/funki/financials/fixed-item', function (Request $request) {
     $data = $request->validate([
         'finance_group_id' => 'required',
-        'name' => 'required|string',
+        'name' => 'required|string|max:255',
         'amount' => 'required',
-        'interval_months' => 'required|integer',
+        'interval_months' => 'required|integer|min:1|max:120',
         'first_payment_date' => 'required|date',
-        'description' => 'nullable|string',
+        'description' => 'nullable|string|max:2000',
         'is_business' => 'boolean'
     ]);
 
@@ -403,11 +406,11 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
     $item = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $request->user()->id))->findOrFail($id);
 
     $data = $request->validate([
-        'name' => 'required|string',
+        'name' => 'required|string|max:255',
         'amount' => 'required',
-        'interval_months' => 'required|integer',
+        'interval_months' => 'required|integer|min:1|max:120',
         'first_payment_date' => 'required|date',
-        'description' => 'nullable|string',
+        'description' => 'nullable|string|max:2000',
         'is_business' => 'boolean',
         'finance_group_id' => 'nullable|string'
     ]);

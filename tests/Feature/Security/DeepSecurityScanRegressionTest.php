@@ -4487,4 +4487,144 @@ class DeepSecurityScanRegressionTest extends TestCase
             ->assertOk();
         $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('local')->exists('buchhaltung/receipts/r33_beleg.pdf'));
     }
+
+    public function test_round34_model_secret_hiding_helpers_brain_map_cron_scheduler_and_api_hardening(): void
+    {
+        // 1. Sensitive secrets/tokens in Eloquent models must be hidden in toArray() / toJson()
+        $mailAccount = \App\Models\Management\Mail\MailAccount::create([
+            'name' => 'R34 Postfach',
+            'email' => 'r34-mail@mein-seelenfunke.de',
+            'password' => 'SuperSecretMailPassword!2026',
+            'imap_host' => 'imap.ionos.de',
+            'imap_port' => 993,
+            'imap_encryption' => 'ssl',
+            'smtp_host' => 'smtp.ionos.de',
+            'smtp_port' => 465,
+            'smtp_encryption' => 'ssl',
+        ]);
+        $this->assertArrayNotHasKey('password', $mailAccount->toArray());
+        $this->assertStringNotContainsString('SuperSecretMailPassword!2026', $mailAccount->toJson());
+
+        $bankAccount = new \App\Models\Accounting\AccountingBankAccount([
+            'bank_name' => 'Testbank',
+            'plaid_access_token' => 'access-sandbox-secret-token-r34',
+        ]);
+        $this->assertArrayNotHasKey('plaid_access_token', $bankAccount->toArray());
+
+        $subscriber = \App\Models\Marketing\MarketingNewsletterSubscriber::create([
+            'email' => 'r34-sub@example.com',
+            'verification_token' => 'secret-verify-token-r34',
+            'privacy_accepted' => true,
+        ]);
+        $this->assertArrayNotHasKey('verification_token', $subscriber->toArray());
+
+        $device = new \App\Models\System\SystemUserDevice([
+            'fcm_token' => 'fcm-secret-device-token-r34',
+            'device_name' => 'iPhone',
+        ]);
+        $this->assertArrayNotHasKey('fcm_token', $device->toArray());
+
+        // 2. MailMessage::toArray() must sanitize body_html so API endpoints never serve raw XSS payloads
+        $mailMessage = \App\Models\Management\Mail\MailMessage::create([
+            'mail_account_id' => $mailAccount->id,
+            'message_id' => 'msg-r34-xss',
+            'folder' => 'INBOX',
+            'subject' => 'R34 XSS Mail',
+            'from_email' => 'attacker@example.com',
+            'to_email' => 'r34-mail@mein-seelenfunke.de',
+            'body_html' => '<p>Hallo</p><script>alert("r34-xss")</script><img src="x" onerror="alert(1)">',
+            'received_at' => now(),
+        ]);
+        $serializedMsg = $mailMessage->toArray();
+        $this->assertStringNotContainsString('<script', (string) ($serializedMsg['body_html'] ?? ''));
+        $this->assertStringNotContainsString('onerror=', (string) ($serializedMsg['body_html'] ?? ''));
+
+        // 3. Global helpers resolve_snapshot_url() & funki_asset() must block path traversal and unsafe data: URIs
+        $this->assertSame('/fallback.png', resolve_snapshot_url('data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==', '/fallback.png'));
+        $this->assertSame('/fallback.png', resolve_snapshot_url('data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9ImFsZXJ0KDEpIj48L3N2Zz4=', '/fallback.png'));
+        $this->assertSame('/fallback.png', resolve_snapshot_url('../../.env', '/fallback.png'));
+        $validPngData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+        $this->assertSame($validPngData, resolve_snapshot_url($validPngData, '/fallback.png'));
+
+        $funkiUrl = funki_asset('../../.env', '../../etc');
+        $this->assertStringNotContainsString('..', $funkiUrl);
+
+        // 4. TabCronjobs::saveSchedule() must block arbitrary Event method names (like runInBackground / onOneServer)
+        $cronjob = \App\Models\System\SystemCronjob::create([
+            'name' => 'R34 Test Cron',
+            'description' => 'Test',
+            'command' => 'system:heartbeat',
+            'schedule' => '0 * * * *',
+            'is_active' => true,
+        ]);
+
+        \Livewire\Livewire::actingAs($this->admin, 'admin')
+            ->test(\App\Livewire\Shop\Ai\PartialsAiWorkspace\TabCronjobs::class)
+            ->call('editSchedule', $cronjob->id)
+            ->set('editingSchedule', 'runInBackground')
+            ->call('saveSchedule');
+        $this->assertSame('0 * * * *', $cronjob->fresh()->schedule);
+
+        \Livewire\Livewire::actingAs($this->admin, 'admin')
+            ->test(\App\Livewire\Shop\Ai\PartialsAiWorkspace\TabCronjobs::class)
+            ->call('editSchedule', $cronjob->id)
+            ->set('editingSchedule', 'everyFiveMinutes')
+            ->call('saveSchedule');
+        $this->assertSame('everyFiveMinutes', $cronjob->fresh()->schedule);
+
+        // 5. System Brain Map API endpoint requires admin/employee auth and blocks customers/guests
+        \Illuminate\Support\Facades\Auth::guard('admin')->logout();
+        $this->getJson('/api/ai/system-brain-map')->assertStatus(401);
+
+        $this->actingAs($this->customer, 'customer')
+            ->getJson('/api/ai/system-brain-map')
+            ->assertStatus(401);
+
+        $this->actingAs($this->customer, 'sanctum')
+            ->getJson('/api/ai/system-brain-map')
+            ->assertStatus(403);
+
+        // 6. RegisterTelegramWebhooks must reject internal/loopback HTTPS domains (SSRF / Webhook hijacking protection)
+        $this->artisan('telegram:register-webhooks', ['--domain' => 'https://127.0.0.1'])
+            ->assertExitCode(\Illuminate\Console\Command::FAILURE);
+
+        // 7. API input validation hardening on finance, routine, and emails endpoints
+        \Illuminate\Support\Facades\Auth::guard('customer')->logout();
+        $financeGroup = \App\Models\Accounting\AccountingGroup::create([
+            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'admin_id' => $this->admin->id,
+            'name' => 'R34 Fixkosten',
+            'type' => 'expense',
+            'position' => 1,
+        ]);
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/funki/financials/fixed-item', [
+                'finance_group_id' => $financeGroup->id,
+                'name' => 'Null-Intervall Test',
+                'amount' => -50,
+                'interval_months' => 0,
+                'first_payment_date' => now()->format('Y-m-d'),
+            ])
+            ->assertStatus(422);
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/funki/routine', [
+                'title' => 'R34 Routine',
+                'duration_minutes' => -10,
+                'start_time' => '08:00:00',
+            ])
+            ->assertStatus(422);
+
+        $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/funki/emails/accounts', [
+                'name' => 'Bad Port Account',
+                'email' => 'badport@mein-seelenfunke.de',
+                'imap_host' => 'imap.ionos.de',
+                'imap_port' => 99999,
+                'smtp_host' => 'smtp.ionos.de',
+                'smtp_port' => 465,
+            ])
+            ->assertStatus(422);
+    }
 }

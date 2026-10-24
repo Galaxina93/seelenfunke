@@ -22,7 +22,7 @@
             @if(str_starts_with($selectedAgent['icon'], 'bi-'))
                 <i class="{{ $selectedAgent['icon'] }} text-lg dark:drop-shadow-[0_0_5px_currentColor]"></i>
             @elseif(str_starts_with(trim($selectedAgent['icon']), '<svg'))
-                <div class="w-5 h-5 [&>svg]:w-full [&>svg]:h-full dark:drop-shadow-[0_0_5px_currentColor]">{!! $selectedAgent['icon'] !!}</div>
+                <div class="w-5 h-5 [&>svg]:w-full [&>svg]:h-full dark:drop-shadow-[0_0_5px_currentColor]">{!! \App\Livewire\Shop\Ai\AiAgentManager::sanitizeSvgIcon((string) $selectedAgent['icon']) !!}</div>
             @else
                 <x-dynamic-component :component="'heroicon-o-' . $selectedAgent['icon']" class="w-5 h-5 dark:drop-shadow-[0_0_5px_currentColor]" />
             @endif

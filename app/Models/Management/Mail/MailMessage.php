@@ -16,6 +16,19 @@ class MailMessage extends Model
         'tags' => 'array',
     ];
 
+    protected $appends = [
+        'safe_body_html',
+    ];
+
+    public function toArray(): array
+    {
+        $array = parent::toArray();
+        if (!empty($array['body_html'])) {
+            $array['body_html'] = $this->safe_body_html;
+        }
+        return $array;
+    }
+
     protected static function booted(): void
     {
         static::deleting(function (MailMessage $message) {
@@ -72,11 +85,12 @@ class MailMessage extends Model
             }
 
             // 4. "javascript:" und "data:text/html" URLs in href/src/action/formaction löschen
-            foreach (['href', 'src', 'action', 'formaction', 'xlink:href'] as $urlAttr) {
-                foreach ($xpath->query('//@' . $urlAttr) as $attr) {
+            $urlAttrs = $xpath->query('//@*[name()="href" or name()="src" or name()="action" or name()="formaction" or name()="xlink:href" or local-name()="href"]');
+            if ($urlAttrs) {
+                foreach ($urlAttrs as $attr) {
                     $val = strtolower(trim(preg_replace('/[\x00-\x20]+/', '', $attr->value)));
-                    if (str_starts_with($val, 'javascript:') || str_starts_with($val, 'vbscript:') || str_starts_with($val, 'data:text/html') || str_starts_with($val, 'data:image/svg')) {
-                        $attr->ownerElement->setAttribute($urlAttr, '#');
+                    if (str_starts_with($val, 'javascript:') || str_starts_with($val, 'vbscript:') || str_starts_with($val, 'data:text/html') || str_starts_with($val, 'data:image/svg') || str_starts_with($val, 'data:application/xhtml')) {
+                        $attr->ownerElement->setAttribute($attr->nodeName, '#');
                     }
                 }
             }

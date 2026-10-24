@@ -43,15 +43,28 @@ function shop_setting($key, $default = null) {
  */
 function resolve_snapshot_url(?string $path, ?string $fallback = null): ?string
 {
-    if (empty($path)) {
+    if (empty($path) || str_contains($path, "\0") || str_contains($path, '..') || str_contains($path, '\\')) {
         return $fallback;
     }
 
-    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://') || str_starts_with($path, 'data:')) {
-        return $path;
+    if (str_starts_with($path, 'data:')) {
+        if (preg_match('/^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+\/=\r\n]+$/i', $path)) {
+            return $path;
+        }
+        return $fallback;
+    }
+
+    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        if (filter_var($path, FILTER_VALIDATE_URL) && !preg_match('/[\x00-\x1F\x7F"\'<>]/', $path)) {
+            return $path;
+        }
+        return $fallback;
     }
 
     $clean = ltrim(preg_replace('#^/?storage/#', '', $path), '/');
+    if ($clean === '' || str_contains($clean, '..') || str_contains($clean, '\\')) {
+        return $fallback;
+    }
 
     // Kandidaten in Prioritätsreihenfolge ermitteln
     $candidates = [];
@@ -67,10 +80,15 @@ function resolve_snapshot_url(?string $path, ?string $fallback = null): ?string
         $candidates[] = $clean;
     }
 
+    $publicRoot = realpath(storage_path('app/public'));
+
     foreach ($candidates as $cand) {
         $diskPath = storage_path('app/public/' . $cand);
         if (file_exists($diskPath) && !is_dir($diskPath)) {
-            return asset('storage/' . $cand);
+            $realDisk = realpath($diskPath);
+            if ($publicRoot && $realDisk && str_starts_with($realDisk, $publicRoot . DIRECTORY_SEPARATOR)) {
+                return asset('storage/' . $cand);
+            }
         }
     }
 
@@ -85,13 +103,19 @@ function resolve_snapshot_url(?string $path, ?string $fallback = null): ?string
  */
 function funki_asset(string $path, ?string $theme = null): string
 {
-    $clean = ltrim($path, '/');
+    $clean = ltrim(str_replace(['\\', "\0"], '', $path), '/');
+    while (str_contains($clean, '..')) {
+        $clean = str_replace('..', '', $clean);
+    }
+    $clean = ltrim($clean, '/');
 
     try {
         $activeTheme = $theme ?: (app(\App\Services\ConfiguratorService::class)->getCurrentActiveTheme()['theme_key'] ?? 'standard');
     } catch (\Throwable $e) {
         $activeTheme = 'standard';
     }
+
+    $activeTheme = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $activeTheme) ?: 'standard';
 
     if ($activeTheme && $activeTheme !== 'standard') {
         if (str_starts_with($clean, 'shop/projekt/funki/')) {

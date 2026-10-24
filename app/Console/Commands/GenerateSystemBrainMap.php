@@ -198,9 +198,16 @@ class GenerateSystemBrainMap extends Command
         ];
 
         $jsonOutput = json_encode($graph, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        File::put(storage_path('app/public/system-brain-map.json'), $jsonOutput);
+        $privateDir = storage_path('app/private');
+        if (!File::exists($privateDir)) {
+            File::makeDirectory($privateDir, 0755, true);
+        }
+        File::put($privateDir . '/system-brain-map.json', $jsonOutput);
+        if (File::exists(storage_path('app/public/system-brain-map.json'))) {
+            File::delete(storage_path('app/public/system-brain-map.json'));
+        }
 
-        $this->info('Success! Brain map generated at storage/app/public/system-brain-map.json');
+        $this->info('Success! Brain map generated at storage/app/private/system-brain-map.json');
         $this->info('Nodes: ' . count($nodes));
         $this->info('Links: ' . count($uniqueLinks));
 

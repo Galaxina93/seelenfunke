@@ -23,10 +23,10 @@ Route::prefix('funki/routine')->group(function () {
     Route::post('/', function (Request $request) {
         $data = $request->validate([
             'title' => 'required|string|max:255',
-            'message' => 'nullable|string',
-            'duration_minutes' => 'required|integer',
+            'message' => 'nullable|string|max:5000',
+            'duration_minutes' => 'required|integer|min:1|max:1440',
             'start_time' => 'required|date_format:H:i:s',
-            'icon' => 'nullable|string'
+            'icon' => 'nullable|string|max:100'
         ]);
 
         $routine = ManagementDayRoutine::create(array_merge($data, [
@@ -42,10 +42,10 @@ Route::prefix('funki/routine')->group(function () {
         $routine = ManagementDayRoutine::findOrFail($id);
         $data = $request->validate([
             'title' => 'sometimes|required|string|max:255',
-            'message' => 'nullable|string',
-            'duration_minutes' => 'sometimes|required|integer',
+            'message' => 'nullable|string|max:5000',
+            'duration_minutes' => 'sometimes|required|integer|min:1|max:1440',
             'start_time' => 'sometimes|required|date_format:H:i:s',
-            'icon' => 'nullable|string',
+            'icon' => 'nullable|string|max:100',
             'is_active' => 'boolean'
         ]);
 
@@ -66,7 +66,7 @@ Route::prefix('funki/routine')->group(function () {
         $routine = ManagementDayRoutine::findOrFail($routineId);
         $data = $request->validate([
             'title' => 'required|string|max:255',
-            'duration_minutes' => 'required|integer'
+            'duration_minutes' => 'required|integer|min:1|max:1440'
         ]);
 
         $step = ManagementDayRoutineStep::create([

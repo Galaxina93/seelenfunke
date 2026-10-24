@@ -9,6 +9,7 @@ class SystemUserDevice extends Model
 {
     protected $table = 'system_user_devices';
     protected $fillable = ['userable_id', 'userable_type', 'fcm_token', 'device_name'];
+    protected $hidden = ['fcm_token'];
 
     /**
      * Holt den Besitzer des Geräts (Admin, Customer oder Employee).

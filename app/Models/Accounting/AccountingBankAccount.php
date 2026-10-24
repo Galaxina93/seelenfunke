@@ -20,6 +20,10 @@ class AccountingBankAccount extends Model
         'last_synced_at'
     ];
 
+    protected $hidden = [
+        'plaid_access_token',
+    ];
+
     protected $casts = [
         'balance' => 'decimal:2',
         'is_active' => 'boolean',

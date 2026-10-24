@@ -44,22 +44,22 @@ try {
                 $commandClean = preg_replace('/^(?:(?:\S+)?artisan)\s+/', '', $commandClean);
                 $commandClean = trim($commandClean);
 
-                // SICHERHEITSSPERRE FÜR DAEMONS:
+                // SICHERHEITSSPERRE FÜR DAEMONS & DESTRUKTIVE BEFEHLE:
                 // Commands wie 'reverb:start' oder 'queue:work' laufen unendlich.
                 // Auch mit runInBackground() wartet der Mittwald-Docker-Container auf das Ende ALLER Kind-Prozesse.
                 // Wenn diese hier geladen werden, bleibt der gesamte schedule:run hängen!
-                $daemonCommands = ['reverb:start', 'queue:work', 'queue:listen', 'websockets:serve'];
+                $daemonCommands = ['reverb:start', 'queue:work', 'queue:listen', 'websockets:serve', 'migrate:fresh', 'migrate:reset', 'db:wipe', 'tinker', 'key:generate', 'down'];
                 
                 $commandBase = explode(' ', $commandClean)[0];
-                if (in_array($commandBase, $daemonCommands)) {
+                if ($commandBase === '' || !preg_match('/^[a-zA-Z0-9:_-]+$/', $commandBase) || in_array($commandBase, $daemonCommands, true)) {
                     // Diese Befehle dürfen NIEMALS über den Laravel Scheduler laufen.
                     // Sie MÜSSEN als eigenständige Cronjobs im Mittwald Panel angelegt werden.
                     if (class_exists(SystemLog::class)) {
                         SystemLog::create([
                             'type' => 'system',
                             'action_id' => 'system:cronjob_blocked',
-                            'title' => 'Daemon-Sperre: ' . $job->command,
-                            'message' => 'Langlaufende Prozesse dürfen nicht über den internen Scheduler laufen, da sie sonst den Server blockieren. Bitte als eigenen Mittwald-Cronjob anlegen!',
+                            'title' => 'Daemon/Befehl-Sperre: ' . $job->command,
+                            'message' => 'Langlaufende oder gesperrte Prozesse dürfen nicht über den internen Scheduler laufen, da sie sonst den Server blockieren oder gefährden.',
                             'status' => 'warning',
                             'started_at' => now(),
                             'finished_at' => now(),
@@ -74,18 +74,43 @@ try {
                 // Sub-Minuten Intervalle in Cronjob-Umgebungen auf jede Minute normalisieren,
                 // da sub-minütliche Wiederholungen (repeatEvery) ScheduleRunCommand in eine
                 // blockierende 60-Sekunden sleep()-Schleife zwingen und Mittwald Cronjobs überlappen/abbrechen lassen.
-                $schedule = $job->schedule;
+                $schedule = trim((string) $job->schedule);
                 $subMinuteSchedules = ['everySecond', 'everyTwoSeconds', 'everyFiveSeconds', 'everyTenSeconds', 'everyFifteenSeconds', 'everyTwentySeconds', 'everyThirtySeconds'];
-                if (in_array($schedule, $subMinuteSchedules)) {
+                if (in_array($schedule, $subMinuteSchedules, true)) {
                     $schedule = 'everyMinute';
                 }
 
-                $event = Schedule::command($commandClean, $job->parameters ? explode(' ', $job->parameters) : []);
+                $allowedScheduleMethods = [
+                    'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes', 'everyFiveMinutes',
+                    'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
+                    'hourly', 'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
+                    'daily', 'weekly', 'monthly', 'quarterly', 'yearly',
+                ];
 
-                if (method_exists($event, $schedule)) {
+                $safeParams = [];
+                $blockedOpts = ['--env', '--database', '--path', '--realpath', '--bootstrap'];
+                if (!empty($job->parameters)) {
+                    foreach (preg_split('/\s+/', trim((string) $job->parameters), -1, PREG_SPLIT_NO_EMPTY) as $token) {
+                        if (preg_match('/[;&|`$<>\\\\\x00-\x1F]/', $token)) {
+                            continue;
+                        }
+                        if (str_starts_with($token, '--')) {
+                            $optKey = strtolower(explode('=', $token, 2)[0]);
+                            if (preg_match('/^--[a-zA-Z0-9_-]+(=[a-zA-Z0-9_:.,\/-]+)?$/', $token) && !in_array($optKey, $blockedOpts, true)) {
+                                $safeParams[] = $token;
+                            }
+                        }
+                    }
+                }
+
+                $event = Schedule::command($commandBase, $safeParams);
+
+                if (in_array($schedule, $allowedScheduleMethods, true)) {
                     $event->{$schedule}();
-                } else {
+                } elseif (preg_match('/^[0-9*\/,\-]+(\s+[0-9*\/,\-]+){4}$/', $schedule)) {
                     $event->cron($schedule);
+                } else {
+                    continue;
                 }
                 
                 // System Herzschlag (Heartbeat): MUSS synchron im selben PHP-Prozess laufen (KEIN runInBackground)

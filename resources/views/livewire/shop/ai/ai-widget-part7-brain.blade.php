@@ -27,7 +27,7 @@
         // Lade die JSON Daten
         try {
             // Append a cache-buster so we don't fetch a stale 404 when it was just generated
-            const response = await fetch('/storage/system-brain-map.json?t=' + Date.now());
+            const response = await fetch('/api/ai/system-brain-map?t=' + Date.now());
             if (!response.ok) {
                 console.warn('System Brain Map JSON nicht gefunden. Generiere neu...');
                 window.dispatchEvent(new CustomEvent('ai-speech-feedback', { detail: { text: "Ich baue das Systemgehirn zum ersten Mal auf. Bitte einen kleinen Moment Geduld." } }));

@@ -253,9 +253,10 @@ Route::group(['middleware' => [function ($request, $next) {
                 'shipments' => $order->shipments,
             ]);
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('DHL Label API Error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'DHL Versandlabel konnte nicht erstellt werden. Bitte prüfe die Versanddaten.'
             ], 500);
         }
     });

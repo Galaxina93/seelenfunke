@@ -88,7 +88,10 @@ class SystemNeuralAnalysisIndex extends Component
             }
 
             $dependencies = [];
-            $jsonPath = storage_path('app/public/system-brain-map.json');
+            $jsonPath = storage_path('app/private/system-brain-map.json');
+            if (!\Illuminate\Support\Facades\File::exists($jsonPath)) {
+                $jsonPath = storage_path('app/public/system-brain-map.json');
+            }
             if (\Illuminate\Support\Facades\File::exists($jsonPath)) {
                 $graph = json_decode(file_get_contents($jsonPath), true);
                 if (isset($graph['links'])) {

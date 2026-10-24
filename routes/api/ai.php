@@ -94,5 +94,20 @@ Route::prefix('ai')->group(function () {
 
         // Leichtgewichtiger Health- & Latenz-Ping für das Live-AI Seiten-Widget
         Route::get('/bridge-ping', [AIController::class, 'bridgePing']);
+
+        // Geschützter Abruf der System-Brain-Map (Architektur-Graph) nur für Admins & Mitarbeiter
+        Route::get('/system-brain-map', function () {
+            $jsonPath = storage_path('app/private/system-brain-map.json');
+            if (!\Illuminate\Support\Facades\File::exists($jsonPath)) {
+                $jsonPath = storage_path('app/public/system-brain-map.json');
+            }
+            if (!\Illuminate\Support\Facades\File::exists($jsonPath)) {
+                return response()->json(['error' => 'Brain Map not generated yet'], 404);
+            }
+            return response()->file($jsonPath, [
+                'Content-Type' => 'application/json; charset=UTF-8',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            ]);
+        });
     });
 });

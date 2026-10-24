@@ -120,11 +120,11 @@ Route::prefix('funki/emails')->group(function () {
     Route::post('/send', function (Request $request) {
         $data = $request->validate([
             'account_id' => 'nullable',
-            'from' => 'nullable|string',
-            'to' => 'required|email',
-            'subject' => 'required|string',
-            'body' => 'required|string',
-            'attachments' => 'nullable|array',
+            'from' => 'nullable|string|max:255',
+            'to' => 'required|email|max:255',
+            'subject' => 'required|string|max:255',
+            'body' => 'required|string|max:200000',
+            'attachments' => 'nullable|array|max:20',
         ]);
 
         $account = null;
@@ -252,7 +252,7 @@ Route::prefix('funki/emails')->group(function () {
 
         } catch (\Exception $e) {
             Log::error('API SMTP Sende-Fehler: ' . $e->getMessage());
-            return response()->json(['error' => 'Sende-Fehler: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'E-Mail konnte nicht gesendet werden. Bitte prüfe die SMTP-Einstellungen.'], 500);
         }
     });
 
@@ -293,16 +293,16 @@ Route::prefix('funki/emails')->group(function () {
             'id' => 'nullable',
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
-            'password' => 'nullable|string',
+            'password' => 'nullable|string|max:500',
             'imap_host' => 'required|string|max:255',
-            'imap_port' => 'required|integer',
-            'imap_encryption' => 'nullable|string|max:10',
+            'imap_port' => 'required|integer|min:1|max:65535',
+            'imap_encryption' => 'nullable|string|in:ssl,tls,starttls,none',
             'imap_username' => 'nullable|string|max:255',
             'smtp_host' => 'required|string|max:255',
-            'smtp_port' => 'required|integer',
-            'smtp_encryption' => 'nullable|string|max:10',
+            'smtp_port' => 'required|integer|min:1|max:65535',
+            'smtp_encryption' => 'nullable|string|in:ssl,tls,starttls,none',
             'smtp_username' => 'nullable|string|max:255',
-            'signature' => 'nullable|string',
+            'signature' => 'nullable|string|max:20000',
             'is_default' => 'boolean',
             'is_commercial' => 'boolean',
         ]);

@@ -49,6 +49,10 @@ class OrderOrder extends Model
         'utm_medium_last',
     ];
 
+    protected $hidden = [
+        'token',
+    ];
+
     protected $casts = [
         'billing_address' => 'array',
         'shipping_address' => 'array',

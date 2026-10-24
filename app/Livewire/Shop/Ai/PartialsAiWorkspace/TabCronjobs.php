@@ -58,17 +58,20 @@ class TabCronjobs extends Component
         if (!$this->editingJobId) return;
 
         $schedule = trim((string) $this->editingSchedule);
-        if ($schedule === '' || strlen($schedule) > 100 || !preg_match('/^[a-zA-Z0-9*\/,\-\s]+$/', $schedule)) {
+        $allowedScheduleMethods = [
+            'everyMinute', 'everyTwoMinutes', 'everyThreeMinutes', 'everyFourMinutes', 'everyFiveMinutes',
+            'everyTenMinutes', 'everyFifteenMinutes', 'everyThirtyMinutes',
+            'hourly', 'everyTwoHours', 'everyThreeHours', 'everyFourHours', 'everySixHours',
+            'daily', 'weekly', 'monthly', 'quarterly', 'yearly',
+        ];
+        $isAllowedMethod = in_array($schedule, $allowedScheduleMethods, true);
+        $isValidCron = preg_match('/^[0-9*\/,\-]+(\s+[0-9*\/,\-]+){4}$/', $schedule) === 1
+            && (!class_exists(\Cron\CronExpression::class) || \Cron\CronExpression::isValidExpression($schedule));
+
+        if ($schedule === '' || strlen($schedule) > 100 || (!$isAllowedMethod && !$isValidCron)) {
             $this->dispatch('notify', [
                 'type' => 'error',
-                'message' => 'Ungültiges Cron-Intervall.'
-            ]);
-            return;
-        }
-        if (str_contains($schedule, ' ') && class_exists(\Cron\CronExpression::class) && !\Cron\CronExpression::isValidExpression($schedule)) {
-            $this->dispatch('notify', [
-                'type' => 'error',
-                'message' => 'Ungültiger Cron-Ausdruck.'
+                'message' => 'Ungültiger Cron-Ausdruck oder nicht unterstütztes Intervall.'
             ]);
             return;
         }
