@@ -45,16 +45,39 @@
     {{-- ========================================== --}}
     {{-- 1. MEDIEN GALERIE (Immer sichtbar) --}}
     {{-- ========================================== --}}
+    @php
+        $displayGallery = [];
+        $seasonalGalleryTpl = $product->isAutoSeasonalMainImageEnabled() ? $product->resolveSeasonalTemplate() : null;
+        if ($seasonalGalleryTpl && !empty($seasonalGalleryTpl->preview_image)) {
+            $displayGallery[] = [
+                'type' => 'image',
+                'url'  => $seasonalGalleryTpl->preview_image_url,
+                'alt'  => $seasonalGalleryTpl->name,
+            ];
+        }
+        foreach ($product->media_gallery ?? [] as $m) {
+            if (is_array($m) && !empty($m['path'])) {
+                $url = \App\Models\Product\ProductTemplate::resolveImageUrl($m['path']);
+                if ($url && (empty($displayGallery) || $displayGallery[0]['url'] !== $url)) {
+                    $displayGallery[] = [
+                        'type' => $m['type'] ?? 'image',
+                        'url'  => $url,
+                        'alt'  => $m['alt'] ?? $product->name,
+                    ];
+                }
+            }
+        }
+    @endphp
     <div class="space-y-4 sm:space-y-6"
          x-data="{
-            activeMedia: '{{ !empty($product->media_gallery[0]) ? asset('storage/'.$product->media_gallery[0]['path']) : '' }}',
-            activeType: '{{ !empty($product->media_gallery[0]) ? ($product->media_gallery[0]['type'] ?? 'image') : 'image' }}'
+            activeMedia: '{{ !empty($displayGallery[0]) ? $displayGallery[0]['url'] : '' }}',
+            activeType: '{{ !empty($displayGallery[0]) ? ($displayGallery[0]['type'] ?? 'image') : 'image' }}'
          }">
 
         {{-- Hauptbild / Video Container --}}
         <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shadow-sm relative group">
 
-            @if(!empty($product->media_gallery))
+            @if(!empty($displayGallery))
                 {{-- Bild Anzeige --}}
                 <img x-show="activeType === 'image'"
                      :src="activeMedia"
@@ -74,22 +97,22 @@
             @endif
 
             {{-- Badges --}}
-            <div class="absolute top-4 left-4 flex flex-col gap-2">
+            <div class="absolute top-4 left-4 flex flex-col items-start gap-1.5">
                 @if($product->compare_at_price > $product->price)
-                    <span class="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Sale</span>
+                    <span class="w-fit bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Sale</span>
                 @endif
                 @if($product->created_at->diffInDays() < 30)
-                    <span class="bg-[var(--theme-color)] text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Neu</span>
+                    <span class="w-fit bg-[var(--theme-color)] text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Neu</span>
                 @endif
                 @if($product->type === 'digital')
-                    <span class="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Digital</span>
+                    <span class="w-fit bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Digital</span>
                 @endif
             </div>
 
         </div>
 
         {{-- Thumbnails Slider --}}
-        @if(count($product->media_gallery ?? []) > 1)
+        @if(count($displayGallery) > 1)
             <div class="relative group/slider mt-4"
                  x-data="{
                     scroll(direction) {
@@ -106,19 +129,19 @@
 
                 {{-- Container für Thumbnails --}}
                 <div x-ref="thumbnailContainer" class="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
-                    @foreach($product->media_gallery as $media)
+                    @foreach($displayGallery as $media)
                         <div class="snap-start shrink-0" style="width: calc(20% - 13px);">
-                            <button @click="activeMedia = '{{ asset('storage/'.$media['path']) }}'; activeType = '{{ $media['type'] ?? 'image' }}'"
+                            <button @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'"
                                     class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative"
-                                    :class="activeMedia === '{{ asset('storage/'.$media['path']) }}' ? 'border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)]' : 'border-transparent hover:border-gray-300'">
+                                    :class="activeMedia === '{{ $media['url'] }}' ? 'border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)]' : 'border-transparent hover:border-gray-300'">
 
                                 @if(isset($media['type']) && $media['type'] === 'video')
                                     <div class="w-full h-full bg-gray-900 flex items-center justify-center text-white">
-                                        <video src="{{ asset('storage/'.$media['path']) }}" class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
+                                        <video src="{{ $media['url'] }}" class="absolute inset-0 w-full h-full object-cover opacity-50"></video>
                                         <svg class="w-6 h-6 relative z-10" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
                                     </div>
                                 @else
-                                    <img src="{{ asset('storage/'.$media['path']) }}" class="w-full h-full object-cover">
+                                    <img src="{{ $media['url'] }}" class="w-full h-full object-cover">
                                 @endif
                             </button>
                         </div>

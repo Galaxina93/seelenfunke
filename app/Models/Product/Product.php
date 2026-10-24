@@ -250,4 +250,166 @@ class Product extends Model
     {
         return $this->hasOne(\App\Models\Marketing\MarketingLandingPage::class);
     }
+
+    /**
+     * Prüft, ob für dieses Produkt das Hauptbild automatisch passend zur Jahreszeit / zum Feiertag
+     * aus den Produktvorlagen gesetzt werden soll.
+     */
+    public function isAutoSeasonalMainImageEnabled(): bool
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        if (array_key_exists('auto_seasonal_main_image', $settings)) {
+            return filter_var($settings['auto_seasonal_main_image'], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        return $this->isPersonalizable() && $this->isPhysical();
+    }
+
+    /**
+     * Liefert die priorisierte Liste der Feiertags-/Anlass-Namen (aus ProductTemplate::holiday)
+     * passend zum aktuellen Feiertagsfenster bzw. zur aktiven Jahreszeit.
+     */
+    public static function resolvePreferredHolidayCandidates(?string $explicitHoliday = null): array
+    {
+        $candidates = [];
+
+        if ($explicitHoliday !== null && trim($explicitHoliday) !== '') {
+            $candidates[] = trim($explicitHoliday);
+        }
+
+        try {
+            $autopilot = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
+            $now = \Carbon\Carbon::now();
+
+            // 1. Prüfe aktives Angebotsfenster oder Feiertag bis inkl. Feiertags-Tag
+            foreach ($autopilot->getEventDefinitions() as $eventKey => $def) {
+                foreach ([$now->year, $now->year - 1, $now->year + 1] as $yr) {
+                    $eventDate = $autopilot->getHolidayDate($eventKey, $yr);
+                    if (!$eventDate) {
+                        continue;
+                    }
+                    $startDaysBefore = max(14, (int) ($def['start_days_before'] ?? 14));
+                    $winStart = $eventDate->copy()->subDays($startDaysBefore)->startOfDay();
+                    $winEnd = $eventDate->copy()->addDays(1)->endOfDay();
+
+                    if ($now->between($winStart, $winEnd)) {
+                        $mapped = match ($eventKey) {
+                            'valentines'  => ['Valentinstag', 'Hochzeit'],
+                            'womens_day'  => ['Muttertag', 'Valentinstag', 'Ostern'],
+                            'easter'      => ['Ostern', 'Muttertag'],
+                            'mothers_day' => ['Muttertag', 'Hochzeit'],
+                            'fathers_day' => ['Vatertag', 'Geburtstag'],
+                            'sale_summer' => ['Hochzeit', 'Geburtstag'],
+                            'halloween'   => ['Halloween', 'Geburtstag'],
+                            'advent_1', 'christmas', 'sale_winter' => ['Weihnachten'],
+                            'new_year'    => ['Geburtstag', 'Weihnachten'],
+                            default       => [],
+                        };
+                        foreach ($mapped as $m) {
+                            $candidates[] = $m;
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback über die aktive Jahreszeit (aus /admin/configuration -> Jahreszeiten)
+            $seasonKey = app(\App\Services\ConfiguratorService::class)->getActiveSeasonKey();
+            $seasonFallback = match ($seasonKey) {
+                'ostern' => ['Ostern', 'Muttertag', 'Vatertag', 'Hochzeit'],
+                'sommer' => ['Hochzeit', 'Geburtstag', 'Vatertag', 'Muttertag'],
+                'herbst' => ['Halloween', 'Geburtstag', 'Hochzeit'],
+                'winter' => ['Weihnachten', 'Valentinstag', 'Geburtstag'],
+                default  => ['Halloween', 'Weihnachten', 'Ostern', 'Hochzeit'],
+            };
+            foreach ($seasonFallback as $s) {
+                $candidates[] = $s;
+            }
+        } catch (\Throwable $e) {
+            // Fallback bei DB-/Service-Bootstrapping
+            $candidates = array_merge($candidates, ['Halloween', 'Weihnachten', 'Ostern', 'Hochzeit', 'Geburtstag']);
+        }
+
+        return array_values(array_unique($candidates));
+    }
+
+    /**
+     * Findet die passende aktive Produktvorlage für das saisonale / Feiertags-Hauptbild.
+     */
+    public function resolveSeasonalTemplate(?string $explicitHoliday = null, array $excludeImagePaths = []): ?ProductTemplate
+    {
+        if ($explicitHoliday === null && !$this->isAutoSeasonalMainImageEnabled()) {
+            return null;
+        }
+
+        $activeTemplates = $this->relationLoaded('templates')
+            ? $this->templates->where('is_active', true)->filter(fn($t) => !empty($t->preview_image))
+            : $this->templates()->where('is_active', true)->whereNotNull('preview_image')->where('preview_image', '!=', '')->get();
+
+        if ($activeTemplates->isEmpty()) {
+            return null;
+        }
+
+        $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday);
+
+        foreach ($candidates as $candidate) {
+            $normCandidate = mb_strtolower(trim($candidate));
+            $found = $activeTemplates->first(function (ProductTemplate $tpl) use ($normCandidate, $excludeImagePaths) {
+                if (in_array($tpl->preview_image, $excludeImagePaths, true)) {
+                    return false;
+                }
+                return mb_strtolower(trim((string) $tpl->holiday)) === $normCandidate;
+            });
+
+            if ($found) {
+                return $found;
+            }
+        }
+
+        // Letzter Fallback: Erste aktive Vorlage, deren Bild noch nicht ausgeschlossen ist
+        return $activeTemplates->first(fn(ProductTemplate $tpl) => !in_array($tpl->preview_image, $excludeImagePaths, true));
+    }
+
+    /**
+     * Liefert den relativen Storage-Pfad des Hauptbildes (entweder saisonale Vorlage oder manuelles Galerie-Hauptbild).
+     */
+    public function resolveMainImagePath(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
+    {
+        if ($allowSeasonal) {
+            $seasonalTpl = $this->resolveSeasonalTemplate($explicitHoliday, $excludeImagePaths);
+            if ($seasonalTpl && !empty($seasonalTpl->preview_image)) {
+                return $seasonalTpl->preview_image;
+            }
+        }
+
+        if (is_array($this->media_gallery) && count($this->media_gallery) > 0) {
+            foreach ($this->media_gallery as $media) {
+                if (is_array($media) && ($media['type'] ?? 'image') === 'image' && !empty($media['path'])) {
+                    if (!in_array($media['path'], $excludeImagePaths, true)) {
+                        return $media['path'];
+                    }
+                } elseif (is_string($media) && $media !== '' && !in_array($media, $excludeImagePaths, true)) {
+                    return $media;
+                }
+            }
+        }
+
+        if (!empty($this->preview_image_path) && !in_array($this->preview_image_path, $excludeImagePaths, true)) {
+            return $this->preview_image_path;
+        }
+
+        return null;
+    }
+
+    /**
+     * Liefert die fertige, Cache-sichere öffentliche URL des Produkt-Hauptbildes.
+     */
+    public function resolveMainImageUrl(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
+    {
+        $path = $this->resolveMainImagePath($explicitHoliday, $allowSeasonal, $excludeImagePaths);
+        if (!$path) {
+            return null;
+        }
+
+        return ProductTemplate::resolveImageUrl($path);
+    }
 }

@@ -149,12 +149,11 @@
                         {{-- Links: Vorschaubild + Name + Typ/SKU --}}
                         <div class="flex items-center gap-4 min-w-0 pl-2 flex-1">
                             <div class="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden shrink-0 relative">
-                                @if(!empty($prod->media_gallery[0]))
-                                    @if(isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
-                                        <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover"></video>
-                                    @else
-                                        <img src="{{ asset('storage/'. (is_array($prod->media_gallery[0]) ? $prod->media_gallery[0]['path'] : $prod->media_gallery[0])) }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
-                                    @endif
+                                @php $prodMainUrl = $prod->resolveMainImageUrl(); @endphp
+                                @if($prodMainUrl)
+                                    <img src="{{ $prodMainUrl }}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                @elseif(!empty($prod->media_gallery[0]) && isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
+                                    <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover"></video>
                                 @else
                                     <div class="flex items-center justify-center h-full text-gray-400 dark:text-gray-700">
                                         <svg class="w-6 h-6 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -343,12 +342,11 @@
                                 </div>
                             @endif
 
-                            @if(!empty($prod->media_gallery[0]))
-                                @if(isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
-                                    <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"></video>
-                                @else
-                                    <img src="{{ asset('storage/'. (is_array($prod->media_gallery[0]) ? $prod->media_gallery[0]['path'] : $prod->media_gallery[0])) }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100">
-                                @endif
+                            @php $prodCardMainUrl = $prod->resolveMainImageUrl(); @endphp
+                            @if($prodCardMainUrl)
+                                <img src="{{ $prodCardMainUrl }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-80 group-hover:opacity-100">
+                            @elseif(!empty($prod->media_gallery[0]) && isset($prod->media_gallery[0]['type']) && $prod->media_gallery[0]['type'] == 'video')
+                                <video src="{{ asset('storage/'.$prod->media_gallery[0]['path']) }}" class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"></video>
                             @else
                                 <div class="flex items-center justify-center h-full text-gray-400 dark:text-gray-700 text-[10px] flex-col gap-3 font-black uppercase tracking-widest">
                                     <svg class="w-10 h-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

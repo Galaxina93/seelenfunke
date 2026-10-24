@@ -125,10 +125,74 @@
             </div>
             @enderror
 
-            {{-- BILDER UPLOAD --}}
-            <h3 class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 mb-5 border-b border-gray-200 dark:border-gray-800 pb-3 flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-600"></span> Produktbilder (Mind. 1) *
-            </h3>
+            {{-- BILDER UPLOAD & AUTO-SAISON-HAUPTBILD SWITCH --}}
+            @php
+                $autoSeasonalEnabled = filter_var($configSettings['auto_seasonal_main_image'] ?? ($product->isPersonalizable() && $product->isPhysical()), FILTER_VALIDATE_BOOLEAN);
+                $activeSeasonalTemplate = $autoSeasonalEnabled ? $product->resolveSeasonalTemplate() : null;
+            @endphp
+
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-gray-200 dark:border-gray-800 pb-3">
+                <h3 class="text-[9px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400 dark:bg-gray-600"></span> Produktbilder (Mind. 1) *
+                </h3>
+
+                @if($type === 'physical' && $is_personalizable)
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-black uppercase tracking-widest {{ $autoSeasonalEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400' }}">
+                            Automatisch Bilder setzen
+                        </span>
+                        <button type="button"
+                                wire:click="toggleAutoSeasonalMainImage"
+                                role="switch"
+                                aria-checked="{{ $autoSeasonalEnabled ? 'true' : 'false' }}"
+                                class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autoSeasonalEnabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-700' }}"
+                                title="Hauptbild automatisch nach Jahreszeit / Feiertag aus den Produktvorlagen setzen">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autoSeasonalEnabled ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </button>
+                    </div>
+                @endif
+            </div>
+
+            @if($type === 'physical' && $is_personalizable)
+                <div class="mb-6 p-4 rounded-2xl border transition-colors {{ $autoSeasonalEnabled ? 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-500/30' : 'bg-gray-50 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800' }}">
+                    <div class="flex items-start sm:items-center gap-3.5">
+                        @if($autoSeasonalEnabled && $activeSeasonalTemplate && $activeSeasonalTemplate->preview_image)
+                            <img src="{{ $activeSeasonalTemplate->preview_image_url }}"
+                                 alt="{{ $activeSeasonalTemplate->name }}"
+                                 class="w-12 h-12 rounded-xl object-cover border border-emerald-300 dark:border-emerald-500/40 shrink-0 shadow-sm">
+                        @else
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 {{ $autoSeasonalEnabled ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-800 text-gray-500' }}">
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            </div>
+                        @endif
+
+                        <div class="min-w-0 flex-1">
+                            @if($autoSeasonalEnabled)
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-xs font-bold text-gray-900 dark:text-white">
+                                        Automatisches Saison- & Feiertags-Hauptbild aktiv
+                                    </span>
+                                    @if($activeSeasonalTemplate)
+                                        <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase tracking-wider">
+                                            Aktuell: {{ $activeSeasonalTemplate->name }} ({{ $activeSeasonalTemplate->holiday }})
+                                        </span>
+                                    @endif
+                                </div>
+                                <p class="text-[11px] text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                                    Das Hauptbild dieses Produkts wird auf der Startseite, im Shop und auf der Produktseite automatisch passend zur aktuellen Jahreszeit bzw. zum anstehenden Feiertag aus den hinterlegten <a href="{{ route('admin.product-templates') }}" class="underline font-bold hover:text-emerald-600">Produktvorlagen</a> gesetzt. Deine unten hochgeladenen Produktbilder bleiben als weitere Galeriebilder (und als Fallback) erhalten.
+                                </p>
+                            @else
+                                <span class="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                    Manuelles Hauptbild aktiv
+                                </span>
+                                <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">
+                                    Es wird dauerhaft das unten als „Hauptbild“ markierte Galeriebild als erstes Produktbild im Shop verwendet. Schalte den Switch ein, um das Hauptbild automatisch nach Jahreszeit & Feiertag aus den Produktvorlagen zu steuern.
+                                </p>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 mb-10">
                 @foreach($product->media_gallery ?? [] as $index => $media)

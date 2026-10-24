@@ -213,6 +213,7 @@ class ConfiguratorService
             'enable_background_video'  => true,
             'default_background_theme' => 'standard',
             'background_video_path'    => null,
+            'auto_seasonal_main_image' => true,
         ];
     }
 

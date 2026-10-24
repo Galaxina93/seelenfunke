@@ -84,6 +84,7 @@ class ProductSeeder extends Seeder
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-kristall',
+                'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -175,6 +176,7 @@ class ProductSeeder extends Seeder
             ],
             'configurator_settings' => [
                 'template_package' => 'seelen-anhaenger',
+                'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -284,6 +286,7 @@ class ProductSeeder extends Seeder
             ],
             'configurator_settings' => [
                 'template_package' => 'weizenglas-personalisiert',
+                'auto_seasonal_main_image' => true,
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,

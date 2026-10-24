@@ -1,5 +1,8 @@
 @php
-    $activeProducts = \App\Models\Product\Product::with('categories')
+    $activeProducts = \App\Models\Product\Product::with([
+            'categories',
+            'templates' => fn($q) => $q->where('is_active', true),
+        ])
         ->where('status', 'active')
         ->get();
 
@@ -182,27 +185,55 @@
             ? route('shop', ['filterCategory' => $targetCategoryId])
             : ($matched->count() === 1 ? route('product.show', $matched->first()->slug) : route('shop'));
 
+        $tile['matched_products'] = $inStockProducts->isNotEmpty() ? $inStockProducts : $matched;
         $tile['matched_count'] = $matched->count();
         $tile['in_stock_count'] = $inStockProducts->count();
         $tile['total_stock_units'] = $totalStockUnits;
         $tile['has_active_products'] = $hasActiveProducts;
         $tile['is_available'] = $isAvailable;
         $tile['min_price_cents'] = $minPriceCents;
-        $tile['sale_badge'] = $saleBadge;
+        $tile['sale_badge'] = $saleProduct ? ($saleProduct->configurator_settings['autopilot_badge_text'] ?? 'Angebot aktiv') : null;
         $tile['shop_url'] = $shopUrl;
 
         return $tile;
     })->sortByDesc(fn($t) => ($t['is_available'] ? 100 : ($t['has_active_products'] ? 50 : 0)) + $t['in_stock_count'])->values();
 
-    $availableTilesCount = $resolvedTiles->where('is_available', true)->count();
+    // Dynamische Produktbilder pro Kachel (echte Produkte + passend zu Jahreszeit / Feiertag, ohne Bild-Dopplung zwischen Kacheln)
+    $usedImagePaths = [];
+    $usedProductIds = [];
+
+    $resolvedTiles = $resolvedTiles->map(function (array $tile) use (&$usedImagePaths, &$usedProductIds) {
+        $productsForTile = $tile['matched_products'] ?? collect();
+        if ($productsForTile->isNotEmpty()) {
+            // Bevorzuge physische Produkte mit Bildern, die noch nicht in einer vorherigen Kachel als Hauptprodukt dienten
+            $sortedCandidates = $productsForTile->sortBy(function ($p) use ($usedProductIds) {
+                $alreadyUsed = in_array($p->id, $usedProductIds, true) ? 10 : 0;
+                $typePriority = $p->type === 'physical' ? 0 : 5;
+                return $alreadyUsed + $typePriority;
+            });
+
+            foreach ($sortedCandidates as $candidateProduct) {
+                $imgPath = $candidateProduct->resolveMainImagePath(null, true, $usedImagePaths);
+                if ($imgPath) {
+                    $imgUrl = \App\Models\Product\ProductTemplate::resolveImageUrl($imgPath);
+                    if ($imgUrl) {
+                        $tile['image'] = $imgUrl;
+                        $tile['alt'] = $candidateProduct->name . ' – ' . $tile['title'];
+                        $usedImagePaths[] = $imgPath;
+                        $usedProductIds[] = $candidateProduct->id;
+                        break;
+                    }
+                }
+            }
+        }
+
+        unset($tile['matched_products']);
+        return $tile;
+    });
 @endphp
 
 <section id="services" class="bg-white text-black py-24 px-6 lg:px-12" aria-labelledby="services-heading">
     <header class="text-center mb-16">
-        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary-dark text-xs font-bold uppercase tracking-widest mb-4">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Live-Sortiment · {{ $availableTilesCount }} {{ $availableTilesCount === 1 ? 'Erlebniswelt' : 'Erlebniswelten' }} sofort verfügbar
-        </div>
         <h2 id="services-heading" class="text-primary-dark font-serif font-bold text-3xl sm:text-4xl lg:text-5xl">
             Veredelungen & Materialien für Ihre Unikate
         </h2>

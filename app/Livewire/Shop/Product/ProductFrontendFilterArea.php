@@ -203,6 +203,10 @@ class ProductFrontendFilterArea extends Component
                         ->orWhere('holiday', ucfirst($this->filterHoliday));
                 })->where('is_active', true);
             }]);
+        } else {
+            $query->with(['templates' => function($q) {
+                $q->where('is_active', true);
+            }]);
         }
 
         $products = $query->latest()->paginate(12);

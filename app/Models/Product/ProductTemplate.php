@@ -44,23 +44,41 @@ class ProductTemplate extends Model
     ];
 
     /**
+     * Löst einen relativen Storage-Pfad eines Vorlagenbildes in eine Cache-sichere URL (mit ?v=filemtime) auf.
+     */
+    public static function resolveImageUrl(?string $path): ?string
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        if (\Illuminate\Support\Str::startsWith($path, ['shop/', 'shopverwaltung/images/'])) {
+            $abs = public_path($path);
+            $ver = is_file($abs) ? (int) @filemtime($abs) : 1;
+            return asset($path) . '?v=' . $ver;
+        }
+
+        $clean = ltrim(preg_replace('/\?.*$/', '', $path), '/');
+        if (\Illuminate\Support\Str::startsWith($clean, 'storage/')) {
+            $clean = substr($clean, strlen('storage/'));
+        }
+
+        $abs = storage_path('app/public/' . $clean);
+        $ver = is_file($abs) ? (int) @filemtime($abs) : 1;
+
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($clean) . '?v=' . $ver;
+    }
+
+    /**
      * Holt die korrekte öffentliche URL für das Vorschaubild.
      */
     public function getPreviewImageUrlAttribute(): ?string
     {
-        if (empty($this->preview_image)) {
-            return null;
-        }
-
-        if (\Illuminate\Support\Str::startsWith($this->preview_image, ['http://', 'https://'])) {
-            return $this->preview_image;
-        }
-
-        if (\Illuminate\Support\Str::startsWith($this->preview_image, ['shop/', 'shopverwaltung/images/'])) {
-            return asset($this->preview_image);
-        }
-
-        return \Illuminate\Support\Facades\Storage::disk('public')->url($this->preview_image);
+        return self::resolveImageUrl($this->preview_image);
     }
 
     /**

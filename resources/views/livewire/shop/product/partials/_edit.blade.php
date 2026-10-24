@@ -128,18 +128,18 @@
                             <div class="aspect-square bg-gray-100 dark:bg-gray-950 relative overflow-hidden dark:shadow-inner p-2">
                                 <div class="w-full h-full rounded-[2rem] overflow-hidden relative border border-gray-200 dark:border-gray-800/50">
                                     @php
-                                        // Sicheres Auslesen des Vorschaubilds
-                                        $shopPreviewImage = null;
-                                        if (!empty($product->media_gallery) && is_array($product->media_gallery) && count($product->media_gallery) > 0) {
-                                            $firstMedia = $product->media_gallery[0];
-                                            $shopPreviewImage = is_array($firstMedia) ? ($firstMedia['path'] ?? null) : $firstMedia;
-                                        } elseif (!empty($product->preview_image_path)) {
-                                            $shopPreviewImage = $product->preview_image_path;
-                                        }
+                                        $autoSeasonalPreview = filter_var($configSettings['auto_seasonal_main_image'] ?? ($product->isPersonalizable() && $product->isPhysical()), FILTER_VALIDATE_BOOLEAN);
+                                        $shopPreviewUrl = $product->resolveMainImageUrl(null, $autoSeasonalPreview);
+                                        $seasonalTplPreview = $autoSeasonalPreview ? $product->resolveSeasonalTemplate() : null;
                                     @endphp
 
-                                    @if($shopPreviewImage)
-                                        <img src="{{ asset('storage/' . $shopPreviewImage) }}" class="w-full h-full object-cover">
+                                    @if($shopPreviewUrl)
+                                        <img src="{{ $shopPreviewUrl }}" class="w-full h-full object-cover">
+                                        @if($seasonalTplPreview)
+                                            <div class="absolute bottom-4 left-4 bg-emerald-600/95 backdrop-blur-md text-white text-[9px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl shadow-md">
+                                                Auto-Hauptbild: {{ $seasonalTplPreview->holiday }}
+                                            </div>
+                                        @endif
                                     @else
                                         <div class="absolute inset-0 flex flex-col items-center justify-center text-gray-400 dark:text-gray-700 bg-gray-50 dark:bg-gray-900 dark:shadow-inner">
                                             <svg class="w-12 h-12 mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

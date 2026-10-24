@@ -343,6 +343,9 @@ class ProductCreate extends Component
         }
 
         $this->configSettings = array_merge($this->configSettings, $savedConfig);
+        $this->configSettings['auto_seasonal_main_image'] = array_key_exists('auto_seasonal_main_image', $savedConfig)
+            ? filter_var($savedConfig['auto_seasonal_main_image'], FILTER_VALIDATE_BOOLEAN)
+            : ($this->is_personalizable && $this->type === 'physical');
 
         // Automatische Erkennung des Vorlage-Pakets für bestehende Standard-Produkte
         $packages = app(ConfiguratorService::class)->getTemplatePackages();
@@ -487,12 +490,15 @@ class ProductCreate extends Component
             return $validBasic;
         }
         if ($this->currentStep === 2) {
-            // Mindestens ein Bild prüfen
+            // Mindestens ein Bild prüfen (oder Auto-Saisonbild mit vorhandener Vorlage)
             $hasImage = false;
             foreach($this->product->media_gallery ?? [] as $media) {
                 if(isset($media['type']) && $media['type'] === 'image') {
                     $hasImage = true; break;
                 }
+            }
+            if (!$hasImage && filter_var($this->configSettings['auto_seasonal_main_image'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $hasImage = $this->product->templates()->where('is_active', true)->whereNotNull('preview_image')->where('preview_image', '!=', '')->exists();
             }
             return $hasImage;
         }
@@ -1040,9 +1046,23 @@ class ProductCreate extends Component
         $this->search = ''; // optionally clear search
     }
 
+    public function toggleAutoSeasonalMainImage(): void
+    {
+        $current = filter_var($this->configSettings['auto_seasonal_main_image'] ?? true, FILTER_VALIDATE_BOOLEAN);
+        $next = !$current;
+        $this->configSettings['auto_seasonal_main_image'] = $next;
+
+        if (isset($this->product) && $this->product->exists) {
+            $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+            $settings['auto_seasonal_main_image'] = $next;
+            $this->product->configurator_settings = $settings;
+            $this->product->save();
+        }
+    }
+
     public function render()
     {
-        $query = Product::query();
+        $query = Product::with('templates');
         
         if ($this->showArchived) {
             $query->onlyTrashed();
