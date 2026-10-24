@@ -110,6 +110,8 @@ class AccountingQuickEntry extends Component
     {
         if (!$this->specialPhoto) return;
 
+        $this->validateOnly('specialPhoto');
+
         // Foto auch zu den Beleg-Dateien hinzufügen, damit es beim Speichern in storage gesichert wird
         if (!in_array($this->specialPhoto, $this->specialFiles, true)) {
             $this->specialFiles[] = $this->specialPhoto;
@@ -124,6 +126,8 @@ class AccountingQuickEntry extends Component
     public function updatedSpecialFiles()
     {
         if (empty($this->specialFiles)) return;
+
+        $this->validateOnly('specialFiles.*');
 
         $lastFile = end($this->specialFiles);
         if ($lastFile) {
@@ -356,9 +360,29 @@ class AccountingQuickEntry extends Component
             $filesToStore[] = $this->specialPhoto;
         }
 
+        $allowedMap = [
+            'pdf' => ['application/pdf'],
+            'jpg' => ['image/jpeg'],
+            'jpeg' => ['image/jpeg'],
+            'png' => ['image/png'],
+            'webp' => ['image/webp'],
+            'zip' => ['application/zip', 'application/x-zip-compressed'],
+            'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+            'txt' => ['text/plain'],
+            'xml' => ['text/xml', 'application/xml', 'text/plain'],
+        ];
+
         foreach ($filesToStore as $file) {
             if ($file instanceof \Illuminate\Http\UploadedFile) {
-                $path = $file->store('buchhaltung/receipts', 'local');
+                $ext = strtolower((string) $file->getClientOriginalExtension());
+                $realPath = $file->getRealPath();
+                $finfo = $realPath ? new \finfo(FILEINFO_MIME_TYPE) : null;
+                $detectedMime = ($finfo && $realPath && is_file($realPath)) ? $finfo->file($realPath) : null;
+                if (!isset($allowedMap[$ext]) || !in_array($detectedMime, $allowedMap[$ext], true)) {
+                    $this->addError('specialFiles', 'Ungültiger Dateityp.');
+                    return;
+                }
+                $path = $file->storeAs('buchhaltung/receipts', \Illuminate\Support\Str::uuid() . '.' . $ext, 'local');
                 $filePaths[] = $path;
             }
         }
@@ -366,6 +390,7 @@ class AccountingQuickEntry extends Component
         // Aufgabe 1: Betragslogik
         $rawAmount = str_replace(',', '.', (string) $this->specialAmount);
         $finalAmount = (float)$rawAmount;
+        $safeTaxRate = max(0.0, min(100.0, (float) $this->specialTaxRate));
         // Wenn kein Minus davor steht, ist es positiv (Einnahme), sonst negativ (Ausgabe)
         // Aber normalerweise sind Ausgaben negativ.
         // Prompt sagt: "Minus vorschreiben = negativ, nur Zahl = positiv".
@@ -379,7 +404,7 @@ class AccountingQuickEntry extends Component
             'execution_date' => $this->specialDate,
             'location' => $this->specialLocation,
             'is_business' => $this->specialIsBusiness,
-            'tax_rate' => $this->specialIsBusiness ? $this->specialTaxRate : null,
+            'tax_rate' => $this->specialIsBusiness ? $safeTaxRate : null,
             'invoice_number' => $this->specialIsBusiness ? $this->specialInvoiceNumber : null,
             'file_paths' => $filePaths
         ]);

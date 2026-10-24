@@ -12,6 +12,18 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class FinancialService
 {
+    public static function signedInvoiceCents(\App\Models\Accounting\AccountingInvoice $invoice, bool $isNet = false): int
+    {
+        $rawTotal = (int) $invoice->total;
+        $rawTax = (int) $invoice->tax_amount;
+        $isCredit = in_array($invoice->type, ['cancellation', 'credit_note'], true) || $rawTotal < 0;
+
+        $total = $isCredit ? -abs($rawTotal) : abs($rawTotal);
+        $tax = $isCredit ? -abs($rawTax) : abs($rawTax);
+
+        return $isNet ? ($total - $tax) : $total;
+    }
+
     public function getMonthlyStats($adminId, $month, $year, $isNet = false)
     {
         // 1. Fixkosten (Bleibt wie gehabt)
@@ -75,19 +87,14 @@ class FinancialService
         }
 
         // 3. Shop Umsätze (Basis: Rechnungen statt Bestellungen)
-        $shopRevenueQuery = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
+        $shopInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereNotNull('paid_at')
-            ->whereIn('type', ['invoice', 'cancellation', 'credit_note']);
-            
-        if ($isNet) {
-            $shopRevenueQuery->selectRaw('SUM(total - tax_amount) as sum_total');
-        } else {
-            $shopRevenueQuery->selectRaw('SUM(total) as sum_total');
-        }
-        
-        $shopRevenue = $shopRevenueQuery->value('sum_total') ?? 0;
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+            ->get(['type', 'total', 'tax_amount']);
+
+        $shopRevenue = $shopInvoices->sum(fn($inv) => self::signedInvoiceCents($inv, (bool) $isNet));
 
         $shopIncome = $shopRevenue / 100; // Umrechnung Cent -> Euro
 
@@ -231,29 +238,21 @@ class FinancialService
         }
 
         // 3. Shop (Basis: Rechnungen)
-        $shopInvoicesQuery = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
+        $shopInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereNotNull('paid_at')
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
-            ->groupBy('month');
-            
-        if ($isNet) {
-            $shopInvoicesQuery->selectRaw('MONTH(invoice_date) as month, SUM(total - tax_amount) as total');
-        } else {
-            $shopInvoicesQuery->selectRaw('MONTH(invoice_date) as month, SUM(total) as total');
-        }
-            
-        $shopInvoices = $shopInvoicesQuery->get();
+            ->get(['invoice_date', 'type', 'total', 'tax_amount']);
 
         $shopRow = ['name' => 'Online Shop', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
-        foreach($shopInvoices as $invoiceAgg) {
-            $m = $invoiceAgg->month;
-            $amount = $invoiceAgg->total / 100;
+        foreach($shopInvoices as $inv) {
+            $m = (int) $inv->invoice_date->month;
+            $amount = self::signedInvoiceCents($inv, (bool) $isNet) / 100;
 
             $structure['shop_income']['months'][$m] += $amount;
             $structure['shop_income']['year_sum'] += $amount;
 
-            $shopRow['months'][$m] = $amount;
+            $shopRow['months'][$m] += $amount;
             $shopRow['year_sum'] += $amount;
         }
         $structure['shop_income']['items'][] = $shopRow;
@@ -307,8 +306,16 @@ class FinancialService
     public function getBarChartData($adminId, $from, $to, $isNet = false)
     {
         $days = [];
-        $start = Carbon::parse($from);
-        $end = Carbon::parse($to);
+        $start = Carbon::parse($from)->startOfDay();
+        $end = Carbon::parse($to)->endOfDay();
+
+        if ($start->gt($end)) {
+            [$start, $end] = [$end->copy()->startOfDay(), $start->copy()->endOfDay()];
+        }
+
+        if ($start->diffInDays($end) > 3660) {
+            $start = $end->copy()->subDays(3660)->startOfDay();
+        }
 
         $diff = $start->diffInDays($end);
         $isMonthly = $diff > 32;
@@ -342,7 +349,10 @@ class FinancialService
                         
                         $isIncome = ($group->type === 'income');
                         if (!$isMonthly) {
-                            if ($dateObj->day == $dayOfMonth) $this->addToChartData($val, $amount, $isIncome);
+                            $effectiveDay = min((int) $dayOfMonth, (int) $dateObj->daysInMonth);
+                            if ((int) $dateObj->day === $effectiveDay) {
+                                $this->addToChartData($val, $amount, $isIncome);
+                            }
                         } else {
                             $this->addToChartData($val, $amount, $isIncome);
                         }
@@ -352,7 +362,7 @@ class FinancialService
         }
 
         // Variable (Specials)
-        $specials = AccountingSpecialIssue::where('admin_id', $adminId)->whereBetween('execution_date', [$from, $to])->get();
+        $specials = AccountingSpecialIssue::where('admin_id', $adminId)->whereBetween('execution_date', [$start, $end])->get();
         foreach($specials as $special) {
             $key = $isMonthly ? $special->execution_date->format('Y-m') : $special->execution_date->format('Y-m-d');
             if(isset($days[$key])) {
@@ -367,7 +377,7 @@ class FinancialService
         $bankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
             ? \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('accounting_category_id')
-                ->whereBetween('transaction_date', [$from, $to])
+                ->whereBetween('transaction_date', [$start, $end])
                 ->get()
             : collect();
 
@@ -380,7 +390,7 @@ class FinancialService
         }
 
         // Shop Invoices (anstatt Orders)
-        $invoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [$from, $to])
+        $invoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [$start, $end])
             ->whereIn('status', ['paid', 'cancelled'])
             ->whereNotNull('paid_at')
             ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
@@ -389,7 +399,7 @@ class FinancialService
         foreach($invoices as $invoice) {
             $key = $isMonthly ? $invoice->invoice_date->format('Y-m') : $invoice->invoice_date->format('Y-m-d');
             if(isset($days[$key])) {
-                $amountEuro = ($isNet ? ($invoice->total - $invoice->tax_amount) : $invoice->total) / 100;
+                $amountEuro = self::signedInvoiceCents($invoice, (bool) $isNet) / 100;
                 // Positive Beträge (Einnahmen) zu income, negative (Stornos) zu expense
                 if ($amountEuro >= 0) {
                     $days[$key]['income'] += $amountEuro;
@@ -442,12 +452,14 @@ class FinancialService
         $fixedGroups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         $fixedCosts = collect();
         foreach ($fixedGroups as $group) {
+            $isIncomeGroup = ($group->type === 'income');
             foreach ($group->items as $item) {
                 if ($this->isDueInMonth($item, $month, $year)) {
+                    $signedAmount = $isIncomeGroup ? abs($item->amount) : -abs($item->amount);
                     $fixedCosts->push((object)[
                         'name' => $item->name,
                         'category' => $group->name,
-                        'amount' => $item->amount,
+                        'amount' => $signedAmount,
                         'tax_rate' => $item->tax_rate ?? 0,
                         'is_business' => $item->is_business
                     ]);
@@ -463,19 +475,23 @@ class FinancialService
             ->get();
 
         $shopStats = [
-            'gross' => $invoices->sum('total') / 100,
-            'net'   => $invoices->sum(fn($i) => ($i->total - $i->tax_amount)) / 100,
-            'tax'   => $invoices->sum('tax_amount') / 100,
-            'count' => $invoices->where('total', '>', 0)->count(),
-            'returns' => $invoices->where('total', '<', 0)->count(),
+            'gross' => $invoices->sum(fn($i) => self::signedInvoiceCents($i, false)) / 100,
+            'net'   => $invoices->sum(fn($i) => self::signedInvoiceCents($i, true)) / 100,
+            'tax'   => $invoices->sum(fn($i) => self::signedInvoiceCents($i, false) - self::signedInvoiceCents($i, true)) / 100,
+            'count' => $invoices->filter(fn($i) => self::signedInvoiceCents($i, false) > 0)->count(),
+            'returns' => $invoices->filter(fn($i) => self::signedInvoiceCents($i, false) < 0)->count(),
         ];
         $shopStats['aov'] = $shopStats['count'] > 0 ? ($shopStats['gross'] / $shopStats['count']) : 0;
 
         $liquidityPreview = [];
-        $avgShopNet = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [
-            Carbon::create($year, $month, 1)->subMonths(3), 
+        $avgInvoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [
+            Carbon::create($year, $month, 1)->subMonths(2)->startOfMonth(), 
             Carbon::create($year, $month, 1)->endOfMonth()
-        ])->whereIn('status', ['paid'])->sum(DB::raw('total - tax_amount')) / 100 / 3;
+        ])->whereIn('status', ['paid', 'cancelled'])
+          ->whereNotNull('paid_at')
+          ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+          ->get(['type', 'total', 'tax_amount']);
+        $avgShopNet = $avgInvoices->sum(fn($i) => self::signedInvoiceCents($i, true)) / 100 / 3;
 
         for ($i = 1; $i <= 3; $i++) {
             $previewMonth = Carbon::create($year, $month, 1)->addMonths($i);
@@ -483,9 +499,12 @@ class FinancialService
             
             $previewFixed = 0;
             foreach ($fixedGroups as $group) {
+                if ($group->type === 'income') {
+                    continue;
+                }
                 foreach ($group->items as $item) {
-                    if ($this->isDueInMonth($item, $m) && $item->amount < 0) {
-                        $previewFixed += ($item->amount / (1 + (($item->tax_rate ?? 0) / 100)));
+                    if ($this->isDueInMonth($item, $m, $previewMonth->year)) {
+                        $previewFixed += (abs($item->amount) / (1 + (($item->tax_rate ?? 0) / 100)));
                     }
                 }
             }
@@ -531,6 +550,7 @@ class FinancialService
                 ], ';');
 
                 if($s->file_paths) {
+                    $storageRoot = realpath(storage_path('app'));
                     foreach($s->file_paths as $index => $filePath) {
                         if (!is_string($filePath) || str_contains($filePath, '..') || str_contains($filePath, "\0")) {
                             continue;
@@ -539,11 +559,15 @@ class FinancialService
                             ? Storage::disk('local')->path($filePath)
                             : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
 
-                        if($sourcePath && file_exists($sourcePath)) {
-                            $ext = pathinfo($sourcePath, PATHINFO_EXTENSION);
+                        if($sourcePath && is_file($sourcePath) && !is_link($sourcePath)) {
+                            $realSource = realpath($sourcePath);
+                            if ($realSource === false || ($storageRoot !== false && !str_starts_with($realSource, $storageRoot . DIRECTORY_SEPARATOR))) {
+                                continue;
+                            }
+                            $ext = pathinfo($realSource, PATHINFO_EXTENSION);
                             $cleanTitle = \Illuminate\Support\Str::slug($s->title) ?: 'Beleg';
                             $newName = "Belege/{$s->execution_date->format('Y-m-d')}_{$cleanTitle}_{$index}.{$ext}";
-                            $zip->addFile($sourcePath, $newName);
+                            $zip->addFile($realSource, $newName);
                         }
                     }
                 }
@@ -560,6 +584,7 @@ class FinancialService
                 ], ';');
 
                 if($tx->file_paths) {
+                    $storageRoot = realpath(storage_path('app'));
                     foreach($tx->file_paths as $index => $filePath) {
                         if (!is_string($filePath) || str_contains($filePath, '..') || str_contains($filePath, "\0")) {
                             continue;
@@ -568,12 +593,16 @@ class FinancialService
                             ? Storage::disk('local')->path($filePath)
                             : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
 
-                        if($sourcePath && file_exists($sourcePath)) {
-                            $ext = pathinfo($sourcePath, PATHINFO_EXTENSION);
+                        if($sourcePath && is_file($sourcePath) && !is_link($sourcePath)) {
+                            $realSource = realpath($sourcePath);
+                            if ($realSource === false || ($storageRoot !== false && !str_starts_with($realSource, $storageRoot . DIRECTORY_SEPARATOR))) {
+                                continue;
+                            }
+                            $ext = pathinfo($realSource, PATHINFO_EXTENSION);
                             $cleanTitle = \Illuminate\Support\Str::slug($title) ?: 'Beleg_Bank';
                             $dateStr = \Carbon\Carbon::parse($tx->transaction_date)->format('Y-m-d');
                             $newName = "Belege_Bank/{$dateStr}_{$cleanTitle}_{$index}.{$ext}";
-                            $zip->addFile($sourcePath, $newName);
+                            $zip->addFile($realSource, $newName);
                         }
                     }
                 }

@@ -363,10 +363,14 @@ class AccountingInvoice extends Component
                 'manualInvoice.invoice_date' => 'required|date',
                 'manualInvoice.delivery_date' => 'required|date',
                 'manualInvoice.invoice_number' => 'required|unique:accounting_invoices,invoice_number,' . ($currentId ?: 'NULL') . ',id',
+                'manualInvoice.shipping_cost' => 'nullable|numeric|min:0',
+                'manualInvoice.discount_amount' => 'nullable|numeric|min:0',
+                'manualInvoice.volume_discount' => 'nullable|numeric|min:0',
                 'manualInvoice.items' => 'required|array|min:1',
                 'manualInvoice.items.*.product_name' => 'required',
-                'manualInvoice.items.*.unit_price' => 'required|numeric',
+                'manualInvoice.items.*.unit_price' => 'required|numeric|min:0',
                 'manualInvoice.items.*.quantity' => 'required|numeric|min:1',
+                'manualInvoice.items.*.tax_rate' => 'nullable|numeric|min:0|max:100',
             ], [], [
                 'manualInvoice.customer_email' => 'E-Mail',
                 'manualInvoice.last_name' => 'Nachname',
@@ -436,14 +440,15 @@ class AccountingInvoice extends Component
 
             // --- SCHRITT 3: Rabatte (Basis: Eingabe ist meist Brutto-Abzug) ---
             // Rabatte werden in der Regel als absoluter Betrag vom Endpreis abgezogen
-            $discountInCent = (int)round(($this->manualInvoice['discount_amount'] ?? 0) * 100);
-            $volumeDiscountInCent = (int)round(($this->manualInvoice['volume_discount'] ?? 0) * 100);
-            $totalDiscountCent = $discountInCent + $volumeDiscountInCent;
+            $discountInCent = max(0, (int)round(($this->manualInvoice['discount_amount'] ?? 0) * 100));
+            $volumeDiscountInCent = max(0, (int)round(($this->manualInvoice['volume_discount'] ?? 0) * 100));
+            $maxDiscountCent = max(0, $itemsGrossSum + $shippingGrossCent);
+            $totalDiscountCent = min($maxDiscountCent, $discountInCent + $volumeDiscountInCent);
 
 
             // --- SCHRITT 4: Endsummen ---
             // Total = (Summe Items Brutto + Versand Brutto) - Rabatte
-            $grandTotalCent = ($itemsGrossSum + $shippingGrossCent) - $totalDiscountCent;
+            $grandTotalCent = max(0, ($itemsGrossSum + $shippingGrossCent) - $totalDiscountCent);
 
 
             // --- SCHRITT 5: Speichern in DB ---
@@ -456,10 +461,12 @@ class AccountingInvoice extends Component
                     'delivery_date' => $this->manualInvoice['delivery_date'] ? Carbon::parse($this->manualInvoice['delivery_date']) : now(),
                     'due_date' => $this->manualInvoice['due_date'] ? Carbon::parse($this->manualInvoice['due_date']) : null,
                     'due_days' => $this->manualInvoice['due_days'],
+                    'paid_at' => $finalStatus === 'paid' ? now() : null,
                     'subject' => $this->manualInvoice['subject'],
                     'header_text' => $this->manualInvoice['header_text'],
                     'footer_text' => $this->manualInvoice['footer_text'],
                     'is_e_invoice' => (bool)$this->manualInvoice['is_e_invoice'],
+                    'is_small_business' => $isSmallBusiness,
                     'type' => 'invoice',
                     'status' => $finalStatus,
                     'customer_id' => $this->selectedCustomerId,
@@ -602,33 +609,47 @@ class AccountingInvoice extends Component
     {
         $invoice = InvoiceModel::findOrFail($id);
 
-        if ($invoice->status === 'cancelled') {
-            session()->flash('warning', 'Diese Rechnung ist bereits storniert.');
-            $this->dispatch('notify', ['type' => 'warning', 'message' => 'Diese Rechnung ist bereits storniert.']);
+        if ($invoice->status === 'cancelled' || $invoice->status === 'draft' || in_array($invoice->type, ['cancellation', 'credit_note'], true)) {
+            session()->flash('warning', 'Diese Rechnung kann nicht storniert werden.');
+            $this->dispatch('notify', ['type' => 'warning', 'message' => 'Diese Rechnung kann nicht storniert werden.']);
             return;
         }
 
         try {
             DB::transaction(function () use ($invoice) {
+                $alreadyCancelled = InvoiceModel::where('parent_id', $invoice->id)
+                    ->where('type', 'cancellation')
+                    ->lockForUpdate()
+                    ->exists();
+                if ($alreadyCancelled) {
+                    return;
+                }
+
+                $wasPaid = $invoice->status === 'paid' || $invoice->paid_at !== null;
+
                 // 1. Ursprüngliche Rechnung als storniert markieren
-                $invoice->update(['status' => 'cancelled']);
+                $invoice->update([
+                    'status' => 'cancelled',
+                    'paid_at' => $wasPaid ? ($invoice->paid_at ?? now()) : null,
+                ]);
 
                 // 2. Stornorechnung (Gutschrift) erstellen
                 $cancellationInvoice = $invoice->replicate();
                 $cancellationInvoice->invoice_number = 'ST-' . $invoice->invoice_number;
                 $cancellationInvoice->type = 'cancellation';
-                $cancellationInvoice->status = 'paid';
+                $cancellationInvoice->status = $wasPaid ? 'paid' : 'cancelled';
                 $cancellationInvoice->invoice_date = now();
+                $cancellationInvoice->paid_at = $wasPaid ? now() : null;
                 $cancellationInvoice->parent_id = $invoice->id; // Verknüpfung zur Originalrechnung
 
                 // Beträge ins Negative drehen für eine Gutschrift
-                $cancellationInvoice->subtotal = -$invoice->subtotal;
-                $cancellationInvoice->tax_amount = -$invoice->tax_amount;
-                $cancellationInvoice->shipping_cost = -$invoice->shipping_cost;
-                $cancellationInvoice->express_price = -$invoice->express_price;
-                $cancellationInvoice->discount_amount = -$invoice->discount_amount;
-                $cancellationInvoice->volume_discount = -$invoice->volume_discount;
-                $cancellationInvoice->total = -$invoice->total;
+                $cancellationInvoice->subtotal = -abs((int) $invoice->subtotal);
+                $cancellationInvoice->tax_amount = -abs((int) $invoice->tax_amount);
+                $cancellationInvoice->shipping_cost = -abs((int) $invoice->shipping_cost);
+                $cancellationInvoice->express_price = -abs((int) ($invoice->express_price ?? 0));
+                $cancellationInvoice->discount_amount = -abs((int) $invoice->discount_amount);
+                $cancellationInvoice->volume_discount = -abs((int) $invoice->volume_discount);
+                $cancellationInvoice->total = -abs((int) $invoice->total);
 
                 $cancellationInvoice->save();
 
@@ -636,8 +657,10 @@ class AccountingInvoice extends Component
                 app(InvoiceService::class)->storePdf($cancellationInvoice);
 
                 // Synchronize order cancellation if order exists and is not yet cancelled
-                if ($invoice->order && $invoice->order->status !== 'cancelled') {
-                    $invoice->order->handleCancellation('Rechnungsstornierung ' . $invoice->invoice_number);
+                if ($invoice->order && !in_array($invoice->order->status, ['cancelled', 'refunded'], true)) {
+                    $prevStatus = $invoice->order->status;
+                    $prevPaymentStatus = $invoice->order->payment_status;
+                    $invoice->order->handleCancellation('Rechnungsstornierung ' . $invoice->invoice_number, $prevStatus, $prevPaymentStatus);
                     $invoice->order->update(['status' => 'cancelled']);
                 }
             });
@@ -691,7 +714,10 @@ class AccountingInvoice extends Component
 
     public function downloadPdfByFilename($filename)
     {
-        $safeName = basename($filename);
+        $safeName = basename((string) $filename);
+        if (!str_ends_with(strtolower($safeName), '.pdf')) {
+            return;
+        }
         if (Storage::disk('local')->exists("buchhaltung/invoices/{$safeName}")) {
             return Storage::disk('local')->download("buchhaltung/invoices/{$safeName}");
         }

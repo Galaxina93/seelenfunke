@@ -10,6 +10,7 @@ use Livewire\Component;
 
 class AccountingInvoicePreview extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public $invoiceId;
     public $showModal = false;
 
@@ -48,7 +49,7 @@ class AccountingInvoicePreview extends Component
         }
 
         $invoice = AccountingInvoice::find($this->invoiceId);
-        if(!$invoice || $invoice->status === 'cancelled') return;
+        if (!$invoice || $invoice->status === 'cancelled' || $invoice->status === 'draft' || in_array($invoice->type, ['cancellation', 'credit_note'], true)) return;
 
         try {
             $service->cancelInvoice($invoice);

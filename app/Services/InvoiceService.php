@@ -80,11 +80,11 @@ class InvoiceService
      */
     public function cancelInvoice(AccountingInvoice $originalInvoice): AccountingInvoice
     {
-        if ($originalInvoice->type === 'cancellation') {
+        if (in_array($originalInvoice->type, ['cancellation', 'credit_note'], true)) {
             throw new \InvalidArgumentException('Eine Stornorechnung / Gutschrift kann nicht erneut storniert werden.');
         }
-        if ($originalInvoice->status === 'cancelled') {
-            throw new \InvalidArgumentException('Diese Rechnung wurde bereits storniert.');
+        if ($originalInvoice->status === 'cancelled' || $originalInvoice->status === 'draft') {
+            throw new \InvalidArgumentException('Diese Rechnung kann nicht storniert werden.');
         }
 
         return retry(5, function () use ($originalInvoice) {
@@ -98,7 +98,10 @@ class InvoiceService
                 }
 
                 $isPaid = $originalInvoice->status === 'paid' || $originalInvoice->paid_at !== null;
-                $originalInvoice->update(['status' => 'cancelled']);
+                $originalInvoice->update([
+                    'status' => 'cancelled',
+                    'paid_at' => $isPaid ? ($originalInvoice->paid_at ?? now()) : null,
+                ]);
                 $stornoNumber = $this->generateInvoiceNumber(prefix: 'STO');
 
                 $invoice = AccountingInvoice::create([
@@ -134,8 +137,10 @@ class InvoiceService
                 $this->storePdf($invoice);
 
                 // Synchronize order cancellation if order exists and is not yet cancelled
-                if ($originalInvoice->order && $originalInvoice->order->status !== 'cancelled') {
-                    $originalInvoice->order->handleCancellation('Rechnungsstornierung ' . $originalInvoice->invoice_number);
+                if ($originalInvoice->order && !in_array($originalInvoice->order->status, ['cancelled', 'refunded'], true)) {
+                    $prevStatus = $originalInvoice->order->status;
+                    $prevPaymentStatus = $originalInvoice->order->payment_status;
+                    $originalInvoice->order->handleCancellation('Rechnungsstornierung ' . $originalInvoice->invoice_number, $prevStatus, $prevPaymentStatus);
                     $originalInvoice->order->update(['status' => 'cancelled']);
                 }
 
@@ -247,18 +252,7 @@ class InvoiceService
      */
     public function generateEInvoiceXml(AccountingInvoice $invoice)
     {
-        $safeInvoiceNumber = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string)$invoice->invoice_number);
-        $fileName = "buchhaltung/invoices/xml/{$safeInvoiceNumber}.xml";
-
-        // Einfaches XML-Schema nach E-Commerce Richtlinien
-        $xml = new \SimpleXMLElement('<?xml version="1.0" encoding="UTF-8"?><rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"/>');
-        $header = $xml->addChild('ExchangedDocumentContext');
-        $header->addChild('ID', htmlspecialchars((string) $invoice->invoice_number, ENT_XML1 | ENT_QUOTES, 'UTF-8'));
-
-        // Speicherung der XML-Komponente
-        Storage::disk('local')->put($fileName, $xml->asXML());
-
-        return $fileName;
+        return app(AccountingXmlInvoiceService::class)->generate($invoice);
     }
 
     /**

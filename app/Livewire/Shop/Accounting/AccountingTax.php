@@ -151,6 +151,8 @@ class AccountingTax extends Component
 
     public function selectMonth($month)
     {
+        $month = max(1, min(12, (int) $month));
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
         $this->selectedMonth = $month;
         $this->globalLogs = []; // Logs beim Monatswechsel leeren
         $this->addLog('system', "Monat " . str_pad($month, 2, '0', STR_PAD_LEFT) . "/{$this->selectedYear} geladen. Analysiere Belege...");
@@ -181,6 +183,8 @@ class AccountingTax extends Component
     // --- DYNAMISCHE DATEN-ERMITTLUNG ---
     public function getMonthData($month)
     {
+        $month = max(1, min(12, (int) $month));
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
         $adminId = auth()->guard('admin')->id();
         $startDate = Carbon::createFromDate($this->selectedYear, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
@@ -240,8 +244,8 @@ class AccountingTax extends Component
 
         // GUTSCHRIFTEN VERRECHNEN (Negativ-Beträge verringern das ELSTER-Volumen)
         foreach ($creditNotes as $cn) {
-            $total = $cn->total / 100; // ist bereits negativ in der DB
-            $tax = $cn->tax_amount / 100; // ist bereits negativ in der DB
+            $total = -abs($cn->total / 100);
+            $tax = -abs($cn->tax_amount / 100);
 
             if ($isYearSmallBusiness) {
                 $tax = 0;
@@ -275,14 +279,21 @@ class AccountingTax extends Component
         $businessFixed = collect();
         $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
+            if ($group->type === 'income') {
+                continue;
+            }
             foreach ($group->items as $item) {
                 if ($item->is_business == 1 || $item->is_business === true) {
                     $paymentDate = Carbon::parse($item->first_payment_date);
                     $startMonth = $paymentDate->month;
                     $startYear = $paymentDate->year;
-                    $interval = $item->interval_months ?: 1;
+                    $interval = max(1, (int) ($item->interval_months ?: 1));
 
-                    if (Carbon::createFromDate($this->selectedYear, $month, 1)->greaterThanOrEqualTo(Carbon::createFromDate($startYear, $startMonth, 1))) {
+                    if ($item->last_payment_date && $startDate->gt(Carbon::parse($item->last_payment_date)->endOfMonth())) {
+                        continue;
+                    }
+
+                    if ($startDate->greaterThanOrEqualTo(Carbon::createFromDate($startYear, $startMonth, 1)->startOfMonth())) {
                         $diff = ($month - $startMonth) + (($this->selectedYear - $startYear) * 12);
                         if ($diff >= 0 && ($diff % $interval) === 0) {
                             $businessFixed->push($item);
@@ -477,6 +488,25 @@ class AccountingTax extends Component
 
         $adminId = auth()->guard('admin')->id();
         $file = $this->receiptFiles[$itemId];
+        $ext = strtolower((string) $file->getClientOriginalExtension());
+        $allowedMap = [
+            'pdf' => ['application/pdf'],
+            'jpg' => ['image/jpeg'],
+            'jpeg' => ['image/jpeg'],
+            'png' => ['image/png'],
+            'webp' => ['image/webp'],
+        ];
+        $realPath = $file->getRealPath();
+        $finfo = $realPath ? new \finfo(FILEINFO_MIME_TYPE) : null;
+        $detectedMime = ($finfo && $realPath && is_file($realPath)) ? $finfo->file($realPath) : null;
+        if (in_array($detectedMime, ['application/x-empty', 'inode/x-empty', false, null], true)) {
+            $detectedMime = $file->getMimeType();
+        }
+        if (!isset($allowedMap[$ext]) || !in_array($detectedMime, $allowedMap[$ext], true)) {
+            unset($this->receiptFiles[$itemId]);
+            $this->addLog('error', 'Ungültiger Dateityp für Beleg-Upload.');
+            return;
+        }
         $sanitizedOriginal = preg_replace('/[^a-zA-Z0-9_\.-]/', '_', $file->getClientOriginalName());
         $filename = Str::uuid() . '_' . $sanitizedOriginal;
         $path = $file->storeAs('buchhaltung/receipts', $filename, 'local');
@@ -621,11 +651,26 @@ class AccountingTax extends Component
         
         foreach ($data['raw_credits'] ?? [] as $credit) {
             $amount = number_format(abs($credit->total / 100), 2, ',', '');
-            $date = $credit->created_at->format('dm');
+            $date = ($credit->invoice_date ?? $credit->created_at ?? now())->format('dm');
             $safeCreditNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $credit->invoice_number));
             $csv .= '"'.$amount.'";"H";"1200";"8400";"'.$date.'";"'.$safeCreditNo.'";"Gutschrift / Storno '.$safeCreditNo.'"' . "\n";
         }
-        
+
+        foreach ($data['raw_specials'] ?? [] as $special) {
+            $amount = number_format(abs($special->amount), 2, ',', '');
+            $date = Carbon::parse($special->execution_date)->format('dm');
+            $safeTitle = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $special->title));
+            $safeBeleg = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) ($special->invoice_number ?? 'Beleg')));
+            $csv .= '"'.$amount.'";"H";"4900";"1200";"'.$date.'";"'.$safeBeleg.'";"'.$safeTitle.'"' . "\n";
+        }
+
+        foreach ($data['raw_fixed'] ?? [] as $fixed) {
+            $amount = number_format(abs($fixed->amount), 2, ',', '');
+            $date = "28" . str_pad((string) ($data['month_number'] ?? '01'), 2, '0', STR_PAD_LEFT);
+            $safeName = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $fixed->name));
+            $csv .= '"'.$amount.'";"H";"4900";"1200";"'.$date.'";"Fixkosten";"'.$safeName.'"' . "\n";
+        }
+
         return $csv;
     }
 

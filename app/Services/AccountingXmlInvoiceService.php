@@ -82,6 +82,20 @@ class AccountingXmlInvoiceService
         // Positionen + Versandkosten zusammenführen
         $allItems = $invoice->custom_items ?? [];
 
+        if (empty($allItems)) {
+            $invoice->loadMissing('order.items');
+            if ($invoice->order && $invoice->order->items) {
+                foreach ($invoice->order->items as $orderItem) {
+                    $allItems[] = [
+                        'product_name' => $orderItem->product_name,
+                        'quantity' => $orderItem->quantity,
+                        'unit_price' => $orderItem->unit_price,
+                        'tax_rate' => $isSmallBusiness ? 0 : ($orderItem->tax_rate ?? shop_setting('default_tax_rate', 19.0)),
+                    ];
+                }
+            }
+        }
+
         if ($invoice->shipping_cost > 0) {
             $allItems[] = [
                 'product_name' => 'Versandkosten',
@@ -93,7 +107,7 @@ class AccountingXmlInvoiceService
 
         // Express-Zuschlag als eigene Position anhängen (falls vorhanden)
         $expressPrice = $invoice->express_price ?? ($invoice->order->express_price ?? 0);
-        if ($invoice->is_express && $expressPrice > 0) {
+        if ($expressPrice > 0) {
             $allItems[] = [
                 'product_name' => 'Priorisierte Fertigung (Express-Service)',
                 'quantity' => 1,

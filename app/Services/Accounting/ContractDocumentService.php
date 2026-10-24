@@ -282,27 +282,31 @@ class ContractDocumentService
             return null;
         }
 
-        $storageRoot = realpath(storage_path());
+        $storageAppRoot = realpath(storage_path('app'));
+        $testingStorageRoot = realpath(storage_path('framework/testing'));
         $tempRoot = realpath(sys_get_temp_dir());
 
-        $checkAllowed = function (?string $candidate) use ($storageRoot, $tempRoot): ?string {
-            if (!$candidate) {
+        $checkAllowed = function (?string $candidate, string $rawTarget) use ($storageAppRoot, $testingStorageRoot, $tempRoot): ?string {
+            if (!$candidate || is_link($rawTarget) || !is_file($candidate)) {
                 return null;
             }
-            if (($storageRoot && str_starts_with($candidate, $storageRoot . DIRECTORY_SEPARATOR))
-                || ($tempRoot && str_starts_with($candidate, $tempRoot . DIRECTORY_SEPARATOR))) {
+            if (
+                ($storageAppRoot && str_starts_with($candidate, $storageAppRoot . DIRECTORY_SEPARATOR))
+                || ($testingStorageRoot && str_starts_with($candidate, $testingStorageRoot . DIRECTORY_SEPARATOR))
+                || ($tempRoot && str_starts_with($candidate, $tempRoot . DIRECTORY_SEPARATOR))
+            ) {
                 return $candidate;
             }
             return null;
         };
 
         if (file_exists($file)) {
-            return $checkAllowed(realpath($file) ?: null);
+            return $checkAllowed(realpath($file) ?: null, $file);
         }
 
         $storagePath = storage_path('app/' . ltrim($file, '/'));
         if (file_exists($storagePath)) {
-            return $checkAllowed(realpath($storagePath) ?: null);
+            return $checkAllowed(realpath($storagePath) ?: null, $storagePath);
         }
 
         return null;
@@ -435,8 +439,10 @@ PROMPT;
 
         foreach ($models as $model) {
             try {
-                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
-                $response = Http::timeout(35)->post($url, $payload);
+                $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent";
+                $response = Http::timeout(35)
+                    ->withHeaders(['x-goog-api-key' => $apiKey])
+                    ->post($url, $payload);
 
                 if ($response->successful()) {
                     $resData = $response->json();
@@ -456,7 +462,8 @@ PROMPT;
                     }
                 }
             } catch (\Throwable $e) {
-                Log::warning("ContractDocumentService: Gemini Aufruf mit {$model} fehlgeschlagen: " . $e->getMessage());
+                $safeMsg = $apiKey !== '' ? str_replace($apiKey, '[REDACTED]', $e->getMessage()) : $e->getMessage();
+                Log::warning("ContractDocumentService: Gemini Aufruf mit {$model} fehlgeschlagen: " . $safeMsg);
             }
         }
 

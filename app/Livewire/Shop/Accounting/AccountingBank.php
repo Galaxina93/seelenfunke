@@ -53,6 +53,7 @@ class AccountingBank extends Component
 
     // Receipt Upload Properties
     public $quickUploadFile;
+    #[\Livewire\Attributes\Locked]
     public ?string $uploadingBankTxId = null;
 
     public function boot(): void
@@ -168,9 +169,30 @@ class AccountingBank extends Component
     {
         if($this->uploadingBankTxId && $this->quickUploadFile) {
             $this->validate(['quickUploadFile' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt,xml|max:15360']);
+            $ext = strtolower((string) $this->quickUploadFile->getClientOriginalExtension());
+            $allowedMap = [
+                'pdf' => ['application/pdf'],
+                'jpg' => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'png' => ['image/png'],
+                'webp' => ['image/webp'],
+                'zip' => ['application/zip', 'application/x-zip-compressed'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+                'txt' => ['text/plain'],
+                'xml' => ['text/xml', 'application/xml', 'text/plain'],
+            ];
+            $realPath = $this->quickUploadFile->getRealPath();
+            $finfo = $realPath ? new \finfo(FILEINFO_MIME_TYPE) : null;
+            $detectedMime = ($finfo && $realPath && is_file($realPath)) ? $finfo->file($realPath) : null;
+            if (!isset($allowedMap[$ext]) || !in_array($detectedMime, $allowedMap[$ext], true)) {
+                $this->reset(['quickUploadFile', 'uploadingBankTxId']);
+                $this->addError('quickUploadFile', 'Ungültiger Dateityp.');
+                return;
+            }
+
             $tx = AccountingBankTransaction::find($this->uploadingBankTxId);
-            if($tx && $tx->account->admin_id === auth('admin')->id()) {
-                $path = $this->quickUploadFile->store('buchhaltung/receipts', 'local');
+            if($tx && $tx->account && $tx->account->admin_id === auth('admin')->id()) {
+                $path = $this->quickUploadFile->storeAs('buchhaltung/receipts', \Illuminate\Support\Str::uuid() . '.' . $ext, 'local');
 
                 $files = is_string($tx->file_paths) ? json_decode($tx->file_paths, true) : $tx->file_paths;
                 if (!is_array($files)) {
@@ -633,9 +655,11 @@ class AccountingBank extends Component
 
             foreach ($accounts as $acc) {
                 AccountingBankAccount::updateOrCreate(
-                    ['plaid_account_id' => (string) $acc['id']],
                     [
                         'admin_id' => $adminId,
+                        'plaid_account_id' => (string) $acc['id'],
+                    ],
+                    [
                         'plaid_item_id' => (string) $acc['bankConnectionId'],
                         'plaid_access_token' => 'finapi_managed',
                         'bank_name' => $acc['bankName'] ?? 'Demo Bank',
@@ -740,7 +764,16 @@ class AccountingBank extends Component
         }
 
         try {
-            $rawContent = file_get_contents($this->csvFile->getRealPath());
+            $realPath = $this->csvFile->getRealPath();
+            $finfo = $realPath ? new \finfo(FILEINFO_MIME_TYPE) : null;
+            $detectedMime = ($finfo && $realPath && is_file($realPath)) ? $finfo->file($realPath) : null;
+            $allowedCsvMimes = ['text/plain', 'text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/x-csv', 'application/octet-stream'];
+            if (!in_array($detectedMime, $allowedCsvMimes, true)) {
+                session()->flash('error', 'Ungültiges CSV-Dateiformat.');
+                return;
+            }
+
+            $rawContent = file_get_contents($realPath);
 
             // Remove UTF-8 BOM
             $bom = pack('H*', 'EFBBBF');
@@ -752,7 +785,7 @@ class AccountingBank extends Component
                 $rawContent = mb_convert_encoding($rawContent, 'UTF-8', $encoding);
             }
 
-            $lines = preg_split("/\r\n|\n|\r/", trim($rawContent));
+            $lines = array_slice(preg_split("/\r\n|\n|\r/", trim($rawContent)), 0, 5000);
             if (count($lines) < 2) {
                 session()->flash('error', 'Die CSV-Datei enthält keine Datenzeilen.');
                 return;
@@ -954,9 +987,11 @@ class AccountingBank extends Component
 
                 foreach ($accounts as $acc) {
                     $bankAccount = AccountingBankAccount::updateOrCreate(
-                        ['plaid_account_id' => (string) $acc['id']],
                         [
                             'admin_id' => $adminId,
+                            'plaid_account_id' => (string) $acc['id'],
+                        ],
+                        [
                             'plaid_item_id' => (string) $acc['bankConnectionId'],
                             'plaid_access_token' => 'finapi_managed',
                             'bank_name' => $acc['bankName'] ?? 'Demo Bank',
@@ -971,9 +1006,11 @@ class AccountingBank extends Component
                     $txs = $finapi->getTransactions($userToken, $bankAccount->plaid_account_id, 200);
                     foreach ($txs as $apiTx) {
                         AccountingBankTransaction::updateOrCreate(
-                            ['finapi_transaction_id' => (string) $apiTx['id']],
                             [
                                 'accounting_bank_account_id' => $bankAccount->id,
+                                'finapi_transaction_id' => (string) $apiTx['id'],
+                            ],
+                            [
                                 'amount' => $apiTx['amount'] ?? 0,
                                 'currency' => $bankAccount->currency,
                                 'purpose' => $apiTx['purpose'] ?? null,
@@ -1035,9 +1072,11 @@ class AccountingBank extends Component
                         $txs = $finapi->getTransactions($userToken, $account->plaid_account_id, 200);
                         foreach ($txs as $apiTx) {
                             AccountingBankTransaction::updateOrCreate(
-                                ['finapi_transaction_id' => (string) $apiTx['id']],
                                 [
                                     'accounting_bank_account_id' => $account->id,
+                                    'finapi_transaction_id' => (string) $apiTx['id'],
+                                ],
+                                [
                                     'amount' => $apiTx['amount'] ?? 0,
                                     'currency' => $account->currency,
                                     'purpose' => $apiTx['purpose'] ?? null,

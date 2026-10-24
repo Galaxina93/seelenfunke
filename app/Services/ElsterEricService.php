@@ -80,6 +80,10 @@ class ElsterEricService
             throw new \Exception("ERiC API Zugangsdaten fehlen in der .env (ERIC_API_USERNAME / ERIC_API_PASSWORD).");
         }
 
+        if (!is_string($this->apiEndpoint) || !str_starts_with(strtolower(trim($this->apiEndpoint)), 'https://')) {
+            throw new \Exception("Ungültiger oder unsicherer ERiC API-Endpunkt (HTTPS zwingend erforderlich).");
+        }
+
         $authUsername = $this->apiUsername ?: 'sandbox_user';
         $authPassword = $this->apiPassword ?: 'sandbox_pass';
 
@@ -130,10 +134,15 @@ class ElsterEricService
      */
     private function executeEricBinaryNative($xmlPayload, $authMethod, $pin)
     {
-        // 1. Sicheres Temp-File für das XML Payload erzeugen
-        $tempXmlPath = storage_path('app/buchhaltung/erictresor/temp_payload_' . uniqid() . '.xml');
-        $tempOutPath = storage_path('app/buchhaltung/erictresor/eric_answer_' . uniqid() . '.xml');
+        // 1. Sicheres Temp-File für das XML Payload erzeugen (unvorhersehbare Tokens & restriktive Dateirechte)
+        $tempDir = storage_path('app/buchhaltung/erictresor');
+        if (!is_dir($tempDir)) {
+            mkdir($tempDir, 0700, true);
+        }
+        $tempXmlPath = $tempDir . '/temp_payload_' . Str::random(24) . '.xml';
+        $tempOutPath = $tempDir . '/eric_answer_' . Str::random(24) . '.xml';
         file_put_contents($tempXmlPath, $xmlPayload);
+        @chmod($tempXmlPath, 0600);
         
         // Neu: Wir nutzen den offiziellen Python-Wrapper, den wir vorhin lauffähig & headless gemacht haben!
         $tresorConfigPath = config('services.eric.tresor_path') ?? env('ERIC_TRESOR_PATH', 'storage/app/buchhaltung/erictresor');
@@ -141,7 +150,7 @@ class ElsterEricService
         $absoluteTresorPath = $isAbs ? $tresorConfigPath : base_path($tresorConfigPath);
         
         $certName = basename((string) shop_setting('eric_default_cert', ''));
-        $certPath = $absoluteTresorPath . DIRECTORY_SEPARATOR . $certName;
+        $certPath = $certName !== '' ? ($absoluteTresorPath . DIRECTORY_SEPARATOR . $certName) : '';
         
         $ericBaseDir = $absoluteTresorPath . '/eric-linux/ERiC-43.4.6.0/Linux-x86_64';
         if (!file_exists($ericBaseDir . '/Beispiel/ericdemo-cpp/ericdemo/Release/ericdemo')) {
@@ -187,9 +196,15 @@ class ElsterEricService
             escapeshellarg($absoluteTresorPath)
         );
 
-        // Security: _NULL wenn Hardware oder ohne Cert
-        if ($authMethod === 'software') {
-            $cmd .= sprintf(' -c %s -p %s', escapeshellarg($certPath), escapeshellarg($pin ?? ''));
+        // Security: _NULL wenn Hardware oder ohne Cert; verhindere Option-Injection über $pin
+        $safePin = (string) ($pin ?? '');
+        if (str_starts_with($safePin, '-') || str_contains($safePin, "\0")) {
+            if (file_exists($tempXmlPath)) @unlink($tempXmlPath);
+            if (file_exists($tempOutPath)) @unlink($tempOutPath);
+            throw new \InvalidArgumentException('Ungültige ELSTER-PIN übergeben.');
+        }
+        if ($authMethod === 'software' && $certPath !== '') {
+            $cmd .= sprintf(' -c %s -p %s', escapeshellarg($certPath), escapeshellarg($safePin));
         } else {
             $cmd .= ' -c _NULL -p _NULL'; // Fallback / Hardware Pinning
         }
@@ -267,21 +282,32 @@ class ElsterEricService
 
         $serverAnswerOutput = !empty($serverAnswer) ? "\n\n--- ERIC XML ANTWORT / FEHLER-BAUM ---\n" . htmlentities($serverAnswer) : '';
 
+        $redactedOutput = (string) $output;
+        $redactedLog = (string) $ericLogFallback;
+        foreach (array_filter([$pin, $safePin], fn ($v) => is_string($v) && $v !== '') as $secretPin) {
+            $redactedOutput = str_replace($secretPin, '[REDACTED_PIN]', $redactedOutput);
+            $redactedLog = str_replace($secretPin, '[REDACTED_PIN]', $redactedLog);
+        }
+
         throw new \Exception(
             "Natives ERiC CLI Error (Zertifikat: " . basename($certPath) . ")\n" . 
-            htmlentities(substr($output, -15000)) . 
+            htmlentities(substr($redactedOutput, -15000)) . 
             $serverAnswerOutput .
-            $ericLogFallback .
+            $redactedLog .
             "\n\n--- URSPRUENGLICHER XML-PAYLOAD ---\n" . htmlentities(substr($xmlPayload, 0, 8000))
         );
     }
 
     private function buildXmlPayload($data, $submissionType = 'Erstübermittlung')
     {
+        $revenueNetFloor = (int) floor(max(0.0, (float) ($data['revenue_net'] ?? 0)));
+        $vatPaid = (float) ($data['vat_paid'] ?? 0);
+        $zahllast = (float) ($data['zahllast'] ?? 0);
+
         $kennzahl10 = $submissionType === 'Berichtigte Anmeldung' ? '<Kz10>1</Kz10>' : '<Kz10>0</Kz10>';
-        $kz81 = $data['revenue_net'] > 0 ? '<Kz81>' . number_format($data['revenue_net'], 0, '', '') . '</Kz81>' : ''; 
-        $kz66 = '<Kz66>' . number_format($data['vat_paid'], 2, '.', '') . '</Kz66>'; 
-        $kz83 ='<Kz83>' . number_format($data['zahllast'], 2, '.', '') . '</Kz83>';
+        $kz81 = $revenueNetFloor > 0 ? '<Kz81>' . $revenueNetFloor . '</Kz81>' : ''; 
+        $kz66 = '<Kz66>' . number_format($vatPaid, 2, '.', '') . '</Kz66>'; 
+        $kz83 = '<Kz83>' . number_format($zahllast, 2, '.', '') . '</Kz83>';
         
         $steuernummer = shop_setting('owner_tax_id', '1234567890');
         $finanzamtId = shop_setting('owner_finanzamt_id', '9111'); // Standard: 9111 Bayern

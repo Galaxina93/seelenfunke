@@ -204,7 +204,8 @@ class AccountingInvoice extends Model
      */
     public function getPdfStoragePathAttribute()
     {
-        return 'buchhaltung/invoices/' . $this->invoice_number . '.pdf';
+        $safeNumber = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $this->invoice_number);
+        return 'buchhaltung/invoices/' . $safeNumber . '.pdf';
     }
 
     /**

@@ -168,18 +168,20 @@ class AccountingCredit extends Component
     public function generateCreditNote(InvoiceService $invoiceService)
     {
         $this->validate([
+            'newCredit.customer_id' => 'nullable|exists:customers,id',
             'newCredit.subject' => 'required|string|max:255',
             'creditItems' => 'required|array|min:1',
             'creditItems.*.name' => 'required|string',
             'creditItems.*.quantity' => 'required|numeric|min:0.01',
             'creditItems.*.unit_price' => 'required|numeric|min:0',
-            'creditItems.*.tax_rate' => 'required|numeric|min:0',
+            'creditItems.*.tax_rate' => 'required|numeric|min:0|max:100',
         ], [
             'creditItems.*.name.required' => 'Bitte geben Sie eine Bezeichnung für den Posten ein.',
             'creditItems.*.unit_price.required' => 'Bitte geben Sie einen Preis ein.',
             'creditItems.*.unit_price.min' => 'Preis darf nicht negativ sein (Betrag wird automatisch als Gutschrift gewertet).',
         ]);
 
+        $isSmallBusiness = (bool) shop_setting('is_small_business', false);
         $subtotal = 0;
         $taxAmount = 0;
         $formattedItems = [];
@@ -188,14 +190,15 @@ class AccountingCredit extends Component
             // "Einzelbrutto" vom UI (z.B. 222) in Cents umwandeln -> 22200
             $unitGrossCents = round((float)$item['unit_price'] * 100);
             $rowTotalGrossCents = round($unitGrossCents * (float)$item['quantity']);
-            
+            $effectiveTaxRate = $isSmallBusiness ? 0.0 : (float)$item['tax_rate'];
+
             // Rückrechnung von Brutto auf Netto
-            $taxFactor = 1 + ($item['tax_rate'] / 100);
-            $rowTotalNetCents = (int) round($rowTotalGrossCents / $taxFactor);
-            $rowTaxCents = $rowTotalGrossCents - $rowTotalNetCents;
-            
+            $taxFactor = 1 + ($effectiveTaxRate / 100);
+            $rowTotalNetCents = $isSmallBusiness ? (int) $rowTotalGrossCents : (int) round($rowTotalGrossCents / $taxFactor);
+            $rowTaxCents = $isSmallBusiness ? 0 : ($rowTotalGrossCents - $rowTotalNetCents);
+
             // Einzel-Netto in Cent
-            $unitNetCents = (int) round($unitGrossCents / $taxFactor);
+            $unitNetCents = $isSmallBusiness ? (int) $unitGrossCents : (int) round($unitGrossCents / $taxFactor);
 
             $subtotal += $rowTotalNetCents;
             $taxAmount += $rowTaxCents;
@@ -204,7 +207,7 @@ class AccountingCredit extends Component
                 'product_name' => $item['name'],
                 'quantity' => $item['quantity'],
                 'unit_price' => $unitNetCents, // Format erwartet Netto Einzelpreis in Cent
-                'tax_rate' => $item['tax_rate'],
+                'tax_rate' => $effectiveTaxRate,
                 'total_price' => $rowTotalNetCents + $rowTaxCents,
                 'configuration' => []
             ];
@@ -213,7 +216,7 @@ class AccountingCredit extends Component
         $total = $subtotal + $taxAmount;
 
         // Fetch customer explicitly to get addresses
-        $customer = Customer::find($this->newCredit['customer_id']);
+        $customer = !empty($this->newCredit['customer_id']) ? Customer::find($this->newCredit['customer_id']) : null;
 
         $billingAddress = null;
         if ($customer) {
@@ -239,6 +242,7 @@ class AccountingCredit extends Component
             'tax_amount' => $taxAmount,
             'total' => $total,
             'custom_items' => $formattedItems,
+            'is_small_business' => $isSmallBusiness,
         ];
 
         $invoiceService->createCreditNote($data);

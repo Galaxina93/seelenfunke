@@ -30,7 +30,7 @@ class BankApiService
      */
     private function getClientToken()
     {
-        $response = Http::asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
+        $response = Http::timeout(15)->asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
             'grant_type' => 'client_credentials',
             'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
@@ -48,8 +48,11 @@ class BankApiService
      */
     private function generateUserPassword($userId)
     {
-        $appKey = config('app.key') ?: env('APP_KEY', 'seelenfunke-secret-key-fallback');
-        return substr(hash_hmac('sha256', 'finapi_user_' . $userId, $appKey), 0, 16) . 'A1!';
+        $appKey = config('app.key') ?: env('APP_KEY');
+        if (empty($appKey) || strlen((string) $appKey) < 16) {
+            throw new \RuntimeException('APP_KEY ist nicht sicher konfiguriert.');
+        }
+        return substr(hash_hmac('sha256', 'finapi_user_' . $userId, (string) $appKey), 0, 16) . 'A1!';
     }
 
     /**
@@ -64,7 +67,7 @@ class BankApiService
         $password = $this->generateUserPassword($userId);
 
         // 1. Versuch: SystemUser Token abrufen (V2 Route)
-        $response = Http::asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
+        $response = Http::timeout(15)->asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
             'grant_type' => 'password',
             'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
@@ -79,7 +82,7 @@ class BankApiService
         // 2. Wenn fehlgeschlagen: SystemUser existiert vermutlich nicht. Wir erstellen ihn.
         $clientToken = $this->getClientToken();
 
-        $createResponse = Http::withToken($clientToken)->post("{$this->baseUrl}/api/v2/users", [
+        $createResponse = Http::timeout(15)->withToken($clientToken)->post("{$this->baseUrl}/api/v2/users", [
             'id' => $finapiUserId,
             'password' => $password,
             'email' => auth()->user()->email ?? 'admin@mein-seelenfunke.de',
@@ -92,7 +95,7 @@ class BankApiService
         }
 
         // 3. Neuer Versuch, den Token zu holen (V2 Route)
-        $response = Http::asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
+        $response = Http::timeout(15)->asForm()->post("{$this->baseUrl}/api/v2/oauth/token", [
             'grant_type' => 'password',
             'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
@@ -108,8 +111,17 @@ class BankApiService
      */
     public function createBankImportWebForm($userToken, $redirectUrl)
     {
+        $parsedRedirect = parse_url((string) $redirectUrl);
+        $scheme = strtolower((string) ($parsedRedirect['scheme'] ?? ''));
+        $redirectHost = strtolower((string) ($parsedRedirect['host'] ?? ''));
+        $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+
+        if (!in_array($scheme, ['http', 'https'], true) || $redirectHost === '' || ($appHost !== '' && $redirectHost !== $appHost)) {
+            throw new \InvalidArgumentException('Ungültige Callback-Redirect-URL für finAPI WebForm.');
+        }
+
         // FIX: Nutzt jetzt $this->webFormUrl und den korrekten Pfad ohne /v2/
-        $response = Http::withToken($userToken)->post("{$this->webFormUrl}/api/webForms/bankConnectionImport", [
+        $response = Http::timeout(15)->withToken($userToken)->post("{$this->webFormUrl}/api/webForms/bankConnectionImport", [
             'bankConnectionName' => 'Mein Geschäftskonto',
             'callbacks' => [
                 'finalised' => $redirectUrl // Leitet dich nach dem Login zurück zum Dashboard
@@ -126,7 +138,7 @@ class BankApiService
     public function getAccounts($userToken)
     {
         // 1. Hole alle BankConnections um die echten Banknamen zuzuordnen
-        $connsResponse = Http::withToken($userToken)->get("{$this->baseUrl}/api/v2/bankConnections");
+        $connsResponse = Http::timeout(15)->withToken($userToken)->get("{$this->baseUrl}/api/v2/bankConnections");
         $bankNames = [];
         if ($connsResponse->successful()) {
             $connections = $connsResponse->json('connections') ?? [];
@@ -137,7 +149,7 @@ class BankApiService
         }
 
         // 2. Hole alle Accounts
-        $response = Http::withToken($userToken)->get("{$this->baseUrl}/api/v2/accounts");
+        $response = Http::timeout(15)->withToken($userToken)->get("{$this->baseUrl}/api/v2/accounts");
 
         if ($response->failed()) {
             throw new \Exception('Fehler beim Abrufen der finAPI Konten: ' . $response->body());
@@ -159,7 +171,7 @@ class BankApiService
      */
     public function updateBankConnection($userToken, $bankConnectionId)
     {
-        $response = Http::withToken($userToken)->post("{$this->baseUrl}/api/v2/bankConnections/update", [
+        $response = Http::timeout(15)->withToken($userToken)->post("{$this->baseUrl}/api/v2/bankConnections/update", [
             'bankConnectionId' => (int) $bankConnectionId,
             'importNewAccounts' => true,
         ]);
@@ -175,7 +187,7 @@ class BankApiService
      */
     public function getTransactions($userToken, $accountId, $limit = 50)
     {
-        $response = Http::withToken($userToken)->get("{$this->baseUrl}/api/v2/transactions", [
+        $response = Http::timeout(15)->withToken($userToken)->get("{$this->baseUrl}/api/v2/transactions", [
             'view' => 'userView',
             'accountIds' => $accountId,
             'order' => 'bankBookingDate,desc',

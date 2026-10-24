@@ -29,14 +29,17 @@ class AccountingVariableCosts extends Component
 
     // Category Management
     public $newCategoryName = '';
+    #[\Livewire\Attributes\Locked]
     public $editingCategoryId = null;
     public $editCategoryName = '';
     public $showCategoryDeleteModal = false;
+    #[\Livewire\Attributes\Locked]
     public $categoryToDeleteId = null;
     public $targetCategoryId = '';
     public $categoryToDeleteName = '';
 
     // File Uploads (Direkt im Beleg-Feld)
+    #[\Livewire\Attributes\Locked]
     public ?string $uploadingMissingSpecialId = null;
 
     #[Rule('required|file|max:10240')]
@@ -113,7 +116,9 @@ class AccountingVariableCosts extends Component
     public function updateCategory()
     {
         if (!$this->editingCategoryId) return;
-        $this->validate(['editCategoryName' => 'required|min:3']);
+        $this->validate([
+            'editCategoryName' => 'required|min:3|unique:accounting_categories,name,' . $this->editingCategoryId . ',id,admin_id,' . $this->getAdminId(),
+        ]);
 
         $cat = AccountingCategory::where('admin_id', $this->getAdminId())->find($this->editingCategoryId);
         if ($cat) {
@@ -161,7 +166,7 @@ class AccountingVariableCosts extends Component
         $oldCat = AccountingCategory::where('admin_id', $this->getAdminId())->find($this->categoryToDeleteId);
         $newCat = AccountingCategory::where('admin_id', $this->getAdminId())->find($this->targetCategoryId);
 
-        if ($oldCat && $newCat) {
+        if ($oldCat && $newCat && (string) $oldCat->id !== (string) $newCat->id) {
             AccountingSpecialIssue::where('admin_id', $this->getAdminId())
                 ->where('category', $oldCat->name)
                 ->update(['category' => $newCat->name]);
@@ -337,6 +342,27 @@ class AccountingVariableCosts extends Component
     {
         if($this->uploadingMissingSpecialId && $this->quickUploadFile) {
             $this->validate(['quickUploadFile' => 'file|mimes:pdf,jpg,jpeg,png,webp,zip,docx,txt,xml|max:15360']);
+            $ext = strtolower((string) $this->quickUploadFile->getClientOriginalExtension());
+            $allowedMap = [
+                'pdf' => ['application/pdf'],
+                'jpg' => ['image/jpeg'],
+                'jpeg' => ['image/jpeg'],
+                'png' => ['image/png'],
+                'webp' => ['image/webp'],
+                'zip' => ['application/zip', 'application/x-zip-compressed'],
+                'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip'],
+                'txt' => ['text/plain'],
+                'xml' => ['text/xml', 'application/xml', 'text/plain'],
+            ];
+            $realPath = $this->quickUploadFile->getRealPath();
+            $finfo = $realPath ? new \finfo(FILEINFO_MIME_TYPE) : null;
+            $detectedMime = ($finfo && $realPath && is_file($realPath)) ? $finfo->file($realPath) : null;
+            if (!isset($allowedMap[$ext]) || !in_array($detectedMime, $allowedMap[$ext], true)) {
+                $this->reset(['quickUploadFile', 'uploadingMissingSpecialId']);
+                $this->addError('quickUploadFile', 'Ungültiger Dateityp.');
+                return;
+            }
+
             $parts = explode('-', $this->uploadingMissingSpecialId, 2);
             if(count($parts) === 2) {
                 $type = $parts[0];
@@ -350,7 +376,7 @@ class AccountingVariableCosts extends Component
                 }
 
                 if($model) {
-                    $path = $this->quickUploadFile->store('buchhaltung/receipts', 'local');
+                    $path = $this->quickUploadFile->storeAs('buchhaltung/receipts', \Illuminate\Support\Str::uuid() . '.' . $ext, 'local');
 
                     $files = is_string($model->file_paths) ? json_decode($model->file_paths, true) : $model->file_paths;
                     if (!is_array($files)) {

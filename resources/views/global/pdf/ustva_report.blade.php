@@ -89,7 +89,7 @@
             </div>
             <span class="info-title">System-Validierung</span>
             <div class="info-value">
-                <span style="font-weight: normal; font-size: 11px;">Belege digital hinterlegt: {{ $data['progress'] == 100 ? 'Ja (100%)' : 'Nein (Unvollständig)' }}</span>
+                <span style="font-weight: normal; font-size: 11px;">Belege digital hinterlegt: {{ ($data['progress'] ?? 0) == 100 ? 'Ja (100%)' : 'Nein (Unvollständig)' }}</span>
             </div>
         </td>
     </tr>
@@ -101,27 +101,27 @@
 <table class="calc-table">
     <tr>
         <td class="label">Umsatzsteuer (aus steuerpflichtigen Verkäufen)</td>
-        <td class="amount">+ {{ number_format($data['vat_collected'], 2, ',', '.') }} €</td>
+        <td class="amount">+ {{ number_format($data['vat_collected'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
     <tr>
         <td class="label">Steuer aus innergemeinschaftlichem Erwerb (§ 1a UStG)</td>
-        <td class="amount">+ {{ number_format($data['ig_erwerb_tax'], 2, ',', '.') }} €</td>
+        <td class="amount">+ {{ number_format($data['ig_erwerb_tax'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
     <tr>
         <td class="label">Steuer nach § 13b UStG (Reverse-Charge-Verfahren)</td>
-        <td class="amount">+ {{ number_format($data['paragraph_13b_tax'], 2, ',', '.') }} €</td>
+        <td class="amount">+ {{ number_format($data['paragraph_13b_tax'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
     <tr class="sum-row">
         <td class="label" style="text-align: right;">Zwischensumme Gesamtsteuer:</td>
-        <td class="amount">{{ number_format($data['total_tax'], 2, ',', '.') }} €</td>
+        <td class="amount">{{ number_format($data['total_tax'] ?? ($data['vat_collected'] ?? 0), 2, ',', '.') }} €</td>
     </tr>
     <tr>
         <td class="label">Abziehbare Vorsteuer (aus Eingangsrechnungen / Fixkosten)</td>
-        <td class="amount" style="color: #dc2626;">- {{ number_format($data['vat_paid'], 2, ',', '.') }} €</td>
+        <td class="amount" style="color: #dc2626;">- {{ number_format($data['vat_paid'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
     <tr class="final-row">
-        <td class="label">{{ $data['zahllast'] > 0 ? 'Verbleibende Umsatzsteuer-Vorauszahlung (Zahllast)' : 'Verbleibender Erstattungsanspruch' }}</td>
-        <td class="amount" style="color: #C5A059;">{{ number_format($data['zahllast'], 2, ',', '.') }} €</td>
+        <td class="label">{{ ($data['zahllast'] ?? 0) > 0 ? 'Verbleibende Umsatzsteuer-Vorauszahlung (Zahllast)' : 'Verbleibender Erstattungsanspruch' }}</td>
+        <td class="amount" style="color: #C5A059;">{{ number_format($data['zahllast'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
 </table>
 
@@ -136,17 +136,17 @@
     <tr>
         <td class="kpi-cell">
             <div class="kpi-label">Umsatz (Netto)</div>
-            <div class="kpi-val" style="color: #16a34a;">+ {{ number_format($data['revenue_net'], 2, ',', '.') }} €</div>
-            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['order_count'] }} Bestellungen</div>
+            <div class="kpi-val" style="color: #16a34a;">+ {{ number_format($data['revenue_net'] ?? 0, 2, ',', '.') }} €</div>
+            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['order_count'] ?? count($data['raw_orders'] ?? []) }} Bestellungen</div>
         </td>
         <td class="kpi-cell">
             <div class="kpi-label">Kosten (Netto)</div>
-            <div class="kpi-val" style="color: #dc2626;">- {{ number_format($data['expenses_net'], 2, ',', '.') }} €</div>
-            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['expense_count'] }} Positionen</div>
+            <div class="kpi-val" style="color: #dc2626;">- {{ number_format($data['expenses_net'] ?? 0, 2, ',', '.') }} €</div>
+            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['expense_count'] ?? (count($data['raw_specials'] ?? []) + count($data['raw_fixed'] ?? [])) }} Positionen</div>
         </td>
         <td class="kpi-cell">
             <div class="kpi-label">Vorl. Gewinn (EÜR)</div>
-            <div class="kpi-val">{{ number_format($data['profit'], 2, ',', '.') }} €</div>
+            <div class="kpi-val">{{ number_format($data['profit'] ?? 0, 2, ',', '.') }} €</div>
             <div style="font-size: 8px; color: #999; margin-top: 5px;">Monatsergebnis</div>
         </td>
     </tr>
@@ -165,11 +165,16 @@
     </tr>
     </thead>
     <tbody>
-    @foreach($data['raw_specials'] as $sp)
+    @php
+        $isSmallBusinessYear = !empty($data['is_small_business_year']);
+        $defaultTaxRate = (float) shop_setting('default_tax_rate', 19.0);
+        $expenseCount = $data['expense_count'] ?? (count($data['raw_specials'] ?? []) + count($data['raw_fixed'] ?? []));
+    @endphp
+    @foreach($data['raw_specials'] ?? [] as $sp)
         @php
-            $rate = $sp->tax_rate ?? 19;
+            $rate = $isSmallBusinessYear ? 0.0 : (float) ($sp->tax_rate ?? $defaultTaxRate);
             $amt = abs($sp->amount);
-            $vPaid = $amt - ($amt / (1 + ($rate / 100)));
+            $vPaid = $rate > 0 ? ($amt - ($amt / (1 + ($rate / 100)))) : 0.0;
         @endphp
         <tr>
             <td>{{ \Carbon\Carbon::parse($sp->execution_date)->format('d.m.Y') }}</td>
@@ -181,10 +186,11 @@
         </tr>
     @endforeach
 
-    @foreach($data['raw_fixed'] as $fix)
+    @foreach($data['raw_fixed'] ?? [] as $fix)
         @php
+            $rate = $isSmallBusinessYear ? 0.0 : (float) ($fix->tax_rate ?? $defaultTaxRate);
             $amt = abs($fix->amount);
-            $vPaid = $amt - ($amt / 1.19);
+            $vPaid = $rate > 0 ? ($amt - ($amt / (1 + ($rate / 100)))) : 0.0;
         @endphp
         <tr>
             <td>Wiederkehrend</td>
@@ -196,7 +202,7 @@
         </tr>
     @endforeach
 
-    @if($data['expense_count'] == 0)
+    @if($expenseCount == 0)
         <tr><td colspan="6" class="text-center" style="padding: 20px; color: #999; font-style: italic;">Keine Ausgaben in diesem Zeitraum verbucht.</td></tr>
     @endif
     </tbody>

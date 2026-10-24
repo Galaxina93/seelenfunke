@@ -20,16 +20,20 @@ class InvoiceDownloadController extends Controller
         // Security Gate: Darf der User das sehen?
         $isAuthorized = false;
 
-        // 1. Admin & Mitarbeiter dürfen alle Rechnungen einsehen
-        if (\App\Services\AI\AiAuthHelper::isAdmin() || auth()->guard('employee')->check() || auth()->guard('admin')->check()) {
+        // 1. Admin darf alle Rechnungen einsehen; Mitarbeiter dürfen nur freigegebene Shop-Bestellrechnungen (order_id !== null, kein Entwurf) einsehen
+        $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin() || auth()->guard('admin')->check();
+        $isEmployee = \App\Services\AI\AiAuthHelper::isEmployee() || auth()->guard('employee')->check();
+        if ($isAdmin) {
+            $isAuthorized = true;
+        } elseif ($isEmployee && $invoice->order_id !== null && $invoice->status !== 'draft') {
             $isAuthorized = true;
         } 
-        // 2. Eingeloggter Kunde darf seine eigenen Rechnungen einsehen
-        elseif (\App\Services\AI\AiAuthHelper::isCustomer() && $invoice->customer_id !== null && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id) {
+        // 2. Eingeloggter Kunde darf seine eigenen freigegebenen Rechnungen (keine Entwürfe) einsehen
+        elseif (\App\Services\AI\AiAuthHelper::isCustomer() && $invoice->customer_id !== null && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id && $invoice->status !== 'draft') {
             $isAuthorized = true;
         } 
-        // 3. Gültige kryptografische URL-Signatur (z. B. für Gastkunden via Mail)
-        elseif (request()->hasValidSignature()) {
+        // 3. Gültige kryptografische URL-Signatur (z. B. für Gastkunden via Mail, keine Entwürfe)
+        elseif (request()->hasValidSignature() && $invoice->status !== 'draft') {
             $isAuthorized = true;
         }
 
@@ -43,11 +47,21 @@ class InvoiceDownloadController extends Controller
         } elseif ($invoice->type === 'credit_note') {
             $filenamePrefix = 'Gutschrift_';
         }
-        $filename = $filenamePrefix . $invoice->invoice_number . '.pdf';
+        $safeNumber = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $invoice->invoice_number);
+        $filename = $filenamePrefix . $safeNumber . '.pdf';
 
         // 1. Wenn das GoBD-konforme PDF bereits im Archiv liegt, direkt ausliefern (schneller & unveränderlich)
         if ($invoice->has_archived_pdf) {
-            return \Illuminate\Support\Facades\Storage::disk('local')->download($invoice->pdf_storage_path, $filename);
+            $storagePath = ltrim(str_replace('\\', '/', (string) $invoice->pdf_storage_path), '/');
+            if (
+                $storagePath !== ''
+                && !str_contains($storagePath, '..')
+                && !str_contains($storagePath, "\0")
+                && (str_starts_with($storagePath, 'buchhaltung/invoices/') || str_starts_with($storagePath, 'invoices/'))
+                && !is_link(\Illuminate\Support\Facades\Storage::disk('local')->path($storagePath))
+            ) {
+                return \Illuminate\Support\Facades\Storage::disk('local')->download($storagePath, $filename);
+            }
         }
 
         // 2. Fallback: PDF frisch rendern

@@ -64,11 +64,11 @@ class AccountingAnalytics extends Component
             abort(403, 'Nur Administratoren haben Zugriff auf die Finanzen.');
         }
 
-        $this->selectedYear = $this->selectedYear ?? date('Y');
-        $this->selectedMonth = $this->selectedMonth ?? date('n');
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?? date('Y'))));
+        $this->selectedMonth = max(1, min(12, (int) ($this->selectedMonth ?? date('n'))));
         
-        $this->exportYear = $this->exportYear ?? $this->selectedYear;
-        $this->exportMonth = $this->exportMonth ?? $this->selectedMonth;
+        $this->exportYear = max(2000, min(2100, (int) ($this->exportYear ?? $this->selectedYear)));
+        $this->exportMonth = max(1, min(12, (int) ($this->exportMonth ?? $this->selectedMonth)));
 
         $this->updateDateRange();
 
@@ -126,7 +126,9 @@ class AccountingAnalytics extends Component
     {
         // 1. Invoices
         $invoices = AccountingInvoice::whereBetween('invoice_date', [$this->dateFrom, $this->dateTo])
-            ->where('status', '!=', 'draft')
+            ->whereIn('status', ['paid', 'cancelled'])
+            ->whereNotNull('paid_at')
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
             ->get();
             
         $invGrouped = $invoices->groupBy(fn($i) => Carbon::parse($i->invoice_date)->format('Y-m'));
@@ -192,6 +194,8 @@ class AccountingAnalytics extends Component
     public function render(FinancialService $service)
     {
         $adminId = $this->getAdminId();
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
+        $this->selectedMonth = max(1, min(12, (int) ($this->selectedMonth ?: date('n'))));
 
         $stats = $service->getMonthlyStats($adminId, $this->selectedMonth, $this->selectedYear, $this->isNet);
         $matrix = $service->getYearlyMatrix($adminId, $this->selectedYear, $this->isNet);

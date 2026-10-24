@@ -34,6 +34,7 @@ class AccountingFixCosts extends Component
     public $selectedMonth;
 
     public ?string $activeGroupId = null;
+    #[Locked]
     public ?string $editingGroupId = null;
 
     #[Rule('required|min:3')]
@@ -44,6 +45,7 @@ class AccountingFixCosts extends Component
     public $newGroupType = 'expense';
     public $isCreatingGroup = false;
 
+    #[Locked]
     public ?string $uploadingMissingItemId = null;
 
     #[Rule('required|file|max:10240')]
@@ -69,7 +71,9 @@ class AccountingFixCosts extends Component
     public $itemTaxRate = 0;
     public $itemLastPaymentDate;
 
+    #[Locked]
     public ?string $editingItemId = null;
+    #[Locked]
     public ?string $addingToGroupId = null;
     public ?string $targetGroupId = null;
     public $isRestoring = false;
@@ -111,6 +115,7 @@ class AccountingFixCosts extends Component
     public $itemContractEndDate;
 
     // --- Cancellation Logic ---
+    #[Locked]
     public ?string $cancellingItemId = null;
     public string $cancellationDateType = 'next_possible';
     public $cancellationCustomDate;
@@ -659,6 +664,8 @@ class AccountingFixCosts extends Component
         }
 
         $this->isRestoring = true;
+        $this->editingItemId = (string) $history->accounting_cost_item_id;
+        $this->targetGroupId = (string) ($history->accounting_group_id ?? $history->costItem->accounting_group_id);
 
         $this->itemName            = $history->name ?? $history->costItem->name;
         $this->itemAmount          = $history->amount;
@@ -1020,6 +1027,12 @@ class AccountingFixCosts extends Component
     {
         $item = AccountingCostItem::findOrFail($this->cancellingItemId);
         if ($item->group->admin_id !== $this->getAdminId()) abort(403);
+
+        if ($this->cancellationDateType !== 'next_possible') {
+            $this->validate([
+                'cancellationCustomDate' => 'required|date',
+            ]);
+        }
 
         $settings = \App\Models\System\SystemSetting::pluck('value', 'key')->toArray();
         $shopSetting = (object) $settings;
