@@ -1,3 +1,11 @@
+@php
+    $adminGlbDiskPath = ($product?->three_d_active && $product?->three_d_model_path)
+        ? storage_path('app/public/' . ltrim($product->three_d_model_path, '/'))
+        : null;
+    $adminResolvedModelUrl = ($adminGlbDiskPath && is_file($adminGlbDiskPath))
+        ? asset('storage/' . ltrim($product->three_d_model_path, '/')) . '?v=' . filemtime($adminGlbDiskPath)
+        : '';
+@endphp
 x-data="(()=>{
 return {
 isUploading: false,
@@ -5,7 +13,7 @@ showDrawingBoard: true,
 isRaycasting: false,
 transformTarget: 'none',
 transformMode: 'translate',
-modelPath: '{{ ($product?->three_d_active && $product?->three_d_model_path) ? asset("storage/" . $product->three_d_model_path) : "" }}',
+modelPath: '{{ $adminResolvedModelUrl }}',
 bgPath: '{{ !empty($product?->three_d_background_path) ? asset("storage/" . $product->three_d_background_path) : "" }}',
 bgVideoUrl: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/" . $configSettings["background_video_path"]) : asset("storage/produkte/configurator-presets/videos/" . ($configSettings["default_background_theme"] ?? "standard") . ".mp4") }}',
 fallbackImg: '{{ $product?->preview_image_path ? asset("storage/" . $product->preview_image_path) : "" }}',

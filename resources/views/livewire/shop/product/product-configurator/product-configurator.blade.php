@@ -29,8 +29,16 @@
         },
         fonts: @js($fonts),
         context: '{{$context}}',
+        @php
+            $glbDiskPath = ($product->three_d_active && $product->three_d_model_path)
+                ? storage_path('app/public/' . ltrim($product->three_d_model_path, '/'))
+                : null;
+            $resolvedModelUrl = ($glbDiskPath && is_file($glbDiskPath))
+                ? asset('storage/' . ltrim($product->three_d_model_path, '/')) . '?v=' . filemtime($glbDiskPath)
+                : '';
+        @endphp
         config: {
-            modelPath: '{{ ($product->three_d_active && $product->three_d_model_path) ? asset("storage/".$product->three_d_model_path) : "" }}',
+            modelPath: '{{ $resolvedModelUrl }}',
             bgPath: '{{ $this->resolvedBackgroundPath }}',
             fallbackImg: '{{ $this->previewImage }}',
             isDarkSurface: {{ $isDarkSurface ? 'true' : 'false' }},
