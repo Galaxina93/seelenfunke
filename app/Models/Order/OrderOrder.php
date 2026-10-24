@@ -16,8 +16,6 @@ class OrderOrder extends Model
 
     protected $table = 'order_orders';
 
-    protected $guarded = [];
-
     protected $fillable = [
         'order_number',
         'customer_id',
@@ -43,6 +41,12 @@ class OrderOrder extends Model
         'expires_at',
         'token',
         'is_small_business',
+        'utm_source_first',
+        'utm_campaign_first',
+        'utm_medium_first',
+        'utm_source_last',
+        'utm_campaign_last',
+        'utm_medium_last',
     ];
 
     protected $casts = [
@@ -364,14 +368,21 @@ class OrderOrder extends Model
 
     public function completePayment(?string $stripePaymentIntentId = null): void
     {
-        if ($this->payment_status === 'paid') {
+        if (
+            in_array($this->payment_status, ['paid', 'refunded'], true)
+            || in_array($this->status, ['cancelled', 'refunded'], true)
+        ) {
             return;
         }
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($stripePaymentIntentId) {
             // Lock the order row for update to prevent concurrent payment processing races
             $order = self::where('id', $this->id)->lockForUpdate()->first();
-            if (!$order || $order->payment_status === 'paid') {
+            if (
+                !$order
+                || in_array($order->payment_status, ['paid', 'refunded'], true)
+                || in_array($order->status, ['cancelled', 'refunded'], true)
+            ) {
                 return;
             }
 
@@ -430,7 +441,7 @@ class OrderOrder extends Model
                                 'order_item_id' => $item->id,
                                 'initial_value' => $paidVoucherValue,
                                 'current_balance' => $paidVoucherValue,
-                                'recipient_name' => $config['recipient_name'] ?? null,
+                                'recipient_name' => (string) ($config['recipient_name'] ?? $order->customer_name ?: 'Beschenkte Person'),
                                 'recipient_email' => $config['recipient_email'] ?? null,
                                 'personal_message' => isset($config['personal_message']) ? mb_substr($config['personal_message'], 0, 160) : null,
                                 'delivery_method' => $config['delivery_method'] ?? 'email',
@@ -457,25 +468,43 @@ class OrderOrder extends Model
                     ->lockForUpdate()
                     ->first();
                 if ($giftVoucher) {
-                    $usedAmount = $order->discount_amount;
-                    $newBalance = max(0, $giftVoucher->current_balance - $usedAmount);
+                    $requestedDiscount = max(0, (int) $order->discount_amount);
+                    $actualDeducted = max(0, min((int) $giftVoucher->current_balance, $requestedDiscount));
+
+                    if ($order->total_price == 0 && $requestedDiscount > 0 && (!$giftVoucher->isValid() || $actualDeducted < $requestedDiscount)) {
+                        throw new \RuntimeException('Das Gutscheinguthaben reicht für diese Bestellung nicht mehr aus.');
+                    }
+
+                    $newBalance = max(0, (int) $giftVoucher->current_balance - $actualDeducted);
                     $giftVoucher->update([
                         'current_balance' => $newBalance,
                         'is_active' => $newBalance > 0
                     ]);
 
-                    \App\Models\Marketing\MarketingGiftVoucherLog::create([
-                        'gift_voucher_id' => $giftVoucher->id,
-                        'order_id' => $order->id,
-                        'amount' => $usedAmount,
-                        'remaining_balance' => $newBalance
-                    ]);
+                    if ($actualDeducted > 0) {
+                        \App\Models\Marketing\MarketingGiftVoucherLog::create([
+                            'gift_voucher_id' => $giftVoucher->id,
+                            'order_id' => $order->id,
+                            'amount' => $actualDeducted,
+                            'remaining_balance' => $newBalance
+                        ]);
+                    }
                 } else {
-                    $mv = \App\Models\Marketing\MarketingVoucher::where('code', $order->coupon_code)->first();
+                    $mv = \App\Models\Marketing\MarketingVoucher::where('code', $order->coupon_code)
+                        ->lockForUpdate()
+                        ->first();
                     if ($mv) {
+                        if ($order->total_price == 0 && !$mv->isValid()) {
+                            throw new \RuntimeException('Der verwendete Rabattcode ist nicht mehr gültig.');
+                        }
                         $mv->increment('used_count');
                     }
                 }
+            }
+
+            // Gast-Kundenkonto bei erfolgreichem Zahlungseingang verifizieren, sofern E-Mail übereinstimmt
+            if ($order->customer && !$order->customer->hasVerifiedEmail() && strcasecmp(trim((string) $order->email), trim((string) $order->customer->email)) === 0) {
+                $order->customer->markEmailAsVerified();
             }
 
             // --- FREUNDE WERBEN FREUNDE: 5 € GUTHABEN FÜR DEN EMPFEHLENDEN KUNDEN ---
@@ -501,12 +530,15 @@ class OrderOrder extends Model
      * 4. Eingelöste Gutscheine: Wiederherstellung des Guthabens bzw. Dekrementierung des Einlösezählers.
      * 5. Freunde-Werben: Stornierung unberechtigter Werbeprämien.
      */
-    public function handleCancellation(string $reason = 'Stornierung', ?string $previousStatus = null): void
+    public function handleCancellation(string $reason = 'Stornierung', ?string $previousStatus = null, ?string $previousPaymentStatus = null): void
     {
         $effectiveStatus = $previousStatus ?? $this->getOriginal('status') ?? $this->status;
+        $effectivePaymentStatus = $previousPaymentStatus ?? $this->getOriginal('payment_status') ?? $this->payment_status;
+        $wasPaid = in_array($effectivePaymentStatus, ['paid', 'refunded'], true);
+        $alreadyCancelledOrRefunded = in_array($effectiveStatus, ['cancelled', 'refunded'], true);
 
-        // 1. Lagerbestand: NUR für unpersonalisierte Produkte und nur wenn vorher pending/nicht ausgeliefert
-        if (in_array($effectiveStatus, ['pending', 'processing'], true)) {
+        // 1. Lagerbestand: NUR für bezahlte, unpersonalisierte Produkte und nur wenn vorher pending/processing (nicht bereits storniert/ausgeliefert)
+        if ($wasPaid && !$alreadyCancelledOrRefunded && in_array($effectiveStatus, ['pending', 'processing'], true)) {
             foreach ($this->items as $item) {
                 $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
                 if (!$isPersonalized && $item->product) {
@@ -528,8 +560,10 @@ class OrderOrder extends Model
                 ]);
         }
 
-        // 4. Vom Kunden eingelöste Gutscheine wiederherstellen
-        $this->restoreVouchersOnCancellation();
+        // 4. Vom Kunden eingelöste Gutscheine wiederherstellen (nur wenn tatsächlich bezahlt/abgebucht und noch nicht rückabgewickelt)
+        if ($wasPaid && !$alreadyCancelledOrRefunded) {
+            $this->restoreVouchersOnCancellation();
+        }
 
         // 5. Freunde-Werben: Belohnung zurückbuchen
         try {
@@ -548,6 +582,11 @@ class OrderOrder extends Model
             return;
         }
 
+        $effectivePaymentStatus = $this->getOriginal('payment_status') ?? $this->payment_status;
+        if (!in_array($effectivePaymentStatus, ['paid', 'refunded'], true) && !in_array($this->payment_status, ['paid', 'refunded'], true)) {
+            return;
+        }
+
         // 1. Wertgutschein (MarketingGiftVoucher)
         $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $this->coupon_code)->first();
         if ($giftVoucher && $this->discount_amount > 0) {
@@ -563,22 +602,28 @@ class OrderOrder extends Model
                     ->where('amount', '>', 0)
                     ->first();
 
-                $refundAmount = $usedLog ? $usedLog->amount : $this->discount_amount;
-                $newBalance = $giftVoucher->current_balance + $refundAmount;
+                $refundAmount = ($usedLog && $usedLog->amount > 0)
+                    ? (int) $usedLog->amount
+                    : max(0, (int) $this->discount_amount);
 
-                $giftVoucher->update([
-                    'current_balance' => $newBalance,
-                    'is_active' => true,
-                ]);
+                if ($refundAmount > 0) {
+                    $maxAllowedBalance = max((int) $giftVoucher->initial_value, (int) $giftVoucher->current_balance);
+                    $newBalance = min($maxAllowedBalance, (int) $giftVoucher->current_balance + $refundAmount);
 
-                \App\Models\Marketing\MarketingGiftVoucherLog::create([
-                    'gift_voucher_id' => $giftVoucher->id,
-                    'order_id' => $this->id,
-                    'amount' => -$refundAmount,
-                    'remaining_balance' => $newBalance,
-                ]);
+                    $giftVoucher->update([
+                        'current_balance' => $newBalance,
+                        'is_active' => true,
+                    ]);
 
-                \Illuminate\Support\Facades\Log::info("Gutscheinguthaben von {$refundAmount} Cents für Gutschein {$giftVoucher->code} nach Storno von Order {$this->order_number} erstattet.");
+                    \App\Models\Marketing\MarketingGiftVoucherLog::create([
+                        'gift_voucher_id' => $giftVoucher->id,
+                        'order_id' => $this->id,
+                        'amount' => -$refundAmount,
+                        'remaining_balance' => $newBalance,
+                    ]);
+
+                    \Illuminate\Support\Facades\Log::info("Gutscheinguthaben von {$refundAmount} Cents für Gutschein {$giftVoucher->code} nach Storno von Order {$this->order_number} erstattet.");
+                }
             }
         }
 

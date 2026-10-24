@@ -9,6 +9,7 @@ use Livewire\Component;
 
 class ProductTax extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
 
     // Nur noch die Klasse ist variabel pro Produkt
@@ -42,11 +43,11 @@ class ProductTax extends Component
 
     public function updatedTaxClass($value)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
-        if (!in_array($value, ['standard', 'reduced', 'zero'])) {
+        if (!in_array($value, ['standard', 'reduced', 'zero'], true)) {
             return;
         }
 

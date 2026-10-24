@@ -10,6 +10,7 @@ use Livewire\Component;
 
 class ProductAttributes extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
 
     // Die Attribute des Produkts (Key => Value) aus der DB
@@ -24,6 +25,7 @@ class ProductAttributes extends Component
 
     // CRUD Felder
     public $newAttributeName = '';
+    #[\Livewire\Attributes\Locked]
     public $editingAttributeId = null;
     public $editingAttributeName = '';
 
@@ -77,10 +79,16 @@ class ProductAttributes extends Component
     {
         if ($this->isManaging) return;
 
+        $name = trim((string) $name);
+        if ($name === '') return;
+
         if (array_key_exists($name, $this->productAttributes)) {
             // Entfernen
             unset($this->productAttributes[$name]);
         } else {
+            if (!ProductAttribute::where('name', $name)->exists()) {
+                return;
+            }
             // Hinzufügen (Standardwert leer)
             $this->productAttributes[$name] = '';
         }
@@ -98,6 +106,20 @@ class ProductAttributes extends Component
 
     private function saveToProduct()
     {
+        $sanitized = [];
+        foreach ($this->productAttributes as $key => $val) {
+            if (!is_string($key) && !is_int($key)) {
+                continue;
+            }
+            $cleanKey = mb_substr(trim((string) $key), 0, 100);
+            if ($cleanKey === '') {
+                continue;
+            }
+            $cleanVal = is_scalar($val) ? mb_substr((string) $val, 0, 2000) : '';
+            $sanitized[$cleanKey] = $cleanVal;
+        }
+        $this->productAttributes = $sanitized;
+
         // Speichere das Array direkt in das Produkt Model
         $this->product->attributes = $this->productAttributes;
         $this->product->save();
@@ -115,11 +137,11 @@ class ProductAttributes extends Component
     public function createAttribute()
     {
         $this->validate([
-            'newAttributeName' => 'required|min:2|unique:shop_attributes,name'
+            'newAttributeName' => 'required|string|min:2|max:100|unique:product_attributes,name'
         ]);
 
         ProductAttribute::create([
-            'name' => $this->newAttributeName,
+            'name' => trim($this->newAttributeName),
             'slug' => Str::slug($this->newAttributeName),
             'type' => $this->product->type,
         ]);
@@ -143,7 +165,7 @@ class ProductAttributes extends Component
     public function updateAttribute()
     {
         $this->validate([
-            'editingAttributeName' => 'required|min:2|unique:shop_attributes,name,' . $this->editingAttributeId
+            'editingAttributeName' => 'required|string|min:2|max:100|unique:product_attributes,name,' . $this->editingAttributeId
         ]);
 
         $attr = ProductAttribute::find($this->editingAttributeId);

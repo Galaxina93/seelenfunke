@@ -23,7 +23,12 @@ class DigitalProductDownloadController extends Controller
         // 2. Authorization check
         if (AiAuthHelper::isAdmin() || auth()->guard('admin')->check() || auth()->guard('employee')->check()) {
             // OK
-        } elseif (AiAuthHelper::isCustomer() && AiAuthHelper::getCustomerId() === $item->order->customer_id) {
+        } elseif (
+            AiAuthHelper::isCustomer()
+            && $item->order
+            && $item->order->customer_id !== null
+            && (string) AiAuthHelper::getCustomerId() === (string) $item->order->customer_id
+        ) {
             // OK
         } elseif (request()->hasValidSignature()) {
             // OK via signed route
@@ -31,30 +36,48 @@ class DigitalProductDownloadController extends Controller
             abort(403, 'Zugriff verweigert.');
         }
 
-        // 3. Payment Status check: Downloads stehen erst nach Bezahlung zur Verfügung
-        if (!AiAuthHelper::isAdmin() && $item->order->payment_status !== 'paid') {
+        // 3. Payment & Order Status check: Downloads stehen erst nach Bezahlung zur Verfügung und sind bei stornierten/erstatteten Bestellungen gesperrt
+        if (
+            !AiAuthHelper::isAdmin()
+            && (
+                !$item->order
+                || $item->order->payment_status !== 'paid'
+                || in_array($item->order->status, ['cancelled', 'refunded'], true)
+            )
+        ) {
             abort(403, 'Der Download steht erst nach vollständigem Zahlungseingang zur Verfügung.');
         }
 
-        // 3. Validation
+        // 4. Validation
         if (!$item->product || $item->product->type !== 'digital' || empty($item->product->digital_download_path)) {
             abort(404, 'Dieses Produkt ist nicht als Download verfügbar.');
         }
 
-        $downloadPath = (string) $item->product->digital_download_path;
-        if (str_contains($downloadPath, '..') || str_contains($downloadPath, "\0") || str_starts_with($downloadPath, '/') || str_starts_with($downloadPath, '\\')) {
+        $downloadPath = ltrim(str_replace('\\', '/', (string) $item->product->digital_download_path), '/');
+        if (
+            $downloadPath === ''
+            || str_contains($downloadPath, '..')
+            || str_contains($downloadPath, "\0")
+            || (!str_starts_with($downloadPath, 'produkte/products-secure/') && !str_starts_with($downloadPath, 'products-secure/'))
+        ) {
             abort(403, 'Ungültiger Dateipfad.');
         }
 
-        // 4. File existence check
-        if (!Storage::disk('local')->exists($downloadPath)) {
+        // 5. File existence & symlink check
+        if (
+            !Storage::disk('local')->exists($downloadPath)
+            || is_link(Storage::disk('local')->path($downloadPath))
+        ) {
             abort(404, 'Die angeforderte Datei wurde auf dem Server nicht gefunden.');
         }
 
         // 5. Trigger download
+        $rawFilename = (string) ($item->product->digital_filename ?: 'Download.zip');
+        $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($rawFilename)) ?: 'Download.zip';
+
         return Storage::disk('local')->download(
             $downloadPath,
-            $item->product->digital_filename ?? 'Download.zip'
+            $safeFilename
         );
     }
 }

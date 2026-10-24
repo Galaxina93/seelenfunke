@@ -59,6 +59,7 @@ class ProductSuppliers extends Component
 
     // State
     public $isEditing = false;
+    #[\Livewire\Attributes\Locked]
     public $editingId = null;
     public $showModal = false;
 
@@ -74,8 +75,8 @@ class ProductSuppliers extends Component
         'contact_person' => 'nullable|string|max:255',
         'email' => 'nullable|email|max:255',
         'phone' => 'nullable|string|max:255',
-        'website' => 'nullable|url|max:255',
-        'notes' => 'nullable|string',
+        'website' => 'nullable|url|max:255|regex:/^https?:\/\//i',
+        'notes' => 'nullable|string|max:10000',
         'tax_id' => 'nullable|string|max:255',
         'vat_id' => 'nullable|string|max:255',
         'bank_name' => 'nullable|string|max:255',
@@ -90,9 +91,9 @@ class ProductSuppliers extends Component
         'lead_time_sea_days' => 'nullable|integer|min:0',
         'lead_time_train_days' => 'nullable|integer|min:0',
         'shipping_method' => 'nullable|string|in:land,air,sea,train',
-        'dynamic_links' => 'nullable|array',
+        'dynamic_links' => 'nullable|array|max:50',
         'dynamic_links.*.title' => 'required|string|max:255',
-        'dynamic_links.*.url' => 'required|url|max:500',
+        'dynamic_links.*.url' => 'required|url|max:500|regex:/^https?:\/\//i',
     ];
 
     public function boot(): void
@@ -224,6 +225,9 @@ class ProductSuppliers extends Component
 
     public function addLink()
     {
+        if (count($this->dynamic_links) >= 50) {
+            return;
+        }
         $this->dynamic_links[] = ['title' => '', 'url' => ''];
     }
 

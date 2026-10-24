@@ -57,6 +57,9 @@ class ProductAnalytics extends Component
 
     public function setTab(string $tab): void
     {
+        if (!in_array($tab, ['configurator', 'calculator', 'economy', 'lucid'], true)) {
+            return;
+        }
         $this->activeTab = $tab;
         $this->dispatch('analytics-updated');
     }
@@ -75,6 +78,10 @@ class ProductAnalytics extends Component
             abort(403, 'Nur Administratoren haben Zugriff auf das Produkt Analytics.');
         }
 
+        if (!in_array($this->activeTab, ['configurator', 'calculator', 'economy', 'lucid'], true)) {
+            $this->activeTab = 'configurator';
+        }
+
         $this->updateDateRange();
 
     }
@@ -86,6 +93,12 @@ class ProductAnalytics extends Component
 
     private function updateDateRange()
     {
+        $range = is_scalar($this->dateRange) ? (string) $this->dateRange : '30';
+        if (!in_array($range, ['7', '30', '90', '365', 'all'], true)) {
+            $range = '30';
+        }
+        $this->dateRange = $range;
+
         if ($this->dateRange === '7') {
             $this->dateFrom = Carbon::now()->subDays(7)->startOfDay();
         } elseif ($this->dateRange === '30') {
@@ -447,7 +460,9 @@ class ProductAnalytics extends Component
                 
                 // Fetch dynamic lead time from the attached supplier if present, fallback to product setting, fallback to 14
                 if ($product->supplier) {
-                    $shipMethod = $product->supplier->shipping_method ?? 'land';
+                    $shipMethod = in_array($product->supplier->shipping_method, ['land', 'air', 'sea', 'train'], true)
+                        ? $product->supplier->shipping_method
+                        : 'land';
                     $daysField = "lead_time_{$shipMethod}_days";
                     $deliveryDays = $product->supplier->{$daysField} ?? ($product->delivery_time_days ?? 14);
                 } else {

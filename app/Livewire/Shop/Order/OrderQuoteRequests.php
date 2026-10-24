@@ -30,7 +30,9 @@ class OrderQuoteRequests extends Component
     public $filterStatus = '';
 
     // Detail View State
+    #[\Livewire\Attributes\Locked]
     public $selectedQuoteId = null;
+    #[\Livewire\Attributes\Locked]
     public $selectedQuoteItemId = null; // NEU: Für die Vorschau rechts
 
     public function boot(): void
@@ -124,103 +126,128 @@ class OrderQuoteRequests extends Component
             abort(403);
         }
 
-        $quote = OrderQuoteRequest::with('items')->find($quoteId);
+        $order = \Illuminate\Support\Facades\DB::transaction(function () use ($quoteId, $type, &$quote) {
+            $quote = OrderQuoteRequest::with('items')->lockForUpdate()->find($quoteId);
 
-        // Sicherheitscheck: Existiert das Angebot und ist es nicht schon umgewandelt?
-        if (!$quote || $quote->status === 'converted') return;
+            // Sicherheitscheck: Existiert das Angebot und ist es nicht schon umgewandelt?
+            if (!$quote || $quote->status === 'converted') {
+                return null;
+            }
 
-        $isSmallBusiness = (bool) shop_setting('is_small_business', false);
+            $isSmallBusiness = (bool) shop_setting('is_small_business', false);
 
-        // ---------------------------------------------------------
-        // 1. KUNDEN ERSTELLEN ODER FINDEN
-        // ---------------------------------------------------------
-        $customer = Customer::firstOrCreate(
-            ['email' => $quote->email],
-            [
-                'first_name' => $quote->first_name,
-                'last_name' => $quote->last_name,
-                'password' => Hash::make(Str::random(16)), // Zufallspasswort
-            ]
-        );
+            // ---------------------------------------------------------
+            // 1. KUNDEN ERSTELLEN ODER FINDEN
+            // ---------------------------------------------------------
+            $customer = Customer::firstOrCreate(
+                ['email' => $quote->email],
+                [
+                    'first_name' => $quote->first_name,
+                    'last_name' => $quote->last_name,
+                    'password' => Hash::make(Str::random(16)), // Zufallspasswort
+                ]
+            );
 
-        // Kundendaten im Profil vervollständigen / aktualisieren
-        $customer->profile()->updateOrCreate(
-            ['customer_id' => $customer->id],
-            [
-                'phone_number' => $quote->phone,
-                'street' => $quote->street ?? '',
-                'house_number' => $quote->house_number ?? '',
-                'postal' => $quote->postal,
-                'city' => $quote->city,
-                'country' => $quote->country ?? 'DE',
-            ]
-        );
+            // Kundendaten im Profil nur bei Neukunden-Anlage oder fehlendem Profil setzen (Schutz bestehender Kundenprofile vor Überschreibung durch Gast-Anfragen)
+            if ($customer->wasRecentlyCreated || !$customer->profile) {
+                $customer->profile()->updateOrCreate(
+                    ['customer_id' => $customer->id],
+                    [
+                        'phone_number' => $quote->phone,
+                        'street' => $quote->street ?? '',
+                        'house_number' => $quote->house_number ?? '',
+                        'postal' => $quote->postal,
+                        'city' => $quote->city,
+                        'country' => $quote->country ?? 'DE',
+                    ]
+                );
+            }
 
-        // ---------------------------------------------------------
-        // 2. ORDER ERSTELLEN
-        // ---------------------------------------------------------
-        // Wir speichern in der DB, was gewählt wurde
-        $methodDbString = ($type === 'stripe_link') ? 'stripe_link' : 'invoice';
+            // ---------------------------------------------------------
+            // 2. ORDER ERSTELLEN
+            // ---------------------------------------------------------
+            // Wir speichern in der DB, was gewählt wurde
+            $methodDbString = ($type === 'stripe_link') ? 'stripe_link' : 'invoice';
 
-        $order = OrderOrder::create([
-            'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
-            'customer_id' => $customer->id,
-            'email' => $quote->email,
-            'status' => 'pending',
-            'payment_status' => 'unpaid',
+            $order = OrderOrder::create([
+                'order_number' => 'ORD-' . date('Y') . '-' . strtoupper(Str::random(6)),
+                'customer_id' => $customer->id,
+                'email' => $quote->email,
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
 
-            // Wir setzen 'stripe_link', damit wir wissen: Hier wurde ein Link gesendet
-            'payment_method' => $methodDbString,
+                // Wir setzen 'stripe_link', damit wir wissen: Hier wurde ein Link gesendet
+                'payment_method' => $methodDbString,
 
-            // WICHTIG: Express Daten & Versandkosten übernehmen!
-            'is_express' => $quote->is_express,
-            'deadline' => $quote->deadline,
-            'shipping_price' => $quote->shipping_price ?? 0,
+                // WICHTIG: Express Daten & Versandkosten übernehmen!
+                'is_express' => $quote->is_express,
+                'deadline' => $quote->deadline,
+                'shipping_price' => $quote->shipping_price ?? 0,
 
-            'billing_address' => [
-                'first_name' => $quote->first_name,
-                'last_name' => $quote->last_name,
-                'company' => $quote->company,
-                'address' => trim(($quote->street ?? '') . ' ' . ($quote->house_number ?? '')),
-                'postal_code' => $quote->postal,
-                'city' => $quote->city,
-                'country' => $quote->country ?? 'DE'
-            ],
-            // Lieferadresse initial identisch zur Rechnungsadresse
-            'shipping_address' => [
-                'first_name' => $quote->first_name,
-                'last_name' => $quote->last_name,
-                'company' => $quote->company,
-                'address' => trim(($quote->street ?? '') . ' ' . ($quote->house_number ?? '')),
-                'postal_code' => $quote->postal,
-                'city' => $quote->city,
-                'country' => $quote->country ?? 'DE'
-            ],
+                'billing_address' => [
+                    'first_name' => $quote->first_name,
+                    'last_name' => $quote->last_name,
+                    'company' => $quote->company,
+                    'address' => trim(($quote->street ?? '') . ' ' . ($quote->house_number ?? '')),
+                    'postal_code' => $quote->postal,
+                    'city' => $quote->city,
+                    'country' => $quote->country ?? 'DE'
+                ],
+                // Lieferadresse initial identisch zur Rechnungsadresse
+                'shipping_address' => [
+                    'first_name' => $quote->first_name,
+                    'last_name' => $quote->last_name,
+                    'company' => $quote->company,
+                    'address' => trim(($quote->street ?? '') . ' ' . ($quote->house_number ?? '')),
+                    'postal_code' => $quote->postal,
+                    'city' => $quote->city,
+                    'country' => $quote->country ?? 'DE'
+                ],
 
-            // Rabatte exakt aus dem Angebot übernehmen
-            'volume_discount' => $quote->volume_discount ?? 0,
-            'discount_amount' => $quote->discount_amount ?? 0,
-            'coupon_code'     => $quote->coupon_code ?? null,
+                // Rabatte exakt aus dem Angebot übernehmen
+                'volume_discount' => $quote->volume_discount ?? 0,
+                'discount_amount' => $quote->discount_amount ?? 0,
+                'coupon_code'     => $quote->coupon_code ?? null,
 
-            'subtotal_price' => $isSmallBusiness ? max(0, $quote->gross_total - ($quote->shipping_price ?? 0) - ($quote->express_price ?? 0)) : $quote->net_total,
-            'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
-            'total_price' => $quote->gross_total,
-            'notes' => 'Aus Angebot ' . $quote->quote_number . ' generiert. ' . $quote->admin_notes,
-        ]);
-
-        // ---------------------------------------------------------
-        // 3. ITEMS ÜBERTRAGEN
-        // ---------------------------------------------------------
-        foreach($quote->items as $qItem) {
-            $order->items()->create([
-                'product_id' => $qItem->product_id,
-                'product_name' => $qItem->product_name,
-                'quantity' => $qItem->quantity,
-                'unit_price' => $qItem->unit_price,
-                'tax_rate' => $isSmallBusiness ? 0.0 : ($qItem->tax_rate !== null ? $qItem->tax_rate : ($qItem->product->tax_rate ?? shop_setting('default_tax_rate', 19.0))),
-                'total_price' => $qItem->total_price,
-                'configuration' => $qItem->configuration,
+                'subtotal_price' => $isSmallBusiness ? max(0, $quote->gross_total - ($quote->shipping_price ?? 0) - ($quote->express_price ?? 0)) : $quote->net_total,
+                'tax_amount' => $isSmallBusiness ? 0 : $quote->tax_total,
+                'total_price' => $quote->gross_total,
+                'notes' => 'Aus Angebot ' . $quote->quote_number . ' generiert. ' . $quote->admin_notes,
             ]);
+
+            // ---------------------------------------------------------
+            // 3. ITEMS ÜBERTRAGEN
+            // ---------------------------------------------------------
+            $cartService = app(\App\Services\CartService::class);
+            foreach($quote->items as $qItem) {
+                $safeConfig = is_array($qItem->configuration) ? $qItem->configuration : null;
+                if ($qItem->product && $safeConfig !== null) {
+                    $safeConfig = $cartService->sanitizeConfiguration($qItem->product, $safeConfig);
+                }
+                $order->items()->create([
+                    'product_id' => $qItem->product_id,
+                    'product_name' => $qItem->product_name,
+                    'quantity' => $qItem->quantity,
+                    'unit_price' => $qItem->unit_price,
+                    'tax_rate' => $isSmallBusiness ? 0.0 : ($qItem->tax_rate !== null ? $qItem->tax_rate : ($qItem->product->tax_rate ?? shop_setting('default_tax_rate', 19.0))),
+                    'total_price' => $qItem->total_price,
+                    'configuration' => $safeConfig,
+                ]);
+            }
+
+            // ---------------------------------------------------------
+            // 5. STATUS DES ANGEBOTS AKTUALISIEREN
+            // ---------------------------------------------------------
+            $quote->update([
+                'status' => 'converted',
+                'converted_order_id' => $order->id
+            ]);
+
+            return $order;
+        });
+
+        if (!$order) {
+            return;
         }
 
         // ---------------------------------------------------------
@@ -263,14 +290,6 @@ class OrderQuoteRequests extends Component
         } catch (\Exception $e) {
             Log::error("Stripe Link Fehler bei Umwandlung: " . $e->getMessage());
         }
-
-        // ---------------------------------------------------------
-        // 5. STATUS DES ANGEBOTS AKTUALISIEREN
-        // ---------------------------------------------------------
-        $quote->update([
-            'status' => 'converted',
-            'converted_order_id' => $order->id
-        ]);
 
         // ---------------------------------------------------------
         // 6. JOB FÜR DOKUMENTE & MAILS ANSTOSSEN (NEU!)

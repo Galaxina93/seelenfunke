@@ -59,7 +59,8 @@ class OrderAnalytics extends Component
 
         // Date Filtering
         if ($this->dateRange !== 'all') {
-            $query->where('created_at', '>=', now()->subDays((int)$this->dateRange));
+            $days = min(3650, max(1, (int) $this->dateRange));
+            $query->where('created_at', '>=', now()->subDays($days));
         }
 
         // We fetch the collection to do complex grouping/JSON analytics in memory 
@@ -169,12 +170,20 @@ class OrderAnalytics extends Component
         $returningCustomers = 0;
 
         foreach ($orders as $order) {
-            $email = $order->shipping_address['email'] ?? ($order->billing_address['email'] ?? null);
-            if ($email) {
+            $email = $order->email ?? ($order->shipping_address['email'] ?? ($order->billing_address['email'] ?? null));
+            $customerId = $order->customer_id ?? null;
+
+            if ($email || $customerId) {
                 // Check if this customer has a COMPLETED order BEFORE this specific order's creation date
-                $hasPrior = OrderOrder::where(function($q) use ($email) {
-                        $q->where('shipping_address->email', $email)
-                          ->orWhere('billing_address->email', $email);
+                $hasPrior = OrderOrder::where(function ($q) use ($email, $customerId) {
+                        if ($customerId) {
+                            $q->orWhere('customer_id', $customerId);
+                        }
+                        if ($email) {
+                            $q->orWhere('email', $email)
+                              ->orWhere('shipping_address->email', $email)
+                              ->orWhere('billing_address->email', $email);
+                        }
                     })
                     ->where('status', 'completed')
                     ->where('created_at', '<', $order->created_at)
@@ -214,7 +223,7 @@ class OrderAnalytics extends Component
         foreach ($grouped as $date => $dailyOrders) {
             $sum = 0;
             foreach ($dailyOrders as $order) {
-                $sum += (float) $order->total_amount;
+                $sum += ((int) ($order->total_price ?? 0)) / 100;
             }
             $labels[] = Carbon::parse($date)->format('d.m.');
             $moneyRaw[] = round($sum, 2);

@@ -75,6 +75,7 @@ class CartFileCleanupService
      */
     public function cleanupOrphanedFiles(int $olderThanHours = 48, bool $dryRun = false): array
     {
+        $olderThanHours = max(1, $olderThanHours);
         $cutoffTimestamp = now()->subHours($olderThanHours)->timestamp;
         $disk = Storage::disk('public');
 
@@ -162,6 +163,9 @@ class CartFileCleanupService
         int $exportDays = 7,
         int $chatUploadDays = 30
     ): array {
+        $tempHours = max(1, $tempHours);
+        $exportDays = max(1, $exportDays);
+        $chatUploadDays = max(1, $chatUploadDays);
         $rules = [
             // Temp Zone (local disk -> storage/app/temp/*)
             ['disk' => 'local', 'dir' => 'temp/livewire-tmp', 'cutoff' => now()->subHours($tempHours)->timestamp],
@@ -278,6 +282,7 @@ class CartFileCleanupService
      */
     public function cleanupAbandonedCarts(int $olderThanDays = 14): int
     {
+        $olderThanDays = max(1, $olderThanDays);
         $cutoff = now()->subDays($olderThanDays);
         $deletedCartsCount = 0;
 

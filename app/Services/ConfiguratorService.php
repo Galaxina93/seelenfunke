@@ -504,9 +504,9 @@ class ConfiguratorService
         } else {
             $themeKey = 'winter';
             $eventKey = 'season_winter';
-            $eventName = 'Jahreszeit: Winter (01.12. – 28.02.)';
             $from = $now->month === 12 ? $winterStart : Carbon::create($year - 1, 12, 1)->startOfDay();
             $until = ($now->month === 12 ? Carbon::create($year + 1, 3, 1) : $springStart)->copy()->subDay()->endOfDay();
+            $eventName = 'Jahreszeit: Winter (01.12. – ' . $until->format('d.m.') . ')';
         }
 
         $themeObj = $themes[$themeKey] ?? $themes['standard'];
@@ -585,18 +585,22 @@ class ConfiguratorService
         foreach ($seasons as $sKey => $sMeta) {
             $startDate = Carbon::create($year, $sMeta['month'], $sMeta['day'])->startOfDay();
             $endYear = ($sMeta['end_month'] < $sMeta['month']) ? $year + 1 : $year;
-            $endDate = Carbon::create($endYear, $sMeta['end_month'], $sMeta['end_day'])->endOfDay();
+            $endDate = $sMeta['end_month'] === 2
+                ? Carbon::create($endYear, 2, 1)->endOfMonth()->endOfDay()
+                : Carbon::create($endYear, $sMeta['end_month'], $sMeta['end_day'])->endOfDay();
 
             // Für Winter im Januar/Februar aktuelles Fenster berücksichtigen
             if ($sKey === 'season_winter' && $now->month <= 2) {
                 $startDate = Carbon::create($year - 1, 12, 1)->startOfDay();
-                $endDate = Carbon::create($year, 2, 28)->endOfDay();
+                $endDate = Carbon::create($year, 2, 1)->endOfMonth()->endOfDay();
             }
 
             if ($endDate->isPast() && !$endDate->isToday()) {
                 $startDate = Carbon::create($year + 1, $sMeta['month'], $sMeta['day'])->startOfDay();
                 $endYearNext = ($sMeta['end_month'] < $sMeta['month']) ? $year + 2 : $year + 1;
-                $endDate = Carbon::create($endYearNext, $sMeta['end_month'], $sMeta['end_day'])->endOfDay();
+                $endDate = $sMeta['end_month'] === 2
+                    ? Carbon::create($endYearNext, 2, 1)->endOfMonth()->endOfDay()
+                    : Carbon::create($endYearNext, $sMeta['end_month'], $sMeta['end_day'])->endOfDay();
             }
 
             $themeKey = $sMeta['theme'];

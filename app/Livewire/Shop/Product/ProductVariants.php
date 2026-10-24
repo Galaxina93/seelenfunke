@@ -9,6 +9,7 @@ use Livewire\Component;
 
 class ProductVariants extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
 
     // Die Matrix der Endprodukte
@@ -59,9 +60,13 @@ class ProductVariants extends Component
             return;
         }
 
-        // 3. Kartesisches Produkt (Alle Kombinationsmöglichkeiten kreuzen)
+        // 3. Kartesisches Produkt (Alle Kombinationsmöglichkeiten kreuzen, mit DoS-Limit von max. 200 Varianten)
         $combinations = [[]];
         foreach ($parsedAttributes as $attrName => $options) {
+            if (count($combinations) * count($options) > 200) {
+                session()->flash('variants_error', 'Zu viele Varianten-Kombinationen (Maximal 200 erlaubt).');
+                return;
+            }
             $append = [];
             foreach ($combinations as $currentCombination) {
                 foreach ($options as $option) {
@@ -129,13 +134,13 @@ class ProductVariants extends Component
 
     public function saveVariants()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
-        // Sanitize variants data (ensure prices and stocks are valid)
+        // Sanitize variants data (ensure prices and stocks are valid and cap at 200 variants)
         $cleanVariants = [];
-        foreach ($this->variants as $variant) {
+        foreach (array_slice($this->variants, 0, 200) as $variant) {
             if (!is_array($variant)) continue;
             if (isset($variant['price']) && $variant['price'] !== '') {
                 $variant['price'] = max(0, (float)str_replace(',', '.', $variant['price']));
@@ -143,6 +148,7 @@ class ProductVariants extends Component
             if (isset($variant['stock']) && $variant['stock'] !== '') {
                 $variant['stock'] = max(0, (int)$variant['stock']);
             }
+            $variant['is_active'] = (bool) ($variant['is_active'] ?? true);
             $cleanVariants[] = $variant;
         }
         $this->variants = $cleanVariants;

@@ -20,6 +20,7 @@ class StealthCrawlerService
 
     public function crawlEtsy(string $jobId, string $keyword = 'personalisiertes geschenk', int $pages = 1)
     {
+        $pages = max(1, min(10, $pages));
         Log::info("StealthCrawler: Start crawling Etsy for '{$keyword}' (Job: {$jobId})");
         
         $updateJobState = function($progress, $status) use ($jobId, $keyword) {
@@ -39,7 +40,7 @@ class StealthCrawlerService
             'base_uri' => 'https://www.etsy.com/',
             'timeout'  => 60.0,
             'cookies'  => true,
-            'verify' => !app()->environment('local', 'testing'),
+            'verify' => true,
         ]);
 
         for ($page = 1; $page <= $pages; $page++) {
@@ -62,9 +63,13 @@ class StealthCrawlerService
 
                 if ($scraperApiKey) {
                     $updateJobState((int)$progress, "Routing via ScraperAPI (Stealth Mode) für Seite {$page}...");
-                    $apiUrl = "https://api.scraperapi.com?api_key={$scraperApiKey}&url=" . urlencode($targetUrl) . "&keep_headers=true";
-                    $response = $client->request('GET', $apiUrl, [
-                        'headers' => $this->getRandomHeaders()
+                    $response = $client->request('GET', 'https://api.scraperapi.com', [
+                        'query' => [
+                            'api_key' => $scraperApiKey,
+                            'url' => $targetUrl,
+                            'keep_headers' => 'true',
+                        ],
+                        'headers' => $this->getRandomHeaders(),
                     ]);
                 } else {
                     $response = $client->request('GET', $targetUrl, [
@@ -144,20 +149,25 @@ class StealthCrawlerService
                         if (!empty($title) && !empty($url) && !$isBulky) {
                             $safeTitle = trim($title);
                             $safeUrl = $this->cleanUrl($url, 'www.etsy.com');
-                            ProductNicheItem::updateOrCreate(
-                                ['url' => $safeUrl],
-                                [
-                                    'title' => $safeTitle,
-                                    'platform' => 'Etsy',
-                                    'price' => $price,
-                                    'sales_volume' => $sales_volume,
-                                    'rating' => $rating,
-                                    'review_count' => $review_count,
-                                    'image_url' => mb_substr($image_url, 0, 250),
-                                    'niche_score' => $score,
-                                    'scraped_at' => now(),
-                                ]
-                            );
+                            $safeImageUrl = ($image_url && preg_match('/^https?:\/\//i', trim((string) $image_url)))
+                                ? mb_substr(trim((string) $image_url), 0, 250)
+                                : null;
+                            if ($safeUrl !== '') {
+                                ProductNicheItem::updateOrCreate(
+                                    ['url' => $safeUrl],
+                                    [
+                                        'title' => $safeTitle,
+                                        'platform' => 'Etsy',
+                                        'price' => $price,
+                                        'sales_volume' => $sales_volume,
+                                        'rating' => $rating,
+                                        'review_count' => $review_count,
+                                        'image_url' => $safeImageUrl,
+                                        'niche_score' => $score,
+                                        'scraped_at' => now(),
+                                    ]
+                                );
+                            }
                         }
                     } catch (\Exception $e) {
                          Log::error("StealthCrawler: Failed to parse or save product: " . $e->getMessage());
@@ -165,7 +175,8 @@ class StealthCrawlerService
                 });
 
             } catch (\GuzzleHttp\Exception\ClientException $e) {
-                Log::error("StealthCrawler: ClientException: " . $e->getMessage());
+                $safeErr = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+                Log::error("StealthCrawler: ClientException: " . $safeErr);
                 if ($e->getResponse()->getStatusCode() == 403) {
                     $updateJobState((int)$progress, "⛔ Blockiert (403): Etsy Anti-Bot aktiv. Trage einen kostenlosen SCRAPER_API_KEY in die .env ein, um den Schutz zu umgehen.");
                 } else {
@@ -173,8 +184,10 @@ class StealthCrawlerService
                 }
                 sleep(6); // Halte kurz an, damit Admin den Fehler im Live-Tracker und den Tipp lesen kann
             } catch (\Exception $e) {
-                Log::error("StealthCrawler: Etsy Request failed: " . $e->getMessage());
-                $updateJobState((int)$progress, "Kritischer Fehler beim Laden von Seite {$page}: " . substr($e->getMessage(), 0, 50));
+                $safeErr = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage());
+                Log::error("StealthCrawler: Etsy Request failed: " . $safeErr);
+                $uiSafeErr = preg_replace('/https?:\/\/\S+/i', '[URL]', $safeErr);
+                $updateJobState((int)$progress, "Kritischer Fehler beim Laden von Seite {$page}: " . substr((string) $uiSafeErr, 0, 50));
                 sleep(4);
             }
             
@@ -192,6 +205,7 @@ class StealthCrawlerService
     }
     public function crawlAmazon(string $jobId, string $keyword = 'personalisiertes geschenk', int $pages = 1)
     {
+        $pages = max(1, min(10, $pages));
         Log::info("StealthCrawler: Start crawling Amazon for '{$keyword}' (Job: {$jobId})");
         $apiKey = config('services.scraperapi.key');
         if (empty($apiKey)) {
@@ -281,27 +295,32 @@ class StealthCrawlerService
                         if (!empty($title) && !empty($url) && !$isBulky) {
                             $safeTitle = trim($title);
                             $safeUrl = $this->cleanUrl($url, 'www.amazon.de');
-                            ProductNicheItem::updateOrCreate(
-                                ['url' => $safeUrl],
-                                [
-                                    'title' => $safeTitle,
-                                    'platform' => 'Amazon',
-                                    'price' => $price,
-                                    'sales_volume' => $sales_volume,
-                                    'rating' => $rating,
-                                    'review_count' => $review_count,
-                                    'image_url' => mb_substr($image_url, 0, 250),
-                                    'niche_score' => $score,
-                                    'scraped_at' => now(),
-                                ]
-                            );
+                            $safeImageUrl = ($image_url && preg_match('/^https?:\/\//i', trim((string) $image_url)))
+                                ? mb_substr(trim((string) $image_url), 0, 250)
+                                : null;
+                            if ($safeUrl !== '') {
+                                ProductNicheItem::updateOrCreate(
+                                    ['url' => $safeUrl],
+                                    [
+                                        'title' => $safeTitle,
+                                        'platform' => 'Amazon',
+                                        'price' => $price,
+                                        'sales_volume' => $sales_volume,
+                                        'rating' => $rating,
+                                        'review_count' => $review_count,
+                                        'image_url' => $safeImageUrl,
+                                        'niche_score' => $score,
+                                        'scraped_at' => now(),
+                                    ]
+                                );
+                            }
                         }
                     } catch (\Exception $e) {
                         Log::error("StealthCrawler: Failed to parse or save Amazon product: " . $e->getMessage());
                     }
                 });
             } catch (\Exception $e) {
-                Log::error("StealthCrawler Amazon error: " . $e->getMessage());
+                Log::error("StealthCrawler Amazon error: " . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage()));
                 sleep(4);
             }
         }
@@ -312,6 +331,7 @@ class StealthCrawlerService
 
     public function crawlAlibaba(string $jobId, string $keyword = 'personalisiertes geschenk', int $pages = 1)
     {
+        $pages = max(1, min(10, $pages));
         Log::info("StealthCrawler: Start crawling Alibaba for '{$keyword}' (Job: {$jobId})");
         $apiKey = config('services.scraperapi.key');
         if (empty($apiKey)) {
@@ -407,27 +427,32 @@ class StealthCrawlerService
                         if (!empty($title) && !empty($url) && !$isBulky) {
                             $safeTitle = trim($title);
                             $safeUrl = $this->cleanUrl($url, 'www.alibaba.com');
-                            ProductNicheItem::updateOrCreate(
-                                ['url' => $safeUrl],
-                                [
-                                    'title' => $safeTitle,
-                                    'platform' => 'Alibaba',
-                                    'price' => $price,
-                                    'sales_volume' => $sales_volume,
-                                    'rating' => $rating,
-                                    'review_count' => $review_count,
-                                    'image_url' => mb_substr($image_url, 0, 250),
-                                    'niche_score' => $score,
-                                    'scraped_at' => now(),
-                                ]
-                            );
+                            $safeImageUrl = ($image_url && preg_match('/^https?:\/\//i', trim((string) $image_url)))
+                                ? mb_substr(trim((string) $image_url), 0, 250)
+                                : null;
+                            if ($safeUrl !== '') {
+                                ProductNicheItem::updateOrCreate(
+                                    ['url' => $safeUrl],
+                                    [
+                                        'title' => $safeTitle,
+                                        'platform' => 'Alibaba',
+                                        'price' => $price,
+                                        'sales_volume' => $sales_volume,
+                                        'rating' => $rating,
+                                        'review_count' => $review_count,
+                                        'image_url' => $safeImageUrl,
+                                        'niche_score' => $score,
+                                        'scraped_at' => now(),
+                                    ]
+                                );
+                            }
                         }
                     } catch (\Exception $e) {
                         Log::error("StealthCrawler: Failed to parse or save Alibaba product: " . $e->getMessage());
                     }
                 });
             } catch (\Exception $e) {
-                Log::error("StealthCrawler Alibaba error: " . $e->getMessage());
+                Log::error("StealthCrawler Alibaba error: " . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($e->getMessage()));
                 sleep(4);
             }
         }
@@ -474,31 +499,50 @@ class StealthCrawlerService
         ];
     }
     
-    private function cleanUrl($url, $defaultHost = 'www.etsy.com') {
-        if (empty($url)) return '';
-        
+    public function cleanUrl($url, $defaultHost = 'www.etsy.com'): string
+    {
+        if (empty($url) || !is_string($url)) {
+            return '';
+        }
+
+        $url = trim($url);
+        if (preg_match('/^(javascript|data|vbscript|file|blob):/i', $url)) {
+            return '';
+        }
+
         if (strpos($url, '//') === 0) {
             $url = 'https:' . $url;
         }
-        
+
         if (preg_match('/(https?:\/\/[^\/]+)(https?:\/\/.*)/i', $url, $matches)) {
             $url = $matches[2];
         }
-        
+
         $parsed = parse_url($url);
-        $host = $parsed['host'] ?? $defaultHost;
-        
-        if (empty($host)) {
-            $host = $defaultHost;
+        if ($parsed === false) {
+            return '';
         }
-        
-        $scheme = $parsed['scheme'] ?? 'https';
+
+        $rawScheme = strtolower($parsed['scheme'] ?? 'https');
+        if (!in_array($rawScheme, ['http', 'https'], true)) {
+            return '';
+        }
+
+        $host = strtolower(trim((string) ($parsed['host'] ?? $defaultHost)));
+        if (empty($host)) {
+            $host = strtolower(trim($defaultHost));
+        }
+
+        $allowedBaseHost = preg_replace('/^www\./i', '', strtolower(trim($defaultHost)));
+        if ($host !== strtolower(trim($defaultHost)) && $host !== $allowedBaseHost && !str_ends_with($host, '.' . $allowedBaseHost)) {
+            return '';
+        }
+
         $path = $parsed['path'] ?? '';
-        
         if (!empty($path) && strpos($path, '/') !== 0) {
             $path = '/' . $path;
         }
-        
-        return $scheme . '://' . $host . $path;
+
+        return $rawScheme . '://' . $host . $path;
     }
 }

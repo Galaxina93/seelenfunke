@@ -14,6 +14,7 @@ class Cart extends Component
     protected CartService $cartService;
 
     // State für das Bearbeiten (Inline in der Kachel)
+    #[\Livewire\Attributes\Locked]
     public $editingItemId = null;
 
     // NEU: Input für Gutschein

@@ -111,8 +111,8 @@ class OrderQuoteAcceptance extends Component
         $this->editingItem->quantity = $qty;
         $this->editingItem->configuration = $data;
 
-        // 2. Einzelpreis neu berechnen (Staffelpreise beachten!)
-        $unitPriceCents = $this->calculateTierPrice($product, $qty);
+        // 2. Einzelpreis neu berechnen (Staffelpreise & Varianten beachten!)
+        $unitPriceCents = $this->calculateTierPrice($product, $qty, $data);
 
         $this->editingItem->unit_price = $unitPriceCents;
         $this->editingItem->tax_rate = $product->tax_rate ?? shop_setting('default_tax_rate', 19.0);
@@ -131,23 +131,11 @@ class OrderQuoteAcceptance extends Component
     }
 
     /**
-     * Hilfsfunktion: Staffelpreis berechnen
+     * Hilfsfunktion: Staffelpreis & Variantenpreis berechnen
      */
-    private function calculateTierPrice($product, $qty)
+    private function calculateTierPrice($product, $qty, ?array $configuration = null)
     {
-        $basePrice = $product->price; // Cents
-        $tiers = $product->tier_pricing ?? [];
-
-        if (!empty($tiers) && is_array($tiers)) {
-            usort($tiers, fn($a, $b) => $b['qty'] <=> $a['qty']);
-            foreach ($tiers as $tier) {
-                if ($qty >= $tier['qty']) {
-                    $discount = $basePrice * ($tier['percent'] / 100);
-                    return (int) round($basePrice - $discount);
-                }
-            }
-        }
-        return $basePrice;
+        return app(\App\Services\CartService::class)->calculateTierPrice($product, (int) $qty, $configuration);
     }
 
     /**
@@ -322,7 +310,20 @@ class OrderQuoteAcceptance extends Component
             return;
         }
 
-        $coupon = MarketingVoucher::where('code', trim($this->couponCodeInput))->first();
+        $code = trim((string) $this->couponCodeInput);
+        $quoteEmail = $this->quote->email ?? ($this->quote->billing_address['email'] ?? null);
+
+        $referralService = app(\App\Services\ReferralService::class);
+        if ($referralService->isReferralCode($code)) {
+            $validation = $referralService->validateReferralCode($code, $quoteEmail, $this->quote->customer_id);
+            if (!$validation['valid']) {
+                RateLimiter::hit($throttleKey, 300);
+                $this->addError('couponCodeInput', $validation['error'] ?? 'Empfehlungscode ist ungültig.');
+                return;
+            }
+        }
+
+        $coupon = MarketingVoucher::where('code', $code)->first();
 
         if (!$coupon || !$coupon->isValid()) {
             RateLimiter::hit($throttleKey, 300);
@@ -331,7 +332,12 @@ class OrderQuoteAcceptance extends Component
         }
 
         if (!empty($coupon->recipient_email)) {
-            $quoteEmail = $this->quote->email ?? ($this->quote->billing_address['email'] ?? null);
+            $authenticatedCustomer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+            if (!$authenticatedCustomer || !$authenticatedCustomer->hasVerifiedEmail() || strtolower(trim((string) $authenticatedCustomer->email)) !== strtolower(trim((string) $coupon->recipient_email))) {
+                RateLimiter::hit($throttleKey, 300);
+                $this->addError('couponCodeInput', 'Für diesen persönlichen Gutschein musst du mit dem verifizierten Empfänger-Konto eingeloggt sein.');
+                return;
+            }
             if (!$quoteEmail || strtolower(trim($quoteEmail)) !== strtolower(trim($coupon->recipient_email))) {
                 RateLimiter::hit($throttleKey, 300);
                 $this->addError('couponCodeInput', 'Dieser persönliche Gutschein ist an ein anderes Kundenkonto gebunden.');
@@ -377,6 +383,10 @@ class OrderQuoteAcceptance extends Component
         Session::put('checkout_from_quote_id', $this->quote->id);
 
         $cart = $cartService->getCart();
+        $cleanupService = app(\App\Services\CartFileCleanupService::class);
+        foreach ($cart->items as $existingItem) {
+            $cleanupService->cleanupCartItemFiles($existingItem);
+        }
         $cart->items()->delete();
 
         // Express-Status, Adress-Vorauswahl und GUTSCHEIN in das cart-Model übernehmen

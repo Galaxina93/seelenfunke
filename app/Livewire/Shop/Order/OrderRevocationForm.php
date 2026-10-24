@@ -143,10 +143,32 @@ class OrderRevocationForm extends Component
             // Datei-Uploads verarbeiten (Try/Catch in Try/Catch für non-fatal Errors)
             try {
                 if (!empty($this->attachments)) {
+                    $allowedMimeMap = [
+                        'jpg' => ['image/jpeg'],
+                        'jpeg' => ['image/jpeg'],
+                        'png' => ['image/png'],
+                        'webp' => ['image/webp'],
+                        'pdf' => ['application/pdf'],
+                    ];
                     $savedAttachments = [];
                     foreach ($this->attachments as $file) {
+                        if (!is_object($file) || !method_exists($file, 'getClientOriginalExtension') || !method_exists($file, 'getRealPath')) {
+                            continue;
+                        }
+                        $ext = strtolower((string) $file->getClientOriginalExtension());
+                        if (!isset($allowedMimeMap[$ext])) {
+                            continue;
+                        }
+                        $realPath = $file->getRealPath();
+                        $detectedMime = ($realPath && is_file($realPath) && function_exists('finfo_open'))
+                            ? strtolower((string) finfo_file(finfo_open(FILEINFO_MIME_TYPE), $realPath))
+                            : strtolower((string) $file->getMimeType());
+                        if (!in_array($detectedMime, $allowedMimeMap[$ext], true)) {
+                            continue;
+                        }
+                        $safeFilename = \Illuminate\Support\Str::uuid()->toString() . '.' . $ext;
                         // Speichere in storage/app/bestellungen/private/revocations/{id} gesichert ab
-                        $path = $file->store("bestellungen/private/revocations/{$revocation->id}", 'local');
+                        $path = $file->storeAs("bestellungen/private/revocations/{$revocation->id}", $safeFilename, 'local');
                         if ($path) {
                             $savedAttachments[] = $path;
                         }

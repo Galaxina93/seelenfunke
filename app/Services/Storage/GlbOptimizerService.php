@@ -12,9 +12,33 @@ class GlbOptimizerService
      */
     public function inspectGlb(string $absolutePath): array
     {
-        if (!is_file($absolutePath) || !is_readable($absolutePath)) {
+        if (str_contains($absolutePath, '..') || str_contains($absolutePath, "\0") || strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION)) !== 'glb') {
             return [
                 'exists' => false,
+                'error' => 'Ungültiger Dateipfad oder Dateityp (nur .glb erlaubt).',
+            ];
+        }
+
+        if (is_link($absolutePath) || !is_file($absolutePath) || !is_readable($absolutePath)) {
+            return [
+                'exists' => false,
+            ];
+        }
+
+        $realFile = realpath($absolutePath);
+        $publicStorageRoot = realpath(storage_path('app/public'));
+        $testingStorageRoot = realpath(storage_path('framework/testing'));
+        $publicRoot = realpath(public_path());
+        $inAllowedRoot = $realFile && (
+            ($publicStorageRoot && str_starts_with($realFile, $publicStorageRoot . DIRECTORY_SEPARATOR))
+            || ($testingStorageRoot && str_starts_with($realFile, $testingStorageRoot . DIRECTORY_SEPARATOR))
+            || ($publicRoot && str_starts_with($realFile, $publicRoot . DIRECTORY_SEPARATOR))
+        );
+
+        if (!$inAllowedRoot) {
+            return [
+                'exists' => false,
+                'error' => '3D-Datei liegt außerhalb des autorisierten Storage-Verzeichnisses.',
             ];
         }
 
@@ -117,7 +141,7 @@ class GlbOptimizerService
             ];
         }
 
-        if (!is_file($absolutePath) || !is_writable($absolutePath)) {
+        if (is_link($absolutePath) || !is_file($absolutePath) || !is_writable($absolutePath)) {
             return [
                 'success' => false,
                 'error' => '3D-Datei existiert nicht oder ist schreibgeschützt: ' . basename($absolutePath),
@@ -125,10 +149,12 @@ class GlbOptimizerService
         }
 
         $realFile = realpath($absolutePath);
-        $storageRoot = realpath(storage_path());
+        $publicStorageRoot = realpath(storage_path('app/public'));
+        $testingStorageRoot = realpath(storage_path('framework/testing'));
         $publicRoot = realpath(public_path());
         $inAllowedRoot = $realFile && (
-            ($storageRoot && str_starts_with($realFile, $storageRoot . DIRECTORY_SEPARATOR))
+            ($publicStorageRoot && str_starts_with($realFile, $publicStorageRoot . DIRECTORY_SEPARATOR))
+            || ($testingStorageRoot && str_starts_with($realFile, $testingStorageRoot . DIRECTORY_SEPARATOR))
             || ($publicRoot && str_starts_with($realFile, $publicRoot . DIRECTORY_SEPARATOR))
         );
 

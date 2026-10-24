@@ -23,7 +23,9 @@ class ProductConfigurator extends Component
 {
     use WithFileUploads, HandlesConfiguratorLogic, WithRateLimiting;
 
+    #[Locked]
     public $product;
+    #[Locked]
     public $cartItem = null;
     #[Locked]
     public $context = 'add';
@@ -77,6 +79,9 @@ class ProductConfigurator extends Component
         }
 
         $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
+        if (!in_array($context, ['template_admin', 'preview'], true) && !auth()->guard('admin')->check() && !auth()->guard('employee')->check() && $this->product->status !== 'active') {
+            abort(404);
+        }
         $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
         $this->context = $context;
         $this->cartItem = $cartItem;
@@ -795,6 +800,20 @@ class ProductConfigurator extends Component
                         return;
                     }
 
+                    $configData = $cartService->sanitizeConfiguration($this->product, $configData) ?? $configData;
+                    $existingConfig = is_array($orderItem->configuration) ? $orderItem->configuration : [];
+
+                    if (!$isAdmin) {
+                        // Kunden dürfen im Nachbesserungsmodus ('order_edit') ausschließlich Gestaltungselemente ändern,
+                        // niemals jedoch preis- oder leistungsrelevante Parameter (Variante, Express-Status, Menge, Produkttyp).
+                        $configData['variant_id'] = $existingConfig['variant_id'] ?? null;
+                        $configData['variant_name'] = $existingConfig['variant_name'] ?? null;
+                        $configData['is_express'] = $existingConfig['is_express'] ?? (bool) ($orderItem->order->is_express ?? false);
+                        $configData['qty'] = (int) ($existingConfig['qty'] ?? $orderItem->quantity ?? 1);
+                        $configData['type'] = $existingConfig['type'] ?? ($this->product->type ?? 'physical');
+                        $configData['is_digital'] = $existingConfig['is_digital'] ?? (($this->product->type ?? 'physical') !== 'physical');
+                    }
+
                     // Alte Snapshots physisch vom Server löschen
                     if (!empty($orderItem->configuration['snapshot_path'])) {
                         $paths = is_array($orderItem->configuration['snapshot_path']) 
@@ -802,7 +821,8 @@ class ProductConfigurator extends Component
                                     : ['front' => $orderItem->configuration['snapshot_path']];
                         foreach($paths as $path) {
                             $pathStr = (string) $path;
-                            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with(ltrim($pathStr, '/'), 'snapshots/') && \Illuminate\Support\Facades\Storage::disk('public')->exists($pathStr)) {
+                            $trimmedPath = ltrim($pathStr, '/');
+                            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && (str_starts_with($trimmedPath, 'snapshots/') || str_starts_with($trimmedPath, 'system/snapshots/')) && \Illuminate\Support\Facades\Storage::disk('public')->exists($pathStr)) {
                                 \Illuminate\Support\Facades\Storage::disk('public')->delete($pathStr);
                             }
                         }
@@ -969,13 +989,7 @@ class ProductConfigurator extends Component
 
                 if ($isUriAttr) {
                     // Only allow local anchor references (e.g. #myGradient, #clipPath)
-                    if (str_starts_with($val, '#')) {
-                        // Safe local ID reference
-                    } elseif (str_starts_with($cleanVal, 'javascript:') || str_starts_with($cleanVal, 'data:') || str_starts_with($cleanVal, 'vbscript:')) {
-                        $attrsToRemove[] = $attrNode;
-                        continue;
-                    } elseif (str_starts_with($cleanVal, 'http:') || str_starts_with($cleanVal, 'https:') || str_starts_with($cleanVal, '//')) {
-                        // External links/resources not allowed in engraving vectors
+                    if (!str_starts_with($val, '#')) {
                         $attrsToRemove[] = $attrNode;
                         continue;
                     }

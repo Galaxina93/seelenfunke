@@ -25,6 +25,7 @@ class ProductReviews extends Component
 
     public string $themingDepartment = 'Sales';
 
+    #[Locked]
     public Product $product;
     public $rating = 5;
     public $title = '';
@@ -39,6 +40,7 @@ class ProductReviews extends Component
 
     public $newMedia = [];
     public $accumulatedMedia = [];
+    #[Locked]
     public $existingMedia = [];
 
     public $loginEmail = '';
@@ -67,7 +69,8 @@ class ProductReviews extends Component
 
     public function filterByRating($rating)
     {
-        if ($this->filterRating === $rating) {
+        $rating = (int) $rating;
+        if ($rating < 1 || $rating > 5 || $this->filterRating === $rating) {
             $this->filterRating = null;
         } else {
             $this->filterRating = $rating;
@@ -118,6 +121,8 @@ class ProductReviews extends Component
         }
 
         if (method_exists($candidate, 'hasVerifiedEmail') && !$candidate->hasVerifiedEmail()) {
+            RateLimiter::hit($throttleKey, 300);
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, false, 'product_reviews_unverified');
             $this->loginError = 'Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.';
             return;
         }
@@ -222,6 +227,14 @@ class ProductReviews extends Component
 
             $review->delete();
 
+            $customerId = Auth::guard('customer')->id();
+            $user = $customerId ? Customer::find($customerId) : null;
+            if ($user) {
+                $gameService = app(GamificationService::class);
+                $profile = $gameService->getProfile($user);
+                $gameService->syncDynamicTitles($profile);
+            }
+
             $this->cancelEdit();
             session()->flash('success', 'Deine Bewertung wurde erfolgreich gelöscht.');
             $this->dispatch('review-added');
@@ -239,7 +252,10 @@ class ProductReviews extends Component
     // Keine Parameter in der Funktion = keine Livewire Inject-Abstürze
     public function submitReview()
     {
-        $this->validate();
+        $this->validate(array_merge($this->rules, [
+            'accumulatedMedia' => 'nullable|array|max:3',
+            'accumulatedMedia.*' => 'file|mimes:jpg,jpeg,png,webp,mp4,mov|max:10240',
+        ]));
 
         if (!Auth::guard('customer')->check()) {
             session()->flash('error', 'Bitte logge dich ein, um eine Bewertung abzugeben.');
@@ -260,21 +276,40 @@ class ProductReviews extends Component
             return;
         }
 
+        if (!$this->isEditing && ProductReview::where('product_id', $this->product->id)->where('customer_id', $customerId)->exists()) {
+            session()->flash('error', 'Du hast dieses Produkt bereits bewertet. Vielen Dank für dein Feedback!');
+            return;
+        }
+
         $newMediaPaths = [];
+        $allowedImageMimes = ['image/jpeg', 'image/png', 'image/webp'];
+        $allowedVideoMimes = ['video/mp4', 'video/quicktime'];
+        $allowedExts = ['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov'];
 
         foreach ($this->accumulatedMedia as $file) {
-            $mime = $file->getMimeType();
+            if (!is_object($file) || !method_exists($file, 'getMimeType') || !method_exists($file, 'getClientOriginalName') || !method_exists($file, 'getRealPath')) {
+                continue;
+            }
+            $clientExt = strtolower(pathinfo((string) $file->getClientOriginalName(), PATHINFO_EXTENSION));
+            if (!in_array($clientExt, $allowedExts, true)) {
+                continue;
+            }
+            $realPath = $file->getRealPath();
+            $mime = ($realPath && is_file($realPath) && function_exists('finfo_open'))
+                ? strtolower((string) finfo_file(finfo_open(FILEINFO_MIME_TYPE), $realPath))
+                : strtolower((string) $file->getMimeType());
 
-            if (str_contains($mime, 'image')) {
+            if (in_array($mime, $allowedImageMimes, true) && in_array($clientExt, ['jpg', 'jpeg', 'png', 'webp'], true)) {
                 $filename = \Illuminate\Support\Str::random(40) . '.jpg';
                 $path = 'produkte/reviews/' . $filename;
 
-                $image = Image::make($file->getRealPath())->orientate()->encode('jpg', 80);
+                $image = Image::make($realPath)->orientate()->encode('jpg', 80);
                 Storage::disk('public')->put($path, (string) $image);
 
                 $newMediaPaths[] = $path;
-            } else {
-                $newMediaPaths[] = $file->store('produkte/reviews', 'public');
+            } elseif (in_array($mime, $allowedVideoMimes, true) && in_array($clientExt, ['mp4', 'mov'], true)) {
+                $safeVideoFilename = \Illuminate\Support\Str::random(40) . '.' . $clientExt;
+                $newMediaPaths[] = $file->storeAs('produkte/reviews', $safeVideoFilename, 'public');
             }
         }
 
@@ -345,12 +380,12 @@ class ProductReviews extends Component
                 'status' => $targetStatus,
             ]);
 
-            // TITEL UPDATE: Sicher über den Laravel Service Container auflösen
+            // TITEL UPDATE: Dynamisch anhand der tatsächlich freigegebenen Bewertungen synchronisieren (kein Delete+Submit-Farming)
             $user = Customer::find($customerId);
             if ($user) {
                 $gameService = app(GamificationService::class);
                 $profile = $gameService->getProfile($user);
-                $gameService->incrementTitleProgress($profile, 'botschafter', 1);
+                $gameService->syncDynamicTitles($profile);
             }
 
             $this->reset(['rating', 'title', 'content', 'accumulatedMedia', 'existingMedia', 'newMedia']);

@@ -33,6 +33,7 @@ class ProductFracture extends Component
     public $selectedSupplier = null;
     
     // Inline Edit state
+    #[\Livewire\Attributes\Locked]
     public $editLossId = null;
     public $editLossQuantity = 1;
     public $editLossReason = '';
@@ -62,30 +63,38 @@ class ProductFracture extends Component
     {
         $this->validate([
             'lossProductId' => 'required',
-            'lossQuantity' => 'required|numeric|min:1',
-            'lossReason' => 'required|string|min:3'
+            'lossQuantity' => 'required|integer|min:1|max:100000',
+            'lossReason' => 'required|string|min:3|max:1000'
         ]);
-        $product = Product::findOrFail($this->lossProductId);
 
-        if ($product->quantity < $this->lossQuantity) {
-            $this->addError('lossQuantity', 'Nicht genug Bestand vorhanden.');
-            $this->currentStep = 1;
+        $created = \Illuminate\Support\Facades\DB::transaction(function () {
+            $product = Product::where('id', $this->lossProductId)->lockForUpdate()->firstOrFail();
+
+            if ($product->quantity < $this->lossQuantity) {
+                $this->addError('lossQuantity', 'Nicht genug Bestand vorhanden.');
+                $this->currentStep = 1;
+                return false;
+            }
+
+            $costValue = ($product->purchase_price ?? 0) * $this->lossQuantity;
+
+            ProductLoss::create([
+                'product_id' => $product->id,
+                'product_supplier_id' => null,
+                'quantity' => $this->lossQuantity,
+                'cost_value' => $costValue,
+                'reason' => $this->lossReason,
+                'recorded_by' => auth('admin')->id(),
+                // Leave reported and refund timestamps null initially
+            ]);
+
+            $product->reduceStock($this->lossQuantity);
+            return true;
+        });
+
+        if (!$created) {
             return;
         }
-
-        $costValue = ($product->purchase_price ?? 0) * $this->lossQuantity;
-
-        ProductLoss::create([
-            'product_id' => $product->id,
-            'product_supplier_id' => null,
-            'quantity' => $this->lossQuantity,
-            'cost_value' => $costValue,
-            'reason' => $this->lossReason,
-            'recorded_by' => auth('admin')->id(),
-            // Leave reported and refund timestamps null initially
-        ]);
-
-        $product->reduceStock($this->lossQuantity);
         
         $this->dispatch('toast', message: 'Schadensmeldung erfasst und Lagerbestand aktualisiert.', type: 'success');
         $this->closeLossModal();
@@ -94,7 +103,8 @@ class ProductFracture extends Component
     public function assignSupplier($id, $supplierId)
     {
         $loss = ProductLoss::findOrFail($id);
-        $loss->update(['product_supplier_id' => $supplierId ?: null]);
+        $validSupplierId = (!empty($supplierId) && ProductSupplier::where('id', $supplierId)->exists()) ? $supplierId : null;
+        $loss->update(['product_supplier_id' => $validSupplierId]);
         $this->dispatch('toast', message: 'Händler zugewiesen.', type: 'success');
     }
 
@@ -164,38 +174,46 @@ class ProductFracture extends Component
     public function updateLoss()
     {
         $this->validate([
-            'editLossQuantity' => 'required|numeric|min:1',
-            'editLossReason' => 'required|string|min:3'
+            'editLossQuantity' => 'required|integer|min:1|max:100000',
+            'editLossReason' => 'required|string|min:3|max:1000'
         ]);
 
-        $loss = ProductLoss::findOrFail($this->editLossId);
-        $product = $loss->product;
+        $updated = \Illuminate\Support\Facades\DB::transaction(function () {
+            $loss = ProductLoss::where('id', $this->editLossId)->lockForUpdate()->firstOrFail();
+            $product = $loss->product_id ? Product::where('id', $loss->product_id)->lockForUpdate()->first() : null;
 
-        if (!$product) {
-            $this->addError('editLossQuantity', 'Produkt nicht mehr im System.');
+            if (!$product) {
+                $this->addError('editLossQuantity', 'Produkt nicht mehr im System.');
+                return false;
+            }
+
+            $difference = $this->editLossQuantity - $loss->quantity;
+            
+            if ($difference > 0 && $product->quantity < $difference) {
+                $this->addError('editLossQuantity', 'Nicht genug Bestand.');
+                return false;
+            }
+
+            if ($difference > 0) {
+                $product->reduceStock($difference);
+            } elseif ($difference < 0) {
+                $product->restoreStock(abs($difference));
+            }
+
+            $costValue = ($product->purchase_price ?? 0) * $this->editLossQuantity;
+
+            $loss->update([
+                'quantity' => $this->editLossQuantity,
+                'reason' => $this->editLossReason,
+                'cost_value' => $costValue,
+            ]);
+
+            return true;
+        });
+
+        if (!$updated) {
             return;
         }
-
-        $difference = $this->editLossQuantity - $loss->quantity;
-        
-        if ($difference > 0 && $product->quantity < $difference) {
-            $this->addError('editLossQuantity', 'Nicht genug Bestand.');
-            return;
-        }
-
-        if ($difference > 0) {
-            $product->reduceStock($difference);
-        } elseif ($difference < 0) {
-            $product->restoreStock(abs($difference));
-        }
-
-        $costValue = ($product->purchase_price ?? 0) * $this->editLossQuantity;
-
-        $loss->update([
-            'quantity' => $this->editLossQuantity,
-            'reason' => $this->editLossReason,
-            'cost_value' => $costValue,
-        ]);
 
         $this->editLossId = null;
         $this->dispatch('toast', message: 'Schadensmeldung aktualisiert.', type: 'success');
@@ -203,13 +221,16 @@ class ProductFracture extends Component
 
     public function deleteLoss($id)
     {
-        $loss = ProductLoss::findOrFail($id);
-        
-        if ($loss->product) {
-            $loss->product->restoreStock($loss->quantity);
-        }
+        \Illuminate\Support\Facades\DB::transaction(function () use ($id) {
+            $loss = ProductLoss::where('id', $id)->lockForUpdate()->firstOrFail();
+            $product = $loss->product_id ? Product::where('id', $loss->product_id)->lockForUpdate()->first() : null;
+            
+            if ($product) {
+                $product->restoreStock($loss->quantity);
+            }
 
-        $loss->delete();
+            $loss->delete();
+        });
         $this->dispatch('toast', message: 'Eintrag storniert und Bestand wiederhergestellt.', type: 'info');
     }
 

@@ -95,6 +95,7 @@ class ProductCalculator extends Component
     private function validateCartItems()
     {
         $validItems = [];
+        $cartService = app(\App\Services\CartService::class);
         foreach($this->cartItems as $item) {
             if(isset($item['product_id']) && isset($this->dbProducts[$item['product_id']])) {
                 $dbProd = $this->dbProducts[$item['product_id']];
@@ -103,6 +104,14 @@ class ProductCalculator extends Component
                 $item['name'] = $dbProd['name'];
                 $item['image_ref'] = $dbProd['image'];
                 $item['preview_ref'] = $dbProd['preview_image'] ?? $dbProd['image'];
+                if (isset($item['configuration']) && is_array($item['configuration'])) {
+                    $productModel = Product::find($item['product_id']);
+                    if ($productModel) {
+                        $item['configuration'] = $cartService->sanitizeConfiguration($productModel, $item['configuration']) ?? [];
+                    }
+                } else {
+                    $item['configuration'] = [];
+                }
                 $validItems[] = $item;
             }
         }
@@ -150,6 +159,7 @@ class ProductCalculator extends Component
                     'qty' => $t->qty,
                     'percent' => $t->percent
                 ])->toArray(),
+                'variants_data' => $p->variants_data ?? [],
                 'image' => !empty($p->media_gallery[0]['path']) ? 'storage/'.$p->media_gallery[0]['path'] : null,
                 'preview_image' => $previewPath ? 'storage/'.$previewPath : null,
                 'allow_logo' => $p->configurator_settings['allow_logo'] ?? true,
@@ -278,6 +288,10 @@ class ProductCalculator extends Component
         }
 
         $product = $this->dbProducts[$productId];
+        $productModel = Product::find($productId);
+        if ($productModel && is_array($data)) {
+            $data = app(\App\Services\CartService::class)->sanitizeConfiguration($productModel, $data) ?? $data;
+        }
         $rowId = ($this->editingIndex >= 0 && isset($this->cartItems[$this->editingIndex])) ? $this->cartItems[$this->editingIndex]['row_id'] : Str::uuid()->toString();
 
         $rawQty = isset($data['qty']) && is_numeric($data['qty']) ? (int)$data['qty'] : 1;
@@ -361,10 +375,11 @@ class ProductCalculator extends Component
             }
 
             $totalQty = $quantitiesPerProduct[$item['product_id']];
+            $itemConfig = is_array($item['configuration'] ?? null) ? $item['configuration'] : [];
 
-            // Rabattierter Preis und Originalpreis abrufen
-            $unitPriceCents = $this->getTierPriceCents($product, $totalQty);
-            $basePriceCents = $product['price_cents']; // NEU: Originalpreis
+            // Rabattierter Preis und Originalpreis abrufen (inkl. Varianten-Preis)
+            $unitPriceCents = $this->getTierPriceCents($product, $totalQty, $itemConfig);
+            $basePriceCents = $this->getTierPriceCents($product, 1, $itemConfig); // NEU: Originalpreis (inkl. Variante)
 
             $rate = $isSmallBusiness ? 0.0 : (float)$product['tax_rate'];
             $isGross = $product['tax_included'];
@@ -533,9 +548,15 @@ class ProductCalculator extends Component
         }
     }
 
-    private function getTierPriceCents($product, $qty)
+    private function getTierPriceCents($product, $qty, array $configuration = [])
     {
         $basePrice = $product['price_cents'];
+        if (!empty($configuration['variant_id']) && !empty($product['variants_data']) && is_array($product['variants_data'])) {
+            $variant = collect($product['variants_data'])->firstWhere('id', $configuration['variant_id']);
+            if ($variant && !empty($variant['price'])) {
+                $basePrice = (int) round((float) $variant['price'] * 100);
+            }
+        }
         $tiers = $product['tier_pricing'] ?? [];
 
         if (!empty($tiers) && is_array($tiers)) {
@@ -607,7 +628,10 @@ class ProductCalculator extends Component
 
         RateLimiter::hit($throttleKey, 600); // 10 minutes decay
 
-        $existingCustomer = Customer::where('email', $this->form['email'])->first();
+        $authenticatedCustomer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+        $existingCustomer = ($authenticatedCustomer && strtolower(trim($authenticatedCustomer->email)) === strtolower(trim((string) $this->form['email'])))
+            ? $authenticatedCustomer
+            : null;
 
         try {
             DB::transaction(function () use ($existingCustomer) {

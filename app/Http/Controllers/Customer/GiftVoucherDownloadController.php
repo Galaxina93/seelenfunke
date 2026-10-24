@@ -36,7 +36,7 @@ class GiftVoucherDownloadController extends Controller
             }
 
             $isRecipient = false;
-            if (!empty($voucher->recipient_email) && strcasecmp(trim($voucher->recipient_email), trim($user->email)) === 0) {
+            if ($user->hasVerifiedEmail() && !empty($voucher->recipient_email) && strcasecmp(trim($voucher->recipient_email), trim($user->email)) === 0) {
                 $isRecipient = true;
             }
 
@@ -48,7 +48,14 @@ class GiftVoucherDownloadController extends Controller
                 abort(403, 'Dieser Gutschein ist noch nicht aktiviert.');
             }
 
-            if ($item && $item->order && $item->order->payment_status !== 'paid') {
+            if (
+                $item
+                && $item->order
+                && (
+                    $item->order->payment_status !== 'paid'
+                    || in_array($item->order->status, ['cancelled', 'refunded'], true)
+                )
+            ) {
                 abort(403, 'Der Gutschein steht erst nach vollständigem Zahlungseingang zum Download bereit.');
             }
         }

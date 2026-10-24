@@ -32,29 +32,55 @@ class OrderRevocations extends Component
 
     public function markAsProcessed($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
         $revocation = OrderRevocation::findOrFail($id);
+        if ($revocation->status === 'processed') {
+            return;
+        }
         $revocation->update([
             'status' => 'processed'
         ]);
 
-        // Verknüpfte Bestellung und zugehörige Rechnungen GoBD-konform stornieren
+        // Verknüpfte Bestellung und zugehörige Rechnungen GoBD-konform stornieren (nur bei verifizierter E-Mail-Übereinstimmung)
         $order = $revocation->linked_order;
         $orderCancelled = false;
-        if ($order && $order->status !== 'cancelled') {
-            $order->handleCancellation('Widerruf akzeptiert und abgewickelt');
-            $updateData = [
-                'status' => 'cancelled',
-                'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt',
-            ];
-            if ($order->payment_status === 'paid') {
-                $updateData['payment_status'] = 'refunded';
+        if ($order) {
+            $revEmail = trim((string) $revocation->email);
+            $orderEmail = trim((string) $order->email);
+            $customerEmail = trim((string) ($order->customer->email ?? ''));
+            $emailMatches = $revEmail !== '' && (strcasecmp($revEmail, $orderEmail) === 0 || ($customerEmail !== '' && strcasecmp($revEmail, $customerEmail) === 0));
+
+            if ($emailMatches) {
+                $invoiceService = app(\App\Services\InvoiceService::class);
+                $activeInvoices = $order->invoices()
+                    ->where('type', 'invoice')
+                    ->whereNotIn('status', ['cancelled', 'draft'])
+                    ->get();
+                foreach ($activeInvoices as $inv) {
+                    try {
+                        $invoiceService->cancelInvoice($inv, 'Widerruf akzeptiert und abgewickelt');
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::warning('Revocation invoice cancellation warning: ' . $e->getMessage());
+                    }
+                }
+
+                $order->refresh();
+                if (!in_array($order->status, ['cancelled', 'refunded'], true)) {
+                    $order->handleCancellation('Widerruf akzeptiert und abgewickelt', $order->status, $order->payment_status);
+                }
+                $updateData = [
+                    'status' => 'cancelled',
+                    'cancellation_reason' => 'Widerruf akzeptiert und abgewickelt',
+                ];
+                if ($order->payment_status === 'paid') {
+                    $updateData['payment_status'] = 'refunded';
+                }
+                $order->update($updateData);
+                $orderCancelled = true;
             }
-            $order->update($updateData);
-            $orderCancelled = true;
         }
 
         \Illuminate\Support\Facades\Mail::to($revocation->email)
@@ -69,6 +95,10 @@ class OrderRevocations extends Component
 
     public function markAsPending($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
         $revocation = OrderRevocation::findOrFail($id);
         $revocation->update(['status' => 'pending']);
         $this->dispatch('toast', message: 'Vorgang wieder geöffnet.', type: 'info');
@@ -76,6 +106,10 @@ class OrderRevocations extends Component
 
     public function markLegalCheck($id, $type)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
         if (!in_array($type, ['personalized', 'standard'])) return;
 
         $revocation = OrderRevocation::findOrFail($id);
@@ -90,6 +124,10 @@ class OrderRevocations extends Component
 
     public function undoLegalCheck($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
         $revocation = OrderRevocation::findOrFail($id);
         $revocation->update([
             'legal_check_at' => null,
@@ -103,6 +141,10 @@ class OrderRevocations extends Component
 
     public function markCustomerNotified($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
         $revocation = OrderRevocation::findOrFail($id);
         $revocation->update(['customer_notified_at' => now()]);
         $this->dispatch('toast', message: 'Kundenkommunikation protokolliert.', type: 'success');
@@ -110,6 +152,10 @@ class OrderRevocations extends Component
 
     public function undoCustomerNotified($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
         $revocation = OrderRevocation::findOrFail($id);
         $revocation->update([
             'customer_notified_at' => null,
@@ -121,6 +167,10 @@ class OrderRevocations extends Component
 
     public function rejectRevocation($id, $reason)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
         if (!in_array($reason, ['personalized', 'damaged', 'expired', 'other'])) {
             $reason = 'other';
         }
@@ -140,14 +190,15 @@ class OrderRevocations extends Component
 
     public function deleteRevocation($id)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
-            abort(403);
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen gesetzliche Widerrufsbelege endgültig löschen.');
         }
 
         $revocation = OrderRevocation::findOrFail($id);
         
         if (!empty($revocation->attachments)) {
             \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("bestellungen/private/revocations/{$revocation->id}");
+            \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("revocations/{$revocation->id}");
         }
         
         $revocation->delete();

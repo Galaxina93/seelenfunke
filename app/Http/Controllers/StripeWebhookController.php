@@ -57,18 +57,41 @@ class StripeWebhookController extends Controller
             }
 
             if ($order) {
-                if ($order->payment_status !== 'paid') {
+                if (isset($session->payment_status) && $session->payment_status !== 'paid') {
+                    Log::info("Webhook checkout.session.completed: Session {$session->id} für Order {$order->order_number} noch nicht bezahlt (Status: {$session->payment_status}). Warte auf Zahlungseingang.");
+                    return response('Success', 200);
+                }
+
+                if (isset($session->currency) && strtolower((string) $session->currency) !== 'eur') {
+                    Log::error("Webhook checkout.session.completed: Währungsabweichung für Order {$order->order_number} (Session: {$session->currency}).");
+                    return response('Error: Currency mismatch', 400);
+                }
+
+                if (isset($session->amount_total) && (int) $session->amount_total < (int) $order->total_price) {
+                    Log::error("Webhook checkout.session.completed: Betragsabweichung für Order {$order->order_number} (Session: {$session->amount_total}, Order: {$order->total_price}).");
+                    return response('Error: Amount mismatch', 400);
+                }
+
+                if (
+                    !in_array($order->payment_status, ['paid', 'refunded'], true)
+                    && !in_array($order->status, ['cancelled', 'refunded'], true)
+                ) {
                     $order->completePayment($intentId);
                     Log::info("Webhook checkout.session.completed: Order {$order->order_number} erfolgreich als bezahlt verarbeitet.");
                 } else {
-                    Log::info("Webhook checkout.session.completed ignoriert: Order {$order->order_number} bereits bezahlt.");
+                    Log::info("Webhook checkout.session.completed ignoriert: Order {$order->order_number} bereits bezahlt, storniert oder erstattet.");
                 }
 
                 // Falls aus Angebot (Quote) entstanden
                 $quoteNumber = $session->metadata->quote_number ?? null;
-                if ($quoteNumber) {
+                if ($quoteNumber && $order->payment_status === 'paid') {
                     $quote = OrderQuoteRequest::where('quote_number', $quoteNumber)->first();
-                    if ($quote && $quote->status !== 'converted') {
+                    if (
+                        $quote
+                        && $quote->status !== 'converted'
+                        && empty($quote->converted_order_id)
+                        && (int) $order->total_price >= (int) $quote->gross_total
+                    ) {
                         $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
                     }
                 }
@@ -90,18 +113,36 @@ class StripeWebhookController extends Controller
             }
 
             if ($order) {
-                if ($order->payment_status !== 'paid') {
+                if (isset($intent->currency) && strtolower((string) $intent->currency) !== 'eur') {
+                    Log::error("Webhook payment_intent.succeeded: Währungsabweichung für Order {$order->order_number} (Intent: {$intent->currency}).");
+                    return response('Error: Currency mismatch', 400);
+                }
+
+                if (isset($intent->amount) && (int) $intent->amount < (int) $order->total_price) {
+                    Log::error("Webhook payment_intent.succeeded: Betragsabweichung für Order {$order->order_number} (Intent: {$intent->amount}, Order: {$order->total_price}).");
+                    return response('Error: Amount mismatch', 400);
+                }
+
+                if (
+                    !in_array($order->payment_status, ['paid', 'refunded'], true)
+                    && !in_array($order->status, ['cancelled', 'refunded'], true)
+                ) {
                     $order->completePayment($intentId);
                     Log::info("Webhook payment_intent.succeeded: Order {$order->order_number} erfolgreich als bezahlt verarbeitet.");
                 } else {
-                    Log::info("Webhook payment_intent.succeeded ignoriert: Order {$order->order_number} bereits bezahlt.");
+                    Log::info("Webhook payment_intent.succeeded ignoriert: Order {$order->order_number} bereits bezahlt, storniert oder erstattet.");
                 }
 
                 // Falls aus Angebot (Quote) entstanden
                 $quoteNumber = $intent->metadata->quote_number ?? null;
-                if ($quoteNumber) {
+                if ($quoteNumber && $order->payment_status === 'paid') {
                     $quote = OrderQuoteRequest::where('quote_number', $quoteNumber)->first();
-                    if ($quote && $quote->status !== 'converted') {
+                    if (
+                        $quote
+                        && $quote->status !== 'converted'
+                        && empty($quote->converted_order_id)
+                        && (int) $order->total_price >= (int) $quote->gross_total
+                    ) {
                         $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
                     }
                 }
@@ -125,13 +166,21 @@ class StripeWebhookController extends Controller
             if ($order) {
                 $isFullRefund = $charge->refunded ?? false;
                 if ($isFullRefund) {
+                    if ($order->payment_status === 'refunded' && $order->status === 'refunded') {
+                        Log::info("Webhook charge.refunded ignoriert: Order {$order->order_number} bereits vollständig als erstattet verarbeitet.");
+                        return response('Success', 200);
+                    }
+
+                    $previousStatus = $order->status;
+                    $previousPaymentStatus = $order->payment_status;
+
+                    // Vollständige Rückabwicklung (Lager Standardware, Spende, Gutscheine, Referral) VOR Status-Update
+                    $order->handleCancellation('Stripe Webhook Rückerstattung', $previousStatus, $previousPaymentStatus);
+
                     $order->update([
                         'payment_status' => 'refunded',
                         'status' => 'refunded',
                     ]);
-
-                    // Vollständige Rückabwicklung (Lager Standardware, Spende, Gutscheine, Referral)
-                    $order->handleCancellation('Stripe Webhook Rückerstattung');
                     Log::info("Webhook charge.refunded: Order {$order->order_number} erfolgreich als erstattet verarbeitet.");
                 } else {
                     Log::info("Webhook charge.refunded: Order {$order->order_number} wurde teilweise erstattet.");
@@ -145,11 +194,13 @@ class StripeWebhookController extends Controller
             if ($intentId) {
                 $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->where('payment_status', 'unpaid')->first();
                 if ($order && $order->status === 'pending') {
+                    $previousStatus = $order->status;
+                    $previousPaymentStatus = $order->payment_status;
+                    $order->handleCancellation('Stripe PaymentIntent abgebrochen', $previousStatus, $previousPaymentStatus);
                     $order->update([
                         'status' => 'cancelled',
                         'cancellation_reason' => 'Stripe PaymentIntent abgebrochen/abgelaufen'
                     ]);
-                    $order->handleCancellation('Stripe PaymentIntent abgebrochen');
                     Log::info("Webhook payment_intent.canceled: Unbezahlte Order {$order->order_number} storniert.");
                 }
             }

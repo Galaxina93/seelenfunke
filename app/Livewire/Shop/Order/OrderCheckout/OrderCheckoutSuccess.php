@@ -50,29 +50,49 @@ class OrderCheckoutSuccess extends Component
             return;
         }
 
-        if (Auth::guard('customer')->check() && $order->customer_id && (string) $order->customer_id !== (string) Auth::guard('customer')->id()) {
+        $isOwner = Auth::guard('customer')->check()
+            && $order->customer_id
+            && (string) $order->customer_id === (string) Auth::guard('customer')->id();
+
+        if (Auth::guard('customer')->check() && $order->customer_id && !$isOwner) {
             Log::warning("CheckoutSuccess: Unberechtigter Zugriffsversuch auf fremde Order {$order->id}");
             return;
         }
 
-        $this->finalOrderNumber = $order->order_number;
-        $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
-        $this->resolveReferralCode($order);
+        $clientSecretParam = request()->query('payment_intent_client_secret');
+        if (!$isOwner && (!is_string($clientSecretParam) || trim($clientSecretParam) === '')) {
+            Log::warning("CheckoutSuccess: Zugriff auf Order {$order->id} ohne payment_intent_client_secret verweigert.");
+            return;
+        }
 
         $stripeSecret = config('services.stripe.secret');
-        if (!$stripeSecret) return;
+        if (!$stripeSecret) {
+            if ($isOwner) {
+                $this->finalOrderNumber = $order->order_number;
+                $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+                $this->resolveReferralCode($order);
+            }
+            return;
+        }
 
         try {
             Stripe::setApiKey($stripeSecret);
             $intent = PaymentIntent::retrieve($intentId);
 
-            $clientSecretParam = request()->query('payment_intent_client_secret');
-            if ($clientSecretParam && isset($intent->client_secret) && !hash_equals((string) $intent->client_secret, (string) $clientSecretParam)) {
+            if ((!$isOwner || $clientSecretParam) && (!isset($intent->client_secret) || !hash_equals((string) $intent->client_secret, (string) $clientSecretParam))) {
                 Log::warning("CheckoutSuccess: Ungültiges payment_intent_client_secret für Intent {$intentId}");
                 return;
             }
 
+            $this->finalOrderNumber = $order->order_number;
+            $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+            $this->resolveReferralCode($order);
+
             if ($intent->status === 'succeeded') {
+                if (isset($intent->amount) && (int) $intent->amount < (int) $order->total_price) {
+                    Log::error("CheckoutSuccess: Betragsabweichung für Order {$order->order_number} (Intent: {$intent->amount}, Order: {$order->total_price}).");
+                    return;
+                }
 
                 // Falls die Order noch nicht als bezahlt markiert wurde (Redirect-Fall)
                 if ($order->payment_status !== 'paid') {

@@ -44,7 +44,18 @@ class ProductConfiguratorService
         $enabledVal = SystemSetting::where('key', self::SETTING_VIDEO_ENABLED)->value('value');
         $enabled = $enabledVal === null ? true : ($enabledVal !== '0' && $enabledVal !== 'false');
 
-        $activeRelPath = $savedPath ?: $defaultRelPath;
+        $cleanSaved = $savedPath ? ltrim(str_replace('\\', '/', (string) $savedPath), '/') : '';
+        if (
+            $cleanSaved === ''
+            || str_contains($cleanSaved, '..')
+            || str_contains($cleanSaved, "\0")
+            || !Str::startsWith($cleanSaved, self::TUTORIAL_STORAGE_DIR . '/')
+            || !in_array(strtolower(pathinfo($cleanSaved, PATHINFO_EXTENSION)), ['mp4', 'webm', 'mov'], true)
+        ) {
+            $activeRelPath = $defaultRelPath;
+        } else {
+            $activeRelPath = $cleanSaved;
+        }
         $diskPath = storage_path('app/public/' . ltrim($activeRelPath, '/'));
 
         // Fallback auf Standard-Video, falls ein benutzerdefinierter Pfad nicht mehr existiert
@@ -89,9 +100,31 @@ class ProductConfiguratorService
         $defaultRelPath = self::TUTORIAL_STORAGE_DIR . '/' . self::DEFAULT_TUTORIAL_FILENAME;
         $oldPath = SystemSetting::where('key', self::SETTING_VIDEO_PATH)->value('value');
 
-        $ext = strtolower($file->getClientOriginalExtension() ?: 'mp4');
+        $mime = strtolower((string) $file->getMimeType());
+        $allowedMimes = [
+            'video/mp4' => 'mp4',
+            'video/webm' => 'webm',
+            'video/quicktime' => 'mov',
+        ];
+        if (!isset($allowedMimes[$mime])) {
+            throw new \InvalidArgumentException('Ungültiger Video-MIME-Typ.');
+        }
+
+        $realPath = $file->getRealPath();
+        if ($realPath && is_file($realPath) && filesize($realPath) > 0 && function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $finfo ? strtolower((string) finfo_file($finfo, $realPath)) : '';
+            if ($finfo) {
+                finfo_close($finfo);
+            }
+            if ($detectedMime !== '' && !isset($allowedMimes[$detectedMime]) && $detectedMime !== 'application/octet-stream') {
+                throw new \InvalidArgumentException('Ungültiger Video-Dateiinhalt.');
+            }
+        }
+
+        $ext = strtolower($file->getClientOriginalExtension() ?: $allowedMimes[$mime]);
         if (!in_array($ext, ['mp4', 'webm', 'mov'], true)) {
-            $ext = 'mp4';
+            $ext = $allowedMimes[$mime];
         }
 
         $newFilename = 'configurator-tutorial-' . now()->format('Ymd-His') . '.' . $ext;
@@ -421,8 +454,19 @@ class ProductConfiguratorService
             $counter++;
         }
 
+        $clientExt = strtolower((string) $file->getClientOriginalExtension());
+        if ($clientExt !== '' && $clientExt !== 'svg') {
+            throw new \InvalidArgumentException('Nur SVG-Dateien sind in der Symbol-Bibliothek erlaubt.');
+        }
+
         $svgContent = (string) file_get_contents($file->getRealPath());
         $cleanSvg = $this->sanitizeSvgContent($svgContent);
+        if (
+            $cleanSvg === ''
+            || (!preg_match('/<svg\b[^>]*>.*<\/svg\s*>/is', $cleanSvg) && !preg_match('/<svg\b[^>]*\/\s*>/is', $cleanSvg))
+        ) {
+            throw new \InvalidArgumentException('Die hochgeladene Datei enthält kein gültiges SVG-Dokument.');
+        }
 
         $relFile = $catFolder . '/' . $filename;
         file_put_contents($targetDirStorage . '/' . $filename, $cleanSvg);
@@ -706,17 +750,23 @@ class ProductConfiguratorService
         $svg = preg_replace('/<!DOCTYPE[^>]*(\[.*?\])?\s*>/is', '', $svg) ?? $svg;
         $svg = preg_replace('/<!ENTITY[^>]*>/is', '', $svg) ?? $svg;
 
-        // 2. Strip dangerous paired and self-closing tags (<script>, <foreignObject>, <iframe>, <object>, <embed>, <applet>, <meta>, <link>, <base>, <handler>)
-        $dangerousTags = 'script|foreignObject|iframe|object|embed|applet|meta|link|base|handler';
+        // 2. Strip dangerous paired and self-closing tags (<script>, <foreignObject>, <iframe>, <object>, <embed>, <applet>, <meta>, <link>, <base>, <handler>, <use>, <image>, <feImage>, <animate*>, <set>)
+        $dangerousTags = 'script|foreignObject|iframe|object|embed|applet|meta|link|base|handler|use|image|feImage|animate|animateTransform|animateMotion|set';
         $svg = preg_replace('/<\s*(' . $dangerousTags . ')\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $svg) ?? $svg;
         $svg = preg_replace('/<\s*(' . $dangerousTags . ')\b[^>]*\/?\s*>/is', '', $svg) ?? $svg;
 
         // 3. Strip all inline event handlers (quoted and unquoted: onload=..., onerror=..., onbegin=..., etc.)
         $svg = preg_replace('/\s+on[a-z0-9_-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $svg) ?? $svg;
 
-        // 4. Neutralize javascript:, vbscript:, and data:text/html URIs in href, xlink:href, src, or values
-        $svg = preg_replace('/((?:xlink:)?href|src|values|from|to)\s*=\s*(["\'])\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"\']*\2/i', '$1=$2#$2', $svg) ?? $svg;
-        $svg = preg_replace('/((?:xlink:)?href|src|values|from|to)\s*=\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^\s>]*/i', '$1="#"', $svg) ?? $svg;
+        // 4. Strip @import and external/non-fragment url(...) in CSS styles
+        $svg = preg_replace('/@import\b[^;>}]*;?/i', '', $svg) ?? $svg;
+        $svg = preg_replace('/url\(\s*["\']?\s*(?!#)[^)]*\)/i', 'none', $svg) ?? $svg;
+
+        // 5. Neutralize any non-fragment URIs in href, xlink:href, or src, and dangerous schemes in values/from/to
+        $svg = preg_replace('/\b((?:xlink:)?href|src)\s*=\s*(["\'])\s*(?!#)[^"\']*\2/i', '$1=$2#$2', $svg) ?? $svg;
+        $svg = preg_replace('/\b((?:xlink:)?href|src)\s*=\s*(?![\'"]|#)[^\s>]+/i', '$1="#"', $svg) ?? $svg;
+        $svg = preg_replace('/\b(values|from|to)\s*=\s*(["\'])\s*(?:javascript|vbscript|data)\s*:[^"\']*\2/i', '$1=$2$2', $svg) ?? $svg;
+        $svg = preg_replace('/\b(values|from|to)\s*=\s*(?:javascript|vbscript|data)\s*:[^\s>]*/i', '$1=""', $svg) ?? $svg;
 
         return trim($svg);
     }

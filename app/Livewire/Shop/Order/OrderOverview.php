@@ -33,10 +33,13 @@ class OrderOverview extends Component
     public $sortDirection = 'asc';
 
     // --- STATE FÜR DETAIL-ANSICHT ---
+    #[\Livewire\Attributes\Locked]
     public $selectedOrderId = null;
+    #[\Livewire\Attributes\Locked]
     public $selectedOrderItemId = null;
 
     // --- STATE FÜR BEARBEITUNG ---
+    #[\Livewire\Attributes\Locked]
     public ?OrderOrder $selectedOrder = null;
 
     // Formular-Felder
@@ -46,10 +49,12 @@ class OrderOverview extends Component
     public $cancellationReason = '';
 
     // STATUS FÜR DAS SICHERHEITS-MODAL
+    #[\Livewire\Attributes\Locked]
     public $confirmingShipmentId = null;
 
     // FOTO-MANGEL MODAL STATE
     public $isPhotoIssueModalOpen = false;
+    #[\Livewire\Attributes\Locked]
     public $photoIssueItemId = null;
     public $photoIssueFilePath = null;
     public $photoIssueFileName = null;
@@ -60,6 +65,7 @@ class OrderOverview extends Component
     public $photoIssueSendMail = true;
 
     // DHL MODAL STATE
+    #[\Livewire\Attributes\Locked]
     public $dhlModalOrderId = null;
     public $dhlPackageCount = 1;
     public $dhlWeightPerPackage = 1.0;
@@ -228,19 +234,19 @@ class OrderOverview extends Component
 
         try {
             DB::transaction(function () {
+                $previousStatus = $this->selectedOrder->status;
+                $previousPaymentStatus = $this->selectedOrder->payment_status;
+
                 // Fall: Stornierung
                 if ($this->status === 'cancelled') {
                     $this->validate([
                         'cancellationReason' => 'required|string|min:5|max:500',
                     ]);
 
-                    // Führt geschäftslogische Rückabwicklung durch:
-                    // 1. Lagerbestand: Nur für Standardware zurückbuchen, personalisierte Ware verfällt als Ausschuss
-                    // 2. Herzensprojekt: Spendenbeitrag stornieren
-                    // 3. Gekaufte Wertgutscheine: Deaktivieren
-                    // 4. Eingelöste Gutscheine: Saldo wiederherstellen
-                    // 5. Freunde-Werben: Prämie stornieren
-                    $this->selectedOrder->handleCancellation($this->cancellationReason ?: 'Stornierung');
+                    // Führt geschäftslogische Rückabwicklung durch (nur wenn noch nicht storniert/erstattet):
+                    if (!in_array($previousStatus, ['cancelled', 'refunded'], true)) {
+                        $this->selectedOrder->handleCancellation($this->cancellationReason ?: 'Stornierung', $previousStatus, $previousPaymentStatus);
+                    }
 
                     // Update
                     $this->selectedOrder->update([
@@ -254,6 +260,17 @@ class OrderOverview extends Component
                     session()->flash('success', 'Bestellung storniert.');
 
                 } else {
+                    // Vollständige Rückabwicklung bei Erstattung VOR Status-Update
+                    if ($this->status === 'refunded' && !in_array($previousStatus, ['cancelled', 'refunded'], true)) {
+                        $this->selectedOrder->handleCancellation('Erstattung', $previousStatus, $previousPaymentStatus);
+                    }
+
+                    $completedViaPaymentService = false;
+                    if ($previousPaymentStatus !== 'paid' && $this->payment_status === 'paid' && !in_array($this->status, ['cancelled', 'refunded'], true)) {
+                        $this->selectedOrder->completePayment();
+                        $completedViaPaymentService = true;
+                    }
+
                     // Normales Update
                     $this->selectedOrder->update([
                         'status' => $this->status,
@@ -262,15 +279,12 @@ class OrderOverview extends Component
                         'cancellation_reason' => null
                     ]);
 
-                    // Vollständige Rückabwicklung bei Erstattung
-                    if ($this->status === 'refunded') {
-                        $this->selectedOrder->handleCancellation('Erstattung');
-                    }
-
                     $this->selectedOrder->refresh();
                     
                     // Wenn auf 'Bezahlt' gesetzt wurde und noch keine Rechnung existiert -> Automatisch Rechnung + E-Mail
-                    if ($this->payment_status === 'paid' && $this->selectedOrder->invoices->isEmpty()) {
+                    if ($completedViaPaymentService) {
+                        session()->flash('success', 'Bestelldetails aktualisiert. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
+                    } elseif ($this->payment_status === 'paid' && $this->selectedOrder->invoices->isEmpty()) {
                         \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($this->selectedOrder);
                         session()->flash('success', 'Bestelldetails aktualisiert. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
                     } else {
@@ -306,6 +320,13 @@ class OrderOverview extends Component
 
         try {
             DB::transaction(function () use ($order, $orderId, $newStatus) {
+                $previousStatus = $order->status;
+                $previousPaymentStatus = $order->payment_status;
+
+                if (in_array($newStatus, ['cancelled', 'refunded'], true)) {
+                    $order->handleCancellation($newStatus === 'refunded' ? 'Erstattung' : 'Stornierung', $previousStatus, $previousPaymentStatus);
+                }
+
                 $order->update(['status' => $newStatus]);
 
                 if ($newStatus === 'completed') {
@@ -465,6 +486,14 @@ class OrderOverview extends Component
         ];
         $reasonText = $reasons[$this->photoIssueReasonKey] ?? 'Qualität für Lasergravur nicht optimal';
 
+        $safeFilePath = (string) $this->photoIssueFilePath;
+        if (str_contains($safeFilePath, '..') || str_contains($safeFilePath, "\0")) {
+            session()->flash('error', 'Ungültiger Dateipfad.');
+            return;
+        }
+        $this->photoIssueFilePath = $safeFilePath;
+        $this->photoIssueFileName = basename((string) $this->photoIssueFileName);
+
         try {
             DB::transaction(function () use ($order, $item, $reasonText) {
                 // 1. In Item-Konfiguration hinterlegen
@@ -551,14 +580,14 @@ class OrderOverview extends Component
 
     public function markAsPaid($orderId)
     {
-        $order = OrderOrder::with('invoices')->find($orderId);
+        $order = OrderOrder::with(['invoices', 'items.product'])->find($orderId);
         if ($order) {
             try {
                 DB::transaction(function () use ($order, $orderId) {
-                    $order->update(['payment_status' => 'paid']);
-                    
-                    // Wenn die Bestellung noch keine Rechnung hat, generiere sie jetzt automatisch + E-Mail
-                    if ($order->invoices->isEmpty()) {
+                    if ($order->payment_status !== 'paid') {
+                        $order->completePayment();
+                        session()->flash('success', 'Zahlung bestätigt. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
+                    } elseif ($order->invoices->isEmpty()) {
                         \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
                         session()->flash('success', 'Zahlung bestätigt. Rechnung wird im Hintergrund generiert und per E-Mail versandt.');
                     } else {
@@ -579,8 +608,17 @@ class OrderOverview extends Component
 
     public function delete($orderId)
     {
-        $order = OrderOrder::find($orderId);
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen Bestellungen löschen.');
+        }
+
+        $order = OrderOrder::with('invoices')->find($orderId);
         if ($order) {
+            if ($order->payment_status === 'paid' || $order->invoices->isNotEmpty()) {
+                session()->flash('error', 'Bezahlte oder bereits abgerechnete Bestellungen dürfen gemäß GoBD nicht gelöscht werden.');
+                return;
+            }
+
             try {
                 DB::transaction(function () use ($order) {
                     $order->delete();
@@ -721,11 +759,23 @@ class OrderOverview extends Component
     {
         $shipment = \App\Models\Order\OrderShipment::find($shipmentId);
         if ($shipment && is_string($shipment->shipping_label_path) && $shipment->shipping_label_path !== '' && !str_contains($shipment->shipping_label_path, '..') && !str_contains($shipment->shipping_label_path, "\0")) {
-            if (\Illuminate\Support\Facades\Storage::disk('local')->exists($shipment->shipping_label_path)) {
-                return \Illuminate\Support\Facades\Storage::disk('local')->download($shipment->shipping_label_path);
-            }
-            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
-                return \Illuminate\Support\Facades\Storage::disk('public')->download($shipment->shipping_label_path);
+            $normalizedPath = ltrim(str_replace('\\', '/', $shipment->shipping_label_path), '/');
+            $isAllowedPath = (str_starts_with($normalizedPath, 'bestellungen/dhl_labels/') || str_starts_with($normalizedPath, 'dhl_labels/'))
+                && strtolower(pathinfo($normalizedPath, PATHINFO_EXTENSION)) === 'pdf';
+
+            if ($isAllowedPath) {
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($normalizedPath)) {
+                    $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($normalizedPath);
+                    if (!is_link($fullPath)) {
+                        return \Illuminate\Support\Facades\Storage::disk('local')->download($normalizedPath);
+                    }
+                }
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($normalizedPath)) {
+                    $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($normalizedPath);
+                    if (!is_link($fullPath)) {
+                        return \Illuminate\Support\Facades\Storage::disk('public')->download($normalizedPath);
+                    }
+                }
             }
         }
         session()->flash('error', 'Label nicht gefunden.');
@@ -747,11 +797,23 @@ class OrderOverview extends Component
 
             foreach ($order->shipments as $shipment) {
                 if (is_string($shipment->shipping_label_path) && $shipment->shipping_label_path !== '' && !str_contains($shipment->shipping_label_path, '..') && !str_contains($shipment->shipping_label_path, "\0")) {
+                    $normalizedPath = ltrim(str_replace('\\', '/', $shipment->shipping_label_path), '/');
+                    $isAllowedPath = (str_starts_with($normalizedPath, 'bestellungen/dhl_labels/') || str_starts_with($normalizedPath, 'dhl_labels/'))
+                        && strtolower(pathinfo($normalizedPath, PATHINFO_EXTENSION)) === 'pdf';
+                    if (!$isAllowedPath) {
+                        continue;
+                    }
                     $path = null;
-                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($shipment->shipping_label_path)) {
-                        $path = \Illuminate\Support\Facades\Storage::disk('local')->path($shipment->shipping_label_path);
-                    } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($shipment->shipping_label_path)) {
-                        $path = \Illuminate\Support\Facades\Storage::disk('public')->path($shipment->shipping_label_path);
+                    if (\Illuminate\Support\Facades\Storage::disk('local')->exists($normalizedPath)) {
+                        $candidate = \Illuminate\Support\Facades\Storage::disk('local')->path($normalizedPath);
+                        if (!is_link($candidate)) {
+                            $path = $candidate;
+                        }
+                    } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($normalizedPath)) {
+                        $candidate = \Illuminate\Support\Facades\Storage::disk('public')->path($normalizedPath);
+                        if (!is_link($candidate)) {
+                            $path = $candidate;
+                        }
                     }
                     if ($path) {
                         $labelJobs[] = [

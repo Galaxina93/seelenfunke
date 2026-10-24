@@ -37,13 +37,17 @@ class ProductPackagingConfigurator extends Component
     public $newWeightGrams = null;
 
     // Form fields for editing existing material
+    #[\Livewire\Attributes\Locked]
     public $editId = null;
     public $editWeightGrams = null;
 
-    protected $rules = [
-        'newType' => 'required|string',
-        'newWeightGrams' => 'required|numeric|min:1',
-    ];
+    protected function rules(): array
+    {
+        return [
+            'newType' => ['required', 'string', \Illuminate\Validation\Rule::in(array_keys(ProductPackaging::getMaterialTypes()))],
+            'newWeightGrams' => 'required|numeric|min:1|max:100000',
+        ];
+    }
 
     public function getProductProperty()
     {
@@ -57,7 +61,7 @@ class ProductPackagingConfigurator extends Component
 
     public function addMaterial()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
@@ -70,7 +74,8 @@ class ProductPackagingConfigurator extends Component
         $existing = $product->packagings()->where('material_type', $this->newType)->first();
 
         if ($existing) {
-            $existing->increment('weight_grams', $this->newWeightGrams);
+            $newTotal = min(100000, (float) $existing->weight_grams + (float) $this->newWeightGrams);
+            $existing->update(['weight_grams' => $newTotal]);
             $this->dispatch('toast', message: 'Gewicht zum bestehenden Material addiert.', type: 'info');
         } else {
             $product->packagings()->create([
@@ -91,12 +96,12 @@ class ProductPackagingConfigurator extends Component
 
     public function saveEdit()
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 
         $this->validate([
-            'editWeightGrams' => 'required|numeric|min:1'
+            'editWeightGrams' => 'required|numeric|min:1|max:100000'
         ]);
 
         $product = $this->product;
@@ -119,7 +124,7 @@ class ProductPackagingConfigurator extends Component
 
     public function deleteMaterial($id)
     {
-        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Zugriff verweigert.');
         }
 

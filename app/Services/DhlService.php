@@ -80,6 +80,9 @@ class DhlService
      */
     public function createLabels(OrderOrder $order, int $packageCount = 1, float $weightPerPackage = 1.0): array
     {
+        $packageCount = max(1, min(20, $packageCount));
+        $weightPerPackage = max(0.1, min(31.5, round($weightPerPackage, 2)));
+
         // 1. Prüfen ob die alternative Lieferadresse *wirklich* Daten enthält
         $hasShipping = !empty($order->shipping_address)
             && (isset($order->shipping_address['street']) || isset($order->shipping_address['first_name']))

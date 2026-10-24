@@ -10,6 +10,7 @@ use Livewire\Component;
 
 class ProductCategories extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
     public $selectedCategories = [];
 
@@ -22,6 +23,7 @@ class ProductCategories extends Component
 
     // Formular-Felder für Verwaltung
     public $newCategoryName = '';
+    #[\Livewire\Attributes\Locked]
     public $editingCategoryId = null;
     public $editingCategoryName = '';
 
@@ -72,13 +74,16 @@ class ProductCategories extends Component
         if($this->isManaging) return;
 
         $categoryId = (int) $categoryId;
+        if ($categoryId <= 0 || !ProductCategory::where('id', $categoryId)->exists()) {
+            return;
+        }
 
         if (in_array($categoryId, $this->selectedCategories)) {
             $this->selectedCategories = array_diff($this->selectedCategories, [$categoryId]);
             $this->product->categories()->detach($categoryId);
         } else {
             $this->selectedCategories[] = $categoryId;
-            $this->product->categories()->attach($categoryId);
+            $this->product->categories()->syncWithoutDetaching([$categoryId]);
         }
 
         $this->selectedCategories = array_values($this->selectedCategories);
@@ -93,15 +98,27 @@ class ProductCategories extends Component
         $this->loadCategories();
     }
 
+    private function generateUniqueSlug(string $name, ?int $ignoreId = null): string
+    {
+        $baseSlug = Str::slug($name) ?: 'kategorie';
+        $slug = $baseSlug;
+        $counter = 1;
+        while (ProductCategory::where('slug', $slug)->when($ignoreId, fn($q) => $q->where('id', '!=', $ignoreId))->exists()) {
+            $slug = $baseSlug . '-' . $counter;
+            $counter++;
+        }
+        return $slug;
+    }
+
     public function createCategory()
     {
         $this->validate([
-            'newCategoryName' => 'required|min:2|unique:product_categories,name'
+            'newCategoryName' => 'required|string|min:2|max:100|unique:product_categories,name'
         ]);
 
         ProductCategory::create([
-            'name' => $this->newCategoryName,
-            'slug' => Str::slug($this->newCategoryName),
+            'name' => trim($this->newCategoryName),
+            'slug' => $this->generateUniqueSlug($this->newCategoryName),
             'type' => $this->product->type, // Übernimmt den Typ des aktuellen Produkts
             'color' => 'bg-gray-100 text-gray-800' // Standard Farbe
         ]);
@@ -125,14 +142,14 @@ class ProductCategories extends Component
     public function updateCategory()
     {
         $this->validate([
-            'editingCategoryName' => 'required|min:2|unique:product_categories,name,' . $this->editingCategoryId
+            'editingCategoryName' => 'required|string|min:2|max:100|unique:product_categories,name,' . $this->editingCategoryId
         ]);
 
         $category = ProductCategory::find($this->editingCategoryId);
         if($category) {
             $category->update([
-                'name' => $this->editingCategoryName,
-                'slug' => Str::slug($this->editingCategoryName)
+                'name' => trim($this->editingCategoryName),
+                'slug' => $this->generateUniqueSlug($this->editingCategoryName, (int) $category->id)
             ]);
         }
 

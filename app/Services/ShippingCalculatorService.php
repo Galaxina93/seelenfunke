@@ -153,6 +153,7 @@ class ShippingCalculatorService
             ->where('price', 0)
             ->where('min_price', '>', $cartValueCents)
             ->where('min_weight', '<=', $totalWeight)
+            ->where(fn($sub) => $sub->where('max_weight', '>=', $totalWeight)->orWhereNull('max_weight'))
             ->orderBy('min_price', 'asc')
             ->first();
 

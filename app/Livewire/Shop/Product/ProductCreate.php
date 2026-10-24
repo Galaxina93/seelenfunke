@@ -24,6 +24,7 @@ class ProductCreate extends Component
     public $viewMode = 'list';
     public string $layoutMode = 'large'; // 'large' (Groß), 'medium' (Mittel), 'list' (Listenansicht)
     public $showArchived = false;
+    #[\Livewire\Attributes\Locked]
     public Product $product;
 
     public $currentStep = 1;
@@ -392,8 +393,15 @@ class ProductCreate extends Component
     public function removeDigitalFile()
     {
         if ($this->product->digital_download_path) {
-            // Datei vom Server löschen
-            Storage::delete($this->product->digital_download_path);
+            $downloadPath = ltrim(str_replace('\\', '/', (string) $this->product->digital_download_path), '/');
+            if (
+                $downloadPath !== ''
+                && !str_contains($downloadPath, '..')
+                && !str_contains($downloadPath, "\0")
+                && (str_starts_with($downloadPath, 'produkte/products-secure/') || str_starts_with($downloadPath, 'products-secure/'))
+            ) {
+                Storage::disk('local')->delete($downloadPath);
+            }
 
             // DB bereinigen
             $this->product->update([
@@ -537,43 +545,48 @@ class ProductCreate extends Component
         $this->product->sku = $this->sku;
         $this->product->barcode = $this->barcode;
         $this->product->brand = $this->brand;
-        $this->product->product_supplier_id = empty($this->supplier_id) ? null : $this->supplier_id;
-        $this->product->reorder_url = empty($this->reorder_url) ? null : $this->reorder_url;
+        $this->product->product_supplier_id = (!empty($this->supplier_id) && \App\Models\Product\ProductSupplier::where('id', $this->supplier_id)->exists())
+            ? $this->supplier_id
+            : null;
+        $cleanReorderUrl = trim((string) $this->reorder_url);
+        $this->product->reorder_url = ($cleanReorderUrl !== '' && preg_match('/^https?:\/\//i', $cleanReorderUrl))
+            ? $cleanReorderUrl
+            : null;
 
         // 5. Lager
         $this->product->track_quantity = (bool) $this->track_quantity;
-        $this->product->quantity = empty($this->quantity) ? 0 : (int) $this->quantity;
+        $this->product->quantity = empty($this->quantity) ? 0 : max(0, (int) $this->quantity);
         $this->product->continue_selling_when_out_of_stock = (bool) $this->continue_selling;
 
         // 6. Preis (Cent-Konvertierung)
-        $this->product->price = empty($this->price_input) ? 0 : (int) round((float)$this->price_input * 100);
+        $this->product->price = empty($this->price_input) ? 0 : max(0, (int) round((float)$this->price_input * 100));
         
         if ($this->type === 'physical') {
-            $this->product->purchase_price = $this->purchase_price_input === '' ? 0 : (int) round((float)$this->purchase_price_input * 100);
+            $this->product->purchase_price = $this->purchase_price_input === '' ? 0 : max(0, (int) round((float)$this->purchase_price_input * 100));
         } else {
             $this->product->purchase_price = 0; // Kein EK für Digital/Service
         }
         
         if($this->compare_price_input) {
-            $this->product->compare_at_price = (int) round((float)$this->compare_price_input * 100);
+            $this->product->compare_at_price = max(0, (int) round((float)$this->compare_price_input * 100));
         } else {
             $this->product->compare_at_price = null;
         }
 
         // 7. Versanddaten & physische Maße (Nur speichern wenn Typ physical ist)
         if ($this->type === 'physical') {
-            $this->product->weight = (int) $this->weight;
-            $this->product->packaging_weight = (int) $this->packaging_weight;
-            $this->product->height = (int) $this->height;
-            $this->product->width = (int) $this->width;
-            $this->product->length = (int) $this->length;
+            $this->product->weight = max(0, (int) $this->weight);
+            $this->product->packaging_weight = max(0, (int) $this->packaging_weight);
+            $this->product->height = max(0, (int) $this->height);
+            $this->product->width = max(0, (int) $this->width);
+            $this->product->length = max(0, (int) $this->length);
             $this->product->shipping_class = empty($this->shipping_class) ? null : $this->shipping_class; // Speichern!
             
             // Kalkulation & Produktion
-            $this->product->laser_runtime_minutes = $this->laser_runtime_minutes === '' ? null : (int) $this->laser_runtime_minutes;
-            $this->product->electricity_wear_factor = $this->electricity_wear_factor === '' ? 1 : (int) $this->electricity_wear_factor;
-            $this->product->marketing_cost_percent = $this->marketing_cost_percent === '' ? 15.00 : (float) $this->marketing_cost_percent;
-            $this->product->packaging_cost = $this->packaging_cost_input === '' ? 0 : (int) round((float)$this->packaging_cost_input * 100);
+            $this->product->laser_runtime_minutes = $this->laser_runtime_minutes === '' ? null : max(0, (int) $this->laser_runtime_minutes);
+            $this->product->electricity_wear_factor = $this->electricity_wear_factor === '' ? 1 : max(0, (int) $this->electricity_wear_factor);
+            $this->product->marketing_cost_percent = $this->marketing_cost_percent === '' ? 15.00 : max(0, min(100, (float) $this->marketing_cost_percent));
+            $this->product->packaging_cost = $this->packaging_cost_input === '' ? 0 : max(0, (int) round((float)$this->packaging_cost_input * 100));
         } else {
             // Bereinigung falls Typ geändert wurde
             $this->product->weight = null;
@@ -632,7 +645,11 @@ class ProductCreate extends Component
     {
         $this->validate(['new_video' => 'file|mimes:mp4,mov,qt|max:51200']);
         $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/medien';
-        $path = $this->new_video->store($folder, 'public');
+        $originalName = basename((string) $this->new_video->getClientOriginalName());
+        $ext = strtolower((string) $this->new_video->getClientOriginalExtension());
+        $safeExt = in_array($ext, ['mp4', 'mov'], true) ? $ext : 'mp4';
+        $filename = time() . '_vid_' . (Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'video') . '.' . $safeExt;
+        $path = $this->new_video->storeAs($folder, $filename, 'public');
         $gallery = $this->product->media_gallery ?? [];
         $gallery[] = ['type' => 'video', 'path' => $path];
         $this->product->media_gallery = $gallery;
@@ -732,11 +749,13 @@ class ProductCreate extends Component
 
     public function updatedNew3dModel()
     {
-        // Max 100MB & strikte .glb Dateiendungs-Prüfung
+        // Max 100MB & strikte .glb Dateiendungs- & Magic-Byte-Prüfung
         $this->validate(['new_3d_model' => 'file|max:102400']);
         $ext = strtolower((string) $this->new_3d_model->getClientOriginalExtension());
-        if ($ext !== 'glb') {
-            $this->addError('new_3d_model', 'Nur .glb 3D-Modelldateien sind erlaubt.');
+        $realPath = $this->new_3d_model->getRealPath();
+        $headerBytes = ($realPath && is_file($realPath)) ? @file_get_contents($realPath, false, null, 0, 4) : '';
+        if ($ext !== 'glb' || $headerBytes !== 'glTF') {
+            $this->addError('new_3d_model', 'Nur gültige binäre .glb 3D-Modelldateien (glTF 2.0) sind erlaubt.');
             $this->new_3d_model = null;
             return;
         }

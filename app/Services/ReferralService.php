@@ -213,33 +213,49 @@ class ReferralService
      */
     public function processOrderReferralReward(OrderOrder $order): ?MarketingGiftVoucher
     {
-        if (empty($order->coupon_code)) {
+        $hasCouponCode = !empty($order->coupon_code);
+        $hasUtmRef = !empty($order->utm_campaign_last) && str_starts_with((string) $order->utm_campaign_last, 'ref:');
+
+        if (!$hasCouponCode && !$hasUtmRef) {
+            return null;
+        }
+
+        // Keine Empfehlungsprämie für 0-Euro-Bestellungen ausstellen
+        if ((int) ($order->total_price ?? 0) <= 0) {
             return null;
         }
 
         $voucherToSend = null;
         $referralFound = null;
 
-        $voucher = DB::transaction(function () use ($order, &$voucherToSend, &$referralFound) {
-            $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))
-                ->lockForUpdate()
-                ->first();
+        $voucher = DB::transaction(function () use ($order, $hasCouponCode, $hasUtmRef, &$voucherToSend, &$referralFound) {
+            $referral = null;
+
+            if ($hasCouponCode) {
+                $referral = MarketingReferral::where('code', strtoupper(trim((string) $order->coupon_code)))
+                    ->lockForUpdate()
+                    ->first();
+            }
 
             // Fallback: Prüfen ob Referrer via Cookie/Session übergeben wurde
-            if (!$referral && !empty($order->utm_campaign_last) && str_starts_with($order->utm_campaign_last, 'ref:')) {
-                $refCode = substr($order->utm_campaign_last, 4);
+            if (!$referral && $hasUtmRef) {
+                $refCode = substr((string) $order->utm_campaign_last, 4);
                 $referral = MarketingReferral::where('code', strtoupper(trim($refCode)))
                     ->lockForUpdate()
                     ->first();
             }
 
-            if (!$referral) {
+            if (!$referral || !$referral->is_active) {
                 return null;
             }
 
-            // Verhindere Eigen-Belohnung
-            if (strtolower(trim($order->email)) === strtolower(trim($referral->referrer_email))) {
-                Log::warning("Referral Reward abgewiesen: Käufer {$order->email} ist identisch mit Werber {$referral->referrer_email}.");
+            // Verhindere Eigen-Belohnung (E-Mail oder Customer-ID)
+            $isSelfEmail = !empty($order->email) && strtolower(trim((string) $order->email)) === strtolower(trim((string) $referral->referrer_email));
+            $isSelfCustomer = !empty($order->customer_id) && !empty($referral->referrer_customer_id)
+                && (string) $order->customer_id === (string) $referral->referrer_customer_id;
+
+            if ($isSelfEmail || $isSelfCustomer) {
+                Log::warning("Referral Reward abgewiesen: Käufer ({$order->email} / {$order->customer_id}) ist identisch mit Werber ({$referral->referrer_email} / {$referral->referrer_customer_id}).");
                 return null;
             }
 
@@ -331,14 +347,29 @@ class ReferralService
      */
     public function reverseOrderReferralReward(OrderOrder $order): bool
     {
-        if (empty($order->coupon_code)) {
+        $hasCouponCode = !empty($order->coupon_code);
+        $hasUtmRef = !empty($order->utm_campaign_last) && str_starts_with((string) $order->utm_campaign_last, 'ref:');
+
+        if (!$hasCouponCode && !$hasUtmRef) {
             return false;
         }
 
-        return DB::transaction(function () use ($order) {
-            $referral = MarketingReferral::where('code', strtoupper(trim($order->coupon_code)))
-                ->lockForUpdate()
-                ->first();
+        return DB::transaction(function () use ($order, $hasCouponCode, $hasUtmRef) {
+            $referral = null;
+
+            if ($hasCouponCode) {
+                $referral = MarketingReferral::where('code', strtoupper(trim((string) $order->coupon_code)))
+                    ->lockForUpdate()
+                    ->first();
+            }
+
+            if (!$referral && $hasUtmRef) {
+                $refCode = substr((string) $order->utm_campaign_last, 4);
+                $referral = MarketingReferral::where('code', strtoupper(trim($refCode)))
+                    ->lockForUpdate()
+                    ->first();
+            }
+
             if (!$referral) {
                 return false;
             }

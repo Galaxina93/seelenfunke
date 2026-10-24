@@ -25,6 +25,7 @@ class ProductCrawler extends Component
 
     // History Properties (V2)
     public $savedRuns = [];
+    #[\Livewire\Attributes\Locked]
     public $selectedRunId = null;
     public $historicalRunData = null;
     public $historicalTop3Data = null;
@@ -77,6 +78,10 @@ class ProductCrawler extends Component
 
     public function deleteRun($id)
     {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen gespeicherte Crawler-Läufe löschen.');
+        }
+
         \App\Models\Product\ProductNicheCrawlerRun::destroy($id);
         if ($this->selectedRunId == $id) {
             $this->loadHistoricalRun(null);
@@ -135,14 +140,37 @@ class ProductCrawler extends Component
 
     public function dispatchCrawler()
     {
-        if (empty($this->crawlPlatforms)) {
+        $cleanKeyword = trim((string) $this->crawlKeyword);
+        if ($cleanKeyword === '' || mb_strlen($cleanKeyword) < 2 || mb_strlen($cleanKeyword) > 120) {
+            session()->flash('error', 'Bitte gib einen gültigen Suchbegriff (2–120 Zeichen) ein.');
+            return;
+        }
+
+        if (empty($this->crawlPlatforms) || !is_array($this->crawlPlatforms)) {
             session()->flash('error', 'Bitte wähle mindestens eine Plattform aus.');
             return;
         }
 
-        $activeJobs = Cache::get('active_crawler_jobs', []);
+        $safePlatforms = array_slice(array_values(array_unique(array_filter(
+            array_map(fn($p) => trim((string) $p), $this->crawlPlatforms),
+            fn($p) => (bool) preg_match('/^[a-zA-Z0-9_-]{2,32}$/', $p)
+        ))), 0, 5);
 
-        foreach ($this->crawlPlatforms as $platform) {
+        if (empty($safePlatforms)) {
+            session()->flash('error', 'Ungültige Plattform-Auswahl.');
+            return;
+        }
+
+        $activeJobs = Cache::get('active_crawler_jobs', []);
+        if (!is_array($activeJobs)) {
+            $activeJobs = [];
+        }
+        if (count($activeJobs) >= 15) {
+            session()->flash('error', 'Zu viele aktive Crawler-Jobs in der Warteschlange.');
+            return;
+        }
+
+        foreach ($safePlatforms as $platform) {
             $jobId = uniqid('crawler_') . '_' . strtolower($platform);
 
             if (!in_array($jobId, $activeJobs)) {
@@ -151,14 +179,14 @@ class ProductCrawler extends Component
 
             Cache::put("crawler_job_{$jobId}", [
                 'id' => $jobId,
-                'keyword' => $this->crawlKeyword,
+                'keyword' => $cleanKeyword,
                 'platform' => $platform,
                 'progress' => 1,
                 'status' => 'Job in Warteschlange...',
                 'is_running' => true
             ], 600);
 
-            RunProductNicheCrawlerJob::dispatch($jobId, $platform, $this->crawlKeyword);
+            RunProductNicheCrawlerJob::dispatch($jobId, $platform, $cleanKeyword);
         }
 
         Cache::put('active_crawler_jobs', $activeJobs, 3600);
@@ -172,6 +200,12 @@ class ProductCrawler extends Component
 
     public function cancelCrawler($jobId)
     {
+        $jobId = (string) $jobId;
+        if (!preg_match('/^crawler_[a-zA-Z0-9_.-]+$/', $jobId)) {
+            session()->flash('error', 'Ungültige Job-ID.');
+            return;
+        }
+
         Cache::put("cancel_crawler_{$jobId}", true, 600);
 
         $activeJobs = Cache::get('active_crawler_jobs', []);
@@ -185,6 +219,10 @@ class ProductCrawler extends Component
 
     public function clearData()
     {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403, 'Nur Administratoren dürfen alle Crawler-Daten zurücksetzen.');
+        }
+
         ProductNicheItem::truncate();
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_rec');
         \Illuminate\Support\Facades\Cache::forget('niche_scanner_live_ai_agent');

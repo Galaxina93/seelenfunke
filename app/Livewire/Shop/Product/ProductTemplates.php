@@ -25,13 +25,16 @@ class ProductTemplates extends Component
     public $viewMode = 'list';
 
     // Formulardaten für die Vorlage
+    #[\Livewire\Attributes\Locked]
     public $selectedProductId = null;
     public $templateName = '';
     public $templateIsActive = true;
     public $templateHoliday = '';
     public $templateConfig = [];
+    #[\Livewire\Attributes\Locked]
     public $editingTemplateId = null;
     public $templateImage;
+    #[\Livewire\Attributes\Locked]
     public $existingTemplateImagePath = null;
     public $removeExistingImage = false;
 
@@ -63,6 +66,9 @@ class ProductTemplates extends Component
 
     public function selectProduct($productId)
     {
+        if (!Product::where('id', $productId)->exists()) {
+            return;
+        }
         $this->selectedProductId = $productId;
         $this->viewMode = 'configure';
     }
@@ -114,10 +120,23 @@ class ProductTemplates extends Component
     #[On('save-template-data')]
     public function handleTemplateSaved($configData, $previewImagePath = null)
     {
-        $this->templateConfig = $configData;
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        $product = $this->selectedProductId ? Product::find($this->selectedProductId) : null;
+        if (!$product) {
+            $this->addError('templateName', 'Bitte wählen Sie ein gültiges Produkt aus.');
+            return;
+        }
+        if (is_array($configData)) {
+            $configData = app(\App\Services\CartService::class)->sanitizeConfiguration($product, $configData) ?? $configData;
+        }
+        $this->templateConfig = is_array($configData) ? $configData : [];
 
         $this->validate([
             'templateName' => 'required|string|max:255',
+            'templateHoliday' => 'nullable|string|max:100',
             'templateImage' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
         ], [
             'templateName.required' => 'Bitte geben Sie der Vorlage einen Namen.',
@@ -126,26 +145,45 @@ class ProductTemplates extends Component
         ]);
 
         $template = ProductTemplate::findOrNew($this->editingTemplateId);
-        $template->product_id = $this->selectedProductId;
+        $template->product_id = $product->id;
         $template->name = $this->templateName;
-        $template->configuration = $configData;
-        $template->is_active = $this->templateIsActive;
+        $template->configuration = $this->templateConfig;
+        $template->is_active = (bool) $this->templateIsActive;
         $template->holiday = $this->templateHoliday ?: null;
 
         // Bild-Verarbeitung
         if ($this->templateImage) {
+            $realPath = $this->templateImage->getRealPath();
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+            finfo_close($finfo);
+            $ext = strtolower((string) $this->templateImage->getClientOriginalExtension());
+            if (!in_array($detectedMime, ['image/jpeg', 'image/png', 'image/webp'], true) || !in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+                $this->addError('templateImage', 'Die Datei muss ein gültiges Bildformat sein.');
+                return;
+            }
             // HIER AUCH DER FIX: Altes Bild nur löschen, wenn es ein Vorlagen-Bild ist
             if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
                 Storage::disk('public')->delete($template->preview_image);
             }
-            $template->preview_image = $this->templateImage->store('produkte/product-templates', 'public');
+            $template->preview_image = $this->templateImage->storeAs('produkte/product-templates', Str::uuid() . '.' . $ext, 'public');
         } elseif ($this->removeExistingImage) {
             if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
                 Storage::disk('public')->delete($template->preview_image);
             }
             $template->preview_image = null;
-        } elseif ($previewImagePath && !$template->exists) {
-            $template->preview_image = $previewImagePath;
+        } elseif (is_string($previewImagePath) && $previewImagePath !== '' && !$template->exists) {
+            $cleanPreview = ltrim(str_replace('\\', '/', trim($previewImagePath)), '/');
+            $previewExt = strtolower(pathinfo($cleanPreview, PATHINFO_EXTENSION));
+            if (
+                !str_contains($cleanPreview, '..')
+                && !str_contains($cleanPreview, "\0")
+                && !str_contains($cleanPreview, ':')
+                && (Str::startsWith($cleanPreview, 'produkte/') || Str::startsWith($cleanPreview, 'shop/'))
+                && in_array($previewExt, ['jpg', 'jpeg', 'png', 'webp'], true)
+            ) {
+                $template->preview_image = $cleanPreview;
+            }
         }
 
         $template->save();

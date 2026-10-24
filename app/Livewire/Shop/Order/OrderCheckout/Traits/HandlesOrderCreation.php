@@ -81,6 +81,23 @@ trait HandlesOrderCreation
                 ]);
             }
 
+            // [SICHERHEIT] Artikel-Verfügbarkeit & Lagerbestand vor Order-Erstellung prüfen
+            if (!session()->has('checkout_from_quote_id')) {
+                foreach ($cart->items as $item) {
+                    $product = $item->product;
+                    if (!$product || $product->status !== 'active') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'cart' => 'Ein Artikel in deinem Warenkorb ist derzeit nicht mehr verfügbar.'
+                        ]);
+                    }
+                    if ($product->type === 'physical' && $product->track_quantity && !$product->continue_selling_when_out_of_stock && $product->quantity > 0 && $product->quantity < $item->quantity) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'cart' => "Der Artikel '{$product->name}' ist leider nicht mehr in der gewünschten Menge auf Lager."
+                        ]);
+                    }
+                }
+            }
+
             // [NEU] SICHERHEITSCHECK FÜR GUTSCHEINE
             if ($cart->coupon_code) {
                 $coupon = \App\Models\Marketing\MarketingGiftVoucher::where('code', $cart->coupon_code)->first();
@@ -100,7 +117,8 @@ trait HandlesOrderCreation
                 }
 
                 // Referral-Sicherheitscheck gegen die eingegebene Checkout-E-Mail (Eigenwerbung & Neukundenschutz)
-                $checkoutCustomerId = Auth::guard('customer')->check() ? Auth::guard('customer')->id() : null;
+                $authCustomer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
+                $checkoutCustomerId = $authCustomer ? $authCustomer->id : null;
                 $referralCheck = app(\App\Services\ReferralService::class)->validateReferralCode($cart->coupon_code, $this->email, $checkoutCustomerId);
                 if ($referralCheck['is_referral'] && !$referralCheck['valid']) {
                     $cart->update(['coupon_code' => null]);
@@ -109,22 +127,34 @@ trait HandlesOrderCreation
                     ]);
                 }
 
-                // [SICHERHEIT] Persönliche Belohnungsgutscheine strikt an die Checkout-E-Mail binden
+                // [SICHERHEIT] Persönliche Belohnungsgutscheine strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
                 if ($coupon instanceof \App\Models\Marketing\MarketingGiftVoucher && !empty($coupon->recipient_email) && str_starts_with($coupon->code, 'DANKE-')) {
-                    if (strtolower(trim($this->email)) !== strtolower(trim($coupon->recipient_email))) {
+                    $recipientTarget = strtolower(trim($coupon->recipient_email));
+                    if (
+                        !$authCustomer
+                        || !$authCustomer->hasVerifiedEmail()
+                        || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
+                        || strtolower(trim((string) $this->email)) !== $recipientTarget
+                    ) {
                         $cart->update(['coupon_code' => null]);
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein anderes Kundenkonto gebunden und kann mit dieser E-Mail-Adresse nicht eingelöst werden.'
+                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.'
                         ]);
                     }
                 }
 
-                // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an die Checkout-E-Mail binden
+                // [SICHERHEIT] Persönliche Belohnungsgutscheine (z.B. Gamification Meilensteine) strikt an das verifizierte Kundenkonto UND die Checkout-E-Mail binden
                 if ($coupon instanceof MarketingVoucher && !empty($coupon->recipient_email)) {
-                    if (strtolower(trim($this->email)) !== strtolower(trim($coupon->recipient_email))) {
+                    $recipientTarget = strtolower(trim($coupon->recipient_email));
+                    if (
+                        !$authCustomer
+                        || !$authCustomer->hasVerifiedEmail()
+                        || strtolower(trim((string) $authCustomer->email)) !== $recipientTarget
+                        || strtolower(trim((string) $this->email)) !== $recipientTarget
+                    ) {
                         $cart->update(['coupon_code' => null]);
                         throw \Illuminate\Validation\ValidationException::withMessages([
-                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein anderes Kundenkonto gebunden und kann mit dieser E-Mail-Adresse nicht eingelöst werden.'
+                            'coupon' => 'Dieser persönliche Belohnungsgutschein ist an ein verifiziertes Kundenkonto gebunden und kann nur nach Anmeldung mit dieser E-Mail-Adresse eingelöst werden.'
                         ]);
                     }
                 }
@@ -186,7 +216,7 @@ trait HandlesOrderCreation
                         'city' => $this->city,
                         'postal' => $this->postal_code,
                         'country' => $this->country,
-                        'email_verified_at' => now(),
+                        'email_verified_at' => null,
                     ]);
                 } else {
                     $customer->profile()->create([
@@ -195,7 +225,7 @@ trait HandlesOrderCreation
                         'city' => $this->city,
                         'postal' => $this->postal_code,
                         'country' => $this->country,
-                        'email_verified_at' => now(),
+                        'email_verified_at' => null,
                     ]);
                 }
             }
@@ -311,8 +341,16 @@ trait HandlesOrderCreation
                 ]);
             }
 
+            session(['checkout_order_id' => $order->id]);
+
             if ($order->total_price == 0 && $order->subtotal_price > 0 && $order->discount_amount >= $order->subtotal_price) {
-                $order->completePayment(null);
+                try {
+                    $order->completePayment(null);
+                } catch (\RuntimeException $e) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'coupon' => $e->getMessage()
+                    ]);
+                }
             }
 
             return $order->id;

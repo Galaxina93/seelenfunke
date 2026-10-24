@@ -23,8 +23,10 @@ class OrderShoppingCarts extends Component
     use WithPagination;
 
     public $search = '';
+    #[\Livewire\Attributes\Locked]
     public $detailCartId = null;
     public $quantityUpdates = [];
+    #[\Livewire\Attributes\Locked]
     public $editingItemId = null;
     
     public $cartYellowLimit = 3;
@@ -163,10 +165,10 @@ class OrderShoppingCarts extends Component
     public function updateQuantity($itemId, CartService $cartService)
     {
         $item = CartItem::when($this->detailCartId, fn($q) => $q->where('cart_id', $this->detailCartId))->find($itemId);
-        $newQuantity = $this->quantityUpdates[$itemId] ?? null;
+        $newQuantity = isset($this->quantityUpdates[$itemId]) ? (int) $this->quantityUpdates[$itemId] : null;
 
         if ($item && $newQuantity !== null && $newQuantity > 0) {
-            $cartService->updateQuantity($itemId, $newQuantity);
+            $cartService->updateQuantity($itemId, min(100, $newQuantity));
             $this->viewDetails($item->cart_id);
             session()->flash('success', 'Menge erfolgreich aktualisiert.');
         }
@@ -181,9 +183,20 @@ class OrderShoppingCarts extends Component
             return;
         }
 
+        if ($cart->items->isEmpty()) {
+            session()->flash('error', 'Für einen leeren Warenkorb kann keine Erinnerungs-E-Mail versendet werden.');
+            return;
+        }
+
         // Rechtlicher Schutz: Wurde widersprochen? (§ 7 Abs. 3 UWG / Art. 21 DSGVO)
         if ($cart->customer->profile?->cart_reminder_unsubscribed_at !== null) {
             session()->flash('error', 'Rechtlicher Schutz nach § 7 UWG: Dieser Kunde hat dem Erhalt von Warenkorb-Erinnerungen widersprochen (Opt-Out am ' . $cart->customer->profile->cart_reminder_unsubscribed_at->format('d.m.Y H:i') . ' Uhr). Ein erneuter Versand ist untersagt.');
+            return;
+        }
+
+        // Rechtssicherheitsprüfung: Liegt ein verifiziertes Werbe-Opt-In (Double-Opt-In) vor?
+        if (!$cart->customer->allowsCartReminders()) {
+            session()->flash('error', 'Rechtlicher Schutz nach § 7 Abs. 2 UWG: Dieser Kunde hat keine verifizierte Werbeeinwilligung (Double-Opt-In).');
             return;
         }
 
@@ -200,8 +213,12 @@ class OrderShoppingCarts extends Component
     
     public function deleteCart($cartId)
     {
-        $cart = Cart::find($cartId);
+        $cart = Cart::with('items')->find($cartId);
         if ($cart) {
+            $cleanupService = app(\App\Services\CartFileCleanupService::class);
+            foreach ($cart->items as $item) {
+                $cleanupService->cleanupCartItemFiles($item);
+            }
             $cart->delete(); // Cascades on DB level or model events should handle items
             if ($this->detailCartId === $cartId) {
                 $this->closeDetails();

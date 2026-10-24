@@ -39,8 +39,11 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
         $xmlPath = null;
 
         try {
-            // Invoice Model in DB erstellen
-            $invoice = $invoiceService->createFromOrder($this->order);
+            // Invoice Model in DB erstellen (idempotent bei Queue-Retries)
+            $invoice = $this->order->invoices()->where('type', 'invoice')->first();
+            if (!$invoice) {
+                $invoice = $invoiceService->createFromOrder($this->order);
+            }
 
             // A) PDF Generieren & über InvoiceService GoBD-konform archivieren
             if ($invoice) {
@@ -58,7 +61,7 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             if ($invoice && $isBusiness) {
                 try {
                     $relativePath = $xmlService->generate($invoice);
-                    $xmlPath = storage_path("app/{$relativePath}");
+                    $xmlPath = \Illuminate\Support\Facades\Storage::disk('local')->path($relativePath);
                 } catch (\Exception $e) {
                     Log::error("XML-Generierung fehlgeschlagen für {$this->order->order_number}: " . $e->getMessage());
                 }
@@ -128,9 +131,18 @@ class ProcessOrderDocumentsAndMails implements ShouldQueue
             try {
                 Mail::to($this->order->email)
                     ->sendNow(new NewOrderMailToCustomer($mailData, $pdfPath, $xmlPath, $snapshotPaths));
+
+                // Klartext-Initialpasswort sofort nach erfolgreichem Versand aus der Datenbank entfernen
+                if ($this->order->customer && !empty($this->order->customer->temporary_password)) {
+                    $this->order->customer->update(['temporary_password' => null]);
+                }
             } catch (\Throwable $customerEx) {
                 Log::error("Kunden-Bestellbestätigung konnte nicht gesendet werden für {$this->order->order_number}: " . $customerEx->getMessage());
             }
+
+            // Initialpasswort niemals an Admin-Sammelpostfach weiterleiten
+            $mailData['customer_temporary_password'] = null;
+            $mailData['customer_needs_password_change'] = false;
 
             // 2b. Admin-Benachrichtigung direkt synchron via SMTP senden
             if (shop_setting('send_order_email_to_admin', true)) {

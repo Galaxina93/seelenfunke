@@ -10,9 +10,11 @@ use Livewire\Component;
 
 class ProductShow extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
     public $showTemplateSelection = false;
     public $showTemplatesList = false;
+    #[\Livewire\Attributes\Locked]
     public $productTemplates = [];
     public $currentConfig = [];
 

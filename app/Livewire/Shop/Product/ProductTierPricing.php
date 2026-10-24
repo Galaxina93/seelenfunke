@@ -10,6 +10,7 @@ use Livewire\Component;
 
 class ProductTierPricing extends Component
 {
+    #[\Livewire\Attributes\Locked]
     public Product $product;
 
     #[Reactive]
@@ -50,8 +51,12 @@ class ProductTierPricing extends Component
 
     public function addTier()
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
+        }
+
+        if ($this->product->tierPrices()->count() >= 50) {
+            return;
         }
 
         $this->product->tierPrices()->create([
@@ -64,7 +69,7 @@ class ProductTierPricing extends Component
 
     public function removeTier($tierId)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -74,7 +79,7 @@ class ProductTierPricing extends Component
 
     public function updateTier($tierId)
     {
-        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check()) {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 

@@ -109,11 +109,13 @@ trait HandlesStripePayment
                 return;
             }
 
-            // Session Ownership Check (IDOR Protection)
+            // Session Ownership Check (IDOR Protection - niemals über client-mutierbare $this->email!)
             $isOwner = false;
             if (Auth::guard('customer')->check() && $candidate->customer_id === Auth::guard('customer')->id()) {
                 $isOwner = true;
-            } elseif (!empty($this->email) && strtolower($candidate->email) === strtolower($this->email)) {
+            } elseif (Session::get('checkout_order_id') === $candidate->id) {
+                $isOwner = true;
+            } elseif (!empty($this->currentPaymentIntentId) && $candidate->stripe_payment_intent_id === $this->currentPaymentIntentId) {
                 $isOwner = true;
             }
 
@@ -158,13 +160,13 @@ trait HandlesStripePayment
         if ($order) {
             // 2. Serverseitige Verifikation über die Stripe API für kostenpflichtige Bestellungen
             if ($order->total_price > 0) {
-                if (empty($order->stripe_payment_intent_id) && !app()->environment('testing')) {
-                    $this->addError('payment', 'Keine gültige Zahlungsinformation vorhanden.');
-                    return;
-                }
+                if (!app()->environment('testing')) {
+                    $stripeSecret = config('services.stripe.secret');
+                    if (empty($order->stripe_payment_intent_id) || empty($stripeSecret)) {
+                        $this->addError('payment', 'Keine gültige Zahlungsinformation vorhanden.');
+                        return;
+                    }
 
-                $stripeSecret = config('services.stripe.secret');
-                if (!app()->environment('testing') && $stripeSecret && !empty($order->stripe_payment_intent_id)) {
                     Stripe::setApiKey($stripeSecret);
                     try {
                         $intent = PaymentIntent::retrieve($order->stripe_payment_intent_id);
@@ -189,7 +191,14 @@ trait HandlesStripePayment
             }
 
             // Fulfill the order using the unified, idempotent completePayment method
-            $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
+            try {
+                $order->completePayment($order->stripe_payment_intent_id ?: $this->currentPaymentIntentId);
+            } catch (\Throwable $e) {
+                Log::error("Fehler beim Abschluss von Order {$order->order_number}: " . $e->getMessage());
+                $this->addError('payment', $e->getMessage());
+                return;
+            }
+            Session::forget('checkout_order_id');
 
             $this->finalOrderNumber = $order->order_number;
 

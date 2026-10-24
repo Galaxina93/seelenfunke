@@ -86,7 +86,13 @@ class CartService
                 }
 
                 $coupon = MarketingVoucher::where('code', $pendingCoupon)->where('is_active', true)->first();
-                if ($coupon && $coupon->isValid()) {
+                $personalCouponAllowed = true;
+                if ($coupon && !empty($coupon->recipient_email)) {
+                    $personalCouponAllowed = $customer
+                        && $customer->hasVerifiedEmail()
+                        && strtolower(trim((string) $buyerEmail)) === strtolower(trim($coupon->recipient_email));
+                }
+                if ($coupon && $coupon->isValid() && $personalCouponAllowed) {
                     $cart->update(['coupon_code' => $coupon->code]);
                     $cart->coupon_code = $coupon->code;
                 } else {
@@ -102,6 +108,10 @@ class CartService
      */
     public function addItem(Product $product, int $quantity = 1, ?array $configuration = null): void
     {
+        if ($product->status !== 'active' && !auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+            return;
+        }
+
         $quantity = max(1, min(100, $quantity));
         $configuration = $this->sanitizeConfiguration($product, $configuration);
         $cart = $this->getCart();
@@ -302,9 +312,7 @@ class CartService
                 return json_encode($qItem->configuration) === json_encode($configuration);
             });
 
-            $matchingQuoteItem = $matchingQuoteItem ?? $quoteItems->first();
-
-            if ($matchingQuoteItem) {
+            if ($matchingQuoteItem && $qty >= max(1, (int) $matchingQuoteItem->quantity)) {
                 return $matchingQuoteItem->unit_price;
             }
         }
@@ -441,8 +449,9 @@ class CartService
                 return ['success' => false, 'message' => 'Dieser Gutschein ist abgelaufen.'];
             }
 
-            // [SICHERHEIT] Persönliche Belohnungsgutscheine an das Kundenkonto binden
-            $currentBuyerEmail = Auth::guard('customer')->check() ? Auth::guard('customer')->user()->email : null;
+            // [SICHERHEIT] Persönliche Belohnungsgutscheine an das verifizierte Kundenkonto binden
+            $currentBuyerCustomer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
+            $currentBuyerEmail = ($currentBuyerCustomer && $currentBuyerCustomer->hasVerifiedEmail()) ? $currentBuyerCustomer->email : null;
             if (!empty($giftVoucher->recipient_email) && str_starts_with($giftVoucher->code, 'DANKE-')) {
                 if (!$currentBuyerEmail || strtolower(trim($currentBuyerEmail)) !== strtolower(trim($giftVoucher->recipient_email))) {
                     return [
@@ -453,6 +462,25 @@ class CartService
             }
 
             $cart = $this->getCart();
+
+            // Kein Gutschein-für-Gutschein-Kauf (UStG / Geldwäsche- & Gültigkeitsverlängerungs-Schutz)
+            $nonVoucherSubtotal = 0;
+            foreach ($cart->items as $item) {
+                $product = $item->product;
+                if (!$product) continue;
+                $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
+                if (!$isGiftVoucher) {
+                    $nonVoucherSubtotal += $item->unit_price * $item->quantity;
+                }
+            }
+
+            if ($nonVoucherSubtotal <= 0) {
+                return [
+                    'success' => false,
+                    'message' => 'Gutscheine können nicht für den Kauf weiterer Geschenkgutscheine eingelöst werden.'
+                ];
+            }
+
             $cart->update(['coupon_code' => $giftVoucher->code]);
             return ['success' => true, 'message' => 'Geschenkgutschein erfolgreich angewendet!'];
         }
@@ -473,9 +501,9 @@ class CartService
             return ['success' => false, 'message' => 'Gutschein ist ungültig oder abgelaufen.'];
         }
 
-        // [SICHERHEIT] Persönliche Belohnungsgutscheine an das Kundenkonto binden
+        // [SICHERHEIT] Persönliche Belohnungsgutscheine an das verifizierte Kundenkonto binden
         if (!empty($coupon->recipient_email)) {
-            if (!$buyerEmail || strtolower(trim($buyerEmail)) !== strtolower(trim($coupon->recipient_email))) {
+            if (!$customer || !$customer->hasVerifiedEmail() || !$buyerEmail || strtolower(trim($buyerEmail)) !== strtolower(trim($coupon->recipient_email))) {
                 return [
                     'success' => false,
                     'message' => 'Dieser Belohnungsgutschein ist persönlich an das Kundenkonto (' . $this->maskEmail($coupon->recipient_email) . ') gebunden. Bitte melde dich an, um ihn einzulösen.'
@@ -651,18 +679,49 @@ class CartService
         $couponCode = $cart->coupon_code;
 
         if ($couponCode) {
+            $activeCustomer = Auth::guard('customer')->check() ? Auth::guard('customer')->user() : null;
+            $verifiedBuyerEmail = ($activeCustomer && $activeCustomer->hasVerifiedEmail()) ? strtolower(trim((string) $activeCustomer->email)) : null;
+
             // A) Zuerst prüfen, ob es sich um einen Wertgutschein handelt
             $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $couponCode)->where('is_active', true)->first();
-            if ($giftVoucher && $giftVoucher->isValid()) {
-                // Wertgutschein deckt das gesamte Order-Total (inklusive Versand) ab!
-                $discountAmount = min($giftVoucher->current_balance, $totalBeforeDiscount);
-                $discountProducts = min($discountAmount, $subtotalGross);
-                $discountShipping = $discountAmount - $discountProducts;
+            $personalGiftAllowed = true;
+            if ($giftVoucher && !empty($giftVoucher->recipient_email) && str_starts_with($giftVoucher->code, 'DANKE-')) {
+                $personalGiftAllowed = $verifiedBuyerEmail !== null && $verifiedBuyerEmail === strtolower(trim($giftVoucher->recipient_email));
+            }
+
+            if ($giftVoucher && $giftVoucher->isValid() && $personalGiftAllowed) {
+                $nonVoucherSubtotal = 0;
+                foreach ($cart->items as $item) {
+                    $product = $item->product;
+                    if (!$product) continue;
+                    $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
+                    if (!$isGiftVoucher) {
+                        $nonVoucherSubtotal += $item->unit_price * $item->quantity;
+                    }
+                }
+
+                if ($nonVoucherSubtotal <= 0) {
+                    $cart->update(['coupon_code' => null]);
+                    $couponCode = null;
+                } else {
+                    // Wertgutschein deckt das gesamte nicht-Gutschein-Order-Total (inklusive Versand/Express) ab!
+                    $redeemableCap = $nonVoucherSubtotal + $shippingGross + $expressGross;
+                    $discountAmount = min($giftVoucher->current_balance, $redeemableCap);
+                    $discountProducts = min($discountAmount, $nonVoucherSubtotal);
+                    $discountShipping = $discountAmount - $discountProducts;
+                }
+            } elseif ($giftVoucher && !$personalGiftAllowed) {
+                $cart->update(['coupon_code' => null]);
+                $couponCode = null;
             } else {
                 // B) Sonst normaler Marketing-Gutschein (Rabattcode)
                 $coupon = MarketingVoucher::where('code', $couponCode)->first();
+                $personalCouponAllowed = true;
+                if ($coupon && !empty($coupon->recipient_email)) {
+                    $personalCouponAllowed = $verifiedBuyerEmail !== null && $verifiedBuyerEmail === strtolower(trim($coupon->recipient_email));
+                }
 
-                if ($coupon && $coupon->isValid()) {
+                if ($coupon && $coupon->isValid() && $personalCouponAllowed) {
                     // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine)
                     $discountableSubtotal = 0;
                     foreach ($cart->items as $item) {

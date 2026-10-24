@@ -312,6 +312,13 @@ class OrderCheckout extends Component
                 return;
             }
 
+            if (!$customer->hasVerifiedEmail()) {
+                \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+                SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, false, 'checkout_unverified_customer');
+                $this->loginError = 'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse, bevor Sie sich anmelden.';
+                return;
+            }
+
             if ($customer->profile && $customer->profile->two_factor_is_active) {
                 \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
                 session([
@@ -367,7 +374,7 @@ class OrderCheckout extends Component
         } else {
             \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
 
-            SystemSecurityService::recordLoginAttempt($this->loginEmail, false, $ip, 'checkout_login_failed');
+            SystemSecurityService::recordLoginAttempt($this->loginEmail, $ip, false, 'checkout_login_failed');
 
             $this->loginError = 'Zugangsdaten nicht korrekt.';
         }

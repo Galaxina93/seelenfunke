@@ -14,21 +14,20 @@ class FileDownloadService
 {
     public function downloadHealthTreatmentPlanPdf($planId)
     {
-        $isAdmin = \Illuminate\Support\Facades\Auth::guard('admin')->check();
-        $user = \Illuminate\Support\Facades\Auth::user();
+        $isAdmin = \Illuminate\Support\Facades\Auth::guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin();
 
-        $plan = \App\Models\Ai\AiHealthTreatmentPlan::with('items')->findOrFail($planId);
-
-        if (!$isAdmin && (!$user || (string)$user->id !== (string)$plan->user_id)) {
+        if (!$isAdmin) {
             abort(403, 'Zugriff verweigert.');
         }
+
+        $plan = \App\Models\Ai\AiHealthTreatmentPlan::with('items')->findOrFail($planId);
 
         $pdf = Pdf::loadView('global.pdf.health-treatment-plan', [
             'plan' => $plan,
         ])->setOption('isRemoteEnabled', false);
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'Behandlungsplan_' . Str::slug($plan->title) . '.pdf');
+        }, 'Behandlungsplan_' . (Str::slug($plan->title) ?: 'Plan') . '.pdf');
     }
 
     public function downloadProductAnalyticsFullReportPdf()
@@ -128,18 +127,33 @@ class FileDownloadService
 
     public function downloadMailAttachment($id)
     {
-        if (!Auth::guard('admin')->check() && !(Auth::check() && Auth::user() instanceof Admin)) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Unautorisierter Zugriff auf E-Mail-Anhänge.');
         }
 
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
         
-        $path = $attachment->path;
-        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+        $path = str_replace('\\', '/', (string) $attachment->path);
+        $allowedPrefixes = ['leitung/crm/mail-attachments/', 'mail-attachments/', 'temp/mail-attachments/'];
+        $hasAllowedPrefix = false;
+        foreach ($allowedPrefixes as $prefix) {
+            if (str_starts_with($path, $prefix)) {
+                $hasAllowedPrefix = true;
+                break;
+            }
+        }
+
+        if (
+            !$path
+            || !$hasAllowedPrefix
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || str_starts_with($path, '/')
+        ) {
             abort(403, 'Ungültiger Dateipfad.');
         }
 
-        if (!Storage::exists($path)) {
+        if (!Storage::exists($path) || is_link(Storage::path($path))) {
             abort(404, 'Datei im Tresor nicht gefunden.');
         }
 
@@ -148,7 +162,7 @@ class FileDownloadService
         ];
         $contentType = $attachment->content_type ?: 'application/octet-stream';
         $disposition = in_array(strtolower($contentType), $safeMimes, true) ? 'inline' : 'attachment';
-        $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($attachment->filename ?: 'attachment'));
+        $cleanFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($attachment->filename ?: 'attachment')) ?: 'attachment';
 
         return response()->streamDownload(function () use ($path) {
             echo Storage::get($path);
@@ -161,7 +175,7 @@ class FileDownloadService
 
     public function downloadTaxExport($filename)
     {
-        if (!Auth::guard('admin')->check() && !(Auth::check() && Auth::user() instanceof Admin)) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403, 'Unautorisierter Zugriff auf Steuerexporte.');
         }
 
@@ -180,7 +194,7 @@ class FileDownloadService
 
         $path = storage_path('app/buchhaltung/tax_exports/' . $safeName);
 
-        if (!File::exists($path)) {
+        if (!File::exists($path) || is_link($path)) {
             abort(404, 'Die Datei existiert nicht mehr im Tresor.');
         }
 
@@ -191,7 +205,10 @@ class FileDownloadService
     {
         $item = ($itemId instanceof OrderOrderItem) ? $itemId : OrderOrderItem::findOrFail($itemId);
 
-        $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check() || \Illuminate\Support\Facades\Auth::guard('employee')->check();
+        $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check()
+            || \Illuminate\Support\Facades\Auth::guard('employee')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin()
+            || \App\Services\AI\AiAuthHelper::isEmployee();
         $isCustomerOwner = false;
         if (\Illuminate\Support\Facades\Auth::guard('customer')->check()) {
             $customer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
@@ -588,7 +605,9 @@ class FileDownloadService
 
         $svg .= '</svg>';
 
-        $filename = 'xTool-F2-Druckdatei-' . ($item->order->order_number ?? 'Angebot') . '-Pos-' . $item->id . '-' . ($side === 'back' ? 'Rueckseite' : 'Vorderseite') . '.svg';
+        $safeOrderNumber = preg_replace('/[^A-Za-z0-9_-]/', '_', (string) ($item->order->order_number ?? 'Angebot')) ?: 'Angebot';
+        $safeItemId = preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $item->id) ?: '0';
+        $filename = 'xTool-F2-Druckdatei-' . $safeOrderNumber . '-Pos-' . $safeItemId . '-' . ($side === 'back' ? 'Rueckseite' : 'Vorderseite') . '.svg';
 
         return response()->streamDownload(function() use ($svg) {
             echo $svg;

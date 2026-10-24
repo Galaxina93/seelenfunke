@@ -10,20 +10,20 @@ class RevocationFileController extends Controller
 {
     public function download(OrderRevocation $revocation, $fileName)
     {
-        if (!AiAuthHelper::isAdmin() && !auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
+        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee() && !auth()->guard('admin')->check() && !auth()->guard('employee')->check()) {
             abort(403, 'Zugriff verweigert.');
         }
 
-        if (str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\')) {
+        if (!is_string($fileName) || str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\') || str_contains($fileName, "\0")) {
             abort(404, 'Ungültiger Dateiname.');
         }
 
         $path = "bestellungen/private/revocations/{$revocation->id}/{$fileName}";
 
-        if (!is_array($revocation->attachments) || !in_array($path, $revocation->attachments)) {
+        if (!is_array($revocation->attachments) || !in_array($path, $revocation->attachments, true)) {
             // Fallback für legacy Pfad
             $legacyPath = "revocations/{$revocation->id}/{$fileName}";
-            if (is_array($revocation->attachments) && in_array($legacyPath, $revocation->attachments)) {
+            if (is_array($revocation->attachments) && in_array($legacyPath, $revocation->attachments, true)) {
                 $path = $legacyPath;
             } else {
                 abort(404, 'Datei nicht gefunden oder gehört nicht zu diesem Widerruf.');
@@ -32,6 +32,11 @@ class RevocationFileController extends Controller
 
         if (!Storage::disk('local')->exists($path)) {
             abort(404, 'Die angeforderte Datei existiert physisch nicht mehr auf dem Server.');
+        }
+
+        $fullPath = Storage::disk('local')->path($path);
+        if (is_link($fullPath)) {
+            abort(404, 'Ungültige Datei.');
         }
 
         return Storage::disk('local')->download($path);

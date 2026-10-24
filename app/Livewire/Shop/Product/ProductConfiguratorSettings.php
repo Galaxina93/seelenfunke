@@ -32,6 +32,7 @@ class ProductConfiguratorSettings extends Component
     public string $uploadCustomName = '';
 
     // 4. Symbol Inline-Bearbeitung
+    #[\Livewire\Attributes\Locked]
     public ?string $editingSymbolId = null;
     public string $editSymbolName = '';
     public string $editSymbolCategory = '';
@@ -39,6 +40,7 @@ class ProductConfiguratorSettings extends Component
     // 5. Kategorien-Verwaltung
     public bool $showCategoryManager = false;
     public string $newCategoryName = '';
+    #[\Livewire\Attributes\Locked]
     public ?string $renamingCategory = null;
     public string $renameCategoryValue = '';
 
@@ -129,7 +131,7 @@ class ProductConfiguratorSettings extends Component
     public function saveUploadedSymbols()
     {
         $this->validate([
-            'newSymbolFiles'   => 'required|array|min:1',
+            'newSymbolFiles'   => 'required|array|min:1|max:50',
             'newSymbolFiles.*' => 'required|file|mimes:svg,xml|max:2048',
             'uploadCategory'   => 'required|string|max:60',
         ], [
@@ -294,6 +296,13 @@ class ProductConfiguratorSettings extends Component
 
     public function render(ProductConfiguratorService $service)
     {
+        if (!in_array($this->statusFilter, ['all', 'active', 'archived'], true)) {
+            $this->statusFilter = 'all';
+        }
+        if (!in_array($this->previewSurface, ['light', 'dark'], true)) {
+            $this->previewSurface = 'light';
+        }
+
         $tutorialConfig = $service->getTutorialConfig();
         $vectorsData = $service->getAdminVectorsData(
             $this->selectedCategory,
