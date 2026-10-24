@@ -58,9 +58,13 @@
 
                     <button type="button"
                             wire:click="toggleAutopilotOffers"
-                            class="relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autopilotOffersEnabled ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }}"
+                            role="switch"
+                            aria-checked="{{ $autopilotOffersEnabled ? 'true' : 'false' }}"
+                            style="width: 3.25rem; height: 1.75rem;"
+                            class="relative inline-flex items-center shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none {{ $autopilotOffersEnabled ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }}"
                             title="{{ $autopilotOffersEnabled ? 'Angebots-Autopilot pausieren' : 'Angebots-Autopilot aktivieren' }}">
-                        <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autopilotOffersEnabled ? 'translate-x-6' : 'translate-x-0' }}"></span>
+                        <span style="width: 1.4rem; height: 1.4rem; transform: translateX({{ $autopilotOffersEnabled ? '1.5rem' : '0rem' }});"
+                              class="pointer-events-none inline-block rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out"></span>
                     </button>
 
                     {{-- Kompaktes Erklärungs-Popover (Die 5 Schutzmauern) --}}

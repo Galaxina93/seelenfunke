@@ -17,6 +17,7 @@ class ProductFrontendFilterArea extends Component
     public $search = '';
     public $filterType = 'all'; // all, physical, digital, service
     public $filterPersonalizable = 'all'; // all, yes, no
+    public $filterSale = false; // Nur reduzierte Angebote (compare_at_price > price)
     public $filterCategory = '';
     public $filterHoliday = '';
 
@@ -25,12 +26,24 @@ class ProductFrontendFilterArea extends Component
         'search' => ['except' => ''],
         'filterType' => ['except' => 'all'],
         'filterPersonalizable' => ['except' => 'all'],
+        'filterSale' => ['except' => false],
         'filterCategory' => ['except' => ''],
         'filterHoliday' => ['except' => ''],
     ];
 
     public function updatedSearch()
     {
+        $this->resetPage();
+    }
+
+    public function updatedFilterSale()
+    {
+        $this->resetPage();
+    }
+
+    public function toggleSaleFilter()
+    {
+        $this->filterSale = !$this->filterSale;
         $this->resetPage();
     }
 
@@ -56,7 +69,7 @@ class ProductFrontendFilterArea extends Component
 
     public function resetFilters()
     {
-        $this->reset(['search', 'filterType', 'filterPersonalizable', 'filterCategory', 'filterHoliday']);
+        $this->reset(['search', 'filterType', 'filterPersonalizable', 'filterSale', 'filterCategory', 'filterHoliday']);
         $this->resetPage();
     }
 
@@ -162,6 +175,17 @@ class ProductFrontendFilterArea extends Component
             $query->where('is_personalizable', false);
         }
 
+        // 3c. Filter nach Angeboten (Sale: compare_at_price > price)
+        if ($this->filterSale) {
+            $query->whereNotNull('compare_at_price')
+                  ->whereColumn('compare_at_price', '>', 'price');
+        }
+
+        $saleCount = Product::where('status', 'active')
+            ->whereNotNull('compare_at_price')
+            ->whereColumn('compare_at_price', '>', 'price')
+            ->count();
+
         // 4. Filter nach Anlass / Feiertag (Template Projection Feature)
         if (!empty($this->filterHoliday)) {
             $query->whereHas('templates', function($q) {
@@ -188,6 +212,7 @@ class ProductFrontendFilterArea extends Component
             'categories' => $categories,
             'availableTypes' => $availableTypes,
             'availableHolidays' => $availableHolidays,
+            'saleCount' => $saleCount,
         ])->layout('components.layouts.frontend_layout');
     }
 }

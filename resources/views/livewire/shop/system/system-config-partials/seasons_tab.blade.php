@@ -39,12 +39,14 @@
                     wire:click="toggleSeasonAutoMode"
                     role="switch"
                     aria-checked="{{ $isAutoMode ? 'true' : 'false' }}"
-                    class="relative inline-flex h-7 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $isAutoMode ? 'bg-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-40)]' : 'bg-gray-300 dark:bg-gray-700' }}"
+                    style="width: 3.25rem; height: 1.75rem;"
+                    class="relative inline-flex items-center shrink-0 cursor-pointer rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none {{ $isAutoMode ? 'bg-[var(--theme-color)] shadow-[0_0_15px_var(--theme-color-40)]' : 'bg-gray-300 dark:bg-gray-700' }}"
                 >
                     <span class="sr-only">Automatisch umschalten</span>
                     <span
                         aria-hidden="true"
-                        class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white dark:bg-gray-900 shadow-md ring-0 transition duration-200 ease-in-out {{ $isAutoMode ? 'translate-x-7' : 'translate-x-0' }}"
+                        style="width: 1.4rem; height: 1.4rem; transform: translateX({{ $isAutoMode ? '1.5rem' : '0rem' }});"
+                        class="pointer-events-none inline-block rounded-full bg-white dark:bg-gray-900 shadow-md ring-0 transition-transform duration-200 ease-in-out"
                     ></span>
                 </button>
             </div>

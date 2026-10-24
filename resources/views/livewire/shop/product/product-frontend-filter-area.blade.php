@@ -79,6 +79,17 @@
                                 Standard
                             </button>
                         </div>
+
+                        {{-- Angebote / Sale Filter Pill --}}
+                        <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto">
+                            <button wire:click="toggleSaleFilter" class="w-full lg:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterSale ? 'bg-red-500 text-white shadow-sm' : 'text-red-600 hover:bg-red-50' }}">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                <span>Angebote</span>
+                                @if(($saleCount ?? 0) > 0)
+                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black {{ $filterSale ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600' }}">{{ $saleCount }}</span>
+                                @endif
+                            </button>
+                        </div>
                     </div>
 
                     {{-- Dropdowns Container --}}
@@ -118,7 +129,7 @@
                 </div>
 
                 {{-- Aktive Filter anzeigen (Nur wenn etwas ausgewählt ist) --}}
-                @if($search !== '' || $filterType !== 'all' || $filterPersonalizable !== 'all' || $filterCategory !== '' || $filterHoliday !== '')
+                @if($search !== '' || $filterType !== 'all' || $filterPersonalizable !== 'all' || $filterSale || $filterCategory !== '' || $filterHoliday !== '')
                     <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3 animate-fade-in">
                         <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Aktive Filter:</span>
 
@@ -126,6 +137,13 @@
                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
                                 "{{ $search }}"
                                 <button wire:click="$set('search', '')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            </span>
+                        @endif
+
+                        @if($filterSale)
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-bold uppercase tracking-wider border border-red-200">
+                                Nur Angebote
+                                <button wire:click="$set('filterSale', false)" class="hover:text-red-800"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
@@ -316,6 +334,12 @@
                                                     </span>
                                                 @endif
                                             </div>
+
+                                            @if(!$isSoldOut && $product->compare_at_price > $product->price)
+                                                <span class="text-[8px] text-gray-400 font-medium leading-tight mt-0.5">
+                                                    30-Tage-Bestpreis (§ 11 PAngV): {{ number_format($product->compare_at_price / 100, 2, ',', '.') }} €
+                                                </span>
+                                            @endif
 
                                             {{-- NEU: RECHTLICHE PAngV ANGABE (Sehr wichtig) --}}
                                             <span class="text-[8px] text-gray-400 font-medium leading-tight mt-1">

@@ -18,6 +18,11 @@
                         </span>
                     @endif
                 </div>
+                @if($this->product->compare_at_price > $this->product->price)
+                    <span class="text-[11px] text-gray-400 mt-0.5">
+                        Niedrigster Gesamtpreis der letzten 30 Tage vor der Preisermäßigung: {{ number_format($this->product->compare_at_price / 100, 2, ',', '.') }} €
+                    </span>
+                @endif
 
                 <div class="flex flex-col gap-1 mt-1">
                     @php
