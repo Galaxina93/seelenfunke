@@ -30,10 +30,46 @@
                 }
 
                 $imgUrls = [];
+                $allowedImageMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+                $allowedRoots = array_values(array_filter([
+                    realpath(storage_path('app/public')),
+                    realpath(public_path()),
+                ]));
+
+                $isSafePublicFile = function (string $candidatePath) use ($allowedRoots, $allowedImageMimes): ?array {
+                    if (!file_exists($candidatePath) || is_dir($candidatePath)) {
+                        return null;
+                    }
+                    $real = realpath($candidatePath);
+                    if ($real === false) {
+                        return null;
+                    }
+                    $inAllowedRoot = false;
+                    foreach ($allowedRoots as $root) {
+                        if ($real === $root || str_starts_with($real, $root . DIRECTORY_SEPARATOR)) {
+                            $inAllowedRoot = true;
+                            break;
+                        }
+                    }
+                    if (!$inAllowedRoot) {
+                        return null;
+                    }
+                    $mime = @mime_content_type($real) ?: '';
+                    if (!in_array($mime, $allowedImageMimes, true)) {
+                        return null;
+                    }
+                    return ['real' => $real, 'mime' => $mime];
+                };
+
                 foreach ($imgPaths as $key => $imgPath) {
                     $imgUrl = null;
-                    if (str_starts_with($imgPath, 'http')) {
-                        $imgUrl = $imgPath;
+                    if (!is_string($imgPath) || $imgPath === '' || str_contains($imgPath, '..') || str_contains($imgPath, "\0") || str_contains($imgPath, '\\')) {
+                        continue;
+                    }
+                    if (preg_match('#^https?://#i', $imgPath)) {
+                        if (empty($isPdf)) {
+                            $imgUrl = $imgPath;
+                        }
                     } else {
                         $cleanRelPath = ltrim(preg_replace('#^/?storage/#', '', $imgPath), '/');
                         // Snapshot-Pfade normalisieren falls das 'system/' Prefix fehlt
@@ -47,30 +83,31 @@
                                 public_path('storage/' . $cleanRelPath),
                                 public_path($cleanRelPath),
                                 storage_path('app/public/' . ltrim(preg_replace('#^system/#', '', $cleanRelPath), '/')),
-                                base_path($cleanRelPath),
                             ];
                             foreach ($candidates as $cand) {
-                                if (file_exists($cand) && !is_dir($cand)) {
-                                    $mime = @mime_content_type($cand) ?: 'image/jpeg';
-                                    $dataInfo = base64_encode(file_get_contents($cand));
-                                    $imgUrl = 'data:' . $mime . ';base64,' . $dataInfo;
+                                $safeFile = $isSafePublicFile($cand);
+                                if ($safeFile) {
+                                    $dataInfo = base64_encode(file_get_contents($safeFile['real']));
+                                    $imgUrl = 'data:' . $safeFile['mime'] . ';base64,' . $dataInfo;
                                     break;
                                 }
                             }
-                            if (!$imgUrl && !empty($item['main_image'])) {
+                            if (!$imgUrl && !empty($item['main_image']) && is_string($item['main_image']) && !str_contains($item['main_image'], '..') && !str_contains($item['main_image'], "\0") && !str_contains($item['main_image'], '\\')) {
                                 $fallbackRel = ltrim(preg_replace('#^/?storage/#', '', $item['main_image']), '/');
                                 foreach ([storage_path('app/public/' . $fallbackRel), public_path('storage/' . $fallbackRel), public_path($fallbackRel)] as $cand) {
-                                    if (file_exists($cand) && !is_dir($cand)) {
-                                        $mime = @mime_content_type($cand) ?: 'image/jpeg';
-                                        $dataInfo = base64_encode(file_get_contents($cand));
-                                        $imgUrl = 'data:' . $mime . ';base64,' . $dataInfo;
+                                    $safeFile = $isSafePublicFile($cand);
+                                    if ($safeFile) {
+                                        $dataInfo = base64_encode(file_get_contents($safeFile['real']));
+                                        $imgUrl = 'data:' . $safeFile['mime'] . ';base64,' . $dataInfo;
                                         break;
                                     }
                                 }
                             }
                         } else {
-                            $fallbackUrl = !empty($item['main_image']) ? asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $item['main_image']), '/')) : null;
-                            $imgUrl = resolve_snapshot_url($cleanRelPath, $fallbackUrl);
+                            $safeFallbackImage = (!empty($item['main_image']) && is_string($item['main_image']) && !str_contains($item['main_image'], '..') && !str_contains($item['main_image'], "\0") && !str_contains($item['main_image'], '\\'))
+                                ? asset('storage/' . ltrim(preg_replace('#^/?storage/#', '', $item['main_image']), '/'))
+                                : null;
+                            $imgUrl = resolve_snapshot_url($cleanRelPath, $safeFallbackImage);
                         }
                     }
                     if ($imgUrl) {
@@ -132,10 +169,10 @@
                             <div style="margin-top: 5px; margin-bottom: 2px;"><strong style="color: #444;">Hinterlegte Bilder:</strong> {{ $uploadedFilesCount }} Datei(en)</div>
                         @endif
 
-                        @if(!empty($conf['logo_storage_path']))
+                        @if(!empty($conf['logo_storage_path']) && is_string($conf['logo_storage_path']) && !str_contains($conf['logo_storage_path'], '..') && !str_contains($conf['logo_storage_path'], "\0") && !str_contains($conf['logo_storage_path'], '\\'))
                             <div style="margin-top: 4px; margin-bottom: 4px;">
                                 <strong style="color: #444;">Logo-Datei:</strong>
-                                <a href="{{ asset('storage/'.$conf['logo_storage_path']) }}" style="color:#C5A059; text-decoration:underline;">Ansehen / Download</a>
+                                <a href="{{ asset('storage/' . ltrim($conf['logo_storage_path'], '/')) }}" style="color:#C5A059; text-decoration:underline;">Ansehen / Download</a>
                             </div>
                         @endif
 

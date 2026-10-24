@@ -39,8 +39,22 @@ class MarketingVoucher extends Model
     public function scopeCurrent($query)
     {
         return $query->where('is_active', true)
-            ->where('valid_from', '<=', now())
-            ->where('valid_until', '>=', now());
+            ->where(function ($q) {
+                $q->whereNull('recipient_email')
+                  ->orWhere('recipient_email', '');
+            })
+            ->where(function ($q) {
+                $q->whereNull('usage_limit')
+                  ->orWhereColumn('used_count', '<', 'usage_limit');
+            })
+            ->where(function ($q) {
+                $q->whereNull('valid_from')
+                  ->orWhere('valid_from', '<=', now());
+            })
+            ->where(function ($q) {
+                $q->whereNull('valid_until')
+                  ->orWhere('valid_until', '>=', now());
+            });
     }
 
     public function isValid(): bool

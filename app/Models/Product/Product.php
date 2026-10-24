@@ -141,19 +141,36 @@ class Product extends Model
 
     public function reduceStock(int $amount): bool
     {
+        if ($amount <= 0) {
+            return false;
+        }
+
         if (!$this->track_quantity) {
             return true;
         }
 
-        if ($this->quantity < $amount && !$this->continue_selling_when_out_of_stock) {
-            return false;
+        if (!$this->continue_selling_when_out_of_stock) {
+            $affected = static::where('id', $this->id)
+                ->where('quantity', '>=', $amount)
+                ->decrement('quantity', $amount);
+
+            if ($affected <= 0) {
+                return false;
+            }
+
+            $this->quantity = (int) static::where('id', $this->id)->value('quantity');
+            return true;
         }
 
-        return $this->decrement('quantity', $amount);
+        return (bool) $this->decrement('quantity', $amount);
     }
 
     public function restoreStock(int $amount): void
     {
+        if ($amount <= 0) {
+            return;
+        }
+
         if ($this->track_quantity) {
             $this->increment('quantity', $amount);
         }

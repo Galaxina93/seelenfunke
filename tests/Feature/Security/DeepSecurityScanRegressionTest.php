@@ -4627,4 +4627,174 @@ class DeepSecurityScanRegressionTest extends TestCase
             ])
             ->assertStatus(422);
     }
+
+    public function test_round35_mail_lfi_livewire_svg_xss_dompdf_js_mailable_traversal_token_revocation_and_atomic_stock(): void
+    {
+        // 1. Livewire temporary upload config must not allow SVG preview (Stored XSS) and DomPDF must disable inline JS
+        $previewMimes = config('livewire.temporary_file_upload.preview_mimes', []);
+        $this->assertNotContains('svg', $previewMimes);
+        $this->assertNotEmpty(config('livewire.temporary_file_upload.middleware'));
+        $this->assertFalse((bool) config('dompdf.options.enable_javascript'));
+
+        // 2. mail_item_list.blade.php must block LFI / arbitrary file read (e.g., .env or config/app.php) in PDF mode
+        $renderedPdfItemHtml = view('global.mails.partials.mail_item_list', [
+            'isPdf' => true,
+            'data' => [
+                'items' => [
+                    [
+                        'name' => 'LFI Test Artikel',
+                        'quantity' => 1,
+                        'total_price' => '19,99',
+                        'main_image' => '../.env',
+                        'config' => [
+                            'snapshot_path' => [
+                                'front' => '.env',
+                                'back' => 'config/app.php',
+                            ],
+                            'logo_storage_path' => '../../.env',
+                        ],
+                    ],
+                ],
+            ],
+        ])->render();
+
+        $this->assertStringNotContainsString('data:', $renderedPdfItemHtml);
+        $this->assertStringNotContainsString('Ansehen / Download', $renderedPdfItemHtml);
+
+        // 3. Mailable attachment path traversal & CRLF header injection protection
+        $orderMailCustomer = new \App\Mail\NewOrderMailToCustomer(
+            ['quote_number' => "ORD-2026\r\nBcc: attacker@evil.test"],
+            base_path('.env'),
+            base_path('composer.json'),
+            [base_path('.env')]
+        );
+        $this->assertStringNotContainsString("\r", $orderMailCustomer->envelope()->subject);
+        $this->assertStringNotContainsString("\n", $orderMailCustomer->envelope()->subject);
+        $this->assertCount(0, $orderMailCustomer->attachments());
+
+        $orderMailAdmin = new \App\Mail\NewOrderMailToAdmin(
+            [
+                'quote_number' => "ORD-2026\r\nInjected: 1",
+                'contact' => [
+                    'vorname' => "Max\r\n",
+                    'nachname' => "Mustermann\r\n",
+                    'email' => 'not-an-email',
+                ],
+            ],
+            base_path('.env'),
+            null,
+            [base_path('config/app.php')]
+        );
+        $this->assertEmpty($orderMailAdmin->envelope()->replyTo);
+        $this->assertStringNotContainsString("\r", $orderMailAdmin->envelope()->subject);
+        $this->assertCount(0, $orderMailAdmin->attachments());
+
+        $revocationAdmin = new \App\Mail\RevocationMailToAdmin([
+            'order_number' => "ORD-99\r\nBcc: evil@example.com",
+            'attachments' => [
+                '../.env',
+                'other_folder/secret.pdf',
+                'revocations/../../.env',
+                'revocations/legit_file.pdf',
+            ],
+        ]);
+        $this->assertStringNotContainsString("\r", $revocationAdmin->envelope()->subject);
+        $this->assertCount(1, $revocationAdmin->attachments());
+
+        // 4. Sanctum token revocation on password reset
+        $resetCustomer = \App\Models\Customer\Customer::factory()->create([
+            'password' => \Illuminate\Support\Facades\Hash::make('OldPassword123!'),
+        ]);
+        \App\Models\Customer\CustomerProfile::firstOrCreate(['customer_id' => $resetCustomer->id]);
+        $resetCustomer->createToken('test-device-token');
+        $this->assertSame(1, $resetCustomer->tokens()->count());
+
+        $plainToken = 'Round35ResetTokenString1234567890';
+        \Illuminate\Support\Facades\DB::table('system_password_reset_tokens')->insert([
+            'email' => $resetCustomer->email,
+            'token' => \Illuminate\Support\Facades\Hash::make($plainToken),
+            'guard' => 'customer',
+            'created_at' => now(),
+        ]);
+
+        \Livewire\Livewire::test(\App\Livewire\Auth\AuthPasswordReset::class, ['token' => $plainToken])
+            ->set('email', $resetCustomer->email)
+            ->set('password', 'NewSecurePass99!')
+            ->set('passwordConfirm', 'NewSecurePass99!')
+            ->call('submit');
+
+        $this->assertSame(0, $resetCustomer->tokens()->count());
+
+        // 5. AuthLogin::mount() must reject invalid session('guard') values
+        session(['2fa_user_id' => $resetCustomer->id, 'guard' => 'invalid_guard_injection']);
+        \Livewire\Livewire::test(\App\Livewire\Auth\AuthLogin::class)
+            ->assertSet('guard', 'customer')
+            ->assertSet('activeView', 'login');
+
+        // 6. Atomic Product::reduceStock() and negative amount protection
+        $stockProduct = \App\Models\Product\Product::create([
+            'name' => 'R35 Atomic Stock Product',
+            'slug' => 'r35-atomic-stock-product',
+            'price' => 1500,
+            'status' => 'active',
+            'type' => 'physical',
+            'track_quantity' => true,
+            'continue_selling_when_out_of_stock' => false,
+            'quantity' => 2,
+        ]);
+
+        $this->assertFalse($stockProduct->reduceStock(0));
+        $this->assertFalse($stockProduct->reduceStock(-5));
+        $stockProduct->restoreStock(-10);
+        $this->assertSame(2, $stockProduct->fresh()->quantity);
+
+        $this->assertTrue($stockProduct->reduceStock(2));
+        $this->assertSame(0, $stockProduct->fresh()->quantity);
+        $this->assertFalse($stockProduct->reduceStock(1));
+        $this->assertSame(0, $stockProduct->fresh()->quantity);
+
+        // 7. MarketingVoucher::scopeCurrent() must exclude personal (recipient_email) and exhausted vouchers
+        $personalVoucher = \App\Models\Marketing\MarketingVoucher::create([
+            'title' => 'Personal Gift',
+            'code' => 'R35-PERSONAL',
+            'recipient_email' => 'vip@example.com',
+            'type' => 'fixed',
+            'value' => 1000,
+            'is_active' => true,
+            'mode' => 'manual',
+            'valid_from' => now()->subDay(),
+            'valid_until' => now()->addDay(),
+        ]);
+
+        $exhaustedVoucher = \App\Models\Marketing\MarketingVoucher::create([
+            'title' => 'Exhausted Promo',
+            'code' => 'R35-EXHAUSTED',
+            'type' => 'fixed',
+            'value' => 500,
+            'used_count' => 10,
+            'usage_limit' => 10,
+            'is_active' => true,
+            'mode' => 'manual',
+            'valid_from' => now()->subDay(),
+            'valid_until' => now()->addDay(),
+        ]);
+
+        $publicActiveVoucher = \App\Models\Marketing\MarketingVoucher::create([
+            'title' => 'Public Promo',
+            'code' => 'R35-PUBLIC',
+            'type' => 'fixed',
+            'value' => 500,
+            'used_count' => 2,
+            'usage_limit' => 10,
+            'is_active' => true,
+            'mode' => 'manual',
+            'valid_from' => now()->subDay(),
+            'valid_until' => now()->addDay(),
+        ]);
+
+        $currentIds = \App\Models\Marketing\MarketingVoucher::current()->pluck('id')->all();
+        $this->assertNotContains($personalVoucher->id, $currentIds);
+        $this->assertNotContains($exhaustedVoucher->id, $currentIds);
+        $this->assertContains($publicActiveVoucher->id, $currentIds);
+    }
 }

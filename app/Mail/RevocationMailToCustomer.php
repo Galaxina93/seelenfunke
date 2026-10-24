@@ -27,8 +27,10 @@ class RevocationMailToCustomer extends Mailable
      */
     public function envelope(): Envelope
     {
+        $timestamp = str_replace(["\r", "\n"], '', (string) ($this->revocationData['timestamp'] ?? ''));
+
         return new Envelope(
-            subject: 'Eingangsbestätigung: Ihr Widerruf vom ' . $this->revocationData['timestamp'],
+            subject: 'Eingangsbestätigung: Ihr Widerruf vom ' . $timestamp,
         );
     }
 
@@ -50,9 +52,16 @@ class RevocationMailToCustomer extends Mailable
     public function attachments(): array
     {
         $attachments = [];
-        if (!empty($this->revocationData['attachments'])) {
+        if (!empty($this->revocationData['attachments']) && is_array($this->revocationData['attachments'])) {
             foreach ($this->revocationData['attachments'] as $path) {
-                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('local', $path);
+                if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_contains($path, '\\')) {
+                    continue;
+                }
+                $normalized = ltrim($path, '/');
+                if (!str_starts_with($normalized, 'revocations/')) {
+                    continue;
+                }
+                $attachments[] = \Illuminate\Mail\Mailables\Attachment::fromStorageDisk('local', $normalized);
             }
         }
         return $attachments;

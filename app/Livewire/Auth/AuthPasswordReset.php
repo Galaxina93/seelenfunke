@@ -109,6 +109,10 @@ class AuthPasswordReset extends Component
         $user->setRememberToken(\Illuminate\Support\Str::random(60));
         $user->save();
 
+        if (method_exists($user, 'tokens')) {
+            $user->tokens()->delete();
+        }
+
         // Alle bestehenden Sessions dieses Benutzers invalidieren
         if (config('session.driver') === 'database') {
             \Illuminate\Support\Facades\DB::table(config('session.table', 'sessions'))

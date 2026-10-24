@@ -164,6 +164,10 @@ trait handlePasswordResetTrait
         $user->setRememberToken(Str::random(60));
         $user->save();
 
+        if (method_exists($user, 'tokens')) {
+            $user->tokens()->delete();
+        }
+
         if (config('session.driver') === 'database') {
             DB::table(config('session.table', 'sessions'))
                 ->where('user_id', $user->id)

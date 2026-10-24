@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -33,8 +34,8 @@ class NewOrderMailToCustomer extends Mailable
 
     public function envelope(): Envelope
     {
-        $orderNum = $this->data['quote_number'] ?? 'Unbekannt';
-        $owner_name = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $orderNum = str_replace(["\r", "\n"], '', (string) ($this->data['quote_number'] ?? 'Unbekannt'));
+        $owner_name = str_replace(["\r", "\n"], '', (string) shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')));
 
         return new Envelope(
             subject: '📦 Deine Bestellung bei ' .  $owner_name . ' (#' . $orderNum . ')',
@@ -49,21 +50,45 @@ class NewOrderMailToCustomer extends Mailable
         );
     }
 
+    protected function resolveSafeAttachmentPath(?string $path): ?string
+    {
+        if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0")) {
+            return null;
+        }
+        if (!file_exists($path) || is_dir($path)) {
+            return null;
+        }
+        $real = realpath($path);
+        if ($real === false) {
+            return null;
+        }
+        $allowedRoots = array_values(array_filter([
+            realpath(storage_path()),
+            realpath(public_path()),
+        ]));
+        foreach ($allowedRoots as $root) {
+            if ($real === $root || str_starts_with($real, $root . DIRECTORY_SEPARATOR)) {
+                return $real;
+            }
+        }
+        return null;
+    }
+
     public function attachments(): array
     {
         $attachments = [];
 
         // Die Rechnung als PDF anhängen
-        if ($this->pdfPath && file_exists($this->pdfPath)) {
-            $attachments[] = Attachment::fromPath($this->pdfPath)
-                ->as('Rechnung-' . ($this->data['quote_number'] ?? 'Bestellung') . '.pdf')
+        if ($safePdf = $this->resolveSafeAttachmentPath($this->pdfPath)) {
+            $attachments[] = Attachment::fromPath($safePdf)
+                ->as('Rechnung-' . preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($this->data['quote_number'] ?? 'Bestellung')) . '.pdf')
                 ->withMime('application/pdf');
         }
 
         // 2. XML anhängen (falls vorhanden - wird nur bei gewerblichen Bestellungen erzeugt)
-        if ($this->xmlPath && file_exists($this->xmlPath)) {
-            $filename = basename($this->xmlPath);
-            $attachments[] = Attachment::fromPath($this->xmlPath)
+        if ($safeXml = $this->resolveSafeAttachmentPath($this->xmlPath)) {
+            $filename = basename($safeXml);
+            $attachments[] = Attachment::fromPath($safeXml)
                 ->as($filename)
                 ->withMime('application/xml');
         }
@@ -73,9 +98,9 @@ class NewOrderMailToCustomer extends Mailable
             $isAssoc = array_keys($this->snapshotPaths) !== range(0, count($this->snapshotPaths) - 1);
             
             foreach ($this->snapshotPaths as $key => $snapshotPath) {
-                if (file_exists($snapshotPath)) {
-                    $filename = $isAssoc ? $key : (($key === 0) ? 'Vorderseite-Sicherung.jpg' : 'Rückseite-Sicherung.jpg');
-                    $attachments[] = Attachment::fromPath($snapshotPath)
+                if ($safeSnap = $this->resolveSafeAttachmentPath(is_string($snapshotPath) ? $snapshotPath : null)) {
+                    $filename = $isAssoc ? basename((string) $key) : (($key === 0) ? 'Vorderseite-Sicherung.jpg' : 'Rückseite-Sicherung.jpg');
+                    $attachments[] = Attachment::fromPath($safeSnap)
                         ->as($filename)
                         ->withMime('image/jpeg');
                 }
@@ -90,8 +115,8 @@ class NewOrderMailToCustomer extends Mailable
                 foreach ($giftVouchers as $gv) {
                     $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
                         'voucher' => $gv,
-                    ]);
-                    $attachments[] = Attachment::fromData(fn () => $pdf->output(), 'Geschenkgutschein-' . $gv->code . '.pdf')
+                    ])->setOptions(['isRemoteEnabled' => false]);
+                    $attachments[] = Attachment::fromData(fn () => $pdf->output(), 'Geschenkgutschein-' . preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $gv->code) . '.pdf')
                         ->withMime('application/pdf');
                 }
             }

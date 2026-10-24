@@ -50,10 +50,10 @@ class NewCalcMailToCustomer extends Mailable
         $lastName = $this->data['contact']['nachname'] ?? 'Kunde';
 
         // Dateiname säubern (z.B. "Angebot-MeinSeelenfunke-Mustermann.pdf")
-        $cleanName = \Illuminate\Support\Str::slug($lastName);
+        $cleanName = \Illuminate\Support\Str::slug($lastName) ?: 'Kunde';
 
         return [
-            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data, 'isPdf' => true])->output(), "Angebot-MeinSeelenfunke-{$cleanName}.pdf")
+            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data, 'isPdf' => true])->setOptions(['isRemoteEnabled' => false])->output(), "Angebot-MeinSeelenfunke-{$cleanName}.pdf")
                 ->withMime('application/pdf'),
         ];
     }

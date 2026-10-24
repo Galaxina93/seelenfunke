@@ -60,9 +60,13 @@
             // Prüfe auf gültige manuelle Gutscheine
             $hasActiveManual = \App\Models\Marketing\MarketingVoucher::where('mode', 'manual')->current()->exists();
 
-            // Prüfe auf Auto-Gutscheine des AKTUELLEN Monats
+            // Prüfe auf Auto-Gutscheine des AKTUELLEN Monats (ohne persönliche Events)
             $hasActiveAuto = \App\Models\Marketing\MarketingVoucher::where('mode', 'auto')
                                 ->where('is_active', true)
+                                ->where(function ($q) {
+                                    $q->whereNull('trigger_event')
+                                      ->orWhereNotIn('trigger_event', ['birthday', 'registered_date']);
+                                })
                                 ->whereMonth('valid_from', now()->month)
                                 ->exists();
         @endphp

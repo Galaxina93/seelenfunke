@@ -257,6 +257,10 @@ trait handleProfilesTrait
         $this->user->setRememberToken(\Illuminate\Support\Str::random(60));
         $this->user->save();
 
+        if (method_exists($this->user, 'tokens')) {
+            $this->user->tokens()->delete();
+        }
+
         if (config('session.driver') === 'database') {
             DB::table(config('session.table', 'sessions'))
                 ->where('user_id', $this->user->id)
@@ -360,6 +364,16 @@ trait handleProfilesTrait
                 'started_at' => now(),
                 'finished_at' => now(),
             ]);
+        }
+
+        if (method_exists($user, 'tokens')) {
+            $user->tokens()->delete();
+        }
+
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $userId)
+                ->delete();
         }
 
         $user->delete();

@@ -24,20 +24,23 @@ class NewCalcMailToAdmin extends Mailable
 
     public function envelope(): Envelope
     {
-        $vorname = $this->data['contact']['vorname'] ?? '';
-        $nachname = $this->data['contact']['nachname'] ?? 'Unbekannt';
-        $email = $this->data['contact']['email'] ?? 'keine-email';
-        $firma = $this->data['contact']['firma'] ?? null;
+        $vorname = str_replace(["\r", "\n"], '', (string) ($this->data['contact']['vorname'] ?? ''));
+        $nachname = str_replace(["\r", "\n"], '', (string) ($this->data['contact']['nachname'] ?? 'Unbekannt'));
+        $email = trim(str_replace(["\r", "\n"], '', (string) ($this->data['contact']['email'] ?? '')));
+        $firma = !empty($this->data['contact']['firma']) ? str_replace(["\r", "\n"], '', (string) $this->data['contact']['firma']) : null;
 
         $prefix = ($this->data['express'] ?? false) ? '[EXPRESS] ' : '';
-        $betreffName = $firma ? "$firma ($nachname)" : "$vorname $nachname";
+        $betreffName = $firma ? "$firma ($nachname)" : trim("$vorname $nachname");
 
         $owner_mail = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
         $owner_name = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+        $replyTo = filter_var($email, FILTER_VALIDATE_EMAIL)
+            ? [new Address($email, trim("$vorname $nachname"))]
+            : [];
 
         return new Envelope(
             from: new Address($owner_mail, $owner_name . ' Website'),
-            replyTo: [new Address($email, "$vorname $nachname")],
+            replyTo: $replyTo,
             subject: '🧾 ' . $prefix . 'Neue Anfrage: ' . $betreffName,
         );
     }
@@ -58,10 +61,10 @@ class NewCalcMailToAdmin extends Mailable
         $lastName = $this->data['contact']['nachname'] ?? 'Kunde';
         $firm = $this->data['contact']['firma'] ?? '';
         $namePart = $firm ?: $lastName;
-        $cleanName = \Illuminate\Support\Str::slug($namePart);
+        $cleanName = \Illuminate\Support\Str::slug($namePart) ?: 'Kunde';
 
         return [
-            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data, 'isPdf' => true])->output(), "Angebot_{$cleanName}.pdf")
+            \Illuminate\Mail\Mailables\Attachment::fromData(fn () => \Barryvdh\DomPDF\Facade\Pdf::loadView('global.mails.calculation_pdf_template', ['data' => $this->data, 'isPdf' => true])->setOptions(['isRemoteEnabled' => false])->output(), "Angebot_{$cleanName}.pdf")
                 ->withMime('application/pdf'),
         ];
     }

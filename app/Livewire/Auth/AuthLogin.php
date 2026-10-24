@@ -42,7 +42,12 @@ class AuthLogin extends Component
     public function mount()
     {
         if (session()->has('2fa_user_id') && session()->has('guard')) {
-            $this->guard = session('guard');
+            $sessionGuard = (string) session('guard');
+            if (!in_array($sessionGuard, ['admin', 'employee', 'customer'], true)) {
+                session()->forget(['2fa_user_id', 'guard']);
+                return;
+            }
+            $this->guard = $sessionGuard;
             $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($this->guard);
             $this->user = $userModel::find(session('2fa_user_id'));
             if ($this->user) {

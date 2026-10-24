@@ -67,9 +67,9 @@ return [
         'disk' => null,        // Example: 'local', 's3'              | Default: 'default'
         'rules' => ['required', 'file', 'max:102400'], // HIER GEÄNDERT: Als Array definieren!
         'directory' => 'temp/livewire-tmp',   // Zentraler Temp-Bereich unter storage/app/temp/livewire-tmp
-        'middleware' => null,  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
-        'preview_mimes' => [   // Supported file types for temporary pre-signed file URLs...
-            'png', 'gif', 'bmp', 'svg', 'wav', 'mp4',
+        'middleware' => 'throttle:60,1',  // Example: 'throttle:5,1'             | Default: 'throttle:60,1'
+        'preview_mimes' => [   // Supported file types for temporary pre-signed file URLs (SVG entfernt wegen Stored XSS)...
+            'png', 'gif', 'bmp', 'wav', 'mp4',
             'mov', 'avi', 'wmv', 'mp3', 'm4a',
             'jpg', 'jpeg', 'mpga', 'webp', 'wma',
         ],
