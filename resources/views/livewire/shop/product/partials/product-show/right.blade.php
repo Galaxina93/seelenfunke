@@ -8,13 +8,16 @@
         <div class="flex items-center gap-4 mb-6">
             {{-- Preis --}}
             <div class="flex flex-col">
-                <div class="flex items-baseline gap-3">
+                <div class="flex items-baseline gap-3 flex-wrap">
                     <span class="text-2xl font-bold text-[var(--theme-color)] transition-all">
                         {{ number_format($this->product->price / 100, 2, ',', '.') }} €
                     </span>
                     @if($this->product->compare_at_price > $this->product->price)
                         <span class="text-lg text-gray-400 line-through decoration-red-400">
                             {{ number_format($this->product->compare_at_price / 100, 2, ',', '.') }} €
+                        </span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-500 text-white shadow-sm">
+                            {{ $this->product->configurator_settings['autopilot_badge_text'] ?? 'Angebot' }}
                         </span>
                     @endif
                 </div>

@@ -207,12 +207,79 @@ class ProductFrontendFilterArea extends Component
 
         $products = $query->latest()->paginate(12);
 
+        $heroBanner = $this->resolveHeroBanner((string) $this->filterHoliday, $saleCount);
+
         return view('livewire.shop.product.product-frontend-filter-area', [
             'products' => $products,
             'categories' => $categories,
             'availableTypes' => $availableTypes,
             'availableHolidays' => $availableHolidays,
             'saleCount' => $saleCount,
+            'heroBanner' => $heroBanner,
         ])->layout('components.layouts.frontend_layout');
+    }
+
+    /**
+     * Ermittelt das passende saisonale / Feiertags-Hero-Banner für den Shop-Header hinter "Unsere Kollektion".
+     */
+    protected function resolveHeroBanner(string $filterHoliday = '', int $saleCount = 0): array
+    {
+        $seasonKey = app(\App\Services\ConfiguratorService::class)->getActiveSeasonKey();
+        $seasonBannerMap = [
+            'ostern' => ['file' => 'fruehling.webp', 'label' => 'Frühlings-Edition'],
+            'sommer' => ['file' => 'sommer.webp',    'label' => 'Sommer-Edition'],
+            'herbst' => ['file' => 'herbst.webp',    'label' => 'Herbst-Edition'],
+            'winter' => ['file' => 'winter.webp',    'label' => 'Winter-Edition'],
+        ];
+
+        $default = $seasonBannerMap[$seasonKey] ?? $seasonBannerMap['herbst'];
+
+        // 1. Expliziter Anlass-Filter im Shop hat höchste Priorität
+        if ($filterHoliday !== '') {
+            $norm = mb_strtolower(trim($filterHoliday));
+            $filteredBanner = match ($norm) {
+                'valentinstag', 'valentines' => 'winter_valentinstag.webp',
+                'ostern', 'easter', 'taufe', 'einschulung' => 'fruehling_ostern.webp',
+                'muttertag', 'vatertag', 'hochzeit', 'jubilaeum', 'jubiläum', 'weltfrauentag' => 'fruehling_muttertag.webp',
+                'weihnachten', 'advent', 'nikolaus' => 'winter_weihnachten.webp',
+                'halloween', 'herbst', 'trauer' => 'herbst_halloween.webp',
+                'geburtstag', 'neujahr', 'silvester' => 'winter_neujahr.webp',
+                default => $default['file'],
+            };
+
+            return [
+                'url'        => asset('shop/frontend/banners/' . $filteredBanner),
+                'badge_text' => null,
+            ];
+        }
+
+        // 2. Aktives Feiertags-Fenster aus dem Angebots-Autopiloten prüfen
+        $autopilot = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
+        $activeWindow = $autopilot->resolveActiveOfferWindow();
+
+        if ($activeWindow) {
+            $eventBanner = match ($activeWindow['event_key']) {
+                'valentines'  => 'winter_valentinstag.webp',
+                'womens_day', 'mothers_day', 'fathers_day' => 'fruehling_muttertag.webp',
+                'easter'      => 'fruehling_ostern.webp',
+                'sale_summer' => 'sommer.webp',
+                'halloween'   => 'herbst_halloween.webp',
+                'advent_1', 'christmas' => 'winter_weihnachten.webp',
+                'new_year'    => 'winter_neujahr.webp',
+                'sale_winter' => 'winter.webp',
+                default       => $default['file'],
+            };
+
+            return [
+                'url'        => asset('shop/frontend/banners/' . $eventBanner),
+                'badge_text' => $saleCount > 0 ? ($activeWindow['badge_text'] ?? $activeWindow['name']) : null,
+            ];
+        }
+
+        // 3. Fallback: Aktive Jahreszeit (aus /admin/configuration -> Jahreszeiten)
+        return [
+            'url'        => asset('shop/frontend/banners/' . $default['file']),
+            'badge_text' => null,
+        ];
     }
 }

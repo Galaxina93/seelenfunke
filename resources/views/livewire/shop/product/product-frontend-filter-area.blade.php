@@ -1,15 +1,23 @@
 <div>
     <div class="bg-gray-50 min-h-screen pb-20">
 
-        {{-- Header / Hero Section --}}
-        <div class="bg-gray-900 border-b border-gray-800 py-24 text-center relative overflow-hidden">
-            <div class="absolute inset-0 bg-[var(--theme-color-10)] blur-[100px] rounded-full w-[500px] h-[500px] mx-auto opacity-30 pointer-events-none"></div>
-            <div class="relative z-10">
-                <span class="text-white font-bold uppercase tracking-[0.2em] text-xs mb-4 block">Handveredelt in Gifhorn</span>
-                <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-6">
+        {{-- Header / Hero Section mit saisonalem & Feiertags-Hintergrund --}}
+        <div class="bg-gray-950 border-b border-gray-800 py-24 text-center relative overflow-hidden">
+            @if(!empty($heroBanner['url']))
+                <img src="{{ $heroBanner['url'] }}"
+                     alt="Unsere Kollektion Atmosphäre"
+                     loading="eager"
+                     decoding="async"
+                     class="absolute inset-0 w-full h-full object-cover object-center opacity-85 pointer-events-none select-none transition-opacity duration-700">
+                <div class="absolute inset-0 bg-gradient-to-b from-gray-950/65 via-gray-950/45 to-gray-950/85 pointer-events-none"></div>
+            @endif
+            <div class="absolute inset-0 bg-[var(--theme-color-10)] blur-[100px] rounded-full w-[500px] h-[500px] mx-auto opacity-25 pointer-events-none"></div>
+            <div class="relative z-10 px-4">
+                <span class="text-[var(--theme-color)] font-bold uppercase tracking-[0.2em] text-xs mb-3 block drop-shadow">Handveredelt in Gifhorn</span>
+                <h1 class="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-white mb-5 drop-shadow-lg">
                     Unsere Kollektion
                 </h1>
-                <p class="text-gray-400 max-w-2xl mx-auto text-lg leading-relaxed px-4">
+                <p class="text-gray-200 max-w-2xl mx-auto text-lg leading-relaxed px-4 drop-shadow">
                     Entdecke Unikate, die deine Seele berühren. Jedes Stück wird mit Liebe, modernster Technik und Sorgfalt für dich personalisiert.
                 </p>
             </div>
@@ -18,12 +26,12 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
 
             {{-- Filter & Search Bar --}}
-            <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-6 mb-12">
+            <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
                 
                 {{-- Suchleiste Volle Breite Oben --}}
-                <div class="w-full mb-6">
+                <div class="w-full mb-4">
                     <div class="relative w-full group">
-                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
+                        <input wire:model.live.debounce.300ms="search" type="text" placeholder="Suche nach Name oder Eigenschaft..." class="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>
@@ -35,32 +43,32 @@
                     </div>
                 </div>
 
-                {{-- Untere Ebene: Pills & Dropdowns --}}
-                <div class="flex flex-col xl:flex-row gap-6 justify-between items-center">
+                {{-- Untere Ebene: Pills & Dropdowns (Kompakt auf Desktop, damit nichts abschneidet) --}}
+                <div class="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
 
-                    {{-- Type & Personalizable Pills --}}
-                    <div class="flex flex-col lg:flex-row gap-4 w-full xl:w-auto">
+                    {{-- Type, Personalizable & Sale Pills --}}
+                    <div class="flex flex-col lg:flex-row gap-2.5 w-full xl:w-auto shrink-0">
                         {{-- Type Filter (Pills) --}}
                         @if(count($availableTypes) > 0)
-                            <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
-                                <button wire:click="$set('filterType', 'all')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                            <div class="flex bg-gray-50 p-1 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                                <button wire:click="$set('filterType', 'all')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'all' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
                                     Alle
                                 </button>
                                 @if(in_array('physical', $availableTypes, true))
-                                    <button wire:click="$set('filterType', 'physical')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'physical' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                        <svg class="w-4 h-4 {{ $filterType === 'physical' ? 'text-[var(--theme-color)]' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+                                    <button wire:click="$set('filterType', 'physical')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'physical' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                        <svg class="w-3.5 h-3.5 {{ $filterType === 'physical' ? 'text-[var(--theme-color)]' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
                                         Physisch
                                     </button>
                                 @endif
                                 @if(in_array('digital', $availableTypes, true))
-                                    <button wire:click="$set('filterType', 'digital')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'digital' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                        <svg class="w-4 h-4 {{ $filterType === 'digital' ? 'text-blue-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    <button wire:click="$set('filterType', 'digital')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'digital' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                        <svg class="w-3.5 h-3.5 {{ $filterType === 'digital' ? 'text-blue-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                         Digital
                                     </button>
                                 @endif
                                 @if(in_array('service', $availableTypes, true))
-                                    <button wire:click="$set('filterType', 'service')" class="flex-1 lg:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'service' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
-                                        <svg class="w-4 h-4 {{ $filterType === 'service' ? 'text-orange-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                    <button wire:click="$set('filterType', 'service')" class="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterType === 'service' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700' }}">
+                                        <svg class="w-3.5 h-3.5 {{ $filterType === 'service' ? 'text-orange-500' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                                         Service
                                     </button>
                                 @endif
@@ -68,25 +76,25 @@
                         @endif
 
                         {{-- Personalizable Filter (Pills) --}}
-                        <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
-                            <button wire:click="$set('filterPersonalizable', 'all')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700' }}">
+                        <div class="flex bg-gray-50 p-1 rounded-xl border border-gray-100 w-full lg:w-auto overflow-x-auto no-scrollbar">
+                            <button wire:click="$set('filterPersonalizable', 'all')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'all' ? 'bg-white shadow-sm text-gray-900 border border-gray-200' : 'text-gray-500 hover:text-gray-700' }}">
                                 Alle
                             </button>
-                            <button wire:click="$set('filterPersonalizable', 'yes')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'yes' ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] shadow-sm border border-[var(--theme-color-30)]' : 'text-gray-500 hover:text-[var(--theme-color)]' }}">
+                            <button wire:click="$set('filterPersonalizable', 'yes')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'yes' ? 'bg-[var(--theme-color-10)] text-[var(--theme-color)] shadow-sm border border-[var(--theme-color-30)]' : 'text-gray-500 hover:text-[var(--theme-color)]' }}">
                                 Personalisiert
                             </button>
-                            <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
+                            <button wire:click="$set('filterPersonalizable', 'no')" class="flex-1 lg:flex-none flex items-center justify-center px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterPersonalizable === 'no' ? 'bg-gray-200 text-gray-800 shadow-sm border border-gray-300' : 'text-gray-500 hover:text-gray-800' }}">
                                 Standard
                             </button>
                         </div>
 
                         {{-- Angebote / Sale Filter Pill --}}
-                        <div class="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 w-full lg:w-auto">
-                            <button wire:click="toggleSaleFilter" class="w-full lg:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterSale ? 'bg-red-500 text-white shadow-sm' : 'text-red-600 hover:bg-red-50' }}">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                        <div class="flex bg-gray-50 p-1 rounded-xl border border-gray-100 w-full lg:w-auto">
+                            <button wire:click="toggleSaleFilter" class="w-full lg:w-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all whitespace-nowrap {{ $filterSale ? 'bg-red-500 text-white shadow-sm' : 'text-red-600 hover:bg-red-50' }}">
+                                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
                                 <span>Angebote</span>
                                 @if(($saleCount ?? 0) > 0)
-                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black {{ $filterSale ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600' }}">{{ $saleCount }}</span>
+                                    <span class="px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none {{ $filterSale ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600' }}">{{ $saleCount }}</span>
                                 @endif
                             </button>
                         </div>
@@ -94,33 +102,33 @@
 
                     {{-- Dropdowns Container --}}
                     @if(!empty($availableHolidays) || $categories->isNotEmpty())
-                        <div class="flex flex-col sm:flex-row gap-4 w-full xl:w-auto flex-1 h-full">
+                        <div class="flex flex-col sm:flex-row gap-2.5 w-full xl:w-auto flex-1 min-w-0 justify-end">
                             {{-- Anlass Dropdown --}}
                             @if(!empty($availableHolidays))
-                                <div class="relative w-full {{ $categories->isNotEmpty() ? 'sm:w-1/2' : 'sm:w-full' }} h-full">
-                                    <select wire:model.live="filterHoliday" class="w-full h-[46px] pl-4 pr-10 py-0 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
+                                <div class="relative w-full {{ $categories->isNotEmpty() ? 'sm:w-1/2 xl:w-[175px]' : 'sm:w-full xl:w-[200px]' }}">
+                                    <select wire:model.live="filterHoliday" class="w-full h-[42px] pl-3.5 pr-9 py-0 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none truncate">
                                         <option value="">Alle Anlässe</option>
                                         @foreach($availableHolidays as $val => $label)
                                             <option value="{{ $val }}">{{ $label }}</option>
                                         @endforeach
                                     </select>
-                                    <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500" aria-hidden="true">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                    <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500" aria-hidden="true">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                                     </div>
                                 </div>
                             @endif
 
                             {{-- Kategorie Dropdown --}}
                             @if($categories->isNotEmpty())
-                                <div class="relative w-full {{ !empty($availableHolidays) ? 'sm:w-1/2' : 'sm:w-full' }} h-full">
-                                    <select wire:model.live="filterCategory" class="w-full h-[46px] pl-4 pr-10 py-0 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none">
+                                <div class="relative w-full {{ !empty($availableHolidays) ? 'sm:w-1/2 xl:w-[185px]' : 'sm:w-full xl:w-[200px]' }}">
+                                    <select wire:model.live="filterCategory" class="w-full h-[42px] pl-3.5 pr-9 py-0 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none truncate">
                                         <option value="">Alle Kategorien</option>
                                         @foreach($categories as $cat)
                                             <option value="{{ $cat->id }}">{{ $cat->name }}</option>
                                         @endforeach
                                     </select>
-                                    <div class="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500" aria-hidden="true">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                    <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500" aria-hidden="true">
+                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                                     </div>
                                 </div>
                             @endif
@@ -280,7 +288,12 @@
                                     {{-- Neu & Sale Badges --}}
                                     <div class="absolute top-3 left-3 flex flex-col gap-2 pointer-events-none z-20">
                                         @if(!$isSoldOut && $product->compare_at_price > $product->price)
-                                            <span class="bg-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-md uppercase tracking-wider">Sale</span>
+                                            @php
+                                                $saleBadgeText = $product->configurator_settings['autopilot_badge_text'] ?? ($heroBanner['badge_text'] ?? 'Angebot');
+                                            @endphp
+                                            <span class="bg-red-500/95 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md uppercase tracking-wide border border-white/15">
+                                                {{ $saleBadgeText }}
+                                            </span>
                                         @endif
                                         @if(!$isSoldOut && $product->created_at->diffInDays() < 21)
                                             <span class="bg-white/95 backdrop-blur text-gray-900 text-[10px] font-black px-3 py-1.5 rounded-full shadow-md uppercase tracking-wider border border-gray-100">Neu</span>

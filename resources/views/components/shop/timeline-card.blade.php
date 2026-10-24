@@ -154,23 +154,23 @@
                     </button>
                 </div>
 
-                {{-- Kompaktes Info-Popover direkt in der Kachel --}}
+                {{-- Kompaktes Info-Popover direkt in der Kachel (Hell/Dunkel adaptiv) --}}
                 <div x-show="showOfferInfo"
                      x-cloak
                      x-transition.opacity.duration.150ms
-                     class="absolute left-0 right-0 bottom-full mb-2 z-50 p-3.5 rounded-2xl bg-gray-900/95 dark:bg-gray-950/95 text-white border border-gray-700 shadow-2xl text-[10px] leading-relaxed backdrop-blur-md">
+                     class="absolute left-0 right-0 bottom-full mb-2 z-[90] p-3.5 rounded-2xl bg-white dark:bg-gray-950 text-gray-800 dark:text-white border border-gray-200 dark:border-gray-700 shadow-2xl text-[10px] leading-relaxed">
                     <div class="font-black uppercase tracking-wider text-[color:var(--theme-color)] mb-1 flex items-center justify-between">
                         <span>{{ $offerPreview['label'] }}</span>
-                        <span class="text-emerald-400">Ø {{ number_format($offerPreview['avg_net_margin_percent'], 0, ',', '.') }}% Marge</span>
+                        <span class="text-emerald-600 dark:text-emerald-400">Ø {{ number_format($offerPreview['avg_net_margin_percent'], 0, ',', '.') }}% Marge</span>
                     </div>
-                    <p class="text-gray-300 text-[9.5px] mb-2">{{ $offerPreview['strategy_hint'] }}</p>
-                    <div class="space-y-1 border-t border-gray-800 pt-1.5">
+                    <p class="text-gray-600 dark:text-gray-300 text-[9.5px] mb-2">{{ $offerPreview['strategy_hint'] }}</p>
+                    <div class="space-y-1 border-t border-gray-200 dark:border-gray-800 pt-1.5">
                         @foreach($offerPreview['products'] as $pOffer)
                             <div class="flex items-center justify-between text-[9.5px]">
-                                <span class="text-gray-300 truncate pr-2">{{ $pOffer['name'] }}</span>
-                                <span class="font-mono font-bold text-white shrink-0">
+                                <span class="text-gray-700 dark:text-gray-300 truncate pr-2">{{ $pOffer['name'] }}</span>
+                                <span class="font-mono font-bold text-gray-900 dark:text-white shrink-0">
                                     {{ number_format($pOffer['sale_price_cents'] / 100, 2, ',', '.') }} €
-                                    <span class="line-through text-gray-500 font-normal">{{ number_format($pOffer['base_price_cents'] / 100, 2, ',', '.') }} €</span>
+                                    <span class="line-through text-gray-400 dark:text-gray-500 font-normal">{{ number_format($pOffer['base_price_cents'] / 100, 2, ',', '.') }} €</span>
                                 </span>
                             </div>
                         @endforeach

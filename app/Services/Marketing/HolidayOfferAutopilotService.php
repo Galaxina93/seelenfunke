@@ -64,6 +64,7 @@ class HolidayOfferAutopilotService
         return [
             'valentines' => [
                 'label' => 'Valentinstags-Aktion',
+                'badge_text' => '💘 Valentins-Sale',
                 'discount_percent' => 12,
                 'start_days_before' => 21,
                 'end_days_before' => 4,
@@ -72,6 +73,7 @@ class HolidayOfferAutopilotService
             ],
             'womens_day' => [
                 'label' => 'Weltfrauentags-Special',
+                'badge_text' => '💐 Frauentags-Sale',
                 'discount_percent' => 10,
                 'start_days_before' => 16,
                 'end_days_before' => 3,
@@ -80,6 +82,7 @@ class HolidayOfferAutopilotService
             ],
             'easter' => [
                 'label' => 'Oster-Manufaktur-Aktion',
+                'badge_text' => '🐰 Oster-Angebot',
                 'discount_percent' => 10,
                 'start_days_before' => 21,
                 'end_days_before' => 4,
@@ -88,6 +91,7 @@ class HolidayOfferAutopilotService
             ],
             'mothers_day' => [
                 'label' => 'Muttertags-Aktion',
+                'badge_text' => '💝 Muttertags-Sale',
                 'discount_percent' => 12,
                 'start_days_before' => 21,
                 'end_days_before' => 4,
@@ -96,6 +100,7 @@ class HolidayOfferAutopilotService
             ],
             'fathers_day' => [
                 'label' => 'Vatertags-Special',
+                'badge_text' => '🍺 Vatertags-Sale',
                 'discount_percent' => 12,
                 'start_days_before' => 21,
                 'end_days_before' => 4,
@@ -104,6 +109,7 @@ class HolidayOfferAutopilotService
             ],
             'sale_summer' => [
                 'label' => 'Großer Sommer-Sale',
+                'badge_text' => '☀️ Sommer-Sale',
                 'discount_percent' => 15,
                 'start_days_before' => 0,
                 'end_days_before' => -14, // Läuft vom 01.07. bis 15.07.
@@ -112,6 +118,7 @@ class HolidayOfferAutopilotService
             ],
             'halloween' => [
                 'label' => 'Herbst- & Lichter-Aktion',
+                'badge_text' => '🎃 Grusel-Angebot',
                 'discount_percent' => 10,
                 'start_days_before' => 18,
                 'end_days_before' => 1,
@@ -120,6 +127,7 @@ class HolidayOfferAutopilotService
             ],
             'advent_1' => [
                 'label' => 'Advents-Frühbucher-Aktion',
+                'badge_text' => '🕯️ Advents-Deal',
                 'discount_percent' => 12,
                 'start_days_before' => 14,
                 'end_days_before' => 0,
@@ -128,6 +136,7 @@ class HolidayOfferAutopilotService
             ],
             'christmas' => [
                 'label' => 'Weihnachts-Manufaktur-Aktion',
+                'badge_text' => '🎄 Weihnachts-Sale',
                 'discount_percent' => 10,
                 'start_days_before' => 23, // Ab 01.12.
                 'end_days_before' => 6,  // Endet am 18.12.!
@@ -136,6 +145,7 @@ class HolidayOfferAutopilotService
             ],
             'new_year' => [
                 'label' => 'Neujahrs-Aktion',
+                'badge_text' => '🎆 Neujahrs-Deal',
                 'discount_percent' => 10,
                 'start_days_before' => 0,
                 'end_days_before' => -7, // 01.01. bis 08.01.
@@ -144,6 +154,7 @@ class HolidayOfferAutopilotService
             ],
             'sale_winter' => [
                 'label' => 'Großer Winter- & Inventur-Sale',
+                'badge_text' => '❄️ Winter-Sale',
                 'discount_percent' => 15,
                 'start_days_before' => 0,
                 'end_days_before' => -12, // 15.01. bis 27.01.
@@ -364,6 +375,7 @@ class HolidayOfferAutopilotService
         return [
             'event_key' => $eventKey,
             'label' => $def['label'],
+            'badge_text' => $def['badge_text'] ?? 'Sale',
             'strategy_hint' => $def['strategy_hint'],
             'target_discount_percent' => (int) $def['discount_percent'],
             'effective_discount_percent' => $avgDiscount,
@@ -422,6 +434,7 @@ class HolidayOfferAutopilotService
                                     $activeOffersByProductId[$offer['product_id']] = array_merge($offer, [
                                         'event_key' => $key,
                                         'campaign_label' => $preview['label'],
+                                        'badge_text' => $preview['badge_text'] ?? 'Sale',
                                     ]);
                                 }
                             }
@@ -446,6 +459,7 @@ class HolidayOfferAutopilotService
                 $settings['autopilot_base_price'] = $basePrice;
                 $settings['autopilot_event_key'] = $targetOffer['event_key'];
                 $settings['autopilot_campaign_label'] = $targetOffer['campaign_label'];
+                $settings['autopilot_badge_text'] = $targetOffer['badge_text'] ?? 'Sale';
 
                 if ((int) $product->price !== $salePrice || (int) $product->compare_at_price !== $basePrice || $product->configurator_settings !== $settings) {
                     $product->price = $salePrice;
@@ -458,7 +472,7 @@ class HolidayOfferAutopilotService
                 // Kein aktives Autopilot-Angebot für dieses Produkt -> Basispreis wiederherstellen, falls vom Autopiloten gesetzt
                 if (!empty($settings['autopilot_base_price'])) {
                     $restoredBasePrice = (int) $settings['autopilot_base_price'];
-                    unset($settings['autopilot_base_price'], $settings['autopilot_event_key'], $settings['autopilot_campaign_label']);
+                    unset($settings['autopilot_base_price'], $settings['autopilot_event_key'], $settings['autopilot_campaign_label'], $settings['autopilot_badge_text']);
 
                     $product->price = $restoredBasePrice;
                     $product->compare_at_price = null;

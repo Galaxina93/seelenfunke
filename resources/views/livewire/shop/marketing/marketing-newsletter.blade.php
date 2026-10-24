@@ -11,7 +11,7 @@
             </div>
 
             {{-- KPIs & 100% Angebots-Autopilot --}}
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 relative z-50">
                 <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex items-center justify-between transition-colors">
                     <div>
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Abonnenten</p>
@@ -67,21 +67,21 @@
                               class="pointer-events-none inline-block rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ease-in-out"></span>
                     </button>
 
-                    {{-- Kompaktes Erklärungs-Popover (Die 5 Schutzmauern) --}}
+                    {{-- Kompaktes Erklärungs-Popover (Die 5 Schutzmauern - Hell/Dunkel-Modus adaptiv) --}}
                     <div x-show="showGuardrailsInfo"
                          x-cloak
                          x-transition.opacity.duration.150ms
-                         class="absolute left-0 right-0 top-full mt-3 z-50 p-5 rounded-2xl bg-gray-900/95 dark:bg-gray-950/95 text-white border border-gray-700 shadow-2xl text-[11px] leading-relaxed backdrop-blur-md">
+                         class="absolute left-0 right-0 top-full mt-3 z-[100] p-5 rounded-2xl bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 shadow-2xl text-[11px] leading-relaxed">
                         <div class="font-black uppercase tracking-widest text-[var(--theme-color)] text-[10px] mb-2 flex items-center justify-between">
                             <span>🛡️ 5 Aktive Schutzmauern gegen den Ruin</span>
-                            <span class="text-emerald-400">Aktiv</span>
+                            <span class="text-emerald-600 dark:text-emerald-400">Aktiv</span>
                         </div>
-                        <ul class="space-y-1.5 text-gray-300 text-[10.5px]">
-                            <li><strong class="text-white">1. Eiserne Mindestmarge (≥ 45 % Netto):</strong> Berechnet aus echtem Rohling-EK, Laserlaufzeit, Verpackung, Zahlungsgebühr & geplantem Werbebudget.</li>
-                            <li><strong class="text-white">2. Anti-Stacking im Warenkorb:</strong> Bereits reduzierte Aktions-Unikate können nicht doppelt mit zusätzlichen Rabattcodes kombiniert werden.</li>
-                            <li><strong class="text-white">3. Last-Minute-Abschaltung:</strong> 4–6 Tage vor dem Feiertag endet der Rabatt automatisch (Last-Minute-Käufer zahlen Vollpreis + ggf. Express).</li>
-                            <li><strong class="text-white">4. Lager- & Kapazitätsbremse:</strong> Unter {{ $guardrails['min_stock_threshold'] }} Stück Bestand oder bei hoher Werkstattauslastung schaltet der Sale automatisch ab.</li>
-                            <li><strong class="text-white">5. Basispreis-Tresor:</strong> Nach jeder Aktion springen alle Streichpreise von selbst wieder auf den Originalpreis zurück.</li>
+                        <ul class="space-y-1.5 text-gray-600 dark:text-gray-300 text-[10.5px]">
+                            <li><strong class="text-gray-900 dark:text-white">1. Eiserne Mindestmarge (≥ 45 % Netto):</strong> Berechnet aus echtem Rohling-EK, Laserlaufzeit, Verpackung, Zahlungsgebühr & geplantem Werbebudget.</li>
+                            <li><strong class="text-gray-900 dark:text-white">2. Anti-Stacking im Warenkorb:</strong> Bereits reduzierte Aktions-Unikate können nicht doppelt mit zusätzlichen Rabattcodes kombiniert werden.</li>
+                            <li><strong class="text-gray-900 dark:text-white">3. Last-Minute-Abschaltung:</strong> 4–6 Tage vor dem Feiertag endet der Rabatt automatisch (Last-Minute-Käufer zahlen Vollpreis + ggf. Express).</li>
+                            <li><strong class="text-gray-900 dark:text-white">4. Lager- & Kapazitätsbremse:</strong> Unter {{ $guardrails['min_stock_threshold'] }} Stück Bestand oder bei hoher Werkstattauslastung schaltet der Sale automatisch ab.</li>
+                            <li><strong class="text-gray-900 dark:text-white">5. Basispreis-Tresor:</strong> Nach jeder Aktion springen alle Streichpreise von selbst wieder auf den Originalpreis zurück.</li>
                         </ul>
                     </div>
                 </div>
@@ -109,7 +109,7 @@
             </div>
 
             {{-- Content Area --}}
-            <div class="animate-fade-in-up">
+            <div class="animate-fade-in-up relative z-10">
 
                 {{-- TAB: TEMPLATES --}}
                 @if($activeTab === 'templates')
@@ -221,14 +221,14 @@
                                                 </span>
                                             </div>
 
-                                            {{-- Info-Popover zur Margen-Formel --}}
+                                            {{-- Info-Popover zur Margen-Formel (Hell/Dunkel adaptiv) --}}
                                             <div x-show="showCalcInfo"
                                                  x-cloak
                                                  x-transition.opacity.duration.150ms
-                                                 class=" mb-3 p-3.5 rounded-xl bg-gray-900 text-white border border-gray-700 text-[10px] leading-relaxed shadow-xl">
+                                                 class="mb-3 p-3.5 rounded-xl bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[10px] leading-relaxed shadow-xl">
                                                 <p class="font-bold text-[var(--theme-color)] mb-1">{{ $editingOfferPreview['label'] }}</p>
-                                                <p class="text-gray-300 mb-1.5">{{ $editingOfferPreview['strategy_hint'] }}</p>
-                                                <p class="text-gray-400 text-[9.5px]">Formel: Netto-Aktionspreis minus (Rohling-EK + Laser/Strom + Verpackung + Zahlungsgebühr + geplantes Werbebudget). Fällt die Marge unter 45 %, hebt das System den Preis automatisch an.</p>
+                                                <p class="text-gray-600 dark:text-gray-300 mb-1.5">{{ $editingOfferPreview['strategy_hint'] }}</p>
+                                                <p class="text-gray-500 dark:text-gray-400 text-[9.5px]">Formel: Netto-Aktionspreis minus (Rohling-EK + Laser/Strom + Verpackung + Zahlungsgebühr + geplantes Werbebudget). Fällt die Marge unter 45 %, hebt das System den Preis automatisch an.</p>
                                             </div>
 
                                             <div class="text-[11px] bg-white dark:bg-gray-950 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2 mb-3">
@@ -350,7 +350,7 @@
                                         $isNext = !$isPast && !($foundNext ?? false);
                                         if($isNext) $foundNext = true;
                                     @endphp
-                                    <div class="relative group w-[280px] sm:w-[320px] shrink-0 snap-start">
+                                    <div class="relative group w-[280px] sm:w-[320px] shrink-0 snap-start hover:z-50">
                                         <div wire:click="editTemplate('{{ $event['template_id'] }}')" class="relative cursor-pointer transition-all duration-500 group-hover:-translate-y-2 h-full opacity-90 hover:opacity-100">
                                             <x-shop.timeline-card
                                                 :date="$event['event_date']"
