@@ -14,16 +14,8 @@ class ProductTemplateSeeder extends Seeder
      */
     public function run(): void
     {
-        ProductTemplate::truncate(); // Alte Vorlagen löschen (falls erwünscht beim Seed)
+        ProductTemplate::truncate();
 
-        $jsonPath = database_path('seeders/data/product_templates.json');
-
-        if (\Illuminate\Support\Facades\File::exists($jsonPath)) {
-            $this->seedFromJson($jsonPath);
-            return;
-        }
-
-        // --- FALLBACK LOGIK (Falls es noch keinen Export gab) ---
         $products = Product::where('status', 'active')
             ->where('type', 'physical')
             ->where('is_personalizable', true)
@@ -41,44 +33,36 @@ class ProductTemplateSeeder extends Seeder
         }
     }
 
-    private function seedFromJson($jsonPath)
+    private function createChristmasTemplate(Product $product): void
     {
-        $json = \Illuminate\Support\Facades\File::get($jsonPath);
-        $templates = json_decode($json, true);
+        $slug = $product->slug;
+        $textY = $slug === 'seelen-kristall' ? 60 : 58;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.4 : 1.5;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 80,
+            'weizenglas-personalisiert' => 95,
+            default => 90,
+        };
 
-        if (!$templates) return;
+        $textContent = "Frohe Weihnachten!\n- Familie Mustermann -";
 
-        foreach ($templates as $data) {
-            $product = Product::where('slug', $data['product_slug'])->first();
-
-            if ($product) {
-                ProductTemplate::create([
-                    'product_id' => $product->id,
-                    'name' => $data['name'],
-                    'configuration' => $data['configuration'],
-                    'is_active' => $data['is_active'],
-                    'holiday' => $data['holiday'] ?? null,
-                    'preview_image' => $data['preview_image'] ?? null,
-                ]);
-            }
-        }
-    }
-
-    private function createChristmasTemplate(Product $product)
-    {
         $config = [
+            'text' => $textContent,
+            'type' => 'physical',
             'background_theme' => 'winter',
+            'files' => [],
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
-                    'text' => "Frohe Weihnachten!\n- Familie Mustermann -",
+                    'text' => $textContent,
                     'font' => 'Dancing Script',
                     'align' => 'center',
                     'x' => 50,
-                    'y' => 60,
-                    'size' => 1.5,
-                    'rotation' => 0
-                ]
+                    'y' => $textY,
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
             ],
             'logos' => [
                 [
@@ -87,16 +71,18 @@ class ProductTemplateSeeder extends Seeder
                     'value' => 'vectors/Feiertage/weihnachtsbaum.svg',
                     'url' => '/shop/product/configurator/vectors/Feiertage/weihnachtsbaum.svg',
                     'x' => 50,
-                    'y' => 32,
-                    'size' => 90,
-                    'rotation' => 0
-                ]
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
             ],
             'logo_path' => 'vectors/Feiertage/weihnachtsbaum.svg',
+            'is_digital' => false,
+            'is_express' => false,
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
-            'uploaded_files' => []
+            'uploaded_files' => [],
         ];
 
         ProductTemplate::create([
@@ -109,21 +95,35 @@ class ProductTemplateSeeder extends Seeder
         ]);
     }
 
-    private function createEasterTemplate(Product $product)
+    private function createEasterTemplate(Product $product): void
     {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.6 : 1.7;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 80,
+            'weizenglas-personalisiert' => 95,
+            default => 90,
+        };
+
+        $textContent = 'Frohes Osterfest!';
+
         $config = [
+            'text' => $textContent,
+            'type' => 'physical',
             'background_theme' => 'ostern',
+            'files' => [],
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
-                    'text' => 'Frohes Osterfest!',
+                    'text' => $textContent,
                     'font' => 'Pacifico',
                     'align' => 'center',
                     'x' => 50,
                     'y' => 58,
-                    'size' => 1.7,
-                    'rotation' => 0
-                ]
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
             ],
             'logos' => [
                 [
@@ -132,16 +132,18 @@ class ProductTemplateSeeder extends Seeder
                     'value' => 'vectors/Tiere/haeschen.svg',
                     'url' => '/shop/product/configurator/vectors/Tiere/haeschen.svg',
                     'x' => 50,
-                    'y' => 32,
-                    'size' => 90,
-                    'rotation' => 0
-                ]
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
             ],
             'logo_path' => 'vectors/Tiere/haeschen.svg',
+            'is_digital' => false,
+            'is_express' => false,
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
-            'uploaded_files' => []
+            'uploaded_files' => [],
         ];
 
         ProductTemplate::create([
@@ -154,21 +156,35 @@ class ProductTemplateSeeder extends Seeder
         ]);
     }
 
-    private function createWeddingTemplate(Product $product)
+    private function createWeddingTemplate(Product $product): void
     {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.5 : 1.6;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 80,
+            'weizenglas-personalisiert' => 95,
+            default => 90,
+        };
+
+        $textContent = "Lieblingsmensch\n24.08.2026";
+
         $config = [
+            'text' => $textContent,
+            'type' => 'physical',
             'background_theme' => 'hochzeit',
+            'files' => [],
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
-                    'text' => "Lieblingsmensch\n24.08.2026",
+                    'text' => $textContent,
                     'font' => 'Great Vibes',
                     'align' => 'center',
                     'x' => 50,
                     'y' => 58,
-                    'size' => 1.6,
-                    'rotation' => 0
-                ]
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
             ],
             'logos' => [
                 [
@@ -177,16 +193,18 @@ class ProductTemplateSeeder extends Seeder
                     'value' => 'vectors/Liebe/eheringe.svg',
                     'url' => '/shop/product/configurator/vectors/Liebe/eheringe.svg',
                     'x' => 50,
-                    'y' => 32,
-                    'size' => 90,
-                    'rotation' => 0
-                ]
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
             ],
             'logo_path' => 'vectors/Liebe/eheringe.svg',
+            'is_digital' => false,
+            'is_express' => false,
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
-            'uploaded_files' => []
+            'uploaded_files' => [],
         ];
 
         ProductTemplate::create([
@@ -199,21 +217,35 @@ class ProductTemplateSeeder extends Seeder
         ]);
     }
 
-    private function createBirthdayTemplate(Product $product)
+    private function createBirthdayTemplate(Product $product): void
     {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.3 : 1.4;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 78,
+            'weizenglas-personalisiert' => 90,
+            default => 85,
+        };
+
+        $textContent = 'Happy Birthday!';
+
         $config = [
+            'text' => $textContent,
+            'type' => 'physical',
             'background_theme' => 'geburtstag',
+            'files' => [],
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
-                    'text' => "Happy Birthday!",
+                    'text' => $textContent,
                     'font' => 'Montserrat',
                     'align' => 'center',
                     'x' => 50,
                     'y' => 58,
-                    'size' => 1.4,
-                    'rotation' => 0
-                ]
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
             ],
             'logos' => [
                 [
@@ -222,16 +254,18 @@ class ProductTemplateSeeder extends Seeder
                     'value' => 'vectors/Feiertage/geschenk.svg',
                     'url' => '/shop/product/configurator/vectors/Feiertage/geschenk.svg',
                     'x' => 50,
-                    'y' => 32,
-                    'size' => 85,
-                    'rotation' => 0
-                ]
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
             ],
             'logo_path' => 'vectors/Feiertage/geschenk.svg',
+            'is_digital' => false,
+            'is_express' => false,
             'texts_back' => [],
             'logos_back' => [],
             'notes' => '',
-            'uploaded_files' => []
+            'uploaded_files' => [],
         ];
 
         ProductTemplate::create([

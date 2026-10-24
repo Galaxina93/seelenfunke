@@ -52,7 +52,6 @@ class DatabaseSeeder extends Seeder
             AiKnowledgeBaseSeeder::class,
             AiKnowledgeBaseLaserSeeder::class,
             AiCompanyStructureSeeder::class,
-            FunkiraMigrationSeeder::class,
 
             // DEAKTIVIEREN BEI LIVEGANG
             /*FinancialDataSeeder::class,*/

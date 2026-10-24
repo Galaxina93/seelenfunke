@@ -81,6 +81,35 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'high'],
                 ]
             ],
+            [
+                'list' => [
+                    'name' => 'Existenzgründung & Behörden',
+                    'icon' => 'briefcase',
+                    'color' => '#10b981',
+                ],
+                'taks' => [
+                    [
+                        'title' => 'PIN-Rücksetzbrief für Online-Ausweis abwarten & BundID aktivieren',
+                        'priority' => 'urgent',
+                        'ai_plan' => 'Sobald der PIN-Rücksetzbrief der Bundesdruckerei / Bürgeramt per Post eintrifft, den Online-Ausweis über die AusweisApp freischalten, um den kostenlosen Zugang zu "Mein Justizpostfach" (MJP) freizuschalten.',
+                    ],
+                    [
+                        'title' => 'Eilantrag nach § 86b SGG über Mein Justizpostfach (MJP) beim SG Braunschweig einreichen',
+                        'priority' => 'urgent',
+                        'ai_plan' => 'Nach BundID-Aktivierung über mein-justizpostfach.bund.de den Eilantrag (00_EILANTRAG...) und die Anlagen K01 bis K08 digital und papierlos an das Sozialgericht Braunschweig (EGVP-ID: govello-1272982110140-000216760) senden.',
+                    ],
+                    [
+                        'title' => 'Businessplan & Liquiditätsplan an Steuerberaterin übergeben',
+                        'priority' => 'high',
+                        'ai_plan' => 'Übergabe des fertigen Businessplans und des Liquiditätsplans an die Steuerberaterin zur Ausstellung der fachkundigen Tragfähigkeitsbescheinigung.',
+                    ],
+                    [
+                        'title' => '150 Tage Restanspruch sichern & Gründungszuschuss bei Frau Grandke (AfA) beantragen',
+                        'priority' => 'high',
+                        'ai_plan' => 'Genaue Überwachung der 150-Tage-Grenze beim ALG 1 vor Gründungsbeginn (01.11.2026) und formelle Antragstellung bei Frau Grandke bei der Agentur für Arbeit Gifhorn.',
+                    ],
+                ]
+            ],
         ];
 
         $baseNow = now();
@@ -114,9 +143,10 @@ class ManagementTaskSeeder extends Seeder
                     'task_list_id' => $listId,
                     'parent_id' => null, // Wir halten es flach, wie gewünscht
                     'title' => $todo['title'],
+                    'ai_plan' => $todo['ai_plan'] ?? null,
                     'is_completed' => false,
                     'position' => $position,
-                    'priority' => 'niedrig',
+                    'priority' => $todo['priority'] ?? 'niedrig',
                     'relevant_from' => '2026-08-01 00:00:00',
                     'created_at' => $taskTime,
                     'updated_at' => $taskTime,
