@@ -46,6 +46,16 @@ class ProductSeeder extends Seeder
             ]);
         }
 
+        // 3D-Modell für "Der Seelen Kristall" aus versioniertem Seeder-Bestand bereitstellen
+        $seededCrystalGlb = database_path('seeders/data/models/t_seelenk.glb');
+        $targetCrystalGlb = storage_path('app/public/produkte/products/seelen-kristall/t_seelenk.glb');
+        if (is_file($seededCrystalGlb)) {
+            if (!is_dir(dirname($targetCrystalGlb))) {
+                @mkdir(dirname($targetCrystalGlb), 0775, true);
+            }
+            @copy($seededCrystalGlb, $targetCrystalGlb);
+        }
+
         // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
         $p1 = Product::updateOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
@@ -97,19 +107,19 @@ class ProductSeeder extends Seeder
                 'cylinder_radius' => 50,
                 'material_type' => 'glass',
                 'model_scale' => 100,
-                'model_pos_x' => -0.26,
-                'model_pos_y' => 1.04,
-                'model_pos_z' => 2.37,
-                'model_rot_x' => -102.57,
-                'model_rot_y' => 89.49,
-                'model_rot_z' => 99.97,
-                'engraving_scale' => 66.04,
-                'engraving_pos_x' => -0.49,
-                'engraving_pos_y' => 0.62,
-                'engraving_pos_z' => -4.28,
-                'engraving_rot_x' => -108.76,
-                'engraving_rot_y' => 88.32,
-                'engraving_rot_z' => 110.35,
+                'model_pos_x' => 0,
+                'model_pos_y' => 0,
+                'model_pos_z' => 0,
+                'model_rot_x' => 0,
+                'model_rot_y' => 0,
+                'model_rot_z' => 0,
+                'engraving_scale' => 68,
+                'engraving_pos_x' => 0,
+                'engraving_pos_y' => 0.30,
+                'engraving_pos_z' => -0.64,
+                'engraving_rot_x' => 0,
+                'engraving_rot_y' => 180,
+                'engraving_rot_z' => 0,
                 'custom_points' => [
                     ['x' => 20, 'y' => 20], ['x' => 80, 'y' => 20],
                     ['x' => 80, 'y' => 80], ['x' => 20, 'y' => 80]
