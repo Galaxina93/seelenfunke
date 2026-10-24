@@ -30,6 +30,10 @@ class ProductTemplateSeeder extends Seeder
             $this->createEasterTemplate($product);
             $this->createWeddingTemplate($product);
             $this->createBirthdayTemplate($product);
+            $this->createValentinesTemplate($product);
+            $this->createHalloweenTemplate($product);
+            $this->createMothersDayTemplate($product);
+            $this->createFathersDayTemplate($product);
         }
     }
 
@@ -69,7 +73,7 @@ class ProductTemplateSeeder extends Seeder
                     'id' => Str::uuid()->toString(),
                     'type' => 'vector',
                     'value' => 'vectors/Feiertage/weihnachtsbaum.svg',
-                    'url' => '/shop/product/configurator/vectors/Feiertage/weihnachtsbaum.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Feiertage/weihnachtsbaum.svg',
                     'x' => 50,
                     'y' => $logoY,
                     'size' => $logoSize,
@@ -130,7 +134,7 @@ class ProductTemplateSeeder extends Seeder
                     'id' => Str::uuid()->toString(),
                     'type' => 'vector',
                     'value' => 'vectors/Tiere/haeschen.svg',
-                    'url' => '/shop/product/configurator/vectors/Tiere/haeschen.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Tiere/haeschen.svg',
                     'x' => 50,
                     'y' => $logoY,
                     'size' => $logoSize,
@@ -191,7 +195,7 @@ class ProductTemplateSeeder extends Seeder
                     'id' => Str::uuid()->toString(),
                     'type' => 'vector',
                     'value' => 'vectors/Liebe/eheringe.svg',
-                    'url' => '/shop/product/configurator/vectors/Liebe/eheringe.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Liebe/eheringe.svg',
                     'x' => 50,
                     'y' => $logoY,
                     'size' => $logoSize,
@@ -252,7 +256,7 @@ class ProductTemplateSeeder extends Seeder
                     'id' => Str::uuid()->toString(),
                     'type' => 'vector',
                     'value' => 'vectors/Feiertage/geschenk.svg',
-                    'url' => '/shop/product/configurator/vectors/Feiertage/geschenk.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Feiertage/geschenk.svg',
                     'x' => 50,
                     'y' => $logoY,
                     'size' => $logoSize,
@@ -273,8 +277,257 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Alles Gute zum Geburtstag',
             'configuration' => $config,
             'is_active' => true,
-            'holiday' => 'Kein Feiertag',
+            'holiday' => 'Geburtstag',
             'preview_image' => "produkte/product-templates/{$product->slug}-geburtstag.jpg",
+        ]);
+    }
+
+    private function createValentinesTemplate(Product $product): void
+    {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.45 : 1.55;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 80,
+            'weizenglas-personalisiert' => 92,
+            default => 88,
+        };
+
+        $textContent = "Für immer Dein\n- 14. Februar -";
+
+        $config = [
+            'text' => $textContent,
+            'type' => 'physical',
+            'background_theme' => 'hochzeit',
+            'files' => [],
+            'texts' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'text' => $textContent,
+                    'font' => 'Great Vibes',
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 58,
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Liebe/doppelherzen.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Liebe/doppelherzen.svg',
+                    'x' => 50,
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logo_path' => 'vectors/Liebe/doppelherzen.svg',
+            'is_digital' => false,
+            'is_express' => false,
+            'texts_back' => [],
+            'logos_back' => [],
+            'notes' => '',
+            'uploaded_files' => [],
+        ];
+
+        ProductTemplate::create([
+            'product_id' => $product->id,
+            'name' => 'Für immer Dein / Valentinstag',
+            'configuration' => $config,
+            'is_active' => true,
+            'holiday' => 'Valentinstag',
+            'preview_image' => "produkte/product-templates/{$product->slug}-valentinstag.jpg",
+        ]);
+    }
+
+    private function createHalloweenTemplate(Product $product): void
+    {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.35 : 1.45;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 80,
+            'weizenglas-personalisiert' => 92,
+            default => 88,
+        };
+
+        $subline = $slug === 'weizenglas-personalisiert' ? '- Hexengebräu -' : '- Seelenzauber -';
+        $textContent = "Magische Nacht\n{$subline}";
+
+        $config = [
+            'text' => $textContent,
+            'type' => 'physical',
+            'background_theme' => 'herbst',
+            'files' => [],
+            'texts' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'text' => $textContent,
+                    'font' => 'Cinzel',
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 58,
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Symbole/mond_und_sterne.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Symbole/mond_und_sterne.svg',
+                    'x' => 50,
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logo_path' => 'vectors/Symbole/mond_und_sterne.svg',
+            'is_digital' => false,
+            'is_express' => false,
+            'texts_back' => [],
+            'logos_back' => [],
+            'notes' => '',
+            'uploaded_files' => [],
+        ];
+
+        ProductTemplate::create([
+            'product_id' => $product->id,
+            'name' => 'Magische Nacht / Halloween',
+            'configuration' => $config,
+            'is_active' => true,
+            'holiday' => 'Halloween',
+            'preview_image' => "produkte/product-templates/{$product->slug}-halloween.jpg",
+        ]);
+    }
+
+    private function createMothersDayTemplate(Product $product): void
+    {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.45 : 1.55;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 80,
+            'weizenglas-personalisiert' => 92,
+            default => 88,
+        };
+
+        $textContent = "Beste Mama\nder Welt";
+
+        $config = [
+            'text' => $textContent,
+            'type' => 'physical',
+            'background_theme' => 'hochzeit',
+            'files' => [],
+            'texts' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'text' => $textContent,
+                    'font' => 'Dancing Script',
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 58,
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => 'vectors/Ornamente/herzkranz.svg',
+                    'url' => '/storage/produkte/configurator/vectors/Ornamente/herzkranz.svg',
+                    'x' => 50,
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logo_path' => 'vectors/Ornamente/herzkranz.svg',
+            'is_digital' => false,
+            'is_express' => false,
+            'texts_back' => [],
+            'logos_back' => [],
+            'notes' => '',
+            'uploaded_files' => [],
+        ];
+
+        ProductTemplate::create([
+            'product_id' => $product->id,
+            'name' => 'Beste Mama der Welt / Muttertag',
+            'configuration' => $config,
+            'is_active' => true,
+            'holiday' => 'Muttertag',
+            'preview_image' => "produkte/product-templates/{$product->slug}-muttertag.jpg",
+        ]);
+    }
+
+    private function createFathersDayTemplate(Product $product): void
+    {
+        $slug = $product->slug;
+        $textSize = $slug === 'seelen-anhaenger' ? 1.35 : 1.45;
+        $logoY = $slug === 'seelen-anhaenger' ? 33 : 32;
+        $logoSize = match ($slug) {
+            'seelen-anhaenger' => 78,
+            'weizenglas-personalisiert' => 92,
+            default => 86,
+        };
+
+        $vectorRel = $slug === 'weizenglas-personalisiert'
+            ? 'vectors/Symbole/bierkrug.svg'
+            : 'vectors/Symbole/siegerpokal.svg';
+
+        $textContent = "Bester Papa\nder Welt!";
+
+        $config = [
+            'text' => $textContent,
+            'type' => 'physical',
+            'background_theme' => 'geburtstag',
+            'files' => [],
+            'texts' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'text' => $textContent,
+                    'font' => 'Montserrat',
+                    'align' => 'center',
+                    'x' => 50,
+                    'y' => 58,
+                    'size' => $textSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logos' => [
+                [
+                    'id' => Str::uuid()->toString(),
+                    'type' => 'vector',
+                    'value' => $vectorRel,
+                    'url' => '/storage/produkte/configurator/' . $vectorRel,
+                    'x' => 50,
+                    'y' => $logoY,
+                    'size' => $logoSize,
+                    'rotation' => 0,
+                ],
+            ],
+            'logo_path' => $vectorRel,
+            'is_digital' => false,
+            'is_express' => false,
+            'texts_back' => [],
+            'logos_back' => [],
+            'notes' => '',
+            'uploaded_files' => [],
+        ];
+
+        ProductTemplate::create([
+            'product_id' => $product->id,
+            'name' => 'Bester Papa / Vatertag',
+            'configuration' => $config,
+            'is_active' => true,
+            'holiday' => 'Vatertag',
+            'preview_image' => "produkte/product-templates/{$product->slug}-vatertag.jpg",
         ]);
     }
 }

@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ProductTemplate extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, SoftDeletes;
 
     /**
      * Die Tabelle, die mit dem Model verknüpft ist.
@@ -38,7 +39,7 @@ class ProductTemplate extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'configuration' => 'array', // Wandelt das JSON aus der Datenbank automatisch in ein PHP-Array um
+        'configuration' => 'array',
         'is_active' => 'boolean',
     ];
 
@@ -51,17 +52,14 @@ class ProductTemplate extends Model
             return null;
         }
 
-        // Falls es bereits eine vollständige URL ist (z.B. von S3 oder extern)
         if (\Illuminate\Support\Str::startsWith($this->preview_image, ['http://', 'https://'])) {
             return $this->preview_image;
         }
 
-        // Falls das Bild hart in public/shop/... oder public/images/... liegt
         if (\Illuminate\Support\Str::startsWith($this->preview_image, ['shop/', 'shopverwaltung/images/'])) {
             return asset($this->preview_image);
         }
 
-        // Ansonsten gehen wir davon aus, dass es im Storage liegt (public disk)
         return \Illuminate\Support\Facades\Storage::disk('public')->url($this->preview_image);
     }
 

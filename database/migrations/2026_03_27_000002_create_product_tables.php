@@ -174,6 +174,7 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->string('holiday')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
 
         // 9. Niche Items

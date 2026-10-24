@@ -104,15 +104,23 @@
                             </p>
                         </div>
 
-                        <div>
-                            <h3 class="font-bold text-lg text-gray-900">3. Preise und Zahlung</h3>
+                        <div id="preise-zahlung" class="scroll-mt-28">
+                            <h3 class="font-bold text-lg text-gray-900">3a. Preise, Aktionspreise (§ 11 PAngV) und Zahlung</h3>
                             <p class="mt-2">
                                 @if(shop_setting('is_small_business', false))
                                     (1) Die angegebenen Preise sind Endpreise zzgl. Liefer- und Versandkosten. Gemäß § 19 UStG wird keine Umsatzsteuer berechnet und ausgewiesen.
                                 @else
-                                    (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer.
+                                    (1) Die angegebenen Preise sind Endpreise inklusive der gesetzlichen Umsatzsteuer zzgl. Liefer- und Versandkosten.
                                 @endif
-                                (2) Ihnen stehen folgende Zahlungsarten zur Verfügung:
+                            </p>
+                            <p class="mt-2">
+                                (2) <strong>Preisermäßigungen & 30-Tage-Bestpreis (§ 11 PAngV):</strong> Bei jeder Bekanntgabe einer Preisermäßigung für eine Ware weisen wir direkt am Produkt den niedrigsten Gesamtpreis aus, den wir innerhalb der letzten 30 Tage vor der Anwendung der Preisermäßigung gegenüber Verbrauchern angewendet haben (§ 11 Abs. 1 PAngV). Etwaige prozentuale oder betragsmäßige Ersparnisangaben beziehen sich stets auf diesen niedrigsten Gesamtpreis der letzten 30 Tage. Wird eine Ware weniger als 30 Tage im Sortiment angeboten, bezieht sich die Referenzangabe auf den niedrigsten Gesamtpreis seit dem Tag des erstmaligen Angebots (§ 11 Abs. 2 PAngV).
+                            </p>
+                            <p class="mt-2">
+                                (3) <strong>Nicht-Kombinierbarkeit von Aktionspreisen und Rabattgutscheinen:</strong> Zeitlich befristete Saison-, Feiertags- oder Aktionsangebote stellen bereits rabattierte Sonderpreise dar und können nicht zusätzlich mit prozentualen Aktions- oder Rabattcodes kombiniert werden, sofern bei der jeweiligen Gutscheinaktion nicht ausdrücklich etwas anderes angegeben ist. Kaufbare Wert- bzw. Geschenkgutscheine sind hiervon unberührt und jederzeit einlösbar.
+                            </p>
+                            <p class="mt-2">
+                                (4) Ihnen stehen folgende Zahlungsarten zur Verfügung:
                             </p>
                             <ul class="list-disc list-inside ml-4 mt-2 mb-2">
                                 <li>Vorkasse (Überweisung)</li>

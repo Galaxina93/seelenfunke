@@ -3,7 +3,6 @@
 namespace App\Livewire\Shop\Product;
 
 use Livewire\Attributes\Layout;
-
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use Illuminate\Support\Facades\Auth;
@@ -23,6 +22,11 @@ class ProductTemplates extends Component
 
     // Steuert die aktuelle Ansicht ('list', 'create_select_product', 'configure')
     public $viewMode = 'list';
+    public string $layoutMode = 'large'; // 'large' (Groß), 'medium' (Mittel), 'list' (Listenansicht)
+    public bool $showArchived = false;
+    public string $search = '';
+    public string $filterProductId = '';
+    public string $filterHoliday = '';
 
     // Formulardaten für die Vorlage
     #[\Livewire\Attributes\Locked]
@@ -52,6 +56,60 @@ class ProductTemplates extends Component
         }
     }
 
+    public function setLayoutMode(string $mode): void
+    {
+        if (in_array($mode, ['large', 'medium', 'list'], true)) {
+            $this->layoutMode = $mode;
+        }
+    }
+
+    public function toggleArchiveMode(): void
+    {
+        $this->showArchived = !$this->showArchived;
+        $this->search = '';
+    }
+
+    public function archiveTemplate($templateId): void
+    {
+        $template = ProductTemplate::find($templateId);
+        if ($template) {
+            $template->is_active = false;
+            $template->save();
+            $template->delete(); // Soft delete -> landet im Archiv
+            session()->flash('success', 'Vorlage ins Archiv verschoben.');
+        }
+    }
+
+    public function restoreTemplate($templateId): void
+    {
+        $template = ProductTemplate::withTrashed()->find($templateId);
+        if ($template) {
+            $template->restore();
+            $template->is_active = true;
+            $template->save();
+            session()->flash('success', 'Vorlage aus dem Archiv als aktiv wiederhergestellt.');
+        }
+    }
+
+    public function forceDeleteTemplate($templateId): void
+    {
+        $template = ProductTemplate::withTrashed()->findOrFail($templateId);
+
+        if ($template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
+            // Nur löschen, wenn keine andere Vorlage denselben Bildpfad nutzt
+            $otherUses = ProductTemplate::withTrashed()
+                ->where('id', '!=', $template->id)
+                ->where('preview_image', $template->preview_image)
+                ->exists();
+            if (!$otherUses) {
+                Storage::disk('public')->delete($template->preview_image);
+            }
+        }
+
+        $template->forceDelete();
+        session()->flash('success', 'Vorlage endgültig gelöscht.');
+    }
+
     public function cancel()
     {
         $this->resetForm();
@@ -75,7 +133,7 @@ class ProductTemplates extends Component
 
     public function edit($templateId)
     {
-        $template = ProductTemplate::findOrFail($templateId);
+        $template = ProductTemplate::withTrashed()->findOrFail($templateId);
 
         $this->editingTemplateId = $template->id;
         $this->selectedProductId = $template->product_id;
@@ -92,23 +150,25 @@ class ProductTemplates extends Component
 
     public function delete($templateId)
     {
-        $template = ProductTemplate::findOrFail($templateId);
-
-        // HIER IST DER FIX: Lösche das Bild NUR, wenn es explizit für die Vorlage hochgeladen wurde
-        // und nicht das Fallback-Bild des Hauptprodukts ist!
-        if ($template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
-            Storage::disk('public')->delete($template->preview_image);
-        }
-
-        $template->delete();
+        $this->archiveTemplate($templateId);
     }
 
     public function toggleActive($templateId)
     {
         $template = ProductTemplate::findOrFail($templateId);
         $template->update([
-            'is_active' => !$template->is_active
+            'is_active' => !$template->is_active,
         ]);
+    }
+
+    public function updateStatus($templateId, string $status): void
+    {
+        $template = ProductTemplate::find($templateId);
+        if ($template) {
+            $template->update([
+                'is_active' => $status === 'active',
+            ]);
+        }
     }
 
     public function removePreviewImage()
@@ -144,7 +204,10 @@ class ProductTemplates extends Component
             'templateImage.max' => 'Das Bild darf maximal 5MB groß sein.',
         ]);
 
-        $template = ProductTemplate::findOrNew($this->editingTemplateId);
+        $template = $this->editingTemplateId
+            ? ProductTemplate::withTrashed()->findOrNew($this->editingTemplateId)
+            : new ProductTemplate();
+
         $template->product_id = $product->id;
         $template->name = $this->templateName;
         $template->configuration = $this->templateConfig;
@@ -162,7 +225,6 @@ class ProductTemplates extends Component
                 $this->addError('templateImage', 'Die Datei muss ein gültiges Bildformat sein.');
                 return;
             }
-            // HIER AUCH DER FIX: Altes Bild nur löschen, wenn es ein Vorlagen-Bild ist
             if ($template->exists && $template->preview_image && Str::startsWith($template->preview_image, 'produkte/product-templates/')) {
                 Storage::disk('public')->delete($template->preview_image);
             }
@@ -207,15 +269,51 @@ class ProductTemplates extends Component
 
     public function render()
     {
-        $templates = ProductTemplate::with('product')->orderBy('created_at', 'desc')->get();
+        $query = ProductTemplate::with('product');
+
+        if ($this->showArchived) {
+            $query->onlyTrashed();
+        }
+
+        if ($this->search !== '') {
+            $escapedSearch = addcslashes($this->search, '%_\\');
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('name', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('holiday', 'like', '%' . $escapedSearch . '%')
+                  ->orWhereHas('product', function ($pq) use ($escapedSearch) {
+                      $pq->where('name', 'like', '%' . $escapedSearch . '%');
+                  });
+            });
+        }
+
+        if ($this->filterProductId !== '') {
+            $query->where('product_id', $this->filterProductId);
+        }
+
+        if ($this->filterHoliday !== '') {
+            $query->where(function ($q) {
+                $q->where('holiday', $this->filterHoliday)
+                  ->orWhere('holiday', strtolower($this->filterHoliday))
+                  ->orWhere('holiday', ucfirst(strtolower($this->filterHoliday)));
+            });
+        }
+
+        $templates = ($this->viewMode === 'list')
+            ? $query->orderBy('created_at', 'desc')->get()
+            : collect();
+
         $products = Product::where('status', 'active')
             ->where('type', 'physical')
             ->where('is_personalizable', true)
+            ->orderBy('name')
             ->get();
+
+        $archivedCount = ProductTemplate::onlyTrashed()->count();
 
         return view('livewire.shop.product.product-templates', [
             'templates' => $templates,
-            'products'  => $products,
+            'products' => $products,
+            'archivedCount' => $archivedCount,
         ]);
     }
 }
