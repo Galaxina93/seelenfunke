@@ -72,25 +72,70 @@ class ManagementTrackingLink extends Model
         return $candidate;
     }
 
-    public static function resolveChannel(string $source, string $medium = ''): string
+    public static function inferSourceAndMedium(string $name, ?string $explicitSource = null, ?string $explicitMedium = null): array
+    {
+        $lower = mb_strtolower(trim($name));
+
+        if ($explicitSource !== null && trim($explicitSource) !== '') {
+            $src = strtolower(trim($explicitSource));
+            $med = ($explicitMedium !== null && trim($explicitMedium) !== '') ? strtolower(trim($explicitMedium)) : 'link';
+            return [$src, $med];
+        }
+
+        $socialMap = [
+            'whatsapp' => 'whatsapp',
+            'whats app' => 'whatsapp',
+            'instagram' => 'instagram',
+            'insta' => 'instagram',
+            'tiktok' => 'tiktok',
+            'tik tok' => 'tiktok',
+            'facebook' => 'facebook',
+            'youtube' => 'youtube',
+            'pinterest' => 'pinterest',
+            'telegram' => 'telegram',
+            'linkedin' => 'linkedin',
+        ];
+
+        foreach ($socialMap as $needle => $sourceKey) {
+            if (str_contains($lower, $needle)) {
+                return [$sourceKey, 'social'];
+            }
+        }
+
+        if (str_contains($lower, 'newsletter') || str_contains($lower, 'e-mail') || str_contains($lower, 'email') || str_contains($lower, 'mail')) {
+            return ['newsletter', 'email'];
+        }
+
+        if (str_contains($lower, 'flyer') || str_contains($lower, 'qr') || str_contains($lower, 'print') || str_contains($lower, 'visitenkarte') || str_contains($lower, 'markt')) {
+            return ['qr_flyer', 'qr'];
+        }
+
+        if (str_contains($lower, 'partner') || str_contains($lower, 'empfehlung') || str_contains($lower, 'influencer') || str_contains($lower, 'affiliate')) {
+            return ['partner', 'referral'];
+        }
+
+        if (str_contains($lower, 'google')) {
+            return ['google_ads', 'cpc'];
+        }
+
+        $slugSource = str_replace('-', '_', Str::slug($name));
+        return [$slugSource !== '' ? substr($slugSource, 0, 50) : 'direktlink', 'link'];
+    }
+
+    public static function resolveChannel(string $source, string $medium = '', string $name = ''): string
     {
         $s = strtolower(trim($source));
         $m = strtolower(trim($medium));
+        $n = mb_strtolower(trim($name));
+        $combined = $s . ' ' . $n;
 
-        if (in_array($m, ['cpc', 'ppc', 'paid', 'ad', 'ads', 'meta_ads', 'google_ads', 'newsletter', 'email', 'mail', 'qr', 'flyer', 'print'], true)
-            || str_contains($s, 'ad')
-            || str_contains($s, 'newsletter')
-            || str_contains($s, 'flyer')
-            || str_contains($s, 'qr')
-        ) {
-            return 'campaign';
+        foreach (['whatsapp', 'whats app', 'instagram', 'insta', 'facebook', 'tiktok', 'pinterest', 'youtube', 'linkedin', 'twitter', 'telegram'] as $socialKeyword) {
+            if ($s === $socialKeyword || str_contains($combined, $socialKeyword)) {
+                return 'social';
+            }
         }
 
-        if (in_array($s, ['instagram', 'facebook', 'tiktok', 'pinterest', 'youtube', 'linkedin', 'twitter', 'x', 'whatsapp', 'telegram'], true)) {
-            return 'social';
-        }
-
-        if (in_array($s, ['partner', 'referral', 'affiliate', 'influencer', 'empfehlung'], true) || $m === 'referral') {
+        if (in_array($s, ['partner', 'referral', 'affiliate', 'influencer', 'empfehlung'], true) || $m === 'referral' || str_contains($combined, 'partner') || str_contains($combined, 'empfehlung')) {
             return 'referral';
         }
 

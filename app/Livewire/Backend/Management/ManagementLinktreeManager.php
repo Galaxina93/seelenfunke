@@ -259,23 +259,31 @@ class ManagementLinktreeManager extends Component
     }
 
     // =========================================================================
-    // TRACKING LINKS (Schnelles & DSGVO-konformes Erstellen von Tracking-IDs)
+    // TRACKING LINKS (Schnelles & DSGVO-konformes Erstellen über Bezeichnung)
     // =========================================================================
 
-    public function applyTrackingPreset(string $source, string $medium, string $label, string $target = '/shop'): void
+    public function applyTrackingPreset(string $nameOrSource, string $medium = '', string $label = '', string $target = '/shop'): void
     {
-        $this->trackingSource = $source;
-        $this->trackingMedium = $medium;
-        $this->trackingName = $label;
+        $finalName = trim($label !== '' ? $label : $nameOrSource);
+        $this->trackingName = $finalName;
         $this->trackingTarget = $target;
-        $this->generateTrackingId();
+
+        [$inferredSource, $inferredMedium] = ManagementTrackingLink::inferSourceAndMedium(
+            $finalName,
+            $label !== '' ? $nameOrSource : null,
+            $medium !== '' ? $medium : null
+        );
+
+        $this->trackingSource = $inferredSource;
+        $this->trackingMedium = $inferredMedium;
+        $this->trackingSlug = Str::slug($finalName) ?: 'trk';
     }
 
     public function generateTrackingId(): void
     {
-        $base = Str::slug($this->trackingName ?: ($this->trackingSource . '-' . $this->trackingMedium)) ?: 'trk';
+        $base = Str::slug($this->trackingName ?: $this->trackingSource) ?: 'trk';
         $base = substr($base, 0, 28);
-        $this->trackingSlug = $base . '-' . strtolower(Str::random(4));
+        $this->trackingSlug = $base;
     }
 
     public function editTrackingLink(string $id): void
@@ -289,7 +297,7 @@ class ManagementLinktreeManager extends Component
             $this->trackingEditId = $trk->id;
             $this->trackingName = $trk->name;
             $this->trackingSource = $trk->utm_source;
-            $this->trackingMedium = $trk->utm_medium ?: 'bio';
+            $this->trackingMedium = $trk->utm_medium ?: 'link';
             $this->trackingSlug = $trk->slug;
             $this->trackingTarget = $trk->target_url ?: '/shop';
         }
@@ -306,13 +314,12 @@ class ManagementLinktreeManager extends Component
         }
 
         $this->trackingName = trim((string) $this->trackingName);
-        $this->trackingSource = strtolower(trim((string) $this->trackingSource)) ?: 'instagram';
-        $this->trackingMedium = strtolower(trim((string) $this->trackingMedium)) ?: 'bio';
         $this->trackingTarget = trim((string) $this->trackingTarget) ?: '/shop';
 
-        if ($this->trackingName === '') {
-            $this->trackingName = ucfirst($this->trackingSource) . ' (' . strtoupper($this->trackingMedium) . ')';
-        }
+        // Quelle & Medium automatisch aus der Bezeichnung ableiten (kein manuelles Auswählen nötig)
+        [$inferredSource, $inferredMedium] = ManagementTrackingLink::inferSourceAndMedium($this->trackingName);
+        $this->trackingSource = $inferredSource;
+        $this->trackingMedium = $inferredMedium;
 
         $cleanSlug = Str::slug($this->trackingSlug ?: $this->trackingName);
         if ($cleanSlug === '') {
@@ -331,8 +338,6 @@ class ManagementLinktreeManager extends Component
 
         $this->validate([
             'trackingName' => 'required|string|max:150',
-            'trackingSource' => ['required', 'string', 'max:60', 'regex:/^[a-zA-Z0-9_\-]+$/'],
-            'trackingMedium' => ['nullable', 'string', 'max:60', 'regex:/^[a-zA-Z0-9_\-]*$/'],
             'trackingSlug' => ['required', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_\-]+$/'],
             'trackingTarget' => ['required', 'string', 'max:2048', function ($attribute, $value, $fail) {
                 $val = trim((string) $value);
@@ -342,7 +347,7 @@ class ManagementLinktreeManager extends Component
             }],
         ]);
 
-        $channel = ManagementTrackingLink::resolveChannel($this->trackingSource, (string) $this->trackingMedium);
+        $channel = ManagementTrackingLink::resolveChannel($this->trackingSource, (string) $this->trackingMedium, $this->trackingName);
 
         if ($this->trackingEditId) {
             $trk = ManagementTrackingLink::find($this->trackingEditId);

@@ -204,11 +204,14 @@ class ManagementLinktreeTest extends TestCase
         Livewire::actingAs($this->admin, 'admin')
             ->test(ManagementLinktreeManager::class)
             ->assertSee('Tipp für Werbe- & Social-Media-Links', false)
-            ->call('applyTrackingPreset', 'instagram', 'bio', 'Instagram Bio')
+            ->set('trackingName', 'WhatsApp')
             ->call('saveTrackingLink');
 
         $trackingLink = ManagementTrackingLink::first();
         $this->assertNotNull($trackingLink);
+        $this->assertEquals('WhatsApp', $trackingLink->name);
+        $this->assertEquals('whatsapp', $trackingLink->slug);
+        $this->assertEquals('whatsapp', $trackingLink->utm_source);
         $this->assertEquals('social', $trackingLink->channel);
 
         $response = $this->get(route('frontend.tracking.redirect', ['slug' => $trackingLink->slug]));

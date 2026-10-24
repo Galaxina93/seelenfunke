@@ -300,66 +300,36 @@
                 <!-- 1-Klick Schnellvorlagen -->
                 <div class="flex flex-wrap items-center gap-1.5">
                     <span class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mr-1">Schnellwahl:</span>
-                    <button type="button" wire:click="applyTrackingPreset('instagram', 'bio', 'Instagram Bio')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors">Instagram Bio</button>
-                    <button type="button" wire:click="applyTrackingPreset('instagram', 'story', 'Instagram Story')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors">Insta Story</button>
-                    <button type="button" wire:click="applyTrackingPreset('tiktok', 'bio', 'TikTok Bio')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors">TikTok Bio</button>
-                    <button type="button" wire:click="applyTrackingPreset('newsletter', 'email', 'Newsletter Kampagne')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors">Newsletter</button>
-                    <button type="button" wire:click="applyTrackingPreset('qr_flyer', 'qr', 'Flyer QR-Code')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors">QR / Flyer</button>
+                    <button type="button" wire:click="applyTrackingPreset('WhatsApp')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors">WhatsApp</button>
+                    <button type="button" wire:click="applyTrackingPreset('Instagram Bio')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors">Instagram Bio</button>
+                    <button type="button" wire:click="applyTrackingPreset('Instagram Story')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-500/10 text-pink-600 dark:text-pink-400 hover:bg-pink-500/20 transition-colors">Insta Story</button>
+                    <button type="button" wire:click="applyTrackingPreset('TikTok')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors">TikTok</button>
+                    <button type="button" wire:click="applyTrackingPreset('Newsletter')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors">Newsletter</button>
+                    <button type="button" wire:click="applyTrackingPreset('Flyer QR-Code')" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors">QR / Flyer</button>
                 </div>
             </div>
 
-            <!-- Quick Create / Edit Bar -->
+            <!-- Quick Create / Edit Bar (Nur Bezeichnung, optionale Kurzlink-ID & Zielseite) -->
             <div class="p-6 bg-gray-50/40 dark:bg-gray-900/20 border-b border-gray-200/80 dark:border-gray-800">
                 <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-start">
-                    <div class="sm:col-span-3">
-                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Bezeichnung</label>
-                        <input type="text" wire:model="trackingName" placeholder="z.B. Instagram Bio" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                    <div class="sm:col-span-5">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Bezeichnung (Wofür nutzt du den Link?)</label>
+                        <input type="text" wire:model="trackingName" placeholder="z.B. WhatsApp, Instagram Bio, Flyer Weihnachtsmarkt..." class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
                         @error('trackingName') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="sm:col-span-2">
-                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Quelle (Source)</label>
-                        <select wire:model="trackingSource" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
-                            <option value="instagram">instagram</option>
-                            <option value="tiktok">tiktok</option>
-                            <option value="facebook">facebook</option>
-                            <option value="youtube">youtube</option>
-                            <option value="pinterest">pinterest</option>
-                            <option value="newsletter">newsletter</option>
-                            <option value="google_ads">google_ads</option>
-                            <option value="meta_ads">meta_ads</option>
-                            <option value="qr_flyer">qr_flyer</option>
-                            <option value="partner">partner</option>
-                        </select>
-                        @error('trackingSource') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
-                    </div>
-
-                    <div class="sm:col-span-2">
-                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Medium</label>
-                        <select wire:model="trackingMedium" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
-                            <option value="bio">bio</option>
-                            <option value="story">story</option>
-                            <option value="reel">reel</option>
-                            <option value="post">post</option>
-                            <option value="cpc">cpc (Ads)</option>
-                            <option value="email">email</option>
-                            <option value="qr">qr / print</option>
-                            <option value="referral">referral</option>
-                        </select>
-                    </div>
-
-                    <div class="sm:col-span-2">
-                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Tracking-ID (optional)</label>
+                    <div class="sm:col-span-3">
+                        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Kurzlink-Endung (optional)</label>
                         <div class="flex gap-1">
-                            <input type="text" wire:model="trackingSlug" placeholder="Auto-ID" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-2.5 text-xs font-mono text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
-                            <button type="button" wire:click="generateTrackingId" class="px-2.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 text-xs" title="Tracking-ID automatisch generieren">
+                            <input type="text" wire:model="trackingSlug" placeholder="Automatisch aus Bezeichnung" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-2.5 text-xs font-mono text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
+                            <button type="button" wire:click="generateTrackingId" class="px-2.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 text-xs" title="Aus Bezeichnung übernehmen">
                                 <x-heroicon-o-sparkles class="w-4 h-4" />
                             </button>
                         </div>
                         @error('trackingSlug') <span class="text-red-400 text-[11px]">{{ $message }}</span> @enderror
                     </div>
 
-                    <div class="sm:col-span-3">
+                    <div class="sm:col-span-4">
                         <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Zielseite</label>
                         <div class="flex gap-2">
                             <input type="text" wire:model="trackingTarget" placeholder="/shop" class="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 px-3 text-xs font-mono text-gray-900 dark:text-white shadow-sm focus:ring-2 focus:ring-[var(--theme-color)] outline-none">
@@ -380,10 +350,9 @@
                 <!-- Hinweis-Box analog zur Quellenanalyse -->
                 <div class="mt-4 p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                     <strong class="text-amber-600 dark:text-amber-400 block mb-0.5 uppercase text-[9px] tracking-widest font-black">Tipp für Werbe- & Social-Media-Links</strong>
-                    Verwende in Instagram-Bios, Newslettern oder Werbeanzeigen Tracking-Links wie
-                    <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">?utm_source=instagram&utm_medium=bio&utm_campaign=herbst2026</code>
-                    oder den Kurzlink <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">{{ url('/t/instagram-bio') }}</code>.
-                    Das System erfasst diese Aufrufe automatisch in der <strong>Quellenanalyse & Akquise-Kanäle (Kanal-Verteilung)</strong>.
+                    Vergib einfach eine Bezeichnung wie <strong>WhatsApp</strong> oder <strong>Instagram Bio</strong>. Du erhältst sofort einen kurzen Tracking-Link wie
+                    <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">{{ url('/t/whatsapp') }}</code>.
+                    Das System zählt jeden Aufruf automatisch unter deiner Bezeichnung in der <strong>Quellenanalyse & Akquise-Kanäle</strong>.
                 </div>
             </div>
 
@@ -391,41 +360,31 @@
             <ul role="list" class="divide-y divide-gray-200/80 dark:divide-gray-800">
                 @forelse($trackingLinks as $trk)
                     <li class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 py-4 px-6 hover:bg-gray-50/80 dark:hover:bg-gray-800/40 transition-colors"
-                        x-data="{ copiedShort: false, copiedUtm: false }">
+                        x-data="{ copiedShort: false }">
                         <div class="min-w-0 flex-1">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="text-sm font-bold text-gray-900 dark:text-white">{{ $trk->name }}</span>
                                 <span class="inline-flex items-center rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px] font-mono font-semibold text-gray-700 dark:text-gray-300">
-                                    ID: {{ $trk->slug }}
+                                    /t/{{ $trk->slug }}
                                 </span>
                                 <span class="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400">
-                                    {{ $trk->utm_source }} / {{ $trk->utm_medium ?: 'link' }}
+                                    Ziel: {{ $trk->target_url ?: '/shop' }}
                                 </span>
                             </div>
 
                             <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                                 <!-- Kurzlink kopieren -->
                                 <div class="inline-flex items-center gap-1.5 bg-gray-100/90 dark:bg-gray-800/90 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1">
-                                    <span class="text-[10px] uppercase font-bold text-gray-400">Kurzlink:</span>
-                                    <a href="{{ $trk->short_url }}" target="_blank" rel="noopener noreferrer" class="font-mono text-gray-800 dark:text-gray-200 hover:underline truncate max-w-[260px]">{{ $trk->short_url }}</a>
+                                    <span class="text-[10px] uppercase font-bold text-gray-400">Tracking-Link:</span>
+                                    <a href="{{ $trk->short_url }}" target="_blank" rel="noopener noreferrer" class="font-mono text-gray-800 dark:text-gray-200 hover:underline truncate max-w-[320px]">{{ $trk->short_url }}</a>
                                     <button type="button"
                                             @click="navigator.clipboard.writeText('{{ $trk->short_url }}'); copiedShort = true; setTimeout(() => copiedShort = false, 2000)"
                                             class="ml-1 text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                                            title="Kurzlink kopieren">
+                                            title="Tracking-Link kopieren">
                                         <span x-show="!copiedShort"><x-heroicon-o-clipboard-document class="w-3.5 h-3.5" /></span>
                                         <span x-show="copiedShort" x-cloak class="text-emerald-500 text-[10px] font-bold">Kopiert!</span>
                                     </button>
                                 </div>
-
-                                <!-- UTM-Link kopieren -->
-                                <button type="button"
-                                        @click="navigator.clipboard.writeText('{{ $trk->full_utm_url }}'); copiedUtm = true; setTimeout(() => copiedUtm = false, 2000)"
-                                        class="inline-flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:text-gray-300 hover:border-[var(--theme-color)] transition-colors"
-                                        title="{{ $trk->full_utm_url }}">
-                                    <x-heroicon-o-link class="w-3.5 h-3.5 text-gray-400" />
-                                    <span x-show="!copiedUtm">UTM-URL kopieren</span>
-                                    <span x-show="copiedUtm" x-cloak class="text-emerald-500 font-bold">UTM kopiert!</span>
-                                </button>
                             </div>
                         </div>
 

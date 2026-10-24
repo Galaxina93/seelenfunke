@@ -1044,7 +1044,7 @@ class AnalyticsService
                     $channelKey = 'campaign';
                     $sourceName = ucfirst($utmSource ?: 'Kampagne') . ' Ads';
                     $sourceIcon = 'solar-tag-price-bold-duotone';
-                } elseif (in_array($utmSource, ['instagram', 'facebook', 'tiktok', 'pinterest', 'youtube', 'linkedin', 'twitter', 'x'], true)) {
+                } elseif (in_array($utmSource, ['instagram', 'facebook', 'tiktok', 'pinterest', 'youtube', 'linkedin', 'twitter', 'x', 'whatsapp', 'telegram'], true)) {
                     $channelKey = 'social';
                     $sourceName = ucfirst($utmSource);
                     $sourceIcon = 'solar-chat-round-line-bold-duotone';
@@ -1204,7 +1204,7 @@ class AnalyticsService
 
             $channelKey = isset($channels[$trk->channel])
                 ? $trk->channel
-                : \App\Models\Management\ManagementTrackingLink::resolveChannel((string) $trk->utm_source, (string) $trk->utm_medium);
+                : \App\Models\Management\ManagementTrackingLink::resolveChannel((string) $trk->utm_source, (string) $trk->utm_medium, (string) $trk->name);
             if (!isset($channels[$channelKey])) {
                 $channelKey = 'campaign';
             }
@@ -1223,7 +1223,7 @@ class AnalyticsService
                 $channels[$channelKey]['views'] += $uncountedHits;
             }
 
-            $srcLabel = ucfirst((string) $trk->utm_source) . ' (Tracking-Link)';
+            $srcLabel = ($trk->name ?: ucfirst((string) $trk->utm_source)) . ' (Tracking-Link)';
             if (!isset($sourcesMap[$srcLabel])) {
                 $sourcesMap[$srcLabel] = [
                     'name' => $srcLabel,

@@ -199,9 +199,11 @@
                                         @endif
                                     </div>
                                     <div class="text-[9px] text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-0.5">
-                                        <span>Source: <strong class="text-gray-700 dark:text-gray-300">{{ $camp['source'] }}</strong></span>
-                                        <span>&bull;</span>
-                                        <span>Medium: <strong class="text-gray-700 dark:text-gray-300">{{ $camp['medium'] }}</strong></span>
+                                        @if(!empty($camp['is_tracking_link']) && !empty($camp['slug']))
+                                            <span>Tracking-Link: <strong class="font-mono text-gray-700 dark:text-gray-300">{{ url('/t/' . $camp['slug']) }}</strong></span>
+                                        @else
+                                            <span>Kanal: <strong class="text-gray-700 dark:text-gray-300">{{ $camp['source'] }}</strong></span>
+                                        @endif
                                     </div>
                                 </div>
                                 <div class="text-right shrink-0">
