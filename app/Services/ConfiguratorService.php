@@ -324,7 +324,7 @@ class ConfiguratorService
                 'icon'         => '🍂',
                 'holiday'      => 'Herbst & Halloween',
                 'season'       => 'Herbst',
-                'funki_outfit' => 'Herbstlaub-Hut & Kürbis-Akzent',
+                'funki_outfit' => 'Herbstblätter (ohne Hut)',
                 'video'        => 'produkte/configurator-presets/videos/herbst.mp4',
                 'image'        => 'produkte/configurator-presets/backgrounds/herbst.jpg',
             ],
@@ -441,8 +441,99 @@ class ConfiguratorService
     }
 
     /**
-     * Ermittelt vollautomatisch die aktuell aktive Animation & Jahreszeit/Feiertag.
+     * Gibt die 4 Jahreszeiten als strukturierte Definition für die Kachel-Steuerung in /admin/configuration zurück.
+     */
+    public function getSeasonsDefinition(): array
+    {
+        return [
+            'ostern' => [
+                'key'             => 'ostern',
+                'event_key'       => 'season_spring',
+                'name'            => 'Frühling',
+                'period'          => '01.03. – 31.05.',
+                'icon'            => '🌸',
+                'animation_label' => 'Blütenflug',
+                'funki_outfit'    => 'Osterohren & Frühlingsblüten',
+                'video'           => 'produkte/configurator-presets/videos/ostern.mp4',
+                'image'           => 'produkte/configurator-presets/backgrounds/ostern.jpg',
+            ],
+            'sommer' => [
+                'key'             => 'sommer',
+                'event_key'       => 'season_summer',
+                'name'            => 'Sommer',
+                'period'          => '01.06. – 31.08.',
+                'icon'            => '☀️',
+                'animation_label' => 'Sonnenstrahlen',
+                'funki_outfit'    => 'Sommerhut, Sonnenbrille & Sonnenschein',
+                'video'           => 'produkte/configurator-presets/videos/sommer.mp4',
+                'image'           => 'produkte/configurator-presets/backgrounds/sommer.jpg',
+            ],
+            'herbst' => [
+                'key'             => 'herbst',
+                'event_key'       => 'season_autumn',
+                'name'            => 'Herbst',
+                'period'          => '01.09. – 30.11.',
+                'icon'            => '🍂',
+                'animation_label' => 'Goldenes Laub',
+                'funki_outfit'    => 'Herbstblätter (ohne Hut)',
+                'video'           => 'produkte/configurator-presets/videos/herbst.mp4',
+                'image'           => 'produkte/configurator-presets/backgrounds/herbst.jpg',
+            ],
+            'winter' => [
+                'key'             => 'winter',
+                'event_key'       => 'season_winter',
+                'name'            => 'Winter',
+                'period'          => '01.12. – 28.02.',
+                'icon'            => '❄️',
+                'animation_label' => 'Schnee (Schneefall)',
+                'funki_outfit'    => 'Weihnachtsmütze & Schneeflocken',
+                'video'           => 'produkte/configurator-presets/videos/winter.mp4',
+                'image'           => 'produkte/configurator-presets/backgrounds/winter.jpg',
+            ],
+        ];
+    }
+
+    /**
+     * Ermittelt anhand des Datums die rein kalendarische Jahreszeit ('ostern', 'sommer', 'herbst', 'winter').
+     */
+    public function getCalendarSeasonKey(?Carbon $now = null): string
+    {
+        $now = ($now ? $now->copy() : Carbon::now())->startOfDay();
+        $month = (int) $now->month;
+
+        return match (true) {
+            $month >= 3 && $month <= 5   => 'ostern',
+            $month >= 6 && $month <= 8   => 'sommer',
+            $month >= 9 && $month <= 11  => 'herbst',
+            default                      => 'winter',
+        };
+    }
+
+    /**
+     * Gibt die aktuell aktive Jahreszeit ('ostern', 'sommer', 'herbst', 'winter') zurück.
+     * Es ist immer exakt eine der 4 Jahreszeiten aktiv (entweder automatisch oder manuell gewählt).
+     */
+    public function getActiveSeasonKey(?Carbon $now = null): string
+    {
+        try {
+            $autoMode = filter_var(shop_setting('season_auto_mode', true), FILTER_VALIDATE_BOOLEAN);
+            if (!$autoMode) {
+                $manualSeason = (string) shop_setting('manual_active_season', '');
+                if (in_array($manualSeason, ['ostern', 'sommer', 'herbst', 'winter'], true)) {
+                    return $manualSeason;
+                }
+            }
+        } catch (\Throwable $e) {
+            // Fallback auf Kalender-Jahreszeit
+        }
+
+        return $this->getCalendarSeasonKey($now);
+    }
+
+    /**
+     * Ermittelt die aktuell aktive Animation & Jahreszeit/Feiertag.
      * Priorität:
+     * 0. Manuelle Übersteuerung in /admin/configuration (Tab "Jahreszeiten": Manuelle Animation z. B. "Schnee" oder manuell gewählte Jahreszeit bei "Automatisch = Aus")
      * 1. Aktives Feiertags-Zeitfenster (aus der Newsletter-Kampagnen-Logik: Valentinstag, Ostern, Muttertag, Vatertag, Halloween, Advent, Weihnachten, Neujahr ...)
      * 2. Aktuelle Jahreszeit (Frühling -> ostern, Sommer -> sommer, Herbst -> herbst, Winter -> winter)
      * 3. Fallback: Standard Manufaktur Animation ('standard')
@@ -452,6 +543,50 @@ class ConfiguratorService
         $now = ($now ? $now->copy() : Carbon::now())->startOfDay();
         $year = (int) $now->year;
         $themes = $this->getBackgroundThemes();
+
+        // 0. Manuelle Steuerung prüfen (Jahreszeiten-Tab unter /admin/configuration)
+        try {
+            $autoMode = filter_var(shop_setting('season_auto_mode', true), FILTER_VALIDATE_BOOLEAN);
+            $manualAnimation = trim((string) shop_setting('manual_active_animation', ''));
+            $manualSeason = trim((string) shop_setting('manual_active_season', ''));
+
+            $overrideKey = null;
+            if ($manualAnimation !== '' && isset($themes[$manualAnimation])) {
+                $overrideKey = $manualAnimation;
+            } elseif (!$autoMode) {
+                $overrideKey = in_array($manualSeason, ['ostern', 'sommer', 'herbst', 'winter'], true)
+                    ? $manualSeason
+                    : $this->getCalendarSeasonKey($now);
+            }
+
+            if ($overrideKey !== null && isset($themes[$overrideKey])) {
+                $themeObj = $themes[$overrideKey];
+                $seasonEventMap = [
+                    'ostern' => ['key' => 'season_spring', 'name' => 'Manuell: Frühling (Blüten & Ostern)'],
+                    'sommer' => ['key' => 'season_summer', 'name' => 'Manuell: Sommer (Sonnenstrahlen)'],
+                    'herbst' => ['key' => 'season_autumn', 'name' => 'Manuell: Herbst (Goldenes Laub)'],
+                    'winter' => ['key' => 'season_winter', 'name' => 'Manuell: Winter (Schnee / Schneefall)'],
+                ];
+                $mapped = $seasonEventMap[$overrideKey] ?? [
+                    'key'  => 'manual_' . $overrideKey,
+                    'name' => 'Manuell: ' . ($themeObj['label'] ?? ucfirst($overrideKey)),
+                ];
+
+                return [
+                    'theme_key'    => $overrideKey,
+                    'theme'        => $themeObj,
+                    'reason_type'  => 'manual',
+                    'is_manual'    => true,
+                    'event_key'    => $mapped['key'],
+                    'event_name'   => $mapped['name'],
+                    'active_from'  => $now,
+                    'active_until' => null,
+                    'funki_outfit' => $themeObj['funki_outfit'] ?? 'Standard',
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Bei fehlender DB-Tabelle im reinen Unit-Kontext auf Automatik zurückfallen
+        }
 
         // 1. Prüfe alle Feiertags-Zeitfenster (für aktuelles Jahr + Jahreswechsel)
         foreach ([$year - 1, $year, $year + 1] as $checkYear) {
@@ -620,7 +755,7 @@ class ConfiguratorService
                 'event_name'    => $sMeta['name'],
                 'theme_key'     => $themeKey,
                 'theme'         => $themeObj,
-                'is_active_now' => $isActiveSeason && ($activeNow['event_key'] === $sKey),
+                'is_active_now' => ($isActiveSeason && ($activeNow['event_key'] === $sKey)) || (!empty($activeNow['is_manual']) && ($activeNow['event_key'] === $sKey)),
                 'video_path'    => 'storage/app/public/' . $themeObj['video'],
                 'video_url'     => asset('storage/' . $themeObj['video']),
                 'video_kb'      => is_file($vidDisk) ? (int) max(1, round(filesize($vidDisk) / 1024)) : null,

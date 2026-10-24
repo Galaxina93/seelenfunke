@@ -91,7 +91,10 @@ class SystemShopConfig extends Component
         'emergency_contact_tax_advisor',
         'emergency_contact_family',
         'emergency_hardware_pins',
-        'emergency_master_password'
+        'emergency_master_password',
+        'season_auto_mode',
+        'manual_active_season',
+        'manual_active_animation'
     ];
 
     public $infoTexts = [
@@ -185,9 +188,13 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'maintenance_mode', 'skip_shipping_for_digital', 'send_order_email_to_admin'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'maintenance_mode', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
+        }
+
+        if (empty($this->settings['manual_active_season'])) {
+            $this->settings['manual_active_season'] = app(\App\Services\ConfiguratorService::class)->getCalendarSeasonKey();
         }
 
         $this->loadReports();
@@ -239,8 +246,97 @@ class SystemShopConfig extends Component
             'emergency_contact_tax_advisor' => 'Keine Angabe',
             'emergency_contact_family' => 'Jan Steinhauer, Kerstin Steinhauer, Tim Steinhauer',
             'emergency_hardware_pins' => 'Keine Angabe',
+            'season_auto_mode' => true,
+            'manual_active_season' => '',
+            'manual_active_animation' => '',
         ];
         return $fallbacks[$key] ?? '';
+    }
+
+    public function toggleSeasonAutoMode(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $newState = !filter_var($this->settings['season_auto_mode'] ?? true, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['season_auto_mode'] = $newState;
+
+        if ($newState) {
+            // Zurück auf Automatik: Manuelle Animations-Übersteuerung zurücksetzen
+            $this->settings['manual_active_animation'] = '';
+        } else {
+            // Beim Wechsel auf Manuell: Aktuelle Kalender-Jahreszeit vorbelegen, falls noch leer
+            if (empty($this->settings['manual_active_season']) || !in_array($this->settings['manual_active_season'], ['ostern', 'sommer', 'herbst', 'winter'], true)) {
+                $this->settings['manual_active_season'] = app(\App\Services\ConfiguratorService::class)->getCalendarSeasonKey();
+            }
+            $this->settings['manual_active_animation'] = $this->settings['manual_active_season'];
+        }
+
+        $this->persistSeasonSettings();
+    }
+
+    public function selectManualSeason(string $seasonKey): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        if (!in_array($seasonKey, ['ostern', 'sommer', 'herbst', 'winter'], true)) {
+            return;
+        }
+
+        if (filter_var($this->settings['season_auto_mode'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+            return; // Nur im manuellen Modus ("Automatisch" = Aus) wählbar
+        }
+
+        $this->settings['manual_active_season'] = $seasonKey;
+        $this->settings['manual_active_animation'] = $seasonKey;
+
+        $this->persistSeasonSettings();
+    }
+
+    public function toggleManualAnimation(string $themeKey): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $validThemes = array_keys(app(\App\Services\ConfiguratorService::class)->getBackgroundThemes());
+        if (!in_array($themeKey, $validThemes, true)) {
+            return;
+        }
+
+        $currentManual = (string) ($this->settings['manual_active_animation'] ?? '');
+        if ($currentManual === $themeKey) {
+            // Haken wieder entfernen
+            $this->settings['manual_active_animation'] = '';
+        } else {
+            // Haken setzen (z. B. "Schnee" aktivieren)
+            $this->settings['manual_active_animation'] = $themeKey;
+            if (in_array($themeKey, ['ostern', 'sommer', 'herbst', 'winter'], true) && !filter_var($this->settings['season_auto_mode'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+                $this->settings['manual_active_season'] = $themeKey;
+            }
+        }
+
+        $this->persistSeasonSettings();
+    }
+
+    protected function persistSeasonSettings(): void
+    {
+        foreach (['season_auto_mode', 'manual_active_season', 'manual_active_animation'] as $key) {
+            $val = $this->settings[$key] ?? '';
+            SystemSetting::updateOrCreate(
+                ['key' => $key],
+                ['value' => is_bool($val) ? ($val ? 'true' : 'false') : (string) $val]
+            );
+        }
+
+        Cache::forget('global_shop_settings');
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {}
     }
 
     public function save()
@@ -577,11 +673,18 @@ class SystemShopConfig extends Component
             // Fallback remains
         }
         
+        $configService = app(\App\Services\ConfiguratorService::class);
+        
         return view('livewire.shop.system.system-shop-config', [
-            'laravelVersion' => $laravelVersion,
-            'phpVersion' => $phpVersion,
-            'pythonVersion' => $pythonVersion,
-            'livewireVersion' => $livewireVersion,
+            'laravelVersion'         => $laravelVersion,
+            'phpVersion'             => $phpVersion,
+            'pythonVersion'          => $pythonVersion,
+            'livewireVersion'        => $livewireVersion,
+            'seasonsDefinition'      => $configService->getSeasonsDefinition(),
+            'activeSeasonKey'        => $configService->getActiveSeasonKey(),
+            'animationTimeline'      => $configService->getAnimationTimeline(),
+            'currentActiveAnimation' => $configService->getCurrentActiveTheme(),
+            'backgroundThemes'       => $configService->getBackgroundThemes(),
         ]);
     }
 }

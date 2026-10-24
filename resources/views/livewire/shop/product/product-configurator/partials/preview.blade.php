@@ -50,7 +50,7 @@
                         Hinweis zur 2D-Gestaltung
                     </p>
                     <p class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
-                        Platzieren und arrangieren Sie Ihren persönlichen Wunschtext, gewünschte Motive/Icons sowie eigene Bilder frei auf der Gestaltungsfläche. Nutzen Sie die Werkzeuge zum Verschieben, Drehen und Skalieren, um Ihr individuelles Design optimal zu positionieren.
+                        Platzieren und arrangieren Sie Ihren persönlichen Wunschtext, gewünschte Motive/Icons sowie eigene Bilder frei auf der Gestaltungsfläche. Nutzen Sie die Werkzeuge zum Verschieben, Drehen und Skalieren, um Ihr individuelles Design optimal zu positionieren. Bitte beachten Sie, dass die grafische Vorschau von Texten, Symbolen und Motiven produktionsbedingt minimale <a href="/agb#konfigurator" target="_blank" rel="noopener noreferrer" class="underline font-semibold hover:opacity-80 transition-opacity">Abweichungen</a> zum gefertigten Endprodukt aufweisen kann.
                     </p>
                 </div>
             </div>

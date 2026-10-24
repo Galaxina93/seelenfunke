@@ -99,6 +99,9 @@
                             <p class="mt-2">
                                 (4) Der Kunde ist dafür verantwortlich, die im Konfigurator eingegebenen Inhalte (insbesondere Rechtschreibung von Namen oder Daten) vor Abschluss der Bestellung auf Richtigkeit zu prüfen. Da es sich um individuell nach Kundenspezifikation angefertigte Waren handelt, ist das Widerrufsrecht gemäß § 312g Abs. 2 Nr. 1 BGB ausgeschlossen.
                             </p>
+                            <p class="mt-2">
+                                (5) <strong>Charakter der grafischen Darstellung:</strong> Der Produktkonfigurator dient ausschließlich der besseren Informationsaufnahme Ihrer individuellen Gestaltungswünsche (Texte, Schriftarten, Symbole und Motive). Da es sich bei der Ansicht im Konfigurator um eine rein digitale, grafische Vorschau handelt, sind darstellungs- und fertigungsbedingte Abweichungen unvermeidbar; das tatsächliche Aussehen des handwerklich veredelten Endprodukts weicht naturgemäß von der digitalen Grafikanzeige ab.
+                            </p>
                         </div>
 
                         <div>

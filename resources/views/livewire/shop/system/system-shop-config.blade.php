@@ -1,4 +1,4 @@
-<div class="p-4 lg:p-8 bg-transparent min-h-screen font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }};" x-data="{ activeTab: localStorage.getItem('shop_config_tab') || 'general' }" x-init="$watch('activeTab', value => localStorage.setItem('shop_config_tab', value))">
+<div class="p-4 lg:p-8 bg-transparent min-h-screen font-sans antialiased text-gray-300" style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3;" x-data="{ activeTab: localStorage.getItem('shop_config_tab') || 'general' }" x-init="$watch('activeTab', value => localStorage.setItem('shop_config_tab', value))">
     <div class="max-w-6xl mx-auto animate-fade-in-up">
 
         {{-- Header --}}
@@ -46,6 +46,7 @@
             <button @click="activeTab = 'products'" :class="activeTab === 'products' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Produkt & Marketing</button>
             <button @click="activeTab = 'shipping'" :class="activeTab === 'shipping' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Versand & Lieferzeit</button>
             <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Stammdaten</button>
+            <button @click="activeTab = 'seasons'" :class="activeTab === 'seasons' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Jahreszeiten</button>
             <button @click="activeTab = 'system'" :class="activeTab === 'system' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">System</button>
             <button @click="activeTab = 'emergency'" :class="activeTab === 'emergency' ? 'border-red-500 text-red-500 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Notfallplan</button>
         </div>
@@ -70,6 +71,9 @@
 
             {{-- TAB: STAMMDATEN --}}
             @include('livewire.shop.system.system-config-partials.ower_tab')
+
+            {{-- TAB: JAHRESZEITEN --}}
+            @include('livewire.shop.system.system-config-partials.seasons_tab')
 
             {{-- TAB: SYSTEM INFO --}}
             @include('livewire.shop.system.system-config-partials.system_tab')

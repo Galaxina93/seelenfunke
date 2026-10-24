@@ -153,4 +153,36 @@ class LaserSvgExportTest extends TestCase
         $this->assertStringContainsString('/storage/produkte/configurator/vectors/Liebe/amor_pfeil.svg', $urlFromFlatName);
         $this->assertNotNull($service->resolveVectorDiskPath('Liebe/amor_pfeil.svg'));
     }
+
+    /**
+     * Test Jahreszeiten-Tab in SystemShopConfig (auto mode switch, manual season selection, manual snow animation).
+     */
+    public function test_seasons_tab_and_manual_snow_activation_in_system_shop_config(): void
+    {
+        $cfgService = app(\App\Services\ConfiguratorService::class);
+        $this->assertCount(4, $cfgService->getSeasonsDefinition());
+
+        $component = \Livewire\Livewire::test(\App\Livewire\Shop\System\SystemShopConfig::class)
+            ->assertStatus(200)
+            ->assertSee('Jahreszeiten')
+            ->assertSee('Die 4 Jahreszeiten')
+            ->assertSee('Schnee (Schneefall)');
+
+        // Switch "Automatisch" off and manually activate Winter (Schnee)
+        $component->call('toggleSeasonAutoMode')
+            ->assertSet('settings.season_auto_mode', false)
+            ->call('selectManualSeason', 'winter')
+            ->assertSet('settings.manual_active_season', 'winter')
+            ->assertSet('settings.manual_active_animation', 'winter');
+
+        $this->assertEquals('winter', $cfgService->getActiveSeasonKey());
+        $activeTheme = $cfgService->getCurrentActiveTheme();
+        $this->assertEquals('winter', $activeTheme['theme_key']);
+        $this->assertTrue($activeTheme['is_manual'] ?? false);
+
+        // Switch "Automatisch" back on
+        $component->call('toggleSeasonAutoMode')
+            ->assertSet('settings.season_auto_mode', true)
+            ->assertSet('settings.manual_active_animation', '');
+    }
 }
