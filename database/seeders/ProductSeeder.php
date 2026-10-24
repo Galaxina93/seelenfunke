@@ -46,16 +46,6 @@ class ProductSeeder extends Seeder
             ]);
         }
 
-        // 3D-Modell für "Der Seelen Kristall" aus versioniertem Seeder-Bestand bereitstellen
-        $seededCrystalGlb = database_path('seeders/data/models/t_seelenk.glb');
-        $targetCrystalGlb = storage_path('app/public/produkte/products/seelen-kristall/t_seelenk.glb');
-        if (is_file($seededCrystalGlb)) {
-            if (!is_dir(dirname($targetCrystalGlb))) {
-                @mkdir(dirname($targetCrystalGlb), 0775, true);
-            }
-            @copy($seededCrystalGlb, $targetCrystalGlb);
-        }
-
         // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
         $p1 = Product::updateOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
