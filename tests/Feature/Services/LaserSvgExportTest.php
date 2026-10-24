@@ -133,4 +133,24 @@ class LaserSvgExportTest extends TestCase
         $this->assertStringContainsString('<path fill="#000000"', $svgContent);
         $this->assertStringContainsString('Hallo Laser', $svgContent);
     }
+
+    /**
+     * Test Symbol-Bibliothek vector path resolution with category subfolders.
+     */
+    public function test_symbol_library_subfolder_vector_resolution(): void
+    {
+        $service = app(\App\Services\ProductConfiguratorService::class);
+
+        $this->assertEquals('Liebe/amor_pfeil.svg', $service->resolveCanonicalVectorRelPath('Liebe/amor_pfeil.svg'));
+        $this->assertEquals('Liebe/amor_pfeil.svg', $service->resolveCanonicalVectorRelPath('amor_pfeil.svg'));
+        $this->assertEquals('Liebe/amor_pfeil.svg', $service->resolveCanonicalVectorRelPath('vectors/Liebe/amor_pfeil.svg'));
+        $this->assertNull($service->resolveCanonicalVectorRelPath('../.env'));
+
+        $urlWithSubfolder = $service->resolveVectorUrl('Liebe/amor_pfeil.svg');
+        $urlFromFlatName = $service->resolveVectorUrl('amor_pfeil.svg');
+
+        $this->assertStringContainsString('/storage/produkte/configurator/vectors/Liebe/amor_pfeil.svg', $urlWithSubfolder);
+        $this->assertStringContainsString('/storage/produkte/configurator/vectors/Liebe/amor_pfeil.svg', $urlFromFlatName);
+        $this->assertNotNull($service->resolveVectorDiskPath('Liebe/amor_pfeil.svg'));
+    }
 }

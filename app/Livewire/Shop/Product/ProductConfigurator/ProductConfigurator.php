@@ -215,12 +215,12 @@ class ProductConfigurator extends Component
             $this->logos_back = $source['logos_back'];
         }
 
+        $vectorService = app(\App\Services\ProductConfiguratorService::class);
+
         foreach ($this->logos as &$logo) {
             if (isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
-                    $vecDisk = public_path('shop/product/configurator/' . $logo['value']);
-                    $v = is_file($vecDisk) ? '?v=' . filemtime($vecDisk) : '';
-                    $logo['url'] = asset('shop/product/configurator/' . $logo['value']) . $v;
+                    $logo['url'] = $vectorService->resolveVectorUrl($logo['value']);
                 } else {
                     $logo['url'] = asset('storage/' . $logo['value']);
                 }
@@ -230,9 +230,7 @@ class ProductConfigurator extends Component
         foreach ($this->logos_back as &$logo) {
             if (isset($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
-                    $vecDisk = public_path('shop/product/configurator/' . $logo['value']);
-                    $v = is_file($vecDisk) ? '?v=' . filemtime($vecDisk) : '';
-                    $logo['url'] = asset('shop/product/configurator/' . $logo['value']) . $v;
+                    $logo['url'] = $vectorService->resolveVectorUrl($logo['value']);
                 } else {
                     $logo['url'] = asset('storage/' . $logo['value']);
                 }

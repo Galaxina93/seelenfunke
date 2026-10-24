@@ -114,19 +114,26 @@ trait HandlesConfiguratorLogic
     public function addStandardVector($filename)
     {
         if ($this->context === 'preview') return;
-        $filename = basename((string) $filename);
-        if ($filename === '' || str_contains($filename, '..') || str_contains($filename, "\0")) {
+        $rawFilename = ltrim(str_replace('\\', '/', trim((string) $filename)), '/');
+        if ($rawFilename === '' || str_contains($rawFilename, '..') || str_contains($rawFilename, "\0")) {
             return;
         }
+
+        $vectorService = app(\App\Services\ProductConfiguratorService::class);
+        $canonicalRel = $vectorService->resolveCanonicalVectorRelPath($rawFilename);
+        if ($canonicalRel === null) {
+            return;
+        }
+
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
-        $url = app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($filename);
+        $url = $vectorService->resolveVectorUrl($canonicalRel);
 
         $newItem = [
             'id' => Str::uuid()->toString(),
             'type' => 'vector',
-            'value' => 'vectors/' . $filename,
+            'value' => 'vectors/' . $canonicalRel,
             'url' => $url,
             'x' => $centerX,
             'y' => $centerY,
@@ -142,7 +149,7 @@ trait HandlesConfiguratorLogic
 
         ProductTrackingService::trackSymbolAdded(
             $this->product->id ?? null,
-            $filename,
+            $canonicalRel,
             $this->selectedCategory ?? null,
             $this->activeSide ?? 'front'
         );
@@ -176,12 +183,16 @@ trait HandlesConfiguratorLogic
         $centerX = $this->configSettings['area_left'] + ($this->configSettings['area_width'] / 2);
         $centerY = $this->configSettings['area_top'] + ($this->configSettings['area_height'] / 2);
 
+        $resolvedUrl = str_starts_with($value, 'vectors/')
+            ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($value)
+            : asset('storage/' . $value);
+
         // Ansonsten zur aktuellen Seite hinzufügen
         $this->$targetProperty[] = [
             'id' => Str::uuid()->toString(),
-            'type' => 'saved',
+            'type' => str_starts_with($value, 'vectors/') ? 'vector' : 'saved',
             'value' => $value,
-            'url' => asset('storage/' . $value),
+            'url' => $resolvedUrl,
             'x' => $centerX,
             'y' => $centerY,
             'size' => 130,
@@ -259,11 +270,10 @@ trait HandlesConfiguratorLogic
     public function getRenderedLogosProperty()
     {
         $rendered = [];
+        $vectorService = app(\App\Services\ProductConfiguratorService::class);
         foreach ($this->logos as $logo) {
             if (Str::startsWith($logo['value'], 'vectors/')) {
-                $vecDisk = public_path('shop/product/configurator/' . $logo['value']);
-                $v = is_file($vecDisk) ? '?v=' . filemtime($vecDisk) : '';
-                $url = asset('shop/product/configurator/' . $logo['value']) . $v;
+                $url = $vectorService->resolveVectorUrl($logo['value']);
             } else {
                 $url = asset('storage/' . $logo['value']);
             }

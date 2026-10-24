@@ -682,16 +682,60 @@ class ProductConfiguratorService
     }
 
     /**
+     * Normalisiert einen relativen Vektor-Pfad (z. B. "Liebe/amor_pfeil.svg" oder "amor_pfeil.svg")
+     * und findet bei flachen Dateinamen automatisch den passenden Kategorie-Unterordner.
+     */
+    public function resolveCanonicalVectorRelPath(string $relativeFile): ?string
+    {
+        $cleanRel = ltrim(str_replace('\\', '/', trim($relativeFile)), '/');
+        if ($cleanRel === '' || str_contains($cleanRel, '..') || str_contains($cleanRel, "\0")) {
+            return null;
+        }
+        if (str_starts_with($cleanRel, 'vectors/')) {
+            $cleanRel = ltrim(substr($cleanRel, strlen('vectors/')), '/');
+        }
+        if ($cleanRel === '' || !str_ends_with(strtolower($cleanRel), '.svg')) {
+            return null;
+        }
+
+        $storageBase = storage_path('app/public/' . self::VECTORS_STORAGE_DIR);
+        $publicBase = public_path('shop/product/configurator/vectors');
+
+        if (is_file($storageBase . '/' . $cleanRel) || is_file($publicBase . '/' . $cleanRel)) {
+            return $cleanRel;
+        }
+
+        // Fallback für flache Dateinamen ohne Kategorie-Ordner (z. B. "amor_pfeil.svg" -> "Liebe/amor_pfeil.svg")
+        $baseName = basename($cleanRel);
+        foreach ([$storageBase, $publicBase] as $baseDir) {
+            if (!is_dir($baseDir)) {
+                continue;
+            }
+            $entries = @scandir($baseDir);
+            if (!is_array($entries)) {
+                continue;
+            }
+            foreach ($entries as $entry) {
+                if ($entry === '.' || $entry === '..') {
+                    continue;
+                }
+                if (is_dir($baseDir . '/' . $entry) && is_file($baseDir . '/' . $entry . '/' . $baseName)) {
+                    return $entry . '/' . $baseName;
+                }
+            }
+        }
+
+        return $cleanRel;
+    }
+
+    /**
      * Löst die öffentliche Asset-URL für eine Vektor-Datei auf (Storage zuerst, Public als Fallback).
      */
     public function resolveVectorUrl(string $relativeFile): string
     {
-        $cleanRel = ltrim(str_replace('\\', '/', $relativeFile), '/');
-        if (str_contains($cleanRel, '..') || str_contains($cleanRel, "\0")) {
+        $cleanRel = $this->resolveCanonicalVectorRelPath($relativeFile);
+        if ($cleanRel === null) {
             return '';
-        }
-        if (str_starts_with($cleanRel, 'vectors/')) {
-            $cleanRel = substr($cleanRel, strlen('vectors/'));
         }
 
         $storageDiskPath = storage_path('app/public/' . self::VECTORS_STORAGE_DIR . '/' . $cleanRel);
@@ -712,12 +756,9 @@ class ProductConfiguratorService
      */
     public function resolveVectorDiskPath(string $relativeFile): ?string
     {
-        $cleanRel = ltrim(str_replace('\\', '/', $relativeFile), '/');
-        if (str_contains($cleanRel, '..') || str_contains($cleanRel, "\0")) {
+        $cleanRel = $this->resolveCanonicalVectorRelPath($relativeFile);
+        if ($cleanRel === null) {
             return null;
-        }
-        if (str_starts_with($cleanRel, 'vectors/')) {
-            $cleanRel = substr($cleanRel, strlen('vectors/'));
         }
 
         $storageRoot = realpath(storage_path('app/public/' . self::VECTORS_STORAGE_DIR));
