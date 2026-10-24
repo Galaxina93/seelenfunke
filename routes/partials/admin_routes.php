@@ -21,7 +21,6 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/contacts', \App\Livewire\Shop\Management\ManagementContacts::class)->name('admin.contacts');
     Route::get('/admin/inbox', \App\Livewire\Shop\Management\ManagementEMails::class)->name('admin.inbox');
-    Route::get('/admin/linktree', \App\Livewire\Backend\Management\ManagementLinktreeManager::class)->name('admin.linktree');
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
         $path = is_string($attachment->path) ? ltrim(str_replace('\\', '/', $attachment->path), '/') : '';
@@ -233,6 +232,8 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/blog', \App\Livewire\Shop\Marketing\MarketingBlog::class)->name('admin.blog');
     Route::get('/admin/voucher', \App\Livewire\Shop\Marketing\MarketingVoucher::class)->name('admin.voucher');
     Route::get('/admin/newsletter', \App\Livewire\Shop\Marketing\MarketingNewsletter::class)->name('admin.newsletter');
+    Route::get('/admin/marketing/linktree', \App\Livewire\Shop\Marketing\MarketingLinktree::class)->name('admin.marketing-linktree');
+    Route::get('/admin/marketing/tracking', \App\Livewire\Shop\Marketing\MarketingTracking::class)->name('admin.marketing-tracking');
 
 });
 

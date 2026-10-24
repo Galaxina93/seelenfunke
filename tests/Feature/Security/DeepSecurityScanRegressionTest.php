@@ -1904,12 +1904,12 @@ class DeepSecurityScanRegressionTest extends TestCase
         ]);
         $this->assertArrayNotHasKey('telegram_bot_token', $agent->toArray());
 
-        // 3. ManagementLinktree::resolveEnvironmentUrl must block protocol-relative //evil.com and javascript: URLs
-        $this->assertSame(url('/shop'), \App\Models\Management\ManagementLinktree::resolveEnvironmentUrl('//evil.com/phish'));
-        $this->assertSame(url('/shop'), \App\Models\Management\ManagementLinktree::resolveEnvironmentUrl('/\\evil.com/phish'));
-        $this->assertSame(url('/shop'), \App\Models\Management\ManagementLinktree::resolveEnvironmentUrl('javascript:alert(1)'));
-        $this->assertSame(url('/kontakt'), \App\Models\Management\ManagementLinktree::resolveEnvironmentUrl('/kontakt'));
-        $this->assertSame('https://instagram.com/seelenfunke', \App\Models\Management\ManagementLinktree::resolveEnvironmentUrl('https://instagram.com/seelenfunke'));
+        // 3. MarketingLinktree::resolveEnvironmentUrl must block protocol-relative //evil.com and javascript: URLs
+        $this->assertSame(url('/shop'), \App\Models\Marketing\MarketingLinktree::resolveEnvironmentUrl('//evil.com/phish'));
+        $this->assertSame(url('/shop'), \App\Models\Marketing\MarketingLinktree::resolveEnvironmentUrl('/\\evil.com/phish'));
+        $this->assertSame(url('/shop'), \App\Models\Marketing\MarketingLinktree::resolveEnvironmentUrl('javascript:alert(1)'));
+        $this->assertSame(url('/kontakt'), \App\Models\Marketing\MarketingLinktree::resolveEnvironmentUrl('/kontakt'));
+        $this->assertSame('https://instagram.com/seelenfunke', \App\Models\Marketing\MarketingLinktree::resolveEnvironmentUrl('https://instagram.com/seelenfunke'));
 
         // 4. EmergencyProtocol::getSafeEmergencySettings must strip all keys containing secret/token/key/password/pin/hash
         \App\Models\System\SystemSetting::updateOrCreate(['key' => 'paypal_client_secret'], ['value' => 'PP_SECRET_123']);

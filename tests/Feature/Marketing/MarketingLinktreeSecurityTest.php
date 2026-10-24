@@ -1,8 +1,9 @@
 <?php
 
-namespace Tests\Feature\Management;
+namespace Tests\Feature\Marketing;
 
-use App\Livewire\Backend\Management\ManagementLinktreeManager;
+use App\Livewire\Shop\Marketing\MarketingLinktree;
+use App\Livewire\Shop\Marketing\MarketingTracking;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
@@ -10,25 +11,30 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-class ManagementLinktreeSecurityTest extends TestCase
+class MarketingLinktreeSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_cannot_mount_linktree_manager(): void
+    public function test_guests_cannot_mount_marketing_linktree_or_tracking(): void
     {
-        Livewire::test(ManagementLinktreeManager::class)->assertStatus(403);
+        Livewire::test(MarketingLinktree::class)->assertStatus(403);
+        Livewire::test(MarketingTracking::class)->assertStatus(403);
     }
 
-    public function test_customers_cannot_mount_linktree_manager(): void
+    public function test_customers_cannot_mount_marketing_linktree_or_tracking(): void
     {
         $customer = Customer::factory()->create();
 
         Livewire::actingAs($customer, 'customer')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
+            ->assertStatus(403);
+
+        Livewire::actingAs($customer, 'customer')
+            ->test(MarketingTracking::class)
             ->assertStatus(403);
     }
 
-    public function test_admins_and_employees_can_mount_linktree_manager(): void
+    public function test_admins_and_employees_can_mount_marketing_linktree_and_tracking(): void
     {
         $admin = Admin::factory()->create();
         $employee = Employee::create([
@@ -39,17 +45,25 @@ class ManagementLinktreeSecurityTest extends TestCase
         ]);
 
         Livewire::actingAs($admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
+            ->assertStatus(200);
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(MarketingTracking::class)
             ->assertStatus(200);
 
         Livewire::actingAs($employee, 'employee')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
+            ->assertStatus(200);
+
+        Livewire::actingAs($employee, 'employee')
+            ->test(MarketingTracking::class)
             ->assertStatus(200);
     }
 
     public function test_linktree_page_blocks_open_redirect_to_manipulated_url(): void
     {
-        $link = \App\Models\Management\ManagementLinktree::create([
+        $link = \App\Models\Marketing\MarketingLinktree::create([
             'title' => 'Offizieller Shop',
             'url' => 'https://mein-seelenfunke.de/shop',
             'type' => 'standard',
@@ -57,7 +71,7 @@ class ManagementLinktreeSecurityTest extends TestCase
             'sort_order' => 1,
         ]);
 
-        Livewire::test(\App\Livewire\Frontend\Management\ManagementLinktreePage::class)
+        Livewire::test(\App\Livewire\Frontend\Marketing\MarketingLinktreePage::class)
             ->call('trackAndRedirect', $link->id, 'https://evil-phishing.example.com')
             ->assertNoRedirect();
 

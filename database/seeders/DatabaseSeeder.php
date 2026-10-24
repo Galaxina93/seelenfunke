@@ -25,7 +25,6 @@ class DatabaseSeeder extends Seeder
             ManagementContactSeeder::class,
             // ManagementCalenderSeeder::class,
             ManagementTaskSeeder::class,
-            ManagementLinkTreeSeeder::class,
             ManagementShoppingListSeeder::class,
 
             //Product
@@ -40,6 +39,7 @@ class DatabaseSeeder extends Seeder
             MarketingBlogSeeder::class,
             NewsletterKampagnenSeeder::class,
             MonthlyVoucherSeeder::class,
+            MarketingLinktreeSeeder::class,
 
             // Logistic
             LogisticsShippingSeeder::class,

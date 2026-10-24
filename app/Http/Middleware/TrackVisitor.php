@@ -66,7 +66,7 @@ class TrackVisitor
             ]);
 
             // Falls der Besucher direkt über einen UTM-/Tracking-Link einsteigt (ohne vorherige /t/{slug} Weiterleitung),
-            // ordnen wir den Aufruf ebenfalls dem entsprechenden ManagementTrackingLink zu.
+            // ordnen wir den Aufruf ebenfalls dem entsprechenden MarketingTrackingLink zu.
             $alreadyAttributedId = session()->pull('attributed_tracking_link_id');
             if (!$alreadyAttributedId && ($request->filled('tid') || $request->filled('utm_source'))) {
                 $rawTid = $request->query('tid', '');
@@ -77,8 +77,8 @@ class TrackVisitor
                 $utmSource = is_string($rawUtmSource) ? substr(strtolower(trim($rawUtmSource)), 0, 100) : '';
                 $utmCampaign = is_string($rawUtmCampaign) ? substr(trim($rawUtmCampaign), 0, 100) : '';
 
-                if (\Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')) {
-                    $trkQuery = \App\Models\Management\ManagementTrackingLink::where('is_active', true);
+                if (\Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')) {
+                    $trkQuery = \App\Models\Marketing\MarketingTrackingLink::where('is_active', true);
                     $trk = null;
                     if ($tid !== '') {
                         $trk = (clone $trkQuery)->where('slug', $tid)->first();

@@ -8,46 +8,57 @@ use Livewire\Livewire;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use App\Models\Management\ManagementLinktree;
-use App\Models\Management\ManagementTrackingLink;
+use App\Models\Marketing\MarketingLinktree as MarketingLinktreeModel;
+use App\Models\Marketing\MarketingTrackingLink;
 use App\Models\System\SystemSetting;
 use App\Models\Admin\Admin;
-use App\Livewire\Backend\Management\ManagementLinktreeManager;
-use App\Livewire\Frontend\Management\ManagementLinktreePage;
+use App\Livewire\Shop\Marketing\MarketingLinktree;
+use App\Livewire\Shop\Marketing\MarketingTracking;
+use App\Livewire\Frontend\Marketing\MarketingLinktreePage;
 use App\Services\AnalyticsService;
 
-class ManagementLinktreeTest extends TestCase
+class MarketingLinktreeTest extends TestCase
 {
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
-        // Create an admin user for backend tests
         $this->admin = Admin::factory()->create();
     }
 
     #[Test]
-    public function backend_linktree_manager_renders_correctly()
+    public function backend_marketing_linktree_renders_correctly_with_marketing_theme()
     {
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
             ->assertStatus(200)
-            ->assertSee('Linktree Verwaltung');
+            ->assertSee('Linktree Verwaltung')
+            ->assertSet('themingDepartment', 'Marketing');
+    }
+
+    #[Test]
+    public function backend_marketing_tracking_renders_correctly_with_marketing_theme()
+    {
+        Livewire::actingAs($this->admin, 'admin')
+            ->test(MarketingTracking::class)
+            ->assertStatus(200)
+            ->assertSee('Tracking Verwaltung')
+            ->assertSet('themingDepartment', 'Marketing');
     }
 
     #[Test]
     public function admin_can_create_new_linktree_entry()
     {
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
             ->set('title', 'Test Link')
             ->set('url', 'https://example.com')
             ->set('icon', 'star')
             ->set('type', 'highlight')
             ->call('save');
 
-        $this->assertDatabaseHas('management_linktrees', [
+        $this->assertDatabaseHas('marketing_linktrees', [
             'title' => 'Test Link',
             'url' => 'https://example.com',
             'icon' => 'star',
@@ -59,7 +70,7 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function admin_can_update_existing_linktree_entry()
     {
-        $link = ManagementLinktree::create([
+        $link = MarketingLinktreeModel::create([
             'title' => 'Old Title',
             'url' => 'https://old.com',
             'type' => 'standard',
@@ -68,13 +79,13 @@ class ManagementLinktreeTest extends TestCase
         ]);
 
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
             ->call('edit', $link->id)
             ->set('title', 'New Title')
             ->set('url', 'https://new.com')
             ->call('save');
 
-        $this->assertDatabaseHas('management_linktrees', [
+        $this->assertDatabaseHas('marketing_linktrees', [
             'id' => $link->id,
             'title' => 'New Title',
             'url' => 'https://new.com',
@@ -84,7 +95,7 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function admin_can_delete_linktree_entry()
     {
-        $link = ManagementLinktree::create([
+        $link = MarketingLinktreeModel::create([
             'title' => 'To Delete',
             'url' => 'https://delete.com',
             'type' => 'standard',
@@ -92,10 +103,10 @@ class ManagementLinktreeTest extends TestCase
         ]);
 
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
             ->call('delete', $link->id);
 
-        $this->assertDatabaseMissing('management_linktrees', [
+        $this->assertDatabaseMissing('marketing_linktrees', [
             'id' => $link->id,
         ]);
     }
@@ -108,7 +119,7 @@ class ManagementLinktreeTest extends TestCase
         $file = UploadedFile::fake()->image('profile.jpg');
 
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
             ->set('themeColor', '#FF0000')
             ->set('profileImage', $file)
             ->call('saveSettings');
@@ -132,7 +143,7 @@ class ManagementLinktreeTest extends TestCase
         ]);
 
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingLinktree::class)
             ->call('deleteProfileImage');
 
         $this->assertDatabaseMissing('shop_settings', [
@@ -143,14 +154,14 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function frontend_linktree_page_renders_correctly()
     {
-        ManagementLinktree::create([
+        MarketingLinktreeModel::create([
             'title' => 'Frontend Test',
             'url' => 'https://frontend.com',
             'type' => 'standard',
             'sort_order' => 1,
         ]);
 
-        Livewire::test(ManagementLinktreePage::class)
+        Livewire::test(MarketingLinktreePage::class)
             ->assertStatus(200)
             ->assertSee('Frontend Test');
     }
@@ -158,18 +169,18 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function frontend_tracks_clicks()
     {
-        $link = ManagementLinktree::create([
+        $link = MarketingLinktreeModel::create([
             'title' => 'Click Test',
             'url' => 'https://click.com',
             'type' => 'standard',
             'sort_order' => 1,
         ]);
 
-        Livewire::test(ManagementLinktreePage::class)
+        Livewire::test(MarketingLinktreePage::class)
             ->call('trackAndRedirect', $link->id, $link->url)
             ->assertRedirect('https://click.com');
 
-        $this->assertDatabaseHas('management_linktree_clicks', [
+        $this->assertDatabaseHas('marketing_linktree_clicks', [
             'link_id' => $link->id,
         ]);
     }
@@ -177,7 +188,7 @@ class ManagementLinktreeTest extends TestCase
     #[Test]
     public function frontend_linktree_opens_in_new_tab_and_resolves_shop_url_across_environments()
     {
-        $link = ManagementLinktree::create([
+        $link = MarketingLinktreeModel::create([
             'title' => 'Zum Shop',
             'url' => 'https://www.mein-seelenfunke.de/shop/',
             'type' => 'highlight',
@@ -187,13 +198,13 @@ class ManagementLinktreeTest extends TestCase
 
         $this->assertEquals(url('/shop'), $link->resolved_url);
 
-        Livewire::test(ManagementLinktreePage::class)
+        Livewire::test(MarketingLinktreePage::class)
             ->assertStatus(200)
             ->assertSee('Zum Shop')
             ->assertSee('target="_blank"', false)
             ->call('trackClick', $link->id);
 
-        $this->assertDatabaseHas('management_linktree_clicks', [
+        $this->assertDatabaseHas('marketing_linktree_clicks', [
             'link_id' => $link->id,
         ]);
     }
@@ -202,12 +213,13 @@ class ManagementLinktreeTest extends TestCase
     public function admin_can_create_tracking_link_and_redirect_tracks_analytics_channel_views()
     {
         Livewire::actingAs($this->admin, 'admin')
-            ->test(ManagementLinktreeManager::class)
+            ->test(MarketingTracking::class)
+            ->assertSee('Tracking Verwaltung', false)
             ->assertSee('Tipp für Werbe- & Social-Media-Links', false)
             ->set('trackingName', 'WhatsApp')
             ->call('saveTrackingLink');
 
-        $trackingLink = ManagementTrackingLink::first();
+        $trackingLink = MarketingTrackingLink::first();
         $this->assertNotNull($trackingLink);
         $this->assertEquals('WhatsApp', $trackingLink->name);
         $this->assertEquals('whatsapp', $trackingLink->slug);

@@ -8,8 +8,8 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('management_tracking_links')) {
-            Schema::create('management_tracking_links', function (Blueprint $table) {
+        if (!Schema::hasTable('marketing_tracking_links')) {
+            Schema::create('marketing_tracking_links', function (Blueprint $table) {
                 $table->uuid('id')->primary();
                 $table->string('name');
                 $table->string('slug', 100)->unique();
@@ -26,8 +26,8 @@ return new class extends Migration
             });
         }
 
-        if (!Schema::hasTable('management_tracking_link_hits')) {
-            Schema::create('management_tracking_link_hits', function (Blueprint $table) {
+        if (!Schema::hasTable('marketing_tracking_link_hits')) {
+            Schema::create('marketing_tracking_link_hits', function (Blueprint $table) {
                 $table->id();
                 $table->uuid('tracking_link_id')->index();
                 $table->string('ip_hash', 64)->index();
@@ -37,7 +37,7 @@ return new class extends Migration
 
                 $table->foreign('tracking_link_id')
                     ->references('id')
-                    ->on('management_tracking_links')
+                    ->on('marketing_tracking_links')
                     ->onDelete('cascade');
             });
         }
@@ -45,7 +45,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('management_tracking_link_hits');
-        Schema::dropIfExists('management_tracking_links');
+        Schema::dropIfExists('marketing_tracking_link_hits');
+        Schema::dropIfExists('marketing_tracking_links');
     }
 };

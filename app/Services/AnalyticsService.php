@@ -958,11 +958,11 @@ class AnalyticsService
 
         // 2. Hole Tracking-Link-Aufrufe im gewählten Zeitraum
         $trackingLinksWithHits = collect();
-        $hasTrackingTables = \Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')
-            && \Illuminate\Support\Facades\Schema::hasTable('management_tracking_link_hits');
+        $hasTrackingTables = \Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')
+            && \Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_link_hits');
 
         if ($hasTrackingTables) {
-            $trackingLinksWithHits = \App\Models\Management\ManagementTrackingLink::query()
+            $trackingLinksWithHits = \App\Models\Marketing\MarketingTrackingLink::query()
                 ->withCount([
                     'hits as period_hits_count' => function ($q) use ($start, $end) {
                         $q->whereBetween('created_at', [$start, $end]);
@@ -1194,7 +1194,7 @@ class AnalyticsService
             $sourcesMap[$sourceKey]['views'] += $visitViews;
         }
 
-        // 3. Tracking-Links aus dem Linktree-Bereich in die Kanal-Verteilung, Quellen & Kampagnen einfließen lassen
+        // 3. Tracking-Links aus dem Marketing-Bereich in die Kanal-Verteilung, Quellen & Kampagnen einfließen lassen
         foreach ($trackingLinksWithHits as $trk) {
             $periodHits = (int) ($trk->period_hits_count ?? 0);
             $periodUnique = (int) ($trk->period_unique_count ?? 0);
@@ -1204,7 +1204,7 @@ class AnalyticsService
 
             $channelKey = isset($channels[$trk->channel])
                 ? $trk->channel
-                : \App\Models\Management\ManagementTrackingLink::resolveChannel((string) $trk->utm_source, (string) $trk->utm_medium, (string) $trk->name);
+                : \App\Models\Marketing\MarketingTrackingLink::resolveChannel((string) $trk->utm_source, (string) $trk->utm_medium, (string) $trk->name);
             if (!isset($channels[$channelKey])) {
                 $channelKey = 'campaign';
             }

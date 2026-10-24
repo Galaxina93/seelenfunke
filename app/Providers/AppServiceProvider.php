@@ -61,14 +61,16 @@ class AppServiceProvider extends ServiceProvider
             'ai-department' => 'App\Models\Ai\AiDepartment',
 
             'management_mission' => 'App\Models\Management\ManagementMission',
-            'management_linktree' => 'App\Models\Management\ManagementLinktree',
-            'management_tracking_link' => 'App\Models\Management\ManagementTrackingLink',
-            'management_tracking_link_hit' => 'App\Models\Management\ManagementTrackingLinkHit',
 
             'marketing_gift_voucher' => 'App\Models\Marketing\MarketingGiftVoucher',
             'marketing_voucher' => 'App\Models\Marketing\MarketingVoucher',
             'marketing_referral' => 'App\Models\Marketing\MarketingReferral',
             'marketing_gift_voucher_log' => 'App\Models\Marketing\MarketingGiftVoucherLog',
+            'marketing_linktree' => 'App\Models\Marketing\MarketingLinktree',
+            'marketing_linktree_click' => 'App\Models\Marketing\MarketingLinktreeClick',
+            'marketing_linktree_visit' => 'App\Models\Marketing\MarketingLinktreeVisit',
+            'marketing_tracking_link' => 'App\Models\Marketing\MarketingTrackingLink',
+            'marketing_tracking_link_hit' => 'App\Models\Marketing\MarketingTrackingLinkHit',
 
             // Füge hier bei Bedarf weitere Models hinzu
         ]);

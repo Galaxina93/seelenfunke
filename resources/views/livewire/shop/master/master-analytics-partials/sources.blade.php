@@ -180,7 +180,7 @@
                         </svg>
                         Aktive Tracking-Links, Kampagnen & Referrals
                     </span>
-                    <a href="{{ route('admin.linktree') }}" class="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline">
+                    <a href="{{ route('admin.marketing-tracking') }}" class="text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:underline">
                         Tracking-Links verwalten &rarr;
                     </a>
                 </h4>
@@ -220,8 +220,8 @@
                 <div class="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                     <strong class="text-amber-600 dark:text-amber-400 block mb-1 uppercase text-[9px] tracking-widest font-black">Tipp für Werbe- & Social-Media-Links</strong>
                     Verwende in Instagram-Bios, Newslettern oder Werbeanzeigen Tracking-Links wie
-                    <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">?utm_source=instagram&utm_medium=bio&utm_campaign=herbst2026</code>
-                    oder erstelle im <a href="{{ route('admin.linktree') }}" class="font-bold text-amber-600 dark:text-amber-400 underline">Linktree-Bereich</a> eigene Kurzlinks.
+                    <code class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px] font-mono text-gray-800 dark:text-gray-200">/t/whatsapp</code>
+                    oder erstelle im <a href="{{ route('admin.marketing-tracking') }}" class="font-bold text-amber-600 dark:text-amber-400 underline">Marketing Tracking-Bereich</a> eigene Kurzlinks.
                     Das System erfasst diese Aufrufe hier automatisch in der Kanal-Verteilung.
                 </div>
             </div>

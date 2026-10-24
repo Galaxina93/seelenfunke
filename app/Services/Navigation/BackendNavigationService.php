@@ -36,7 +36,6 @@ class BackendNavigationService
                             ['id' => 'tasks', 'title' => 'Aufgaben', 'route' => '/admin/tasks', 'icon' => 'check-circle'],
                             ['id' => 'shopping', 'title' => 'Einkaufsliste', 'route' => '/admin/shopping', 'icon' => 'shopping-cart'],
                             ['id' => 'calender', 'title' => 'Kalender', 'route' => '/admin/calender', 'icon' => 'calendar-days'],
-                            ['id' => 'linktree', 'title' => 'Linktree', 'route' => '/admin/linktree', 'icon' => 'link'],
                         ]
                     ]
                 ]
@@ -89,6 +88,8 @@ class BackendNavigationService
                             ['id' => 'newsletter', 'title' => 'Newsletter', 'route' => '/admin/newsletter', 'icon' => 'newspaper'],
                             ['id' => 'voucher', 'title' => 'Gutscheine', 'route' => '/admin/voucher', 'icon' => 'gift'],
                             ['id' => 'blog', 'title' => 'Blogeinträge', 'route' => '/admin/blog', 'icon' => 'document-text'],
+                            ['id' => 'marketing-linktree', 'title' => 'Linktree', 'route' => '/admin/marketing/linktree', 'icon' => 'link'],
+                            ['id' => 'marketing-tracking', 'title' => 'Tracking', 'route' => '/admin/marketing/tracking', 'icon' => 'chart-bar-square'],
                         ]
                     ],
                     [

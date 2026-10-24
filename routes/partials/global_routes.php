@@ -171,16 +171,16 @@ Route::get('/agb', function () {
     return view('frontend.pages.agb');
 })->name('agb');
 
-Route::get('/links', \App\Livewire\Frontend\Management\ManagementLinktreePage::class)->name('frontend.linktree');
+Route::get('/links', \App\Livewire\Frontend\Marketing\MarketingLinktreePage::class)->name('frontend.linktree');
 
 // DSGVO-konformer Kurz-Tracking-Link Redirect (Lokal, Stage & Live)
 Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slug) {
     $cleanSlug = preg_replace('/[^a-zA-Z0-9_\-]/', '', $slug);
-    if ($cleanSlug === '' || !\Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')) {
+    if ($cleanSlug === '' || !\Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')) {
         return redirect()->route('shop');
     }
 
-    $trackingLink = \App\Models\Management\ManagementTrackingLink::where('slug', $cleanSlug)
+    $trackingLink = \App\Models\Marketing\MarketingTrackingLink::where('slug', $cleanSlug)
         ->where('is_active', true)
         ->first();
 
