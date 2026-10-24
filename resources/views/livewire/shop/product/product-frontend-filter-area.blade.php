@@ -285,18 +285,20 @@
                                         </div>
                                     @endif
 
-                                    {{-- Neu & Sale Badges --}}
-                                    <div class="absolute top-3 left-3 flex flex-col gap-2 pointer-events-none z-20">
+                                    {{-- Kompakter Prozent- & Neu-Indikator oben links (verdeckt niemals das Produktmotiv) --}}
+                                    <div class="absolute top-3 left-3 flex flex-col items-start gap-1.5 pointer-events-none z-20">
                                         @if(!$isSoldOut && $product->compare_at_price > $product->price)
                                             @php
-                                                $saleBadgeText = $product->configurator_settings['autopilot_badge_text'] ?? ($heroBanner['badge_text'] ?? 'Angebot');
+                                                $discountPercent = (int) round((($product->compare_at_price - $product->price) / $product->compare_at_price) * 100);
                                             @endphp
-                                            <span class="bg-red-500/95 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md uppercase tracking-wide border border-white/15">
-                                                {{ $saleBadgeText }}
+                                            <span class="w-fit bg-red-600/95 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md tracking-wider leading-none border border-white/15">
+                                                -{{ max(1, $discountPercent) }}%
                                             </span>
                                         @endif
                                         @if(!$isSoldOut && $product->created_at->diffInDays() < 21)
-                                            <span class="bg-white/95 backdrop-blur text-gray-900 text-[10px] font-black px-3 py-1.5 rounded-full shadow-md uppercase tracking-wider border border-gray-100">Neu</span>
+                                            <span class="w-fit bg-white/95 backdrop-blur text-gray-900 text-[10px] font-black px-2.5 py-1 rounded-full shadow-md uppercase tracking-wider leading-none border border-gray-100">
+                                                Neu
+                                            </span>
                                         @endif
                                     </div>
                                 </div>
@@ -328,17 +330,31 @@
                                         </div>
                                     @endif
 
-                                    <div class="mt-auto pt-4 flex items-end justify-between">
+                                    <div class="mt-auto pt-3 flex items-end justify-between">
                                         <div class="flex flex-col">
-                                            <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">
-                                                @if($product->tierPrices->isNotEmpty())
-                                                    Ab
-                                                @else
-                                                    Preis
-                                                @endif
-                                            </span>
+                                            @if(!$isSoldOut && $product->compare_at_price > $product->price)
+                                                @php
+                                                    $saleBadgeText = $product->configurator_settings['autopilot_badge_text'] ?? ($heroBanner['badge_text'] ?? 'Angebot');
+                                                @endphp
+                                                <div class="flex items-center gap-1.5 mb-1">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider bg-red-50 text-red-600 border border-red-200/80 w-fit">
+                                                        {{ $saleBadgeText }}
+                                                    </span>
+                                                    @if($product->tierPrices->isNotEmpty())
+                                                        <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Ab</span>
+                                                    @endif
+                                                </div>
+                                            @else
+                                                <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">
+                                                    @if($product->tierPrices->isNotEmpty())
+                                                        Ab
+                                                    @else
+                                                        Preis
+                                                    @endif
+                                                </span>
+                                            @endif
                                             <div class="flex items-baseline gap-2">
-                                                <span class="{{ $isSoldOut ? 'text-gray-400' : 'text-gray-900' }} font-bold text-xl font-serif">
+                                                <span class="{{ $isSoldOut ? 'text-gray-400' : ($product->compare_at_price > $product->price ? 'text-red-600' : 'text-gray-900') }} font-bold text-xl font-serif">
                                                     {{ number_format($product->price / 100, 2, ',', '.') }} €
                                                 </span>
                                                 @if(!$isSoldOut && $product->compare_at_price > $product->price)
