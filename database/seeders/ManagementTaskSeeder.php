@@ -79,6 +79,11 @@ class ManagementTaskSeeder extends Seeder
                     ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'medium'],
                     ['title' => 'Final prüfen -> STEUER 0.5 Punkte von Noah auf mich übertragen', 'priority' => 'high'],
                     ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'high'],
+                    [
+                        'title' => 'Beim echten Livegang die Produkte die ersten 14–30 Tage zum regulären Basispreis laufen lassen und danach den Angebots-Autopiloten scharf schalten – damit der Normalpreis nachweislich im Umlauf war (§ 11 PAngV / 30-Tage-Bestpreis)',
+                        'priority' => 'high',
+                        'ai_plan' => 'Vor dem Livegang unter /admin/newsletter den Switch "Angebots-Autopilot" auf INAKTIV setzen, damit alle Produkte zunächst 14–30 Tage zum regulären Basispreis angeboten werden (Rechtssicherheit gegen Mondpreis-Abmahnungen nach § 5 UWG & § 11 PAngV). Nach 14–30 Tagen den Angebots-Autopiloten wieder aktivieren.',
+                    ],
                 ]
             ],
             [
