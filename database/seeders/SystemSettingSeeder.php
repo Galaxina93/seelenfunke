@@ -93,8 +93,9 @@ class SystemSettingSeeder extends Seeder
             'stripe_secret_key'         => '',
             'stripe_webhook_secret'     => '',
 
-            // Sonstiges
-            'order_quote_validity_days' => '14',
+            // Sonstiges & Marketing-Autopilot
+            'order_quote_validity_days'          => '14',
+            'marketing_autopilot_offers_enabled' => 'true',
 
             // Produktions-Kapazitäten
             'shop_daily_working_hours'  => '7',

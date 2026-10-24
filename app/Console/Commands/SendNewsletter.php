@@ -32,7 +32,11 @@ class SendNewsletter extends Command
         try {
             $this->line("⏳ Verbinde mit der Datenbank und lade aktive Templates...");
             $templates = MarketingNewsletter::where('is_active', true)->get();
-            $this->info("✅ " . $templates->count() . " aktive(s) Template(s) gefunden.\n");
+            $this->info("✅ " . $templates->count() . " aktive(s) Template(s) gefunden.");
+
+            // Synchronisiere zuerst den 100% Angebots-Autopiloten für die Feiertage
+            $offerSync = app(\App\Services\Marketing\HolidayOfferAutopilotService::class)->syncActiveOffers($today);
+            $this->line("🏷️  Angebots-Autopilot abgeglichen (Aktualisiert: {$offerSync['updated_count']}, Zurückgesetzt: {$offerSync['restored_count']})\n");
         } catch (QueryException $e) {
             $this->error("❌ FATALER FEHLER: Datenbankverbindung fehlgeschlagen!");
             $this->line("Detail: " . $e->getMessage());
@@ -173,7 +177,7 @@ class SendNewsletter extends Command
             case 'christmas': return Carbon::create($year, 12, 24);
             case 'new_year': return Carbon::create($year, 1, 1);
             case 'sale_summer': return Carbon::create($year, 7, 1);
-            case 'sale_winter': return Carbon::create($year, 1, 1);
+            case 'sale_winter': return Carbon::create($year, 1, 15);
             case 'easter': return $this->getEasterDate($year);
             case 'mothers_day': return Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY);
             case 'fathers_day': return $this->getEasterDate($year)->addDays(39);

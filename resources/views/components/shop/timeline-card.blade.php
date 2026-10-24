@@ -12,6 +12,7 @@
     'countdownLabel' => 'Versand in',
     'isActiveNow' => false,
     'activeEndDate' => null,
+    'offerPreview' => null,
 ])
 
 @php
@@ -127,6 +128,54 @@
         @if($subtitle)
             <div class="text-[10px] font-mono text-[color:var(--theme-color)] opacity-80 mt-2 truncate bg-[color:var(--theme-color-10)] px-2 py-1 rounded border border-[color:var(--theme-color-20)]">
                 {{ $subtitle }}
+            </div>
+        @endif
+
+        @if(!empty($offerPreview))
+            <div class="mt-2 relative" x-data="{ showOfferInfo: false }" @click.stop>
+                <div class="flex items-center justify-between gap-1.5 text-[10px] font-bold px-2.5 py-1.5 rounded-lg border transition-colors {{ $offerPreview['is_active_window'] ? 'bg-emerald-50/90 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400' : 'bg-gray-100/80 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }}">
+                    <div class="flex items-center gap-1.5 min-w-0 truncate">
+                        @if($offerPreview['is_active_window'])
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping shrink-0"></span>
+                        @else
+                            <span class="text-[10px] shrink-0">🏷️</span>
+                        @endif
+                        <span class="truncate">
+                            Sale -{{ $offerPreview['effective_discount_percent'] }}%: {{ $offerPreview['sale_start']->format('d.m.') }}–{{ $offerPreview['sale_end']->format('d.m.') }}
+                        </span>
+                    </div>
+                    <button type="button"
+                            @mouseenter="showOfferInfo = true"
+                            @mouseleave="showOfferInfo = false"
+                            @click.stop="showOfferInfo = !showOfferInfo"
+                            class="w-4 h-4 rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-[9px] font-black text-gray-500 dark:text-gray-300 hover:border-[color:var(--theme-color)] hover:text-[color:var(--theme-color)] flex items-center justify-center shrink-0 transition-colors"
+                            title="Details zum automatischen Feiertags-Angebot">
+                        !
+                    </button>
+                </div>
+
+                {{-- Kompaktes Info-Popover direkt in der Kachel --}}
+                <div x-show="showOfferInfo"
+                     x-cloak
+                     x-transition.opacity.duration.150ms
+                     class="absolute left-0 right-0 bottom-full mb-2 z-50 p-3.5 rounded-2xl bg-gray-900/95 dark:bg-gray-950/95 text-white border border-gray-700 shadow-2xl text-[10px] leading-relaxed backdrop-blur-md">
+                    <div class="font-black uppercase tracking-wider text-[color:var(--theme-color)] mb-1 flex items-center justify-between">
+                        <span>{{ $offerPreview['label'] }}</span>
+                        <span class="text-emerald-400">Ø {{ number_format($offerPreview['avg_net_margin_percent'], 0, ',', '.') }}% Marge</span>
+                    </div>
+                    <p class="text-gray-300 text-[9.5px] mb-2">{{ $offerPreview['strategy_hint'] }}</p>
+                    <div class="space-y-1 border-t border-gray-800 pt-1.5">
+                        @foreach($offerPreview['products'] as $pOffer)
+                            <div class="flex items-center justify-between text-[9.5px]">
+                                <span class="text-gray-300 truncate pr-2">{{ $pOffer['name'] }}</span>
+                                <span class="font-mono font-bold text-white shrink-0">
+                                    {{ number_format($pOffer['sale_price_cents'] / 100, 2, ',', '.') }} €
+                                    <span class="line-through text-gray-500 font-normal">{{ number_format($pOffer['base_price_cents'] / 100, 2, ',', '.') }} €</span>
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
             </div>
         @endif
 

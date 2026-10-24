@@ -256,7 +256,7 @@ class ProductSeeder extends Seeder
             'is_personalizable' => true,
             'three_d_active' => true,
             'price' => 2490,
-            'compare_at_price' => 2990,
+            'compare_at_price' => null,
             'purchase_price' => 333, // EK: 19,99€ / 6 Stück = 3,33€ pro Stück
             'laser_runtime_minutes' => 1,
             'electricity_wear_factor' => 15,

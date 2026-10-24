@@ -10,8 +10,8 @@
                 </div>
             </div>
 
-            {{-- KPIs --}}
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+            {{-- KPIs & 100% Angebots-Autopilot --}}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-2xl flex items-center justify-between transition-colors">
                     <div>
                         <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Abonnenten</p>
@@ -28,6 +28,57 @@
                     </div>
                     <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 flex items-center justify-center shadow-sm dark:shadow-inner">
                         <x-heroicon-s-paper-airplane class="w-6 h-6" />
+                    </div>
+                </div>
+
+                {{-- 3. Kachel: 100% Angebots-Autopilot mit Info-Popover --}}
+                <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 rounded-[2rem] border {{ $autopilotOffersEnabled ? 'border-[var(--theme-color)]/40' : 'border-gray-200 dark:border-gray-800' }} shadow-sm dark:shadow-2xl flex items-center justify-between transition-colors relative"
+                     x-data="{ showGuardrailsInfo: false }">
+                    <div class="min-w-0 pr-3">
+                        <div class="flex items-center gap-2 mb-1">
+                            <p class="text-[10px] font-black uppercase tracking-widest text-gray-500 truncate">Angebots-Autopilot</p>
+                            <button type="button"
+                                    @mouseenter="showGuardrailsInfo = true"
+                                    @mouseleave="showGuardrailsInfo = false"
+                                    @click="showGuardrailsInfo = !showGuardrailsInfo"
+                                    class="w-4 h-4 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 text-[9px] font-black flex items-center justify-center hover:scale-110 transition-transform shrink-0"
+                                    title="Wie schützt mich der Autopilot vor Verlusten?">
+                                !
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-2.5">
+                            <h3 class="text-xl sm:text-2xl font-serif font-bold {{ $autopilotOffersEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500' }}">
+                                {{ $autopilotOffersEnabled ? '100% Aktiv' : 'Pausiert' }}
+                            </h3>
+                            <span class="text-[9px] font-bold px-2 py-0.5 rounded-full border {{ $guardrails['capacity_ok'] ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20' }}">
+                                ≥ {{ number_format($guardrails['min_net_margin_percent'], 0) }}% Marge
+                            </span>
+                        </div>
+                    </div>
+
+                    <button type="button"
+                            wire:click="toggleAutopilotOffers"
+                            class="relative inline-flex h-7 w-13 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $autopilotOffersEnabled ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }}"
+                            title="{{ $autopilotOffersEnabled ? 'Angebots-Autopilot pausieren' : 'Angebots-Autopilot aktivieren' }}">
+                        <span class="pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $autopilotOffersEnabled ? 'translate-x-6' : 'translate-x-0' }}"></span>
+                    </button>
+
+                    {{-- Kompaktes Erklärungs-Popover (Die 5 Schutzmauern) --}}
+                    <div x-show="showGuardrailsInfo"
+                         x-cloak
+                         x-transition.opacity.duration.150ms
+                         class="absolute left-0 right-0 top-full mt-3 z-50 p-5 rounded-2xl bg-gray-900/95 dark:bg-gray-950/95 text-white border border-gray-700 shadow-2xl text-[11px] leading-relaxed backdrop-blur-md">
+                        <div class="font-black uppercase tracking-widest text-[var(--theme-color)] text-[10px] mb-2 flex items-center justify-between">
+                            <span>🛡️ 5 Aktive Schutzmauern gegen den Ruin</span>
+                            <span class="text-emerald-400">Aktiv</span>
+                        </div>
+                        <ul class="space-y-1.5 text-gray-300 text-[10.5px]">
+                            <li><strong class="text-white">1. Eiserne Mindestmarge (≥ 45 % Netto):</strong> Berechnet aus echtem Rohling-EK, Laserlaufzeit, Verpackung, Zahlungsgebühr & geplantem Werbebudget.</li>
+                            <li><strong class="text-white">2. Anti-Stacking im Warenkorb:</strong> Bereits reduzierte Aktions-Unikate können nicht doppelt mit zusätzlichen Rabattcodes kombiniert werden.</li>
+                            <li><strong class="text-white">3. Last-Minute-Abschaltung:</strong> 4–6 Tage vor dem Feiertag endet der Rabatt automatisch (Last-Minute-Käufer zahlen Vollpreis + ggf. Express).</li>
+                            <li><strong class="text-white">4. Lager- & Kapazitätsbremse:</strong> Unter {{ $guardrails['min_stock_threshold'] }} Stück Bestand oder bei hoher Werkstattauslastung schaltet der Sale automatisch ab.</li>
+                            <li><strong class="text-white">5. Basispreis-Tresor:</strong> Nach jeder Aktion springen alle Streichpreise von selbst wieder auf den Originalpreis zurück.</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -145,6 +196,71 @@
                                         @endif
                                     </div>
 
+                                    {{-- Kompakte Box: Verknüpftes Shop-Angebot (Autopilot) --}}
+                                    @if(!empty($editingOfferPreview))
+                                        <div class="bg-gray-50 dark:bg-gray-900/50 rounded-[2rem] p-6 border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner w-full transition-colors relative"
+                                             x-data="{ showCalcInfo: false }">
+                                            <div class="flex items-center justify-between mb-3">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Shop-Angebot (Autopilot)</span>
+                                                    <button type="button"
+                                                            @mouseenter="showCalcInfo = true"
+                                                            @mouseleave="showCalcInfo = false"
+                                                            @click="showCalcInfo = !showCalcInfo"
+                                                            class="w-4 h-4 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 text-[9px] font-black flex items-center justify-center shrink-0"
+                                                            title="Wie wird dieser Aktionspreis berechnet?">
+                                                        !
+                                                    </button>
+                                                </div>
+                                                <span class="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 text-[9px] px-2 py-0.5 rounded font-bold">
+                                                    Ø {{ number_format($editingOfferPreview['avg_net_margin_percent'], 0, ',', '.') }}% Marge
+                                                </span>
+                                            </div>
+
+                                            {{-- Info-Popover zur Margen-Formel --}}
+                                            <div x-show="showCalcInfo"
+                                                 x-cloak
+                                                 x-transition.opacity.duration.150ms
+                                                 class=" mb-3 p-3.5 rounded-xl bg-gray-900 text-white border border-gray-700 text-[10px] leading-relaxed shadow-xl">
+                                                <p class="font-bold text-[var(--theme-color)] mb-1">{{ $editingOfferPreview['label'] }}</p>
+                                                <p class="text-gray-300 mb-1.5">{{ $editingOfferPreview['strategy_hint'] }}</p>
+                                                <p class="text-gray-400 text-[9.5px]">Formel: Netto-Aktionspreis minus (Rohling-EK + Laser/Strom + Verpackung + Zahlungsgebühr + geplantes Werbebudget). Fällt die Marge unter 45 %, hebt das System den Preis automatisch an.</p>
+                                            </div>
+
+                                            <div class="text-[11px] bg-white dark:bg-gray-950 p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2 mb-3">
+                                                <div class="flex justify-between items-center">
+                                                    <span class="text-gray-500">Auto-Sale Zeitraum:</span>
+                                                    <span class="font-bold text-gray-900 dark:text-white">
+                                                        {{ $editingOfferPreview['sale_start']->format('d.m.') }} – {{ $editingOfferPreview['sale_end']->format('d.m.Y') }}
+                                                    </span>
+                                                </div>
+                                                @if($editingOfferPreview['has_last_minute_cutoff'])
+                                                    <div class="flex justify-between items-center text-[10px]">
+                                                        <span class="text-gray-500">Last-Minute Vollpreis:</span>
+                                                        <span class="font-bold text-amber-600 dark:text-amber-400">ab {{ $editingOfferPreview['last_minute_days'] }} Tage vor Event</span>
+                                                    </div>
+                                                @endif
+                                            </div>
+
+                                            <div class="space-y-1.5">
+                                                @foreach($editingOfferPreview['products'] as $pOffer)
+                                                    <div class="flex items-center justify-between bg-white dark:bg-gray-950 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px]">
+                                                        <div class="min-w-0 pr-2">
+                                                            <div class="font-bold text-gray-900 dark:text-white truncate">{{ $pOffer['name'] }}</div>
+                                                            <div class="text-[9.5px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                                                Reingewinn: +{{ number_format($pOffer['net_profit_cents'] / 100, 2, ',', '.') }} € ({{ number_format($pOffer['net_margin_percent'], 0) }}%)
+                                                            </div>
+                                                        </div>
+                                                        <div class="text-right shrink-0 font-mono">
+                                                            <span class="font-black text-gray-900 dark:text-white">{{ number_format($pOffer['sale_price_cents'] / 100, 2, ',', '.') }} €</span>
+                                                            <span class="block text-[9.5px] text-gray-400 line-through">{{ number_format($pOffer['base_price_cents'] / 100, 2, ',', '.') }} €</span>
+                                                        </div>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+
                                     <div class="bg-gray-50 dark:bg-gray-900/30 rounded-[2rem] p-6 border border-gray-200 dark:border-gray-800 border-dashed w-full transition-colors">
                                         <h5 class="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                                             <x-heroicon-o-paper-airplane class="w-4 h-4 text-[var(--theme-color)]" />
@@ -240,6 +356,7 @@
                                                 :event-name="$event['event_name'] ?? null"
                                                 :state="$isPast ? 'past' : ($isNext ? 'next' : 'future')"
                                                 :template-id="$event['template_id']"
+                                                :offer-preview="$event['offer_preview'] ?? null"
                                                 type="mail"
                                             />
                                         </div>

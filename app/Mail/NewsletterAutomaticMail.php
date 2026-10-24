@@ -23,9 +23,13 @@ class NewsletterAutomaticMail extends Mailable implements ShouldQueue
 
     public function build()
     {
-        // Name ermitteln (Datenbank oder Fallback) und gegen HTML-Injection escapen
-        $nameToUse = !empty($this->subscriber->first_name)
-            ? e((string) $this->subscriber->first_name)
+        // Name ermitteln (Datenbank oder Kundenkonto-Fallback) und gegen HTML-Injection escapen
+        $rawFirstName = $this->subscriber->first_name ?? null;
+        if (empty($rawFirstName) && !empty($this->subscriber->email)) {
+            $rawFirstName = \App\Models\Customer\Customer::where('email', $this->subscriber->email)->value('first_name');
+        }
+        $nameToUse = !empty($rawFirstName)
+            ? e((string) $rawFirstName)
             : 'du';
 
         $safeTemplateContent = \App\Livewire\Shop\Marketing\MarketingBlog::sanitizeBlogHtml((string) ($this->template->content ?? ''));

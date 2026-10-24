@@ -35,7 +35,11 @@ class MarketingNewsletter extends Component
     public $edit_content;
     public $edit_offset;
     public $edit_event_date = null; // Neu: Speichert das Datum des Events für die Live-Vorschau
+    public $edit_event_key = null;
     public $edit_type = 'automated'; // 'automated' oder 'manual'
+
+    // 100% Angebots-Autopilot Status
+    public bool $autopilotOffersEnabled = true;
 
     // Create Modal State
     public $showCreateModal = false;
@@ -48,6 +52,30 @@ class MarketingNewsletter extends Component
     {
         if (!\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\Illuminate\Support\Facades\Auth::guard('employee')->check()) {
             abort(403, 'Nicht autorisierter Zugriff auf die Newsletter-Verwaltung.');
+        }
+    }
+
+    public function mount(): void
+    {
+        $offerService = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
+        $this->autopilotOffersEnabled = $offerService->isEnabled();
+        $offerService->syncActiveOffers();
+    }
+
+    public function toggleAutopilotOffers(): void
+    {
+        $offerService = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
+        $this->autopilotOffersEnabled = !$this->autopilotOffersEnabled;
+        $sync = $offerService->setEnabled($this->autopilotOffersEnabled);
+
+        if ($this->autopilotOffersEnabled) {
+            $msg = '100% Angebots-Autopilot aktiviert.';
+            if (!empty($sync['active_campaign_label'])) {
+                $msg .= " Aktive Aktion: {$sync['active_campaign_label']}.";
+            }
+            session()->flash('success', $msg);
+        } else {
+            session()->flash('success', 'Angebots-Autopilot pausiert – alle Produkte wurden auf ihren Normalpreis zurückgesetzt.');
         }
     }
 
@@ -84,6 +112,7 @@ class MarketingNewsletter extends Component
         $this->editingTemplateId = $t->id;
         $this->edit_subject = $t->subject;
         $this->edit_type = $t->type;
+        $this->edit_event_key = $t->target_event_key;
 
         // Entfernt alle führenden Leerzeichen/Tabs am Anfang jeder Zeile für eine saubere Code-Ansicht
         $this->edit_content = preg_replace('/^[ \t]+/m', '', $t->content);
@@ -98,8 +127,11 @@ class MarketingNewsletter extends Component
             $year = date('Y');
             $eventDate = $this->getHolidayDate($t->target_event_key, $year);
             $sendDate = $eventDate->copy()->subDays($t->days_offset);
+            $offerPreview = app(\App\Services\Marketing\HolidayOfferAutopilotService::class)
+                ->getCampaignOfferPreview((string) $t->target_event_key, $eventDate, (int) $t->days_offset);
+            $saleStillRunning = $offerPreview && $offerPreview['sale_end']->isFuture();
 
-            if ($sendDate->isPast() && !$sendDate->isToday()) {
+            if ($sendDate->isPast() && !$sendDate->isToday() && $eventDate->isPast() && !$eventDate->isToday() && !$saleStillRunning) {
                 $eventDate = $this->getHolidayDate($t->target_event_key, $year + 1);
             }
 
@@ -201,6 +233,7 @@ class MarketingNewsletter extends Component
             ]);
         }
 
+        app(\App\Services\Marketing\HolidayOfferAutopilotService::class)->syncActiveOffers();
         $this->editingTemplateId = null;
         session()->flash('success', 'Kampagne aktualisiert.');
     }
@@ -208,6 +241,7 @@ class MarketingNewsletter extends Component
     public function archiveTemplate($id)
     {
         NewsletterModel::where('id', $id)->update(['is_active' => false]);
+        app(\App\Services\Marketing\HolidayOfferAutopilotService::class)->syncActiveOffers();
         session()->flash('success', 'Kampagne ins Archiv verschoben.');
         $this->cancelEdit();
     }
@@ -215,12 +249,14 @@ class MarketingNewsletter extends Component
     public function restoreTemplate($id)
     {
         NewsletterModel::where('id', $id)->update(['is_active' => true]);
+        app(\App\Services\Marketing\HolidayOfferAutopilotService::class)->syncActiveOffers();
         session()->flash('success', 'Kampagne reaktiviert.');
     }
 
     public function deleteTemplate($id)
     {
         if (NewsletterModel::destroy($id)) {
+            app(\App\Services\Marketing\HolidayOfferAutopilotService::class)->syncActiveOffers();
             session()->flash('success', 'Kampagne wurde endgültig gelöscht.');
             $this->cancelEdit();
         }
@@ -229,7 +265,7 @@ class MarketingNewsletter extends Component
     public function cancelEdit()
     {
         $this->editingTemplateId = null;
-        $this->reset(['edit_subject', 'edit_content', 'edit_offset', 'edit_event_date', 'edit_type']);
+        $this->reset(['edit_subject', 'edit_content', 'edit_offset', 'edit_event_date', 'edit_event_key', 'edit_type']);
     }
 
     public function sendTestMail()
@@ -297,7 +333,7 @@ class MarketingNewsletter extends Component
             'christmas' => 'Weihnachten (24.12.)',
             'new_year' => 'Neujahr (01.01.)',
             'sale_summer' => 'Sommer Sale (01.07.)',
-            'sale_winter' => 'Winter Sale (01.01.)',
+            'sale_winter' => 'Winter Sale (15.01.)',
         ];
     }
 
@@ -310,7 +346,7 @@ class MarketingNewsletter extends Component
             case 'christmas': return Carbon::create($year, 12, 24);
             case 'new_year': return Carbon::create($year, 1, 1);
             case 'sale_summer': return Carbon::create($year, 7, 1);
-            case 'sale_winter': return Carbon::create($year, 1, 1);
+            case 'sale_winter': return Carbon::create($year, 1, 15);
             case 'easter': return $this->getEasterDate($year);
             case 'mothers_day': return Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY);
             case 'fathers_day': return $this->getEasterDate($year)->addDays(39);
@@ -337,6 +373,7 @@ class MarketingNewsletter extends Component
     private function getNewsletterTimeline($year)
     {
         $templates = NewsletterModel::where('is_active', true)->get();
+        $offerService = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
         $events = [];
 
         foreach ($this->getAvailableEvents() as $key => $label) {
@@ -345,11 +382,15 @@ class MarketingNewsletter extends Component
             if ($tmpl) {
                 $eventDate = $this->getHolidayDate($key, $year);
                 $sendDate = $eventDate->copy()->subDays($tmpl->days_offset);
+                $offerPreview = $offerService->getCampaignOfferPreview($key, $eventDate, (int) $tmpl->days_offset);
 
-                // Wenn das Datum für dieses Jahr schon vorbei ist, nimm das nächste Jahr
-                if ($sendDate->isPast() && !$sendDate->isToday()) {
+                $saleStillRunning = $offerPreview && $offerPreview['sale_end']->isFuture();
+
+                // Erst ins nächste Jahr springen, wenn sowohl Versanddatum als auch Event & Auto-Sale vorbei sind
+                if ($sendDate->isPast() && !$sendDate->isToday() && $eventDate->isPast() && !$eventDate->isToday() && !$saleStillRunning) {
                     $eventDate = $this->getHolidayDate($key, $year + 1);
                     $sendDate = $eventDate->copy()->subDays($tmpl->days_offset);
+                    $offerPreview = $offerService->getCampaignOfferPreview($key, $eventDate, (int) $tmpl->days_offset);
                 }
 
                 $events[] = [
@@ -360,7 +401,8 @@ class MarketingNewsletter extends Component
                     'type' => 'mail',
                     'event_key' => $key,
                     'event_name' => $label,
-                    'is_manual' => false
+                    'is_manual' => false,
+                    'offer_preview' => $offerPreview,
                 ];
             }
         }
@@ -378,7 +420,8 @@ class MarketingNewsletter extends Component
                     'type' => 'mail',
                     'event_key' => 'manual',
                     'event_name' => 'Manuelles Event',
-                    'is_manual' => true
+                    'is_manual' => true,
+                    'offer_preview' => null,
                 ];
             }
         }
@@ -401,12 +444,24 @@ class MarketingNewsletter extends Component
             $archivedTemplates = NewsletterModel::where('is_active', false)->get();
         }
 
+        $offerService = app(\App\Services\Marketing\HolidayOfferAutopilotService::class);
+        $guardrails = $offerService->getGuardrailsStatus();
+        $timeline = $this->getNewsletterTimeline(date('Y'));
+
+        $editingOfferPreview = null;
+        if ($this->editingTemplateId && $this->edit_type === 'automated' && $this->edit_event_key) {
+            $parsedEventDate = $this->edit_event_date ? Carbon::parse($this->edit_event_date) : null;
+            $editingOfferPreview = $offerService->getCampaignOfferPreview($this->edit_event_key, $parsedEventDate, (int) $this->edit_offset);
+        }
+
         return view('livewire.shop.marketing.marketing-newsletter', [
-            'newsletterTimeline' => $this->getNewsletterTimeline(date('Y')),
+            'newsletterTimeline' => $timeline,
             'subscribers' => $subscribers,
             'archivedTemplates' => $archivedTemplates,
             'availableEvents' => $this->getAvailableEvents(),
             'activeTemplateKeys' => NewsletterModel::where('is_active', true)->where('type', 'automated')->whereNotNull('target_event_key')->pluck('target_event_key')->toArray(),
+            'guardrails' => $guardrails,
+            'editingOfferPreview' => $editingOfferPreview,
             'stats' => [
                 'subscribers' => MarketingNewsletterSubscriber::count(),
                 'active_templates' => NewsletterModel::where('is_active', true)->count()

@@ -513,18 +513,30 @@ class CartService
 
         $cart = $this->getCart();
 
-        // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine)
+        // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine & ohne bereits im Autopilot-Sale reduzierte Artikel)
         $discountableSubtotal = 0;
+        $hasAutopilotSaleItems = false;
         foreach ($cart->items as $item) {
             $product = $item->product;
             if (!$product) continue;
             $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
+            $isAutopilotSale = !empty($product->configurator_settings['autopilot_base_price']) && (int) $product->compare_at_price > (int) $product->price;
+            if ($isAutopilotSale) {
+                $hasAutopilotSaleItems = true;
+                continue;
+            }
             if (!$isGiftVoucher) {
                 $discountableSubtotal += $item->unit_price * $item->quantity;
             }
         }
 
         if ($discountableSubtotal <= 0) {
+            if ($hasAutopilotSaleItems) {
+                return [
+                    'success' => false,
+                    'message' => 'Bereits reduzierte Feiertags- & Aktions-Unikate sind nicht mit zusätzlichen Rabattcodes kombinierbar.'
+                ];
+            }
             return [
                 'success' => false,
                 'message' => 'Rabattcodes können nicht auf den Kauf von Geschenkgutscheinen angewendet werden.'
@@ -722,13 +734,14 @@ class CartService
                 }
 
                 if ($coupon && $coupon->isValid() && $personalCouponAllowed) {
-                    // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine)
+                    // Rabattfähigen Warenwert berechnen (ohne Geschenkgutscheine & ohne bereits im Autopilot-Sale reduzierte Artikel)
                     $discountableSubtotal = 0;
                     foreach ($cart->items as $item) {
                         $product = $item->product;
                         if (!$product) continue;
                         $isGiftVoucher = ($product->slug === 'geschenkgutschein') || (!empty($item->configuration['is_gift_voucher']));
-                        if (!$isGiftVoucher) {
+                        $isAutopilotSale = !empty($product->configurator_settings['autopilot_base_price']) && (int) $product->compare_at_price > (int) $product->price;
+                        if (!$isGiftVoucher && !$isAutopilotSale) {
                             $discountableSubtotal += $item->unit_price * $item->quantity;
                         }
                     }
