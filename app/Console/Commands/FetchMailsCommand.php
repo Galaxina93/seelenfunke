@@ -41,6 +41,13 @@ class FetchMailsCommand extends Command
         foreach ($accounts as $account) {
             $this->info("Postfach wird verarbeitet: {$account->email}...");
 
+            if (!\App\Services\System\SystemSecurityService::isSafeMailHost((string) $account->imap_host)) {
+                Log::warning("IMAP Fetch blocked for {$account->email}: Unsafe IMAP host '{$account->imap_host}' (SSRF guard).");
+                $this->error("FEHLER: Unsicherer IMAP-Host für {$account->email} blockiert.");
+                $account->update(['status' => 'error']);
+                continue;
+            }
+
             try {
                 // Dynamically build IMAP config array with connection timeouts to prevent scheduler hangs
                 $client = \Webklex\IMAP\Facades\Client::make([
@@ -69,22 +76,23 @@ class FetchMailsCommand extends Command
                 foreach ($messages as $message) {
                     try {
                         $uid = $message->getUid();
-                        $messageId = $message->getMessageId();
+                        $rawMessageId = $message->getMessageId();
+                        $normalizedMessageId = is_array($rawMessageId)
+                            ? (string) ($rawMessageId[0] ?? '')
+                            : (is_object($rawMessageId) && method_exists($rawMessageId, '__toString') ? (string) $rawMessageId : (string) $rawMessageId);
+                        $normalizedMessageId = trim($normalizedMessageId);
 
-                    // Skip if we already stored it
-                    if (MailMessage::where('message_id', $messageId)->exists()) {
+                    // Skip if we already stored it for this account
+                    if ($normalizedMessageId !== '' && MailMessage::where('mail_account_id', $account->id)->where('message_id', $normalizedMessageId)->exists()) {
                         continue;
                     }
 
                     $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;
                     $bodyText = $message->hasTextBody() ? $message->getTextBody() : null;
 
-                    // Sanitize HTML body to strip out tracking pixels (like stat.alibaba.com)
+                    // Sanitize HTML body to strip out tracking pixels and XSS payloads
                     if ($bodyHtml) {
-                        // 1. Remove img tags containing known tracking domain patterns
-                        $bodyHtml = preg_replace('/<img[^>]+src=["\'][^"\']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"\']*["\'][^>]*>/i', '', $bodyHtml);
-                        // 2. Remove any img tags trying to render as 1x1 or 0x0
-                        $bodyHtml = preg_replace('/<img[^>]+(?:width=["\']?[01]["\']?[^>]*height=["\']?[01]["\']?|height=["\']?[01]["\']?[^>]*width=["\']?[01]["\']?)[^>]*>/i', '', $bodyHtml);
+                        $bodyHtml = self::sanitizeEmailHtml($bodyHtml);
                     }
 
                     $fromObj = $message->getFrom()[0] ?? null;
@@ -119,8 +127,13 @@ class FetchMailsCommand extends Command
                     if ($routingRule) {
                         if ($routingRule->action === 'mark_spam') {
                             $targetFolder = 'Junk';
+                        } elseif ($routingRule->action === 'delete') {
+                            $targetFolder = 'Trash';
+                        } elseif ($routingRule->action === 'archive') {
+                            $targetFolder = 'Archive';
                         } else {
-                            $targetFolder = $routingRule->action;
+                            $cleanFolder = mb_substr(preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '', str_replace('..', '', trim((string) $routingRule->action))), 0, 64);
+                            $targetFolder = $cleanFolder !== '' ? $cleanFolder : 'INBOX';
                         }
                     }
 
@@ -130,7 +143,7 @@ class FetchMailsCommand extends Command
 
                     $mailMessage = MailMessage::create([
                         'mail_account_id' => $account->id,
-                        'message_id' => is_array($messageId) ? ($messageId[0] ?? uniqid('msg_')) : ($messageId ?: uniqid('msg_')),
+                        'message_id' => $normalizedMessageId !== '' ? $normalizedMessageId : uniqid('msg_'),
                         'folder' => $targetFolder,
                         'subject' => $decodedSubject ?: 'Kein Betreff',
                         'from_name' => str_replace('"', '', $fromName),
@@ -147,23 +160,36 @@ class FetchMailsCommand extends Command
 
                     if ($message->hasAttachments()) {
                         $attachments = $message->getAttachments();
+                        $maxAttachmentBytes = 25 * 1024 * 1024;
                         foreach ($attachments as $attachment) {
+                            $reportedSize = (int) ($attachment->getSize() ?? 0);
+                            if ($reportedSize > $maxAttachmentBytes) {
+                                Log::warning("Skipping oversized attachment ({$reportedSize} bytes) for mail {$mailMessage->id}");
+                                continue;
+                            }
+
+                            $content = $attachment->getContent();
+                            $actualSize = strlen((string) $content);
+                            if ($actualSize > $maxAttachmentBytes) {
+                                Log::warning("Skipping oversized attachment payload ({$actualSize} bytes) for mail {$mailMessage->id}");
+                                continue;
+                            }
+
                             $rawFilename = (string)$attachment->getName();
                             $decodedFilename = mb_decode_mimeheader($rawFilename) ?: $rawFilename;
                             $filename = $decodedFilename ?: 'unknown_file_' . Str::random(5);
                             
-                            $extension = $attachment->getExtension() ?: 'dat';
-                            $safeFilename = Str::slug(pathinfo($filename, PATHINFO_FILENAME)) . '.' . $extension;
+                            $safeFilename = self::sanitizeAttachmentFilename($filename, (string) ($attachment->getExtension() ?: 'dat'));
 
                             // Save to a secure local folder
                             $filePath = 'leitung/crm/mail-attachments/' . $mailMessage->id . '/' . uniqid() . '_' . $safeFilename;
-                            Storage::put($filePath, $attachment->getContent());
+                            Storage::disk('local')->put($filePath, $content);
 
                             MailAttachment::create([
                                 'mail_message_id' => $mailMessage->id,
                                 'filename' => $filename,
                                 'content_type' => $attachment->getMimeType(),
-                                'size' => $attachment->getSize() ?? 0,
+                                'size' => $reportedSize > 0 ? $reportedSize : $actualSize,
                                 'path' => $filePath,
                                 'content_id' => $attachment->getId()
                             ]);
@@ -194,5 +220,48 @@ class FetchMailsCommand extends Command
                 $account->update(['status' => 'error']);
             }
         }
+    }
+
+    public static function sanitizeEmailHtml(?string $bodyHtml): ?string
+    {
+        if ($bodyHtml === null || $bodyHtml === '') {
+            return $bodyHtml;
+        }
+
+        // 1. Remove img tags containing known tracking domain patterns
+        $bodyHtml = preg_replace('/<img[^>]+src=["\'][^"\']*(?:stat\.alibaba|mail_callback|tracelog|open\.php|pixel|track|google-analytics)[^"\']*["\'][^>]*>/i', '', $bodyHtml);
+        // 2. Remove any img tags trying to render as 1x1 or 0x0
+        $bodyHtml = preg_replace('/<img[^>]+(?:width=["\']?[01]["\']?[^>]*height=["\']?[01]["\']?|height=["\']?[01]["\']?[^>]*width=["\']?[01]["\']?)[^>]*>/i', '', $bodyHtml);
+        // 3. Remove dangerous tags (<script>, <iframe>, <object>, <embed>, <applet>, <form>, <meta>, <base>, <svg>)
+        $bodyHtml = preg_replace('/<(script|iframe|object|embed|applet|form|meta|base|svg)\b[^>]*>.*?<\/\1>/is', '', $bodyHtml);
+        $bodyHtml = preg_replace('/<(script|iframe|object|embed|applet|form|meta|base|svg)\b[^>]*\/?>/is', '', $bodyHtml);
+        // 4. Remove inline event handlers (onload, onerror, onclick, etc.)
+        $bodyHtml = preg_replace('/\s+on[a-z]+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $bodyHtml);
+        // 5. Neutralize javascript:, vbscript:, data:text/html, data:image/svg+xml, data:application/xhtml+xml URIs in href/src/action/formaction/xlink:href
+        $bodyHtml = preg_replace('/\b(href|src|action|formaction|xlink:href)\s*=\s*(["\']?)\s*(?:javascript|vbscript|data\s*:\s*(?:text\/html|image\/svg\+xml|application\/xhtml\+xml))[^"\'>\s]*/i', '$1=$2#', $bodyHtml);
+
+        return $bodyHtml;
+    }
+
+    public static function sanitizeAttachmentFilename(string $filename, ?string $rawExtension = null): string
+    {
+        $base = Str::slug(pathinfo($filename, PATHINFO_FILENAME)) ?: 'attachment';
+        $ext = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', (string) ($rawExtension ?: pathinfo($filename, PATHINFO_EXTENSION))));
+        if ($ext === '') {
+            $ext = 'dat';
+        }
+
+        $dangerousExtensions = [
+            'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phtml', 'phar',
+            'sh', 'bash', 'exe', 'bat', 'cmd', 'com', 'scr', 'msi', 'vbs',
+            'js', 'mjs', 'jsp', 'asp', 'aspx', 'cgi', 'pl', 'py', 'rb',
+            'htaccess', 'html', 'htm', 'xhtml', 'svg', 'swf',
+        ];
+
+        if (in_array($ext, $dangerousExtensions, true)) {
+            $ext = 'dat';
+        }
+
+        return $base . '.' . $ext;
     }
 }

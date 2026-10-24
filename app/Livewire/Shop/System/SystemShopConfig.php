@@ -178,8 +178,8 @@ class SystemShopConfig extends Component
                 $value = number_format((int)$value / 100, 2, '.', '');
             }
 
-            if ($key === 'emergency_master_password') {
-                $value = ''; // Never send the hash to the frontend
+            if (in_array($key, ['emergency_master_password', 'stripe_secret_key', 'stripe_webhook_secret'], true)) {
+                $value = ''; // Never send sensitive secrets/hashes to the frontend
             }
 
             $this->settings[$key] = $value;
@@ -250,18 +250,19 @@ class SystemShopConfig extends Component
         }
 
         $this->validate([
-            'settings.default_tax_rate' => 'required|numeric',
+            'settings.default_tax_rate' => 'required|numeric|min:0|max:100',
             'settings.owner_email' => 'required|email',
             'settings.owner_email_impressum' => 'nullable|email',
             'settings.owner_email_invoices' => 'nullable|email',
             'settings.owner_email_backup' => 'nullable|email',
-            'settings.shipping_cost' => 'required|numeric',
-            'settings.shipping_free_threshold' => 'required|numeric',
-            'settings.shipping_cost_voucher' => 'required|numeric',
+            'settings.shipping_cost' => 'required|numeric|min:0',
+            'settings.shipping_free_threshold' => 'required|numeric|min:0',
+            'settings.shipping_cost_voucher' => 'required|numeric|min:0',
             'settings.express_surcharge_percent' => 'required|numeric|min:0|max:100',
             'settings.express_surcharge_min' => 'required|numeric|min:0',
             'settings.packaging_weight_grams' => 'required|integer|min:0',
             'settings.inventory_low_stock_threshold' => 'required|integer|min:0',
+            'settings.order_quote_validity_days' => 'nullable|integer|min:1|max:365',
             'settings.emergency_keepass_location' => 'nullable|string',
             'settings.emergency_master_password_location' => 'nullable|string',
             'settings.emergency_contact_notary' => 'nullable|string',
@@ -271,8 +272,16 @@ class SystemShopConfig extends Component
             'settings.emergency_master_password' => 'nullable|string',
         ]);
 
+        $protectedTaxTransitionKeys = [
+            'is_small_business',
+            'small_business_end_year',
+            'small_business_scheduled_end_year',
+            'small_business_switched_year',
+            'small_business_switched_at',
+        ];
+
         foreach ($this->settings as $key => $value) {
-            if (!in_array($key, $this->configKeys, true)) {
+            if (!in_array($key, $this->configKeys, true) || in_array($key, $protectedTaxTransitionKeys, true)) {
                 continue;
             }
             if ($key === 'emergency_master_password') {
@@ -282,6 +291,16 @@ class SystemShopConfig extends Component
                         ['value' => \Illuminate\Support\Facades\Hash::make($value)]
                     );
                     $this->settings[$key] = ''; // clear from view
+                }
+                continue;
+            }
+            if (in_array($key, ['stripe_secret_key', 'stripe_webhook_secret'], true)) {
+                if (!empty($value)) {
+                    SystemSetting::updateOrCreate(
+                        ['key' => $key],
+                        ['value' => $value]
+                    );
+                    $this->settings[$key] = '';
                 }
                 continue;
             }
@@ -331,7 +350,9 @@ class SystemShopConfig extends Component
         }
 
         $targetState = (bool)$this->pendingSmallBusinessState;
-        $mode = $this->smallBusinessTransitionMode;
+        $mode = in_array($this->smallBusinessTransitionMode, ['immediate_retroactive', 'next_year', 'immediate'], true)
+            ? $this->smallBusinessTransitionMode
+            : 'immediate_retroactive';
 
         app(\App\Services\Tax\TaxSettingService::class)->applyTransition($targetState, $mode);
 
@@ -451,12 +472,38 @@ class SystemShopConfig extends Component
         }
 
         $this->validate([
+            'uploads' => 'required|array|min:1|max:20',
             'uploads.*' => 'file|max:10240|mimes:txt,log,md,pdf,json',
         ]);
 
+        $allowedReportExts = ['txt', 'log', 'md', 'pdf', 'json'];
+        $allowedReportMimes = [
+            'text/plain',
+            'text/markdown',
+            'application/pdf',
+            'application/json',
+        ];
         foreach ($this->uploads as $file) {
-            $filename = basename($file->getClientOriginalName());
-            $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+            $realPath = $file->getRealPath();
+            if ($realPath && is_file($realPath)) {
+                $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                $detectedMime = $finfo ? finfo_file($finfo, $realPath) : false;
+                if ($finfo) {
+                    finfo_close($finfo);
+                }
+                if (!in_array($detectedMime, $allowedReportMimes, true)) {
+                    continue;
+                }
+            }
+            $rawName = basename((string) $file->getClientOriginalName());
+            $ext = strtolower(pathinfo($rawName, PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedReportExts, true)) {
+                $guessed = strtolower((string) $file->guessExtension());
+                $ext = in_array($guessed, $allowedReportExts, true) ? $guessed : 'txt';
+            }
+            $base = preg_replace('/[^a-zA-Z0-9_\-]/', '_', (string) pathinfo($rawName, PATHINFO_FILENAME));
+            $base = trim((string) $base, '._-') ?: ('report_' . time());
+            $filename = $base . '.' . $ext;
             // Store directly in our updates folder
             $file->storeAs('shopverwaltung/reports/laravel-updates', $filename);
         }

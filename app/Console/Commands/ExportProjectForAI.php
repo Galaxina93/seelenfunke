@@ -36,8 +36,13 @@ class ExportProjectForAI extends Command
         $startTime = microtime(true);
         $rawOutput = (string) $this->option('output');
         $outputFile = basename($rawOutput ?: 'project_context.txt');
-        if (empty($outputFile) || $outputFile === '.' || $outputFile === '..') {
+        if (empty($outputFile) || $outputFile === '.' || $outputFile === '..' || str_starts_with($outputFile, '.')) {
             $outputFile = 'project_context.txt';
+        }
+        $outputExt = strtolower(pathinfo($outputFile, PATHINFO_EXTENSION));
+        if (!in_array($outputExt, ['txt', 'md'], true)) {
+            $safeBase = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) pathinfo($outputFile, PATHINFO_FILENAME)) ?: 'project_context';
+            $outputFile = $safeBase . '.txt';
         }
 
         // Such-String in ein Array aufteilen und leere Einträge entfernen

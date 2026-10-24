@@ -11,9 +11,26 @@ class CheckPermission
 
     public function handle(Request $request, Closure $next, $permission)
     {
-        $user = Auth::user();
+        if (Auth::guard('admin')->check()) {
+            return $next($request);
+        }
 
-        if (!$user || !$user->role || !$user->role->permissions->pluck('name')->contains($permission)) {
+        $user = Auth::user() ?? Auth::guard('employee')->user();
+        if (!$user) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $hasPermission = false;
+
+        if (method_exists($user, 'hasPermission') && $user->hasPermission($permission)) {
+            $hasPermission = true;
+        } elseif ($user->role && $user->role->permissions && $user->role->permissions->pluck('name')->contains($permission)) {
+            $hasPermission = true;
+        } elseif ($user->roles && $user->roles->flatMap(fn($r) => $r->permissions ?? collect())->pluck('name')->contains($permission)) {
+            $hasPermission = true;
+        }
+
+        if (!$hasPermission) {
             abort(403, 'Unauthorized action.');
         }
 

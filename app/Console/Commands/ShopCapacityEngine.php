@@ -39,6 +39,10 @@ class ShopCapacityEngine extends Command
         $t2 = (int) SystemSetting::where('key', 'shop_capacity_threshold_2')->value('value') ?: 85;
         $t3 = (int) SystemSetting::where('key', 'shop_capacity_threshold_3')->value('value') ?: 90;
 
+        $t1 = max(1, min(97, $t1));
+        $t2 = max($t1 + 1, min(98, $t2));
+        $t3 = max($t2 + 1, min(99, $t3));
+
         if ($minutesPerOrder <= 0) $minutesPerOrder = 10;
 
         // 2. Errechne 100% Limit
@@ -91,8 +95,11 @@ class ShopCapacityEngine extends Command
 
         // 5. Autopilot Eingriffe
         $autoPilot = filter_var(Cache::get('shop_capacity_autopilot', SystemSetting::where('key', 'shop_capacity_autopilot')->value('value') ?? false), FILTER_VALIDATE_BOOLEAN);
+        $isVacationMode = filter_var(SystemSetting::where('key', 'is_vacation_mode')->value('value') ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        if ($autoPilot) {
+        if ($isVacationMode) {
+            $this->warn("Vacation mode is ON. Skipping delivery time mutations.");
+        } elseif ($autoPilot) {
             $this->info("Autopilot is ON. Adjusting delivery times...");
             
             // Definiere die 4 Profile

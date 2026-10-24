@@ -17,8 +17,11 @@ class EnforcePasswordChange
         if (Auth::guard('customer')->check()) {
             $customer = Auth::guard('customer')->user();
             if ($customer->needs_password_change) {
-                // Intercept GET requests only to avoid breaking Livewire actions or backend logout logic
-                if ($request->isMethod('GET') && !$request->routeIs('customer.password-change-force') && !$request->is('logout') && !$request->routeIs('logout')) {
+                if (!$request->routeIs('customer.password-change-force') && !$request->is('customer/password-change-force') && !$request->is('logout') && !$request->routeIs('logout')) {
+                    if ($request->expectsJson() || !$request->isMethod('GET')) {
+                        abort(403, 'Bitte ändere zuerst dein temporäres Passwort.');
+                    }
+
                     return redirect()->route('customer.password-change-force');
                 }
             }

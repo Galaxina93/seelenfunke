@@ -24,18 +24,27 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/linktree', \App\Livewire\Backend\Management\ManagementLinktreeManager::class)->name('admin.linktree');
     Route::get('/admin/inbox/attachment/{id}', function ($id) {
         $attachment = \App\Models\Management\Mail\MailAttachment::findOrFail($id);
-        $path = $attachment->path;
-        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+        $path = is_string($attachment->path) ? ltrim(str_replace('\\', '/', $attachment->path), '/') : '';
+        if (
+            $path === ''
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || (!str_starts_with($path, 'leitung/crm/mail-attachments/') && !str_starts_with($path, 'mail-attachments/') && !str_starts_with($path, 'temp/mail-attachments/'))
+        ) {
             abort(403, 'Ungültiger Dateipfad.');
         }
 
         if (\Illuminate\Support\Facades\Storage::exists($path)) {
+            $fullPath = \Illuminate\Support\Facades\Storage::path($path);
+            if (is_link($fullPath)) {
+                abort(403, 'Ungültiger Dateipfad.');
+            }
             $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
             $contentType = $attachment->content_type ?: 'application/octet-stream';
             $disposition = in_array(strtolower($contentType), $safeMimes, true) ? 'inline' : 'attachment';
-            $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($attachment->filename ?: 'attachment'));
+            $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($attachment->filename ?: 'attachment'));
 
-            return response()->file(\Illuminate\Support\Facades\Storage::path($path), [
+            return response()->file($fullPath, [
                 'Content-Type' => $contentType,
                 'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
                 'X-Content-Type-Options' => 'nosniff',
@@ -46,14 +55,18 @@ Route::middleware(['auth:admin'])->group(function () {
 
     Route::get('/admin/inbox/compose-preview', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || !str_starts_with($path, 'temp/mail-attachments/') || str_contains($path, '..')) {
+        if (!is_string($path) || !str_starts_with($path, 'temp/mail-attachments/') || str_contains($path, '..') || str_contains($path, "\0")) {
             abort(403);
         }
         if (\Illuminate\Support\Facades\Storage::exists($path)) {
+            $fullPath = \Illuminate\Support\Facades\Storage::path($path);
+            if (is_link($fullPath)) {
+                abort(403);
+            }
             $mime = \Illuminate\Support\Facades\Storage::mimeType($path) ?: 'application/octet-stream';
             $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
             $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
-            return response()->file(\Illuminate\Support\Facades\Storage::path($path), [
+            return response()->file($fullPath, [
                 'Content-Type' => $mime,
                 'Content-Disposition' => $disposition,
                 'X-Content-Type-Options' => 'nosniff',
@@ -87,14 +100,18 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/ai/workspace', \App\Livewire\Shop\Ai\AiWorkspace::class)->name('admin.ai.workspace');
     Route::get('/admin/ai/workspace/file', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\') || !str_starts_with($path, 'agenten/workspace/') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
+        if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\') || !str_starts_with($path, 'agenten/workspace/') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
+            abort(404);
+        }
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('workspace')->path($path);
+        if (is_link($fullPath)) {
             abort(404);
         }
         $mime = \Illuminate\Support\Facades\Storage::disk('workspace')->mimeType($path) ?: 'application/octet-stream';
         $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
         $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
-        $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($path));
-        return response()->file(\Illuminate\Support\Facades\Storage::disk('workspace')->path($path), [
+        $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($path));
+        return response()->file($fullPath, [
             'Content-Type' => $mime,
             'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
             'X-Content-Type-Options' => 'nosniff',
@@ -131,16 +148,28 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/quote-requests', \App\Livewire\Shop\Order\OrderQuoteRequests::class)->name('admin.quote-requests');
     Route::get('/admin/widerruf', \App\Livewire\Shop\Order\OrderRevocations::class)->name('admin.widerruf');
     Route::get('/admin/widerruf/file/{revocation}/{fileName}', function (\App\Models\Order\OrderRevocation $revocation, $fileName) {
-        if (str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\')) {
+        if (!is_string($fileName) || str_contains($fileName, '..') || str_contains($fileName, '/') || str_contains($fileName, '\\') || str_contains($fileName, "\0")) {
             abort(404);
         }
         $path = "bestellungen/private/revocations/{$revocation->id}/{$fileName}";
+        if (!is_array($revocation->attachments) || !in_array($path, $revocation->attachments, true)) {
+            $legacyPath = "revocations/{$revocation->id}/{$fileName}";
+            if (is_array($revocation->attachments) && in_array($legacyPath, $revocation->attachments, true)) {
+                $path = $legacyPath;
+            } else {
+                abort(404);
+            }
+        }
         if (\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+            $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+            if (is_link($fullPath)) {
+                abort(404);
+            }
             $mime = \Illuminate\Support\Facades\Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
             $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
             $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
-            $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($fileName));
-            return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($path), [
+            $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($fileName));
+            return response()->file($fullPath, [
                 'Content-Type' => $mime,
                 'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
                 'X-Content-Type-Options' => 'nosniff',
@@ -154,7 +183,7 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/accounting/receipt', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+        if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
             abort(404);
         }
         // Sicherheits-Whitelist: Nur Belege und Verträge dürfen über diesen Endpoint abgerufen werden
@@ -167,12 +196,16 @@ Route::middleware(['auth:admin'])->group(function () {
             : (\Illuminate\Support\Facades\Storage::disk('public')->exists($path) ? 'public' : null);
 
         if ($disk) {
+            $fullPath = \Illuminate\Support\Facades\Storage::disk($disk)->path($path);
+            if (is_link($fullPath)) {
+                abort(403, 'Zugriff verweigert.');
+            }
             $mime = \Illuminate\Support\Facades\Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
             $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
             $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
-            $cleanFilename = str_replace(['"', "\r", "\n"], '', basename($path));
+            $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($path));
 
-            return response()->file(\Illuminate\Support\Facades\Storage::disk($disk)->path($path), [
+            return response()->file($fullPath, [
                 'Content-Type' => $mime,
                 'Content-Disposition' => $disposition . '; filename="' . $cleanFilename . '"',
                 'X-Content-Type-Options' => 'nosniff',

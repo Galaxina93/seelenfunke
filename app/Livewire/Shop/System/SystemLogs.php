@@ -55,7 +55,7 @@ class SystemLogs extends Component
 
     public function toggleStatus($logId)
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -78,7 +78,7 @@ class SystemLogs extends Component
 
     public function deleteLog($logId)
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
 
@@ -97,7 +97,7 @@ class SystemLogs extends Component
                     'role_description' => 'CEO Agent und Hauptkoordinatorin des Seelenfunke Systems.',
                     'system_prompt' => 'Du bist Funkira, die künstliche Intelligenz und CEO des Seelenfunke Systems.',
                     'is_active' => true,
-                    'model' => 'gpt-4o',
+                    'model' => 'gemini-3.8-flash',
                     'color' => 'cyan-500',
                     'icon' => 'sparkles'
                 ]);

@@ -49,6 +49,17 @@ class SystemDeliveryDisplay extends Component
             return;
         }
 
+        $setting = DeliverySetting::first();
+        if (!$setting) {
+            return;
+        }
+        if ($type === 'vacation' && !$setting->is_vacation_mode) {
+            return;
+        }
+        if ($type === 'sick' && !$setting->is_sick_mode) {
+            return;
+        }
+
         $user = auth()->guard('customer')->user();
 
         // Sicherheits-Check im Backend (verhindert Spam via Scripts)

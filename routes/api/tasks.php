@@ -164,13 +164,15 @@ Route::prefix('funki/tasks')->group(function () {
         $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
         $storedPaths = [];
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'txt', 'md', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'zip'];
+        $blockedMimes = ['text/x-php', 'application/x-httpd-php', 'text/html', 'application/xhtml+xml', 'image/svg+xml', 'application/x-executable', 'application/x-msdownload'];
         
         foreach ($files as $file) {
             if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
                 continue;
             }
             $ext = strtolower($file->getClientOriginalExtension());
-            if (!in_array($ext, $allowedExts, true)) {
+            $mime = strtolower((string) $file->getMimeType());
+            if (!in_array($ext, $allowedExts, true) || in_array($mime, $blockedMimes, true)) {
                 continue;
             }
             $path = $file->store('leitung/tasks/attachments', 'local');

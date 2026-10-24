@@ -139,9 +139,14 @@ class SystemDeliveryTimes extends Component
 
     public function setActiveDeliveryTime($id)
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        $target = DeliveryTime::findOrFail($id);
         DeliveryTime::query()->update(['is_active' => false]);
-        DeliveryTime::where('id', $id)->update(['is_active' => true]);
-        $this->activeDeliveryTimeId = $id;
+        $target->update(['is_active' => true]);
+        $this->activeDeliveryTimeId = $target->id;
         session()->flash('success', 'Standard-Lieferzeit wurde aktualisiert!');
     }
 
@@ -163,14 +168,37 @@ class SystemDeliveryTimes extends Component
 
     public function saveSettings()
     {
+        if (!Auth::guard('admin')->check() && !Auth::guard('employee')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+        $rules = [
+            'isVacationMode' => 'boolean',
+            'vacationStartDate' => 'nullable|date',
+            'vacationEndDate' => 'nullable|date',
+            'vacationDescription' => 'nullable|string|max:2000',
+            'isSickMode' => 'boolean',
+            'sickDescription' => 'nullable|string|max:2000',
+        ];
+        if (!empty($this->vacationStartDate) && !empty($this->vacationEndDate)) {
+            $rules['vacationEndDate'] = 'nullable|date|after_or_equal:vacationStartDate';
+        }
+        $this->validate($rules);
+
+        $isVacation = (bool) $this->isVacationMode;
+        $isSick = (bool) $this->isSickMode;
+        if ($isVacation && $isSick) {
+            $isSick = false;
+            $this->isSickMode = false;
+        }
+
         $setting = DeliverySetting::first();
         if ($setting) {
             $setting->update([
-                'is_vacation_mode' => $this->isVacationMode,
+                'is_vacation_mode' => $isVacation,
                 'vacation_start_date' => $this->vacationStartDate ?: null,
                 'vacation_end_date' => $this->vacationEndDate ?: null,
                 'vacation_description' => $this->vacationDescription,
-                'is_sick_mode' => $this->isSickMode,
+                'is_sick_mode' => $isSick,
                 'sick_description' => $this->sickDescription,
             ]);
         }

@@ -46,18 +46,57 @@ class SendNewsletter extends Command
         // 2. Templates durchlaufen
         foreach ($templates as $template) {
             $this->line("-----------------------------------------");
-            $this->line("🔍 Prüfe Template: <comment>{$template->title}</comment> (Event: {$template->target_event_key})");
+            $this->line("🔍 Prüfe Template: <comment>{$template->title}</comment> (Typ: " . ($template->type ?? 'automated') . ", Event: {$template->target_event_key})");
 
-            $targetDate = $this->getHolidayDate($template->target_event_key, $year);
-            $sendDate = $targetDate->copy()->subDays($template->days_offset);
+            if (($template->type ?? 'automated') === 'manual') {
+                if (empty($template->send_at)) {
+                    $this->line("   ⏭️ Wird übersprungen (Manuelle Kampagne ohne Sendedatum).");
+                    continue;
+                }
+                $sendDate = Carbon::parse($template->send_at);
+                $this->line("   - Geplantes Sendedatum: " . $sendDate->format('d.m.Y H:i'));
+            } else {
+                $targetDate = null;
+                $sendDate = null;
+                foreach ([$year, $year + 1, $year - 1] as $candidateYear) {
+                    $candidateTarget = $this->getHolidayDate($template->target_event_key, $candidateYear);
+                    if (!$candidateTarget) {
+                        continue;
+                    }
+                    $candidateSend = $candidateTarget->copy()->subDays((int) $template->days_offset);
+                    if ($targetDate === null) {
+                        $targetDate = $candidateTarget;
+                        $sendDate = $candidateSend;
+                    }
+                    if ($candidateSend->isSameDay($today)) {
+                        $targetDate = $candidateTarget;
+                        $sendDate = $candidateSend;
+                        break;
+                    }
+                }
+                if (!$targetDate || !$sendDate) {
+                    $this->line("   ⏭️ Wird übersprungen (Unbekanntes Ereignis-Key).");
+                    continue;
+                }
 
-            // Logging der berechneten Daten im Terminal
-            $this->line("   - Ziel-Datum des Events: " . $targetDate->format('d.m.Y'));
-            $this->line("   - Eingestellter Offset:  {$template->days_offset} Tage vorher");
-            $this->line("   - Berechnetes Sendedatum: " . $sendDate->format('d.m.Y'));
+                // Logging der berechneten Daten im Terminal
+                $this->line("   - Ziel-Datum des Events: " . $targetDate->format('d.m.Y'));
+                $this->line("   - Eingestellter Offset:  {$template->days_offset} Tage vorher");
+                $this->line("   - Berechnetes Sendedatum: " . $sendDate->format('d.m.Y'));
+            }
 
-            // 3. Prüfen, ob Sendedatum = Heute ist
-            if ($sendDate->isSameDay($today)) {
+            // 3. Prüfen, ob Sendedatum = Heute ist (bei manuellen Kampagnen zusätzlich prüfen, dass der geplante Zeitpunkt bereits erreicht wurde)
+            $isManualFuture = (($template->type ?? 'automated') === 'manual') && $sendDate->isFuture();
+            if ($sendDate->isSameDay($today) && !$isManualFuture) {
+                if (class_exists(SystemLog::class) && SystemLog::where('action_id', 'newsletter:send')
+                    ->where('status', 'success')
+                    ->whereDate('created_at', $today)
+                    ->where('payload->template_id', $template->id)
+                    ->exists()) {
+                    $this->line("   ⏭️ Wird übersprungen (Bereits heute versendet).");
+                    continue;
+                }
+
                 $this->info("   🎯 TREFFER! Versand ist für HEUTE geplant.");
 
                 if (class_exists(SystemLog::class)) {
@@ -72,6 +111,11 @@ class SendNewsletter extends Command
                     $this->line("   ⏳ Starte Batch-Versand an verifizierte Abonnenten...");
 
                     $count = $this->sendBatch($template);
+
+                    // Manuelle Einmal-Kampagnen nach erfolgreichem Versand archivieren
+                    if (($template->type ?? 'automated') === 'manual') {
+                        $template->update(['is_active' => false]);
+                    }
 
                     $this->info("   ✅ Erfolgreich {$count} Mails in die Warteschlange (Queue) geschoben.");
 
@@ -120,7 +164,7 @@ class SendNewsletter extends Command
     /**
      * Gibt das Datum für ein bestimmtes Ereignis in einem bestimmten Jahr zurück.
      */
-    private function getHolidayDate($key, $year): Carbon
+    private function getHolidayDate($key, $year): ?Carbon
     {
         switch ($key) {
             case 'valentines': return Carbon::create($year, 2, 14);
@@ -134,7 +178,7 @@ class SendNewsletter extends Command
             case 'mothers_day': return Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY);
             case 'fathers_day': return $this->getEasterDate($year)->addDays(39);
             case 'advent_1': return Carbon::create($year, 11, 26)->next(Carbon::SUNDAY);
-            default: return Carbon::now();
+            default: return null;
         }
     }
 

@@ -89,6 +89,10 @@ trait handleProfilesTrait
 
     protected function saveUserProfileData($data): void
     {
+        if ($this->guard === 'customer' && ($this->user->needs_password_change ?? false)) {
+            abort(403, 'Bitte ändere zuerst dein temporäres Passwort.');
+        }
+
         $table = match($this->guard) {
             'admin' => 'admins',
             'employee' => 'employees',
@@ -143,6 +147,10 @@ trait handleProfilesTrait
         // Sicherheitsmaßnahme: Bei Änderung der Kunden-E-Mail Verifizierung zurücksetzen und neuen Bestätigungslink senden
         if ($emailChanged && $this->guard === 'customer') {
             $this->user->email_verified_at = null;
+            if ($this->user->profile) {
+                $this->user->profile->email_verified_at = null;
+                $this->user->profile->save();
+            }
             $this->user->save();
             try {
                 if (method_exists($this->user, 'sendEmailVerificationNotification')) {
@@ -223,12 +231,13 @@ trait handleProfilesTrait
     {
         $this->validate([
             'currentPassword' => 'required',
-            'newPassword' => 'required|min:8|different:currentPassword',
+            'newPassword' => ['required', 'string', 'min:8', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/[0-9]/', 'different:currentPassword'],
             'repeatNewPassword' => 'required|same:newPassword',
         ], [
             'currentPassword.required' => 'Aktuelles Passwort ist erforderlich.',
             'newPassword.required' => 'Neues Passwort ist erforderlich.',
             'newPassword.min' => 'Neues Passwort muss mindestens 8 Zeichen lang sein.',
+            'newPassword.regex' => 'Das neue Passwort muss mindestens einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.',
             'newPassword.different' => 'Neues Passwort darf nicht mit dem aktuellen Passwort übereinstimmen.',
             'repeatNewPassword.required' => 'Neues Passwort muss bestätigt werden.',
             'repeatNewPassword.same' => 'Die Passwortbestätigung stimmt nicht mit dem neuen Passwort überein.',
@@ -241,6 +250,10 @@ trait handleProfilesTrait
         }
 
         $this->user->password = Hash::make($this->newPassword);
+        if ($this->guard === 'customer') {
+            $this->user->needs_password_change = false;
+            $this->user->temporary_password = null;
+        }
         $this->user->setRememberToken(\Illuminate\Support\Str::random(60));
         $this->user->save();
 

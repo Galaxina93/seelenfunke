@@ -25,7 +25,7 @@ class SystemBlockedIp extends Model
      */
     public static function isBlocked(?string $ip): bool
     {
-        if (empty($ip)) {
+        if (empty($ip) || in_array($ip, ['127.0.0.1', '::1'], true)) {
             return false;
         }
 
@@ -47,12 +47,19 @@ class SystemBlockedIp extends Model
      */
     public static function blockIp(string $ip, ?string $reason = null, ?int $durationHours = 24, ?string $blockedBy = null): self
     {
-        $blockedUntil = $durationHours ? now()->addHours($durationHours) : null;
+        $ip = trim($ip);
+        if (!filter_var($ip, FILTER_VALIDATE_IP) || in_array($ip, ['127.0.0.1', '::1'], true)) {
+            throw new \InvalidArgumentException('Ungültige oder geschützte IP-Adresse kann nicht gesperrt werden.');
+        }
+
+        $clampedHours = ($durationHours !== null && $durationHours > 0) ? min(8760, $durationHours) : null;
+        $blockedUntil = $clampedHours ? now()->addHours($clampedHours) : null;
+        $cleanReason = $reason ? mb_substr(trim($reason), 0, 255) : 'Sicherheits-Blockierung (Threat Monitor)';
 
         return static::updateOrCreate(
             ['ip_address' => $ip],
             [
-                'reason' => $reason ?? 'Sicherheits-Blockierung (Threat Monitor)',
+                'reason' => $cleanReason,
                 'blocked_until' => $blockedUntil,
                 'blocked_by' => $blockedBy ?? (auth()->check() ? auth()->user()->email ?? auth()->id() : 'System'),
             ]

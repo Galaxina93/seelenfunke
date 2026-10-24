@@ -22,17 +22,17 @@ require __DIR__ . '/api/ai.php';
 Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) {
     try {
         $data = $request->validate([
-            'message' => 'required|string',
-            'source' => 'nullable|string',
-            'lineno' => 'nullable|integer',
-            'colno' => 'nullable|integer',
-            'url' => 'nullable|string',
-            'page_title' => 'nullable|string',
-            'viewport' => 'nullable|string',
-            'userAgent' => 'nullable|string',
-            'type' => 'nullable|string',
-            'status_code' => 'nullable|integer',
-            'stack' => 'nullable|string'
+            'message' => 'required|string|max:2000',
+            'source' => 'nullable|string|max:500',
+            'lineno' => 'nullable|integer|min:0|max:10000000',
+            'colno' => 'nullable|integer|min:0|max:10000000',
+            'url' => 'nullable|string|max:1000',
+            'page_title' => 'nullable|string|max:300',
+            'viewport' => 'nullable|string|max:100',
+            'userAgent' => 'nullable|string|max:500',
+            'type' => 'nullable|string|max:64',
+            'status_code' => 'nullable|integer|min:100|max:599',
+            'stack' => 'nullable|string|max:10000'
         ]);
 
         $errType = $data['type'] ?? 'js_error';
@@ -245,9 +245,17 @@ Route::post('/twilio/call-log', [\App\Http\Controllers\Api\TwilioCallController:
 Route::get('/flights', function (\Illuminate\Http\Request $request) {
     try {
         $url = "https://opensky-network.org/api/states/all";
-        $queryParams = array_filter($request->only(['lamin', 'lomin', 'lamax', 'lomax']), function($value) {
-            return !is_null($value) && $value !== '';
-        });
+        $bounds = ['lamin' => [-90, 90], 'lamax' => [-90, 90], 'lomin' => [-180, 180], 'lomax' => [-180, 180]];
+        $queryParams = [];
+        foreach ($bounds as $param => [$min, $max]) {
+            $val = $request->query($param);
+            if (is_scalar($val) && $val !== '' && is_numeric($val)) {
+                $floatVal = (float) $val;
+                if ($floatVal >= $min && $floatVal <= $max) {
+                    $queryParams[$param] = $floatVal;
+                }
+            }
+        }
         
         if (!empty($queryParams)) {
             $url .= '?' . http_build_query($queryParams);
@@ -267,9 +275,9 @@ Route::get('/flights', function (\Illuminate\Http\Request $request) {
 // --- Secure File View for Mobile App (allows query parameter token authentication) ---
 Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $request) {
     $tokenString = $request->query('token');
-    if ($tokenString) {
+    if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
-        if ($token && $token->tokenable) {
+        if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
             $user = $token->tokenable;
             $request->setUserResolver(fn() => $user);
         }
@@ -285,7 +293,7 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
     }
 
     $path = $request->query('path');
-    if (!$path || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
+    if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
         abort(404, 'Path missing or invalid');
     }
 
@@ -316,7 +324,7 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
         $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($path);
     }
 
-    if (!$fullPath || !file_exists($fullPath)) {
+    if (!$fullPath || !file_exists($fullPath) || is_link($fullPath)) {
         abort(404, 'File not found');
     }
 
@@ -335,9 +343,9 @@ Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $requ
 // --- Secure Laser SVG Download for Mobile App ---
 Route::get('/funki/shop/order-items/{itemId}/laser-file/{side}', function (\Illuminate\Http\Request $request, $itemId, $side, \App\Services\Export\FileDownloadService $downloadService) {
     $tokenString = $request->query('token');
-    if ($tokenString) {
+    if (is_string($tokenString) && $tokenString !== '') {
         $token = \Laravel\Sanctum\PersonalAccessToken::findToken($tokenString);
-        if ($token && $token->tokenable) {
+        if ($token && (!$token->expires_at || !$token->expires_at->isPast()) && $token->tokenable) {
             $user = $token->tokenable;
             $request->setUserResolver(fn() => $user);
         }

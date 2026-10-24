@@ -27,7 +27,9 @@ class SystemUserManagement extends Component
     public $sortField = 'last_seen';
     public $sortDirection = 'desc';
 
+    #[\Livewire\Attributes\Locked]
     public $editingId = null;
+    #[\Livewire\Attributes\Locked]
     public $editingType = null;
     public bool $editing2faActive = false;
 
@@ -109,6 +111,16 @@ class SystemUserManagement extends Component
             'formData.last_name' => 'required|string|max:255',
             'formData.email' => 'required|email|unique:'.($this->createType === 'admin' ? 'admins' : ($this->createType === 'customer' ? 'customers' : 'employees')).',email',
             'formData.password' => 'required|string|min:8',
+            'formData.phone_number' => 'nullable|string|max:50',
+            'formData.street' => 'nullable|string|max:255',
+            'formData.house_number' => 'nullable|string|max:30',
+            'formData.postal' => 'nullable|string|max:20',
+            'formData.city' => 'nullable|string|max:120',
+            'formData.customer_type' => 'nullable|in:private,business',
+            'formData.company_name' => 'nullable|string|max:255',
+            'formData.vat_id' => 'nullable|string|max:50',
+            'formData.internal_note' => 'nullable|string|max:5000',
+            'formData.is_verified' => 'boolean',
         ]);
 
         $class = match($this->createType) {
@@ -213,6 +225,16 @@ class SystemUserManagement extends Component
             'formData.last_name' => 'required|string|max:255',
             'formData.email' => 'required|email|unique:'.($this->editingType === 'admin' ? 'admins' : ($this->editingType === 'customer' ? 'customers' : 'employees')).',email,'.$this->editingId,
             'formData.password' => 'nullable|string|min:8',
+            'formData.phone_number' => 'nullable|string|max:50',
+            'formData.street' => 'nullable|string|max:255',
+            'formData.house_number' => 'nullable|string|max:30',
+            'formData.postal' => 'nullable|string|max:20',
+            'formData.city' => 'nullable|string|max:120',
+            'formData.customer_type' => 'nullable|in:private,business',
+            'formData.company_name' => 'nullable|string|max:255',
+            'formData.vat_id' => 'nullable|string|max:50',
+            'formData.internal_note' => 'nullable|string|max:5000',
+            'formData.is_verified' => 'boolean',
         ]);
 
         $model = $this->getModelInstance($this->editingType, $this->editingId);
@@ -252,12 +274,16 @@ class SystemUserManagement extends Component
 
         $passwordChanged = false;
         if (!empty($this->formData['password'])) {
-            $model->update(['password' => Hash::make($this->formData['password'])]);
+            $model->forceFill([
+                'password' => Hash::make($this->formData['password']),
+                'remember_token' => \Illuminate\Support\Str::random(60),
+            ])->save();
             $passwordChanged = true;
         }
 
-        if ($model->profile) {
-            $verifiedAt = $model->profile->email_verified_at;
+        if (method_exists($model, 'profile')) {
+            $profile = $model->profile ?: $model->profile()->firstOrCreate([]);
+            $verifiedAt = $profile->email_verified_at;
             if ($this->formData['is_verified'] && !$verifiedAt) {
                 $verifiedAt = now();
             } elseif (!$this->formData['is_verified']) {
@@ -266,7 +292,7 @@ class SystemUserManagement extends Component
 
             $isBusiness = $this->formData['customer_type'] === 'business';
 
-            $model->profile->update([
+            $profile->update([
                 'phone_number' => $this->formData['phone_number'],
                 'street' => $this->formData['street'],
                 'house_number' => $this->formData['house_number'],
@@ -444,6 +470,9 @@ class SystemUserManagement extends Component
 
     public function sortBy($column)
     {
+        if (!in_array((string) $column, ['last_seen', 'login', 'identity', 'status', 'location', 'ip'], true)) {
+            return;
+        }
         if ($this->sortField === $column) {
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
@@ -466,6 +495,13 @@ class SystemUserManagement extends Component
 
     public function render()
     {
+        if (!in_array((string) $this->filterRole, ['all', 'admin', 'customer', 'employee'], true)) {
+            $this->filterRole = 'all';
+        }
+        if (!in_array((string) $this->sortDirection, ['asc', 'desc'], true)) {
+            $this->sortDirection = 'desc';
+        }
+
         $queryAdmin = Admin::query(); $queryCustomer = Customer::query(); $queryEmployee = Employee::query();
 
         if ($this->showArchive) {

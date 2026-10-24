@@ -20,17 +20,18 @@ Broadcast::channel('shop', function ($user) {
     return true;
 }, ['guards' => ['admin', 'employee']]);
 
+// 2b. Sensible CEO-/Management-Kanäle (Nur Admin)
 Broadcast::channel('workspace', function ($user) {
     return true;
-}, ['guards' => ['admin', 'employee']]);
+}, ['guards' => ['admin']]);
 
 Broadcast::channel('telephony', function ($user) {
     return true;
-}, ['guards' => ['admin', 'employee']]);
+}, ['guards' => ['admin']]);
 
 Broadcast::channel('crm-inbox', function ($user) {
     return true;
-}, ['guards' => ['admin', 'employee']]);
+}, ['guards' => ['admin']]);
 
 // 3. Wildcard-Kanäle (mit {id}) GANZ NACH UNTEN!
 Broadcast::channel('admin.{id}', function ($user, $id) {

@@ -41,7 +41,7 @@ trait handleTwoFactorTrait
         $userModel = (new \App\Models\System\SystemUser)->getUserModelByGuard($guard);
         $user = $userModel::find($userId);
 
-        if (!$user || !$user->profile) {
+        if (!$user || !$user->profile || (method_exists($user, 'trashed') && $user->trashed())) {
             session()->flash('error', 'Benutzer nicht gefunden. Bitte erneut anmelden.');
             return;
         }
@@ -64,7 +64,11 @@ trait handleTwoFactorTrait
         // 2FA prüfen (strikt typisiert)
         $valid = false;
         if (!empty($user->profile->two_factor_secret)) {
-            $valid = (bool) $this->twoFactorCheckCode((string) $user->profile->two_factor_secret, $inputCode);
+            try {
+                $valid = (bool) $this->twoFactorCheckCode((string) $user->profile->two_factor_secret, $inputCode);
+            } catch (\Throwable $e) {
+                $valid = false;
+            }
         }
 
         if (!$valid && !empty($user->profile->two_factor_recovery_codes)) {

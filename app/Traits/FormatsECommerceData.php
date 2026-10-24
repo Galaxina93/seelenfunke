@@ -233,8 +233,16 @@ trait FormatsECommerceData
 
             'express'  => (bool)$this->is_express,
 
-            'customer_needs_password_change' => isset($this->customer) && (bool)$this->customer->needs_password_change,
-            'customer_temporary_password' => isset($this->customer) ? $this->customer->temporary_password : null,
+            'customer_needs_password_change' => isset($this->customer)
+                && (bool) $this->customer->needs_password_change
+                && !empty($this->email)
+                && strcasecmp(trim((string) $this->email), trim((string) $this->customer->email)) === 0,
+            'customer_temporary_password' => (isset($this->customer)
+                && (bool) $this->customer->needs_password_change
+                && !empty($this->email)
+                && strcasecmp(trim((string) $this->email), trim((string) $this->customer->email)) === 0)
+                ? $this->customer->temporary_password
+                : null,
             'customer_email' => isset($this->customer) ? $this->customer->email : null,
 
             'payment_url' => $this->payment_url ?? null,

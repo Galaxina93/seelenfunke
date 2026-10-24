@@ -69,9 +69,13 @@ class TrackVisitor
             // ordnen wir den Aufruf ebenfalls dem entsprechenden ManagementTrackingLink zu.
             $alreadyAttributedId = session()->pull('attributed_tracking_link_id');
             if (!$alreadyAttributedId && ($request->filled('tid') || $request->filled('utm_source'))) {
-                $tid = trim((string) $request->query('tid', ''));
-                $utmSource = strtolower(trim((string) $request->query('utm_source', '')));
-                $utmCampaign = trim((string) $request->query('utm_campaign', ''));
+                $rawTid = $request->query('tid', '');
+                $rawUtmSource = $request->query('utm_source', '');
+                $rawUtmCampaign = $request->query('utm_campaign', '');
+
+                $tid = is_string($rawTid) ? substr(trim($rawTid), 0, 100) : '';
+                $utmSource = is_string($rawUtmSource) ? substr(strtolower(trim($rawUtmSource)), 0, 100) : '';
+                $utmCampaign = is_string($rawUtmCampaign) ? substr(trim($rawUtmCampaign), 0, 100) : '';
 
                 if (\Illuminate\Support\Facades\Schema::hasTable('management_tracking_links')) {
                     $trkQuery = \App\Models\Management\ManagementTrackingLink::where('is_active', true);

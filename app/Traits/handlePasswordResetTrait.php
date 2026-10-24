@@ -108,9 +108,11 @@ trait handlePasswordResetTrait
         \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
 
         $this->validate([
-            'email' => 'required|email',
-            'password' => 'required|min:8',
+            'email' => 'required|email|max:255',
+            'password' => ['required', 'string', 'min:8', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/[0-9]/'],
             'passwordConfirm' => 'required',
+        ], [
+            'password.regex' => 'Das Passwort muss mindestens einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.',
         ]);
 
         if ($this->password != $this->passwordConfirm)
@@ -119,7 +121,16 @@ trait handlePasswordResetTrait
             return;
         }
 
-        $passwordResetToken = SystemPasswordResetToken::where('email', $this->email)->first();
+        $segment = request()->segment(1);
+        $expectedGuard = in_array($this->guard ?? '', ['admin', 'employee', 'customer'], true)
+            ? $this->guard
+            : (in_array($segment, ['admin', 'employee', 'customer'], true) ? $segment : null);
+
+        $tokenQuery = SystemPasswordResetToken::where('email', $this->email);
+        if ($expectedGuard) {
+            $tokenQuery->where('guard', $expectedGuard);
+        }
+        $passwordResetToken = $tokenQuery->first();
 
         // Überprüfen Sie, ob der Datensatz gefunden wurde
         if (!$passwordResetToken || !Hash::check($this->token, $passwordResetToken->token))
@@ -146,7 +157,18 @@ trait handlePasswordResetTrait
 
         // Aktualisieren des Passworts des Benutzers
         $user->password = Hash::make($this->password);
+        if ($this->guard === 'customer') {
+            $user->needs_password_change = false;
+            $user->temporary_password = null;
+        }
+        $user->setRememberToken(Str::random(60));
         $user->save();
+
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))
+                ->where('user_id', $user->id)
+                ->delete();
+        }
 
         // Löschen des Passwort-Reset-Tokens
         SystemPasswordResetToken::where('email', $this->email)->where('guard', $this->guard)->delete();

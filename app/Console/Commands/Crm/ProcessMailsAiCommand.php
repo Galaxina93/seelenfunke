@@ -47,9 +47,14 @@ class ProcessMailsAiCommand extends Command
 
         $maxCycles = 50;
         $cycle = 1;
+        $attemptedIds = [];
 
         while ($cycle <= $maxCycles) {
             $mails = MailMessage::where('folder', 'INBOX')
+                ->where(function ($q) {
+                    $q->whereNull('ai_status')->orWhere('ai_status', 'pending');
+                })
+                ->when(!empty($attemptedIds), fn($q) => $q->whereNotIn('id', $attemptedIds))
                 ->orderBy('received_at', 'asc')
                 ->limit(15)
                 ->get();
@@ -57,6 +62,10 @@ class ProcessMailsAiCommand extends Command
             if ($mails->isEmpty()) {
                 $this->info('Alle Mails wurden erfolgreich von der KI abgearbeitet. Inbox Zero erreicht!');
                 break;
+            }
+
+            foreach ($mails as $m) {
+                $attemptedIds[] = $m->id;
             }
 
             $pendingCount = MailMessage::where('folder', 'INBOX')->count();

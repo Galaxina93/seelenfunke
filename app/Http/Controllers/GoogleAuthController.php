@@ -45,9 +45,9 @@ class GoogleAuthController extends Controller
                 return redirect()->route('login')->with('error', 'Google-Anmeldung fehlgeschlagen: Ungültige Kontodaten übermittelt.');
             }
 
-            // Sicherheitsprüfung: Unverifizierte Google-Accounts dürfen nicht gelinkt werden
+            // Sicherheitsprüfung: Unverifizierte Google-Accounts dürfen nicht gelinkt werden (Fail-Closed)
             $emailVerified = $googleUser->user['email_verified'] ?? ($googleUser->user['verified_email'] ?? null);
-            if ($emailVerified === false || $emailVerified === 'false') {
+            if (!in_array($emailVerified, [true, 'true', 1, '1'], true)) {
                 Log::warning('Google OAuth Login abgelehnt: E-Mail-Adresse nicht bei Google verifiziert.', ['email' => $googleUser->email]);
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:oauth_unverified',
@@ -67,11 +67,9 @@ class GoogleAuthController extends Controller
             // Wir prüfen der Reihe nach: Admin -> Employee -> Customer
             // ---------------------------------------------------------
 
-            // A) Check: Ist es ein Admin?
-            $admin = Admin::withTrashed()->where(function ($q) use ($googleUser) {
-                $q->where('google_id', $googleUser->id)
-                  ->orWhere('email', $googleUser->email);
-            })->first();
+            // A) Check: Ist es ein Admin? (Exakte google_id hat Vorrang vor E-Mail-Fallback)
+            $admin = Admin::withTrashed()->where('google_id', $googleUser->id)->first()
+                ?? Admin::withTrashed()->where('email', $googleUser->email)->first();
 
             if ($admin) {
                 $user = $admin;
@@ -80,10 +78,8 @@ class GoogleAuthController extends Controller
 
             // B) Check: Ist es ein Mitarbeiter? (Nur wenn kein Admin gefunden)
             if (!$user) {
-                $employee = Employee::withTrashed()->where(function ($q) use ($googleUser) {
-                    $q->where('google_id', $googleUser->id)
-                      ->orWhere('email', $googleUser->email);
-                })->first();
+                $employee = Employee::withTrashed()->where('google_id', $googleUser->id)->first()
+                    ?? Employee::withTrashed()->where('email', $googleUser->email)->first();
 
                 if ($employee) {
                     $user = $employee;
@@ -93,10 +89,8 @@ class GoogleAuthController extends Controller
 
             // C) Check: Ist es ein Kunde? (Nur wenn bisher nichts gefunden)
             if (!$user) {
-                $customer = Customer::withTrashed()->where(function ($q) use ($googleUser) {
-                    $q->where('google_id', $googleUser->id)
-                      ->orWhere('email', $googleUser->email);
-                })->first();
+                $customer = Customer::withTrashed()->where('google_id', $googleUser->id)->first()
+                    ?? Customer::withTrashed()->where('email', $googleUser->email)->first();
 
                 if ($customer) {
                     $user = $customer;
@@ -107,6 +101,19 @@ class GoogleAuthController extends Controller
             if ($user && method_exists($user, 'trashed') && $user->trashed()) {
                 \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), false, 'google_oauth');
                 return redirect()->route('login')->with('error', 'Dieser Account wurde deaktiviert.');
+            }
+
+            // Sicherheitscheck gegen Account-Hijacking: Falls bereits eine abweichende Google-ID verknüpft ist, ablehnen
+            if ($user && !empty($user->google_id) && (string) $user->google_id !== (string) $googleUser->id) {
+                \App\Services\System\SystemSecurityService::recordLoginAttempt($user->email, request()->ip(), false, 'google_oauth_mismatch');
+                \App\Services\System\SystemSecurityService::logEvent(
+                    'security:oauth_id_mismatch',
+                    'Google-ID Konflikt beim Login blockiert',
+                    "Abweichende Google-ID beim Login für '{$user->email}' ({$guard}) abgelehnt.",
+                    'error',
+                    ['target_email' => $user->email, 'guard' => $guard]
+                );
+                return redirect()->route('login')->with('error', 'Dieses Konto ist bereits mit einem anderen Google-Account verknüpft.');
             }
 
             // ---------------------------------------------------------
@@ -147,6 +154,11 @@ class GoogleAuthController extends Controller
                 $user->update(['google_id' => $googleUser->id]);
             }
 
+            // Da Google die E-Mail-Adresse verifiziert hat, Verifizierungsstatus im Profil synchronisieren
+            if ($user->profile && $user->profile->email_verified_at === null) {
+                $user->profile->forceFill(['email_verified_at' => now()])->save();
+            }
+
             // PROFILBILD LOGIK
             $avatarUrl = $googleUser->avatar_original ?? $googleUser->avatar;
 
@@ -157,11 +169,11 @@ class GoogleAuthController extends Controller
                     $avatarHost = strtolower($parsedAvatar['host'] ?? '');
                     $avatarScheme = strtolower($parsedAvatar['scheme'] ?? '');
 
-                    // Nur sichere HTTPS-Verbindungen zu offiziellen Google-Domains zulassen
+                    // Nur sichere HTTPS-Verbindungen zu offiziellen Google-Domains zulassen (ohne Redirect-Verfolgung)
                     if ($avatarScheme === 'https' && (str_ends_with($avatarHost, '.googleusercontent.com') || $avatarHost === 'googleusercontent.com')) {
-                        $resp = \Illuminate\Support\Facades\Http::timeout(5)->get($avatarUrl);
+                        $resp = \Illuminate\Support\Facades\Http::timeout(5)->withoutRedirecting()->get($avatarUrl);
 
-                        if ($resp->successful() && !empty($resp->body())) {
+                        if ($resp->successful() && !empty($resp->body()) && strlen($resp->body()) <= 5 * 1024 * 1024) {
                             $fileContents = $resp->body();
                             $image = Image::make($fileContents)->fit(400, 400);
                             $filename = Str::random(40) . '.jpg';
@@ -213,7 +225,10 @@ class GoogleAuthController extends Controller
             }
             session(["permissions" => $permissions]);
 
-
+            if ($guard === 'customer' && !empty($user->needs_password_change)) {
+                session(['force_password_change_customer_id' => $user->id]);
+                return redirect()->route('customer.password-change-force');
+            }
 
             // Redirect zum Dashboard des ermittelten Guards
             return redirect()->route($guard . '.dashboard');

@@ -198,18 +198,16 @@ Route::group(['middleware' => [function ($request, $next) {
         
         $order = OrderOrder::with('items.product')->findOrFail($id);
         $previousStatus = $order->status;
-        $order->status = $data['status'];
-        $order->save();
+        $previousPaymentStatus = $order->payment_status;
 
         // Geschäftslogische Rückabwicklung bei Stornierung oder Erstattung:
-        // 1. Lagerbestand: Nur für Standardware zurückbuchen, personalisierte Ware verfällt als Ausschuss
-        // 2. Herzensprojekt: Spendenbeitrag stornieren
-        // 3. Gekaufte Wertgutscheine: Deaktivieren
-        // 4. Eingelöste Gutscheine: Saldo wiederherstellen
-        // 5. Freunde-Werben: Prämie stornieren
-        if (in_array($data['status'], ['cancelled', 'refunded'], true)) {
-            $order->handleCancellation('API-Statusänderung', $previousStatus);
+        // Vor dem Überschreiben von $order->status ausführen, damit handleCancellation() nicht am eigenen Früh-Exit scheitert.
+        if (in_array($data['status'], ['cancelled', 'refunded'], true) && !in_array($previousStatus, ['cancelled', 'refunded'], true)) {
+            $order->handleCancellation('API-Statusänderung', $previousStatus, $previousPaymentStatus);
         }
+
+        $order->status = $data['status'];
+        $order->save();
         
         return response()->json([
             'success' => true,
@@ -221,6 +219,13 @@ Route::group(['middleware' => [function ($request, $next) {
     // Generate DHL Label
     Route::post('/shop/orders/{id}/dhl-label', function (Request $request, $id) {
         $order = OrderOrder::findOrFail($id);
+
+        if (in_array($order->status, ['cancelled', 'refunded'], true) || $order->payment_status === 'refunded') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Für stornierte oder erstattete Bestellungen können keine DHL-Versandlabels erstellt werden.'
+            ], 400);
+        }
         
         if ($order->isOnlyDigital()) {
             return response()->json([

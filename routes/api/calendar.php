@@ -59,7 +59,7 @@ Route::prefix('funki/calendar')->group(function () {
             while ($simDate <= $calcEnd && $expandGuard++ < 500) {
                 if ($tmpl->recurrence_end_date && $simDate > $tmpl->recurrence_end_date) break;
 
-                $duration = $tmpl->start_date->diffInSeconds($tmpl->end_date);
+                $duration = $tmpl->end_date ? $tmpl->start_date->diffInSeconds($tmpl->end_date) : 3600;
                 $simEnd = $simDate->copy()->addSeconds($duration);
 
                 $expandedEvents->push([
@@ -108,7 +108,7 @@ Route::prefix('funki/calendar')->group(function () {
         $data = $request->validate([
             'title' => 'required|string|max:255',
             'start' => 'required|date',
-            'end' => 'nullable|date',
+            'end' => 'nullable|date|after_or_equal:start',
             'is_all_day' => 'boolean',
             'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',
@@ -155,7 +155,7 @@ Route::prefix('funki/calendar')->group(function () {
         $data = $request->validate([
             'title' => 'required|string|max:255',
             'start' => 'required|date',
-            'end' => 'nullable|date',
+            'end' => 'nullable|date|after_or_equal:start',
             'is_all_day' => 'boolean',
             'category' => 'nullable|string|max:100',
             'description' => 'nullable|string',

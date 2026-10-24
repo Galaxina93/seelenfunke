@@ -93,28 +93,33 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
 
     public function hasVerifiedEmail()
     {
-        // Prüft, ob im zugehörigen Profil das Verifizierungsdatum gesetzt ist
-        return ! is_null($this->profile->email_verified_at ?? null);
+        // Prüft, ob auf dem Kundenmodell oder im zugehörigen Profil das Verifizierungsdatum gesetzt ist
+        return ! is_null($this->email_verified_at) || ! is_null($this->profile->email_verified_at ?? null);
     }
 
     public function markEmailAsVerified()
     {
+        $ts = $this->freshTimestamp();
+        $this->forceFill(['email_verified_at' => $ts])->save();
+
         // Speichert den aktuellen Zeitstempel im Profil ab
         if ($this->profile) {
-            $this->profile->email_verified_at = $this->freshTimestamp();
+            $this->profile->email_verified_at = $ts;
             return $this->profile->save();
         }
-        return false;
+        return true;
     }
 
     public function markEmailAsUnverified()
     {
+        $this->forceFill(['email_verified_at' => null])->save();
+
         // Setzt das Verifizierungsdatum im Profil zurück (Neu ab Laravel 12/13)
         if ($this->profile) {
             $this->profile->email_verified_at = null;
             return $this->profile->save();
         }
-        return false;
+        return true;
     }
 
     public function sendEmailVerificationNotification()

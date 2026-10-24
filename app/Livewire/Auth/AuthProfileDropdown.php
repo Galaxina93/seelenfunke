@@ -51,6 +51,7 @@ class AuthProfileDropdown extends Component
     public string $currentPassword = '';
     public string $repeatNewPassword = '';
 
+    #[Locked]
     public $twoFactorActive = false;
 
     #[Locked]
@@ -61,6 +62,23 @@ class AuthProfileDropdown extends Component
 
     public $confirmPasswordOpener = false;
     public $password = '';
+
+    public function boot(): void
+    {
+        $resolvedGuard = $this->guard ?: (new UserHelper)->getGuard();
+        $authUser = $resolvedGuard ? Auth::guard($resolvedGuard)->user() : null;
+
+        if (!$authUser) {
+            abort(403, 'Zugriff verweigert.');
+        }
+
+        if ($resolvedGuard === 'customer' && ($authUser->needs_password_change ?? false)) {
+            abort(403, 'Bitte ändere zuerst dein temporäres Passwort.');
+        }
+
+        $this->guard = $resolvedGuard;
+        $this->user = $authUser;
+    }
 
     public function mount()
     {
@@ -160,6 +178,10 @@ class AuthProfileDropdown extends Component
             ]);
         }
 
+        if (empty($this->secretKey)) {
+            $this->secretKey = (new Google2FA())->generateSecretKey();
+        }
+
         $this->generateQrCode();
         $this->generateRecoveryCodes();
 
@@ -202,6 +224,8 @@ class AuthProfileDropdown extends Component
         $this->user->profile->two_factor_secret = null;
         $this->user->profile->two_factor_recovery_codes = null;
         $this->confirmPasswordOpener = false;
+        $this->qrCodeSvg = null;
+        $this->secretKey = (new Google2FA())->generateSecretKey();
 
         $this->user->profile->save();
 
@@ -228,7 +252,7 @@ class AuthProfileDropdown extends Component
         $this->dispatch('saved');
     }
 
-    public function generateQrCode(): void
+    protected function generateQrCode(): void
     {
         $qrCodeUrl = (new Google2FA())->getQRCodeUrl(
             config('app.name'),
@@ -239,10 +263,11 @@ class AuthProfileDropdown extends Component
         $this->qrCodeSvg = $this->generateSvg($qrCodeUrl);
     }
 
-    public function generateSvg(string $data, int $size = 200): string
+    protected function generateSvg(string $data, int $size = 200): string
     {
+        $safeSize = max(100, min(400, $size));
         $renderer = new ImageRenderer(
-            new RendererStyle($size),
+            new RendererStyle($safeSize),
             new SvgImageBackEnd()
         );
 

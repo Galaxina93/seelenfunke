@@ -34,8 +34,8 @@ class DeleteUnverifiedUsers extends Command
 
         // Sicherheitsregel: Admins und Mitarbeiter unterliegen keiner öffentlichen Registrierung und
         // keinem MustVerifyEmail-Workflow. Sie dürfen niemals automatisch per Cronjob gelöscht werden.
-        // Nur unverifizierte Kunden ohne Bestellungen werden nach Ablauf von 24 Stunden bereinigt.
-        $customers = Customer::withTrashed()
+        // Nur aktive (nicht archivierte) unverifizierte Kunden ohne Bestellungen werden nach Ablauf von 24 Stunden bereinigt.
+        $customers = Customer::query()
             ->where('created_at', '<', $limit)
             ->whereNull('email_verified_at')
             ->where(function ($query) {
@@ -48,9 +48,7 @@ class DeleteUnverifiedUsers extends Command
             ->get();
 
         foreach ($customers as $customer) {
-            if ($customer->profile) {
-                $customer->profile()->forceDelete();
-            }
+            $customer->profile()->withTrashed()->forceDelete();
             $customer->forceDelete();
             $deletedCount++;
         }

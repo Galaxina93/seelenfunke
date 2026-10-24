@@ -92,6 +92,22 @@ class SystemErrorLogger
     }
 
     /**
+     * Maskiert sensible Query-Parameter, API-Keys, Tokens und Passwörter in Log-Texten und URLs.
+     */
+    public static function sanitizeSensitiveText(?string $text): string
+    {
+        if ($text === null || $text === '') {
+            return '';
+        }
+
+        return (string) preg_replace(
+            '/((?:api[_-]?key|key|token|access[_-]?token|refresh[_-]?token|password|passwd|secret|signature|pin)\s*[=:]\s*)([^\s&"\'\r\n]+)/i',
+            '$1[REDACTED]',
+            $text
+        );
+    }
+
+    /**
      * Erstellt ein detailliertes Diagnose-Payload-Array aus einer Throwable-Instanz.
      */
     public static function buildExceptionPayload(\Throwable $e, array $extra = []): array
@@ -104,7 +120,7 @@ class SystemErrorLogger
         $previous = $e->getPrevious();
         $previousData = $previous ? [
             'exception_class' => get_class($previous),
-            'message' => Str::limit($previous->getMessage(), 500),
+            'message' => Str::limit(self::sanitizeSensitiveText($previous->getMessage()), 500),
             'file' => $previous->getFile(),
             'line' => $previous->getLine(),
         ] : null;
@@ -130,7 +146,7 @@ class SystemErrorLogger
         if (app()->runningInConsole()) {
             return [
                 'mode' => 'cli',
-                'command' => implode(' ', $_SERVER['argv'] ?? []),
+                'command' => self::sanitizeSensitiveText(implode(' ', $_SERVER['argv'] ?? [])),
             ];
         }
 
@@ -154,7 +170,7 @@ class SystemErrorLogger
         return [
             'mode' => 'http',
             'method' => $req?->method() ?? 'GET',
-            'url' => $req?->fullUrl() ?? '',
+            'url' => self::sanitizeSensitiveText($req?->fullUrl() ?? ''),
             'route' => $req?->route()?->getName() ?? $req?->path(),
             'ip' => $req?->ip(),
             'user_agent' => $req?->userAgent(),
@@ -204,11 +220,13 @@ class SystemErrorLogger
             $category = $payload['diagnosis']['category'] ?? 'exception';
             $resolvedActionId = $actionId ?: ('system:exception:' . $category);
 
+            $rawMessage = $e->getMessage() ?: ('Exception in ' . basename($e->getFile()) . ':' . $e->getLine());
+
             return SystemLog::create([
                 'type' => $type,
                 'action_id' => Str::limit($resolvedActionId, 190, ''),
                 'title' => Str::limit(($titlePrefix ?: 'System-Fehler') . ' (' . class_basename($e) . ')', 190),
-                'message' => Str::limit($e->getMessage() ?: ('Exception in ' . basename($e->getFile()) . ':' . $e->getLine()), 2000),
+                'message' => Str::limit(self::sanitizeSensitiveText($rawMessage), 2000),
                 'status' => 'error',
                 'payload' => $payload,
                 'started_at' => now(),
@@ -237,7 +255,7 @@ class SystemErrorLogger
                 'system',
                 null,
                 'System-Fehler [' . strtoupper($level) . ']',
-                ['log_message' => Str::limit($message, 1000)]
+                ['log_message' => Str::limit(self::sanitizeSensitiveText($message), 1000)]
             );
         }
 
@@ -248,10 +266,12 @@ class SystemErrorLogger
                 if ($v instanceof \Throwable) {
                     $safeContext[$k] = [
                         'class' => get_class($v),
-                        'message' => $v->getMessage(),
+                        'message' => self::sanitizeSensitiveText($v->getMessage()),
                         'file' => $v->getFile(),
                         'line' => $v->getLine(),
                     ];
+                } elseif (is_string($v)) {
+                    $safeContext[$k] = self::sanitizeSensitiveText($v);
                 } elseif (is_scalar($v) || is_null($v) || is_array($v)) {
                     $safeContext[$k] = $v;
                 } else {
@@ -259,14 +279,15 @@ class SystemErrorLogger
                 }
             }
 
-            $diagnosis = self::diagnose($message);
+            $sanitizedMessage = self::sanitizeSensitiveText($message);
+            $diagnosis = self::diagnose($sanitizedMessage);
             $actionId = 'system:log:' . strtolower($level) . ':' . ($diagnosis['category'] ?? 'general');
 
             return SystemLog::create([
                 'type' => 'system',
                 'action_id' => Str::limit($actionId, 190, ''),
                 'title' => 'System-Log ' . strtoupper($level) . ' (' . ($diagnosis['category'] ?? 'general') . ')',
-                'message' => Str::limit($message, 2000),
+                'message' => Str::limit($sanitizedMessage, 2000),
                 'status' => in_array(strtolower($level), ['warning', 'notice'], true) ? 'warning' : 'error',
                 'payload' => [
                     'level' => $level,

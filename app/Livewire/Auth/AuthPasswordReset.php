@@ -22,6 +22,10 @@ class AuthPasswordReset extends Component
     public function mount($token)
     {
         $this->token = (string) $token;
+        $segment = request()->segment(1);
+        if (in_array($segment, ['admin', 'employee', 'customer'], true)) {
+            $this->guard = $segment;
+        }
     }
 
     public function render(): \Illuminate\Contracts\View\View|\Illuminate\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\Foundation\Application
@@ -54,7 +58,9 @@ class AuthPasswordReset extends Component
         }
 
         $segment = request()->segment(1);
-        $expectedGuard = in_array($segment, ['admin', 'employee', 'customer'], true) ? $segment : null;
+        $expectedGuard = in_array($this->guard, ['admin', 'employee', 'customer'], true)
+            ? $this->guard
+            : (in_array($segment, ['admin', 'employee', 'customer'], true) ? $segment : null);
 
         $tokenQuery = SystemPasswordResetToken::where('email', $this->email);
         if ($expectedGuard) {
@@ -96,6 +102,10 @@ class AuthPasswordReset extends Component
 
         // Aktualisieren des Passworts des Benutzers
         $user->password = Hash::make($this->password);
+        if ($this->guard === 'customer') {
+            $user->needs_password_change = false;
+            $user->temporary_password = null;
+        }
         $user->setRememberToken(\Illuminate\Support\Str::random(60));
         $user->save();
 

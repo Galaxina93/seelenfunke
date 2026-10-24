@@ -29,9 +29,10 @@ class SendAbandonedCartReminders extends Command
      */
     public function handle()
     {
-        // 1. Konfiguration abrufen
-        $redLimit = (int) shop_setting('cart_abandoned_red_hours', 24);
-        $maxDays = (int) shop_setting('cart_abandoned_max_days', 7);
+        // 1. Konfiguration abrufen (mit Sicherheits-Grenzen gegen Fehlkonfiguration)
+        $redLimit = max(1, (int) shop_setting('cart_abandoned_red_hours', 24));
+        $maxDays = max(1, (int) shop_setting('cart_abandoned_max_days', 7));
+        $maxHours = max($redLimit + 1, $maxDays * 24);
         $requireConsent = (bool) shop_setting('cart_abandoned_require_consent', true);
 
         $this->info("Prüfe verlassene Warenkörbe (Älter als {$redLimit}h, jünger als {$maxDays} Tage, Rechtssicherheits-Modus: " . ($requireConsent ? 'AKTIV' : 'INAKTIV') . ")...");
@@ -39,7 +40,7 @@ class SendAbandonedCartReminders extends Command
         // 2. Relevante Warenkörbe abfragen (nur registrierte Kunden mit Artikeln, innerhalb des Zeitfensters)
         $carts = Cart::with(['customer.profile', 'items.product'])
             ->where('updated_at', '<=', now()->subHours($redLimit))
-            ->where('updated_at', '>=', now()->subDays($maxDays))
+            ->where('updated_at', '>=', now()->subHours($maxHours))
             ->whereNull('reminder_email_sent_at')
             ->whereNotNull('customer_id')
             ->has('items')
@@ -53,6 +54,11 @@ class SendAbandonedCartReminders extends Command
             $customer = $cart->customer;
 
             if (!$customer || empty($customer->email)) {
+                continue;
+            }
+
+            // Nur erinnern, wenn mindestens ein aktives Produkt im Warenkorb liegt
+            if (!$cart->items->contains(fn($item) => $item->product && $item->product->status === 'active')) {
                 continue;
             }
 

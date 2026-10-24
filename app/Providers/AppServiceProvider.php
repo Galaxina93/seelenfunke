@@ -29,6 +29,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Schema::defaultStringLength(191);
+
+        if (class_exists(\Livewire\Livewire::class)) {
+            \Livewire\Livewire::addPersistentMiddleware([
+                \App\Http\Middleware\EnforcePasswordChange::class,
+            ]);
+        }
         // 1. Füge die Morph Map hinzu
         Relation::enforceMorphMap([
             'admin'    => 'App\Models\Admin\Admin',

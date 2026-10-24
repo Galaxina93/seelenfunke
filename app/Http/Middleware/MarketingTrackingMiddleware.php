@@ -21,26 +21,32 @@ class MarketingTrackingMiddleware
 
         // Prüfen, ob der Request UTM Parameter enthält
         if ($request->has('utm_source') || $request->has('utm_campaign') || $request->has('utm_medium')) {
-            $source = $request->input('utm_source');
-            $campaign = $request->input('utm_campaign');
-            $medium = $request->input('utm_medium');
+            $rawSource = $request->input('utm_source');
+            $rawCampaign = $request->input('utm_campaign');
+            $rawMedium = $request->input('utm_medium');
 
-            $data = json_encode([
-                'source' => $source,
-                'campaign' => $campaign,
-                'medium' => $medium,
-                'timestamp' => now()->toDateTimeString()
-            ]);
+            $source = is_string($rawSource) ? substr(trim($rawSource), 0, 100) : null;
+            $campaign = is_string($rawCampaign) ? substr(trim($rawCampaign), 0, 100) : null;
+            $medium = is_string($rawMedium) ? substr(trim($rawMedium), 0, 100) : null;
 
-            // First-Touch Cookie: Nur setzen wenn es noch nicht existiert
-            if (!$request->hasCookie('seelenfunke_first_touch')) {
-                // 30 Tage gültig (30 * 24 * 60 = 43200 Minuten)
-                Cookie::queue('seelenfunke_first_touch', $data, 43200);
+            if ($source !== null || $campaign !== null || $medium !== null) {
+                $data = json_encode([
+                    'source' => $source,
+                    'campaign' => $campaign,
+                    'medium' => $medium,
+                    'timestamp' => now()->toDateTimeString()
+                ]);
+
+                // First-Touch Cookie: Nur setzen wenn es noch nicht existiert
+                if (!$request->hasCookie('seelenfunke_first_touch')) {
+                    // 30 Tage gültig (30 * 24 * 60 = 43200 Minuten)
+                    Cookie::queue('seelenfunke_first_touch', $data, 43200);
+                }
+
+                // Last-Touch Cookie: Wird bei jedem neuen Besuch mit Tags überschrieben
+                // 1 Tag gültig (24 * 60 = 1440 Minuten)
+                Cookie::queue('seelenfunke_last_touch', $data, 1440);
             }
-
-            // Last-Touch Cookie: Wird bei jedem neuen Besuch mit Tags überschrieben
-            // 1 Tag gültig (24 * 60 = 1440 Minuten)
-            Cookie::queue('seelenfunke_last_touch', $data, 1440);
         }
 
         // Eingeloggter Kunde für Validierung von Referral- und Neukundencodes
@@ -48,8 +54,8 @@ class MarketingTrackingMiddleware
         $referralService = app(\App\Services\ReferralService::class);
 
         // Referral Tracking (Freunde werben)
-        if ($request->has('ref')) {
-            $ref = substr(trim((string)$request->input('ref')), 0, 100);
+        if ($request->has('ref') && is_string($request->input('ref'))) {
+            $ref = substr(trim($request->input('ref')), 0, 100);
             if ($ref !== '') {
                 $refCheck = $customer ? $referralService->validateReferralCode($ref, $customer->email, $customer->id) : null;
                 // Wenn eingeloggter Kunde sein eigener Werber oder Bestandskunde ist: nicht setzen & bereinigen
@@ -64,8 +70,8 @@ class MarketingTrackingMiddleware
         }
 
         // Gutscheincode aus Link (z.B. coupon=FREUNDE10)
-        if ($request->has('coupon')) {
-            $coupon = strtoupper(trim((string)$request->input('coupon')));
+        if ($request->has('coupon') && is_string($request->input('coupon'))) {
+            $coupon = substr(strtoupper(trim($request->input('coupon'))), 0, 100);
             if ($coupon !== '') {
                 $couponCheck = $customer ? $referralService->validateReferralCode($coupon, $customer->email, $customer->id) : null;
                 // Wenn eingeloggter Kunde sein eigener Werber oder Bestandskunde ist: nicht setzen & bereinigen

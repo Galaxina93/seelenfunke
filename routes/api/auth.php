@@ -32,6 +32,14 @@ Route::post('/login', function (Request $request) {
                 return response()->json(['message' => 'Bitte bestätige zuerst deine E-Mail-Adresse.'], 403);
             }
 
+            if ($guard === 'customer' && !empty($user->needs_password_change)) {
+                \App\Services\System\SystemSecurityService::recordLoginAttempt($credentials['email'], $request->ip(), false, 'api_password_change_required');
+                return response()->json([
+                    'status' => 'password_change_required',
+                    'message' => 'Bitte ändere zuerst dein temporäres Passwort über das Web-Portal.',
+                ], 403);
+            }
+
             // 2FA-Prüfung auch für API-Logins erzwingen
             if ($user->profile && $user->profile->two_factor_is_active) {
                 $twoFactorCode = trim((string) $request->input('two_factor_code', $request->input('code', '')));
@@ -107,6 +115,10 @@ Route::post('/login', function (Request $request) {
 })->middleware('throttle:5,1');
 
 Route::post('/password/email', function (Request $request) {
+    if (\App\Models\System\SystemBlockedIp::isBlocked($request->ip())) {
+        return response()->json(['message' => 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.'], 403);
+    }
+
     $request->validate([
         'email' => 'required|email',
     ]);
@@ -167,6 +179,9 @@ Route::post('/password/email', function (Request $request) {
     \Illuminate\Support\Facades\Notification::route('mail', $email)
         ->notify(new \App\Notifications\globalNotification($emailData));
 
-    return response()->json(['status' => 'success', 'message' => 'Link zum Zurücksetzen gesendet.']);
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir einen Link zum Zurücksetzen des Passworts zugesandt.'
+    ]);
 })->middleware('throttle:5,1');
 

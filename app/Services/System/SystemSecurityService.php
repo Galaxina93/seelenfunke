@@ -131,12 +131,9 @@ class SystemSecurityService
      */
     public static function isTrustedBridgeRequest(Request $request): bool
     {
-        if (app()->environment('testing')) {
-            return true;
-        }
-
         $configuredSecrets = array_filter([
             config('services.gemini.bridge_secret'),
+            config('services.twilio.bridge_secret'),
             env('BRIDGE_SECRET'),
             env('AI_PROXY_SECRET'),
         ], fn ($v) => is_string($v) && trim($v) !== '');
@@ -145,26 +142,39 @@ class SystemSecurityService
             ?: $request->header('X-AI-Proxy-Secret')
             ?: $request->input('bridge_secret');
 
-        if (!empty($configuredSecrets) && is_string($providedSecret) && trim($providedSecret) !== '') {
+        if (is_string($providedSecret) && trim($providedSecret) !== '') {
             foreach ($configuredSecrets as $secret) {
                 if (hash_equals((string) $secret, $providedSecret)) {
                     return true;
                 }
             }
+            // Ein explizit mitgesendetes, aber falsches Secret darf niemals durch IP-Fallback akzeptiert werden
+            return false;
         }
 
         $clientIp = (string) $request->ip();
         $serverIp = (string) ($request->server('SERVER_ADDR') ?? '');
 
-        $trustedIps = array_filter([
+        $trustedLoopbackIps = array_filter([
             '127.0.0.1',
             '::1',
             'localhost',
             $serverIp,
         ]);
 
-        if (in_array($clientIp, $trustedIps, true)) {
+        if (in_array($clientIp, $trustedLoopbackIps, true)) {
             return true;
+        }
+
+        // Wenn ein Bridge-Secret konfiguriert ist, sind nicht-lokale Zugriffe ohne gültiges Secret unzulässig
+        if (!empty($configuredSecrets)) {
+            return false;
+        }
+
+        // Wenn der Request über einen Reverse-Proxy (X-Forwarded-For / X-Real-IP / CF-Connecting-IP) kam,
+        // stammt er von extern und darf sich nicht allein über die Docker-Proxy-IP authentifizieren
+        if ($request->headers->has('X-Forwarded-For') || $request->headers->has('X-Real-IP') || $request->headers->has('CF-Connecting-IP')) {
+            return false;
         }
 
         // Erlaube private/interne Container- & Server-Subnetze (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
@@ -187,7 +197,11 @@ class SystemSecurityService
 
         // Entferne evtl. Protokoll-Präfixe wie ssl:// oder tls:// zur Prüfung
         $cleanHost = preg_replace('#^[a-z0-9+.-]+://#i', '', $cleanHost);
-        $cleanHost = explode(':', $cleanHost)[0];
+        if (str_starts_with($cleanHost, '[')) {
+            $cleanHost = trim(explode(']', $cleanHost)[0], '[]');
+        } else {
+            $cleanHost = explode(':', $cleanHost)[0];
+        }
 
         $forbiddenHosts = [
             'localhost',
@@ -196,15 +210,22 @@ class SystemSecurityService
             '0.0.0.0',
             '169.254.169.254',
             'metadata.google.internal',
+            'host.docker.internal',
+            'gateway.docker.internal',
+            'kubernetes.default',
             'redis',
             'mysql',
             'mariadb',
             'postgres',
             'memcached',
+            'db',
+            'meine_datenbank',
             'mein_php_server',
+            'mailpit',
+            'mailhog',
         ];
 
-        if (in_array($cleanHost, $forbiddenHosts, true) || str_ends_with($cleanHost, '.internal') || str_ends_with($cleanHost, '.local')) {
+        if (in_array($cleanHost, $forbiddenHosts, true) || str_ends_with($cleanHost, '.internal') || str_ends_with($cleanHost, '.local') || str_ends_with($cleanHost, '.docker')) {
             return false;
         }
 
@@ -213,6 +234,12 @@ class SystemSecurityService
             if (!filter_var($cleanHost, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                 return false;
             }
+            return true;
+        }
+
+        // Öffentliche Mail-Hosts müssen immer eine Domain mit mindestens einem Punkt sein (blockiert interne Single-Label Container-Namen)
+        if (!str_contains($cleanHost, '.')) {
+            return false;
         }
 
         return true;

@@ -54,6 +54,7 @@ Route::get('/funki/financials/kpis', function (Request $request) {
     $shopRevenue = OrderOrder::whereYear('created_at', $year)
             ->whereMonth('created_at', $month)
             ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded'])
             ->sum('total_price') / 100;
 
     $totalIncome = $fixedIncome + $shopRevenue;
@@ -134,13 +135,15 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         $paths = [];
         $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
+        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
         foreach ($files as $file) {
             if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
                 continue;
             }
             $ext = strtolower($file->getClientOriginalExtension());
-            if (!in_array($ext, $allowedExts, true)) {
+            $mime = strtolower((string) $file->getMimeType());
+            if (!in_array($ext, $allowedExts, true) || !in_array($mime, $allowedMimes, true)) {
                 continue;
             }
             $path = $file->store('buchhaltung/receipts', 'local');
@@ -282,12 +285,14 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
         }
 
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
+        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
         foreach ($files as $file) {
             if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
                 continue;
             }
             $ext = strtolower($file->getClientOriginalExtension());
-            if (!in_array($ext, $allowedExts, true)) {
+            $mime = strtolower((string) $file->getMimeType());
+            if (!in_array($ext, $allowedExts, true) || !in_array($mime, $allowedMimes, true)) {
                 continue;
             }
             $existingPaths[] = $file->store('buchhaltung/receipts', 'local');
@@ -302,6 +307,14 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
 
 Route::delete('/funki/financials/variable/{id}', function (Request $request, $id) {
     $issue = AccountingSpecialIssue::where('admin_id', $request->user()->id)->findOrFail($id);
+    if (!empty($issue->file_paths) && is_array($issue->file_paths)) {
+        foreach ($issue->file_paths as $filePath) {
+            $pathStr = ltrim((string) $filePath, '/');
+            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with($pathStr, 'buchhaltung/') && Storage::disk('local')->exists($pathStr)) {
+                Storage::disk('local')->delete($pathStr);
+            }
+        }
+    }
     $issue->delete();
     return response()->json(['success' => true]);
 });
@@ -419,8 +432,10 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
     if ($request->hasFile('file')) {
         $file = is_array($request->file('file')) ? $request->file('file')[0] : $request->file('file');
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'doc', 'docx'];
+        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
         $ext = strtolower($file->getClientOriginalExtension());
-        if (!in_array($ext, $allowedExts, true) || $file->getSize() > 20 * 1024 * 1024) {
+        $mime = strtolower((string) $file->getMimeType());
+        if (!in_array($ext, $allowedExts, true) || !in_array($mime, $allowedMimes, true) || $file->getSize() > 20 * 1024 * 1024) {
             return response()->json(['success' => false, 'message' => 'Ungültiges Dateiformat oder Datei zu groß.'], 422);
         }
 
@@ -438,6 +453,12 @@ Route::put('/funki/financials/fixed-item/{id}', function (Request $request, $id)
 
 Route::delete('/funki/financials/fixed-item/{id}', function (Request $request, $id) {
     $item = AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $request->user()->id))->findOrFail($id);
+    if (!empty($item->contract_file_path)) {
+        $pathStr = ltrim((string) $item->contract_file_path, '/');
+        if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && str_starts_with($pathStr, 'buchhaltung/') && Storage::disk('local')->exists($pathStr)) {
+            Storage::disk('local')->delete($pathStr);
+        }
+    }
     $item->delete();
     return response()->json(['success' => true]);
 });

@@ -173,10 +173,13 @@ class AuthRegister extends Component
         ]);
 
         // Chat Session Guest-Ascension Migration
-        if ($this->sessionToken) {
-            \App\Models\Support\SupportCustomerChat::where('session_token', $this->sessionToken)
-                ->whereNull('customer_id')
-                ->update(['customer_id' => $customer->id]);
+        if (is_string($this->sessionToken) && strlen(trim($this->sessionToken)) >= 16) {
+            $chatClaimQuery = \App\Models\Support\SupportCustomerChat::where('session_token', trim($this->sessionToken))
+                ->whereNull('customer_id');
+            if (session()->has('current_chat_id')) {
+                $chatClaimQuery->where('id', session('current_chat_id'));
+            }
+            $chatClaimQuery->update(['customer_id' => $customer->id]);
         }
 
         // Send verification manually to circumvent Laravel 11 auto-discovery bug causing duplicate event dispatches.

@@ -84,12 +84,17 @@ class CheckDhlDeliveryStatus extends Command
                 }
 
                 $isDelivered = false;
+                $trackingNumber = trim((string) ($shipment->tracking_number ?? ''));
 
-                try {
-                    $isDelivered = $this->checkDhlTracking($shipment->tracking_number);
-                } catch (\Exception $e) {
-                    $this->warn("   -> DHL Tracking Info: " . $e->getMessage());
-                    Log::warning("DHL Tracking Warning für Sendung {$shipment->tracking_number}: " . $e->getMessage());
+                if ($trackingNumber !== '') {
+                    try {
+                        $isDelivered = $this->checkDhlTracking($trackingNumber);
+                    } catch (\Exception $e) {
+                        $this->warn("   -> DHL Tracking Info: " . $e->getMessage());
+                        Log::warning("DHL Tracking Warning für Sendung {$trackingNumber}: " . $e->getMessage());
+                    }
+                } else {
+                    $this->line("   -> Keine gültige Sendungsnummer hinterlegt. Nutze Alters-Fallback.");
                 }
 
                 if ($isDelivered) {

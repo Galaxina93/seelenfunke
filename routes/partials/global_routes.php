@@ -271,6 +271,10 @@ Route::get('/digital-product/{item}/download', [\App\Http\Controllers\Customer\D
 
 // --- 8. Legacy Snapshot URL Fallback Route (Leitet alte Pfade auf GoBD/System-Pfad um) ---
 Route::get('/storage/snapshots/{path}', function ($path) {
-    $cleanPath = ltrim(str_replace(['..', '\\', "\0"], '', (string) $path), '/');
+    $rawPath = (string) $path;
+    if ($rawPath === '' || str_contains($rawPath, '..') || str_contains($rawPath, "\0") || str_contains($rawPath, '\\')) {
+        abort(404);
+    }
+    $cleanPath = ltrim($rawPath, '/');
     return redirect('/storage/system/snapshots/' . $cleanPath, 301);
 })->where('path', '.*');

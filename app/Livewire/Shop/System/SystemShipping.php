@@ -18,6 +18,7 @@ class SystemShipping extends Component
 
     // --- STATE ---
     public $view = 'list'; // 'list', 'edit', 'create'
+    #[\Livewire\Attributes\Locked]
     public $activeZoneId = null;
     public bool $showArchived = false;
 
@@ -218,20 +219,26 @@ class SystemShipping extends Component
 
     public function addCountry()
     {
+        $zone = LogisticsShippingZone::withTrashed()->findOrFail($this->activeZoneId);
         $this->selectedCountryToAdd = strtoupper(trim((string) $this->selectedCountryToAdd));
 
         $this->validate([
             'selectedCountryToAdd' => ['required', 'size:2', \Illuminate\Validation\Rule::in(array_keys($this->getAllCountries()))],
         ]);
 
-        $exists = LogisticsShippingZoneCountry::where('country_code', $this->selectedCountryToAdd)->exists();
-        if ($exists) {
+        $existsInActiveZone = LogisticsShippingZoneCountry::where('country_code', $this->selectedCountryToAdd)
+            ->whereHas('zone', fn($q) => $q->whereNull('deleted_at'))
+            ->exists();
+        if ($existsInActiveZone) {
             $this->addError('selectedCountryToAdd', 'Dieses Land ist bereits zugeordnet.');
             return;
         }
 
+        // Falls das Land noch einer archivierten Zone zugeordnet war, dort lösen
+        LogisticsShippingZoneCountry::where('country_code', $this->selectedCountryToAdd)->delete();
+
         LogisticsShippingZoneCountry::create([
-            'logistics_shipping_zone_id' => $this->activeZoneId,
+            'logistics_shipping_zone_id' => $zone->id,
             'country_code' => $this->selectedCountryToAdd
         ]);
 
@@ -244,7 +251,9 @@ class SystemShipping extends Component
 
     public function removeCountry($id)
     {
-        LogisticsShippingZoneCountry::destroy($id);
+        LogisticsShippingZoneCountry::when($this->activeZoneId, fn($q) => $q->where('logistics_shipping_zone_id', $this->activeZoneId))
+            ->where('id', $id)
+            ->delete();
         $this->syncActiveCountriesWithSettings();
         $this->dispatchMapUpdate();
     }
@@ -270,20 +279,22 @@ class SystemShipping extends Component
 
     public function addRate()
     {
+        $zone = LogisticsShippingZone::withTrashed()->findOrFail($this->activeZoneId);
+
         $this->validate([
-            'newRate.name' => 'required|string|min:2',
-            'newRate.min_weight' => 'required|numeric|min:0',
-            'newRate.max_weight' => 'nullable|numeric|gt:newRate.min_weight',
-            'newRate.price' => 'required|numeric|min:0',
+            'newRate.name' => 'required|string|min:2|max:100',
+            'newRate.min_weight' => 'required|numeric|min:0|max:1000000',
+            'newRate.max_weight' => 'nullable|numeric|gt:newRate.min_weight|max:1000000',
+            'newRate.price' => 'required|numeric|min:0|max:10000',
         ]);
 
         LogisticsShippingRate::create([
-            'logistics_shipping_zone_id' => $this->activeZoneId,
+            'logistics_shipping_zone_id' => $zone->id,
             'name' => $this->newRate['name'],
             'min_weight' => $this->newRate['min_weight'],
             'max_weight' => $this->newRate['max_weight'],
             'min_price' => 0,
-            'price' => (int) ($this->newRate['price'] * 100),
+            'price' => (int) round((float) $this->newRate['price'] * 100),
         ]);
 
         $this->newRate = [
@@ -299,7 +310,9 @@ class SystemShipping extends Component
 
     public function removeRate($rateId)
     {
-        LogisticsShippingRate::destroy($rateId);
+        LogisticsShippingRate::when($this->activeZoneId, fn($q) => $q->where('logistics_shipping_zone_id', $this->activeZoneId))
+            ->where('id', $rateId)
+            ->delete();
         session()->flash('success', 'Tarif gelöscht.');
     }
 
