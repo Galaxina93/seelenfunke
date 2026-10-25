@@ -467,4 +467,89 @@ class Product extends Model
     {
         return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths)['url'];
     }
+
+    /**
+     * Ermittelt verkaufspsychologisch sortierte Empfehlungen für die Produktdetailseite:
+     * 1. Stufe ("Das könnte dir auch gefallen"): Nur aktive Produkte, die mindestens eine Kategorie
+     *    mit dem aktuellen Produkt teilen (sortiert nach Verfügbarkeit, Kategorie-Überschneidungstiefe,
+     *    Produkttyp-Affinität und Bewertung).
+     * 2. Stufe Fallback ("Weitere Produkte aus unserem Sortiment"): Falls keine anderen aktiven Produkte
+     *    in derselben Kategorie existieren, werden andere verfügbare Produkte aus dem Gesamtsortiment geladen.
+     *
+     * @return array{mode: string, title: string, subtitle: string, kicker: string, products: \Illuminate\Support\Collection}
+     */
+    public function resolveCrossSellProducts(int $limit = 4): array
+    {
+        $categoryIds = $this->relationLoaded('categories')
+            ? $this->categories->pluck('id')->all()
+            : $this->categories()->pluck('product_categories.id')->all();
+
+        $baseQuery = fn () => static::where('status', 'active')
+            ->where('id', '!=', $this->id)
+            ->with([
+                'categories',
+                'tierPrices',
+                'templates' => fn ($q) => $q->where('is_active', true),
+            ])
+            ->withCount([
+                'reviews as approved_reviews_count' => fn ($q) => $q->where('status', 'approved'),
+            ])
+            ->withAvg([
+                'reviews as approved_reviews_avg' => fn ($q) => $q->where('status', 'approved'),
+            ], 'rating');
+
+        if (!empty($categoryIds)) {
+            $categoryMatches = $baseQuery()
+                ->whereHas('categories', function ($q) use ($categoryIds) {
+                    $q->whereIn('product_categories.id', $categoryIds);
+                })
+                ->get();
+
+            if ($categoryMatches->isNotEmpty()) {
+                $sortedMatches = $categoryMatches->sortByDesc(function (self $candidate) use ($categoryIds) {
+                    $availableScore = $candidate->isAvailable() ? 10000 : 0;
+                    $overlapCount = $candidate->categories->whereIn('id', $categoryIds)->count();
+                    $sameTypeScore = ($candidate->type === $this->type && $candidate->slug !== 'geschenkgutschein') ? 500 : 0;
+                    $ratingScore = (int) round(((float) ($candidate->approved_reviews_avg ?? 0)) * 20)
+                                 + min(50, (int) ($candidate->approved_reviews_count ?? 0));
+
+                    return $availableScore + ($overlapCount * 1000) + $sameTypeScore + $ratingScore;
+                })->take($limit)->values();
+
+                $categoryNames = $this->relationLoaded('categories')
+                    ? $this->categories->pluck('name')->take(2)->implode(' & ')
+                    : $this->categories()->pluck('name')->take(2)->implode(' & ');
+
+                return [
+                    'mode'     => 'category',
+                    'kicker'   => $categoryNames !== '' ? 'Passend zu ' . $categoryNames : 'Passend ausgewählt',
+                    'title'    => 'Das könnte dir auch gefallen',
+                    'subtitle' => 'Entdecke weitere liebevoll veredelte Geschenkideen aus derselben Kategorie.',
+                    'products' => $sortedMatches,
+                ];
+            }
+        }
+
+        // Fallback: Keine Produkte in derselben Kategorie vorhanden -> "Weitere Produkte aus unserem Sortiment"
+        $fallbackProducts = $baseQuery()
+            ->get()
+            ->sortByDesc(function (self $candidate) {
+                $availableScore = $candidate->isAvailable() ? 10000 : 0;
+                $physicalScore = ($candidate->type === 'physical' && $candidate->slug !== 'geschenkgutschein') ? 500 : 0;
+                $ratingScore = (int) round(((float) ($candidate->approved_reviews_avg ?? 0)) * 20)
+                             + min(50, (int) ($candidate->approved_reviews_count ?? 0));
+
+                return $availableScore + $physicalScore + $ratingScore;
+            })
+            ->take($limit)
+            ->values();
+
+        return [
+            'mode'     => 'assortment',
+            'kicker'   => 'Blick in die Manufaktur',
+            'title'    => 'Weitere Produkte aus unserem Sortiment',
+            'subtitle' => 'Entdecke weitere handveredelte Unikate und Geschenkideen aus unserer Kollektion.',
+            'products' => $fallbackProducts,
+        ];
+    }
 }

@@ -321,11 +321,35 @@
                                         </div>
                                     @endif
 
-                                    <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-[var(--theme-color)] transition-colors' }} mb-1 leading-tight line-clamp-2">
+                                    <h3 class="text-lg font-serif font-bold {{ $isSoldOut ? 'text-gray-400' : 'text-gray-900 group-hover:text-[var(--theme-color)] transition-colors' }} mb-1.5 leading-tight line-clamp-2">
                                         <a href="{{ $productUrl }}">
                                             {{ $product->name }}
                                         </a>
                                     </h3>
+
+                                    {{-- Sternebewertung --}}
+                                    @php
+                                        $ratingAvg = round((float) ($product->approved_reviews_avg ?? $product->average_rating ?? 0), 1);
+                                        $ratingCount = (int) ($product->approved_reviews_count ?? $product->review_count ?? 0);
+                                    @endphp
+                                    <a href="{{ $productUrl }}#kundenbewertungen-desktop"
+                                       class="inline-flex items-center gap-1.5 mb-2 group/rating w-fit"
+                                       title="{{ $ratingCount > 0 ? number_format($ratingAvg, 1, ',', '.') . ' von 5 Sternen (' . $ratingCount . ' Bewertungen)' : 'Noch keine Bewertungen' }}">
+                                        <div class="flex items-center">
+                                            @for($i = 1; $i <= 5; $i++)
+                                                <svg class="w-3.5 h-3.5 shrink-0 {{ $i <= round($ratingAvg) ? 'text-amber-400' : 'text-gray-200' }}" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                                </svg>
+                                            @endfor
+                                        </div>
+                                        <span class="text-[11px] font-bold {{ $ratingCount > 0 ? 'text-gray-700' : 'text-gray-400' }} group-hover/rating:text-[var(--theme-color)] transition-colors">
+                                            @if($ratingCount > 0)
+                                                {{ number_format($ratingAvg, 1, ',', '.') }} <span class="text-gray-400 font-medium">({{ $ratingCount }})</span>
+                                            @else
+                                                <span class="text-[10px] text-gray-400 font-medium">(0)</span>
+                                            @endif
+                                        </span>
+                                    </a>
 
                                     @if($lowStock && !$isSoldOut)
                                         <div class="mb-2">

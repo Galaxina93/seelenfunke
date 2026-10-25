@@ -28,6 +28,9 @@
                 @include('livewire.shop.product.partials.product-show.right')
 
             </div>
+
+            {{-- CROSS-SELLING / PASSENDE PRODUKTE UNTERHALB DES ZWEI-SPALTEN-DESIGNS --}}
+            @include('livewire.shop.product.partials.product-show.related-products')
         </div>
     @endif
 </div>

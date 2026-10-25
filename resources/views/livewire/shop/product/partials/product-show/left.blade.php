@@ -181,39 +181,111 @@
     {{-- 2. PRODUKTDETAILS & BEWERTUNGEN (NUR AUF DESKTOP) --}}
     {{-- Auf Mobile wird dieser Teil in der right.blade.php ganz unten angezeigt --}}
     {{-- ========================================== --}}
-    <div class="hidden lg:flex flex-col mt-12 w-full">
-        <div class="border-t border-gray-100 pt-8 w-full block clear-both">
+    @php
+        $rawDescription = trim((string) $this->product->description);
+        $sentences = preg_split('/(?<=[.!?])\s+/u', $rawDescription, 3, PREG_SPLIT_NO_EMPTY);
+        $teaserDescription = isset($sentences[0], $sentences[1])
+            ? $sentences[0] . ' ' . $sentences[1]
+            : \Illuminate\Support\Str::limit($rawDescription, 180);
+        $hasMoreDescription = mb_strlen($rawDescription) > mb_strlen($teaserDescription) + 5;
+        $validAttributes = array_filter($this->product->attributes ?? [], fn($v) => !empty($v));
+    @endphp
+    <div class="hidden lg:flex flex-col mt-8 w-full"
+         x-data="{
+            descOpen: false,
+            propsOpen: false,
+            refreshLeftScroll() {
+                $nextTick(() => {
+                    if (typeof checkScroll === 'function') checkScroll();
+                    setTimeout(() => { if (typeof checkScroll === 'function') checkScroll(); }, 250);
+                });
+            }
+         }">
+        <div class="border-t border-gray-100 pt-6 w-full block clear-both space-y-4">
 
-            <div class="text-gray-600 w-full block">
-                <h3 class="font-serif text-2xl font-bold text-gray-900 mb-4">Beschreibung</h3>
-                <div class="bg-whitespace-pre-line leading-relaxed break-words text-sm">
-                    {!! nl2br(e($this->product->description)) !!}
+            {{-- Produktbeschreibung (Standardmäßig zugeklappt mit 2-Sätze-Teaser) --}}
+            @if($rawDescription !== '')
+                <div class="bg-gray-50/70 rounded-2xl p-6 border border-gray-100 w-full block transition-all">
+                    <button type="button"
+                            @click="descOpen = !descOpen; refreshLeftScroll()"
+                            class="w-full flex items-center justify-between gap-4 text-left group cursor-pointer">
+                        <h3 class="font-serif text-xl font-bold text-gray-900 group-hover:text-[var(--theme-color)] transition-colors">
+                            Beschreibung
+                        </h3>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--theme-color)] shrink-0">
+                            <span x-text="descOpen ? 'Weniger anzeigen' : 'Weiterlesen'">Weiterlesen</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" :class="descOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </button>
+
+                    {{-- Teaser (erste 2 Sätze) wenn zugeklappt --}}
+                    <div x-show="!descOpen"
+                         @click="descOpen = true; refreshLeftScroll()"
+                         class="mt-3 text-gray-600 text-sm leading-relaxed break-words line-clamp-3 cursor-pointer">
+                        {{ $teaserDescription }}
+                    </div>
+
+                    {{-- Volltext wenn aufgeklappt --}}
+                    <div x-show="descOpen"
+                         x-cloak
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 -translate-y-1"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         class="mt-4 pt-3 border-t border-gray-200/60 text-gray-600 leading-relaxed break-words text-sm whitespace-pre-line">
+                        {!! nl2br(e($rawDescription)) !!}
+                    </div>
                 </div>
-            </div>
+            @endif
 
-            @if(!empty($this->product->attributes))
-                <div class="mt-10 bg-gray-50 rounded-2xl p-8 border border-gray-100 w-full block clear-both">
-                    <h4 class="text-sm font-bold uppercase text-gray-900 mb-6 tracking-wider flex items-center gap-2">
-                        <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        Eigenschaften
-                    </h4>
-                    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5 text-sm w-full">
-                        @foreach($this->product->attributes as $key => $val)
-                            @if(!empty($val))
-                                <div class="flex flex-col border-b border-gray-200 pb-3 sm:border-0 sm:pb-0 w-full">
-                                    <dt class="text-gray-500 mb-1">{{ $key }}</dt>
+            {{-- Eigenschaften (Standardmäßig zugeklappt) --}}
+            @if(!empty($validAttributes))
+                <div class="bg-gray-50/70 rounded-2xl border border-gray-100 w-full block clear-both overflow-hidden transition-all">
+                    <button type="button"
+                            @click="propsOpen = !propsOpen; refreshLeftScroll()"
+                            class="w-full p-5 sm:px-6 flex items-center justify-between gap-4 text-left hover:bg-gray-100/60 transition-colors cursor-pointer group">
+                        <div class="flex items-center gap-2.5">
+                            <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <h4 class="text-sm font-bold uppercase text-gray-900 tracking-wider group-hover:text-[var(--theme-color)] transition-colors">
+                                Eigenschaften
+                            </h4>
+                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white text-gray-500 border border-gray-200">
+                                {{ count($validAttributes) }} Details
+                            </span>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 group-hover:text-[var(--theme-color)] shrink-0 transition-colors">
+                            <span x-text="propsOpen ? 'Ausblenden' : 'Anzeigen'">Anzeigen</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" :class="propsOpen ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </button>
+
+                    <div x-show="propsOpen"
+                         x-cloak
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 -translate-y-1"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         class="px-6 pb-6 pt-2 border-t border-gray-200/60">
+                        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm w-full">
+                            @foreach($validAttributes as $key => $val)
+                                <div class="flex flex-col border-b border-gray-200/70 pb-2.5 sm:border-0 sm:pb-0 w-full">
+                                    <dt class="text-gray-500 text-xs mb-0.5">{{ $key }}</dt>
                                     <dd class="font-bold text-gray-900 break-words">{{ $val }}</dd>
                                 </div>
-                            @endif
-                        @endforeach
-                    </dl>
+                            @endforeach
+                        </dl>
+                    </div>
                 </div>
             @endif
 
         </div>
 
-        {{-- Kundenbewertungen (Desktop Ansicht) --}}
-        <div id="kundenbewertungen-desktop" class="mt-20 scroll-mt-24 w-full block clear-both">
+        {{-- Kundenbewertungen (Desktop Ansicht - rückt durch eingeklappte Details direkt nach oben) --}}
+        <div id="kundenbewertungen-desktop" class="mt-6 scroll-mt-24 w-full block clear-both">
             <livewire:shop.product.product-reviews :product="$product" />
         </div>
     </div>
@@ -221,18 +293,21 @@
         </div>
     </div>
 
-    {{-- Fließender Fade-Übergang unten + pulsierender Scroll-Pfeil (Desktop) --}}
+    {{-- Fließender Fade-Übergang unten + deutlich sichtbarer, kräftiger Scroll-Button (Desktop) --}}
     <div x-show="canScrollDown"
          x-transition.opacity.duration.300ms
-         class="hidden lg:flex pointer-events-none absolute bottom-0 inset-x-0 h-28 bg-gradient-to-t from-white via-white/80 to-transparent z-20 items-end justify-center pb-2.5">
+         class="hidden lg:flex pointer-events-none absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-white via-white/90 to-transparent z-20 items-end justify-center pb-3">
         <button type="button"
                 @click="scrollDownStep()"
                 aria-label="Weiter nach unten scrollen"
                 title="Weiter nach unten scrollen"
-                class="pointer-events-auto group flex items-center justify-center w-9 h-9 rounded-full bg-white/80 hover:bg-white backdrop-blur-xs border border-primary/40 hover:border-primary shadow-xs hover:shadow-md text-primary transition-all duration-300 cursor-pointer animate-pulse hover:animate-none">
-            <svg class="w-4 h-4 translate-y-[0.5px] transition-transform duration-300 group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
+                class="pointer-events-auto group inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white hover:bg-[var(--theme-color)] text-gray-900 hover:text-white border-2 border-[var(--theme-color)] shadow-lg shadow-gray-900/15 hover:shadow-xl transition-all duration-300 cursor-pointer ring-4 ring-white/90">
+            <span class="text-xs font-extrabold uppercase tracking-wider">Mehr Details & Bewertungen</span>
+            <span class="w-7 h-7 rounded-full bg-[var(--theme-color-10)] group-hover:bg-white/20 flex items-center justify-center text-[var(--theme-color)] group-hover:text-white transition-colors">
+                <svg class="w-4 h-4 transition-transform duration-300 group-hover:translate-y-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+            </span>
         </button>
     </div>
 

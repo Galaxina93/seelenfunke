@@ -145,7 +145,14 @@ class ProductFrontendFilterArea extends Component
         }
 
         // Haupt-Query aufbauen
-        $query = Product::where('status', 'active');
+        $query = Product::where('status', 'active')
+            ->with(['categories', 'tierPrices'])
+            ->withCount(['reviews as approved_reviews_count' => function ($q) {
+                $q->where('status', 'approved');
+            }])
+            ->withAvg(['reviews as approved_reviews_avg' => function ($q) {
+                $q->where('status', 'approved');
+            }], 'rating');
 
         // 1. Suche nach Name oder Beschreibung
         if (!empty($this->search)) {

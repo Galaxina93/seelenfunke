@@ -339,34 +339,82 @@
         </div>
     </div>
 
-    <div class="flex lg:hidden flex-col mt-12 w-full clear-both">
-        <div class="border-t border-gray-100 pt-8 w-full block">
-            <h3 class="font-serif text-2xl font-bold text-gray-900 mb-4">Beschreibung</h3>
-            <div class="text-gray-600 text-sm leading-relaxed break-words whitespace-pre-line w-full">
-                {!! nl2br(e($this->product->description)) !!}
-            </div>
+    @php
+        $rawDescriptionMobile = trim((string) $this->product->description);
+        $sentencesMobile = preg_split('/(?<=[.!?])\s+/u', $rawDescriptionMobile, 3, PREG_SPLIT_NO_EMPTY);
+        $teaserDescriptionMobile = isset($sentencesMobile[0], $sentencesMobile[1])
+            ? $sentencesMobile[0] . ' ' . $sentencesMobile[1]
+            : \Illuminate\Support\Str::limit($rawDescriptionMobile, 180);
+        $validAttributesMobile = array_filter($this->product->attributes ?? [], fn($v) => !empty($v));
+    @endphp
+    <div class="flex lg:hidden flex-col mt-10 w-full clear-both"
+         x-data="{ descOpenMobile: false, propsOpenMobile: false }">
+        <div class="border-t border-gray-100 pt-6 w-full block space-y-4">
+            @if($rawDescriptionMobile !== '')
+                <div class="bg-gray-50/70 rounded-2xl p-5 border border-gray-100 w-full">
+                    <button type="button"
+                            @click="descOpenMobile = !descOpenMobile"
+                            class="w-full flex items-center justify-between gap-4 text-left group cursor-pointer">
+                        <h3 class="font-serif text-xl font-bold text-gray-900">Beschreibung</h3>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-[var(--theme-color)] shrink-0">
+                            <span x-text="descOpenMobile ? 'Weniger anzeigen' : 'Weiterlesen'">Weiterlesen</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" :class="descOpenMobile ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </button>
 
-            @if(!empty($this->product->attributes))
-                <div class="mt-10 bg-gray-50 rounded-2xl p-6 sm:p-8 border border-gray-100 w-full">
-                    <h4 class="text-sm font-bold uppercase text-gray-900 mb-6 tracking-wider flex items-center gap-2">
-                        <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        Eigenschaften
-                    </h4>
-                    <dl class="grid grid-cols-1 gap-y-4 text-sm w-full">
-                        @foreach($this->product->attributes as $key => $val)
-                            @if(!empty($val))
-                                <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-200 pb-3 last:border-0 last:pb-0 w-full">
-                                    <dt class="text-gray-500 mb-1 sm:mb-0">{{ $key }}</dt>
+                    <div x-show="!descOpenMobile"
+                         @click="descOpenMobile = true"
+                         class="mt-3 text-gray-600 text-sm leading-relaxed break-words line-clamp-3 cursor-pointer">
+                        {{ $teaserDescriptionMobile }}
+                    </div>
+
+                    <div x-show="descOpenMobile"
+                         x-cloak
+                         class="mt-4 pt-3 border-t border-gray-200/60 text-gray-600 text-sm leading-relaxed break-words whitespace-pre-line w-full">
+                        {!! nl2br(e($rawDescriptionMobile)) !!}
+                    </div>
+                </div>
+            @endif
+
+            @if(!empty($validAttributesMobile))
+                <div class="bg-gray-50/70 rounded-2xl border border-gray-100 w-full overflow-hidden">
+                    <button type="button"
+                            @click="propsOpenMobile = !propsOpenMobile"
+                            class="w-full p-5 flex items-center justify-between gap-4 text-left cursor-pointer">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                            <h4 class="text-sm font-bold uppercase text-gray-900 tracking-wider">Eigenschaften</h4>
+                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-white text-gray-500 border border-gray-200">
+                                {{ count($validAttributesMobile) }} Details
+                            </span>
+                        </div>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 shrink-0">
+                            <span x-text="propsOpenMobile ? 'Ausblenden' : 'Anzeigen'">Anzeigen</span>
+                            <svg class="w-4 h-4 transition-transform duration-300" :class="propsOpenMobile ? 'rotate-180 text-[var(--theme-color)]' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </button>
+
+                    <div x-show="propsOpenMobile"
+                         x-cloak
+                         class="px-5 pb-5 pt-2 border-t border-gray-200/60">
+                        <dl class="grid grid-cols-1 gap-y-3.5 text-sm w-full">
+                            @foreach($validAttributesMobile as $key => $val)
+                                <div class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-200/70 pb-2.5 last:border-0 last:pb-0 w-full">
+                                    <dt class="text-gray-500 text-xs mb-0.5 sm:mb-0">{{ $key }}</dt>
                                     <dd class="font-bold text-gray-900 break-words text-left sm:text-right w-full sm:w-1/2">{{ $val }}</dd>
                                 </div>
-                            @endif
-                        @endforeach
-                    </dl>
+                            @endforeach
+                        </dl>
+                    </div>
                 </div>
             @endif
         </div>
 
-        <div id="kundenbewertungen-mobile" class="mt-16 sm:mt-24 scroll-mt-24 w-full block clear-both">
+        <div id="kundenbewertungen-mobile" class="mt-6 scroll-mt-24 w-full block clear-both">
             <livewire:shop.product.product-reviews :product="$product" />
         </div>
     </div>
