@@ -19,6 +19,10 @@ class ProductConfiguratorSettings extends Component
     // 1. Tutorial-Video Upload
     public $tutorialVideoUpload = null;
 
+    // 1b. Themen-Hintergrundvideos & 3D-Bühnenbilder (Zentrale Verwaltung)
+    public array $themeVideoUploads = [];
+    public array $themeImageUploads = [];
+
     // 2. Symbol-Bibliothek Filter & Ansicht
     public string $selectedCategory = 'all';
     public string $statusFilter = 'all'; // 'all', 'active', 'archived'
@@ -122,6 +126,76 @@ class ProductConfiguratorSettings extends Component
             'tutorial_success',
             $newState ? 'Tutorial-Video ist im Produktkonfigurator wieder sichtbar.' : 'Tutorial-Video wurde im Produktkonfigurator ausgeblendet.'
         );
+    }
+
+    // =========================================================================
+    // KONFIGURATOR-BÜHNENHINTERGRÜNDE & THEMEN-VIDEOS (7 ATMOSPHÄREN)
+    // =========================================================================
+
+    public function pinThemeAnimation(string $themeKey): void
+    {
+        $cfgService = app(\App\Services\ConfiguratorService::class);
+        $themes = $cfgService->getBackgroundThemes();
+        if (!isset($themes[$themeKey])) {
+            return;
+        }
+
+        $current = (string) (\App\Models\System\SystemSetting::where('key', 'manual_active_animation')->value('value') ?? '');
+        $nextVal = ($current === $themeKey) ? '' : $themeKey;
+
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'manual_active_animation'],
+            ['value' => $nextVal]
+        );
+
+        session()->flash(
+            'themes_success',
+            $nextVal !== ''
+                ? "Themen-Welt „{$themes[$themeKey]['label']}“ wurde als aktive Live-Bühne im Konfigurator fixiert."
+                : 'Manuelle Fixierung aufgehoben – Kalender-Automatik (Jahreszeiten & Feiertage) ist wieder aktiv.'
+        );
+    }
+
+    public function updatedThemeVideoUploads($file, $themeKey): void
+    {
+        $cfgService = app(\App\Services\ConfiguratorService::class);
+        $themes = $cfgService->getBackgroundThemes();
+        if (!isset($themes[$themeKey]) || !$file) {
+            return;
+        }
+
+        $this->validate([
+            "themeVideoUploads.{$themeKey}" => 'required|file|mimes:mp4,webm|max:20480',
+        ]);
+
+        $relPath = $themes[$themeKey]['video'];
+        $dir = dirname($relPath);
+        $filename = basename($relPath);
+        $file->storeAs($dir, $filename, 'public');
+        unset($this->themeVideoUploads[$themeKey]);
+
+        session()->flash('themes_success', "Hintergrund-Video für „{$themes[$themeKey]['label']}“ erfolgreich aktualisiert!");
+    }
+
+    public function updatedThemeImageUploads($file, $themeKey): void
+    {
+        $cfgService = app(\App\Services\ConfiguratorService::class);
+        $themes = $cfgService->getBackgroundThemes();
+        if (!isset($themes[$themeKey]) || !$file) {
+            return;
+        }
+
+        $this->validate([
+            "themeImageUploads.{$themeKey}" => 'required|image|mimes:jpg,jpeg,png,webp|max:10240',
+        ]);
+
+        $relPath = $themes[$themeKey]['image'];
+        $dir = dirname($relPath);
+        $filename = basename($relPath);
+        $file->storeAs($dir, $filename, 'public');
+        unset($this->themeImageUploads[$themeKey]);
+
+        session()->flash('themes_success', "3D-Bühnenbild für „{$themes[$themeKey]['label']}“ erfolgreich aktualisiert!");
     }
 
     // =========================================================================
@@ -310,12 +384,20 @@ class ProductConfiguratorSettings extends Component
             $this->statusFilter
         );
 
+        $cfgService = app(\App\Services\ConfiguratorService::class);
+        $backgroundThemes = $cfgService->getBackgroundThemes();
+        $currentActiveTheme = $cfgService->getCurrentActiveTheme();
+        $manualAnimKey = (string) (\App\Models\System\SystemSetting::where('key', 'manual_active_animation')->value('value') ?? '');
+
         return view('livewire.shop.product.product-configurator-settings', [
-            'tutorialConfig' => $tutorialConfig,
-            'categories'     => $vectorsData['categories'],
-            'categoryCounts' => $vectorsData['category_counts'],
-            'symbols'        => $vectorsData['items'],
-            'symbolStats'    => $vectorsData['stats'],
+            'tutorialConfig'     => $tutorialConfig,
+            'backgroundThemes'   => $backgroundThemes,
+            'currentActiveTheme' => $currentActiveTheme,
+            'manualAnimKey'      => $manualAnimKey,
+            'categories'         => $vectorsData['categories'],
+            'categoryCounts'     => $vectorsData['category_counts'],
+            'symbols'            => $vectorsData['items'],
+            'symbolStats'        => $vectorsData['stats'],
         ]);
     }
 }

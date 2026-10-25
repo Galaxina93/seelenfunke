@@ -11,7 +11,7 @@
                 </span>
             </div>
             <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">
-                Verwalte das Konfigurator-Anleitungsvideo sowie die gesamte Symbol- & Gravurmotiv-Bibliothek an einem zentralen Ort.
+                Verwalte das Konfigurator-Anleitungsvideo, die animierten 3D-Bühnenhintergründe & Kaminfeuer-/Jahreszeiten-Videos sowie die gesamte Symbol- & Gravurmotiv-Bibliothek an einem zentralen Ort.
             </p>
         </div>
         <div class="relative z-10 flex flex-wrap gap-3">
@@ -193,7 +193,124 @@
     </div>
 
     {{-- ========================================================================= --}}
-    {{-- 2. SYMBOL-BIBLIOTHEK VERWALTUNG (MINIMALISTISCH, KLAR & ÜBERSICHTLICH)    --}}
+    {{-- 2. KONFIGURATOR-BÜHNENHINTERGRÜNDE & ANIMIERTE THEMEN-VIDEOS (.MP4 / .JPG) --}}
+    {{-- ========================================================================= --}}
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl space-y-6">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
+            <div>
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
+                        <x-heroicon-o-film class="w-6 h-6 text-[var(--theme-color)]" />
+                        Konfigurator-Hintergrundvideos & 3D-Bühnenbilder (Jahreszeiten & Feiertage)
+                    </h2>
+                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        Aktuell im Konfigurator: {{ $currentActiveTheme['theme']['icon'] ?? '✨' }} {{ $currentActiveTheme['theme']['label'] ?? 'Manufaktur' }} ({{ $currentActiveTheme['event_name'] ?? 'Automatisch' }})
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Diese kurzen, nahtlos geloopten <strong>.mp4 Videos</strong> (z. B. brodelndes Kaminfeuer, Schneefall, Herbstlaub) und hochauflösenden <strong>3D-Bühnenbilder (.jpg)</strong> laufen automatisch im Hintergrund der 2D- & 3D-Produktkonfiguration ab. Du kannst hier jede Themen-Welt live betrachten, per Klick sofort im Shop aktivieren oder eigene Dateien hinterlegen.
+                </p>
+            </div>
+
+            @if(!empty($manualAnimKey))
+                <button type="button"
+                        wire:click="pinThemeAnimation('{{ $manualAnimKey }}')"
+                        class="px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0">
+                    <x-heroicon-o-arrow-path class="w-4 h-4" />
+                    <span>Auf Kalender-Automatik zurücksetzen</span>
+                </button>
+            @endif
+        </div>
+
+        @if(session()->has('themes_success'))
+            <div class="px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <x-heroicon-m-check-circle class="w-4 h-4 shrink-0 text-emerald-500" />
+                <span>{{ session('themes_success') }}</span>
+            </div>
+        @endif
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            @foreach($backgroundThemes ?? [] as $tKey => $theme)
+                @php
+                    $isCurrentlyActive = ($currentActiveTheme['theme_key'] ?? 'standard') === $tKey;
+                    $isManuallyPinned = ($manualAnimKey ?? '') === $tKey;
+                    $vDisk = storage_path('app/public/' . $theme['video']);
+                    $iDisk = storage_path('app/public/' . $theme['image']);
+                    $vSizeKb = is_file($vDisk) ? round(filesize($vDisk) / 1024, 1) : 0;
+                    $iSizeKb = is_file($iDisk) ? round(filesize($iDisk) / 1024, 1) : 0;
+                    $vUrl = asset('storage/' . $theme['video']) . (is_file($vDisk) ? '?v=' . filemtime($vDisk) : '');
+                    $iUrl = asset('storage/' . $theme['image']) . (is_file($iDisk) ? '?v=' . filemtime($iDisk) : '');
+                @endphp
+                <div wire:key="cfg-theme-card-{{ $tKey }}"
+                     class="rounded-3xl border p-4 flex flex-col justify-between transition-all {{ $isCurrentlyActive ? 'bg-[var(--theme-color-10)] border-2 border-[var(--theme-color)] shadow-[0_0_25px_var(--theme-color-20)]' : 'bg-gray-50/70 dark:bg-gray-950/60 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
+
+                    <div>
+                        {{-- Kopfzeile --}}
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="text-xl leading-none">{{ $theme['icon'] }}</span>
+                                <div class="min-w-0">
+                                    <h3 class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $theme['label'] }}</h3>
+                                    <p class="text-[10px] text-gray-500 dark:text-gray-400 truncate">{{ $theme['holiday'] }}</p>
+                                </div>
+                            </div>
+                            @if($isCurrentlyActive)
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color)] text-gray-900 shrink-0">
+                                    {{ $isManuallyPinned ? 'Fixiert' : 'Aktiv' }}
+                                </span>
+                            @endif
+                        </div>
+
+                        {{-- Live Video-Bühnenvorschau (mit Poster = 3D Hintergrundbild) --}}
+                        <div class="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-950 mb-3 group/vid">
+                            <video key="{{ $vUrl }}"
+                                   src="{{ $vUrl }}"
+                                   poster="{{ $iUrl }}"
+                                   x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
+                                   autoplay
+                                   loop
+                                   muted
+                                   playsinline
+                                   class="w-full h-full object-cover"></video>
+                            <div class="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-1.5 px-2.5 py-1 rounded-xl bg-gray-950/80 backdrop-blur-md border border-white/10 text-[9px] font-mono text-gray-200">
+                                <span class="truncate">🎬 {{ basename($theme['video']) }} ({{ $vSizeKb }} KB)</span>
+                                <span class="text-amber-400 shrink-0">🖼 {{ $iSizeKb }} KB</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Aktionen: Aktivieren + Video/Bild ersetzen --}}
+                    <div class="space-y-2 pt-2 border-t border-gray-200/70 dark:border-gray-800">
+                        <button type="button"
+                                wire:click="pinThemeAnimation('{{ $tKey }}')"
+                                class="w-full py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 {{ $isCurrentlyActive ? 'bg-[var(--theme-color)] text-gray-900 shadow-xs' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)]' }}">
+                            @if($isManuallyPinned)
+                                <span>✓ Als aktive Shop-Bühne fixiert (Lösen)</span>
+                            @elseif($isCurrentlyActive)
+                                <span>✓ Aktuell aktiv (Per Klick fixieren)</span>
+                            @else
+                                <span>Jetzt im Konfigurator aktivieren</span>
+                            @endif
+                        </button>
+
+                        <div class="grid grid-cols-2 gap-1.5">
+                            <label class="cursor-pointer py-1.5 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] text-[9px] font-bold text-center text-gray-600 dark:text-gray-400 hover:text-[var(--theme-color)] transition-colors">
+                                Video (.mp4) ändern
+                                <input type="file" wire:model.live="themeVideoUploads.{{ $tKey }}" accept="video/mp4,video/webm" class="hidden">
+                            </label>
+                            <label class="cursor-pointer py-1.5 px-2 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] text-[9px] font-bold text-center text-gray-600 dark:text-gray-400 hover:text-[var(--theme-color)] transition-colors">
+                                Bild (.jpg) ändern
+                                <input type="file" wire:model.live="themeImageUploads.{{ $tKey }}" accept="image/jpeg,image/png,image/webp" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
+    {{-- ========================================================================= --}}
+    {{-- 3. SYMBOL-BIBLIOTHEK VERWALTUNG (MINIMALISTISCH, KLAR & ÜBERSICHTLICH)    --}}
     {{-- ========================================================================= --}}
     @php
         $currentSymbolLayout = in_array($layoutMode ?? 'medium', ['small', 'medium', 'large', 'table'], true) ? $layoutMode : 'medium';

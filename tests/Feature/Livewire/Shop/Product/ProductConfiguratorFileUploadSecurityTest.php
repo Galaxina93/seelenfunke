@@ -408,4 +408,41 @@ class ProductConfiguratorFileUploadSecurityTest extends TestCase
             $this->assertStringNotContainsString('..', $file);
         }
     }
+
+    #[Test]
+    public function save_edited_logo_processes_image_and_blocks_unauthorized_paths()
+    {
+        $file = UploadedFile::fake()->image('original.png', 100, 100);
+
+        $component = Livewire::test(ProductConfigurator::class, [
+            'product' => $this->product,
+        ]);
+
+        $component->set('new_files', [$file]);
+        $uploaded = $component->get('uploaded_files');
+        $this->assertCount(1, $uploaded);
+        $oldPath = $uploaded[0];
+
+        // Create a valid 20x20 PNG base64 string
+        $im = imagecreatetruecolor(20, 20);
+        $black = imagecolorallocate($im, 10, 10, 10);
+        imagefill($im, 0, 0, $black);
+        ob_start();
+        imagepng($im);
+        $pngBytes = ob_get_clean();
+        imagedestroy($im);
+        $base64Png = 'data:image/png;base64,' . base64_encode($pngBytes);
+
+        // 1. Unauthorized path (not in uploaded_files) must be rejected
+        $component->call('saveEditedLogo', 'bestellungen/cart-uploads/other.png', $base64Png);
+        $this->assertSame([$oldPath], $component->get('uploaded_files'));
+
+        // 2. Valid uploaded file is updated, laser-processed, and old file removed
+        $component->call('saveEditedLogo', $oldPath, $base64Png);
+        $updatedFiles = $component->get('uploaded_files');
+        $this->assertCount(1, $updatedFiles);
+        $this->assertNotSame($oldPath, $updatedFiles[0]);
+        Storage::disk('public')->assertExists($updatedFiles[0]);
+        Storage::disk('public')->assertMissing($oldPath);
+    }
 }

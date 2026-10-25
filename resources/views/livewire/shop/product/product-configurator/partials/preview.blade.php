@@ -4,7 +4,7 @@
      x-ref="stage">
 
     {{-- OBERE BEDIENLEISTE (2D / 3D TOGGLE) --}}
-    <div x-show="config.modelPath" class="mt-4 mb-3 sm:mb-4 flex flex-wrap items-center justify-center gap-2.5 relative z-50">
+    <div x-show="config.modelPath" class="mt-4 mb-3 sm:mb-4 flex justify-center relative z-50">
         {{-- KUNDEN TOGGLE 2D / 3D --}}
         <div class="p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
             <button type="button" @click="showDrawingBoard = true" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
@@ -94,22 +94,24 @@
     <div class="relative overflow-hidden border-[6px] group transition-[border-color,box-shadow,background-color] duration-200 {{ $isDark ? 'bg-gray-900 border-gray-800 ring-1 ring-gray-700' : 'bg-white border-white ring-1 ring-gray-100' }}"
          :class="isMaximized ? 'shadow-2xl rounded-2xl' : 'w-full max-w-[455px] md:max-w-[600px] aspect-square shadow-[0_10px_40px_rgba(0,0,0,0.08)]'"
          :style="isMaximized
-             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (((!showDrawingBoard || !config.fallbackImg || hasTransparentOverlay || config.area_shape === 'custom') && activeBgImage) ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
-             : (((!showDrawingBoard || !config.fallbackImg || hasTransparentOverlay || config.area_shape === 'custom') && activeBgImage) ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
+             ? 'width: min(92vw, min(62vh, 680px)); height: min(92vw, min(62vh, 680px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (activeBgImage ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
+             : (activeBgImage ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
          x-ref="container"
          @mousedown="deselectAll($event)"
          @touchstart="deselectAll($event)">
 
-        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D, bei Cutout-Overlays wie Seelenanhänger im Hintergrund hinter dem Produkt) --}}
+        {{-- AUTOMATISCHES JAHRESZEITEN- & FEIERTAGS-HINTERGRUNDVIDEO (2D & 3D im Hintergrund hinter dem Produkt) --}}
         <template x-if="activeBgVideo && videoEnabled && !isCapturing">
             <video x-ref="bgVideo"
+                   :key="activeBgVideo"
                    :src="activeBgVideo"
+                   x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
+                   x-effect="if (activeBgVideo && videoEnabled) { $el.muted = true; $el.play().catch(() => {}); }"
                    autoplay
                    loop
                    muted
                    playsinline
-                   class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none transition-opacity duration-500"
-                   :class="(showDrawingBoard && !hasTransparentOverlay) ? 'z-[18] opacity-55' : 'z-[5] opacity-90'"></video>
+                   class="absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-500 z-[5] opacity-95"></video>
         </template>
 
         {{-- UNDO / REDO CONTROLS (ZURÜCK / VOR) - OBEN LINKS AUF GLEICHER EBENE WIE MAXIMAL --}}
@@ -187,8 +189,8 @@
         {{-- 2D Ansicht & Zeichenbrett --}}
         <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full pointer-events-auto">
 
-            <template x-if="config.fallbackImg">
-                <img :src="config.fallbackImg" class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
+            <template x-if="activeOverlayImg || config.fallbackImg">
+                <img :src="activeOverlayImg || config.fallbackImg" class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
             </template>
 
             <div x-show="!isCapturing" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
@@ -208,16 +210,16 @@
             </div>
 
             {{-- Hilfslinien fürs Snapping --}}
-            <div x-show="showGuideX && !isCapturing" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" style="left: 50%; z-index: 23;"></div>
-            <div x-show="showGuideY && !isCapturing" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" style="top: 50%; z-index: 23;"></div>
+            <div x-show="showGuideX && !isCapturing" class="absolute top-0 bottom-0 border-l border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'left: ' + areaCenterX + '%; z-index: 23;'"></div>
+            <div x-show="showGuideY && !isCapturing" class="absolute left-0 right-0 border-t border-primary/60 border-dashed pointer-events-none transition-opacity" :style="'top: ' + areaCenterY + '%; z-index: 23;'"></div>
 
             {{-- CLIP-CONTAINER FÜR ELEMENTE --}}
             <div class="absolute z-[25] overflow-hidden pointer-events-none transition-all duration-300"
                  :style="`
-                        top: ${config.area_shape === 'custom' ? 0 : config.area_top || 0}%;
-                        left: ${config.area_shape === 'custom' ? 0 : config.area_left || 0}%;
-                        width: ${config.area_shape === 'custom' ? 100 : config.area_width || 100}%;
-                        height: ${config.area_shape === 'custom' ? 100 : config.area_height || 100}%;
+                        top: ${config.area_shape === 'custom' ? 0 : (config.area_top ?? 0)}%;
+                        left: ${config.area_shape === 'custom' ? 0 : (config.area_left ?? 0)}%;
+                        width: ${config.area_shape === 'custom' ? 100 : (config.area_width || 100)}%;
+                        height: ${config.area_shape === 'custom' ? 100 : (config.area_height || 100)}%;
                         border-radius: ${config.area_shape === 'circle' ? '50%' : '0'};
                         clip-path: ${
                             config.area_shape === 'custom' && config.custom_points && config.custom_points.length > 0
@@ -237,8 +239,8 @@
                 <template x-for="(textItem,index) in currentTexts" :key="'content-text-' + activeSide + '-' + (textItem.id || index)">
                     <div x-show="currentTexts[index] !== undefined" class="absolute touch-none pointer-events-auto group/item"
                          :style="currentTexts[index] ? `
-                            left: ${config.area_shape === 'custom' ? (currentTexts[index].x || 50) : ((currentTexts[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
-                            top: ${config.area_shape === 'custom' ? (currentTexts[index].y || 50) : ((currentTexts[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                            left: ${config.area_shape === 'custom' ? (currentTexts[index].x ?? areaCenterX) : ((currentTexts[index].x ?? areaCenterX)-(config.area_left ?? 0))/(config.area_width || 100)* 100}%;
+                            top: ${config.area_shape === 'custom' ? (currentTexts[index].y ?? areaCenterY) : ((currentTexts[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             transform-origin: ${currentTexts[index].align==='left'?'0% 50%':(currentTexts[index].align==='right'?'100% 50%':'50% 50%')};
                             transform: translate(${currentTexts[index].align==='left'?'0%':(currentTexts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${currentTexts[index].rotation || 0}deg);
                             z-index: ${selectedIndex===index?100:10}
@@ -318,8 +320,8 @@
                 <template x-for="(logoItem,index) in currentLogos" :key="'content-logo-' + activeSide + '-' + (logoItem.id || index)">
                     <div x-show="currentLogos[index] !== undefined" class="absolute touch-none pointer-events-auto group/item"
                          :style="currentLogos[index] ? `
-                            left: ${config.area_shape === 'custom' ? (currentLogos[index].x || 50) : ((currentLogos[index].x || 50)-(config.area_left || 0))/(config.area_width || 100)* 100}%;
-                            top: ${config.area_shape === 'custom' ? (currentLogos[index].y || 50) : ((currentLogos[index].y || 50)-(config.area_top || 0))/(config.area_height || 100)* 100}%;
+                            left: ${config.area_shape === 'custom' ? (currentLogos[index].x ?? areaCenterX) : ((currentLogos[index].x ?? areaCenterX)-(config.area_left ?? 0))/(config.area_width || 100)* 100}%;
+                            top: ${config.area_shape === 'custom' ? (currentLogos[index].y ?? areaCenterY) : ((currentLogos[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             width: ${((currentLogos[index].size || 100) * scaleFactor)}px;
                             transform: translate(-50%,-50%) rotate(${currentLogos[index].rotation || 0}deg);
                             z-index: ${selectedIndex===index?100:10}
@@ -431,9 +433,9 @@
                         <span class="text-[9px] font-black uppercase tracking-widest mt-1">Format</span>
                     </button>
                     <div x-show="showAlignMenu" @click.outside="showAlignMenu = false" class="absolute bottom-[calc(100%+12px)] left-1/2 -translate-x-1/2 rounded-2xl shadow-2xl border p-2 z-[100] flex gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-                        <button @click="currentTexts[selectedIndex].align = 'left'; showAlignMenu = false; updateTexture(); recordHistory()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
-                        <button @click="currentTexts[selectedIndex].align = 'center'; showAlignMenu = false; updateTexture(); recordHistory()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
-                        <button @click="currentTexts[selectedIndex].align = 'right'; showAlignMenu = false; updateTexture(); recordHistory()" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
+                        <button @click="setTextAlign('left')" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M3.75 12h10.5m-10.5 5.25h16.5" /></svg></button>
+                        <button @click="setTextAlign('center')" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M7.5 12h9m-9 5.25h9" /></svg></button>
+                        <button @click="setTextAlign('right')" class="p-3 rounded-xl hover:text-primary transition-colors {{ $isDark ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-50 text-gray-500' }}"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3.75 6.75h16.5M10.5 12h9.75m-16.5 5.25h16.5" /></svg></button>
                     </div>
                 </div>
             </div>

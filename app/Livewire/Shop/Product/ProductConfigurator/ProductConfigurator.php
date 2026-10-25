@@ -488,7 +488,6 @@ class ProductConfigurator extends Component
         }
     }
 
-    // ... (applyLaserEffect und save() bleiben identisch)
     protected function applyLaserEffect($filePath, $extension)
     {
         $image = null;
@@ -507,14 +506,18 @@ class ProductConfigurator extends Component
 
         if (!$image) return null;
 
+        if (function_exists('imagepalettetotruecolor')) {
+            @imagepalettetotruecolor($image);
+        }
+
         $width = imagesx($image);
         $height = imagesy($image);
 
         $maxDim = 800;
         if ($width > $maxDim || $height > $maxDim) {
             $ratio = min($maxDim / $width, $maxDim / $height);
-            $newW = (int)($width * $ratio);
-            $newH = (int)($height * $ratio);
+            $newW = max(1, (int)($width * $ratio));
+            $newH = max(1, (int)($height * $ratio));
             $resizedImage = imagecreatetruecolor($newW, $newH);
             imagealphablending($resizedImage, false);
             imagesavealpha($resizedImage, true);
@@ -534,26 +537,31 @@ class ProductConfigurator extends Component
         $transparent = imagecolorallocatealpha($laserImage, 0, 0, 0, 127);
         imagefill($laserImage, 0, 0, $transparent);
 
+        // Pre-allocate Alpha-Lookup-Table (0..127), spart bis zu 640.000 Funktionsaufrufe pro Bild
+        $alphaLut = [];
+        for ($a = 0; $a <= 127; $a++) {
+            $alphaLut[$a] = imagecolorallocatealpha($laserImage, 0, 0, 0, $a);
+        }
+
         for ($x = 0; $x < $width; $x++) {
             for ($y = 0; $y < $height; $y++) {
                 $color = imagecolorat($image, $x, $y);
-                $colors = imagecolorsforindex($image, $color);
 
-                $alpha = $colors['alpha'];
-                if ($alpha == 127) {
+                $alpha = ($color >> 24) & 0x7F;
+                if ($alpha === 127) {
                     continue;
                 }
 
-                $luminance = ($colors['red'] * 0.299) + ($colors['green'] * 0.587) + ($colors['blue'] * 0.114);
+                $r = ($color >> 16) & 0xFF;
+                $g = ($color >> 8) & 0xFF;
+                $b = $color & 0xFF;
+
+                $luminance = ($r * 0.299) + ($g * 0.587) + ($b * 0.114);
                 $engravingIntensity = 255 - $luminance;
                 $targetAlpha = 127 - ($engravingIntensity / 2);
-                $finalAlpha = max($alpha, $targetAlpha);
+                $finalAlpha = (int) max(0, min(127, max($alpha, $targetAlpha)));
 
-                // FIX: XCS benötigt "Schwarz" (#000000) für eine saubere Vektorgravur.
-                // Weiß (#FFFFFF) wird als "unsichtbar" gewertet.
-                $laserColor = imagecolorallocatealpha($laserImage, 0, 0, 0, (int)$finalAlpha);
-
-                imagesetpixel($laserImage, $x, $y, $laserColor);
+                imagesetpixel($laserImage, $x, $y, $alphaLut[$finalAlpha]);
             }
         }
 
@@ -571,6 +579,102 @@ class ProductConfigurator extends Component
         imagedestroy($laserImage);
 
         return basename($newPath);
+    }
+
+    public function saveEditedLogo(string $oldValue, string $base64Data): ?array
+    {
+        if ($this->context === 'preview') {
+            return null;
+        }
+
+        try {
+            $this->rateLimit(20, 60);
+        } catch (TooManyRequestsException $e) {
+            return null;
+        }
+
+        $oldValue = trim($oldValue);
+        if ($oldValue === '' || str_contains($oldValue, '..') || str_contains($oldValue, "\0") || !str_starts_with($oldValue, 'bestellungen/cart-uploads/')) {
+            return null;
+        }
+
+        if (!in_array($oldValue, $this->uploaded_files ?? [], true)) {
+            return null;
+        }
+
+        if (strlen($base64Data) > 10 * 1024 * 1024) {
+            return null;
+        }
+
+        $parts = explode(',', $base64Data, 2);
+        $rawBase64 = count($parts) === 2 ? $parts[1] : $parts[0];
+        $decoded = base64_decode($rawBase64, true);
+        if ($decoded === false || strlen($decoded) === 0) {
+            return null;
+        }
+
+        $imageInfo = @getimagesizefromstring($decoded);
+        if (!$imageInfo || !in_array($imageInfo[2], [IMAGETYPE_PNG, IMAGETYPE_JPEG, IMAGETYPE_WEBP], true)) {
+            return null;
+        }
+
+        if ($imageInfo[0] <= 0 || $imageInfo[1] <= 0 || $imageInfo[0] > 10000 || $imageInfo[1] > 10000) {
+            return null;
+        }
+
+        $extMap = [
+            IMAGETYPE_PNG  => 'png',
+            IMAGETYPE_JPEG => 'jpg',
+            IMAGETYPE_WEBP => 'webp',
+        ];
+        $ext = $extMap[$imageInfo[2]] ?? 'png';
+        $safeUuid = (string) Str::uuid();
+        $tempRelPath = 'bestellungen/cart-uploads/' . $safeUuid . '.' . $ext;
+
+        Storage::disk('public')->put($tempRelPath, $decoded);
+        $fullTempPath = Storage::disk('public')->path($tempRelPath);
+
+        $newFileName = $this->applyLaserEffect($fullTempPath, $ext);
+        if (!$newFileName) {
+            if (Storage::disk('public')->exists($tempRelPath)) {
+                Storage::disk('public')->delete($tempRelPath);
+            }
+            return null;
+        }
+
+        $finalPath = 'bestellungen/cart-uploads/' . $newFileName;
+        $finalUrl = asset('storage/' . $finalPath);
+
+        foreach ($this->uploaded_files as $idx => $uf) {
+            if ($uf === $oldValue) {
+                $this->uploaded_files[$idx] = $finalPath;
+            }
+        }
+
+        foreach ($this->logos as &$l) {
+            if (($l['value'] ?? '') === $oldValue) {
+                $l['value'] = $finalPath;
+                $l['url'] = $finalUrl;
+            }
+        }
+        unset($l);
+
+        foreach ($this->logos_back as &$lb) {
+            if (($lb['value'] ?? '') === $oldValue) {
+                $lb['value'] = $finalPath;
+                $lb['url'] = $finalUrl;
+            }
+        }
+        unset($lb);
+
+        if ($oldValue !== $finalPath && Storage::disk('public')->exists($oldValue)) {
+            Storage::disk('public')->delete($oldValue);
+        }
+
+        return [
+            'value' => $finalPath,
+            'url'   => $finalUrl,
+        ];
     }
 
     protected function validatePdfFile(string $filePath): bool
@@ -655,14 +759,20 @@ class ProductConfigurator extends Component
 
     public function sanitizeLaserText(?string $text): string
     {
-        if (empty($text)) {
+        if ($text === null || $text === '') {
             return '';
         }
 
         // Emojis & farbige Sonderzeichen entfernen, die vom Laser (z. B. XCS) nicht graviert werden können
-        $cleaned = preg_replace('/[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F700}-\x{1F77F}\x{1F780}-\x{1F7FF}\x{1F800}-\x{1F8FF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FAFF}\x{1F1E0}-\x{1F1FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{2300}-\x{23FF}\x{2B00}-\x{2BFF}\x{200C}-\x{200D}\x{20E3}\x{FE00}-\x{FE0F}]/u', '', $text);
+        $cleaned = preg_replace('/(\p{Extended_Pictographic}|\p{Emoji_Presentation}|[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F700}-\x{1F77F}\x{1F780}-\x{1F7FF}\x{1F800}-\x{1F8FF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FAFF}\x{1F1E0}-\x{1F1FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{2300}-\x{23FF}\x{2B00}-\x{2BFF}\x{200C}-\x{200D}\x{20E3}\x{FE00}-\x{FE0F}])/u', '', $text);
 
-        return trim($cleaned ?? $text);
+        $result = $cleaned ?? $text;
+        if (trim($result) === '') {
+            return '';
+        }
+
+        // Bei mehrzeiligem Text bewusste führende Leerzeichen (Einrückungen) erhalten, nur am Ende trimmen
+        return str_contains($result, "\n") ? rtrim($result, " \t\r\n") : trim($result);
     }
 
     public function save(CartService $cartService, $snapshotPath = null)

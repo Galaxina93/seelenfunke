@@ -853,19 +853,67 @@ class ProductCreate extends Component
         }
     }
 
-    // NEU: Hintergrund Upload Logik
+    // NEU: Hintergrund Upload Logik (unterstützt Bilder .jpg/.png/.webp UND Videos .mp4/.webm inkl. automatischem Poster-Frame für 3D-Reflexionen)
     public function updatedNew3dBackground()
     {
-        $this->validate(['new_3d_background' => 'image|mimes:jpg,jpeg,png,webp|max:10240']);
+        $this->validate(['new_3d_background' => 'required|file|mimes:jpg,jpeg,png,webp,mp4,webm|max:20480']);
         $folder = 'produkte/products/' . ($this->product->slug ?? 'draft') . '/configurator';
 
-        if ($this->product->three_d_background_path) {
+        $originalName = basename((string) $this->new_3d_background->getClientOriginalName());
+        $ext = strtolower((string) $this->new_3d_background->getClientOriginalExtension());
+        $isVideo = in_array($ext, ['mp4', 'webm'], true);
+
+        if ($isVideo) {
+            if (!empty($this->configSettings['background_video_path']) && str_contains($this->configSettings['background_video_path'], '/configurator/')) {
+                Storage::disk('public')->delete($this->configSettings['background_video_path']);
+            }
+
+            $safeExt = $ext;
+            $baseSlug = Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'bgvid';
+            $filename = time() . '_bgvid_' . $baseSlug . '.' . $safeExt;
+            $videoPath = $this->new_3d_background->storeAs($folder, $filename, 'public');
+
+            $this->configSettings['background_video_path'] = $videoPath;
+            $this->configSettings['enable_background_video'] = true;
+
+            // Automatisch 1. Frame als hochauflösendes .jpg Poster extrahieren, damit WebGL Environment-Reflexionen & Snapshots ohne Nachteil funktionieren
+            $absVideoPath = Storage::disk('public')->path($videoPath);
+            $posterRelPath = $folder . '/' . time() . '_bg_' . $baseSlug . '_poster.jpg';
+            $absPosterPath = Storage::disk('public')->path($posterRelPath);
+
+            if (is_executable('/usr/bin/ffmpeg')) {
+                $cmd = sprintf(
+                    '/usr/bin/ffmpeg -y -loglevel error -i %s -frames:v 1 -q:v 3 %s 2>&1',
+                    escapeshellarg($absVideoPath),
+                    escapeshellarg($absPosterPath)
+                );
+                @exec($cmd);
+            }
+
+            if (is_file($absPosterPath) && filesize($absPosterPath) > 0) {
+                if ($this->product->three_d_background_path && str_contains($this->product->three_d_background_path, '/configurator/')) {
+                    Storage::disk('public')->delete($this->product->three_d_background_path);
+                }
+                $this->product->three_d_background_path = $posterRelPath;
+            }
+
+            $this->product->configurator_settings = $this->configSettings;
+            $this->product->save();
+            $this->product->refresh();
+            $this->new_3d_background = null;
+
+            $videoUrl = asset('storage/' . $videoPath);
+            $bgUrl = $this->product->three_d_background_path ? asset('storage/' . $this->product->three_d_background_path) : '';
+            $this->dispatch('3d-bg-updated', url: $bgUrl);
+            $this->dispatch('3d-theme-video-updated', videoUrl: $videoUrl, imageUrl: $bgUrl, theme: 'custom');
+            session()->flash('success', '3D Hintergrund-Video (inkl. WebGL-Reflexionsbild) erfolgreich hochgeladen!');
+            return;
+        }
+
+        if ($this->product->three_d_background_path && str_contains($this->product->three_d_background_path, '/configurator/')) {
             Storage::disk('public')->delete($this->product->three_d_background_path);
         }
 
-        // Originalen Dateinamen verwenden (mit strikter Extension-Whitelist auf public Disk)
-        $originalName = basename((string) $this->new_3d_background->getClientOriginalName());
-        $ext = strtolower((string) $this->new_3d_background->getClientOriginalExtension());
         $safeExt = in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true) ? $ext : 'jpg';
         $filename = time() . '_bg_' . (Str::slug(pathinfo($originalName, PATHINFO_FILENAME)) ?: 'bg') . '.' . $safeExt;
 
@@ -876,7 +924,7 @@ class ProductCreate extends Component
         $this->new_3d_background = null;
 
         $this->dispatch('3d-bg-updated', url: asset('storage/' . $path));
-        session()->flash('success', 'Hintergrund erfolgreich hochgeladen!');
+        session()->flash('success', '3D Hintergrund erfolgreich hochgeladen!');
     }
 
     public function remove3dBackground()
@@ -967,6 +1015,15 @@ class ProductCreate extends Component
         $imageUrl = !empty($activeTheme['image'])
             ? asset('storage/' . $activeTheme['image'])
             : ($this->product->three_d_background_path ? asset('storage/' . $this->product->three_d_background_path) : '');
+
+        if ($this->product->preview_image_path) {
+            $themedOverlayRel = dirname($this->product->preview_image_path) . '/overlay_' . $themeKey . '.png';
+            if (Storage::disk('public')->exists($themedOverlayRel)) {
+                $this->dispatch('2d-preview-updated', url: asset('storage/' . $themedOverlayRel) . '?v=' . time());
+            } else {
+                $this->dispatch('2d-preview-updated', url: asset('storage/' . $this->product->preview_image_path));
+            }
+        }
 
         $this->dispatch('3d-theme-video-updated', videoUrl: $videoUrl, imageUrl: $imageUrl, theme: $themeKey);
     }

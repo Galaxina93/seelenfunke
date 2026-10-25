@@ -28,6 +28,8 @@
             this.textureCtxBack = null;
             this.textureBack = null;
 
+            this._logoImageCache = new Map();
+            this._disposed = false;
             this.isReady = false;
         }
 
@@ -82,9 +84,14 @@
             fillLight.position.set(-10, 5, 10);
             this.scene.add(fillLight);
 
-            const backLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
-            backLight.position.set(0, 10, -10);
+            // Symmetrische Ausleuchtung der Rückseite (-Z), damit Rückseiten-Ansicht & Snapshots genauso brillant ausgeleuchtet sind wie die Vorderseite
+            const backLight = new window.THREE.DirectionalLight(0xffffff, 2.5);
+            backLight.position.set(-10, 10, -10);
             this.scene.add(backLight);
+
+            const backFillLight = new window.THREE.DirectionalLight(0xffffff, 2.0);
+            backFillLight.position.set(10, 5, -10);
+            this.scene.add(backFillLight);
 
             this.controls = new window.OrbitControls(this.camera, this.renderer.domElement);
             this.controls.enableDamping = true;
@@ -92,19 +99,7 @@
             this.controls.enablePan = false;
             this.controls.maxPolarAngle = Math.PI / 1.6;
 
-            if(this.bgPath) {
-                const loader = new window.THREE.TextureLoader();
-                loader.load(this.bgPath, (t) => {
-                    t.mapping = window.THREE.EquirectangularReflectionMapping;
-                    this._envTexture = t;
-                    // Transparente WebGL-Szene, damit das scharfe CSS-Hintergrundbild & Themen-Video sichtbar sind
-                    this.scene.background = null;
-                    // HDRI Environment sorgt weiterhin für realistische Spiegelungen im Glas/Metall
-                    if (!isMobile) {
-                        this.scene.environment = t;
-                    }
-                });
-            }
+            this.updateBackground(this.bgPath);
 
             const texSize = isMobile ? 512 : 2048;
 
@@ -187,6 +182,110 @@
                     if(onLoadedCallback) onLoadedCallback();
                 }
             );
+        }
+
+        updateBackground(newBgPath) {
+            if (!newBgPath) return;
+            this.bgPath = newBgPath;
+            const isMobile = window.innerWidth < 768;
+
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                this._bgImageElement = img;
+            };
+            img.src = newBgPath;
+
+            if (window.THREE && window.THREE.TextureLoader) {
+                const loader = new window.THREE.TextureLoader();
+                loader.setCrossOrigin('anonymous');
+                loader.load(newBgPath, (t) => {
+                    if (this._disposed) {
+                        t.dispose();
+                        return;
+                    }
+                    t.mapping = window.THREE.EquirectangularReflectionMapping;
+                    if (this._envTexture && this._envTexture !== t && typeof this._envTexture.dispose === 'function') {
+                        this._envTexture.dispose();
+                    }
+                    this._envTexture = t;
+                    if (t.image) {
+                        this._bgImageElement = t.image;
+                    }
+                    if (this.scene) {
+                        this.scene.background = null;
+                        if (!isMobile) {
+                            this.scene.environment = t;
+                        }
+                    }
+                });
+            }
+        }
+
+        captureCompositeSnapshot(bgVideoEl = null) {
+            if (!this.renderer || !this.scene || !this.camera) return null;
+
+            const prevSceneBg = this.scene.background;
+            this.scene.background = null;
+            this.renderer.render(this.scene, this.camera);
+
+            const glCanvas = this.renderer.domElement;
+            const w = glCanvas.width || 800;
+            const h = glCanvas.height || 800;
+
+            try {
+                const compCanvas = document.createElement('canvas');
+                compCanvas.width = w;
+                compCanvas.height = h;
+                const ctx = compCanvas.getContext('2d');
+
+                if (ctx) {
+                    ctx.fillStyle = '#18130f';
+                    ctx.fillRect(0, 0, w, h);
+
+                    const drawCover = (source, sw, sh) => {
+                        if (!sw || !sh) return false;
+                        const scale = Math.max(w / sw, h / sh);
+                        const dw = sw * scale;
+                        const dh = sh * scale;
+                        const dx = (w - dw) / 2;
+                        const dy = (h - dh) / 2;
+                        ctx.drawImage(source, dx, dy, dw, dh);
+                        return true;
+                    };
+
+                    let drewBg = false;
+                    if (bgVideoEl && bgVideoEl.readyState >= 2 && bgVideoEl.videoWidth > 0) {
+                        drewBg = drawCover(bgVideoEl, bgVideoEl.videoWidth, bgVideoEl.videoHeight);
+                    }
+                    if (!drewBg && this._bgImageElement && (this._bgImageElement.naturalWidth || this._bgImageElement.width)) {
+                        drewBg = drawCover(
+                            this._bgImageElement,
+                            this._bgImageElement.naturalWidth || this._bgImageElement.width,
+                            this._bgImageElement.naturalHeight || this._bgImageElement.height
+                        );
+                    }
+
+                    if (drewBg) {
+                        ctx.drawImage(glCanvas, 0, 0, w, h);
+                        this.scene.background = prevSceneBg;
+                        return compCanvas.toDataURL('image/jpeg', 0.88);
+                    }
+                }
+            } catch (e) {
+                console.warn('Composite 2D snapshot fallback:', e);
+            }
+
+            // Fallback: Direkt über Three.js Scene-Background rendern (für Vorder- UND Rückseite)
+            if (this._envTexture) {
+                this.scene.background = this._envTexture;
+            } else {
+                this.scene.background = new window.THREE.Color('#18130f');
+            }
+            this.renderer.render(this.scene, this.camera);
+            const dataUrl = glCanvas.toDataURL('image/jpeg', 0.88);
+            this.scene.background = prevSceneBg;
+            return dataUrl;
         }
 
         updateOverlayGeometry() {
@@ -430,36 +529,58 @@
                     c.clip();
                 };
 
+                const drawSingleLogo = (img, logo) => {
+                    if (!img || !img.width || !img.height) return;
+                    ctx.save();
+                    applyClipping(ctx);
+                    ctx.translate(toPx(logo.x ?? 50), toPx(logo.y ?? 50));
+                    ctx.rotate((logo.rotation || 0) * Math.PI / 180);
+
+                    const scale = ((logo.size || 100) / 500) * cw;
+                    const aspect = img.width / img.height;
+                    const drawW = scale;
+                    const drawH = scale / aspect;
+
+                    // VISUELLER FILTER: Macht alle eingefügten Logos optisch weiß/silber für die "Lasergravur-Optik"
+                    // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
+                    if (this.config.material_type === 'metal') {
+                        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                        ctx.shadowBlur = cw <= 1024 ? 3 : 6;
+                    }
+                    ctx.filter = 'brightness(0) invert(1) opacity(0.92)';
+                    ctx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
+                    ctx.filter = 'none';
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                };
+
                 if(logos) {
                     logos.forEach(logo => {
-                        const img = new Image();
-                        img.crossOrigin = 'anonymous';
-                        img.src = logo.url;
-                        img.onload = () => {
-                            ctx.save();
-                            applyClipping(ctx);
-                            ctx.translate(toPx(logo.x || 50), toPx(logo.y || 50));
-                            ctx.rotate((logo.rotation || 0) * Math.PI / 180);
-
-                            const scale = ((logo.size || 100) / 500) * cw;
-                            const aspect = img.width / img.height;
-                            const drawW = scale;
-                            const drawH = scale / aspect;
-
-                            // VISUELLER FILTER: Macht alle eingefügten Logos optisch weiß/silber für die "Lasergravur-Optik"
-                            // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
-                            if (this.config.material_type === 'metal') {
-                                ctx.shadowColor = 'rgba(0,0,0,0.6)';
-                                ctx.shadowBlur = cw <= 1024 ? 3 : 6;
+                        if (!logo || !logo.url) return;
+                        const cached = this._logoImageCache ? this._logoImageCache.get(logo.url) : null;
+                        if (cached && cached.complete && cached.naturalWidth > 0) {
+                            // Synchron vor den Texten zeichnen -> konstante Z-Order ohne Flackern
+                            drawSingleLogo(cached, logo);
+                        } else if (!cached) {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            if (this._logoImageCache) {
+                                if (this._logoImageCache.size > 60) {
+                                    const firstKey = this._logoImageCache.keys().next().value;
+                                    this._logoImageCache.delete(firstKey);
+                                }
+                                this._logoImageCache.set(logo.url, img);
                             }
-                            ctx.filter = 'brightness(0) invert(1) opacity(0.92)';
-                            ctx.drawImage(img, -drawW/2, -drawH/2, drawW, drawH);
-                            ctx.filter = 'none'; // Filter zurücksetzen für andere Operationen
-                            ctx.shadowBlur = 0;
-
-                            ctx.restore();
-                            if(textureObj) textureObj.needsUpdate = true;
-                        };
+                            img.onload = () => {
+                                if (this._disposed) return;
+                                // Nach erstem Laden einmal komplett in korrekter Ebenen-Reihenfolge (Logos -> Texte) neu zeichnen
+                                this.renderBothCanvases(textsFront, logosFront, textsBack, logosBack, fontMap);
+                            };
+                            img.onerror = () => {
+                                if (this._logoImageCache) this._logoImageCache.delete(logo.url);
+                            };
+                            img.src = logo.url;
+                        }
                     });
                 }
 
@@ -470,7 +591,7 @@
                         ctx.save();
                         applyClipping(ctx);
 
-                        ctx.translate(toPx(item.x || 50), toPx(item.y || 50));
+                        ctx.translate(toPx(item.x ?? 50), toPx(item.y ?? 50));
                         ctx.rotate((item.rotation || 0) * Math.PI / 180);
 
                         const fontSize = (item.size || 1) * (cw / 25);
@@ -601,18 +722,66 @@
         }
 
         animate() {
+            if (this._disposed) {
+                this._isAnimating = false;
+                return;
+            }
             if (this.configurator && this.configurator.showDrawingBoard && !this._isRotatingToSide) {
                 this._isAnimating = false;
                 return;
             }
 
             this._isAnimating = true;
-            requestAnimationFrame(() => this.animate());
+            this._animFrameId = requestAnimationFrame(() => this.animate());
 
             if (this.controls) this.controls.update();
             if (this.renderer && this.scene && this.camera) {
                 this.renderer.render(this.scene, this.camera);
             }
+        }
+
+        dispose() {
+            this._disposed = true;
+            this._isAnimating = false;
+            if (this._animFrameId) {
+                cancelAnimationFrame(this._animFrameId);
+                this._animFrameId = null;
+            }
+            if (this._rotationAnimationId) {
+                cancelAnimationFrame(this._rotationAnimationId);
+                this._rotationAnimationId = null;
+            }
+            if (this._logoImageCache) {
+                this._logoImageCache.clear();
+            }
+            if (this.textureFront && typeof this.textureFront.dispose === 'function') this.textureFront.dispose();
+            if (this.textureBack && typeof this.textureBack.dispose === 'function') this.textureBack.dispose();
+            if (this._envTexture && typeof this._envTexture.dispose === 'function') this._envTexture.dispose();
+            if (this.scene) {
+                this.scene.traverse((obj) => {
+                    if (obj.geometry && typeof obj.geometry.dispose === 'function') obj.geometry.dispose();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) {
+                            obj.material.forEach(m => m && typeof m.dispose === 'function' && m.dispose());
+                        } else if (typeof obj.material.dispose === 'function') {
+                            obj.material.dispose();
+                        }
+                    }
+                });
+            }
+            if (this.controls && typeof this.controls.dispose === 'function') {
+                this.controls.dispose();
+            }
+            if (this.renderer) {
+                if (typeof this.renderer.dispose === 'function') this.renderer.dispose();
+                if (this.renderer.domElement && this.renderer.domElement.parentNode) {
+                    this.renderer.domElement.parentNode.removeChild(this.renderer.domElement);
+                }
+            }
+            this.scene = null;
+            this.camera = null;
+            this.renderer = null;
+            this.controls = null;
         }
     };
 </script>

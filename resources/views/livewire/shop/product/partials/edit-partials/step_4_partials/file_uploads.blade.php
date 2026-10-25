@@ -1,4 +1,4 @@
-<div class="space-y-6">
+<div class="space-y-6" x-data="{ previewModal: { open: false, url: '', type: 'image', title: '', sub: '' } }" @keydown.escape.window="previewModal.open = false">
     {{-- VORLAGE-PAKET & THEMEN-HINTERGRUNDVIDEOS --}}
     @php
         $cfgService = app(\App\Services\ConfiguratorService::class);
@@ -17,10 +17,11 @@
             $vSize = (int) @filesize($vAbs);
             $videoMeta = [
                 'size' => $vSize >= 1048576 ? number_format($vSize / 1048576, 2, ',', '.') . ' MB' : number_format($vSize / 1024, 1, ',', '.') . ' KB',
-                'format' => 'H.264 MP4 (960 × 640 px, 30 FPS Loop)',
+                'format' => 'H.264 MP4 (720 × 720 px, 30 FPS Loop)',
                 'modified' => date('d.m.Y H:i', (int) @filemtime($vAbs)),
                 'path' => 'public/' . $activeVideoRelPath,
                 'rel_path' => $activeVideoRelPath,
+                'url' => asset('storage/' . $activeVideoRelPath) . '?v=' . @filemtime($vAbs),
             ];
         }
     @endphp
@@ -116,7 +117,16 @@
                     @endif
                 </div>
 
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    @if($videoMeta)
+                        <button type="button"
+                                @click="previewModal = { open: true, url: '{{ $videoMeta['url'] }}', type: 'video', title: 'Hintergrund-Video Vorschau ({{ !empty($configSettings['background_video_path']) ? 'Eigenes Video' : $activeThemeObj['label'] }})', sub: '{{ $videoMeta['path'] }} • {{ $videoMeta['size'] }} • {{ $videoMeta['format'] }}' }"
+                                class="px-3.5 py-2.5 text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-white bg-white dark:bg-gray-950 border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner flex items-center gap-1.5 cursor-pointer"
+                                title="Aktives Hintergrund-Video in der Vorschau abspielen">
+                            <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <span>Vorschau</span>
+                        </button>
+                    @endif
                     @if(!empty($configSettings['background_video_path']))
                         <button type="button" wire:click="removeBackgroundVideo" class="p-2.5 text-gray-500 hover:text-red-500 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Eigenes Video entfernen (Standard-Themenvideos nutzen)">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
@@ -191,9 +201,25 @@
                 </div>
             @endif
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-3">
             @if($product->preview_image_path)
-                <button wire:click="removePreviewImage" class="p-3 text-gray-500 hover:text-red-500 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Löschen">
+                @php
+                    $previewOverlayUrl = asset('storage/' . $product->preview_image_path) . ($previewMeta ? '?v=' . @filemtime(\Illuminate\Support\Facades\Storage::disk('public')->path($product->preview_image_path)) : '');
+                    if ($activeThemeKey !== 'standard') {
+                        $seasonalOverlayRel = dirname($product->preview_image_path) . '/overlay_' . $activeThemeKey . '.png';
+                        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($seasonalOverlayRel)) {
+                            $previewOverlayUrl = asset('storage/' . $seasonalOverlayRel) . '?v=' . @filemtime(\Illuminate\Support\Facades\Storage::disk('public')->path($seasonalOverlayRel));
+                        }
+                    }
+                @endphp
+                <button type="button"
+                        @click="previewModal = { open: true, url: '{{ $previewOverlayUrl }}', type: 'overlay', title: '2D Vorschau Overlay (PNG) – {{ $activeThemeObj['label'] }}', sub: '{{ $previewMeta['path'] ?? ('public/' . $product->preview_image_path) }}{{ !empty($previewMeta['dims']) ? ' • ' . $previewMeta['dims'] : '' }}{{ !empty($previewMeta['size']) ? ' • ' . $previewMeta['size'] : '' }}' }"
+                        class="px-4 py-3.5 text-gray-700 dark:text-gray-200 hover:text-[var(--theme-color)] bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner flex items-center gap-2 cursor-pointer"
+                        title="2D Vorschau Overlay (PNG) im Vollbild betrachten">
+                    <svg class="w-4 h-4 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <span>Vorschau</span>
+                </button>
+                <button type="button" wire:click="removePreviewImage" class="p-3 text-gray-500 hover:text-red-500 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Löschen">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                 </button>
             @endif
@@ -347,8 +373,8 @@
     <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-6 sm:p-8 bg-purple-500/5 dark:bg-purple-900/10 backdrop-blur-md rounded-[2rem] border border-purple-200 dark:border-purple-500/20 shadow-inner relative overflow-visible group hover:border-purple-300 dark:hover:border-purple-500/40 transition-colors">
         <div class="hidden dark:block absolute right-0 top-0 w-32 h-32 bg-purple-500/10 rounded-full blur-[50px] -mr-10 -mt-10 pointer-events-none"></div>
         <div class="flex-1 relative z-10">
-            <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400 mb-2 dark:drop-shadow-[0_0_8px_currentColor]">3D Hintergrund (.jpg/.png)</label>
-            <p class="text-xs text-purple-950/60 dark:text-purple-200/50 mb-3 font-medium">Wird als echter CSS Hintergrund geladen.</p>
+            <label class="block text-[10px] font-black uppercase tracking-[0.2em] text-purple-600 dark:text-purple-400 mb-2 dark:drop-shadow-[0_0_8px_currentColor]">3D Hintergrund (.jpg/.png & .mp4 Video)</label>
+            <p class="text-xs text-purple-950/60 dark:text-purple-200/50 mb-3 font-medium">Wird als hochauflösender Bühnen-Hintergrund & WebGL-Reflexion geladen (unterstützt Bilder & kurze Loop-Videos).</p>
             @if($product->three_d_background_path)
                 <div class="mt-3 flex flex-col gap-1.5">
                     <span class="text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 dark:drop-shadow-[0_0_8px_currentColor]">
@@ -390,19 +416,66 @@
                 </div>
             @endif
         </div>
-        <div class="flex items-center gap-4 relative z-10">
+        <div class="flex flex-wrap items-center gap-3 relative z-10">
             @if($product->three_d_background_path)
-                <button wire:click="remove3dBackground" class="p-3 text-gray-500 hover:text-red-500 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                @php
+                    $threeDBgPreviewUrl = asset('storage/' . $product->three_d_background_path) . ($bgMeta ? '?v=' . @filemtime(\Illuminate\Support\Facades\Storage::disk('public')->path($product->three_d_background_path)) : '');
+                @endphp
+                <button type="button"
+                        @click="previewModal = { open: true, url: '{{ $threeDBgPreviewUrl }}', type: 'image', title: '3D Hintergrund Vorschau', sub: '{{ $bgMeta['path'] ?? ('public/' . $product->three_d_background_path) }}{{ !empty($bgMeta['dims']) ? ' • ' . $bgMeta['dims'] : '' }}{{ !empty($bgMeta['size']) ? ' • ' . $bgMeta['size'] : '' }}' }"
+                        class="px-4 py-3.5 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-white bg-white dark:bg-gray-950 border border-purple-200 dark:border-purple-500/30 hover:border-purple-400 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-inner flex items-center gap-2 cursor-pointer"
+                        title="3D Hintergrundbild im Vollbild betrachten">
+                    <svg class="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <span>Vorschau</span>
+                </button>
+                <button type="button" wire:click="remove3dBackground" class="p-3 text-gray-500 hover:text-red-500 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-red-500/30 rounded-xl transition-all shadow-inner" title="Löschen"><svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
             @endif
             <div class="flex-shrink-0 relative">
                 <label class="cursor-pointer bg-purple-50 dark:bg-purple-600/20 border border-purple-200 dark:border-purple-500/30 hover:bg-purple-100 dark:hover:bg-purple-500/30 text-purple-700 dark:text-purple-300 hover:text-purple-900 dark:hover:text-white px-6 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-inner transition-all block" :class="{'opacity-50 pointer-events-none': isUploading}">
-                    {{ $product->three_d_background_path ? 'Ersetzen' : 'Hochladen' }}
-                    <input type="file" wire:model.live="new_3d_background" accept="image/jpeg, image/png" class="hidden">
+                    {{ $product->three_d_background_path ? 'Ersetzen (.jpg/.png/.mp4)' : 'Hochladen (.jpg/.png/.mp4)' }}
+                    <input type="file" wire:model.live="new_3d_background" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" class="hidden">
                 </label>
             </div>
         </div>
     </div>
     @endif
+
+    {{-- VORSCHAU LIGHTBOX MODAL FÜR 2D OVERLAY, 3D HINTERGRUND & HINTERGRUND-VIDEOS --}}
+    <template x-if="previewModal.open">
+        <div class="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-gray-950/80 backdrop-blur-md"
+             @click.self="previewModal.open = false">
+            <div class="relative w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl overflow-hidden animate-fade-in-up">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                    <div class="min-w-0 pr-4">
+                        <h4 class="text-sm font-serif font-bold text-gray-900 dark:text-white truncate" x-text="previewModal.title"></h4>
+                        <p class="text-[10px] font-mono text-gray-500 dark:text-gray-400 truncate mt-0.5" x-text="previewModal.sub"></p>
+                    </div>
+                    <button type="button"
+                            @click="previewModal.open = false"
+                            class="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="p-6 flex items-center justify-center bg-gray-100 dark:bg-gray-950">
+                    <div class="relative w-full max-w-[520px] aspect-square rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-inner flex items-center justify-center"
+                         :style="previewModal.type === 'overlay' ? 'background-image: linear-gradient(45deg, rgba(156,163,175,0.18) 25%, transparent 25%), linear-gradient(-45deg, rgba(156,163,175,0.18) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(156,163,175,0.18) 75%), linear-gradient(-45deg, transparent 75%, rgba(156,163,175,0.18) 75%); background-size: 24px 24px; background-position: 0 0, 0 12px, 12px -12px, -12px 0;' : ''">
+                        <template x-if="previewModal.type === 'video'">
+                            <video :src="previewModal.url" autoplay loop muted playsinline controls class="w-full h-full object-cover"></video>
+                        </template>
+                        <template x-if="previewModal.type !== 'video'">
+                            <img :src="previewModal.url" class="w-full h-full object-contain" alt="Vorschau">
+                        </template>
+                    </div>
+                </div>
+
+                <div class="px-6 py-3.5 bg-gray-50 dark:bg-gray-900/90 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400" x-text="previewModal.type === 'overlay' ? 'Transparenter Alpha-Cutout (Schachbrett = Transparent)' : (previewModal.type === 'video' ? 'Endlosschleife (Loop aktiv)' : 'Hochauflösender 3D Bühnen-Hintergrund')"></span>
+                    <a :href="previewModal.url" target="_blank" rel="noopener" class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] hover:underline">In neuem Tab öffnen &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </template>
 
     <div x-show="isUploading" style="display: none;" class="p-6 bg-white/90 dark:bg-gray-900/80 backdrop-blur-md rounded-[2rem] border border-gray-200 dark:border-gray-800 text-center shadow-inner">
         <svg class="animate-spin h-8 w-8 text-[var(--theme-color)] mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

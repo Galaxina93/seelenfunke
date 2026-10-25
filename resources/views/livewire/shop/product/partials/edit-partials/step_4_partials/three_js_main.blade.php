@@ -5,6 +5,26 @@
     $adminResolvedModelUrl = ($adminGlbDiskPath && is_file($adminGlbDiskPath))
         ? asset('storage/' . ltrim($product->three_d_model_path, '/')) . '?v=' . filemtime($adminGlbDiskPath)
         : '';
+
+    $adminBgRel = $product?->three_d_background_path ?: '';
+    $adminBgDisk = $adminBgRel ? storage_path('app/public/' . ltrim($adminBgRel, '/')) : null;
+    $adminResolvedBgUrl = ($adminBgDisk && is_file($adminBgDisk))
+        ? asset('storage/' . ltrim($adminBgRel, '/')) . '?v=' . filemtime($adminBgDisk)
+        : '';
+
+    $adminVidRel = !empty($configSettings['background_video_path'])
+        ? $configSettings['background_video_path']
+        : ('produkte/configurator-presets/videos/' . ($configSettings['default_background_theme'] ?? 'standard') . '.mp4');
+    $adminVidDisk = storage_path('app/public/' . ltrim($adminVidRel, '/'));
+    $adminResolvedVidUrl = is_file($adminVidDisk)
+        ? asset('storage/' . ltrim($adminVidRel, '/')) . '?v=' . filemtime($adminVidDisk)
+        : asset('storage/' . ltrim($adminVidRel, '/'));
+
+    $adminFallbackRel = $product?->preview_image_path ?: '';
+    $adminFallbackDisk = $adminFallbackRel ? storage_path('app/public/' . ltrim($adminFallbackRel, '/')) : null;
+    $adminResolvedFallbackUrl = ($adminFallbackDisk && is_file($adminFallbackDisk))
+        ? asset('storage/' . ltrim($adminFallbackRel, '/')) . '?v=' . filemtime($adminFallbackDisk)
+        : '';
 @endphp
 x-data="(()=>{
 return {
@@ -14,9 +34,9 @@ isRaycasting: false,
 transformTarget: 'none',
 transformMode: 'translate',
 modelPath: '{{ $adminResolvedModelUrl }}',
-bgPath: '{{ !empty($product?->three_d_background_path) ? asset("storage/" . $product->three_d_background_path) : "" }}',
-bgVideoUrl: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/" . $configSettings["background_video_path"]) : asset("storage/produkte/configurator-presets/videos/" . ($configSettings["default_background_theme"] ?? "standard") . ".mp4") }}',
-fallbackImg: '{{ $product?->preview_image_path ? asset("storage/" . $product->preview_image_path) : "" }}',
+bgPath: '{{ $adminResolvedBgUrl }}',
+bgVideoUrl: '{{ $adminResolvedVidUrl }}',
+fallbackImg: '{{ $adminResolvedFallbackUrl }}',
 configSettings: @entangle('configSettings'),
 
 activeSide: 'front',
@@ -178,7 +198,7 @@ const loader = new window.THREE.TextureLoader();
 loader.load(this.bgPath, (t) => {
 t.mapping = window.THREE.EquirectangularReflectionMapping;
 eng.scene.environment = t;
-eng.scene.background = t;
+eng.scene.background = null;
 });
 }
 

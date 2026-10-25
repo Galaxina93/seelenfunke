@@ -7,11 +7,19 @@
     {{-- DIE VORSCHAU-KACHEL (3D / 2D) --}}
     <div class="relative w-full aspect-square rounded-[2.5rem] overflow-hidden shadow-inner border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-950 shrink-0"
          @mousedown="addPoint($event)"
-         :style="((!showDrawingBoard || !fallbackImg || configSettings.area_shape === 'custom') && bgPath) ? `background-image: url('${bgPath}'); background-size: cover; background-position: center;` : ''">
+         :style="bgPath ? `background-image: url('${bgPath}'); background-size: cover; background-position: center;` : ''">
 
-        {{-- ANIMIERTES THEMEN-HINTERGRUNDVIDEO (2D & 3D, bei Cutout-Overlays im Hintergrund hinter dem Produkt) --}}
+        {{-- ANIMIERTES THEMEN-HINTERGRUNDVIDEO (2D & 3D im Hintergrund hinter dem Produkt) --}}
         <template x-if="bgVideoUrl && (configSettings.enable_background_video !== false)">
-            <video x-ref="adminBgVideo" :src="bgVideoUrl" autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover mix-blend-screen pointer-events-none" :class="(showDrawingBoard && configSettings.area_shape !== 'custom') ? 'z-[25] opacity-55' : 'z-[5] opacity-90'"></video>
+            <video x-ref="adminBgVideo"
+                   :key="bgVideoUrl"
+                   :src="bgVideoUrl"
+                   x-init="$el.muted = true; $el.defaultMuted = true; $el.play().catch(() => {})"
+                   autoplay
+                   loop
+                   muted
+                   playsinline
+                   class="absolute inset-0 w-full h-full object-cover pointer-events-none z-[5] opacity-95"></video>
         </template>
 
         {{-- LADEBILDSCHIRM FÜR RAYCASTING --}}

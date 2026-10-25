@@ -87,6 +87,33 @@
             get currentTexts() { return this.activeSide === 'front' ? this.texts : this.texts_back; },
             get currentLogos() { return this.activeSide === 'front' ? this.logos : this.logos_back; },
 
+            get areaCenterX() {
+                if (this.config && this.config.area_shape === 'custom') {
+                    const pts = this.config.custom_points || [];
+                    if (pts.length > 0) {
+                        const xs = pts.map(p => Number(p.x ?? 50));
+                        return (Math.min(...xs) + Math.max(...xs)) / 2;
+                    }
+                    return 50;
+                }
+                const left = Number(this.config?.area_left ?? 0);
+                const width = Number(this.config?.area_width ?? 100);
+                return left + (width / 2);
+            },
+            get areaCenterY() {
+                if (this.config && this.config.area_shape === 'custom') {
+                    const pts = this.config.custom_points || [];
+                    if (pts.length > 0) {
+                        const ys = pts.map(p => Number(p.y ?? 50));
+                        return (Math.min(...ys) + Math.max(...ys)) / 2;
+                    }
+                    return 50;
+                }
+                const top = Number(this.config?.area_top ?? 0);
+                const height = Number(this.config?.area_height ?? 100);
+                return top + (height / 2);
+            },
+
             get activeThemeObj() {
                 const themes = (this.config && this.config.themes) ? this.config.themes : {};
                 const key = this.backgroundTheme || 'standard';
@@ -105,6 +132,12 @@
                 }
                 return (this.config && this.config.bgPath) ? this.config.bgPath : ((this.activeThemeObj && this.activeThemeObj.imageUrl) ? this.activeThemeObj.imageUrl : '');
             },
+            get activeOverlayImg() {
+                if (this.activeThemeObj && this.activeThemeObj.overlayUrl) {
+                    return this.activeThemeObj.overlayUrl;
+                }
+                return (this.config && this.config.fallbackImg) ? this.config.fallbackImg : '';
+            },
             setBackgroundTheme(themeKey) {
                 this.backgroundTheme = themeKey;
                 this.$nextTick(() => {
@@ -113,11 +146,17 @@
                         vid.load();
                         vid.play().catch(() => {});
                     }
+                    const engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                    if (engine && typeof engine.updateBackground === 'function' && this.activeBgImage) {
+                        engine.updateBackground(this.activeBgImage);
+                    }
+                    this.analyzeOverlayContrast(this.activeOverlayImg);
                 });
             },
 
-            analyzeOverlayContrast() {
-                if (!this.config || !this.config.fallbackImg) return;
+            analyzeOverlayContrast(overrideUrl = null) {
+                const targetUrl = overrideUrl || this.activeOverlayImg || (this.config ? this.config.fallbackImg : '');
+                if (!targetUrl) return;
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
@@ -166,7 +205,7 @@
                         // Fallback auf Server-Analyse
                     }
                 };
-                img.src = this.config.fallbackImg;
+                img.src = targetUrl;
             },
 
             toggleNotice(val = null) {
@@ -218,28 +257,31 @@
                     detail: { showNotice: this.showNotice, videoEnabled: this.videoEnabled }
                 }));
 
-                window.addEventListener('cart-updated', () => {
+                this._onCartUpdated = () => {
                     this.saved = true;
                     setTimeout(() => { this.saved = false; }, 15000);
-                });
+                };
+                window.addEventListener('cart-updated', this._onCartUpdated);
 
-                window.addEventListener('toggle-configurator-hints', (e) => {
+                this._onToggleHints = (e) => {
                     if (e.detail && typeof e.detail.show !== 'undefined') {
                         this.toggleNotice(Boolean(e.detail.show));
                     } else {
                         this.toggleNotice();
                     }
-                });
+                };
+                window.addEventListener('toggle-configurator-hints', this._onToggleHints);
 
-                window.addEventListener('toggle-configurator-animation', (e) => {
+                this._onToggleAnim = (e) => {
                     if (e.detail && typeof e.detail.enable !== 'undefined') {
                         this.toggleAnimation(Boolean(e.detail.enable));
                     } else {
                         this.toggleAnimation();
                     }
-                });
+                };
+                window.addEventListener('toggle-configurator-animation', this._onToggleAnim);
 
-                const cleanupFullscreen = () => {
+                this._cleanupFullscreen = () => {
                     try {
                         document.body.style.overflow = '';
                         document.documentElement.classList.remove('configurator-fullscreen-active');
@@ -260,17 +302,16 @@
                     } catch(e) {}
                 };
 
-                window.addEventListener('beforeunload', cleanupFullscreen);
-                document.addEventListener('livewire:navigating', cleanupFullscreen);
+                window.addEventListener('beforeunload', this._cleanupFullscreen);
+                document.addEventListener('livewire:navigating', this._cleanupFullscreen);
 
                 if(typeof this.config.area_left === 'undefined') this.config.area_left = 10;
                 if(typeof this.config.area_top === 'undefined') this.config.area_top = 10;
                 if(typeof this.config.area_width === 'undefined') this.config.area_width = 80;
                 if(typeof this.config.area_height === 'undefined') this.config.area_height = 80;
 
-                const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
-                this.hasSavedDesign = localStorage.getItem(storageKey) !== null;
                 this.draftExists = localStorage.getItem(this.storageDraftKey) !== null;
+                this.hasSavedDesign = this.draftExists;
 
                 this.analyzeOverlayContrast();
 
@@ -291,7 +332,7 @@
 
                     const startConfigurator = () => {
                         if (this.config.modelPath) {
-                            this.$refs.container3d._engine = new window.Configurator3DEngine(this, this.$refs.container3d, this.config.modelPath, this.config.bgPath, this.config);
+                            this.$refs.container3d._engine = new window.Configurator3DEngine(this, this.$refs.container3d, this.config.modelPath, this.activeBgImage || this.config.bgPath, this.config);
 
                             const forceStart3D = () => {
                                 if (this.modelLoaded || this.isInitializing) return;
@@ -373,6 +414,21 @@
                         this.scheduleDebouncedHistory();
                     }, {deep: true});
 
+                    this.$watch('backgroundTheme', () => {
+                        this.$nextTick(() => {
+                            const vid = this.$refs.bgVideo;
+                            if (vid && this.activeBgVideo) {
+                                vid.load();
+                                vid.play().catch(() => {});
+                            }
+                            let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
+                            if (engine && typeof engine.updateBackground === 'function' && this.activeBgImage) {
+                                engine.updateBackground(this.activeBgImage);
+                            }
+                            this.analyzeOverlayContrast(this.activeOverlayImg);
+                        });
+                    });
+
                     this.$watch('activeSide', (val) => {
                         this.selectedType = null;
                         this.selectedIndex = null;
@@ -387,24 +443,26 @@
                         }
                         this.updateTexture();
 
-                        if (this.showDrawingBoard) {
-                            this.$nextTick(() => {
-                                setTimeout(() => { this.updateScaleFactor(); }, 50);
-                            });
-                        }
+                        this.$nextTick(() => {
+                            this.refitAllTextareas();
+                            setTimeout(() => {
+                                this.updateScaleFactor(null, true);
+                            }, 50);
+                        });
                     });
 
-                    window.addEventListener('resize', () => {
+                    this._onResize = () => {
                         this.onWindowResize();
                         let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
                         if(engine) engine.resize();
-                    });
+                    };
+                    window.addEventListener('resize', this._onResize);
 
                     if(this.texts && this.texts.length > 0) this.selectItem('text', 0);
                     else if (this.logos && this.logos.length > 0) this.selectItem('logo', 0);
 
                     document.fonts.ready.then(() => {
-                        this.updateScaleFactor();
+                        this.updateScaleFactor(null, true);
                         const initialUpdate = () => {
                             if (window.requestIdleCallback) {
                                 window.requestIdleCallback(() => {
@@ -424,9 +482,15 @@
 
                 this.$watch('showDrawingBoard', (value) => {
                     if (value === true) {
-                        setTimeout(() => {
-                            this.updateScaleFactor();
-                        }, 50);
+                        this.$nextTick(() => {
+                            this.updateScaleFactor(null, true);
+                            requestAnimationFrame(() => {
+                                this.updateScaleFactor(null, true);
+                            });
+                            setTimeout(() => {
+                                this.updateScaleFactor(null, true);
+                            }, 60);
+                        });
                     } else {
                         setTimeout(() => {
                             let engine = this.$refs.container3d ? this.$refs.container3d._engine : null;
@@ -449,8 +513,32 @@
                 });
             },
 
+            destroy() {
+                if (this._onCartUpdated) window.removeEventListener('cart-updated', this._onCartUpdated);
+                if (this._onToggleHints) window.removeEventListener('toggle-configurator-hints', this._onToggleHints);
+                if (this._onToggleAnim) window.removeEventListener('toggle-configurator-animation', this._onToggleAnim);
+                if (this._onResize) window.removeEventListener('resize', this._onResize);
+                if (this._cleanupFullscreen) {
+                    this._cleanupFullscreen();
+                    window.removeEventListener('beforeunload', this._cleanupFullscreen);
+                    document.removeEventListener('livewire:navigating', this._cleanupFullscreen);
+                }
+                if (this._resizeObserver) {
+                    this._resizeObserver.disconnect();
+                    this._resizeObserver = null;
+                }
+                if (this.fileRobotInstance) {
+                    this.closeImageEditor();
+                }
+                const engine = this.$refs && this.$refs.container3d ? this.$refs.container3d._engine : null;
+                if (engine && typeof engine.dispose === 'function') {
+                    engine.dispose();
+                    this.$refs.container3d._engine = null;
+                }
+            },
+
             addFallbackText() {
-                const newItem = {id: Math.random().toString(36).substr(2, 9), text: 'Neuer Text', size: 1, x: 50, y: 50, rotation: 0, align: 'center', font: 'Arial'};
+                const newItem = {id: Math.random().toString(36).substr(2, 9), text: 'Neuer Text', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'};
                 if (this.activeSide === 'front') {
                     this.texts.push(newItem);
                     this.selectItem('text', this.texts.length - 1);
@@ -463,23 +551,7 @@
             },
 
             saveDesign() {
-                const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
-
-                const designData = {
-                    texts: JSON.parse(JSON.stringify(this.texts)),
-                    logos: JSON.parse(JSON.stringify(this.logos)),
-                    texts_back: JSON.parse(JSON.stringify(this.texts_back)),
-                    logos_back: JSON.parse(JSON.stringify(this.logos_back))
-                };
-
-                try {
-                    localStorage.setItem(storageKey, JSON.stringify(designData));
-                    this.hasSavedDesign = true;
-                    this.triggerMessage('Design erfolgreich in deinem Browser gesichert!');
-                } catch (e) {
-                    console.error("Konnte nicht speichern:", e);
-                    this.triggerMessage('Fehler beim Speichern. Ist der private Modus aktiv?');
-                }
+                this.saveDraft();
             },
 
             toggleTab(tab) {
@@ -527,8 +599,11 @@
                             if (Array.isArray(draft.uploaded_files)) this.$wire.restoreDraftFiles(draft.uploaded_files);
                         }
 
-                        this.updateTexture();
-                        this.recordHistory();
+                        this.$nextTick(() => {
+                            this.updateScaleFactor(null, true);
+                            this.updateTexture();
+                            this.recordHistory(true);
+                        });
 
                         this.isDraftLoading = true;
                         setTimeout(() => { this.isDraftLoading = false; }, 2500);
@@ -662,15 +737,17 @@
                                         }
 
                                         engine.controls.update();
-                                        const prevSceneBg = engine.scene.background;
-                                        if (engine._envTexture) {
-                                            engine.scene.background = engine._envTexture;
+                                        if (typeof engine.captureCompositeSnapshot === 'function') {
+                                            snapshotBase64 = engine.captureCompositeSnapshot(this.$refs.bgVideo);
+                                        } else {
+                                            const prevSceneBg = engine.scene.background;
+                                            if (engine._envTexture) engine.scene.background = engine._envTexture;
+                                            engine.renderer.render(engine.scene, engine.camera);
+                                            snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                            engine.scene.background = prevSceneBg;
                                         }
-                                        engine.renderer.render(engine.scene, engine.camera);
-                                        snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
-                                        engine.scene.background = prevSceneBg;
 
-                                        // Back Snapshot
+                                        // Back Snapshot (Rückseite inkl. Hintergrundbild/-video statt schwarzem Hintergrund!)
                                         if (engine.defaultCamPos) {
                                             engine.camera.position.copy(engine.defaultCamPos);
                                             engine.camera.position.z *= -1;
@@ -680,8 +757,15 @@
                                         }
                                         
                                         engine.controls.update();
-                                        engine.renderer.render(engine.scene, engine.camera);
-                                        snapshotBackBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                        if (typeof engine.captureCompositeSnapshot === 'function') {
+                                            snapshotBackBase64 = engine.captureCompositeSnapshot(this.$refs.bgVideo);
+                                        } else {
+                                            const prevSceneBg = engine.scene.background;
+                                            if (engine._envTexture) engine.scene.background = engine._envTexture;
+                                            engine.renderer.render(engine.scene, engine.camera);
+                                            snapshotBackBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                            engine.scene.background = prevSceneBg;
+                                        }
 
                                         // Restore
                                         engine.camera.position.copy(origPos);
@@ -697,13 +781,15 @@
                                             engine.controls.update();
                                         }
 
-                                        const prevSceneBg = engine.scene.background;
-                                        if (engine._envTexture) {
-                                            engine.scene.background = engine._envTexture;
+                                        if (typeof engine.captureCompositeSnapshot === 'function') {
+                                            snapshotBase64 = engine.captureCompositeSnapshot(this.$refs.bgVideo);
+                                        } else {
+                                            const prevSceneBg = engine.scene.background;
+                                            if (engine._envTexture) engine.scene.background = engine._envTexture;
+                                            engine.renderer.render(engine.scene, engine.camera);
+                                            snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
+                                            engine.scene.background = prevSceneBg;
                                         }
-                                        engine.renderer.render(engine.scene, engine.camera);
-                                        snapshotBase64 = engine.renderer.domElement.toDataURL('image/jpeg', 0.85);
-                                        engine.scene.background = prevSceneBg;
                                         
                                         engine.camera.position.copy(origPos);
                                         engine.controls.target.copy(origTarget);
@@ -726,6 +812,11 @@
                                 if (window.html2canvas) {
                                     const containerToCapture = this.$refs.container || document.querySelector('.configurator-2d-preview');
                                     if (containerToCapture) {
+                                        const prevShowBoard = this.showDrawingBoard;
+                                        if (!this.showDrawingBoard) {
+                                            this.showDrawingBoard = true;
+                                            await new Promise(r => setTimeout(r, 80));
+                                        }
                                         if (this.config.has_back_side) {
                                             let origSide = this.activeSide;
                                             
@@ -745,6 +836,7 @@
                                             let canvas = await window.html2canvas(containerToCapture, { useCORS: true, allowTaint: false, backgroundColor: '#ffffff', scale: 1.5 });
                                             snapshotBase64 = canvas.toDataURL('image/jpeg', 0.85);
                                         }
+                                        this.showDrawingBoard = prevShowBoard;
                                     }
                                 }
                             }
@@ -771,40 +863,7 @@
             },
 
             loadSavedDesign() {
-                const storageKey = 'seelenfunke_design_' + (this.config.productId || 'default');
-                const savedData = localStorage.getItem(storageKey);
-
-                if (savedData) {
-                    try {
-                        const parsedData = JSON.parse(savedData);
-
-                        this.selectedType = null;
-                        this.selectedIndex = null;
-
-                        this.texts = [];
-                        this.logos = [];
-                        this.texts_back = [];
-                        this.logos_back = [];
-
-                        this.$nextTick(() => {
-                            if (parsedData.texts) this.texts = parsedData.texts;
-                            if (parsedData.logos) this.logos = parsedData.logos;
-                            if (parsedData.texts_back) this.texts_back = parsedData.texts_back;
-                            if (parsedData.logos_back) this.logos_back = parsedData.logos_back;
-
-                            this.$nextTick(() => {
-                                this.updateScaleFactor();
-                                setTimeout(() => { this.updateTexture(); this.recordHistory(true); }, 100);
-                                setTimeout(() => { this.updateTexture(); }, 300);
-                            });
-                        });
-
-                        this.triggerMessage('Gesichertes Design wurde geladen!');
-                    } catch (e) {
-                        console.error("Fehler beim Laden:", e);
-                        this.triggerMessage('Die gespeicherten Daten sind fehlerhaft.');
-                    }
-                }
+                this.loadDraft();
             },
 
             triggerMessage(text) {
@@ -861,27 +920,40 @@
                 }, 100);
             },
 
-            updateScaleFactor(width = null) {
+            refitAllTextareas() {
+                const runFit = () => {
+                    const ctx = this.$root || document;
+                    ctx.querySelectorAll('textarea[x-model]').forEach(el => {
+                        const textId = el.getAttribute('data-id');
+                        if (textId) {
+                            this.fitTextarea(textId, el);
+                        }
+                    });
+                };
+                this.$nextTick(() => {
+                    runFit();
+                    requestAnimationFrame(() => runFit());
+                });
+            },
+
+            updateScaleFactor(width = null, forceRefit = false) {
                 if(!width && this.$refs.container) {
                     width = this.$refs.container.getBoundingClientRect().width;
                 }
-                if(!width || width <= 0) return;
+                if(!width || width <= 0) {
+                    if (forceRefit) {
+                        this.refitAllTextareas();
+                    }
+                    return;
+                }
 
                 const newScale = width / this.baseWidth;
                 const hasChanged = !this.scaleFactor || Math.abs(this.scaleFactor - newScale) >= 0.002;
                 this.scaleFactor = newScale;
 
-                if (hasChanged || !this._hasInitialFittedTextareas) {
+                if (hasChanged || !this._hasInitialFittedTextareas || forceRefit) {
                     this._hasInitialFittedTextareas = true;
-                    this.$nextTick(() => {
-                        const ctx = this.$root || document;
-                        ctx.querySelectorAll('textarea[x-model]').forEach(el => {
-                            const textId = el.getAttribute('data-id');
-                            if(textId) {
-                                this.fitTextarea(textId, el);
-                            }
-                        });
-                    });
+                    this.refitAllTextareas();
                 }
             },
 
@@ -929,7 +1001,7 @@
                     newTexts.splice(this.selectedIndex, 1);
 
                     if (newTexts.length === 0) {
-                        newTexts.push({id: Math.random().toString(36).substr(2, 9), text: '', size: 1, x: 50, y: 50, rotation: 0, align: 'center', font: 'Arial'});
+                        newTexts.push({id: Math.random().toString(36).substr(2, 9), text: '', size: 1, x: this.areaCenterX, y: this.areaCenterY, rotation: 0, align: 'center', font: 'Arial'});
                     }
 
                     this[tName] = newTexts;
@@ -955,8 +1027,8 @@
                 let clone = JSON.parse(JSON.stringify(target[this.selectedIndex]));
 
                 clone.id = Math.random().toString(36).substr(2, 9);
-                clone.x = Math.min(90, (clone.x || 50) + 5);
-                clone.y = Math.min(90, (clone.y || 50) + 5);
+                clone.x = Math.min(90, (clone.x ?? this.areaCenterX) + 5);
+                clone.y = Math.min(90, (clone.y ?? this.areaCenterY) + 5);
 
                 target.push(clone);
                 this.selectItem(this.selectedType, target.length - 1);
@@ -964,10 +1036,56 @@
                 this.recordHistory();
             },
 
+            getTextBoxWidthPercent(item) {
+                if (!item || !item.id) return 0;
+                const dimW = parseFloat(this.textDims[item.id]?.width || 0);
+                const containerW = (this.$refs && this.$refs.container) ? this.$refs.container.getBoundingClientRect().width : this.baseWidth;
+                if (!dimW || !containerW || containerW <= 0) return 0;
+                const areaWidthPct = (this.config && this.config.area_shape !== 'custom') ? (Number(this.config.area_width) || 100) : 100;
+                return (dimW / containerW) * areaWidthPct;
+            },
+
+            setTextAlign(newAlign) {
+                if (this.selectedType !== 'text' || this.selectedIndex === null) return;
+                const item = this.currentTexts[this.selectedIndex];
+                if (!item) return;
+
+                const oldAlign = item.align || 'center';
+                if (oldAlign !== newAlign) {
+                    const boxW = this.getTextBoxWidthPercent(item);
+                    if (boxW > 0) {
+                        const visualCenterX = oldAlign === 'left'
+                            ? (Number(item.x ?? this.areaCenterX) + boxW / 2)
+                            : (oldAlign === 'right' ? (Number(item.x ?? this.areaCenterX) - boxW / 2) : Number(item.x ?? this.areaCenterX));
+                        if (newAlign === 'left') {
+                            item.x = visualCenterX - boxW / 2;
+                        } else if (newAlign === 'right') {
+                            item.x = visualCenterX + boxW / 2;
+                        } else {
+                            item.x = visualCenterX;
+                        }
+                    }
+                    item.align = newAlign;
+                }
+                this.showAlignMenu = false;
+                this.updateTexture();
+                this.recordHistory();
+            },
+
             centerHorizontal() {
                 if(this.selectedIndex === null) return;
                 const target = (this.selectedType === 'text') ? this.currentTexts : this.currentLogos;
-                target[this.selectedIndex].x = 50;
+                const item = target[this.selectedIndex];
+                if (!item) return;
+
+                let targetX = this.areaCenterX;
+                if (this.selectedType === 'text') {
+                    const align = item.align || 'center';
+                    const boxW = this.getTextBoxWidthPercent(item);
+                    if (align === 'left') targetX = this.areaCenterX - (boxW / 2);
+                    else if (align === 'right') targetX = this.areaCenterX + (boxW / 2);
+                }
+                item.x = targetX;
                 this.updateTexture();
                 this.recordHistory();
             },
@@ -975,7 +1093,8 @@
             centerVertical() {
                 if(this.selectedIndex === null) return;
                 const target = (this.selectedType === 'text') ? this.currentTexts : this.currentLogos;
-                target[this.selectedIndex].y = 50;
+                if (!target[this.selectedIndex]) return;
+                target[this.selectedIndex].y = this.areaCenterY;
                 this.updateTexture();
                 this.recordHistory();
             },
@@ -1003,22 +1122,25 @@
 
                 this.currentElement = { type, index, action };
 
+                const curX = item.x ?? this.areaCenterX;
+                const curY = item.y ?? this.areaCenterY;
+
                 if(action === 'drag') {
                     this.isDragging = true;
-                    this.dragOffsetX = (clientX - rect.left) - ((item.x || 50) / 100 * rect.width);
-                    this.dragOffsetY = (clientY - rect.top) - ((item.y || 50) / 100 * rect.height);
+                    this.dragOffsetX = (clientX - rect.left) - (curX / 100 * rect.width);
+                    this.dragOffsetY = (clientY - rect.top) - (curY / 100 * rect.height);
                 } else if (action === 'resize') {
                     this.isResizing = true;
                     this.initialDist = Math.max(1, Math.hypot(
-                        clientX - (rect.left + (item.x || 50) / 100 * rect.width),
-                        clientY - (rect.top + (item.y || 50) / 100 * rect.height)
+                        clientX - (rect.left + curX / 100 * rect.width),
+                        clientY - (rect.top + curY / 100 * rect.height)
                     ));
                     this.initialSize = item.size;
                 } else if (action === 'rotate') {
                     this.isRotating = true;
                     this.initialAngle = Math.atan2(
-                        clientY - (rect.top + (item.y || 50) / 100 * rect.height),
-                        clientX - (rect.left + (item.x || 50) / 100 * rect.width)
+                        clientY - (rect.top + curY / 100 * rect.height),
+                        clientX - (rect.left + curX / 100 * rect.width)
                     );
                     this.initialRotation = item.rotation || 0;
                 }
@@ -1033,6 +1155,7 @@
                 const clientY = event.touches ? event.touches[0].clientY : event.clientY;
                 const rect = this.$refs.container.getBoundingClientRect();
                 const item = this.currentElement.type === 'text' ? this.currentTexts[this.currentElement.index] : this.currentLogos[this.currentElement.index];
+                if (!item) return;
 
                 if(this.isDragging) {
                     let pX = ((clientX - rect.left - this.dragOffsetX) / rect.width) * 100;
@@ -1041,8 +1164,11 @@
                     this.showGuideX = false;
                     this.showGuideY = false;
 
-                    if(Math.abs(pX - 50) < 2) { pX = 50; this.showGuideX = true; }
-                    if(Math.abs(pY - 50) < 2) { pY = 50; this.showGuideY = true; }
+                    const snapX = this.areaCenterX;
+                    const snapY = this.areaCenterY;
+
+                    if(Math.abs(pX - snapX) < 2) { pX = snapX; this.showGuideX = true; }
+                    if(Math.abs(pY - snapY) < 2) { pY = snapY; this.showGuideY = true; }
 
                     const clampToBoundaries = (nx, ny, c) => {
                         let res = { x: nx, y: ny };
@@ -1128,26 +1254,83 @@
                 if(!el) return;
                 const scrollPos = window.scrollY;
 
-                el.style.width = '0px';
-                el.style.height = 'auto';
+                const item = (this.texts || []).find(t => String(t.id) === String(id))
+                          || (this.texts_back || []).find(t => String(t.id) === String(id));
 
-                const lines = el.value.split('\n').length || 1;
+                if (item && typeof item.text === 'string' && el.value !== item.text) {
+                    el.value = item.text;
+                }
+
+                const scale = this.scaleFactor || 1;
+                const fontSizePx = (20 * ((item && item.size) || 1)) * scale;
+                const fontFamily = (item && this.fontMap && this.fontMap[item.font]) ? this.fontMap[item.font] : 'Arial';
+
+                el.style.fontSize = fontSizePx + 'px';
+                el.style.fontFamily = fontFamily;
+                el.style.lineHeight = '1.15';
+
+                const rawText = (el.value !== undefined && el.value !== null && el.value.length > 0)
+                    ? el.value
+                    : (el.getAttribute('placeholder') || 'Text eingeben...');
+                const textLines = rawText.split('\n');
+                const lines = textLines.length || 1;
                 el.rows = lines;
 
-                const newWidth = el.scrollWidth;
-                const newHeight = el.scrollHeight;
+                // Canvas-Fallback-Messung (z.B. wenn 2D-Container in der 3D-Ansicht auf display:none steht oder Text leer ist)
+                let canvasWidth = 60;
+                let canvasHeight = Math.ceil(lines * fontSizePx * 1.18);
+                try {
+                    if (!this._measureCanvas) {
+                        this._measureCanvas = document.createElement('canvas');
+                    }
+                    const ctx = this._measureCanvas.getContext('2d');
+                    if (ctx) {
+                        ctx.font = 'bold ' + fontSizePx + 'px ' + fontFamily;
+                        let maxLineW = 0;
+                        textLines.forEach(line => {
+                            const w = ctx.measureText(line || ' ').width;
+                            if (w > maxLineW) maxLineW = w;
+                        });
+                        canvasWidth = Math.ceil(maxLineW);
+                    }
+                } catch (e) {}
 
-                const finalWidth = (newWidth + 10) + 'px';
-                const finalHeight = (newHeight + 6) + 'px'; // +6px Puffer zur Vermeidung von vertikalem Abschneiden bei Sub-Pixel Rundungsfehlern
+                const isVisible = this.showDrawingBoard && el.offsetParent !== null && el.getClientRects().length > 0;
+
+                let newWidth = canvasWidth;
+                let newHeight = canvasHeight;
+
+                if (isVisible) {
+                    el.style.width = '0px';
+                    el.style.height = 'auto';
+
+                    const domWidth = el.scrollWidth;
+                    const domHeight = el.scrollHeight;
+
+                    // Wenn der Text leer ist (Placeholder sichtbar) oder scrollWidth im Übergang 0 liefert, greift das Canvas-Minimum
+                    if (el.value && el.value.length > 0 && domWidth > 4) {
+                        newWidth = Math.max(domWidth, Math.floor(canvasWidth * 0.85));
+                        newHeight = Math.max(domHeight, Math.floor(canvasHeight * 0.85));
+                    } else {
+                        newWidth = Math.max(domWidth, canvasWidth);
+                        newHeight = Math.max(domHeight, canvasHeight);
+                    }
+                }
+
+                // Mindestgröße sicherstellen, damit die 4 Eck-Icons niemals aufeinanderfallen
+                const finalWidth = Math.max(48, newWidth + 10) + 'px';
+                const finalHeight = Math.max(28, newHeight + 6) + 'px'; // +6px Puffer zur Vermeidung von vertikalem Abschneiden bei Sub-Pixel Rundungsfehlern
 
                 el.style.width = finalWidth;
                 el.style.height = finalHeight;
 
                 this.textDims[id] = { width: finalWidth, height: finalHeight };
 
-                el.scrollTop = 0;
-                el.scrollLeft = 0;
-                window.scrollTo(0, scrollPos);
+                if (isVisible) {
+                    el.scrollTop = 0;
+                    el.scrollLeft = 0;
+                    window.scrollTo(0, scrollPos);
+                }
             },
 
             openImageEditor() {
@@ -1172,10 +1355,26 @@
                     if(window.FilerobotImageEditor) {
                         this.fileRobotInstance = new window.FilerobotImageEditor(container, {
                             source: logo.url,
-                            onSave: (editedImageObject, designState) => {
-                                logo.url = editedImageObject.imageBase64;
+                            onSave: async (editedImageObject, designState) => {
+                                const b64 = editedImageObject.imageBase64;
+                                const oldVal = logo.value;
+                                logo.url = b64;
                                 this.updateTexture();
                                 this.closeImageEditor();
+
+                                if (this.$wire && oldVal && String(oldVal).startsWith('bestellungen/cart-uploads/')) {
+                                    try {
+                                        const res = await this.$wire.saveEditedLogo(oldVal, b64);
+                                        if (res && res.value && res.url) {
+                                            logo.value = res.value;
+                                            logo.url = res.url;
+                                            this.updateTexture();
+                                        }
+                                    } catch (err) {
+                                        console.error('Fehler beim Speichern des bearbeiteten Bildes:', err);
+                                    }
+                                }
+                                this.recordHistory();
                             },
                             onClose: () => {
                                 this.closeImageEditor();
@@ -1383,16 +1582,54 @@
                     return;
                 }
 
+                const activeTag = document.activeElement ? document.activeElement.tagName : '';
+                const isEditingInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag) || (document.activeElement && document.activeElement.isContentEditable);
+
                 if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
-                    e.preventDefault();
-                    if (e.shiftKey) {
-                        this.redo();
-                    } else {
-                        this.undo();
+                    if (!isEditingInput) {
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            this.redo();
+                        } else {
+                            this.undo();
+                        }
                     }
+                    return;
                 } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
-                    e.preventDefault();
-                    this.redo();
+                    if (!isEditingInput) {
+                        e.preventDefault();
+                        this.redo();
+                    }
+                    return;
+                }
+
+                if (!isEditingInput && this.selectedIndex !== null && this.selectedType !== null) {
+                    if (e.key === 'Delete' || e.key === 'Backspace') {
+                        e.preventDefault();
+                        this.deleteSelectedItem();
+                        return;
+                    }
+
+                    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+                        const targetList = this.selectedType === 'text' ? this.currentTexts : this.currentLogos;
+                        const item = targetList[this.selectedIndex];
+                        if (item) {
+                            e.preventDefault();
+                            const step = e.shiftKey ? 2 : 0.5;
+                            const minX = (this.config.area_shape === 'rect') ? (this.config.area_left ?? 0) : 0;
+                            const maxX = (this.config.area_shape === 'rect') ? (minX + (this.config.area_width || 100)) : 100;
+                            const minY = (this.config.area_shape === 'rect') ? (this.config.area_top ?? 0) : 0;
+                            const maxY = (this.config.area_shape === 'rect') ? (minY + (this.config.area_height || 100)) : 100;
+
+                            if (e.key === 'ArrowLeft') item.x = Math.max(minX, (item.x ?? this.areaCenterX) - step);
+                            if (e.key === 'ArrowRight') item.x = Math.min(maxX, (item.x ?? this.areaCenterX) + step);
+                            if (e.key === 'ArrowUp') item.y = Math.max(minY, (item.y ?? this.areaCenterY) - step);
+                            if (e.key === 'ArrowDown') item.y = Math.min(maxY, (item.y ?? this.areaCenterY) + step);
+
+                            this.updateTexture();
+                            this.scheduleDebouncedHistory();
+                        }
+                    }
                 }
             },
 

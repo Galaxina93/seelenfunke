@@ -20,12 +20,12 @@
      x-data="window.frontendConfiguratorData({
         productId: '{{ $product->id }}',
         wireModels: {
-            texts: $wire.entangle('texts').live,
-            logos: $wire.entangle('logos').live,
-            texts_back: $wire.entangle('texts_back').live,
-            logos_back: $wire.entangle('logos_back').live,
+            texts: $wire.entangle('texts'),
+            logos: $wire.entangle('logos'),
+            texts_back: $wire.entangle('texts_back'),
+            logos_back: $wire.entangle('logos_back'),
             activeSide: $wire.entangle('activeSide').live,
-            backgroundTheme: $wire.entangle('backgroundTheme').live
+            backgroundTheme: $wire.entangle('backgroundTheme')
         },
         fonts: @js($fonts),
         context: '{{$context}}',
@@ -47,14 +47,35 @@
             templatePackage: '{{ $configSettings["template_package"] ?? "custom" }}',
             enableBgVideo: {{ (!isset($configSettings['enable_background_video']) || $configSettings['enable_background_video']) ? 'true' : 'false' }},
             customBgVideo: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/".$configSettings["background_video_path"]) : "" }}',
-            themes: @js(collect($backgroundThemes ?? [])->map(function($t) {
+            themes: @js(collect($backgroundThemes ?? [])->map(function($t) use ($product, $configSettings) {
                 $vDisk = storage_path('app/public/' . $t['video']);
                 $iDisk = storage_path('app/public/' . $t['image']);
                 $vVer = is_file($vDisk) ? '?v=' . filemtime($vDisk) : '';
                 $iVer = is_file($iDisk) ? '?v=' . filemtime($iDisk) : '';
+
+                $tKey = $t['key'] ?? 'standard';
+                $baseOverlayRel = $product->preview_image_path ?? null;
+                if (!$baseOverlayRel) {
+                    $pkgKey = $configSettings['template_package'] ?? 'custom';
+                    $packages = app(\App\Services\ConfiguratorService::class)->getTemplatePackages();
+                    $baseOverlayRel = ($pkgKey !== 'custom' && isset($packages[$pkgKey]['preview_image_path']))
+                        ? $packages[$pkgKey]['preview_image_path']
+                        : null;
+                }
+                $overlayUrl = $this->previewImage;
+                if ($baseOverlayRel) {
+                    $dir = dirname($baseOverlayRel);
+                    $themedRel = $dir . '/overlay_' . $tKey . '.png';
+                    $oDisk = storage_path('app/public/' . $themedRel);
+                    if (is_file($oDisk)) {
+                        $overlayUrl = asset('storage/' . $themedRel) . '?v=' . filemtime($oDisk);
+                    }
+                }
+
                 return array_merge($t, [
-                    'videoUrl' => asset('storage/' . $t['video']) . $vVer,
-                    'imageUrl' => asset('storage/' . $t['image']) . $iVer,
+                    'videoUrl'   => asset('storage/' . $t['video']) . $vVer,
+                    'imageUrl'   => asset('storage/' . $t['image']) . $iVer,
+                    'overlayUrl' => $overlayUrl,
                 ]);
             })),
             has_back_side: {{!empty($configSettings['has_back_side']) && $configSettings['has_back_side'] ? 'true' : 'false'}},
