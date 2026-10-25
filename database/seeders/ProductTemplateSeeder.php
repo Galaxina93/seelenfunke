@@ -94,6 +94,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Frohe Weihnachten',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Weihnachten',
             'preview_image' => "produkte/product-templates/{$product->slug}-weihnachten.jpg",
         ]);
@@ -155,6 +156,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Frohes Osterfest',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Ostern',
             'preview_image' => "produkte/product-templates/{$product->slug}-ostern.jpg",
         ]);
@@ -216,6 +218,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Lieblingsmensch / Hochzeit',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Hochzeit',
             'preview_image' => "produkte/product-templates/{$product->slug}-hochzeit.jpg",
         ]);
@@ -277,6 +280,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Alles Gute zum Geburtstag',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Geburtstag',
             'preview_image' => "produkte/product-templates/{$product->slug}-geburtstag.jpg",
         ]);
@@ -338,6 +342,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Für immer Dein / Valentinstag',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Valentinstag',
             'preview_image' => "produkte/product-templates/{$product->slug}-valentinstag.jpg",
         ]);
@@ -400,6 +405,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Magische Nacht / Halloween',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Halloween',
             'preview_image' => "produkte/product-templates/{$product->slug}-halloween.jpg",
         ]);
@@ -461,6 +467,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Beste Mama der Welt / Muttertag',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Muttertag',
             'preview_image' => "produkte/product-templates/{$product->slug}-muttertag.jpg",
         ]);
@@ -526,6 +533,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => 'Bester Papa / Vatertag',
             'configuration' => $config,
             'is_active' => true,
+            'is_ai_generated' => true,
             'holiday' => 'Vatertag',
             'preview_image' => "produkte/product-templates/{$product->slug}-vatertag.jpg",
         ]);

@@ -33,6 +33,7 @@ class ProductTemplates extends Component
     public $selectedProductId = null;
     public $templateName = '';
     public $templateIsActive = true;
+    public bool $templateIsAiGenerated = true;
     public $templateHoliday = '';
     public $templateConfig = [];
     #[\Livewire\Attributes\Locked]
@@ -139,6 +140,7 @@ class ProductTemplates extends Component
         $this->selectedProductId = $template->product_id;
         $this->templateName = $template->name;
         $this->templateIsActive = $template->is_active;
+        $this->templateIsAiGenerated = (bool) ($template->is_ai_generated ?? true);
         $this->templateHoliday = $template->holiday ?? '';
         $this->templateConfig = $template->configuration ?? [];
         $this->templateImage = null;
@@ -167,6 +169,16 @@ class ProductTemplates extends Component
         if ($template) {
             $template->update([
                 'is_active' => $status === 'active',
+            ]);
+        }
+    }
+
+    public function toggleAiGenerated($templateId): void
+    {
+        $template = ProductTemplate::withTrashed()->find($templateId);
+        if ($template) {
+            $template->update([
+                'is_ai_generated' => !$template->is_ai_generated,
             ]);
         }
     }
@@ -212,6 +224,7 @@ class ProductTemplates extends Component
         $template->name = $this->templateName;
         $template->configuration = $this->templateConfig;
         $template->is_active = (bool) $this->templateIsActive;
+        $template->is_ai_generated = (bool) $this->templateIsAiGenerated;
         $template->holiday = $this->templateHoliday ?: null;
 
         // Bild-Verarbeitung
@@ -258,6 +271,7 @@ class ProductTemplates extends Component
         $this->selectedProductId = null;
         $this->templateName = '';
         $this->templateIsActive = true;
+        $this->templateIsAiGenerated = true;
         $this->templateHoliday = '';
         $this->templateConfig = [];
         $this->editingTemplateId = null;

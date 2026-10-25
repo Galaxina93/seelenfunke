@@ -406,9 +406,14 @@ Zusätzlich erhältst du das vollständige ZIP-Archiv mit allen 200 einsatzberei
             'weight' => null, 'height' => null, 'width' => null, 'length' => null, 'shipping_class' => null,
             'preview_image_path' => 'produkte/products/geschenkgutschein/envelope.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/envelope.png', 'is_main' => true, 'alt' => 'Geschenkgutschein Umschlag']
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_ai_generated' => true, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein – Herbst & Lichter Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein – Weihnachts-Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein – Romantik & Valentinstag Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_ai_generated' => true, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein – Frühlings- & Oster-Edition'],
             ],
             'configurator_settings' => [
+                'auto_seasonal_main_image' => true,
                 'allow_text_pos' => false,
                 'allow_logo' => false,
             ],

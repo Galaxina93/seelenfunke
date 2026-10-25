@@ -638,7 +638,7 @@ class ProductCreate extends Component
             $filename = time() . '_' . Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.jpg';
             $fullPath = $folder . '/' . $filename;
             $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
-            $gallery[] = ['type' => 'image', 'path' => $fullPath];
+            $gallery[] = ['type' => 'image', 'path' => $fullPath, 'is_ai_generated' => false];
         }
 
         $this->product->media_gallery = $gallery;
@@ -1056,6 +1056,21 @@ class ProductCreate extends Component
             $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
             $settings['auto_seasonal_main_image'] = $next;
             $this->product->configurator_settings = $settings;
+            $this->product->save();
+        }
+    }
+
+    public function toggleMediaAiGenerated(int $index): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $gallery = $this->product->media_gallery ?? [];
+        if (isset($gallery[$index]) && is_array($gallery[$index])) {
+            $current = filter_var($gallery[$index]['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $gallery[$index]['is_ai_generated'] = !$current;
+            $this->product->media_gallery = $gallery;
             $this->product->save();
         }
     }

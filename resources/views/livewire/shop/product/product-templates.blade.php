@@ -207,6 +207,18 @@
                             {{-- Rechts: Status + Aktionen --}}
                             <div class="flex flex-wrap items-center justify-between lg:justify-end gap-3 sm:gap-5 pl-2 lg:pl-0 border-t lg:border-t-0 pt-3 lg:pt-0 border-gray-100 dark:border-gray-800/80">
                                 @if(!$showArchived)
+                                    <button type="button"
+                                            wire:click="toggleAiGenerated('{{ $template->id }}')"
+                                            class="px-2.5 py-1.5 rounded-xl border text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-all {{ $template->is_ai_generated ? 'bg-gray-900 text-white dark:bg-white/10 dark:text-white border-gray-800 dark:border-white/20' : 'bg-gray-50 dark:bg-gray-950 text-gray-400 border-gray-200 dark:border-gray-800 hover:text-gray-700' }}"
+                                            title="KI-Generiert Hinweis an/aus">
+                                        <span class="w-3.5 h-3.5 rounded flex items-center justify-center border {{ $template->is_ai_generated ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-400' }}">
+                                            @if($template->is_ai_generated)
+                                                <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            @endif
+                                        </span>
+                                        <span>KI-generiert</span>
+                                    </button>
+
                                     <div class="relative" x-data="{ open: false }">
                                         <button @click="open = !open" @click.away="open = false" class="px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-xl border flex items-center gap-1.5 transition-all {{ $template->is_active ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-white dark:bg-gray-950 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
                                             <span class="w-1.5 h-1.5 rounded-full {{ $template->is_active ? 'bg-emerald-500' : 'bg-gray-400' }}"></span>
@@ -296,7 +308,20 @@
                                 @endif
 
                                 @if($template->preview_image)
-                                    <img src="{{ $template->preview_image_url }}" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100">
+                                    <img src="{{ $template->preview_image_url }}"
+                                         @if($template->is_ai_generated) data-is-ai-generated="true" @endif
+                                         class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 opacity-90 group-hover:opacity-100">
+                                    <button type="button"
+                                            wire:click="toggleAiGenerated('{{ $template->id }}')"
+                                            class="absolute bottom-2.5 right-2.5 z-20 px-2 py-1 rounded-md backdrop-blur-sm text-[9px] font-semibold tracking-wider flex items-center gap-1.5 border transition-all {{ $template->is_ai_generated ? 'bg-black/65 text-white/95 border-white/20 shadow-sm' : 'bg-black/35 text-white/55 border-white/10 hover:bg-black/60 hover:text-white' }}"
+                                            title="Klicken, um 'KI-generiert' Kennzeichnung für dieses Bild ein-/auszuschalten">
+                                        <span class="w-3 h-3 rounded-sm flex items-center justify-center border {{ $template->is_ai_generated ? 'bg-emerald-500 border-emerald-400 text-white' : 'border-white/40' }}">
+                                            @if($template->is_ai_generated)
+                                                <svg class="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                            @endif
+                                        </span>
+                                        <span>KI-generiert</span>
+                                    </button>
                                 @else
                                     <div class="flex items-center justify-center h-full text-gray-400 dark:text-gray-700 text-[10px] flex-col gap-3 font-black uppercase tracking-widest">
                                         <x-heroicon-o-photo class="w-10 h-10 opacity-30" />
@@ -445,9 +470,16 @@
                     @endif
                 </div>
 
-                <div class="flex items-center gap-4 xl:mt-6 bg-gray-50 dark:bg-gray-950 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner w-full xl:w-auto shrink-0 cursor-pointer group" x-on:click="$wire.set('templateIsActive', !@js($templateIsActive))">
-                    <input type="checkbox" wire:model.live="templateIsActive" class="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-[var(--theme-color)] focus:ring-[var(--theme-color)] focus:ring-offset-white dark:focus:ring-offset-gray-950 cursor-pointer">
-                    <label class="text-[10px] font-black text-gray-700 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors uppercase tracking-widest cursor-pointer select-none">Vorlage ist Aktiv</label>
+                <div class="flex flex-wrap items-center gap-3 xl:mt-6 shrink-0">
+                    <div class="flex items-center gap-3 bg-gray-50 dark:bg-gray-950 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner cursor-pointer group" x-on:click="$wire.set('templateIsActive', !@js($templateIsActive))">
+                        <input type="checkbox" wire:model.live="templateIsActive" class="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-[var(--theme-color)] focus:ring-[var(--theme-color)] focus:ring-offset-white dark:focus:ring-offset-gray-950 cursor-pointer">
+                        <label class="text-[10px] font-black text-gray-700 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors uppercase tracking-widest cursor-pointer select-none">Vorlage ist Aktiv</label>
+                    </div>
+
+                    <div class="flex items-center gap-3 bg-gray-50 dark:bg-gray-950 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-inner cursor-pointer group" x-on:click="$wire.set('templateIsAiGenerated', !@js($templateIsAiGenerated))">
+                        <input type="checkbox" wire:model.live="templateIsAiGenerated" class="w-5 h-5 rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-[var(--theme-color)] focus:ring-[var(--theme-color)] focus:ring-offset-white dark:focus:ring-offset-gray-950 cursor-pointer">
+                        <label class="text-[10px] font-black text-gray-700 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors uppercase tracking-widest cursor-pointer select-none">Bild ist KI-generiert</label>
+                    </div>
                 </div>
             </div>
 

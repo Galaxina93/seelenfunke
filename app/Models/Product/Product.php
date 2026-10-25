@@ -262,7 +262,7 @@ class Product extends Model
             return filter_var($settings['auto_seasonal_main_image'], FILTER_VALIDATE_BOOLEAN);
         }
 
-        return $this->isPersonalizable() && $this->isPhysical();
+        return $this->isPersonalizable();
     }
 
     /**
@@ -370,14 +370,46 @@ class Product extends Model
     }
 
     /**
-     * Liefert den relativen Storage-Pfad des Hauptbildes (entweder saisonale Vorlage oder manuelles Galerie-Hauptbild).
+     * Liefert strukturierte Metadaten zum aufgelösten Hauptbild (Pfad, URL, KI-Kennzeichnung, Label).
      */
-    public function resolveMainImagePath(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
+    public function resolveMainImageMeta(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): array
     {
         if ($allowSeasonal) {
+            // 1. Prüfe aktive Produktvorlagen (ProductTemplate)
             $seasonalTpl = $this->resolveSeasonalTemplate($explicitHoliday, $excludeImagePaths);
             if ($seasonalTpl && !empty($seasonalTpl->preview_image)) {
-                return $seasonalTpl->preview_image;
+                return [
+                    'path'            => $seasonalTpl->preview_image,
+                    'url'             => ProductTemplate::resolveImageUrl($seasonalTpl->preview_image),
+                    'is_ai_generated' => (bool) ($seasonalTpl->is_ai_generated ?? true),
+                    'label'           => $seasonalTpl->name . ($seasonalTpl->holiday ? ' (' . $seasonalTpl->holiday . ')' : ''),
+                ];
+            }
+
+            // 2. Falls keine Vorlagen existieren (z. B. beim Geschenkgutschein): Prüfe saisonale Bilder in der media_gallery
+            if ($this->isAutoSeasonalMainImageEnabled() && is_array($this->media_gallery) && count($this->media_gallery) > 0) {
+                $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday);
+                foreach ($candidates as $candidate) {
+                    $normCandidate = mb_strtolower(trim($candidate));
+                    foreach ($this->media_gallery as $media) {
+                        if (!is_array($media) || ($media['type'] ?? 'image') !== 'image' || empty($media['path'])) {
+                            continue;
+                        }
+                        if (in_array($media['path'], $excludeImagePaths, true)) {
+                            continue;
+                        }
+                        $mediaHoliday = mb_strtolower(trim((string) ($media['holiday'] ?? '')));
+                        $filename = mb_strtolower(basename($media['path']));
+                        if ($mediaHoliday === $normCandidate || str_contains($filename, '-' . $normCandidate . '.')) {
+                            return [
+                                'path'            => $media['path'],
+                                'url'             => ProductTemplate::resolveImageUrl($media['path']),
+                                'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                                'label'           => $media['holiday'] ?? ucfirst($normCandidate),
+                            ];
+                        }
+                    }
+                }
             }
         }
 
@@ -385,19 +417,47 @@ class Product extends Model
             foreach ($this->media_gallery as $media) {
                 if (is_array($media) && ($media['type'] ?? 'image') === 'image' && !empty($media['path'])) {
                     if (!in_array($media['path'], $excludeImagePaths, true)) {
-                        return $media['path'];
+                        return [
+                            'path'            => $media['path'],
+                            'url'             => ProductTemplate::resolveImageUrl($media['path']),
+                            'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                            'label'           => $media['alt'] ?? $this->name,
+                        ];
                     }
                 } elseif (is_string($media) && $media !== '' && !in_array($media, $excludeImagePaths, true)) {
-                    return $media;
+                    return [
+                        'path'            => $media,
+                        'url'             => ProductTemplate::resolveImageUrl($media),
+                        'is_ai_generated' => false,
+                        'label'           => $this->name,
+                    ];
                 }
             }
         }
 
         if (!empty($this->preview_image_path) && !in_array($this->preview_image_path, $excludeImagePaths, true)) {
-            return $this->preview_image_path;
+            return [
+                'path'            => $this->preview_image_path,
+                'url'             => ProductTemplate::resolveImageUrl($this->preview_image_path),
+                'is_ai_generated' => false,
+                'label'           => $this->name,
+            ];
         }
 
-        return null;
+        return [
+            'path'            => null,
+            'url'             => null,
+            'is_ai_generated' => false,
+            'label'           => null,
+        ];
+    }
+
+    /**
+     * Liefert den relativen Storage-Pfad des Hauptbildes (entweder saisonale Vorlage oder manuelles Galerie-Hauptbild).
+     */
+    public function resolveMainImagePath(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
+    {
+        return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths)['path'];
     }
 
     /**
@@ -405,11 +465,6 @@ class Product extends Model
      */
     public function resolveMainImageUrl(?string $explicitHoliday = null, bool $allowSeasonal = true, array $excludeImagePaths = []): ?string
     {
-        $path = $this->resolveMainImagePath($explicitHoliday, $allowSeasonal, $excludeImagePaths);
-        if (!$path) {
-            return null;
-        }
-
-        return ProductTemplate::resolveImageUrl($path);
+        return $this->resolveMainImageMeta($explicitHoliday, $allowSeasonal, $excludeImagePaths)['url'];
     }
 }

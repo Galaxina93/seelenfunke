@@ -213,9 +213,14 @@
                                     $projectedTemplate = $product->templates->first();
                                 }
                                 $productUrl = $projectedTemplate ? route('product.show', ['product' => $product->slug, 't' => $projectedTemplate->id]) : route('product.show', $product->slug);
-                                $resolvedMainImageUrl = $projectedTemplate && $projectedTemplate->preview_image
-                                    ? $projectedTemplate->preview_image_url
-                                    : $product->resolveMainImageUrl();
+                                $resolvedMainMeta = $projectedTemplate && $projectedTemplate->preview_image
+                                    ? [
+                                        'url'             => $projectedTemplate->preview_image_url,
+                                        'is_ai_generated' => (bool) ($projectedTemplate->is_ai_generated ?? true),
+                                    ]
+                                    : $product->resolveMainImageMeta();
+                                $resolvedMainImageUrl = $resolvedMainMeta['url'] ?? null;
+                                $isAiCardImage = (bool) ($resolvedMainMeta['is_ai_generated'] ?? false);
                             @endphp
 
                             <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
@@ -247,6 +252,7 @@
                                             @if($resolvedMainImageUrl)
                                                 <img src="{{ $resolvedMainImageUrl }}"
                                                      alt="{{ $projectedTemplate ? $projectedTemplate->name : $product->name }}"
+                                                     @if($isAiCardImage) data-is-ai-generated="true" @endif
                                                      class="w-full h-full object-cover transition-transform duration-1000 ease-out {{ !$isSoldOut ? 'group-hover:scale-110' : '' }}">
                                             @elseif(is_array($product->media_gallery) && count($product->media_gallery) > 0 && isset($product->media_gallery[0]['type']) && $product->media_gallery[0]['type'] === 'video')
                                                 <video src="{{ asset('storage/'.$product->media_gallery[0]['path']) }}" class="w-full h-full object-cover" muted autoplay loop playsinline></video>
@@ -256,6 +262,12 @@
                                                 </div>
                                             @endif
                                         </div>
+
+                                        @if($resolvedMainImageUrl && $isAiCardImage)
+                                            <span class="pointer-events-none select-none absolute bottom-2.5 right-2.5 z-20 bg-black/55 backdrop-blur-sm text-white/90 text-[9px] font-semibold tracking-wider px-2 py-0.5 rounded-md border border-white/15 shadow-sm">
+                                                KI-generiert
+                                            </span>
+                                        @endif
 
                                         @if(!$isSoldOut)
                                             <div class="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
@@ -340,7 +352,9 @@
                                                 </div>
                                             @else
                                                 <span class="text-[9px] text-gray-400 font-bold uppercase tracking-widest mb-0.5">
-                                                    @if($product->tierPrices->isNotEmpty())
+                                                    @if($product->slug === 'geschenkgutschein' || ($product->price == 0 && $product->is_personalizable))
+                                                        Wunschbetrag
+                                                    @elseif($product->tierPrices->isNotEmpty())
                                                         Ab
                                                     @else
                                                         Preis
@@ -349,7 +363,11 @@
                                             @endif
                                             <div class="flex items-baseline gap-2">
                                                 <span class="{{ $isSoldOut ? 'text-gray-400' : ($product->compare_at_price > $product->price ? 'text-red-600' : 'text-gray-900') }} font-bold text-xl font-serif">
-                                                    {{ number_format($product->price / 100, 2, ',', '.') }} €
+                                                    @if($product->slug === 'geschenkgutschein' || ($product->price == 0 && $product->is_personalizable))
+                                                        ab 10,00 €
+                                                    @else
+                                                        {{ number_format($product->price / 100, 2, ',', '.') }} €
+                                                    @endif
                                                 </span>
                                                 @if(!$isSoldOut && $product->compare_at_price > $product->price)
                                                     <span class="text-xs text-gray-400 line-through font-medium">

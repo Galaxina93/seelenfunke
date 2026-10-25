@@ -31,6 +31,7 @@ class ProductTemplate extends Model
         'is_active',
         'holiday',
         'preview_image',
+        'is_ai_generated',
     ];
 
     /**
@@ -41,6 +42,7 @@ class ProductTemplate extends Model
     protected $casts = [
         'configuration' => 'array',
         'is_active' => 'boolean',
+        'is_ai_generated' => 'boolean',
     ];
 
     /**

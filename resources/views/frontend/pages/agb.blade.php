@@ -84,9 +84,9 @@
                             </p>
                         </div>
 
-                        {{-- §3 Nutzung des Konfigurators --}}
+                        {{-- §3 Nutzung des Konfigurators & KI-gestützte Produktdarstellungen --}}
                         <div id="konfigurator" class="scroll-mt-28">
-                            <h3 class="font-bold text-lg text-gray-900 mb-2">3. Nutzung des Produktkonfigurators</h3>
+                            <h3 class="font-bold text-lg text-gray-900 mb-2">3. Nutzung des Produktkonfigurators & KI-gestützte Produktdarstellungen</h3>
                             <p>
                                 (1) Der auf der Website bereitgestellte Produktkonfigurator dient als Visualisierungshilfe zur groben Platzierung von Texten, Bildern und Symbolen auf den angebotenen Waren.
                             </p>
@@ -101,6 +101,9 @@
                             </p>
                             <p class="mt-2">
                                 (5) <strong>Charakter der grafischen Darstellung:</strong> Der Produktkonfigurator dient ausschließlich der besseren Informationsaufnahme Ihrer individuellen Gestaltungswünsche (Texte, Schriftarten, Symbole und Motive). Da es sich bei der Ansicht im Konfigurator um eine rein digitale, grafische Vorschau handelt, sind darstellungs- und fertigungsbedingte Abweichungen unvermeidbar; das tatsächliche Aussehen des handwerklich veredelten Endprodukts weicht naturgemäß von der digitalen Grafikanzeige ab.
+                            </p>
+                            <p class="mt-2">
+                                (6) <strong>Transparenzhinweis zu KI-generierten und KI-gestützten Produkt- & Szenenbildern (Art. 50 KI-Verordnung / EU AI Act):</strong> Zur anschaulichen Präsentation saisonaler Stimmungen, Feiertagsvorlagen und exemplarischer Gravur-Inszenierungen setzen wir in unserem Online-Shop ergänzend künstliche Intelligenz (KI-gestützte Bildgenerierung und Bildbearbeitung) ein. Entsprechende Produkt-, Vorlagen- und Szenenbilder sind gemäß den Transparenzanforderungen der Verordnung (EU) 2024/1689 (EU AI Act) direkt im Bild mit dem sichtbaren Hinweis <strong>„KI-generiert“</strong> sowie im Quellcode mit dem maschinenlesbaren Attribut <code>data-is-ai-generated="true"</code> gekennzeichnet. Diese Aufnahmen dienen der gestalterischen Inspiration und Visualisierung; maßgeblich für die Beschaffenheit der bestellten Ware sind die jeweilige Produktbeschreibung sowie die im Konfigurator getroffenen Spezifikationen.
                             </p>
                         </div>
 

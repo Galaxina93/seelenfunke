@@ -146,13 +146,24 @@
         ],
     ];
 
-    $resolvedTiles = collect($rawTiles)->map(function (array $tile) use ($matchProducts, $categoriesByName) {
-        $matched = $matchProducts(
+    $claimedProductIds = [];
+    $usedImagePaths = [];
+
+    $resolvedTiles = collect($rawTiles)->map(function (array $tile) use ($matchProducts, $categoriesByName, &$claimedProductIds, &$usedImagePaths) {
+        $allMatched = $matchProducts(
             $tile['category_names'],
             $tile['slugs'],
             $tile['type'],
             $tile['material_keywords']
         );
+
+        // Deduplizierung: Jedes Produkt vertritt unter "Veredelungen & Materialien" maximal eine Kachel,
+        // damit ein einzelnes Produkt (z. B. in zwei Kategorien) nicht doppelt angezeigt wird.
+        $matched = $allMatched->reject(fn($p) => in_array($p->id, $claimedProductIds, true))->values();
+
+        foreach ($matched as $p) {
+            $claimedProductIds[] = $p->id;
+        }
 
         // Prüfe, welche davon real lieferbar / vorbestellbar sind
         $inStockProducts = $matched->filter(function ($p) {
@@ -163,15 +174,33 @@
         $hasActiveProducts = $matched->isNotEmpty();
         $isAvailable = $inStockProducts->isNotEmpty();
 
+        // Trennung zwischen echten Unikaten und Wertgutscheinen
+        $unikateCount = $inStockProducts->filter(fn($p) => $p->slug !== 'geschenkgutschein')->count();
+        $voucherCount = $inStockProducts->filter(fn($p) => $p->slug === 'geschenkgutschein')->count();
+
         // Niedrigster Preis (unter Berücksichtigung aktiver Angebote, exkl. 0-€-Gutschein-Basis)
         $pricedProducts = $inStockProducts->filter(fn($p) => (int) $p->price > 0);
         $minPriceCents = $pricedProducts->isNotEmpty() ? (int) $pricedProducts->min('price') : null;
+
+        if ($unikateCount > 0 && $voucherCount > 0) {
+            $stockBadgeText = $unikateCount . ' ' . ($unikateCount === 1 ? 'Unikat' : 'Unikate') . ' & Gutschein';
+            if ($minPriceCents) {
+                $stockBadgeText .= ' · ab ' . number_format($minPriceCents / 100, 2, ',', '.') . ' €';
+            }
+        } elseif ($voucherCount > 0) {
+            $stockBadgeText = ($voucherCount === 1 ? 'Wertgutschein' : $voucherCount . ' Gutscheine') . ' · ab 10,00 €';
+        } else {
+            $stockBadgeText = $unikateCount . ' ' . ($unikateCount === 1 ? 'Unikat' : 'Unikate');
+            if ($minPriceCents) {
+                $stockBadgeText .= ' · ab ' . number_format($minPriceCents / 100, 2, ',', '.') . ' €';
+            }
+        }
 
         // Prüfe, ob in dieser Kachel gerade ein Feiertags-/Aktionsangebot aktiv ist
         $saleProduct = $inStockProducts->first(fn($p) => !empty($p->compare_at_price) && (int) $p->compare_at_price > (int) $p->price);
         $saleBadge = $saleProduct ? ($saleProduct->configurator_settings['autopilot_badge_text'] ?? 'Angebot aktiv') : null;
 
-        // Ziel-URL im Shop (mit passendem Kategorie-Filter, falls vorhanden)
+        // Ziel-URL im Shop (wenn nur 1 eigenständiges Produkt wie der Gutschein in der Kachel liegt, direkt oder gefiltert)
         $targetCategoryId = null;
         foreach ($tile['category_names'] as $catName) {
             $foundCat = $categoriesByName->get(mb_strtolower(trim($catName)));
@@ -181,55 +210,42 @@
             }
         }
 
-        $shopUrl = $targetCategoryId
-            ? route('shop', ['filterCategory' => $targetCategoryId])
-            : ($matched->count() === 1 ? route('product.show', $matched->first()->slug) : route('shop'));
+        $shopUrl = ($matched->count() === 1 && $matched->first()->slug === 'geschenkgutschein')
+            ? route('product.show', 'geschenkgutschein')
+            : ($targetCategoryId
+                ? route('shop', ['filterCategory' => $targetCategoryId])
+                : ($matched->count() === 1 ? route('product.show', $matched->first()->slug) : route('shop')));
 
-        $tile['matched_products'] = $inStockProducts->isNotEmpty() ? $inStockProducts : $matched;
+        // Dynamisches Produktbild (passend zu Jahreszeit / Feiertag) + KI-Kennzeichnung
+        $tile['is_ai_generated'] = false;
+        $productsForTile = $inStockProducts->isNotEmpty() ? $inStockProducts : $matched;
+        if ($productsForTile->isNotEmpty()) {
+            foreach ($productsForTile as $candidateProduct) {
+                $meta = $candidateProduct->resolveMainImageMeta(null, true, $usedImagePaths);
+                if (!empty($meta['url'])) {
+                    $tile['image'] = $meta['url'];
+                    $tile['alt'] = $candidateProduct->name . ' – ' . $tile['title'];
+                    $tile['is_ai_generated'] = (bool) ($meta['is_ai_generated'] ?? false);
+                    if (!empty($meta['path'])) {
+                        $usedImagePaths[] = $meta['path'];
+                    }
+                    break;
+                }
+            }
+        }
+
         $tile['matched_count'] = $matched->count();
         $tile['in_stock_count'] = $inStockProducts->count();
         $tile['total_stock_units'] = $totalStockUnits;
         $tile['has_active_products'] = $hasActiveProducts;
         $tile['is_available'] = $isAvailable;
         $tile['min_price_cents'] = $minPriceCents;
-        $tile['sale_badge'] = $saleProduct ? ($saleProduct->configurator_settings['autopilot_badge_text'] ?? 'Angebot aktiv') : null;
+        $tile['stock_badge_text'] = $stockBadgeText;
+        $tile['sale_badge'] = $saleBadge;
         $tile['shop_url'] = $shopUrl;
 
         return $tile;
     })->sortByDesc(fn($t) => ($t['is_available'] ? 100 : ($t['has_active_products'] ? 50 : 0)) + $t['in_stock_count'])->values();
-
-    // Dynamische Produktbilder pro Kachel (echte Produkte + passend zu Jahreszeit / Feiertag, ohne Bild-Dopplung zwischen Kacheln)
-    $usedImagePaths = [];
-    $usedProductIds = [];
-
-    $resolvedTiles = $resolvedTiles->map(function (array $tile) use (&$usedImagePaths, &$usedProductIds) {
-        $productsForTile = $tile['matched_products'] ?? collect();
-        if ($productsForTile->isNotEmpty()) {
-            // Bevorzuge physische Produkte mit Bildern, die noch nicht in einer vorherigen Kachel als Hauptprodukt dienten
-            $sortedCandidates = $productsForTile->sortBy(function ($p) use ($usedProductIds) {
-                $alreadyUsed = in_array($p->id, $usedProductIds, true) ? 10 : 0;
-                $typePriority = $p->type === 'physical' ? 0 : 5;
-                return $alreadyUsed + $typePriority;
-            });
-
-            foreach ($sortedCandidates as $candidateProduct) {
-                $imgPath = $candidateProduct->resolveMainImagePath(null, true, $usedImagePaths);
-                if ($imgPath) {
-                    $imgUrl = \App\Models\Product\ProductTemplate::resolveImageUrl($imgPath);
-                    if ($imgUrl) {
-                        $tile['image'] = $imgUrl;
-                        $tile['alt'] = $candidateProduct->name . ' – ' . $tile['title'];
-                        $usedImagePaths[] = $imgPath;
-                        $usedProductIds[] = $candidateProduct->id;
-                        break;
-                    }
-                }
-            }
-        }
-
-        unset($tile['matched_products']);
-        return $tile;
-    });
 @endphp
 
 <section id="services" class="bg-white text-black py-24 px-6 lg:px-12" aria-labelledby="services-heading">
@@ -265,7 +281,14 @@
                         <img src="{{ $tile['image'] }}"
                              alt="{{ $tile['alt'] }}"
                              loading="lazy"
+                             @if(!empty($tile['is_ai_generated'])) data-is-ai-generated="true" @endif
                              class="w-full h-56 object-cover transform group-hover:scale-110 transition-transform duration-500">
+
+                        @if(!empty($tile['is_ai_generated']))
+                            <span class="pointer-events-none select-none absolute bottom-2.5 left-3 z-20 bg-black/55 backdrop-blur-sm text-white/90 text-[9px] font-semibold tracking-wider px-2 py-0.5 rounded-md border border-white/15 shadow-sm">
+                                KI-generiert
+                            </span>
+                        @endif
                     </figure>
 
                     <div class="bg-gradient-to-br from-primary to-primary-dark p-6 relative">
@@ -278,10 +301,7 @@
                         <div class="flex items-center justify-between gap-2">
                             <span class="text-white/80 text-xs font-bold tracking-wider uppercase">{{ $tile['subtitle'] }}</span>
                             <span class="text-white/95 text-xs font-extrabold bg-black/20 px-2.5 py-0.5 rounded-full">
-                                {{ $tile['in_stock_count'] }} {{ $tile['in_stock_count'] === 1 ? 'Unikat' : 'Unikate' }}
-                                @if($tile['min_price_cents'])
-                                    · ab {{ number_format($tile['min_price_cents'] / 100, 2, ',', '.') }} €
-                                @endif
+                                {{ $tile['stock_badge_text'] }}
                             </span>
                         </div>
                     </div>

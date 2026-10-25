@@ -47,22 +47,27 @@
     {{-- ========================================== --}}
     @php
         $displayGallery = [];
-        $seasonalGalleryTpl = $product->isAutoSeasonalMainImageEnabled() ? $product->resolveSeasonalTemplate() : null;
-        if ($seasonalGalleryTpl && !empty($seasonalGalleryTpl->preview_image)) {
-            $displayGallery[] = [
-                'type' => 'image',
-                'url'  => $seasonalGalleryTpl->preview_image_url,
-                'alt'  => $seasonalGalleryTpl->name,
-            ];
+        if ($product->isAutoSeasonalMainImageEnabled()) {
+            $primaryMeta = $product->resolveMainImageMeta(null, true);
+            if (!empty($primaryMeta['url'])) {
+                $displayGallery[] = [
+                    'type'            => 'image',
+                    'url'             => $primaryMeta['url'],
+                    'alt'             => $primaryMeta['label'] ?? $product->name,
+                    'is_ai_generated' => (bool) ($primaryMeta['is_ai_generated'] ?? false),
+                ];
+            }
         }
         foreach ($product->media_gallery ?? [] as $m) {
             if (is_array($m) && !empty($m['path'])) {
                 $url = \App\Models\Product\ProductTemplate::resolveImageUrl($m['path']);
-                if ($url && (empty($displayGallery) || $displayGallery[0]['url'] !== $url)) {
+                $alreadyIn = collect($displayGallery)->contains(fn($g) => $g['url'] === $url);
+                if ($url && !$alreadyIn) {
                     $displayGallery[] = [
-                        'type' => $m['type'] ?? 'image',
-                        'url'  => $url,
-                        'alt'  => $m['alt'] ?? $product->name,
+                        'type'            => $m['type'] ?? 'image',
+                        'url'             => $url,
+                        'alt'             => $m['alt'] ?? $product->name,
+                        'is_ai_generated' => filter_var($m['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
                     ];
                 }
             }
@@ -71,7 +76,8 @@
     <div class="space-y-4 sm:space-y-6"
          x-data="{
             activeMedia: '{{ !empty($displayGallery[0]) ? $displayGallery[0]['url'] : '' }}',
-            activeType: '{{ !empty($displayGallery[0]) ? ($displayGallery[0]['type'] ?? 'image') : 'image' }}'
+            activeType: '{{ !empty($displayGallery[0]) ? ($displayGallery[0]['type'] ?? 'image') : 'image' }}',
+            activeIsAi: {{ !empty($displayGallery[0]['is_ai_generated']) ? 'true' : 'false' }}
          }">
 
         {{-- Hauptbild / Video Container --}}
@@ -81,8 +87,16 @@
                 {{-- Bild Anzeige --}}
                 <img x-show="activeType === 'image'"
                      :src="activeMedia"
+                     :data-is-ai-generated="activeIsAi ? 'true' : null"
                      class="w-full h-full object-cover transition-transform duration-700 lg:group-hover:scale-105"
                      alt="{{ $product->name }}">
+
+                {{-- KI-Generiert Hinweis unten rechts --}}
+                <span x-show="activeType === 'image' && activeIsAi"
+                      x-cloak
+                      class="pointer-events-none select-none absolute bottom-3 right-3 z-20 bg-black/55 backdrop-blur-sm text-white/90 text-[9px] font-semibold tracking-wider px-2 py-0.5 rounded-md border border-white/15 shadow-sm">
+                    KI-generiert
+                </span>
 
                 {{-- Video Anzeige --}}
                 <video x-show="activeType === 'video'"
@@ -131,7 +145,7 @@
                 <div x-ref="thumbnailContainer" class="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
                     @foreach($displayGallery as $media)
                         <div class="snap-start shrink-0" style="width: calc(20% - 13px);">
-                            <button @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'"
+                            <button @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'; activeIsAi = {{ !empty($media['is_ai_generated']) ? 'true' : 'false' }}"
                                     class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative"
                                     :class="activeMedia === '{{ $media['url'] }}' ? 'border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)]' : 'border-transparent hover:border-gray-300'">
 
@@ -141,7 +155,9 @@
                                         <svg class="w-6 h-6 relative z-10" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>
                                     </div>
                                 @else
-                                    <img src="{{ $media['url'] }}" class="w-full h-full object-cover">
+                                    <img src="{{ $media['url'] }}"
+                                         @if(!empty($media['is_ai_generated'])) data-is-ai-generated="true" @endif
+                                         class="w-full h-full object-cover">
                                 @endif
                             </button>
                         </div>
