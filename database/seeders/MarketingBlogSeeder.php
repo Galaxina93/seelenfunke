@@ -71,7 +71,7 @@ class MarketingBlogSeeder extends Seeder
 
                     <p>Dies ist der Beginn einer wunderbaren Reise. Schön, dass ihr von Anfang an dabei seid!</p>
                 ',
-                'featured_image' => 'marketing/blog/mein-seelenfunke-logo.png',
+                'featured_image' => 'marketing/blog/willkommen-manufaktur.webp',
                 'status' => 'published',
                 'published_at' => Carbon::parse('2026-11-01 10:00:00'),
                 'meta_title' => 'Mein-Seelenfunke Gründung und Neue Maßstäbe für Geschenke',
@@ -110,7 +110,7 @@ class MarketingBlogSeeder extends Seeder
 
                     <p>Sagt gern „Hallo“ zu Funki auf unseren Social-Media-Kanälen!</p>
                 ',
-                'featured_image' => 'marketing/blog/funki.png',
+                'featured_image' => 'marketing/blog/funki-manufaktur.webp',
                 'status' => 'published',
                 'published_at' => Carbon::parse('2026-11-04 10:00:00'),
                 'meta_title' => 'Funki Funke stellt sich vor :) Unser Maskottchen',
@@ -162,7 +162,7 @@ class MarketingBlogSeeder extends Seeder
                     <hr class="my-6 border-gray-200">
                     <p class="text-xs text-gray-500"><em>Transparenzhinweis: Unsere Herzensprojekte sind eine freiwillige unternehmerische Initiative von Mein Seelenfunke (Cause-Related Marketing). Als Kunde tätigst du mit deinem Einkauf keine eigenständige Spende und erhältst keine Spendenquittung. Die Zuwendungen an Kitas und regionale Kinderinitiativen finanzieren wir vollumfänglich aus unseren erwirtschafteten Unternehmensmitteln.</em></p>
                 ',
-                'featured_image' => 'marketing/blog/herzensprojekte.png',
+                'featured_image' => 'marketing/blog/herzensprojekte-kitas.webp',
                 'status' => 'published',
                 'published_at' => Carbon::parse('2026-11-07 10:00:00'),
                 'meta_title' => 'Herzensprojekte: Ein Funke, der Gutes tut | Mein-Seelenfunke',

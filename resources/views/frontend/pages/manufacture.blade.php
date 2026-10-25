@@ -32,10 +32,14 @@
                                 </div>
                             </div>
 
-                            {{-- Experience-Badge --}}
-                            <div class="absolute -right-6 -bottom-6 bg-gray-900 text-white p-6 rounded-xl shadow-2xl transform transition-transform group-hover:rotate-6 group-hover:scale-110 duration-300">
-                                <span class="block text-3xl font-bold text-primary">14+</span>
-                                <span class="text-[10px] uppercase tracking-widest font-bold">Jahre IT-Power</span>
+                            {{-- Experience-Badge (im edlen hellen Creme-/Champagner-Farbton wie die Gutscheinkarte) --}}
+                            <div class="absolute -right-6 -bottom-6 bg-gradient-to-br from-[#FAF7F2] via-[#FDFBF7] to-[#F3ECE0] border-2 border-primary/40 text-gray-900 p-6 rounded-2xl shadow-xl transform transition-transform group-hover:rotate-6 group-hover:scale-110 duration-300 overflow-hidden">
+                                <div class="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-primary/60"></div>
+                                <div class="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-primary/60"></div>
+                                <div class="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-primary/60"></div>
+                                <div class="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-primary/60"></div>
+                                <span class="block text-3xl font-serif font-bold text-primary leading-none mb-1">14+</span>
+                                <span class="block text-[10px] uppercase tracking-widest font-extrabold text-gray-800">Jahre IT-Power</span>
                             </div>
                         </a>
                     </div>
@@ -195,10 +199,41 @@
         </section>
 
         {{--
-            SECTION 3: DER PROZESS (Zig-Zag Layout)
+            SECTION 3: DER PROZESS (Zig-Zag Layout mit GPU-beschleunigten Mikro- & Hover-Animationen)
             Detaillierte Erklärung der Schritte aus EURER Sicht
         --}}
         <section class="py-20 bg-gray-50" aria-labelledby="prozess-heading">
+            <style>
+                @keyframes mfFloatSlow {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-7px) rotate(0.4deg); }
+                }
+                @keyframes mfFloatSlowReverse {
+                    0%, 100% { transform: translateY(0px) rotate(0deg); }
+                    50% { transform: translateY(-7px) rotate(-0.4deg); }
+                }
+                @keyframes mfSparkleTwinkle {
+                    0%, 100% { opacity: 0.25; transform: scale(0.85) rotate(0deg); }
+                    50% { opacity: 0.95; transform: scale(1.2) rotate(15deg); }
+                }
+                @keyframes mfLaserPulse {
+                    0%, 100% { opacity: 0.35; transform: scale(0.9); }
+                    50% { opacity: 0.85; transform: scale(1.25); }
+                }
+                @keyframes mfSheenSweep {
+                    0% { transform: translateX(-140%) skewX(-20deg); }
+                    100% { transform: translateX(240%) skewX(-20deg); }
+                }
+                .mf-card-float-1 { animation: mfFloatSlow 5.5s ease-in-out infinite; will-change: transform; }
+                .mf-card-float-2 { animation: mfFloatSlowReverse 6.2s ease-in-out infinite; will-change: transform; }
+                .mf-card-float-3 { animation: mfFloatSlow 5.8s ease-in-out infinite 0.8s; will-change: transform; }
+                .mf-sparkle-1 { animation: mfSparkleTwinkle 2.8s ease-in-out infinite; }
+                .mf-sparkle-2 { animation: mfSparkleTwinkle 3.4s ease-in-out infinite 0.9s; }
+                .mf-sparkle-3 { animation: mfSparkleTwinkle 2.5s ease-in-out infinite 1.5s; }
+                .mf-laser-glow { animation: mfLaserPulse 2.2s ease-in-out infinite; }
+                .group:hover .mf-sheen { animation: mfSheenSweep 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+            </style>
+
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24">
 
                 {{-- Header für Screenreader / SEO Struktur --}}
@@ -206,12 +241,25 @@
 
                 {{-- SCHRITT 1: Das Rohmaterial --}}
                 <article class="flex flex-col md:flex-row items-center gap-12">
-                    <div class="w-full md:w-1/2 relative group">
-                        <div class="absolute -inset-4 bg-primary/20 rounded-xl transform rotate-2 transition-transform group-hover:rotate-1" aria-hidden="true"></div>
-                        <img src="{{ asset('shop/frontend/other/k9_glas.webp') }}"
-                             alt="Hochreiner K9 Kristallglas Rohling vor der Gravur"
-                             loading="lazy"
-                             class="relative rounded-lg shadow-xl w-full object-cover h-80">
+                    <div class="w-full md:w-1/2 relative group cursor-pointer">
+                        <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30 group-hover:scale-[1.02]" aria-hidden="true"></div>
+                        <div class="mf-card-float-1 relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
+                            <img src="{{ asset('shop/frontend/other/k9_glas.webp') }}"
+                                 alt="Hochreiner K9 Kristallglas Rohling vor der Gravur"
+                                 loading="lazy"
+                                 class="w-full h-full object-cover transform transition-transform duration-1000 ease-out group-hover:scale-105 group-hover:-rotate-1">
+
+                            {{-- Animierter Lichtbrechungs-Glanz beim Hovern --}}
+                            <div class="mf-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/55 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" aria-hidden="true"></div>
+
+                            {{-- Sanft funkelnde Kristall-Lichtpunkte --}}
+                            <svg class="mf-sparkle-1 pointer-events-none absolute top-[22%] left-[44%] w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                            </svg>
+                            <svg class="mf-sparkle-2 pointer-events-none absolute bottom-[26%] left-[32%] w-4 h-4 text-primary drop-shadow-[0_0_6px_rgba(201,166,107,0.8)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                            </svg>
+                        </div>
                     </div>
                     <div class="w-full md:w-1/2">
                         <div class="flex items-center mb-4">
@@ -238,13 +286,22 @@
 
                 {{-- SCHRITT 2: Der Laser (Rechts Bild, Links Text) --}}
                 <article class="flex flex-col md:flex-row-reverse items-center gap-12">
-                    <div class="w-full md:w-1/2 relative group">
-                        <div class="absolute -inset-4 bg-gray-200 rounded-xl transform -rotate-2 transition-transform group-hover:-rotate-1" aria-hidden="true"></div>
-                        <img src="{{ asset('shop/frontend/process/lasergravur.webp') }}"
-                             onerror="this.src='https://placehold.co/600x400/333/FFF?text=Laser+Technologie'"
-                             alt="Präzise 3D-Lasergravur im Inneren des Glases"
-                             loading="lazy"
-                             class="relative rounded-lg shadow-xl w-full object-cover h-80">
+                    <div class="w-full md:w-1/2 relative group cursor-pointer">
+                        <div class="absolute -inset-4 bg-gray-200 rounded-2xl transform -rotate-2 transition-all duration-700 group-hover:-rotate-1 group-hover:bg-primary/25 group-hover:scale-[1.02]" aria-hidden="true"></div>
+                        <div class="mf-card-float-2 relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#EAEDF2]">
+                            <img src="{{ asset('shop/frontend/process/lasergravur.webp') }}"
+                                 onerror="this.src='https://placehold.co/600x400/333/FFF?text=Laser+Technologie'"
+                                 alt="Präzise 3D-Lasergravur im Inneren des Glases"
+                                 loading="lazy"
+                                 class="w-full h-full object-cover transform transition-transform duration-1000 ease-out group-hover:scale-105 group-hover:rotate-1">
+
+                            {{-- Pulsierender Laser-Brennpunkt & Funkenflug --}}
+                            <div class="mf-laser-glow pointer-events-none absolute top-[46%] left-[44%] w-16 h-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/40 blur-md group-hover:bg-amber-400/65 transition-colors" aria-hidden="true"></div>
+                            <div class="mf-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-amber-200/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" aria-hidden="true"></div>
+                            <svg class="mf-sparkle-3 pointer-events-none absolute top-[42%] left-[42%] w-6 h-6 text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.95)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                            </svg>
+                        </div>
                     </div>
                     <div class="w-full md:w-1/2">
                         <div class="flex items-center mb-4">
@@ -263,12 +320,25 @@
 
                 {{-- SCHRITT 3: Finish & Kontrolle --}}
                 <article class="flex flex-col md:flex-row items-center gap-12">
-                    <div class="w-full md:w-1/2 relative group">
-                        <div class="absolute -inset-4 bg-primary/20 rounded-xl transform rotate-2 transition-transform group-hover:rotate-1" aria-hidden="true"></div>
-                        <img src="{{ asset('shop/frontend/other/white_hands.webp') }}"
-                             alt="Manuelle Endkontrolle und Reinigung des Kristalls mit Handschuhen"
-                             loading="lazy"
-                             class="relative rounded-lg shadow-xl w-full object-cover h-80">
+                    <div class="w-full md:w-1/2 relative group cursor-pointer">
+                        <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30 group-hover:scale-[1.02]" aria-hidden="true"></div>
+                        <div class="mf-card-float-3 relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
+                            <img src="{{ asset('shop/frontend/other/white_hands.webp') }}"
+                                 alt="Manuelle Endkontrolle und Reinigung des Kristalls mit Handschuhen"
+                                 loading="lazy"
+                                 class="w-full h-full object-cover transform transition-transform duration-1000 ease-out group-hover:scale-105 group-hover:-rotate-1">
+
+                            {{-- Seidiger Politur-Glanzstreifen beim Hovern --}}
+                            <div class="mf-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" aria-hidden="true"></div>
+
+                            {{-- Funkelnde Finish-Sterne --}}
+                            <svg class="mf-sparkle-2 pointer-events-none absolute top-[28%] right-[30%] w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.85)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                            </svg>
+                            <svg class="mf-sparkle-1 pointer-events-none absolute top-[18%] left-[28%] w-4 h-4 text-primary drop-shadow-[0_0_6px_rgba(201,166,107,0.85)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                            </svg>
+                        </div>
                     </div>
                     <div class="w-full md:w-1/2">
                         <div class="flex items-center mb-4">
