@@ -3,6 +3,7 @@
 namespace App\Livewire\Shop\Product;
 
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 
 use App\Models\Product\ProductReview;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +19,10 @@ class ProductControlReviews extends Component
 
     public string $themingDepartment = 'Produkte';
 
+    #[Url]
     public $filterStatus = 'pending';
+
+    #[Url]
     public $search = '';
 
     public function boot(): void

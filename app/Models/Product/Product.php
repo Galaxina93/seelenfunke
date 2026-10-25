@@ -234,6 +234,11 @@ class Product extends Model
         return $this->hasMany(ProductReview::class);
     }
 
+    public function orderItems()
+    {
+        return $this->hasMany(\App\Models\Order\OrderOrderItem::class, 'product_id');
+    }
+
     public function getAverageRatingAttribute()
     {
         // Nur freigegebene Bewertungen zählen!
@@ -551,5 +556,27 @@ class Product extends Model
             'subtitle' => 'Entdecke weitere handveredelte Unikate und Geschenkideen aus unserer Kollektion.',
             'products' => $fallbackProducts,
         ];
+    }
+
+    /**
+     * Berechnet die kalkulatorische Zahlungs-/Stripe-Gebühr in Cent auf Basis des Brutto-Verkaufspreises.
+     * Standard: 2,5 % + 0,30 € (30 Cent) als Mischsatz für Stripe (Kreditkarte, Klarna, Apple Pay, Google Pay).
+     */
+    public static function computeStripeFeeCents(int $grossCents): int
+    {
+        if ($grossCents <= 0) {
+            return 0;
+        }
+
+        $feePercent = (float) shop_setting('stripe_fee_percent', 2.50);
+        $feeFixedCents = (int) shop_setting('stripe_fee_fixed_cents', 30);
+
+        return (int) round(($grossCents * ($feePercent / 100)) + $feeFixedCents);
+    }
+
+    public function calculatePaymentFeeCents(?int $grossPriceCents = null): int
+    {
+        $gross = $grossPriceCents ?? (int) $this->gross_price;
+        return self::computeStripeFeeCents($gross);
     }
 }

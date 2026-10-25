@@ -79,6 +79,37 @@
                 </button>
             </div>
 
+            {{-- SORTIERUNG & SCHNELLFILTER --}}
+            <div class="relative w-full sm:w-auto">
+                <select wire:model.live="sortBy"
+                        aria-label="Produkte sortieren und filtern"
+                        class="w-full sm:w-56 pl-4 pr-9 py-3.5 bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-[1.5rem] text-xs font-bold text-gray-800 dark:text-gray-200 focus:bg-white dark:focus:bg-gray-950 focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all dark:shadow-inner outline-none appearance-none cursor-pointer">
+                    <optgroup label="Sortieren nach">
+                        <option value="newest">Neueste zuerst</option>
+                        <option value="bestseller">Am meisten verkauft</option>
+                        <option value="least_sold">Am wenigsten verkauft</option>
+                        <option value="revenue_desc">Höchster Umsatz</option>
+                        <option value="rating_desc">Beste Bewertung</option>
+                        <option value="reviews_desc">Meiste Bewertungen</option>
+                        <option value="stock_asc">Niedrigster Bestand</option>
+                        <option value="stock_desc">Höchster Bestand</option>
+                        <option value="price_desc">Preis: Hoch &rarr; Niedrig</option>
+                        <option value="price_asc">Preis: Niedrig &rarr; Hoch</option>
+                        <option value="name_asc">Name: A &ndash; Z</option>
+                    </optgroup>
+                    <optgroup label="Filtern nach">
+                        <option value="filter_active">Nur Aktive Produkte</option>
+                        <option value="filter_draft">Nur Entwürfe</option>
+                        <option value="filter_low_stock">Kritischer Bestand / Leer</option>
+                        <option value="filter_physical">Nur Physisch</option>
+                        <option value="filter_digital">Nur Digital</option>
+                    </optgroup>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 dark:text-gray-500">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+            </div>
+
             {{-- SUCHE --}}
             <div class="relative w-full sm:w-72 group">
                 <input type="text" wire:model.live="search" placeholder="Produkt suchen..."
@@ -136,6 +167,11 @@
                         $maxSteps = $isPhysical ? 4 : 3;
                         $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
                         $isComplete = $prod->completion_step >= $maxSteps;
+                        $ratingAvg = round((float) ($prod->approved_reviews_avg ?? 0), 1);
+                        $ratingCount = (int) ($prod->approved_reviews_count ?? 0);
+                        $pendingReviewsCount = (int) ($prod->pending_reviews_count ?? 0);
+                        $soldQty = (int) ($prod->total_sold_qty ?? 0);
+                        $revenueCents = (int) ($prod->total_revenue_cents ?? 0);
                     @endphp
 
                     <div wire:key="product-list-row-{{ $prod->id }}"
@@ -173,11 +209,45 @@
                                     @endif
                                 </div>
 
-                                <div class="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                                     <span class="text-[var(--theme-color)] font-mono font-bold text-sm">{{ number_format($prod->price / 100, 2, ',', '.') }} €</span>
                                     @if(!empty($prod->sku))
                                         <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500">SKU: {{ $prod->sku }}</span>
                                     @endif
+
+                                    {{-- Sternebewertung --}}
+                                    <a href="{{ route('admin.product-control-reviews', ['filterStatus' => $pendingReviewsCount > 0 ? 'pending' : 'approved', 'search' => $prod->name]) }}"
+                                       class="inline-flex items-center gap-1.5 group/rating hover:opacity-90 transition-opacity"
+                                       title="{{ $ratingCount > 0 ? number_format($ratingAvg, 1, ',', '.') . ' von 5 Sternen (' . $ratingCount . ' freigegebene Bewertungen)' : 'Noch keine freigegebenen Bewertungen' }}">
+                                        <div class="flex items-center">
+                                            @for($i = 1; $i <= 5; $i++)
+                                                <svg class="w-3.5 h-3.5 shrink-0 {{ $i <= round($ratingAvg) ? 'text-amber-400' : 'text-gray-200 dark:text-gray-700' }}" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                                </svg>
+                                            @endfor
+                                        </div>
+                                        <span class="text-[10px] font-bold {{ $ratingCount > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500' }} group-hover/rating:text-[var(--theme-color)] transition-colors">
+                                            @if($ratingCount > 0)
+                                                {{ number_format($ratingAvg, 1, ',', '.') }} <span class="text-gray-400 dark:text-gray-500 font-medium">({{ $ratingCount }})</span>
+                                            @else
+                                                <span class="font-medium">(0)</span>
+                                            @endif
+                                        </span>
+                                        @if($pendingReviewsCount > 0)
+                                            <span class="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-black uppercase tracking-wider">
+                                                +{{ $pendingReviewsCount }} neu
+                                            </span>
+                                        @endif
+                                    </a>
+
+                                    {{-- Verkäufe-Indikator --}}
+                                    <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $soldQty > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500' }}"
+                                          title="Verkaufte Einheiten: {{ $soldQty }} ({{ number_format($revenueCents / 100, 2, ',', '.') }} € Umsatz)">
+                                        <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                                        </svg>
+                                        <span>{{ $soldQty }}&times; verkauft</span>
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -291,6 +361,11 @@
                         $maxSteps = $isPhysical ? 4 : 3;
                         $percentComplete = min(100, ($prod->completion_step / $maxSteps) * 100);
                         $isComplete = $prod->completion_step >= $maxSteps;
+                        $ratingAvg = round((float) ($prod->approved_reviews_avg ?? 0), 1);
+                        $ratingCount = (int) ($prod->approved_reviews_count ?? 0);
+                        $pendingReviewsCount = (int) ($prod->pending_reviews_count ?? 0);
+                        $soldQty = (int) ($prod->total_sold_qty ?? 0);
+                        $revenueCents = (int) ($prod->total_revenue_cents ?? 0);
                     @endphp
 
                     <div wire:key="product-card-{{ $currentLayout }}-{{ $prod->id }}"
@@ -356,6 +431,42 @@
                         </div>
 
                         <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base mb-1' : 'text-lg md:text-xl mb-1.5' }} font-bold text-gray-900 dark:text-white truncate tracking-wide">{{ $prod->name }}</h3>
+
+                        {{-- Sternebewertung & Verkäufe --}}
+                        <div class="flex flex-wrap items-center justify-between gap-2 {{ $currentLayout === 'medium' ? 'mb-2' : 'mb-3' }}">
+                            <a href="{{ route('admin.product-control-reviews', ['filterStatus' => $pendingReviewsCount > 0 ? 'pending' : 'approved', 'search' => $prod->name]) }}"
+                               class="inline-flex items-center gap-1.5 group/rating hover:opacity-90 transition-opacity"
+                               title="{{ $ratingCount > 0 ? number_format($ratingAvg, 1, ',', '.') . ' von 5 Sternen (' . $ratingCount . ' freigegebene Bewertungen)' : 'Noch keine freigegebenen Bewertungen' }}">
+                                <div class="flex items-center">
+                                    @for($i = 1; $i <= 5; $i++)
+                                        <svg class="w-3.5 h-3.5 shrink-0 {{ $i <= round($ratingAvg) ? 'text-amber-400' : 'text-gray-200 dark:text-gray-700' }}" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                        </svg>
+                                    @endfor
+                                </div>
+                                <span class="text-[11px] font-bold {{ $ratingCount > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500' }} group-hover/rating:text-[var(--theme-color)] transition-colors">
+                                    @if($ratingCount > 0)
+                                        {{ number_format($ratingAvg, 1, ',', '.') }} <span class="text-gray-400 dark:text-gray-500 font-medium">({{ $ratingCount }})</span>
+                                    @else
+                                        <span class="text-[10px] font-medium">(0)</span>
+                                    @endif
+                                </span>
+                                @if($pendingReviewsCount > 0)
+                                    <span class="px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[9px] font-black uppercase tracking-wider">
+                                        +{{ $pendingReviewsCount }}
+                                    </span>
+                                @endif
+                            </a>
+
+                            <span class="inline-flex items-center gap-1 text-[10px] font-bold {{ $soldQty > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500' }}"
+                                  title="Verkaufte Einheiten: {{ $soldQty }} ({{ number_format($revenueCents / 100, 2, ',', '.') }} € Umsatz)">
+                                <svg class="w-3.5 h-3.5 shrink-0 opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                                </svg>
+                                <span>{{ $soldQty }}&times; verkauft</span>
+                            </span>
+                        </div>
+
                         <p class="{{ $currentLayout === 'medium' ? 'text-xs sm:text-sm mb-3.5' : 'text-sm md:text-base mb-6' }} text-[var(--theme-color)] font-mono font-bold dark:drop-shadow-[0_0_8px_rgba(197,160,89,0.5)]">{{ number_format($prod->price / 100, 2, ',', '.') }} €</p>
 
                         {{-- Lagerbestand Anzeige --}}

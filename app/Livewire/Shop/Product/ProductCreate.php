@@ -75,8 +75,9 @@ class ProductCreate extends Component
     public $seo_description = '';
     public $slug_input = '';
 
-    // --- Suche & Medien ---
+    // --- Suche, Sortierung & Medien ---
     public $search = '';
+    public string $sortBy = 'newest';
     public $new_media = [];
     public $new_video;
     public $new_preview_image;
@@ -1077,18 +1078,100 @@ class ProductCreate extends Component
 
     public function render()
     {
-        $query = Product::with('templates');
-        
+        $query = Product::with('templates')
+            ->withCount([
+                'reviews as approved_reviews_count' => function ($q) {
+                    $q->where('status', 'approved');
+                },
+                'reviews as pending_reviews_count' => function ($q) {
+                    $q->where('status', 'pending');
+                },
+            ])
+            ->withAvg([
+                'reviews as approved_reviews_avg' => function ($q) {
+                    $q->where('status', 'approved');
+                },
+            ], 'rating')
+            ->withSum([
+                'orderItems as total_sold_qty' => function ($q) {
+                    $q->whereHas('order', function ($oq) {
+                        $oq->whereNotIn('status', ['cancelled', 'refunded']);
+                    });
+                },
+            ], 'quantity')
+            ->withSum([
+                'orderItems as total_revenue_cents' => function ($q) {
+                    $q->whereHas('order', function ($oq) {
+                        $oq->whereNotIn('status', ['cancelled', 'refunded']);
+                    });
+                },
+            ], 'total_price');
+
         if ($this->showArchived) {
             $query->onlyTrashed();
         }
-        
-        if($this->search) {
+
+        if ($this->search) {
             $escapedSearch = addcslashes((string) $this->search, '%_\\');
-            $query->where('name', 'like', '%'.$escapedSearch.'%');
+            $query->where(function ($q) use ($escapedSearch) {
+                $q->where('name', 'like', '%' . $escapedSearch . '%')
+                  ->orWhere('sku', 'like', '%' . $escapedSearch . '%');
+            });
         }
 
-        $products = ($this->viewMode === 'list') ? $query->latest()->get() : [];
+        // Schnellfilter-Optionen
+        if ($this->sortBy === 'filter_active') {
+            $query->where('status', 'active');
+        } elseif ($this->sortBy === 'filter_draft') {
+            $query->where('status', 'draft');
+        } elseif ($this->sortBy === 'filter_low_stock') {
+            $lowThreshold = (int) (\App\Models\System\SystemSetting::where('key', 'inventory_low_stock_threshold')->value('value') ?? 5);
+            $query->where('track_quantity', true)->where('quantity', '<', $lowThreshold);
+        } elseif ($this->sortBy === 'filter_physical') {
+            $query->where('type', 'physical');
+        } elseif ($this->sortBy === 'filter_digital') {
+            $query->where('type', 'digital');
+        }
+
+        $products = ($this->viewMode === 'list') ? $query->latest()->get() : collect();
+
+        if ($this->viewMode === 'list' && $products->isNotEmpty()) {
+            $products = match ($this->sortBy) {
+                'bestseller' => $products->sortByDesc(fn ($p) => [
+                    (int) ($p->total_sold_qty ?? 0),
+                    (int) ($p->total_revenue_cents ?? 0),
+                    $p->created_at?->timestamp ?? 0,
+                ])->values(),
+                'least_sold' => $products->sortBy(fn ($p) => [
+                    (int) ($p->total_sold_qty ?? 0),
+                    (int) ($p->total_revenue_cents ?? 0),
+                ])->values(),
+                'revenue_desc' => $products->sortByDesc(fn ($p) => [
+                    (int) ($p->total_revenue_cents ?? 0),
+                    (int) ($p->total_sold_qty ?? 0),
+                ])->values(),
+                'rating_desc' => $products->sortByDesc(fn ($p) => [
+                    (float) ($p->approved_reviews_avg ?? 0),
+                    (int) ($p->approved_reviews_count ?? 0),
+                ])->values(),
+                'reviews_desc' => $products->sortByDesc(fn ($p) => [
+                    (int) ($p->approved_reviews_count ?? 0),
+                    (float) ($p->approved_reviews_avg ?? 0),
+                ])->values(),
+                'stock_asc' => $products->sortBy(fn ($p) => [
+                    $p->track_quantity ? 0 : 1,
+                    (int) $p->quantity,
+                ])->values(),
+                'stock_desc' => $products->sortByDesc(fn ($p) => [
+                    $p->track_quantity ? 1 : 0,
+                    (int) $p->quantity,
+                ])->values(),
+                'price_desc' => $products->sortByDesc(fn ($p) => (int) $p->price)->values(),
+                'price_asc' => $products->sortBy(fn ($p) => (int) $p->price)->values(),
+                'name_asc' => $products->sortBy(fn ($p) => mb_strtolower((string) $p->name), SORT_NATURAL)->values(),
+                default => $products,
+            };
+        }
 
         return view('livewire.shop.product.product-create', [
             'products' => $products,
