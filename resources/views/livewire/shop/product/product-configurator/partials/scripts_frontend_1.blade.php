@@ -158,7 +158,10 @@
                 const targetUrl = overrideUrl || this.activeOverlayImg || (this.config ? this.config.fallbackImg : '');
                 if (!targetUrl) return;
                 const img = new Image();
-                img.crossOrigin = 'anonymous';
+                // Nur bei echten Cross-Origin-URLs setzen, damit Mobile-Chrome nicht denselben Bild-Cache-Eintrag wegen CORS vs. No-CORS verwirft
+                if (!targetUrl.startsWith(window.location.origin) && !targetUrl.startsWith('/')) {
+                    img.crossOrigin = 'anonymous';
+                }
                 img.onload = () => {
                     try {
                         const canvas = document.createElement('canvas');
@@ -364,7 +367,13 @@
                                     setTimeout(() => forceStart3D(), 1500);
                                 }
                             };
-                            requestStart();
+
+                            // Auf Smartphones (width < 768) die WebGL-3D-Engine im 2D-Modus nicht ungefragt im Hintergrund starten,
+                            // damit Mobile-Browser (Android/iOS) nicht den 2D-Layer / GPU-Speicher verwerfen.
+                            // Sobald der Nutzer auf "3D Ansicht" tippt oder speichert, startet _forceStart3D() sofort bedarfsgesteuert.
+                            if (window.innerWidth >= 768 || !this.showDrawingBoard) {
+                                requestStart();
+                            }
 
                         } else {
                             this.modelLoaded = true;

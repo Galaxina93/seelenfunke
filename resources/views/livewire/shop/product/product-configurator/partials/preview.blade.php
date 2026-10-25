@@ -170,7 +170,12 @@
         @endif
 
         {{-- 3D Ansicht --}}
-        <div wire:ignore x-show="config.modelPath" x-ref="container3d" class="absolute inset-0 w-full h-full z-10 cursor-move transition-opacity duration-500" :class="showDrawingBoard ? 'opacity-0 pointer-events-none' : 'opacity-100'"></div>
+        <div wire:ignore
+             x-show="config.modelPath"
+             x-ref="container3d"
+             class="absolute inset-0 w-full h-full cursor-move transition-opacity duration-500"
+             :class="showDrawingBoard ? 'opacity-0 invisible pointer-events-none z-0' : 'opacity-100 visible z-10'"
+             :style="showDrawingBoard ? 'visibility: hidden; z-index: 0;' : 'visibility: visible; z-index: 10;'"></div>
 
         {{-- Lade-Overlay für 3D --}}
         <div x-show="config.modelPath && !modelLoaded && !showDrawingBoard" x-transition.opacity.duration.300ms class="absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-md pointer-events-none {{ $isDark ? 'bg-gray-950/70' : 'bg-white/80' }}">
@@ -187,11 +192,19 @@
         </div>
 
         {{-- 2D Ansicht & Zeichenbrett --}}
-        <div x-show="showDrawingBoard || !config.modelPath" class="absolute inset-0 w-full h-full pointer-events-auto">
+        <div x-show="showDrawingBoard || !config.modelPath"
+             class="absolute inset-0 w-full h-full z-20 pointer-events-auto"
+             style="isolation: isolate; transform: translateZ(0); -webkit-transform: translateZ(0);">
 
-            <template x-if="activeOverlayImg || config.fallbackImg">
-                <img :src="activeOverlayImg || config.fallbackImg" class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
-            </template>
+            <img x-show="Boolean(activeOverlayImg || config.fallbackImg)"
+                 :src="activeOverlayImg || config.fallbackImg"
+                 x-on:error="if (config.fallbackImg && $el.src !== config.fallbackImg) { $el.src = config.fallbackImg; }"
+                 loading="eager"
+                 decoding="sync"
+                 :style="hasTransparentOverlay
+                     ? 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.45));'
+                     : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;'"
+                 class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
 
             <div x-show="!isCapturing" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
                  :style="`
