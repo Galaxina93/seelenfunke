@@ -200,6 +200,25 @@
                         <button wire:click="resetFilters" class="px-6 py-2.5 bg-gray-900 text-white rounded-full font-bold text-sm shadow-md hover:bg-black transition-all">Filter zurücksetzen</button>
                     </div>
                 @else
+                    <style>
+                        @keyframes sfCardSheen {
+                            0% { transform: translateX(-140%) skewX(-20deg); }
+                            100% { transform: translateX(240%) skewX(-20deg); }
+                        }
+                        @keyframes sfCardSparkle {
+                            0%, 100% { opacity: 0.2; transform: scale(0.8) rotate(0deg); }
+                            50% { opacity: 0.95; transform: scale(1.2) rotate(15deg); }
+                        }
+                        .group:hover .sf-card-sheen {
+                            animation: sfCardSheen 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+                        }
+                        .sf-card-sparkle-1 {
+                            animation: sfCardSparkle 2.8s ease-in-out infinite;
+                        }
+                        .sf-card-sparkle-2 {
+                            animation: sfCardSparkle 3.4s ease-in-out infinite 1.1s;
+                        }
+                    </style>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
                         @foreach($products as $product)
                             @php
@@ -223,7 +242,7 @@
                                 $isAiCardImage = (bool) ($resolvedMainMeta['is_ai_generated'] ?? false);
                             @endphp
 
-                            <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
+                            <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 hover:border-[var(--theme-color-30)] transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                                 {{-- Bild Container --}}
                                 <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
@@ -253,7 +272,7 @@
                                                 <img src="{{ $resolvedMainImageUrl }}"
                                                      alt="{{ $projectedTemplate ? $projectedTemplate->name : $product->name }}"
                                                      @if($isAiCardImage) data-is-ai-generated="true" @endif
-                                                     class="w-full h-full object-cover transition-transform duration-1000 ease-out {{ !$isSoldOut ? 'group-hover:scale-110' : '' }}">
+                                                     class="w-full h-full object-cover transition-transform duration-1000 ease-out {{ !$isSoldOut ? 'group-hover:scale-105' : '' }}">
                                             @elseif(is_array($product->media_gallery) && count($product->media_gallery) > 0 && isset($product->media_gallery[0]['type']) && $product->media_gallery[0]['type'] === 'video')
                                                 <video src="{{ asset('storage/'.$product->media_gallery[0]['path']) }}" class="w-full h-full object-cover" muted autoplay loop playsinline></video>
                                             @else
@@ -271,6 +290,14 @@
 
                                         @if(!$isSoldOut)
                                             <div class="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                            {{-- Kristall-Lichtglanz & sanfte goldene Seelenfunken beim Hovern --}}
+                                            <div class="sf-card-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10" aria-hidden="true"></div>
+                                            <svg class="sf-card-sparkle-1 pointer-events-none absolute top-[18%] right-[16%] w-4 h-4 text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                            </svg>
+                                            <svg class="sf-card-sparkle-2 pointer-events-none absolute bottom-[22%] left-[16%] w-3.5 h-3.5 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.85)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                            </svg>
                                         @endif
                                     </a>
 

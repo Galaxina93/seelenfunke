@@ -24,6 +24,25 @@
             </a>
         </div>
 
+        <style>
+            @keyframes sfRelSheen {
+                0% { transform: translateX(-140%) skewX(-20deg); }
+                100% { transform: translateX(240%) skewX(-20deg); }
+            }
+            @keyframes sfRelSparkle {
+                0%, 100% { opacity: 0.2; transform: scale(0.8) rotate(0deg); }
+                50% { opacity: 0.95; transform: scale(1.2) rotate(15deg); }
+            }
+            .group:hover .sf-rel-sheen {
+                animation: sfRelSheen 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            }
+            .sf-rel-sparkle-1 {
+                animation: sfRelSparkle 2.8s ease-in-out infinite;
+            }
+            .sf-rel-sparkle-2 {
+                animation: sfRelSparkle 3.4s ease-in-out infinite 1.1s;
+            }
+        </style>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             @foreach($relatedProducts as $relProduct)
                 @php
@@ -40,7 +59,7 @@
                     $ratingCount = (int) ($relProduct->approved_reviews_count ?? $relProduct->review_count ?? 0);
                 @endphp
 
-                <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
+                <div class="group relative flex flex-col h-full bg-white rounded-[2rem] p-3 border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1.5 hover:border-[var(--theme-color-30)] transition-all duration-500 {{ $isSoldOut ? 'opacity-80' : '' }}">
 
                     {{-- Bild Container --}}
                     <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
@@ -69,7 +88,7 @@
                                     <img src="{{ $resolvedImageUrl }}"
                                          alt="{{ $relProduct->name }}"
                                          @if($isAiCardImage) data-is-ai-generated="true" @endif
-                                         class="w-full h-full object-cover transition-transform duration-1000 ease-out {{ !$isSoldOut ? 'group-hover:scale-110' : '' }}">
+                                         class="w-full h-full object-cover transition-transform duration-1000 ease-out {{ !$isSoldOut ? 'group-hover:scale-105' : '' }}">
                                 @else
                                     <div class="flex items-center justify-center h-full text-gray-300">
                                         <svg class="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -85,6 +104,14 @@
 
                             @if(!$isSoldOut)
                                 <div class="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                {{-- Kristall-Lichtglanz & sanfte goldene Seelenfunken beim Hovern --}}
+                                <div class="sf-rel-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10" aria-hidden="true"></div>
+                                <svg class="sf-rel-sparkle-1 pointer-events-none absolute top-[18%] right-[16%] w-4 h-4 text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                </svg>
+                                <svg class="sf-rel-sparkle-2 pointer-events-none absolute bottom-[22%] left-[16%] w-3.5 h-3.5 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.85)] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                </svg>
                             @endif
                         </a>
 
