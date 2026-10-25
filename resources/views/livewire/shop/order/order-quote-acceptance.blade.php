@@ -307,22 +307,37 @@
                                     </div>
                                 @endif
                                 
-                                <form wire:submit.prevent="applyCoupon" class="flex gap-2">
-                                    <div class="flex-1 relative">
+                                @php
+                                    $hasAvailableVouchers = \App\Livewire\Shop\Marketing\MarketingVoucherSlider::hasAvailableVouchers();
+                                @endphp
+                                <form wire:submit.prevent="applyCoupon" class="flex items-stretch gap-2 w-full" @voucher-code-selected.window="$wire.set('couponCodeInput', $event.detail.code)">
+                                    <div class="flex-1 min-w-0 relative">
                                         <input wire:model="couponCodeInput" type="text" placeholder="Code eingeben" 
-                                               class="w-full text-base border-gray-300 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)] focus:ring-opacity-50 uppercase placeholder:normal-case font-mono @error('couponCodeInput') border-red-500 @enderror">
+                                               class="w-full h-full text-base border-gray-300 rounded-lg shadow-sm focus:border-[var(--theme-color)] focus:ring focus:ring-[var(--theme-color)] focus:ring-opacity-50 uppercase placeholder:normal-case font-mono @error('couponCodeInput') border-red-500 @enderror">
                                         @error('couponCodeInput')
                                             <p class="text-red-500 text-xs mt-1 absolute -bottom-5 left-0">{{ $message }}</p>
                                         @enderror
                                     </div>
-                                    <button type="submit" wire:loading.attr="disabled" class="bg-gray-900 text-white px-5 py-2.5 rounded-lg hover:bg-gray-800 transition font-bold text-sm whitespace-nowrap">
+                                    <button type="submit" wire:loading.attr="disabled" class="shrink-0 bg-gray-900 text-white px-4 py-2.5 rounded-lg hover:bg-gray-800 transition font-bold text-sm whitespace-nowrap flex items-center justify-center">
                                         Einlösen
                                     </button>
+                                    <button type="button"
+                                            data-voucher-trigger
+                                            @click.stop="$dispatch('toggle-vouchers')"
+                                            title="Verfügbare Gutscheine & Rabatte anzeigen"
+                                            aria-label="Verfügbare Gutscheine & Rabatte anzeigen"
+                                            class="shrink-0 relative px-3.5 py-2.5 rounded-lg border border-amber-300/80 bg-gradient-to-br from-amber-50 to-amber-100/70 text-[#B88728] hover:from-primary hover:to-primary-dark hover:text-white hover:border-primary transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(197,160,89,0.5)] flex items-center justify-center group cursor-pointer">
+                                        @if($hasAvailableVouchers)
+                                            <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary border border-white"></span>
+                                            </span>
+                                        @endif
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform duration-300 group-hover:scale-110">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                                        </svg>
+                                    </button>
                                 </form>
-                                <p class="text-[11px] text-amber-600/80 mt-3 flex items-center justify-center gap-1.5 font-medium">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    Tipp: Aktuelle Gutscheine finden Sie rechts in der Aktionsleiste!
-                                </p>
                             @else
                                 <div class="text-sm border border-gray-200 bg-gray-50 text-gray-500 p-4 rounded-lg">
                                     Gutscheine können nur für noch gültige Angebote eingelöst werden.

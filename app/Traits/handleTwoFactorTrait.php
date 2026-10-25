@@ -111,6 +111,10 @@ trait handleTwoFactorTrait
                 return redirect(route('customer.password-change-force'));
             }
 
+            if ($guard === 'employee' && method_exists($user, 'isInfluencer') && $user->isInfluencer()) {
+                return redirect(route('employee.influencer.dashboard'));
+            }
+
             return redirect(route($guard . '.dashboard'));
         }
 

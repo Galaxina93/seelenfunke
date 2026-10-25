@@ -104,7 +104,7 @@
             </div>
         </div>
 
-        {{-- Mobile Menu --}}
+        {{-- Mobile Menu (Modern White Design) --}}
         <div x-show="open"
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity-0 -translate-y-2"
@@ -113,44 +113,54 @@
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 -translate-y-2"
              x-cloak
-             class="md:hidden bg-primary-dark border-t border-gray-700 shadow-xl absolute w-full left-0">
+             class="md:hidden bg-white text-gray-900 border-t border-gray-200/80 shadow-[0_20px_50px_rgba(0,0,0,0.14)] rounded-b-2xl absolute w-full left-0 overflow-hidden">
 
-            <div class="px-4 pt-4 pb-6 space-y-2">
+            <div class="px-4 pt-4 pb-6 space-y-1.5">
                 <a href="{{ route('home') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('home') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Startseite
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('home') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                    <span>Startseite</span>
+                    @if(Request::routeIs('home')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('manufacture') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('manufacture') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Manufaktur
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('manufacture') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                    <span>Manufaktur</span>
+                    @if(Request::routeIs('manufacture')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('shop') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('shop') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Shop
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('shop') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                    <span>Shop</span>
+                    @if(Request::routeIs('shop')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('marketing/marketing/blog') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('marketing/marketing/blog') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Blog
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('marketing/marketing/blog') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                    <span>Blog</span>
+                    @if(Request::routeIs('marketing/marketing/blog')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('contact') }}"
-                   class="block px-3 py-2 text-lg {{ Request::routeIs('contact') ? 'text-primary font-bold' : 'text-white hover:text-primary' }}">
-                    Kontakt
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition-colors {{ Request::routeIs('contact') ? 'bg-amber-50/80 text-primary font-bold border border-primary/20' : 'text-gray-800 font-medium hover:bg-gray-50 hover:text-primary' }}">
+                    <span>Kontakt</span>
+                    @if(Request::routeIs('contact')) <span class="w-1.5 h-1.5 rounded-full bg-primary"></span> @endif
                 </a>
 
                 <a href="{{ route('product.show', 'geschenkgutschein') }}"
-                   class="block px-3 py-2 text-lg font-bold {{ request()->is('produkt/geschenkgutschein') ? 'text-amber-300' : 'text-amber-400' }} hover:text-amber-300 animate-gold-pulse">
-                    Gutscheine kaufen
+                   class="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base font-bold transition-colors {{ request()->is('produkt/geschenkgutschein') ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'text-amber-600 hover:bg-amber-50/60 hover:text-amber-700' }}">
+                    <span class="flex items-center gap-2">
+                        <i class="bi bi-gift-fill text-primary"></i>
+                        <span>Gutscheine kaufen</span>
+                    </span>
                 </a>
 
-                <a href="{{ route('calculator') }}" class="block mt-4 px-3 py-3 text-center bg-primary text-gray-900 font-bold rounded-md hover:bg-primary-light">
-                    Angebot kalkulieren
-                </a>
+                <div class="pt-2">
+                    <a href="{{ route('calculator') }}" class="block px-4 py-3 text-center bg-primary text-gray-900 font-bold rounded-xl shadow-sm hover:bg-primary-dark hover:text-white transition-all">
+                        Angebot kalkulieren
+                    </a>
+                </div>
 
-                <div class="mt-4 border-t border-gray-700/50 pt-2 pb-2">
+                <div class="mt-4 border-t border-gray-100 pt-3 pb-1">
                     <livewire:auth.auth-login-dropdown :isMobile="true" />
                 </div>
             </div>

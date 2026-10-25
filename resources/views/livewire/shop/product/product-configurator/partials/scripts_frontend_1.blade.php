@@ -65,6 +65,7 @@
             showEmojiWarning: false,
             _emojiWarningTimeout: null,
             showNotice: true,
+            confirmWarning: false,
 
             // Formular & Tabs
             activeTab: null,
@@ -662,6 +663,16 @@
 
             // NEU: Snapshot Capture vor dem Speichern in den Warenkorb mit Doppel-Klick Schutz & Mobile-Timeout
             async submitConfig() {
+                // 0. Prüfen, ob der Bestätigungs-Haken gesetzt wurde (Task 2.4)
+                if (this.context !== 'calculator' && this.$wire && !this.$wire.config_confirmed) {
+                    this.confirmWarning = true;
+                    if (this.$refs && this.$refs.confirmBox) {
+                        this.$refs.confirmBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                    return;
+                }
+                this.confirmWarning = false;
+
                 // 1. Doppel-Klick / Mehrfach-Klick Schutz!
                 if (this.isSaving) return;
                 this.isSaving = true;
@@ -991,6 +1002,63 @@
                 this.selectedType = type;
                 this.selectedIndex = index;
                 this.showFontMenu = this.showSizeMenu = this.showAlignMenu = this.showPosMenu = false;
+            },
+
+            getElementZIndex(type, index) {
+                const list = type === 'text' ? this.currentTexts : this.currentLogos;
+                const item = list ? list[index] : null;
+                if (item && typeof item.zIndex === 'number' && !isNaN(item.zIndex)) {
+                    return Math.max(1, Math.min(95, Math.round(item.zIndex)));
+                }
+                return type === 'text' ? (20 + Number(index || 0)) : (10 + Number(index || 0));
+            },
+
+            bringToFront() {
+                if (this.selectedIndex === null || !this.selectedType) return;
+                const tList = this.currentTexts || [];
+                const lList = this.currentLogos || [];
+                let maxZ = 10;
+                tList.forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (20 + idx);
+                    if (z > maxZ) maxZ = z;
+                });
+                lList.forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (10 + idx);
+                    if (z > maxZ) maxZ = z;
+                });
+                const target = this.selectedType === 'text' ? tList[this.selectedIndex] : lList[this.selectedIndex];
+                if (target) {
+                    target.zIndex = Math.min(95, maxZ + 1);
+                    this.updateTexture();
+                    this.recordHistory();
+                }
+            },
+
+            sendToBack() {
+                if (this.selectedIndex === null || !this.selectedType) return;
+                const tList = this.currentTexts || [];
+                const lList = this.currentLogos || [];
+                let minZ = 30;
+                tList.forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (20 + idx);
+                    if (z < minZ) minZ = z;
+                });
+                lList.forEach((it, idx) => {
+                    const z = (it && typeof it.zIndex === 'number') ? it.zIndex : (10 + idx);
+                    if (z < minZ) minZ = z;
+                });
+                const target = this.selectedType === 'text' ? tList[this.selectedIndex] : lList[this.selectedIndex];
+                if (target) {
+                    if (minZ <= 2) {
+                        tList.forEach((it, idx) => { it.zIndex = ((typeof it.zIndex === 'number') ? it.zIndex : (20 + idx)) + 2; });
+                        lList.forEach((it, idx) => { it.zIndex = ((typeof it.zIndex === 'number') ? it.zIndex : (10 + idx)) + 2; });
+                        target.zIndex = 1;
+                    } else {
+                        target.zIndex = minZ - 1;
+                    }
+                    this.updateTexture();
+                    this.recordHistory();
+                }
             },
 
             deleteSelectedItem() {

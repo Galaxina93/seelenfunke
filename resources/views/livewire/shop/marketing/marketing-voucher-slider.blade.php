@@ -1,10 +1,18 @@
 <div class="flex flex-col h-full max-h-[80vh]">
     {{-- Header --}}
-    <div class="p-8 pb-4 flex justify-between items-start">
+    <div class="p-6 sm:p-8 pb-4 flex justify-between items-start">
         <div>
             <h3 class="font-serif font-bold text-2xl text-gray-900 leading-none">Deine Funken</h3>
-            <p class="text-[11px] text-primary font-black uppercase tracking-widest mt-2">Limitierte Angebote</p>
+            <p class="text-[11px] text-primary font-black uppercase tracking-widest mt-2">Aktuelle Rabatte & Gutscheine</p>
         </div>
+        <button type="button"
+                @click="$dispatch('close-vouchers')"
+                class="p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                title="Schließen">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
     </div>
 
     {{-- Content --}}
@@ -29,6 +37,7 @@
                     <div x-data="{
                                     copied: false,
                                     copyCode() {
+                                        window.dispatchEvent(new CustomEvent('voucher-code-selected', { detail: { code: '{{ $voucher->code }}' } }));
                                         if (navigator.clipboard && navigator.clipboard.writeText) {
                                             navigator.clipboard.writeText('{{ $voucher->code }}').then(() => {
                                                 this.copied = true;

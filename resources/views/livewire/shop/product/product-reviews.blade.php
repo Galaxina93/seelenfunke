@@ -191,6 +191,23 @@
                                             </div>
                                         @endif
                                     </div>
+
+                                    {{-- Anonym bewerten Checkbox --}}
+                                    <div class="w-full bg-white/90 border border-amber-200/80 rounded-xl p-4 shadow-sm transition-colors hover:border-amber-300">
+                                        <label class="flex items-start gap-3.5 cursor-pointer select-none">
+                                            <div class="pt-0.5 shrink-0">
+                                                <input type="checkbox" wire:model.live="isAnonymous" class="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer transition">
+                                            </div>
+                                            <div class="text-xs sm:text-sm leading-relaxed">
+                                                <span class="font-bold text-gray-900 flex items-center gap-1.5">
+                                                    <i class="bi bi-incognito text-amber-600"></i> Anonym bewerten
+                                                </span>
+                                                <p class="text-xs text-gray-500 mt-0.5 leading-normal">
+                                                    Wenn du diesen Haken setzt, werden dein Name, deine Initialen und dein Profilbild nicht öffentlich angezeigt. Deine Rezension erscheint stattdessen geschützt als <strong class="text-gray-700">„Anonymer Kunde“</strong>.
+                                                </p>
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
 
                                 <div class="flex flex-col sm:flex-row items-center gap-4 pt-6 mt-4 border-t border-amber-200/50 w-full">
@@ -242,15 +259,30 @@
                             </div>
 
                             <div class="flex items-center space-x-4 mb-4">
-                                <div class="h-14 w-14 rounded-full bg-amber-200 flex items-center justify-center text-amber-900 font-bold text-xl shadow-inner border border-white shrink-0">
-                                    {{ substr($userReview->customer->first_name, 0, 1) }}{{ substr($userReview->customer->last_name, 0, 1) }}
-                                </div>
-                                <div>
-                                    <p class="text-base font-semibold text-gray-900">{{ $userReview->customer->first_name }} {{ substr($userReview->customer->last_name, 0, 1) }}.</p>
-                                    <p class="text-xs text-gray-500 flex items-center mt-1 font-medium">
-                                        <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }}
-                                    </p>
-                                </div>
+                                @if($userReview->is_anonymous)
+                                    <div class="h-14 w-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-xl shadow-inner border border-white shrink-0">
+                                        <i class="bi bi-incognito text-2xl"></i>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2 flex-wrap">
+                                            <p class="text-base font-semibold text-gray-900">Anonymer Kunde</p>
+                                            <span class="text-[10px] font-bold uppercase tracking-wider bg-gray-200/80 text-gray-700 px-2 py-0.5 rounded-full">Anonym veröffentlicht</span>
+                                        </div>
+                                        <p class="text-xs text-gray-500 flex items-center mt-1 font-medium">
+                                            <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }}
+                                        </p>
+                                    </div>
+                                @else
+                                    <div class="h-14 w-14 rounded-full bg-amber-200 flex items-center justify-center text-amber-900 font-bold text-xl shadow-inner border border-white shrink-0">
+                                        {{ substr($userReview->customer->first_name, 0, 1) }}{{ substr($userReview->customer->last_name, 0, 1) }}
+                                    </div>
+                                    <div>
+                                        <p class="text-base font-semibold text-gray-900">{{ $userReview->customer->first_name }} {{ substr($userReview->customer->last_name, 0, 1) }}.</p>
+                                        <p class="text-xs text-gray-500 flex items-center mt-1 font-medium">
+                                            <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $userReview->created_at->format('d.m.Y') }}
+                                        </p>
+                                    </div>
+                                @endif
                             </div>
                             <div class="flex items-center mb-4">
                                 @for($i = 1; $i <= 5; $i++)
@@ -372,20 +404,32 @@
                                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 w-full">
                                     <div class="flex items-center space-x-4">
 
-                                        @if($review->customer && $review->customer->profile && $review->customer->profile->photo_path)
-                                            <img src="{{ \Illuminate\Support\Str::startsWith($review->customer->profile->photo_path, 'shop/') ? asset($review->customer->profile->photo_path) : Storage::url($review->customer->profile->photo_path) }}" alt="{{ $review->customer->first_name }}" class="h-12 w-12 rounded-full object-cover border border-white shadow-inner shrink-0">
+                                        @if($review->is_anonymous || !$review->customer)
+                                            <div class="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-lg border border-white shadow-inner shrink-0">
+                                                <i class="bi bi-incognito text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <p class="text-base font-semibold text-gray-900">Anonymer Kunde</p>
+                                                <p class="text-xs text-gray-500 flex items-center mt-0.5 font-medium">
+                                                    <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }}
+                                                </p>
+                                            </div>
                                         @else
-                                            <div class="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-lg border border-white shadow-inner shrink-0">
-                                                {{ substr($review->customer->first_name, 0, 1) }}{{ substr($review->customer->last_name, 0, 1) }}
+                                            @if($review->customer->profile && $review->customer->profile->photo_path)
+                                                <img src="{{ \Illuminate\Support\Str::startsWith($review->customer->profile->photo_path, 'shop/') ? asset($review->customer->profile->photo_path) : Storage::url($review->customer->profile->photo_path) }}" alt="{{ $review->customer->first_name }}" class="h-12 w-12 rounded-full object-cover border border-white shadow-inner shrink-0">
+                                            @else
+                                                <div class="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 font-bold text-lg border border-white shadow-inner shrink-0">
+                                                    {{ substr($review->customer->first_name, 0, 1) }}{{ substr($review->customer->last_name, 0, 1) }}
+                                                </div>
+                                            @endif
+
+                                            <div>
+                                                <p class="text-base font-semibold text-gray-900">{{ $review->customer->first_name }} {{ substr($review->customer->last_name, 0, 1) }}.</p>
+                                                <p class="text-xs text-gray-500 flex items-center mt-0.5 font-medium">
+                                                    <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }}
+                                                </p>
                                             </div>
                                         @endif
-
-                                        <div>
-                                            <p class="text-base font-semibold text-gray-900">{{ $review->customer->first_name }} {{ substr($review->customer->last_name, 0, 1) }}.</p>
-                                            <p class="text-xs text-gray-500 flex items-center mt-0.5 font-medium">
-                                                <i class="bi bi-check-circle-fill text-green-500 mr-1.5"></i> Verifizierter Kauf &bull; {{ $review->created_at->format('d.m.Y') }}
-                                            </p>
-                                        </div>
                                     </div>
                                     <div class="flex items-center">
                                         @for($i = 1; $i <= 5; $i++)

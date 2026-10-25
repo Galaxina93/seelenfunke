@@ -232,7 +232,7 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
 
         Livewire::test(ProductConfigurator::class, ['product' => $product3d])
             ->assertSee('Hinweis zur 3D-Vorschau')
-            ->assertSee('Positionierung und Ausrichtung im Detail und optimieren diese bei Bedarf');
+            ->assertSee('Unsere Experten prüfen und optimieren die Ausrichtung vor der Gravur');
     }
 
     #[Test]
@@ -240,7 +240,7 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
     {
         Livewire::test(ProductConfigurator::class, ['product' => $this->product])
             ->assertSee('Hinweis zur 2D-Gestaltung')
-            ->assertSee('Wunschtext, gewünschte Motive/Icons sowie eigene Bilder frei auf der Gestaltungsfläche');
+            ->assertSee('Platziere, drehe und skaliere Texte, Motive oder eigene Bilder frei auf der Fläche.');
     }
 
     #[Test]
@@ -282,7 +282,7 @@ class ProductConfiguratorCalculatorIntegrationTest extends TestCase
             ->assertSee('Wiederholen (Strg+Y)')
             ->assertSee('Hinweis zur Lasergravur')
             ->assertSee('Emojis')
-            ->assertSee('farbige Symbole können per Lasergravur nicht dargestellt werden')
+            ->assertSee('farbige Symbole können nicht per Laser graviert werden')
             ->assertSee('handleKeyDown($event)', false);
     }
 

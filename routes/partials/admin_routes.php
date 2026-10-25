@@ -234,6 +234,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/newsletter', \App\Livewire\Shop\Marketing\MarketingNewsletter::class)->name('admin.newsletter');
     Route::get('/admin/marketing/linktree', \App\Livewire\Shop\Marketing\MarketingLinktree::class)->name('admin.marketing-linktree');
     Route::get('/admin/marketing/tracking', \App\Livewire\Shop\Marketing\MarketingTracking::class)->name('admin.marketing-tracking');
+    Route::get('/admin/marketing/influencer', \App\Livewire\Shop\Marketing\MarketingInfluencer::class)->name('admin.marketing-influencer');
 
 });
 

@@ -4,163 +4,155 @@
         atBottom: false,
         vouchersOpen: false,
         chatOpen: false,
-        chatMaximized: false,
-        dockOpen: window.innerWidth >= 768
+        chatMaximized: false
     }"
      x-init="
-        window.addEventListener('scroll', () => {
+        const updateScrollState = () => {
             atTop = window.scrollY < 300;
             atBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
-        })
+        };
+        updateScrollState();
+        window.addEventListener('scroll', updateScrollState, { passive: true });
     "
      @toggle-chat-size.window="chatMaximized = !chatMaximized"
-     class="fixed right-0 top-1/2 -translate-y-1/2 z-[9999] flex items-center transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
-     :class="dockOpen ? 'translate-x-0' : 'translate-x-[calc(100%-8px)]'"
+     @toggle-vouchers.window="vouchersOpen = !vouchersOpen; if(vouchersOpen) chatOpen = false"
+     @close-vouchers.window="vouchersOpen = false"
+     class="fixed right-3 bottom-4 sm:right-5 sm:bottom-5 z-[9990] flex flex-col items-center gap-2 pointer-events-none"
 >
-    {{-- INTERAKTIVE GLOW-ZONE --}}
-    <div @click="dockOpen = !dockOpen; if(!dockOpen) { vouchersOpen = false; chatOpen = false; }"
-         class="absolute left-0 top-0 bottom-0 w-10 cursor-pointer flex items-center justify-center group"
-         style="margin-left: -25px;">
+    <style>
+        .sf-floating-corner-btn {
+            position: relative;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 9999px;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(214, 211, 209, 0.85);
+            color: #44403c;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            cursor: pointer;
+            transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                        border-color 0.28s ease,
+                        box-shadow 0.28s ease,
+                        color 0.28s ease,
+                        background 0.28s ease;
+            overflow: hidden;
+        }
+        .sf-floating-corner-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 9999px;
+            background: radial-gradient(circle at 50% 35%, rgba(253, 230, 138, 0.55) 0%, rgba(197, 160, 89, 0.22) 55%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.28s ease;
+            pointer-events: none;
+        }
+        .sf-floating-corner-btn:hover {
+            transform: translateY(-2px) scale(1.07);
+            border-color: #C5A059;
+            color: #9a6f1a;
+            background: #ffffff;
+            box-shadow: 0 0 18px rgba(251, 191, 36, 0.65),
+                        0 0 32px rgba(197, 160, 89, 0.35),
+                        0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        .sf-floating-corner-btn:hover::before {
+            opacity: 1;
+        }
+        .sf-floating-corner-btn svg {
+            position: relative;
+            z-index: 2;
+            transition: transform 0.28s ease;
+        }
+        .sf-floating-corner-btn:hover svg {
+            transform: scale(1.1);
+        }
+    </style>
 
-        <div class="relative flex items-center justify-center">
-            <div class="absolute inset-0 w-6 h-16 bg-primary/40 rounded-full blur-md animate-pulse"></div>
-            <div class="relative w-5 h-16 bg-primary rounded-full shadow-[0_0_20px_rgba(197,160,89,1)] transition-all duration-300 group-hover:h-20"
-                 :class="dockOpen ? 'opacity-20' : 'opacity-100'">
-            </div>
-            <div class="absolute text-gray-900 transition-transform duration-500"
-                 :class="dockOpen ? 'rotate-0' : 'rotate-180'">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="4">
-                    <path d="M9 5l7 7-7 7"/>
-                </svg>
-            </div>
-        </div>
-    </div>
+    {{-- 1. NACH OBEN SCROLLEN (Eigenständiges Icon) --}}
+    <button x-show="!atTop"
+            x-cloak
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-75 translate-y-2"
+            x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+            x-transition:leave-end="opacity-0 scale-75 translate-y-2"
+            @click="window.scrollTo({top: 0, behavior: 'smooth'})"
+            class="sf-floating-corner-btn"
+            title="Nach oben scrollen"
+            aria-label="Nach oben scrollen">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/>
+        </svg>
+    </button>
 
-    {{-- DAS HAUPT-DOCK --}}
-    <div class="flex flex-col items-center bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl py-4 px-1 rounded-l-2xl border-l border-t border-b border-stone-200/90 dark:border-white/10 shadow-[-5px_0_25px_rgba(0,0,0,0.08)] dark:shadow-[-10px_0_30px_rgba(0,0,0,0.3)] space-y-3 transition-all duration-300 hover:px-2 group/dock relative">
+    {{-- 2. NACH UNTEN SCROLLEN (Eigenständiges Icon) --}}
+    <button x-show="!atBottom"
+            x-cloak
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="opacity-0 scale-75 translate-y-2"
+            x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+            x-transition:leave-end="opacity-0 scale-75 translate-y-2"
+            @click="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})"
+            class="sf-floating-corner-btn"
+            title="Nach unten scrollen"
+            aria-label="Nach unten scrollen">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </button>
 
-        {{-- 0. SUPPORT CHAT (FUNKI) --}}
-        <button @click="chatOpen = !chatOpen; if(chatOpen) { vouchersOpen = false; setTimeout(() => $dispatch('chat-opened'), 50); }"
-                class="group/icon relative p-1.5 text-cyan-600 hover:bg-cyan-50 dark:text-cyan-400 dark:hover:bg-cyan-500/20 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
-                title="Live Support">
-            
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform group-hover/icon:scale-110">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.38-.49 1.636-1.61 2.898-1.674 2.97-.1.116-.08.286.035.385.116.1.286.08.386-.035.056-.065 1.558-1.849 2.503-3.08A9.096 9.096 0 0012 20.25z" />
-            </svg>
+    {{-- 3. COOKIE-EINSTELLUNGEN (Eigenständiges Icon) --}}
+    <button @click="CookieConsent.showPreferences()"
+            class="sf-floating-corner-btn"
+            title="Cookie-Einstellungen"
+            aria-label="Cookie-Einstellungen">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/>
+            <path d="M9 8h.01M12 12h.01M15 10h.01M11 16h.01M14 15h.01" stroke-linecap="round" stroke-width="3"/>
+            <path d="M18.5 12c-1 0-2-1-2-2s1-2 2-2"/>
+        </svg>
+    </button>
 
-            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-cyan-600 dark:group-hover/icon:text-cyan-400 transition-colors pointer-events-none w-full text-center">
-                Support
-            </span>
-        </button>
+    {{-- 4. LIVE SUPPORT CHAT (Eigenständiges Icon) --}}
+    <button @click="chatOpen = !chatOpen; if(chatOpen) { vouchersOpen = false; setTimeout(() => $dispatch('chat-opened'), 50); }"
+            class="sf-floating-corner-btn"
+            :class="chatOpen ? 'border-primary text-[#9a6f1a] ring-2 ring-primary/30' : ''"
+            title="Live Support"
+            aria-label="Live Support">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 20.25c4.97 0 9-3.694 9-8.25s-4.03-8.25-9-8.25S3 7.444 3 12c0 2.104.859 4.023 2.273 5.38-.49 1.636-1.61 2.898-1.674 2.97-.1.116-.08.286.035.385.116.1.286.08.386-.035.056-.065 1.558-1.849 2.503-3.08A9.096 9.096 0 0012 20.25z" />
+        </svg>
+    </button>
 
-        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
-
-        {{-- 1. GUTSCHEIN TRIGGER --}}
-        @php
-            // Prüfe auf gültige manuelle Gutscheine
-            $hasActiveManual = \App\Models\Marketing\MarketingVoucher::where('mode', 'manual')->current()->exists();
-
-            // Prüfe auf Auto-Gutscheine des AKTUELLEN Monats (ohne persönliche Events)
-            $hasActiveAuto = \App\Models\Marketing\MarketingVoucher::where('mode', 'auto')
-                                ->where('is_active', true)
-                                ->where(function ($q) {
-                                    $q->whereNull('trigger_event')
-                                      ->orWhereNotIn('trigger_event', ['birthday', 'registered_date']);
-                                })
-                                ->whereMonth('valid_from', now()->month)
-                                ->exists();
-        @endphp
-
-        <button @click="vouchersOpen = !vouchersOpen; if(vouchersOpen) chatOpen = false"
-                class="group/icon relative p-1.5 text-[#B88728] hover:bg-amber-50 dark:text-primary dark:hover:bg-primary/20 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
-                title="Gutscheine">
-
-            {{-- Leuchtender Punkt nur, wenn wirklich ein Gutschein für diesen Monat anliegt --}}
-            @if($hasActiveManual || $hasActiveAuto)
-                <div class="absolute top-1 right-3 flex h-2 w-2">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                </div>
-            @endif
-
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2"
-                 stroke="currentColor" class="w-5 h-5 transition-transform group-hover/icon:scale-110">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
-            </svg>
-
-            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-[#B88728] dark:group-hover/icon:text-primary transition-colors pointer-events-none w-full text-center">
-                Rabatte
-            </span>
-        </button>
-
-        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
-
-        {{-- 2. SCROLL NAVIGATION --}}
-        <div class="flex flex-col space-y-1">
-            <button x-show="!atTop" x-transition @click="window.scrollTo({top: 0, behavior: 'smooth'})"
-                    class="p-1 text-stone-400 hover:text-stone-800 dark:text-white/40 dark:hover:text-white transition-colors" title="Nach oben">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path d="M5 15l7-7 7 7"/>
-                </svg>
-            </button>
-
-            <button x-show="!atBottom" x-transition
-                    @click="window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'})"
-                    class="p-1 text-stone-400 hover:text-stone-800 dark:text-white/40 dark:hover:text-white transition-colors" title="Nach unten">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path d="M19 9l-7 7-7-7"/>
-                </svg>
-            </button>
-        </div>
-
-        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
-
-        {{-- 3. COOKIE KEKS --}}
-        <button @click="CookieConsent.showPreferences()"
-                class="group/icon relative p-1.5 text-stone-400 hover:text-[#B88728] hover:bg-amber-50 dark:text-white/30 dark:hover:text-primary dark:hover:bg-primary/20 rounded-xl transition-all hover:scale-105 flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
-                title="Cookie-Einstellungen">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/>
-                <path d="M9 8h.01M12 12h.01M15 10h.01M11 16h.01M14 15h.01" stroke-linecap="round" stroke-width="3"/>
-                <path d="M18.5 12c-1 0-2-1-2-2s1-2 2-2"/>
-            </svg>
-            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-[#B88728] dark:group-hover/icon:text-primary transition-colors pointer-events-none w-full text-center">
-                Cookies
-            </span>
-        </button>
-
-        <div class="w-6 h-px bg-stone-200 dark:bg-white/10"></div>
-
-        {{-- 4. WIDERRUFSBUTTON (EU-Richtlinie 2026) --}}
-        <a href="{{ route('widerruf') }}"
-           class="group/icon relative p-1.5 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:text-red-500/80 dark:hover:bg-red-500/20 dark:hover:text-red-500 rounded-xl transition-all flex flex-col items-center justify-center gap-0.5 w-[3.75rem]"
-           title="Vertrag widerrufen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform group-hover/icon:scale-110">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125v-9M10.125 2.25h.375a9 9 0 0 1 9 9v.375M10.125 2.25A3.375 3.375 0 0 1 13.5 5.625v1.5c0 .621.504 1.125 1.125 1.125h1.5a3.375 3.375 0 0 1 3.375 3.375M9 15l2.25 2.25L15 12" />
-            </svg>
-            <span class="text-[8px] font-bold tracking-widest uppercase text-stone-600 dark:text-white/80 group-hover/icon:text-rose-600 dark:group-hover/icon:text-red-400 transition-colors pointer-events-none w-full text-center">
-                Widerruf
-            </span>
-        </a>
-    </div>
-
-    {{-- GUTSCHEIN PANEL (Teleported globally via Alpine to bypass Stack Context limits and overflow-hidden on body) --}}
+    {{-- GUTSCHEIN PANEL (Wird über das Geschenk-Icon neben den Gutschein-Inputfeldern geöffnet) --}}
     <template x-teleport="body">
         <div x-show="vouchersOpen"
              x-cloak
-             x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-500"
-             x-transition:enter-start="translate-x-10 opacity-0"
-             x-transition:enter-end="translate-x-0 opacity-100"
-             x-transition:leave="transition ease-in duration-300"
-             class="fixed left-3 right-[4.25rem] sm:left-auto sm:right-[5.5rem] top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] shadow-[-15px_0_40px_rgba(0,0,0,0.1)] dark:shadow-[-20px_0_50px_rgba(0,0,0,0.4)] rounded-[2rem] sm:rounded-[2.5rem] border border-stone-200/90 dark:border-white/20 flex flex-col pointer-events-auto"
+             @click.outside="if (!$event.target.closest('[data-voucher-trigger]')) vouchersOpen = false"
+             x-transition:enter="transition ease-[cubic-bezier(0.23,1,0.32,1)] duration-300"
+             x-transition:enter-start="translate-y-4 opacity-0 scale-95"
+             x-transition:enter-end="translate-y-0 opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="translate-y-0 opacity-100 scale-100"
+             x-transition:leave-end="translate-y-4 opacity-0 scale-95"
+             class="fixed left-3 right-3 sm:left-auto sm:right-6 top-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-2xl sm:w-[340px] shadow-[0_25px_60px_rgba(0,0,0,0.18)] rounded-[2rem] border border-stone-200/90 flex flex-col pointer-events-auto"
              style="z-index: 99998;"
         >
             @livewire('shop.marketing.marketing-voucher-slider')
         </div>
     </template>
 
-    {{-- SUPPORT CHAT PANEL (Teleported globally via Alpine to bypass Stack Context limits) --}}
+    {{-- SUPPORT CHAT PANEL --}}
     <template x-teleport="body">
         <div x-show="chatOpen"
              x-cloak
@@ -170,12 +162,12 @@
              x-transition:leave="transition ease-in duration-300"
              x-transition:leave-start="translate-x-0 opacity-100"
              x-transition:leave-end="translate-x-10 opacity-0"
-             :class="chatMaximized ? 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:bottom-10 sm:top-10 sm:w-[450px] sm:h-[calc(100vh-5rem)]' : 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:top-1/2 sm:-translate-y-1/2 sm:w-[380px] sm:h-[75vh] sm:max-h-[600px]'"
+             :class="chatMaximized ? 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-20 sm:bottom-10 sm:top-10 sm:w-[450px] sm:h-[calc(100vh-5rem)]' : 'fixed right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-20 sm:bottom-6 sm:top-auto sm:w-[380px] sm:h-[75vh] sm:max-h-[600px]'"
              class="bg-white shadow-[0_30px_80px_rgba(0,0,0,0.4)] rounded-3xl border border-gray-100 overflow-hidden flex flex-col pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
              :style="chatMaximized ? 'z-index: 100001;' : 'z-index: 99999;'"
         >
             @livewire('frontend.support.ai-frontend-support-chat')
-            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] sm:w-[380px] sm:h-[75vh] sm:max-h-[600px] right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-24 sm:bottom-10 sm:top-10 sm:top-1/2 sm:-translate-y-1/2"></div>
+            <div class="hidden sm:w-[450px] sm:h-[calc(100vh-5rem)] sm:w-[380px] sm:h-[75vh] sm:max-h-[600px] right-2 left-2 bottom-20 top-20 sm:left-auto sm:right-20 sm:bottom-10 sm:top-10 sm:bottom-6 sm:top-auto"></div>
         </div>
     </template>
 </div>

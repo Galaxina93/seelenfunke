@@ -84,6 +84,29 @@ class OrderOrder extends Model
                         \Illuminate\Support\Facades\Log::error("Failed to store PDF for invoice {$invoice->invoice_number} on order status sync: " . $e->getMessage());
                     }
                 }
+
+                try {
+                    app(\App\Services\Marketing\InfluencerService::class)->processOrderCommission($order);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Influencer commission processing error on status sync: ' . $e->getMessage());
+                }
+            }
+
+            // 1b. Synchronize "shipped" / "completed" -> approve pending influencer commission
+            if ($order->isDirty('status') && in_array($order->status, ['shipped', 'completed'], true) && $order->payment_status === 'paid') {
+                try {
+                    if (\Illuminate\Support\Facades\Schema::hasTable('marketing_influencer_commissions')) {
+                        \App\Models\Marketing\MarketingInfluencerCommission::where('order_id', $order->id)
+                            ->where('status', 'pending')
+                            ->whereNull('payout_id')
+                            ->update([
+                                'status' => 'approved',
+                                'approved_at' => now(),
+                            ]);
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Influencer commission approval error: ' . $e->getMessage());
+                }
             }
 
             // 2. Synchronize "cancelled" or "refunded" status
@@ -98,6 +121,12 @@ class OrderOrder extends Model
                     } catch (\Exception $e) {
                         \Illuminate\Support\Facades\Log::error("Failed to cancel invoice {$invoice->invoice_number} on order status sync: " . $e->getMessage());
                     }
+                }
+
+                try {
+                    app(\App\Services\Marketing\InfluencerService::class)->reverseOrderCommission($order, (string) ($order->cancellation_reason ?: 'Stornierung/Erstattung'));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error('Influencer commission reversal error on status sync: ' . $e->getMessage());
                 }
             }
         });
@@ -517,6 +546,13 @@ class OrderOrder extends Model
                 \Illuminate\Support\Facades\Log::error('Referral reward processing error: ' . $e->getMessage());
             }
 
+            // --- INFLUENCER & AFFILIATE: PROVISION BERECHNEN (DUAL-ATTRIBUTION) ---
+            try {
+                app(\App\Services\Marketing\InfluencerService::class)->processOrderCommission($order);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Influencer commission processing error: ' . $e->getMessage());
+            }
+
             // --- HERZENSPROJEKT: AUTOMATISCHER BEITRAG IN DEN SPENDENTOPF ---
             \App\Services\HerzensprojektService::recordDonationForOrder($order);
 
@@ -644,6 +680,13 @@ class OrderOrder extends Model
             app(\App\Services\ReferralService::class)->reverseOrderReferralReward($this);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Referral reward reversal error: ' . $e->getMessage());
+        }
+
+        // 5b. Influencer-Provision bei Storno/Widerruf zurückbuchen
+        try {
+            app(\App\Services\Marketing\InfluencerService::class)->reverseOrderCommission($this, $reason);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Influencer commission reversal error: ' . $e->getMessage());
         }
 
         // 6. Gamification: Gutgeschriebene Seelenfunken & Bestell-Titel bei Storno/Erstattung korrigieren

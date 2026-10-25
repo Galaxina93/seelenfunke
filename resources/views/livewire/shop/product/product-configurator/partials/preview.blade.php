@@ -3,16 +3,7 @@
      :style="isMaximized ? 'min-width: 0;' : ''"
      x-ref="stage">
 
-    {{-- OBERE BEDIENLEISTE (2D / 3D TOGGLE) --}}
-    <div x-show="config.modelPath" class="mt-4 mb-3 sm:mb-4 flex justify-center relative z-50">
-        {{-- KUNDEN TOGGLE 2D / 3D --}}
-        <div class="p-1.5 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
-            <button type="button" @click="showDrawingBoard = true" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
-            <button type="button" @click="showDrawingBoard = false" class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
-        </div>
-    </div>
-
-    {{-- BLAUER HINWEIS (2D / 3D WECHSEL IN EINEM EINZIGEN CONTAINER) --}}
+    {{-- BLAUER HINWEIS (2D / 3D WECHSEL IN EINEM EINZIGEN CONTAINER, MOBIL VOLLE BREITE & KOMPAKT) --}}
     <div x-show="showNotice"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 -translate-y-2 scale-98"
@@ -20,43 +11,43 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0 scale-100"
          x-transition:leave-end="opacity-0 -translate-y-2 scale-98"
-         class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4">
-        <div class="flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm transition-all duration-300 {{ $isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-blue-50/90 border-blue-200 text-blue-900' }}">
+         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-2.5 mb-2">
+        <div class="flex items-start gap-2.5 px-3 py-2.5 sm:p-3 rounded-xl border shadow-sm transition-all duration-300 {{ $isDark ? 'bg-blue-950/40 border-blue-800/60 text-blue-200 shadow-[0_0_20px_rgba(37,99,235,0.1)]' : 'bg-blue-50/90 border-blue-200 text-blue-900' }}">
             {{-- ICON (SOFORTIGER WECHSEL OHNE VERZÖGERUNG) --}}
             <div class="shrink-0 mt-0.5">
                 <span x-show="config.modelPath && !showDrawingBoard" x-cloak>
-                    <x-heroicon-s-exclamation-circle class="w-5 h-5 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
+                    <x-heroicon-s-exclamation-circle class="w-4 h-4 sm:w-5 sm:h-5 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
                 </span>
                 <span x-show="showDrawingBoard || !config.modelPath">
-                    <x-heroicon-s-information-circle class="w-5 h-5 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
+                    <x-heroicon-s-information-circle class="w-4 h-4 sm:w-5 sm:h-5 {{ $isDark ? 'text-blue-400' : 'text-blue-600' }}" />
                 </span>
             </div>
 
-            {{-- TEXT-INHALT --}}
-            <div class="text-xs sm:text-[13px] leading-relaxed flex-1">
+            {{-- TEXT-INHALT (KOMPAKT & PRÄZISE) --}}
+            <div class="text-[11px] sm:text-xs leading-snug flex-1 min-w-0">
                 {{-- 3D EXPERTEN-HINWEIS --}}
                 <div x-show="config.modelPath && !showDrawingBoard" x-cloak>
-                    <p class="font-bold uppercase tracking-wider text-[10px] sm:text-xs mb-1 flex items-center gap-1.5 {{ $isDark ? 'text-blue-300' : 'text-blue-700' }}">
+                    <p class="font-bold uppercase tracking-wider text-[10px] mb-0.5 flex items-center gap-1.5 {{ $isDark ? 'text-blue-300' : 'text-blue-700' }}">
                         Hinweis zur 3D-Vorschau
                     </p>
                     <p class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
-                        Die 3D-Ansicht dient der räumlichen Orientierung und Visualisierung Ihres Designs. Vor der finalen Fertigung überprüfen unsere Experten die Positionierung und Ausrichtung im Detail und optimieren diese bei Bedarf für ein perfektes Gravurergebnis. Fertigungstechnisch bedingt können minimale Abweichungen auftreten.
+                        Die 3D-Ansicht dient zur räumlichen Orientierung. Unsere Experten prüfen und optimieren die Ausrichtung vor der Gravur – minimale fertigungsbedingte Abweichungen sind möglich.
                     </p>
                 </div>
 
                 {{-- 2D GESTALTUNGS-HINWEIS --}}
                 <div x-show="showDrawingBoard || !config.modelPath">
-                    <p class="font-bold uppercase tracking-wider text-[10px] sm:text-xs mb-1 flex items-center gap-1.5 {{ $isDark ? 'text-blue-300' : 'text-blue-700' }}">
+                    <p class="font-bold uppercase tracking-wider text-[10px] mb-0.5 flex items-center gap-1.5 {{ $isDark ? 'text-blue-300' : 'text-blue-700' }}">
                         Hinweis zur 2D-Gestaltung
                     </p>
                     <p class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
-                        Platzieren und arrangieren Sie Ihren persönlichen Wunschtext, gewünschte Motive/Icons sowie eigene Bilder frei auf der Gestaltungsfläche. Nutzen Sie die Werkzeuge zum Verschieben, Drehen und Skalieren, um Ihr individuelles Design optimal zu positionieren. Bitte beachten Sie, dass die grafische Vorschau von Texten, Symbolen und Motiven produktionsbedingt minimale <a href="/agb#konfigurator" target="_blank" rel="noopener noreferrer" class="underline font-semibold hover:opacity-80 transition-opacity">Abweichungen</a> zum gefertigten Endprodukt aufweisen kann.
+                        Platziere, drehe und skaliere Texte, Motive oder eigene Bilder frei auf der Fläche. Produktionsbedingt sind minimale <a href="/agb#konfigurator" target="_blank" rel="noopener noreferrer" class="underline font-semibold hover:opacity-80 transition-opacity">Abweichungen</a> zur Vorschau möglich.
                     </p>
                 </div>
             </div>
 
             {{-- BUTTON ZUM AUSBLENDEN --}}
-            <button type="button" @click="toggleNotice(false)" class="text-blue-400 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-200 shrink-0 p-1 rounded-lg transition-colors cursor-pointer" title="Hinweis ausblenden">
+            <button type="button" @click="toggleNotice(false)" class="text-blue-400 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-200 shrink-0 p-0.5 rounded-lg transition-colors cursor-pointer" title="Hinweis ausblenden">
                 <x-heroicon-m-x-mark class="w-4 h-4" />
             </button>
         </div>
@@ -71,22 +62,30 @@
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100 translate-y-0"
          x-transition:leave-end="opacity-0 -translate-y-2"
-         class="w-full max-w-[455px] md:max-w-[600px] px-3 sm:px-4 mb-4">
-        <div class="flex items-start gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-sm {{ $isDark ? 'bg-amber-950/40 border-amber-800/60 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : 'bg-amber-50 border-amber-200 text-amber-900' }}">
+         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mb-2">
+        <div class="flex items-start gap-2.5 px-3 py-2.5 sm:p-3 rounded-xl border shadow-sm {{ $isDark ? 'bg-amber-950/40 border-amber-800/60 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.1)]' : 'bg-amber-50 border-amber-200 text-amber-900' }}">
             <div class="shrink-0 mt-0.5">
-                <x-heroicon-s-exclamation-triangle class="w-5 h-5 {{ $isDark ? 'text-amber-400' : 'text-amber-600' }}" />
+                <x-heroicon-s-exclamation-triangle class="w-4 h-4 sm:w-5 sm:h-5 {{ $isDark ? 'text-amber-400' : 'text-amber-600' }}" />
             </div>
-            <div class="text-xs sm:text-[13px] leading-relaxed flex-1">
-                <p class="font-bold uppercase tracking-wider text-[10px] sm:text-xs mb-1 {{ $isDark ? 'text-amber-300' : 'text-amber-800' }}">
+            <div class="text-[11px] sm:text-xs leading-snug flex-1 min-w-0">
+                <p class="font-bold uppercase tracking-wider text-[10px] mb-0.5 {{ $isDark ? 'text-amber-300' : 'text-amber-800' }}">
                     Hinweis zur Lasergravur
                 </p>
                 <p class="{{ $isDark ? 'text-amber-200/90' : 'text-amber-800' }}">
-                    Emojis & farbige Symbole können per Lasergravur nicht dargestellt werden und wurden automatisch entfernt. Nutzen Sie bitte unsere Symbol-Bibliothek für Gravurmotive.
+                    Emojis & farbige Symbole können nicht per Laser graviert werden und wurden entfernt. Nutze bitte unsere Symbol-Bibliothek.
                 </p>
             </div>
-            <button @click="showEmojiWarning = false" class="text-amber-500 hover:text-amber-700 shrink-0 p-1">
+            <button @click="showEmojiWarning = false" class="text-amber-500 hover:text-amber-700 shrink-0 p-0.5">
                 <x-heroicon-m-x-mark class="w-4 h-4" />
             </button>
+        </div>
+    </div>
+
+    {{-- 2D / 3D TOGGLE UNTERHALB DER HINWEISE --}}
+    <div x-show="config.modelPath" class="mt-1 mb-3 flex justify-center relative z-50">
+        <div class="p-1 rounded-full shadow-sm border inline-flex items-center gap-1 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
+            <button type="button" @click="showDrawingBoard = true" class="px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">2D Editor</button>
+            <button type="button" @click="showDrawingBoard = false" class="px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 cursor-pointer" :class="!showDrawingBoard ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.3)]' : '{{ $isDark ? 'text-gray-500 hover:text-white hover:bg-gray-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50' }}'">3D Ansicht</button>
         </div>
     </div>
 
@@ -256,13 +255,13 @@
                             top: ${config.area_shape === 'custom' ? (currentTexts[index].y ?? areaCenterY) : ((currentTexts[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             transform-origin: ${currentTexts[index].align==='left'?'0% 50%':(currentTexts[index].align==='right'?'100% 50%':'50% 50%')};
                             transform: translate(${currentTexts[index].align==='left'?'0%':(currentTexts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${currentTexts[index].rotation || 0}deg);
-                            z-index: ${selectedIndex===index?100:10}
+                            z-index: ${getElementZIndex('text', index)}
                          ` : 'display:none;'"
                          @mousedown.stop="startAction($event,'text',index,'drag')"
                          @touchstart.stop="startAction($event,'text',index,'drag')">
 
                         <div class="relative transition-all rounded-lg p-1.5 border-[1.5px]"
-                             :class="selectedIndex===index && context!=='preview'
+                             :class="selectedType==='text' && selectedIndex===index && context!=='preview'
                                  ? (isDarkSurface ? 'border-primary border-dashed bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'border-primary border-dashed {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg')
                                  : (isDarkSurface ? 'border-transparent hover:border-primary/60 hover:bg-white/5' : 'border-transparent hover:border-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
 
@@ -318,7 +317,7 @@
                                 </div>
                             </template>
 
-                            <template x-if="selectedIndex===index && context!=='preview' && currentTexts[index] !== undefined">
+                            <template x-if="selectedType==='text' && selectedIndex===index && context!=='preview' && currentTexts[index] !== undefined">
                                 <div>
                                     <div @mousedown.stop="startAction($event,'text',index,'drag')" @touchstart.stop.prevent="startAction($event,'text',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'text',index,'rotate')" @touchstart.stop.prevent="startAction($event,'text',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
@@ -337,13 +336,13 @@
                             top: ${config.area_shape === 'custom' ? (currentLogos[index].y ?? areaCenterY) : ((currentLogos[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             width: ${((currentLogos[index].size || 100) * scaleFactor)}px;
                             transform: translate(-50%,-50%) rotate(${currentLogos[index].rotation || 0}deg);
-                            z-index: ${selectedIndex===index?100:10}
+                            z-index: ${getElementZIndex('logo', index)}
                          ` : 'display:none;'"
                          @mousedown.stop="startAction($event,'logo',index,'drag')"
                          @touchstart.stop="startAction($event,'logo',index,'drag')">
 
                         <div class="relative transition-all rounded-lg ring-2"
-                             :class="selectedIndex===index && context!=='preview'
+                             :class="selectedType==='logo' && selectedIndex===index && context!=='preview'
                                  ? (isDarkSurface ? 'ring-primary bg-white/10 backdrop-blur-[2px] shadow-[0_0_15px_rgba(197,160,89,0.25)]' : 'ring-primary {{ $isDark ? 'bg-white/10' : 'bg-white/40' }} backdrop-blur-sm shadow-lg')
                                  : (isDarkSurface ? 'ring-transparent hover:ring-primary/60 hover:bg-white/5' : 'ring-transparent hover:ring-gray-500 {{ $isDark ? 'hover:bg-white/5' : 'hover:bg-white/10' }}')">
                             <template x-if="currentLogos[index] !== undefined">
@@ -355,7 +354,7 @@
                                          : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));'">
                             </template>
 
-                            <template x-if="selectedIndex===index && context!=='preview' && currentLogos[index] !== undefined">
+                            <template x-if="selectedType==='logo' && selectedIndex===index && context!=='preview' && currentLogos[index] !== undefined">
                                 <div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'drag')" @touchstart.stop.prevent="startAction($event,'logo',index,'drag')" class="active-control-corner absolute -top-4 -left-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-move transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-400 hover:text-primary' : 'bg-white border-gray-100 text-gray-500 hover:text-primary' }}" style="z-index:200;"><x-heroicon-m-arrows-pointing-out class="w-4 h-4 rotate-45" /></div>
                                     <div @mousedown.stop="startAction($event,'logo',index,'rotate')" @touchstart.stop.prevent="startAction($event,'logo',index,'rotate')" class="active-control-corner absolute -top-4 -right-4 w-8 h-8 rounded-full shadow-md border flex items-center justify-center cursor-alias transition-colors {{ $isDark ? 'bg-gray-800 border-gray-700 text-primary hover:text-primary-dark' : 'bg-white border-gray-100 text-primary hover:text-primary-dark' }}" style="z-index:200;"><x-heroicon-m-arrow-path class="w-4 h-4" /></div>
@@ -391,6 +390,22 @@
                     <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-primary pointer-events-none">Größe</span>
                 </div>
 
+                <div class="w-px h-7 bg-gray-700 mx-0.5 sm:mx-1 self-center" x-show="(currentTexts.length + currentLogos.length) > 1"></div>
+
+                <div x-show="(currentTexts.length + currentLogos.length) > 1"
+                     @click.stop="bringToFront()" @touchstart.stop.prevent="bringToFront()"
+                     class="flex flex-col items-center justify-center cursor-pointer text-gray-300 hover:text-primary hover:bg-primary/10 transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none" title="Auf obere Ebene heben">
+                    <x-heroicon-m-arrow-up-on-square-stack class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                    <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-primary pointer-events-none">Nach vorn</span>
+                </div>
+
+                <div x-show="(currentTexts.length + currentLogos.length) > 1"
+                     @click.stop="sendToBack()" @touchstart.stop.prevent="sendToBack()"
+                     class="flex flex-col items-center justify-center cursor-pointer text-gray-300 hover:text-primary hover:bg-primary/10 transition-colors px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl group select-none" title="In den Hintergrund senden">
+                    <x-heroicon-m-arrow-down-on-square-stack class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none" />
+                    <span class="text-[9px] sm:text-[10px] font-semibold tracking-tight mt-0.5 text-gray-400 group-hover:text-primary pointer-events-none">Nach hinten</span>
+                </div>
+
                 <div class="w-px h-7 bg-gray-700 mx-0.5 sm:mx-1 self-center"></div>
 
                 <div @click.stop="deleteSelectedItem()" @touchstart.stop.prevent="deleteSelectedItem()"
@@ -401,6 +416,55 @@
             </div>
         </div>
 
+    </div>
+
+    {{-- EBENEN- & ELEMENT-AUSWAHL (Damit verdeckte Texte/Bilder jederzeit anklickbar und nach oben hebbar sind) --}}
+    <div x-show="showDrawingBoard && context !== 'preview' && (currentTexts.length + currentLogos.length) > 1"
+         x-cloak
+         class="w-full max-w-[455px] md:max-w-[600px] px-1 sm:px-2 mt-3 relative z-50">
+        <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-2xl border shadow-sm {{ $isDark ? 'bg-gray-900/90 border-gray-800 text-gray-300' : 'bg-white border-gray-200/80 text-gray-700' }}">
+            <div class="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                <span class="text-[10px] font-black uppercase tracking-wider text-gray-400 mr-1 flex items-center gap-1 shrink-0">
+                    <x-heroicon-m-square-3-stack-3d class="w-3.5 h-3.5 text-primary" />
+                    Ebenen:
+                </span>
+                <template x-for="(tItem, tIdx) in currentTexts" :key="'layer-chip-text-' + activeSide + '-' + (tItem.id || tIdx)">
+                    <button type="button"
+                            @click.stop="selectItem('text', tIdx); bringToFront()"
+                            :class="selectedType === 'text' && selectedIndex === tIdx
+                                ? 'bg-primary text-gray-900 font-bold border-primary shadow-sm'
+                                : '{{ $isDark ? 'bg-gray-800 text-gray-300 border-gray-700 hover:border-primary/60' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-primary/60' }}'"
+                            class="px-2.5 py-1 rounded-lg border text-[11px] transition-all flex items-center gap-1 max-w-[140px] truncate cursor-pointer"
+                            title="Anklicken & auf obere Ebene holen">
+                        <span class="font-serif font-black text-[10px] opacity-80">T</span>
+                        <span class="truncate" x-text="(tItem.text && tItem.text.trim().length > 0) ? tItem.text.trim() : ('Text ' + (tIdx + 1))"></span>
+                    </button>
+                </template>
+                <template x-for="(lItem, lIdx) in currentLogos" :key="'layer-chip-logo-' + activeSide + '-' + (lItem.id || lIdx)">
+                    <button type="button"
+                            @click.stop="selectItem('logo', lIdx); bringToFront()"
+                            :class="selectedType === 'logo' && selectedIndex === lIdx
+                                ? 'bg-primary text-gray-900 font-bold border-primary shadow-sm'
+                                : '{{ $isDark ? 'bg-gray-800 text-gray-300 border-gray-700 hover:border-primary/60' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-primary/60' }}'"
+                            class="px-2.5 py-1 rounded-lg border text-[11px] transition-all flex items-center gap-1 cursor-pointer"
+                            title="Anklicken & auf obere Ebene holen">
+                        <x-heroicon-m-photo class="w-3 h-3 opacity-80 shrink-0" />
+                        <span x-text="'Bild/Motiv ' + (lIdx + 1)"></span>
+                    </button>
+                </template>
+            </div>
+
+            <div class="flex items-center gap-1 shrink-0" x-show="selectedIndex !== null">
+                <button type="button" @click.stop="bringToFront()" class="px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors flex items-center gap-1 cursor-pointer {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-primary hover:border-primary' : 'bg-gray-50 border-gray-200 text-gray-700 hover:text-primary hover:border-primary' }}" title="Ausgewähltes Element ganz nach vorne holen">
+                    <x-heroicon-m-arrow-up class="w-3 h-3 text-primary" />
+                    <span>Nach oben</span>
+                </button>
+                <button type="button" @click.stop="sendToBack()" class="px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-colors flex items-center gap-1 cursor-pointer {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-primary hover:border-primary' : 'bg-gray-50 border-gray-200 text-gray-700 hover:text-primary hover:border-primary' }}" title="Ausgewähltes Element in den Hintergrund setzen">
+                    <x-heroicon-m-arrow-down class="w-3 h-3 text-gray-400" />
+                    <span>Nach unten</span>
+                </button>
+            </div>
+        </div>
     </div>
 
     {{-- VORDERSEITE / RÜCKSEITE SWITCH (Direkt unter dem Rahmen) --}}

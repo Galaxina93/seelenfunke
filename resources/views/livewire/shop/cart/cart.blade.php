@@ -367,15 +367,34 @@
                         </div>
 
                         @if(empty($totals['coupon_code']))
-                            <div class="mb-6">
-                                <form wire:submit.prevent="applyCoupon" class="flex gap-2">
+                            @php
+                                $hasAvailableVouchers = \App\Livewire\Shop\Marketing\MarketingVoucherSlider::hasAvailableVouchers();
+                            @endphp
+                            <div class="mb-6" @voucher-code-selected.window="$wire.set('couponCodeInput', $event.detail.code)">
+                                <form wire:submit.prevent="applyCoupon" class="flex items-stretch gap-2 w-full">
                                     <input type="text"
                                            wire:model="couponCodeInput"
                                            placeholder="Gutscheincode"
-                                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary uppercase placeholder-gray-400">
+                                           class="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary uppercase placeholder-gray-400">
                                     <button type="submit"
-                                            class="bg-gray-900 text-white px-3 py-2 rounded text-sm font-bold hover:bg-black transition shadow-md">
+                                            class="shrink-0 bg-gray-900 text-white px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-black transition shadow-md flex items-center justify-center">
                                         Einlösen
+                                    </button>
+                                    <button type="button"
+                                            data-voucher-trigger
+                                            @click.stop="$dispatch('toggle-vouchers')"
+                                            title="Verfügbare Gutscheine & Rabatte anzeigen"
+                                            aria-label="Verfügbare Gutscheine & Rabatte anzeigen"
+                                            class="shrink-0 relative px-3 py-2 rounded-lg border border-amber-300/80 bg-gradient-to-br from-amber-50 to-amber-100/70 text-[#B88728] hover:from-primary hover:to-primary-dark hover:text-white hover:border-primary transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(197,160,89,0.5)] flex items-center justify-center group cursor-pointer">
+                                        @if($hasAvailableVouchers)
+                                            <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary border border-white"></span>
+                                            </span>
+                                        @endif
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 transition-transform duration-300 group-hover:scale-110">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 11.25v8.25a1.5 1.5 0 0 1-1.5 1.5H4.5a1.5 1.5 0 0 1-1.5-1.5v-8.25M12 4.875A2.625 2.625 0 1 0 9.375 7.5H12m0-2.625V7.5m0-2.625A2.625 2.625 0 1 1 14.625 7.5H12m0 0V21m-8.625-9.75h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z"/>
+                                        </svg>
                                     </button>
                                 </form>
                                 @error('couponCodeInput')
@@ -384,10 +403,6 @@
                                 @if(session()->has('coupon_success'))
                                     <span class="text-green-600 text-xs mt-1 block">{{ session('coupon_success') }}</span>
                                 @endif
-                                <p class="text-[11px] text-amber-600/80 mt-2 flex items-center gap-1.5 font-medium">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    Tipp: Aktuelle Gutscheine findest du rechts in der Aktionsleiste!
-                                </p>
                             </div>
                         @endif
 

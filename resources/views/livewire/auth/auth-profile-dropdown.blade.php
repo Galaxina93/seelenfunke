@@ -22,41 +22,42 @@
      @theme-changed.window="isDark = $event.detail.isDark"
      x-on:livewire:navigated.window="isDark = ('theme' in localStorage) ? (localStorage.theme === 'dark') : false"
      @open-profile-modal.window="showProfileModal = true; activeProfileTab = $event.detail.tab"
-     class="flex flex-nowrap items-center justify-start xl:justify-end gap-2 md:gap-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-2 rounded-2xl border border-gray-200/80 dark:border-gray-800 shadow-sm dark:shadow-inner overflow-x-auto no-scrollbar w-fit max-w-full z-[999] snap-x snap-mandatory touch-pan-x"
+     @wheel.passive="$el.scrollLeft += $event.deltaY"
+     class="flex flex-nowrap items-center justify-start gap-1.5 sm:gap-2 lg:gap-1.5 xl:gap-2.5 2xl:gap-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-1.5 sm:p-2 rounded-2xl border border-gray-200/80 dark:border-gray-800 shadow-sm dark:shadow-inner overflow-x-auto no-scrollbar w-fit max-w-full z-[999] snap-x snap-mandatory touch-pan-x ml-auto"
      style="-webkit-overflow-scrolling: touch;">
 
     {{-- TAILWIND SUN / MOON THEME SWITCH (Links neben Webseite) --}}
     <button type="button"
             @click="toggleTheme(); if (window.spawnSparks) window.spawnSparks($event)"
-            class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl transition-all shadow-none hover:scale-105 group shrink-0 snap-start relative overflow-hidden"
+            class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl transition-all shadow-none hover:scale-105 group shrink-0 snap-start relative overflow-hidden"
             :class="isDark ? 'bg-amber-500/5 border border-transparent hover:border-amber-500/30 text-gray-500 hover:bg-amber-500/10 hover:text-amber-400 hover:shadow-[0_0_15px_rgba(245,158,11,0.3)]' : 'bg-amber-500/10 border border-amber-300/40 text-amber-600 hover:bg-amber-500/20 hover:border-amber-400 hover:text-amber-600'"
             :title="isDark ? 'Hellen Modus aktivieren' : 'Dunklen Modus aktivieren'"
             @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
-        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 transition-colors"
+        <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-70 group-hover:opacity-100 transition-colors"
               :class="isDark ? 'group-hover:text-amber-400' : 'group-hover:text-amber-600'"
               x-text="isDark ? 'Dunkel' : 'Hell'"></span>
-        <div class="relative w-6 h-6 flex items-center justify-center">
-            <x-heroicon-s-moon x-cloak x-show="isDark" class="w-6 h-6 group-hover:-rotate-12 group-active:scale-90 transition-transform duration-300 text-amber-400" />
-            <x-heroicon-s-sun x-cloak x-show="!isDark" class="w-6 h-6 group-hover:rotate-45 group-active:scale-90 transition-transform duration-300 text-amber-500" />
+        <div class="relative w-5 h-5 xl:w-6 xl:h-6 flex items-center justify-center">
+            <x-heroicon-s-moon x-cloak x-show="isDark" class="w-5 h-5 xl:w-6 xl:h-6 group-hover:-rotate-12 group-active:scale-90 transition-transform duration-300 text-amber-400" />
+            <x-heroicon-s-sun x-cloak x-show="!isDark" class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-45 group-active:scale-90 transition-transform duration-300 text-amber-500" />
         </div>
     </button>
 
     {{-- DESKTOP ICON DOCK (Mit Beschriftung) --}}
-    <a href="{{ route('shop') }}" target="_blank" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-blue-500/5 border border-transparent hover:border-blue-500/30 text-gray-500 hover:bg-blue-500/10 hover:text-blue-500 dark:hover:text-blue-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:scale-105 group shrink-0 snap-start" title="Zum Shop" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
-        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Shop</span>
-        <x-heroicon-s-shopping-bag class="w-6 h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
+    <a href="{{ route('shop') }}" target="_blank" class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-blue-500/5 border border-transparent hover:border-blue-500/30 text-gray-500 hover:bg-blue-500/10 hover:text-blue-500 dark:hover:text-blue-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:scale-105 group shrink-0 snap-start" title="Zum Shop" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
+        <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-70 group-hover:opacity-100 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors">Shop</span>
+        <x-heroicon-s-shopping-bag class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </a>
 
-    <button @click="showProfileModal = true; activeProfileTab = 'profile'" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-cyan-500/5 border border-transparent hover:border-cyan-500/30 text-gray-500 hover:bg-cyan-500/10 hover:text-cyan-500 dark:hover:text-cyan-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:scale-105 group shrink-0 snap-start" title="Profil" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
-        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors">Profil</span>
-        <x-heroicon-s-user class="w-6 h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
+    <button @click="showProfileModal = true; activeProfileTab = 'profile'" class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-cyan-500/5 border border-transparent hover:border-cyan-500/30 text-gray-500 hover:bg-cyan-500/10 hover:text-cyan-500 dark:hover:text-cyan-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:scale-105 group shrink-0 snap-start" title="Profil" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
+        <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-70 group-hover:opacity-100 group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors">Profil</span>
+        <x-heroicon-s-user class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </button>
 
-    <div class="w-px h-8 bg-gray-200 dark:bg-gray-800 mx-1 shrink-0 snap-start"></div>
+    <div class="w-px h-6 lg:h-7 xl:h-8 bg-gray-200 dark:bg-gray-800 mx-0.5 sm:mx-1 shrink-0 snap-start"></div>
 
-    <button wire:click="logout" class="flex flex-col items-center justify-center w-16 h-16 md:w-[4.5rem] md:h-[4.5rem] rounded-xl bg-red-500/5 border border-transparent hover:border-red-500/30 text-gray-500 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:scale-105 group shrink-0 snap-start" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
-        <span class="text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1 opacity-70 group-hover:opacity-100 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors">Logout</span>
-        <x-heroicon-s-power class="w-6 h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
+    <button wire:click="logout" class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-red-500/5 border border-transparent hover:border-red-500/30 text-gray-500 hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(239,68,68,0.3)] hover:scale-105 group shrink-0 snap-start" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
+        <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-70 group-hover:opacity-100 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors">Logout</span>
+        <x-heroicon-s-power class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </button>
 
     {{-- GLOBALES MODAL (Teleportiert in den Body, um Z-Index Probleme zu lösen) --}}

@@ -1106,8 +1106,10 @@ class Product extends Model
 
             $reviewNodes = [];
             foreach ($approvedReviews->take(5) as $rev) {
-                $authorName = $rev->customer_name
-                    ?: ($rev->customer ? trim($rev->customer->first_name . ' ' . substr((string) $rev->customer->last_name, 0, 1) . '.') : 'Verifizierter Kunde');
+                $authorName = $rev->is_anonymous
+                    ? 'Anonymer Kunde'
+                    : ($rev->customer_name
+                        ?: ($rev->customer ? trim($rev->customer->first_name . ' ' . substr((string) $rev->customer->last_name, 0, 1) . '.') : 'Verifizierter Kunde'));
                 $reviewNodes[] = [
                     '@type' => 'Review',
                     'author' => [

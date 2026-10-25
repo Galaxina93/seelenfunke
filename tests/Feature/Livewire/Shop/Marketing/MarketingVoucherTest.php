@@ -425,4 +425,110 @@ class MarketingVoucherTest extends TestCase
                 return $vouchers->count() === 2;
             });
     }
+
+    #[Test]
+    public function voucher_slider_hides_referral_codes_for_guests_and_other_customers()
+    {
+        \Illuminate\Support\Facades\Auth::guard('customer')->logout();
+
+        $referrer = \App\Models\Customer\Customer::factory()->create([
+            'first_name' => 'Max',
+            'last_name' => 'Mustermann',
+        ]);
+
+        $referralService = app(\App\Services\ReferralService::class);
+        $referral = $referralService->getOrCreateReferralForCustomer(
+            $referrer->email,
+            $referrer->first_name,
+            $referrer->last_name,
+            $referrer->id
+        );
+
+        $publicVoucher = VoucherModel::create([
+            'code' => 'PUBLIC-HERBST-10',
+            'title' => 'Herbst-Rabatt',
+            'type' => 'percent',
+            'value' => 10,
+            'is_active' => true,
+            'mode' => 'manual',
+        ]);
+
+        // Guest should see public voucher, but NEVER the referral voucher
+        Livewire::test(\App\Livewire\Shop\Marketing\MarketingVoucherSlider::class)
+            ->assertSee('PUBLIC-HERBST-10')
+            ->assertDontSee($referral->code)
+            ->assertDontSee('Freunde-Empfehlung');
+
+        // Another logged-in customer should also NEVER see Max's referral voucher
+        $otherCustomer = \App\Models\Customer\Customer::factory()->create();
+        $this->actingAs($otherCustomer, 'customer');
+
+        Livewire::test(\App\Livewire\Shop\Marketing\MarketingVoucherSlider::class)
+            ->assertSee('PUBLIC-HERBST-10')
+            ->assertDontSee($referral->code);
+    }
+
+    #[Test]
+    public function product_reviews_supports_anonymous_submission_and_hides_customer_identity()
+    {
+        $customer = \App\Models\Customer\Customer::factory()->create([
+            'first_name' => 'Klara',
+            'last_name' => 'Geheimname',
+        ]);
+
+        $product = Product::create([
+            'name' => 'Gravur Kristall',
+            'slug' => 'gravur-kristall-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2990,
+        ]);
+
+        $order = OrderOrder::create([
+            'order_number' => 'ORD-ANON-001',
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'billing_address' => ['first_name' => 'Klara', 'last_name' => 'Geheimname'],
+            'subtotal_price' => 2990,
+            'tax_amount' => 477,
+            'shipping_price' => 0,
+            'total_price' => 2990,
+        ]);
+
+        \App\Models\Order\OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 2990,
+            'total_price' => 2990,
+        ]);
+
+        $this->actingAs($customer, 'customer');
+
+        Livewire::test(\App\Livewire\Shop\Product\ProductReviews::class, ['product' => $product])
+            ->set('rating', 5)
+            ->set('title', 'Wunderschöne Gravur')
+            ->set('content', 'Das Produkt ist absolut hochwertig und kam sehr schnell an!')
+            ->set('isAnonymous', true)
+            ->call('submitReview')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('product_reviews', [
+            'product_id' => $product->id,
+            'customer_id' => $customer->id,
+            'is_anonymous' => true,
+            'status' => 'approved',
+        ]);
+
+        // View as guest: must see "Anonymer Kunde" and NOT "Klara"
+        \Illuminate\Support\Facades\Auth::guard('customer')->logout();
+
+        Livewire::test(\App\Livewire\Shop\Product\ProductReviews::class, ['product' => $product->fresh()])
+            ->assertSee('Anonymer Kunde')
+            ->assertSee('Wunderschöne Gravur')
+            ->assertDontSee('Klara');
+    }
 }

@@ -20,6 +20,8 @@ class Employee extends Model implements Authenticatable
         'first_name',
         'last_name',
         'email',
+        'role',
+        'email_verified_at',
         'password',
         'google_id',
     ];
@@ -70,5 +72,25 @@ class Employee extends Model implements Authenticatable
     public function profile(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(EmployeeProfile::class);
+    }
+
+    public function influencerProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(\App\Models\Marketing\MarketingInfluencer::class, 'employee_id');
+    }
+
+    public function isInfluencer(): bool
+    {
+        return ($this->role ?? 'internal') === 'influencer';
+    }
+
+    public function isTaxAdvisor(): bool
+    {
+        return ($this->role ?? 'internal') === 'tax_advisor';
+    }
+
+    public function isInternalEmployee(): bool
+    {
+        return !in_array($this->role ?? 'internal', ['influencer', 'tax_advisor'], true);
     }
 }

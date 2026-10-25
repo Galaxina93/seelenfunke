@@ -49,6 +49,26 @@ class MarketingTrackingMiddleware
             }
         }
 
+        // Influencer-Zuordnung aus tid oder utm_campaign sichern, falls direkt über UTM-URL eingestiegen wurde
+        if ($request->filled('tid') && \Illuminate\Support\Facades\Schema::hasTable('marketing_tracking_links')) {
+            $tidSlug = substr(trim((string) $request->input('tid')), 0, 100);
+            if ($tidSlug !== '') {
+                $trkLink = \App\Models\Marketing\MarketingTrackingLink::where('slug', $tidSlug)
+                    ->where('is_active', true)
+                    ->whereNotNull('influencer_id')
+                    ->first();
+                if ($trkLink && $trkLink->influencer && $trkLink->influencer->is_active) {
+                    $cookieMinutes = max(1, (int) ($trkLink->influencer->cookie_days ?: 30)) * 1440;
+                    session([
+                        'seelenfunke_influencer_id' => $trkLink->influencer_id,
+                        'seelenfunke_tracking_link_id' => $trkLink->id,
+                    ]);
+                    Cookie::queue('seelenfunke_influencer_id', $trkLink->influencer_id, $cookieMinutes);
+                    Cookie::queue('seelenfunke_tracking_link_id', $trkLink->id, $cookieMinutes);
+                }
+            }
+        }
+
         // Eingeloggter Kunde für Validierung von Referral- und Neukundencodes
         $customer = Auth::guard('customer')->user();
         $referralService = app(\App\Services\ReferralService::class);

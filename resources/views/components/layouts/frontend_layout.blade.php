@@ -312,18 +312,18 @@
     @include('frontend.navigation.navigation')
 </header>
 
-<main>
-    <div>
+<main class="relative">
+    <div class="relative">
         {{ $slot }}
+
+        @auth('customer')
+            <livewire:customer.gamification.game-spark-hunt-component />
+        @endauth
     </div>
 </main>
 
 {{-- Footer --}}
 @include('frontend.footer.footer')
-
-@auth('customer')
-    <livewire:customer.gamification.game-spark-hunt-component />
-@endauth
 
 {{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
 {{-- FunkiChat removed as per request --}}

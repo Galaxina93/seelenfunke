@@ -554,13 +554,15 @@
                     ctx.restore();
                 };
 
+                const drawQueue = [];
+
                 if(logos) {
-                    logos.forEach(logo => {
+                    logos.forEach((logo, idx) => {
                         if (!logo || !logo.url) return;
+                        const z = (typeof logo.zIndex === 'number' && !isNaN(logo.zIndex)) ? logo.zIndex : (10 + idx);
                         const cached = this._logoImageCache ? this._logoImageCache.get(logo.url) : null;
                         if (cached && cached.complete && cached.naturalWidth > 0) {
-                            // Synchron vor den Texten zeichnen -> konstante Z-Order ohne Flackern
-                            drawSingleLogo(cached, logo);
+                            drawQueue.push({ z, draw: () => drawSingleLogo(cached, logo) });
                         } else if (!cached) {
                             const img = new Image();
                             img.crossOrigin = 'anonymous';
@@ -573,7 +575,7 @@
                             }
                             img.onload = () => {
                                 if (this._disposed) return;
-                                // Nach erstem Laden einmal komplett in korrekter Ebenen-Reihenfolge (Logos -> Texte) neu zeichnen
+                                // Nach erstem Laden einmal komplett in korrekter Ebenen-Reihenfolge neu zeichnen
                                 this.renderBothCanvases(textsFront, logosFront, textsBack, logosBack, fontMap);
                             };
                             img.onerror = () => {
@@ -585,47 +587,55 @@
                 }
 
                 if(texts) {
-                    texts.forEach(item => {
-                        if(!item.text) return;
+                    texts.forEach((item, idx) => {
+                        if(!item || !item.text) return;
+                        const z = (typeof item.zIndex === 'number' && !isNaN(item.zIndex)) ? item.zIndex : (20 + idx);
+                        drawQueue.push({
+                            z,
+                            draw: () => {
+                                ctx.save();
+                                applyClipping(ctx);
 
-                        ctx.save();
-                        applyClipping(ctx);
+                                ctx.translate(toPx(item.x ?? 50), toPx(item.y ?? 50));
+                                ctx.rotate((item.rotation || 0) * Math.PI / 180);
 
-                        ctx.translate(toPx(item.x ?? 50), toPx(item.y ?? 50));
-                        ctx.rotate((item.rotation || 0) * Math.PI / 180);
+                                const fontSize = (item.size || 1) * (cw / 25);
+                                ctx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
 
-                        const fontSize = (item.size || 1) * (cw / 25);
-                        ctx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
+                                ctx.filter = 'grayscale(100%) brightness(1.5)';
+                                ctx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(248,250,252,0.96)';
+                                ctx.textAlign = item.align || 'center';
+                                ctx.textBaseline = 'middle';
 
-                        ctx.filter = 'grayscale(100%) brightness(1.5)';
-                        ctx.fillStyle = (this.config.material_type === 'wood') ? 'rgba(50,30,20,0.9)' : 'rgba(248,250,252,0.96)';
-                        ctx.textAlign = item.align || 'center';
-                        ctx.textBaseline = 'middle';
+                                if(this.config.material_type === 'glass') {
+                                    ctx.shadowColor = 'rgba(255,255,255,0.8)';
+                                    ctx.shadowBlur = cw <= 1024 ? 5 : 15;
+                                } else if(this.config.material_type === 'metal') {
+                                    ctx.shadowColor = 'rgba(0,0,0,0.65)';
+                                    ctx.shadowBlur = cw <= 1024 ? 3 : 8;
+                                }
 
-                        if(this.config.material_type === 'glass') {
-                            ctx.shadowColor = 'rgba(255,255,255,0.8)';
-                            ctx.shadowBlur = cw <= 1024 ? 5 : 15;
-                        } else if(this.config.material_type === 'metal') {
-                            ctx.shadowColor = 'rgba(0,0,0,0.65)';
-                            ctx.shadowBlur = cw <= 1024 ? 3 : 8;
-                        }
+                                const lines = item.text.split('\n');
+                                const lineHeight = fontSize * 1.15;
+                                const totalHeight = (lines.length - 1) * lineHeight;
+                                let startY = -totalHeight / 2;
 
-                        const lines = item.text.split('\n');
-                        const lineHeight = fontSize * 1.15;
-                        const totalHeight = (lines.length - 1) * lineHeight;
-                        let startY = -totalHeight / 2;
+                                const yOffset = fontSize * 0.12;
 
-                        const yOffset = fontSize * 0.12;
+                                lines.forEach(line => {
+                                    ctx.fillText(line, 0, startY + yOffset);
+                                    startY += lineHeight;
+                                });
 
-                        lines.forEach(line => {
-                            ctx.fillText(line, 0, startY + yOffset);
-                            startY += lineHeight;
+                                ctx.restore();
+                                ctx.filter = 'none';
+                            }
                         });
-
-                        ctx.restore();
-                        ctx.filter = 'none';
                     });
                 }
+
+                drawQueue.sort((a, b) => a.z - b.z);
+                drawQueue.forEach(entry => entry.draw());
                 if(textureObj) textureObj.needsUpdate = true;
             };
 

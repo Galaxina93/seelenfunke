@@ -253,8 +253,8 @@
 
                 @elseif($showTemplatesList)
                     {{-- 2. LISTE DER VORLAGEN --}}
-                    <div class="flex-1 p-6 bg-gray-50/50">
-                        <div class="flex items-center justify-between mb-6">
+                    <div class="flex-1 px-3 py-4 sm:p-6 bg-gray-50/50">
+                        <div class="flex items-center justify-between mb-4 sm:mb-6">
                             <h2 class="text-xl font-serif font-bold text-gray-900">Design Vorlagen</h2>
                             <button type="button" x-on:click="$wire.$set('showTemplatesList', false); $wire.$set('showTemplateSelection', true)" class="text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
@@ -262,15 +262,15 @@
                             </button>
                         </div>
 
-                        <div class="bg-blue-50/70 border border-blue-200/60 rounded-xl p-4 mb-6 relative overflow-hidden backdrop-blur-sm shadow-sm transition-all hover:shadow-md">
-                            <div class="relative flex items-start gap-3">
-                                <div class="bg-blue-100/50 text-blue-600 p-2 rounded-lg shrink-0 mt-0.5">
+                        <div class="w-full bg-blue-50/80 border border-blue-200/70 rounded-xl px-3 py-2.5 sm:p-3.5 mb-5 relative overflow-hidden backdrop-blur-sm shadow-sm">
+                            <div class="relative flex items-start gap-2.5">
+                                <div class="bg-blue-100/70 text-blue-600 p-1.5 rounded-lg shrink-0 mt-0.5">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </div>
-                                <div class="pt-1">
-                                    <h4 class="font-bold text-blue-900 text-sm mb-1">Ausschluss vom Widerrufsrecht</h4>
-                                    <p class="text-[11px] text-blue-800/90 leading-relaxed">
-                                        Bitte beachte, dass unsere Design-Vorlagen als Basis für deine Personalisierung dienen. Da der Artikel nach deiner Bestellung individuell für dich angefertigt wird, ist er – <span class="font-bold">auch wenn du keine Änderungen an der Vorlage vornimmst</span> – als personalisiertes Produkt vom <a href="{{ route('agb') }}#widerruf" target="_blank" class="underline font-bold hover:text-blue-900 transition-colors">Widerrufsrecht ausgeschlossen</a>.
+                                <div class="flex-1 min-w-0">
+                                    <h4 class="font-bold text-blue-900 text-xs sm:text-sm mb-0.5">Ausschluss vom Widerrufsrecht</h4>
+                                    <p class="text-[11px] text-blue-800/90 leading-snug">
+                                        Jede Vorlage wird individuell für dich gefertigt und ist daher – <span class="font-bold">auch ohne eigene Änderungen</span> – vom <a href="{{ route('agb') }}#widerruf" target="_blank" class="underline font-bold hover:text-blue-900 transition-colors">Widerrufsrecht ausgeschlossen</a>.
                                     </p>
                                 </div>
                             </div>

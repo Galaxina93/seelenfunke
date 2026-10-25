@@ -721,6 +721,13 @@ class ProductConfigurator extends Component
 
     public function saveWithSnapshot($snapshotData, CartService $cartService)
     {
+        if ($this->context === 'preview') return;
+
+        if ($this->context !== 'calculator' && !$this->config_confirmed) {
+            $this->addError('config_confirmed', 'Bitte setze noch diesen Haken zur Bestätigung deiner Angaben, um fortzufahren.');
+            return;
+        }
+
         $snapshotPaths = [];
 
         if (!empty($snapshotData)) {

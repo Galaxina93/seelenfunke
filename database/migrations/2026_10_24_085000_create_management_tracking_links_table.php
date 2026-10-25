@@ -11,6 +11,7 @@ return new class extends Migration
         if (!Schema::hasTable('marketing_tracking_links')) {
             Schema::create('marketing_tracking_links', function (Blueprint $table) {
                 $table->uuid('id')->primary();
+                $table->uuid('influencer_id')->nullable()->index();
                 $table->string('name');
                 $table->string('slug', 100)->unique();
                 $table->string('target_url', 2048)->default('/shop');

@@ -497,7 +497,7 @@
             <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-14 items-center">
 
-                    {{-- Linke Spalte: Text, Kompetenz-Kacheln & TROS-Accordion (7 Spalten) --}}
+                    {{-- Linke Spalte: Text & kurze TROS-Erklärung (7 Spalten) --}}
                     <div class="lg:col-span-7 text-center lg:text-left">
                         <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-3 block drop-shadow">
                             Geprüfte Sicherheitsstandards
@@ -507,68 +507,14 @@
                             Unsere Kompetenz für Ihre <span class="text-primary">Sicherheit</span>.
                         </h2>
 
-                        <p class="text-base sm:text-lg text-stone-200 mb-8 leading-relaxed drop-shadow max-w-2xl mx-auto lg:mx-0">
+                        <p class="text-base sm:text-lg text-stone-200 mb-4 leading-relaxed drop-shadow max-w-2xl mx-auto lg:mx-0">
                             Wir arbeiten mit Hochleistungslasern der Klasse 4. Um höchste Qualität und Sicherheit zu gewährleisten,
-                            haben wir uns intensiv fortgebildet und staatlich anerkannt prüfen lassen.
+                            haben wir uns intensiv fortgebildet und staatlich anerkannt als Laserschutzbeauftragte prüfen lassen.
                         </p>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-left">
-                            <button type="button"
-                                    @click="showCertModal = true"
-                                    class="p-4 bg-primary hover:bg-[#b8955a] rounded-2xl border border-primary text-stone-950 shadow-sm transition-colors duration-200 cursor-pointer group flex items-center justify-between gap-3">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-10 h-10 rounded-xl bg-stone-950/10 flex items-center justify-center shrink-0">
-                                        <svg class="w-5 h-5 text-stone-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                                        </svg>
-                                    </div>
-                                    <div class="min-w-0">
-                                        <span class="block text-sm font-bold text-stone-950 truncate">Zertifizierte Laserschutzbeauftragte</span>
-                                        <span class="block text-xs text-stone-800 font-medium">Zertifikat ansehen • OStrV & TROS</span>
-                                    </div>
-                                </div>
-                                <svg class="w-4 h-4 text-stone-800 group-hover:text-stone-950 shrink-0 transition-transform duration-200 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                                </svg>
-                            </button>
-
-                            <div class="p-4 bg-[#2B2318]/90 backdrop-blur-xs rounded-2xl border border-primary/50 text-stone-100 shadow-sm flex items-center gap-3">
-                                <div class="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
-                                    <svg class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                    </svg>
-                                </div>
-                                <div class="min-w-0">
-                                    <span class="block text-sm font-bold text-stone-100 truncate">Fachkunde nach TROS Laserstrahlung</span>
-                                    <span class="block text-xs text-primary/90 font-medium">Industrieklasse 4 • ZFU-Nr. 7540225</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {{-- TROS Info als mattes, ruhiges Accordion mit warmem Gold-Ton --}}
-                        <div x-data="{ open: false }" class="bg-[#2B2318]/90 backdrop-blur-xs border border-primary/45 rounded-2xl overflow-hidden shadow-sm">
-                            <button @click="open = !open"
-                                    class="w-full px-5 py-4 flex items-center justify-between text-left focus:outline-none hover:bg-primary/10 transition-colors gap-4 cursor-pointer">
-                                <span class="text-stone-100 font-medium text-sm">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</span>
-                                <svg class="w-4 h-4 text-primary transform transition-transform duration-300 flex-shrink-0"
-                                     :class="{'rotate-180': open}"
-                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </button>
-
-                            <div x-show="open"
-                                 x-collapse
-                                 x-cloak
-                                 class="px-5 pb-5 text-xs sm:text-sm text-stone-200 text-left leading-relaxed">
-                                <div class="pt-3 border-t border-primary/25">
-                                    Die Qualifikation nach <strong class="text-primary font-semibold">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4.
-                                    <br><br>
-                                    Diese staatlich anerkannte Fachkunde untermauert, dass wir unsere Produkte nicht einfach im Hobbykeller „bedrucken“, sondern unter hochprofessionellen, sicheren Industriebedingungen veredeln. Für dich bedeutet das: Dein Unikat entsteht in einer rechtssicheren Manufaktur, bei der Arbeitsschutz, technische Präzision und tiefes Fachwissen die absolute Grundlage bilden.
-                                </div>
-                            </div>
-                        </div>
+                        <p class="text-sm sm:text-base text-stone-300 leading-relaxed drop-shadow max-w-2xl mx-auto lg:mx-0">
+                            Die Zertifizierung nach <strong class="text-primary font-semibold">TROS</strong> <span class="text-stone-400">(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</span> bestätigt den rechtssicheren, fachkundigen Einsatz unserer Industrieklasse-4-Lasersysteme – für echtes, präzises Manufaktur-Handwerk nach strengen deutschen Standards.
+                        </p>
                     </div>
 
                     {{-- Rechte Spalte: Das Zertifikat edel in Szene gesetzt mit dem "Unsere Kollektion" Hover-Licht- & Sterne-Effekt --}}

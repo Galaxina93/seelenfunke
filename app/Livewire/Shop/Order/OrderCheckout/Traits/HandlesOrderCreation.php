@@ -283,10 +283,19 @@ trait HandlesOrderCreation
                 'total_price' => $totals['total'],
             ];
 
-            // UTM- und Referral-Tracking an der Bestellung festhalten
+            // UTM-, Referral- und Influencer-Tracking an der Bestellung festhalten
             $referrer = session('seelenfunke_referrer') ?: request()->cookie('seelenfunke_referrer');
             if ($referrer) {
                 $orderData['utm_campaign_last'] = 'ref:' . substr($referrer, 0, 50);
+            }
+            $influencerId = session('seelenfunke_influencer_id') ?: request()->cookie('seelenfunke_influencer_id');
+            if ($influencerId && empty($orderData['utm_campaign_last']) && \Illuminate\Support\Facades\Schema::hasTable('marketing_influencers')) {
+                $inf = \App\Models\Marketing\MarketingInfluencer::find($influencerId);
+                if ($inf && $inf->is_active) {
+                    $orderData['utm_source_last'] = 'influencer';
+                    $orderData['utm_campaign_last'] = 'aff:' . substr($inf->slug, 0, 50);
+                    $orderData['utm_medium_last'] = $inf->primary_channel ?: 'social';
+                }
             }
             if (request()->hasCookie('seelenfunke_first_touch')) {
                 $ft = json_decode(request()->cookie('seelenfunke_first_touch'), true);

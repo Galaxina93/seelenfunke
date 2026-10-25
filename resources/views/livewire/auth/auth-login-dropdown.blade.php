@@ -1,9 +1,9 @@
 <div>
 @if($isMobile)
     @if($user)
-        <div class="w-full flex flex-col space-y-1">
-            <div class="flex items-center space-x-3 px-3 py-2 mb-2 bg-gray-800/50 rounded-lg">
-                <div class="h-10 w-10 shrink-0 rounded-full overflow-hidden border-2 border-primary/50 bg-gray-100 flex items-center justify-center">
+        <div class="w-full flex flex-col space-y-2">
+            <div class="flex items-center space-x-3 px-3.5 py-2.5 bg-gray-50 border border-gray-200/80 rounded-xl">
+                <div class="h-10 w-10 shrink-0 rounded-full overflow-hidden border-2 border-primary/60 bg-white flex items-center justify-center shadow-sm">
                     @if(!empty($user->profile_photo_path))
                         @php 
                             $pp = $user->profile_photo_path; 
@@ -22,19 +22,19 @@
                         </span>
                     @endif
                 </div>
-            <div class="overflow-hidden">
-                <div class="text-base text-white font-medium truncate">{{ $user->first_name ?? '' }} {{ $user->last_name ?? '' }}</div>
-                <div class="text-xs text-gray-400 truncate">{{ $user->email }}</div>
+                <div class="overflow-hidden">
+                    <div class="text-sm text-gray-900 font-bold truncate">{{ $user->first_name ?? '' }} {{ $user->last_name ?? '' }}</div>
+                    <div class="text-xs text-gray-500 truncate">{{ $user->email }}</div>
+                </div>
             </div>
-        </div>
-        <div class="w-full border-t border-gray-700 pt-2 flex flex-col space-y-1">
-            <a href="{{ route($guard . '.dashboard') }}" class="block px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-md transition-colors">Mein Dashboard</a>
-            <button wire:click="logout" class="block w-full text-left px-3 py-2 text-sm text-red-500 hover:text-red-400 hover:bg-white/5 rounded-md transition-colors">Ausloggen</button>
-        </div>
+            <div class="w-full pt-1 flex flex-col space-y-1">
+                <a href="{{ route($guard . '.dashboard') }}" class="block px-3.5 py-2 text-sm font-semibold text-gray-700 hover:text-primary hover:bg-gray-50 rounded-xl transition-colors">Mein Dashboard</a>
+                <button wire:click="logout" class="block w-full text-left px-3.5 py-2 text-sm font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 rounded-xl transition-colors">Ausloggen</button>
+            </div>
         </div>
     @else
         <div class="w-full">
-            <a href="{{ route('login') }}" class="block w-full px-3 py-2 text-center text-white border border-gray-600 rounded-md hover:text-primary hover:border-primary transition-colors">Login / Kundenbereich</a>
+            <a href="{{ route('login') }}" class="block w-full px-4 py-2.5 text-center text-gray-800 font-semibold bg-gray-50 border border-gray-200 rounded-xl hover:text-primary hover:border-primary hover:bg-amber-50/40 transition-colors">Login / Kundenbereich</a>
         </div>
     @endif
 @else

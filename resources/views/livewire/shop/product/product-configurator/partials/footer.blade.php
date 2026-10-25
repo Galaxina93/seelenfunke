@@ -61,11 +61,17 @@
             @endif
 
             @if($context !== 'calculator')
-                <div @class(['p-3 rounded-xl border transition-all duration-200',
-                    ($isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200') => !$errors->has('config_confirmed'),
-                    ($isDark ? 'bg-red-900/20 border-red-900/50' : 'bg-red-50 border-red-200') => $errors->has('config_confirmed')])>
+                <div x-ref="confirmBox"
+                     :class="(confirmWarning || {{ $errors->has('config_confirmed') ? 'true' : 'false' }})
+                         ? '{{ $isDark ? 'bg-red-950/40 border-red-500 ring-2 ring-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-red-50 border-red-400 ring-2 ring-red-500/20 shadow-sm' }}'
+                         : '{{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200' }}'"
+                     class="p-3 rounded-xl border transition-all duration-200">
                     <label class="flex items-start gap-3 cursor-pointer group">
-                        <input type="checkbox" wire:model.live="config_confirmed" class="mt-1 w-4 h-4 text-primary rounded focus:ring-primary {{ $isDark ? 'border-gray-700 bg-gray-950' : 'border-gray-300' }}">
+                        <input type="checkbox"
+                               wire:model.live="config_confirmed"
+                               @change="if($el.checked) confirmWarning = false"
+                               :class="(confirmWarning || {{ $errors->has('config_confirmed') ? 'true' : 'false' }}) ? 'border-red-500 ring-2 ring-red-500/30' : '{{ $isDark ? 'border-gray-700 bg-gray-950' : 'border-gray-300' }}'"
+                               class="mt-1 w-4 h-4 text-primary rounded focus:ring-primary cursor-pointer transition-all">
                         <span class="text-[11px] leading-relaxed transition-colors {{ $isDark ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-600 group-hover:text-gray-900' }}">
                         @if($context === 'template_admin')
                                 Ich bestätige, dass die Vorlage korrekt konfiguriert ist und als Basis für Kunden dient.
@@ -81,8 +87,12 @@
                             @endif
                     </span>
                     </label>
+                    <div x-show="confirmWarning" x-cloak x-transition class="mt-2 pt-2 border-t border-red-200/70 dark:border-red-800/60 flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400">
+                        <svg class="w-4 h-4 shrink-0 text-red-500 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <span>Bitte setze noch diesen Haken zur Bestätigung deiner Angaben, um fortzufahren.</span>
+                    </div>
                     @error('config_confirmed')
-                        <p class="text-xs text-red-500 font-bold mt-1.5 flex items-center gap-1">
+                        <p class="text-xs text-red-600 dark:text-red-400 font-bold mt-1.5 flex items-center gap-1">
                             <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <span>{{ $message }}</span>
                         </p>
@@ -90,9 +100,6 @@
                 </div>
             @endif
 
-            @php
-                $buttonDisabled = ($context !== 'calculator') && !$config_confirmed;
-            @endphp
             <div class="flex flex-col sm:flex-row gap-3 h-auto sm:h-12">
                 @if($context !== 'template_admin' && $context !== 'order_edit')
                         <div class="relative w-full sm:w-28 h-12 rounded-xl border transition-all flex items-center {{ $isDark ? 'bg-gray-900 border-gray-800 hover:border-gray-700 focus-within:border-primary focus-within:bg-gray-950' : 'bg-gray-100 border-transparent hover:border-gray-300 focus-within:border-primary focus-within:bg-white' }}">
@@ -113,9 +120,9 @@
 
                 <button type="button"
                         @click.prevent="submitConfig()"
-                        :disabled="isSaving || {{ $buttonDisabled ? 'true' : 'false' }}"
+                        :disabled="isSaving"
                         wire:loading.attr="disabled"
-                        :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : (isSaving ? 'opacity-80 pointer-events-none cursor-wait {{ $isDark ? 'bg-primary text-gray-900' : 'bg-gray-900 text-white' }}' : ({{ ($context === 'calculator' || $config_confirmed) ? 'true' : 'false' }} ? '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark' : 'bg-gray-900 text-white hover:bg-black' }}' : '{{ $isDark ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed' }}'))"
+                        :class="saved ? 'bg-green-600 hover:bg-green-700 text-white' : (isSaving ? 'opacity-80 pointer-events-none cursor-wait {{ $isDark ? 'bg-primary text-gray-900' : 'bg-gray-900 text-white' }}' : '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark cursor-pointer' : 'bg-gray-900 text-white hover:bg-black cursor-pointer' }}')"
                         class="flex-1 h-20 sm:h-12 rounded-2xl sm:rounded-xl font-black sm:font-bold text-xl sm:text-base tracking-wide sm:tracking-normal w-full transition-all duration-300 flex items-center justify-center shadow-2xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
                     @if($context !== 'template_admin')
                         <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[100px] sm:min-w-[90px] pointer-events-none">

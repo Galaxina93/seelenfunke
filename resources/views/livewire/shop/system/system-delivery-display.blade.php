@@ -125,17 +125,19 @@
         @endphp
 
         <div x-data="{ showInfo: false }" class="flex flex-col w-full sm:w-auto @if($product && $product->track_quantity) sm:border-l border-gray-200 sm:pl-4 @endif">
-            <div class="{{ $timeColorClass }} flex flex-wrap items-center gap-1.5 font-bold">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 {{ $iconColorClass }} shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div class="{{ $timeColorClass }} flex items-start gap-1.5 font-bold">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 {{ $iconColorClass }} shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span>{{ $deliveryText }}</span>
+                <div class="leading-snug flex-1 min-w-0">
+                    <span>{{ $deliveryText }}</span>
 
-                @if(!empty($activeTime->description))
-                    <button @click="showInfo = !showInfo" class="text-[10px] text-gray-400 hover:text-gray-600 underline underline-offset-2 ml-1 font-medium transition-colors focus:outline-none">
-                        <span x-text="showInfo ? '(Info ausblenden)' : '(weitere Infos)'"></span>
-                    </button>
-                @endif
+                    @if(!empty($activeTime->description))
+                        <button @click="showInfo = !showInfo" class="text-[10px] text-gray-400 hover:text-gray-600 underline underline-offset-2 ml-1 font-medium transition-colors focus:outline-none">
+                            <span x-text="showInfo ? '(Info ausblenden)' : '(weitere Infos)'"></span>
+                        </button>
+                    @endif
+                </div>
             </div>
 
             @if(!empty($activeTime->description))

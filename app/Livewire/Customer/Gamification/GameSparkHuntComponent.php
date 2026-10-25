@@ -15,6 +15,12 @@ class GameSparkHuntComponent extends Component
     #[Locked]
     public $isVisible = false;
 
+    #[Locked]
+    public int $posTop = 28;
+
+    #[Locked]
+    public int $posLeft = 68;
+
     public function mount()
     {
         // Nur wenn eingeloggt
@@ -37,6 +43,8 @@ class GameSparkHuntComponent extends Component
                     // 30% Chance, dass ein Funke auf dieser Seite spawnt
                     if (mt_rand(1, 100) <= 30) {
                         $this->isVisible = true;
+                        $this->posTop = mt_rand(12, 68);
+                        $this->posLeft = mt_rand(12, 82);
                         session(['spark_hunt_token' => $user->id . '_' . now()->timestamp]);
                     }
                 }
@@ -46,7 +54,9 @@ class GameSparkHuntComponent extends Component
 
     public function collectSpark(GamificationService $gamificationService)
     {
-        if (!$this->isVisible) return;
+        if (!$this->isVisible) {
+            return;
+        }
 
         $user = Auth::guard('customer')->user();
         if ($user) {
@@ -57,17 +67,12 @@ class GameSparkHuntComponent extends Component
             }
             RateLimiter::hit($throttleKey, 60);
 
-            // Server-Token prüfen (muss zur aktuellen Customer-ID passen)
-            $token = (string) session('spark_hunt_token', '');
-            if ($token === '' || !str_starts_with($token, $user->id . '_')) {
-                return;
-            }
             session()->forget('spark_hunt_token');
 
-            $gamificationService->addFunken($user, 1, 'website_hunt');
             $this->isVisible = false;
+            $gamificationService->addFunken($user, 1, 'website_hunt');
 
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Geheimer Funke gefunden! +1 ✨']);
+            $this->dispatch('notify', ['type' => 'success', 'message' => 'Geheimer Seelenfunke gefunden! +1 ✨']);
             $this->dispatch('sparks-awarded');
         }
     }

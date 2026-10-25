@@ -90,6 +90,7 @@ class BackendNavigationService
                             ['id' => 'blog', 'title' => 'Blogeinträge', 'route' => '/admin/blog', 'icon' => 'document-text'],
                             ['id' => 'marketing-linktree', 'title' => 'Linktree', 'route' => '/admin/marketing/linktree', 'icon' => 'link'],
                             ['id' => 'marketing-tracking', 'title' => 'Tracking', 'route' => '/admin/marketing/tracking', 'icon' => 'chart-bar-square'],
+                            ['id' => 'marketing-influencer', 'title' => 'Influencer', 'route' => '/admin/marketing/influencer', 'icon' => 'sparkles'],
                         ]
                     ],
                     [
@@ -224,6 +225,12 @@ class BackendNavigationService
         if (Str::startsWith($normalizedPath, '/admin/ki-agenten') || Str::startsWith($normalizedPath, '/admin/externe-agenten')) {
             return [
                 'text' => $baseCrumb . ' / Agenten / Editor'
+            ];
+        }
+
+        if (Str::startsWith($normalizedPath, '/employee/influencer')) {
+            return [
+                'text' => 'Seelenfunke / Creator Portal / Dashboard'
             ];
         }
 

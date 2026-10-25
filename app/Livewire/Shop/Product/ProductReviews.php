@@ -30,6 +30,7 @@ class ProductReviews extends Component
     public $rating = 5;
     public $title = '';
     public $content = '';
+    public bool $isAnonymous = false;
 
     #[Locked]
     public $isEditing = false;
@@ -52,6 +53,7 @@ class ProductReviews extends Component
         'rating' => 'required|integer|min:1|max:5',
         'title' => 'nullable|string|max:255',
         'content' => 'required|string|min:10|max:1000',
+        'isAnonymous' => 'boolean',
     ];
 
     protected $messages = [
@@ -204,6 +206,7 @@ class ProductReviews extends Component
             $this->rating = $review->rating;
             $this->title = $review->title;
             $this->content = $review->content;
+            $this->isAnonymous = (bool) ($review->is_anonymous ?? false);
             $this->existingMedia = $review->media ?? [];
             $this->userReviewId = $review->id;
             $this->isEditing = true;
@@ -248,8 +251,9 @@ class ProductReviews extends Component
 
     public function cancelEdit()
     {
-        $this->reset(['rating', 'title', 'content', 'userReviewId', 'isEditing', 'newMedia', 'accumulatedMedia', 'existingMedia']);
+        $this->reset(['rating', 'title', 'content', 'isAnonymous', 'userReviewId', 'isEditing', 'newMedia', 'accumulatedMedia', 'existingMedia']);
         $this->rating = 5;
+        $this->isAnonymous = false;
     }
 
     // Keine Parameter in der Funktion = keine Livewire Inject-Abstürze
@@ -350,6 +354,7 @@ class ProductReviews extends Component
                     'rating' => $this->rating,
                     'title' => $this->title,
                     'content' => $this->content,
+                    'is_anonymous' => (bool) $this->isAnonymous,
                     'media' => $mediaPaths,
                     'status' => $targetStatus
                 ]);
@@ -379,6 +384,7 @@ class ProductReviews extends Component
                 'rating' => $this->rating,
                 'title' => $this->title,
                 'content' => $this->content,
+                'is_anonymous' => (bool) $this->isAnonymous,
                 'media' => $mediaPaths,
                 'status' => $targetStatus,
             ]);
@@ -394,8 +400,9 @@ class ProductReviews extends Component
                 $gameService->syncDynamicTitles($profile);
             }
 
-            $this->reset(['rating', 'title', 'content', 'accumulatedMedia', 'existingMedia', 'newMedia']);
+            $this->reset(['rating', 'title', 'content', 'isAnonymous', 'accumulatedMedia', 'existingMedia', 'newMedia']);
             $this->rating = 5;
+            $this->isAnonymous = false;
 
             $msg = $targetStatus === 'pending' ? 'Vielen Dank! Da du Bilder/Videos angehängt hast, schalten wir deine Bewertung nach einer kurzen Prüfung frei.' : 'Vielen Dank für deine Bewertung! Sie hilft uns und anderen Kunden sehr.';
             session()->flash('success', $msg);

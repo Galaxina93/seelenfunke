@@ -137,6 +137,31 @@ class CustomerGamificationSecurityTest extends TestCase
         $component->set('isVisible', true);
     }
 
+    public function test_spark_hunt_collects_visible_spark_and_awards_funke()
+    {
+        // Mount repeatedly until the 30% spawn triggers (max 50 tries)
+        $component = null;
+        for ($i = 0; $i < 50; $i++) {
+            $candidate = Livewire::test(GameSparkHuntComponent::class);
+            if ($candidate->get('isVisible') === true) {
+                $component = $candidate;
+                break;
+            }
+        }
+
+        $this->assertNotNull($component, 'Spark should spawn within 50 attempts');
+        $this->assertTrue($component->get('isVisible'));
+
+        $component->call('collectSpark')
+            ->assertDispatched('notify')
+            ->assertDispatched('sparks-awarded')
+            ->assertSet('isVisible', false);
+
+        $this->profile->refresh();
+        $this->assertEquals(1, $this->profile->funken_balance);
+        $this->assertEquals(1, $this->profile->sparks_collected_today);
+    }
+
     public function test_upgrade_level_handles_race_conditions_cleanly()
     {
         $service = app(GamificationService::class);

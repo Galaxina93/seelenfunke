@@ -67,7 +67,12 @@
 
                         {{-- Kunde & Produkt --}}
                         <td class="px-6 sm:px-8 py-6 align-top">
-                            <div class="font-bold text-gray-900 dark:text-white text-sm tracking-wide">{{ $review->customer->first_name }} {{ $review->customer->last_name }}</div>
+                            <div class="font-bold text-gray-900 dark:text-white text-sm tracking-wide flex items-center gap-2 flex-wrap">
+                                <span>{{ $review->customer->first_name ?? 'Gelöscht' }} {{ $review->customer->last_name ?? '' }}</span>
+                                @if($review->is_anonymous)
+                                    <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700">Anonym</span>
+                                @endif
+                            </div>
                             <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mt-1.5 dark:drop-shadow-[0_0_5px_currentColor] truncate max-w-[150px] sm:max-w-[200px]">{{ $review->product->name ?? 'Unbekannt' }}</div>
                             <div class="text-[9px] font-medium text-gray-500 mt-2">{{ $review->created_at->format('d.m.Y H:i') }}</div>
                         </td>

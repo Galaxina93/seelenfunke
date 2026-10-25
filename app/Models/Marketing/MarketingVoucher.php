@@ -14,11 +14,16 @@ class MarketingVoucher extends Model
     protected $keyType = 'string';
 
     protected $fillable = [
-        'id', 'title', 'code', 'recipient_email', 'type', 'value', 'used_count', 'usage_limit',
+        'id', 'influencer_id', 'title', 'code', 'recipient_email', 'type', 'value', 'used_count', 'usage_limit',
         'min_order_value', 'valid_from', 'valid_until',
         'is_active',
         'mode', 'trigger_event', 'days_offset', 'validity_days'
     ];
+
+    public function influencer()
+    {
+        return $this->belongsTo(MarketingInfluencer::class, 'influencer_id');
+    }
 
     protected $casts = [
         'valid_from' => 'datetime',

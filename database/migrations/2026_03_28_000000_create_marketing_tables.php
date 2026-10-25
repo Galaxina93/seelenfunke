@@ -95,6 +95,7 @@ return new class extends Migration
         // Vouchers
         Schema::create('marketing_vouchers', function (Blueprint $table) {
             $table->uuid('id')->primary();
+            $table->uuid('influencer_id')->nullable()->index();
             $table->string('title'); // Z.B. "Februar Aktion"
             $table->string('code')->nullable();  // Pattern für Auto
             $table->string('recipient_email', 191)->nullable()->index();
@@ -208,10 +209,118 @@ return new class extends Migration
                 ->on('products')
                 ->nullOnDelete();
         });
+
+        // Influencers & Affiliates
+        Schema::create('marketing_influencers', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('employee_id')->nullable()->unique();
+            $table->string('invitation_label', 120)->nullable();
+            $table->string('handle', 100)->nullable();
+            $table->string('slug', 100)->nullable()->unique();
+            $table->string('primary_channel', 40)->default('instagram');
+            $table->string('profile_url', 500)->nullable();
+
+            // Konditionen
+            $table->string('commission_type', 20)->default('percent'); // percent, fixed_cents
+            $table->unsignedInteger('commission_value')->default(15);
+            $table->unsignedInteger('follower_discount_percent')->default(10);
+            $table->unsignedInteger('cookie_days')->default(30);
+
+            // Verknüpfte Standard-Werbemittel
+            $table->uuid('default_voucher_id')->nullable()->index();
+            $table->uuid('default_tracking_link_id')->nullable()->index();
+
+            // Steuerliche & rechtliche Pflichtangaben (§ 14 Abs. 2 S. 2 UStG / § 19 UStG)
+            $table->string('tax_status', 30)->default('small_business'); // small_business, standard_tax
+            $table->string('tax_number', 100)->nullable();
+            $table->boolean('self_employed_confirmed')->default(false);
+            $table->timestamp('self_employed_confirmed_at')->nullable();
+
+            // Auszahlungsdaten (IBAN wird im Model verschlüsselt gespeichert)
+            $table->string('payout_method', 30)->default('bank_transfer'); // bank_transfer, paypal, shop_voucher
+            $table->string('account_holder', 191)->nullable();
+            $table->text('iban')->nullable();
+            $table->string('bic', 30)->nullable();
+            $table->string('paypal_email', 191)->nullable();
+
+            // Sicheres 2-Faktor-Onboarding (Einladungslink + Verifizierungscode)
+            $table->string('invitation_token_hash', 64)->nullable()->unique();
+            $table->text('invitation_token_encrypted')->nullable();
+            $table->string('invitation_code_hash', 64)->nullable();
+            $table->text('invitation_code_encrypted')->nullable();
+            $table->timestamp('invitation_expires_at')->nullable();
+            $table->timestamp('invitation_accepted_at')->nullable();
+
+            $table->boolean('is_active')->default(true)->index();
+            $table->boolean('is_archived')->default(false)->index();
+            $table->text('internal_notes')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+
+            $table->foreign('employee_id')
+                ->references('id')
+                ->on('employees')
+                ->nullOnDelete();
+        });
+
+        // Influencer Payouts & Provisions-Gutschriften (§ 14 Abs. 2 S. 2 UStG)
+        Schema::create('marketing_influencer_payouts', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('influencer_id')->index();
+            $table->string('credit_note_number', 60)->unique();
+            $table->string('payout_method', 30)->default('bank_transfer');
+            $table->unsignedInteger('net_amount_cents')->default(0);
+            $table->unsignedInteger('tax_rate')->default(0);
+            $table->unsignedInteger('tax_amount_cents')->default(0);
+            $table->unsignedInteger('bonus_amount_cents')->default(0);
+            $table->unsignedInteger('gross_amount_cents')->default(0);
+            $table->uuid('gift_voucher_id')->nullable()->index();
+            $table->uuid('accounting_special_issue_id')->nullable()->index();
+            $table->string('pdf_path', 500)->nullable();
+            $table->string('status', 30)->default('requested')->index(); // requested, paid, cancelled
+            $table->timestamp('requested_at')->nullable();
+            $table->timestamp('paid_at')->nullable();
+            $table->uuid('paid_by_admin_id')->nullable();
+            $table->json('recipient_snapshot')->nullable();
+            $table->timestamps();
+
+            $table->foreign('influencer_id')
+                ->references('id')
+                ->on('marketing_influencers')
+                ->onDelete('cascade');
+        });
+
+        // Influencer Commissions (Einzelne vermittelte Bestellungen)
+        Schema::create('marketing_influencer_commissions', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('influencer_id')->index();
+            $table->uuid('order_id')->unique();
+            $table->uuid('tracking_link_id')->nullable()->index();
+            $table->string('voucher_code', 100)->nullable();
+            $table->string('attribution_source', 30)->default('link'); // link, coupon, both
+            $table->string('order_number', 60);
+            $table->unsignedInteger('order_net_amount_cents')->default(0);
+            $table->unsignedInteger('commission_rate_snapshot')->default(0);
+            $table->unsignedInteger('commission_amount_cents')->default(0);
+            $table->string('status', 30)->default('pending')->index(); // pending, approved, paid, cancelled
+            $table->uuid('payout_id')->nullable()->index();
+            $table->timestamp('approved_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
+            $table->string('cancellation_reason', 255)->nullable();
+            $table->timestamps();
+
+            $table->foreign('influencer_id')
+                ->references('id')
+                ->on('marketing_influencers')
+                ->onDelete('cascade');
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('marketing_influencer_commissions');
+        Schema::dropIfExists('marketing_influencer_payouts');
+        Schema::dropIfExists('marketing_influencers');
         Schema::dropIfExists('marketing_google_ads_campaigns');
         Schema::dropIfExists('marketing_landing_pages');
         Schema::dropIfExists('marketing_instagram_posts');

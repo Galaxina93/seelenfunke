@@ -15,6 +15,7 @@ class ProductReview extends Model
 
     protected $casts = [
         'media' => 'array',
+        'is_anonymous' => 'boolean',
     ];
 
     public function product()

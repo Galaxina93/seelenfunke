@@ -201,6 +201,19 @@ Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slu
         try {
             $trackingLink->recordHit($request->ip(), $request->userAgent(), $request->headers->get('referer'));
             session()->put('attributed_tracking_link_id', $trackingLink->id);
+
+            if (!empty($trackingLink->influencer_id)) {
+                $trackingLink->loadMissing('influencer.defaultVoucher');
+                if ($trackingLink->influencer && $trackingLink->influencer->is_active) {
+                    $cookieMinutes = max(1, (int) ($trackingLink->influencer->cookie_days ?: 30)) * 1440;
+                    session([
+                        'seelenfunke_influencer_id' => $trackingLink->influencer_id,
+                        'seelenfunke_tracking_link_id' => $trackingLink->id,
+                    ]);
+                    \Illuminate\Support\Facades\Cookie::queue('seelenfunke_influencer_id', $trackingLink->influencer_id, $cookieMinutes);
+                    \Illuminate\Support\Facades\Cookie::queue('seelenfunke_tracking_link_id', $trackingLink->id, $cookieMinutes);
+                }
+            }
         } catch (\Throwable $e) {
             // Tracking-Fehler dürfen die Weiterleitung niemals blockieren
         }
@@ -208,6 +221,11 @@ Route::get('/t/{slug}', function (\Illuminate\Http\Request $request, string $slu
 
     return redirect()->away($trackingLink->full_utm_url);
 })->name('frontend.tracking.redirect')->middleware('throttle:120,1');
+
+// Influencer / Creator Onboarding (Magic Einladungslink)
+Route::get('/partner/einladung/{token}', \App\Livewire\Frontend\Marketing\InfluencerInvitationAccept::class)
+    ->name('influencer.invitation')
+    ->middleware('throttle:30,1');
 
 Route::get('/widerruf', function () {
     return view('frontend.pages.widerruf');

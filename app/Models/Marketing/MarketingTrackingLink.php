@@ -12,6 +12,7 @@ class MarketingTrackingLink extends Model
     protected $table = 'marketing_tracking_links';
 
     protected $fillable = [
+        'influencer_id',
         'name',
         'slug',
         'target_url',
@@ -31,6 +32,11 @@ class MarketingTrackingLink extends Model
         'last_clicked_at' => 'datetime',
         'is_active' => 'boolean',
     ];
+
+    public function influencer()
+    {
+        return $this->belongsTo(MarketingInfluencer::class, 'influencer_id');
+    }
 
     public function hits()
     {

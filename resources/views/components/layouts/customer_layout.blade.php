@@ -140,7 +140,13 @@
 
 {{-- HAUPT-CONTENT BEREICH (Volle Breite) --}}
 <main class="flex-1 overflow-x-hidden overflow-y-auto relative no-scrollbar pb-24 lg:pb-8 z-30 min-w-0">
-    {{ $slot }}
+    <div class="relative min-h-full w-full">
+        {{ $slot }}
+
+        @if(auth()->guard('customer')->check())
+            <livewire:customer.gamification.game-spark-hunt-component />
+        @endif
+    </div>
 </main>
 
 {{-- MOBILE BOTTOM NAVIGATION --}}
@@ -205,8 +211,6 @@
             </div>
         </a>
     </div>
-
-    <livewire:customer.gamification.game-spark-hunt-component />
 @endif
 
 @livewireScripts

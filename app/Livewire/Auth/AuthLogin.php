@@ -168,6 +168,11 @@ class AuthLogin extends Component
                 return;
             }
 
+            if ($this->guard === 'employee' && method_exists($loggedInUser, 'isInfluencer') && $loggedInUser->isInfluencer()) {
+                $this->redirect(route('employee.influencer.dashboard'));
+                return;
+            }
+
             $this->redirect(route($this->guard . '.dashboard'));
             return;
         }

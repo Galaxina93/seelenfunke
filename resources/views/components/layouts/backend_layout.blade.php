@@ -264,6 +264,13 @@
         </div>
     @endif
 
+    @php
+        $isExternalEmployee = ($guard === 'employee' && auth('employee')->check() && method_exists(auth('employee')->user(), 'isInfluencer') && auth('employee')->user()->isInfluencer());
+        $dashboardHomeUrl = $guard === 'customer'
+            ? url('/dashboard')
+            : ($isExternalEmployee ? route('employee.influencer.dashboard') : url('/' . $guard . '/dashboard'));
+    @endphp
+
     <div x-data="{ open: false }" class="relative z-10 flex-1 flex flex-col">
         @if($guard !== 'customer')
             <div x-show="open" class="relative z-50 lg:hidden" role="dialog" aria-modal="true" style="display: none;">
@@ -283,7 +290,7 @@
 
                             {{-- MOBILE LOGO MIT LINK --}}
                             <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-200/80 dark:border-gray-800 mb-2">
-                                <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" wire:navigate class="block">
+                                <a href="{{ $dashboardHomeUrl }}" wire:navigate class="block">
                                     <img class="h-24 w-auto transition-transform hover:scale-105 duration-500 " src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                                 </a>
                             </div>
@@ -301,7 +308,7 @@
 
                     {{-- DESKTOP LOGO MIT LINK --}}
                     <div class="flex h-24 shrink-0 items-center justify-center border-b border-gray-200/80 dark:border-gray-800 mb-2">
-                        <a href="{{ $guard === 'customer' ? url('/dashboard') : url('/' . $guard . '/dashboard') }}" wire:navigate class="block">
+                        <a href="{{ $dashboardHomeUrl }}" wire:navigate class="block">
                             <img class="h-24 w-auto transition-transform hover:scale-105 duration-500" src="{{ URL::to('/shop/projekt/logo/mein-seelenfunke-logo.svg') }}" alt="Mein-Seelenfunke">
                         </a>
                     </div>
@@ -367,7 +374,7 @@
         </div>
     </div>
 
-    @if($guard !== 'customer')
+    @if($guard !== 'customer' && !$isExternalEmployee)
         @persist('ai-widget-container')
             <livewire:shop.ai.ai-widget />
         @endpersist

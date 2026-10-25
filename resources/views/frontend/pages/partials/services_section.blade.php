@@ -390,7 +390,12 @@
                 ===================================================================== --}}
                 <article onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
                          onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
-                         class="sf-card bg-white rounded-2xl shadow-lg border-2 border-primary overflow-hidden group relative z-10 flex flex-col">
+                         onclick="if(!event.target.closest('a, button')) window.location.href='{{ $tile['shop_url'] }}'"
+                         onkeydown="if((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a, button')) { event.preventDefault(); window.location.href='{{ $tile['shop_url'] }}'; }"
+                         role="link"
+                         tabindex="0"
+                         aria-label="{{ $tile['title'] }} – Jetzt im Shop entdecken"
+                         class="sf-card bg-white rounded-2xl shadow-lg border-2 border-primary overflow-hidden group relative z-10 flex flex-col cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
                     <figure class="overflow-hidden relative bg-gray-900" style="aspect-ratio: 10 / 9;">
                         @if($tile['sale_badge'])
                             <div class="absolute top-3 left-3 bg-red-600/95 backdrop-blur-sm text-white text-[9px] font-black px-2.5 py-1 rounded-full z-20 shadow-md uppercase tracking-wider">
@@ -450,7 +455,7 @@
                         <div class="mt-auto">
                             <a href="{{ $tile['shop_url'] }}"
                                title="Zur Kategorie {{ $tile['title'] }} im Shop"
-                               class="block text-center w-full bg-primary text-gray-900 py-2 rounded-lg text-xs font-bold hover:bg-primary-dark hover:text-white transition-colors shadow-sm">
+                               class="block text-center w-full bg-primary text-gray-900 py-2 rounded-lg text-xs font-bold hover:bg-primary-dark hover:text-white group-hover:bg-primary-dark group-hover:text-white transition-colors shadow-sm">
                                 Jetzt im Shop entdecken →
                             </a>
                         </div>

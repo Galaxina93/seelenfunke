@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'permission' => \App\Http\Middleware\CheckPermission::class,
+            'employee_role' => \App\Http\Middleware\EnsureEmployeeRole::class,
         ]);
 
         $middleware->validateCsrfTokens(except: [
