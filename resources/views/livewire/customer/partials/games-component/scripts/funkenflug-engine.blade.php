@@ -149,14 +149,14 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.bounds = {
             xMin: bottomLeft.x + 0.5,
             xMax: bottomRight.x - 0.5,
-            yMin: bottomCenter.y + 4,
-            yMax: topCenter.y - 4
+            yMin: bottomCenter.y + 1.2,
+            yMax: topCenter.y - 1.5
         };
 
         // Failsafe: If layout hasn't settled and bounds invert, use safe fallbacks
         if (isNaN(this.bounds.yMin) || isNaN(this.bounds.yMax) || this.bounds.yMax <= this.bounds.yMin) {
-            this.bounds.yMin = -5;
-            this.bounds.yMax = 25;
+            this.bounds.yMin = -8;
+            this.bounds.yMax = 28;
         }
         if (isNaN(this.bounds.xMin) || isNaN(this.bounds.xMax) || this.bounds.xMax <= this.bounds.xMin) {
             this.bounds.xMin = -15;
@@ -164,13 +164,61 @@ window.FunkenflugEngine = class FunkenflugEngine {
         }
     }
 
+    _createStarSpriteTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            // Soft circular halo
+            const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+            grad.addColorStop(0.18, 'rgba(240, 248, 255, 0.92)');
+            grad.addColorStop(0.42, 'rgba(165, 210, 255, 0.35)');
+            grad.addColorStop(0.75, 'rgba(90, 150, 255, 0.08)');
+            grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 64, 64);
+
+            // Subtle stellar diffraction cross
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.fillRect(31, 8, 2, 48);
+            ctx.fillRect(8, 31, 48, 2);
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        return tex;
+    }
+
+    _createNebulaTexture(palette) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, 256, 256);
+            palette.forEach(blob => {
+                const grad = ctx.createRadialGradient(blob.x, blob.y, 0, blob.x, blob.y, blob.r);
+                grad.addColorStop(0.0, blob.c0);
+                grad.addColorStop(0.45, blob.c1);
+                grad.addColorStop(1.0, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(blob.x, blob.y, blob.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        return tex;
+    }
+
     initScene() {
         this.scene = new THREE.Scene();
         this.isMobile = window.innerWidth <= 768;
-        
-        // Fog is expensive on mobile fragment shaders
+
         if (!this.isMobile) {
-            this.scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+            this.scene.fog = new THREE.FogExp2(0x030712, 0.008);
         }
 
         const w = this.container.offsetWidth || 800;
@@ -189,11 +237,10 @@ window.FunkenflugEngine = class FunkenflugEngine {
             powerPreference: 'high-performance'
         });
         this.renderer.setSize(w, h, false);
-        
-        // Standard setup: Crisp resolution on mobile and desktop without fragment shader overload
+
         const pixelRatio = this.isMobile ? Math.min(window.devicePixelRatio || 1, 1.5) : Math.min(window.devicePixelRatio || 1, 1.5);
         this.renderer.setPixelRatio(pixelRatio);
-        this.renderer.setClearColor(0x0f172a, 1);
+        this.renderer.setClearColor(0x030712, 1);
 
         this.renderer.domElement.style.position = 'absolute';
         this.renderer.domElement.style.width = '100%';
@@ -202,30 +249,128 @@ window.FunkenflugEngine = class FunkenflugEngine {
         this.container.appendChild(this.renderer.domElement);
 
         // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
         this.scene.add(ambientLight);
 
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
         dirLight.position.set(10, -10, 20);
         this.scene.add(dirLight);
 
-        // Create Starfield (moving background) - Less stars on mobile
-        const starCount = this.isMobile ? 100 : 1000;
-        const starGeom = new THREE.BufferGeometry();
-        const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.2, transparent: true, opacity: 0.8 });
-        const starVerts = [];
-        for(let i=0; i<starCount; i++) {
-            starVerts.push((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 50 - 10);
-        }
-        starGeom.setAttribute('position', new THREE.Float32BufferAttribute(starVerts, 3));
-        
-        this.starfieldGroup = new THREE.Group();
-        this.starfield1 = new THREE.Points(starGeom, starMat);
-        this.starfield2 = new THREE.Points(starGeom, starMat);
-        this.starfield2.position.y = 200; // Place exactly seamlessly above the first one
-        
-        this.starfieldGroup.add(this.starfield1, this.starfield2);
-        this.scene.add(this.starfieldGroup);
+        // --- REALISTIC MULTI-LAYER COSMOS & PARALLAX STARFIELD ---
+        const starTex = this._createStarSpriteTexture();
+        const spectralPalette = [
+            new THREE.Color(0xffffff), // Crisp White (A-Type)
+            new THREE.Color(0x93c5fd), // Icy Blue-White (O/B-Type)
+            new THREE.Color(0x38bdf8), // Cyan Giant
+            new THREE.Color(0xfde68a), // Solar Gold (G-Type)
+            new THREE.Color(0xfbbf24), // Warm Amber (K-Type)
+            new THREE.Color(0xc4b5fd), // Soft Violet Stardust
+            new THREE.Color(0xfda4af)  // Distant Red-Rose Giant (M-Type)
+        ];
+
+        const buildStarLayer = (count, size, zMin, zMax, opacity, speedMult) => {
+            const geom = new THREE.BufferGeometry();
+            const verts = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            const spanY = 140;
+            const spanX = 95;
+
+            for (let i = 0; i < count; i++) {
+                verts[i * 3] = (Math.random() - 0.5) * spanX;
+                verts[i * 3 + 1] = (Math.random() - 0.5) * spanY;
+                verts[i * 3 + 2] = zMin + Math.random() * (zMax - zMin);
+
+                const col = spectralPalette[Math.floor(Math.random() * spectralPalette.length)];
+                const brightness = 0.65 + Math.random() * 0.35;
+                colors[i * 3] = col.r * brightness;
+                colors[i * 3 + 1] = col.g * brightness;
+                colors[i * 3 + 2] = col.b * brightness;
+            }
+            geom.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+            geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const mat = new THREE.PointsMaterial({
+                size: size,
+                map: starTex,
+                vertexColors: true,
+                transparent: true,
+                opacity: opacity,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending
+            });
+
+            const group = new THREE.Group();
+            const pts1 = new THREE.Points(geom, mat);
+            const pts2 = new THREE.Points(geom, mat);
+            pts1.frustumCulled = false;
+            pts2.frustumCulled = false;
+            pts2.position.y = spanY;
+            group.add(pts1, pts2);
+            group.userData = { speedMult: speedMult, spanY: spanY };
+            this.scene.add(group);
+            return group;
+        };
+
+        this.starLayers = [
+            // 1. Deep Space Stardust (slow parallax)
+            buildStarLayer(this.isMobile ? 280 : 650, this.isMobile ? 0.9 : 0.75, -34, -20, 0.75, 0.22),
+            // 2. Mid-Space Spectral Stars & Giants (medium parallax)
+            buildStarLayer(this.isMobile ? 150 : 340, this.isMobile ? 1.55 : 1.35, -18, -8, 0.92, 0.52),
+            // 3. Foreground Bright Warp Stars (fast parallax)
+            buildStarLayer(this.isMobile ? 55 : 110, this.isMobile ? 2.1 : 1.85, -6, 1, 0.98, 1.12)
+        ];
+        this.starfieldGroup = this.starLayers[1];
+
+        // --- COSMIC NEBULAE & GALAXY CLOUDS ---
+        const nebTexViolet = this._createNebulaTexture([
+            { x: 115, y: 125, r: 115, c0: 'rgba(139, 92, 246, 0.42)', c1: 'rgba(76, 29, 149, 0.16)' },
+            { x: 155, y: 105, r: 90,  c0: 'rgba(236, 72, 153, 0.30)', c1: 'rgba(131, 24, 67, 0.10)' },
+            { x: 95,  y: 150, r: 80,  c0: 'rgba(56, 189, 248, 0.25)', c1: 'rgba(12, 74, 110, 0.08)' }
+        ]);
+        const nebTexCyanGold = this._createNebulaTexture([
+            { x: 130, y: 130, r: 115, c0: 'rgba(14, 165, 233, 0.36)', c1: 'rgba(15, 23, 42, 0.12)' },
+            { x: 105, y: 110, r: 85,  c0: 'rgba(245, 158, 11, 0.28)', c1: 'rgba(120, 53, 15, 0.08)' },
+            { x: 160, y: 150, r: 75,  c0: 'rgba(45, 212, 191, 0.24)', c1: 'rgba(19, 78, 74, 0.06)' }
+        ]);
+        const nebTexGalaxy = this._createNebulaTexture([
+            { x: 128, y: 128, r: 110, c0: 'rgba(99, 102, 241, 0.38)', c1: 'rgba(30, 27, 75, 0.14)' },
+            { x: 128, y: 128, r: 48,  c0: 'rgba(224, 242, 254, 0.50)', c1: 'rgba(56, 189, 248, 0.18)' }
+        ]);
+
+        this.nebulaGroup = new THREE.Group();
+        const nebSpanY = 160;
+        const nebConfigs = [
+            { tex: nebTexViolet,   x: -14, y: -15, z: -32, s: 58, rot: 0.4 },
+            { tex: nebTexCyanGold, x:  15, y:  28, z: -30, s: 54, rot: -0.6 },
+            { tex: nebTexGalaxy,   x:  -6, y:  62, z: -34, s: 46, rot: 1.1 },
+            { tex: nebTexViolet,   x:  12, y: -55, z: -33, s: 50, rot: 2.2 }
+        ];
+
+        const buildNebulaTile = (offsetY) => {
+            const tile = new THREE.Group();
+            tile.position.y = offsetY;
+            const planeGeo = new THREE.PlaneGeometry(1, 1);
+            nebConfigs.forEach(cfg => {
+                const mat = new THREE.MeshBasicMaterial({
+                    map: cfg.tex,
+                    transparent: true,
+                    opacity: 0.85,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                const mesh = new THREE.Mesh(planeGeo, mat);
+                mesh.position.set(cfg.x, cfg.y, cfg.z);
+                mesh.scale.set(cfg.s, cfg.s, 1);
+                mesh.rotation.z = cfg.rot;
+                mesh.frustumCulled = false;
+                tile.add(mesh);
+            });
+            return tile;
+        };
+
+        this.nebulaGroup.add(buildNebulaTile(0), buildNebulaTile(nebSpanY));
+        this.nebulaGroup.userData = { spanY: nebSpanY };
+        this.scene.add(this.nebulaGroup);
 
         // Window resize
         this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -598,7 +743,7 @@ window.FunkenflugEngine = class FunkenflugEngine {
         
         if (this._ray.intersectPlane(this._z0Plane, this._intersectTarget)) {
             this.pointerPos.x = this._intersectTarget.x;
-            this.pointerPos.y = this._intersectTarget.y + 5; // Offset because finger covers ship
+            this.pointerPos.y = this._intersectTarget.y; // Exakt 1:1 dort positionieren, wo der Finger drückt
             this.pointerPos.z = 0;
         }
     }
@@ -696,12 +841,14 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // Reset skills
         for(let k in this.activeSkills) {
             if(this.activeSkills[k].mesh) {
+                if (this.ship) this.ship.remove(this.activeSkills[k].mesh);
                 this.scene.remove(this.activeSkills[k].mesh);
                 this.activeSkills[k].mesh = null;
             }
             this.activeSkills[k].active = false;
             this.activeSkills[k].waitingForClick = false;
         }
+        this._lastReportedShield = 0;
 
         this.lastTime = performance.now();
         this.callbacks.onShieldUpdate(this.shieldHP);
@@ -748,12 +895,48 @@ window.FunkenflugEngine = class FunkenflugEngine {
             this.activeSkills.shield.active = true;
             this.activeSkills.shield.timer = 20.0;
             this.shieldHP = 100;
+            this._lastReportedShield = 100;
             this.callbacks.onShieldUpdate(this.shieldHP);
 
             if(!this.activeSkills.shield.mesh) {
-                const geo = new THREE.SphereGeometry(2.5, 32, 32);
-                const mat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.4, wireframe: true });
-                this.activeSkills.shield.mesh = new THREE.Mesh(geo, mat);
+                const shieldGroup = new THREE.Group();
+
+                // Inner glowing forcefield bubble
+                const bubbleGeo = new THREE.SphereGeometry(3.2, 24, 24);
+                const bubbleMat = new THREE.MeshBasicMaterial({
+                    color: 0x38bdf8,
+                    transparent: true,
+                    opacity: 0.26,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                shieldGroup.add(new THREE.Mesh(bubbleGeo, bubbleMat));
+
+                // Geodesic energy lattice
+                const wireGeo = new THREE.IcosahedronGeometry(3.35, 2);
+                const wireMat = new THREE.MeshBasicMaterial({
+                    color: 0x7dd3fc,
+                    wireframe: true,
+                    transparent: true,
+                    opacity: 0.72,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                shieldGroup.add(new THREE.Mesh(wireGeo, wireMat));
+
+                // Equatorial energy ring
+                const ringGeo = new THREE.RingGeometry(3.45, 3.75, 32);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: 0x60a5fa,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.65,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending
+                });
+                shieldGroup.add(new THREE.Mesh(ringGeo, ringMat));
+
+                this.activeSkills.shield.mesh = shieldGroup;
             }
             this.ship.add(this.activeSkills.shield.mesh);
             return true;
@@ -913,11 +1096,28 @@ window.FunkenflugEngine = class FunkenflugEngine {
         // --- COLLISIONS ---
         this.checkCollisions();
 
-        // Environment
-        if (this.starfieldGroup) {
+        // Environment: Multi-layer parallax starfields & cosmic nebulae
+        if (this.starLayers && this.starLayers.length) {
+            for (let li = 0; li < this.starLayers.length; li++) {
+                const layer = this.starLayers[li];
+                const spanY = layer.userData.spanY || 140;
+                layer.position.y -= this.currentSpeed * (layer.userData.speedMult || 0.5) * dt;
+                if (layer.position.y <= -spanY) {
+                    layer.position.y += spanY;
+                }
+            }
+        } else if (this.starfieldGroup) {
             this.starfieldGroup.position.y -= this.currentSpeed * 0.5 * dt;
             if(this.starfieldGroup.position.y <= -200) {
                 this.starfieldGroup.position.y += 200; // Seamless reset
+            }
+        }
+
+        if (this.nebulaGroup) {
+            const nebSpanY = this.nebulaGroup.userData.spanY || 160;
+            this.nebulaGroup.position.y -= this.currentSpeed * 0.14 * dt;
+            if (this.nebulaGroup.position.y <= -nebSpanY) {
+                this.nebulaGroup.position.y += nebSpanY;
             }
         }
 
@@ -939,13 +1139,23 @@ window.FunkenflugEngine = class FunkenflugEngine {
             this.activeSkills.shield.timer -= dt;
             if (this.activeSkills.shield.timer <= 0 || this.shieldHP <= 0) {
                 this.activeSkills.shield.active = false;
-                this.ship.remove(this.activeSkills.shield.mesh);
+                if (this.activeSkills.shield.mesh) {
+                    this.ship.remove(this.activeSkills.shield.mesh);
+                }
                 for(let i=0; i<15; i++) this.spawnParticle(this.ship.position, 0x60a5fa);
                 this.shieldHP = 0;
+                this._lastReportedShield = 0;
                 this.callbacks.onShieldUpdate(0);
             } else {
-                this.activeSkills.shield.mesh.rotation.y += dt * 2;
-                this.activeSkills.shield.mesh.rotation.x += dt;
+                if (this.activeSkills.shield.mesh) {
+                    this.activeSkills.shield.mesh.rotation.y += dt * 2;
+                    this.activeSkills.shield.mesh.rotation.x += dt;
+                }
+                const displayShield = Math.max(1, Math.min(this.shieldHP, Math.ceil((this.activeSkills.shield.timer / 20.0) * this.shieldHP)));
+                if (this._lastReportedShield !== displayShield) {
+                    this._lastReportedShield = displayShield;
+                    this.callbacks.onShieldUpdate(displayShield);
+                }
             }
         }
 

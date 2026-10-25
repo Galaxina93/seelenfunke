@@ -345,11 +345,11 @@
 
 
                 {{-- MIDDLE: SPIELFELD --}}
-                <div id="ff-fullscreen-container" class="w-full flex justify-center items-center relative z-10 w-full h-full" :class="{'bg-black': isFullscreen}">
-                    <div id="ff-main-wrapper" :class="{'h-[100dvh] w-full max-w-[1200px] aspect-auto rounded-none border-0 shadow-[0_0_100px_rgba(245,158,11,0.1)]': isFullscreen, 'aspect-[3/4] sm:aspect-square w-full max-w-[800px] rounded-[2rem] sm:rounded-[3rem] border-2 border-gray-200 dark:border-gray-700 shadow-xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)]': !isFullscreen}" class="overflow-hidden relative bg-gray-950 sm:bg-gray-900 flex flex-col pointer-events-auto transition-all duration-300">
+                <div id="ff-fullscreen-container" class="w-full flex justify-center items-center relative z-10 h-full" :class="{'fixed inset-0 z-[9999] w-screen h-[100dvh] bg-black': isFullscreen}">
+                    <div id="ff-main-wrapper" :class="{'h-full w-full max-w-[1200px] aspect-auto rounded-none border-0 shadow-[0_0_100px_rgba(245,158,11,0.1)]': isFullscreen, 'aspect-[3/4] sm:aspect-square w-full max-w-[800px] rounded-[2rem] sm:rounded-[3rem] border-2 border-gray-200 dark:border-gray-700 shadow-xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.6)]': !isFullscreen}" class="overflow-hidden relative bg-gray-950 sm:bg-gray-900 flex flex-col pointer-events-auto transition-all duration-300">
                         
                         {{-- SCREEN AREA (100% on mobile and desktop) --}}
-                        <div class="relative w-full h-full shrink-0 flex flex-col bg-gray-900">
+                        <div class="relative w-full h-full shrink-0 flex flex-col bg-gray-950">
 
                             <div id="funkenflug-container" x-ref="ffContainer" wire:ignore class="absolute inset-0 z-10" :class="{'touch-none': gameState === 'playing'}"></div>
                             <div id="ff-floating-layer" class="absolute inset-0 pointer-events-none z-30 overflow-hidden"></div>
@@ -376,28 +376,38 @@
                                 </div>
 
                                 {{-- TOP LEFT: GESAMMELTE FUNKEN --}}
-                                <div class="absolute top-4 left-4 sm:top-6 sm:left-6 z-40 flex flex-col items-start gap-1 pointer-events-auto" x-show="gameState === 'playing'">
+                                <div class="absolute top-3 left-3 sm:top-6 sm:left-6 z-40 flex flex-col items-start gap-1.5 pointer-events-auto" style="margin-top: env(safe-area-inset-top, 0px);" x-show="gameState === 'playing'">
                                     <div class="bg-gray-950/90 px-3 py-1.5 rounded-xl border border-gray-800 shadow-inner flex items-center gap-2">
                                         <span class="text-sm">✨</span>
                                         <span class="text-xs sm:text-sm font-bold text-amber-500" x-text="funkenCollected">0</span>
                                     </div>
                                 </div>
 
-                                {{-- TOP CENTER: DISTANZ / REKORD --}}
-                                <div class="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 pointer-events-auto" x-show="gameState === 'playing'">
-                                    <p class="text-[8px] sm:text-[10px] text-gray-400 font-black uppercase tracking-widest bg-gray-900/85 px-3 py-0.5 rounded-full shadow-md">Distanz / Rekord</p>
-                                    <div class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white drop-shadow-md flex items-baseline gap-1">
+                                {{-- TOP CENTER: DISTANZ / REKORD & SCHILD-ANZEIGE --}}
+                                <div class="absolute top-3 sm:top-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1 pointer-events-auto" style="margin-top: env(safe-area-inset-top, 0px);" x-show="gameState === 'playing'">
+                                    <p class="text-[8px] sm:text-[10px] text-gray-300 font-black uppercase tracking-widest bg-gray-950/90 border border-gray-800/80 px-3 py-0.5 rounded-full shadow-md">Distanz / Rekord</p>
+                                    <div class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white drop-shadow-md flex items-baseline gap-1 leading-none">
                                         <span id="ff-hud-distance" x-text="distance" class="text-amber-400 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]">0</span>
-                                        <span class="text-gray-500 text-sm sm:text-base">/ {{ $personalHighscoreFF }}</span>
+                                        <span class="text-gray-400 text-sm sm:text-base">/ {{ $personalHighscoreFF }}</span>
+                                    </div>
+                                    {{-- KOMPAKTE SCHILD-ANZEIGE IM SICHTFELD (MOBIL & DESKTOP) --}}
+                                    <div class="mt-1 w-36 sm:w-44 h-4 sm:h-5 rounded-full bg-gray-950/90 border overflow-hidden relative flex items-center shadow-lg transition-all duration-300"
+                                         :class="shieldEnergy > 0 ? 'border-cyan-400/80 shadow-[0_0_14px_rgba(34,211,238,0.45)]' : 'border-blue-500/35'">
+                                        <div class="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-blue-600 via-cyan-500 to-cyan-300 transition-all duration-300"
+                                             :style="`width: ${shieldEnergy}%`"></div>
+                                        <div class="relative z-10 w-full flex items-center justify-center gap-1 text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-white drop-shadow">
+                                            <span>🛡️ Schild</span>
+                                            <span :class="shieldEnergy > 0 ? 'text-cyan-200' : 'text-gray-400'" x-text="shieldEnergy + '%'">0%</span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                {{-- BOTTOM: SCHILD ENERGIE BAR --}}
-                                <div class="absolute bottom-0 left-0 w-full z-40 pointer-events-auto" x-show="gameState === 'playing'">
-                                    <div class="relative w-full h-5 sm:h-6 bg-gray-900/90 border-t border-gray-800 flex items-center overflow-hidden">
+                                {{-- BOTTOM: SCHILD ENERGIE BAR (MIT SAFE-AREA ABSTAND FÜR SMARTPHONES) --}}
+                                <div class="absolute bottom-2 sm:bottom-0 left-3 right-3 sm:left-0 sm:right-0 sm:w-full z-40 pointer-events-auto" style="margin-bottom: env(safe-area-inset-bottom, 0px);" x-show="gameState === 'playing'">
+                                    <div class="relative w-full h-5 sm:h-6 bg-gray-950/90 rounded-full sm:rounded-none border border-cyan-500/40 sm:border-0 sm:border-t sm:border-gray-800 flex items-center overflow-hidden shadow-[0_0_15px_rgba(6,182,212,0.2)]">
                                         <div class="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-blue-600 to-cyan-400 transition-all duration-300 shadow-[0_0_15px_rgba(37,99,235,0.8)]" :style="`width: ${shieldEnergy}%`"></div>
                                         <div class="absolute inset-0 flex items-center justify-center text-[9px] sm:text-[10px] font-black text-white drop-shadow-md tracking-widest uppercase">
-                                            Schild Energie <span class="ml-2" x-text="shieldEnergy + '%'"></span>
+                                            🛡️ Schild Energie <span class="ml-2" x-text="shieldEnergy + '%'"></span>
                                         </div>
                                     </div>
                                 </div>

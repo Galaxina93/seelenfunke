@@ -81,19 +81,30 @@ window.funkenflugExpress = function() {
         toggleFullscreen() {
             let elem = document.getElementById('ff-fullscreen-container');
             if (!elem) {
-                // Fallback falls id nicht existiert
                 elem = document.getElementById('funkenflug-container')?.parentElement?.parentElement?.parentElement;
             }
             if (!elem) return;
 
-            if (!document.fullscreenElement) {
-                if (elem.requestFullscreen) { elem.requestFullscreen(); }
-                else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); } // Safari
+            if (!this.isFullscreen && !document.fullscreenElement) {
                 this.isFullscreen = true;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen().catch(() => {});
+                } else if (elem.webkitRequestFullscreen) {
+                    try { elem.webkitRequestFullscreen(); } catch(e) {}
+                }
             } else {
-                if (document.exitFullscreen) { document.exitFullscreen(); }
-                else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
                 this.isFullscreen = false;
+                if (document.fullscreenElement || document.webkitFullscreenElement) {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen().catch(() => {});
+                    } else if (document.webkitExitFullscreen) {
+                        try { document.webkitExitFullscreen(); } catch(e) {}
+                    }
+                }
+            }
+            if (engine) {
+                setTimeout(() => engine.resize(), 60);
+                setTimeout(() => engine.resize(), 250);
             }
         },
 
