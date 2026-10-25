@@ -163,11 +163,6 @@
             <div class="absolute inset-0 bg-gradient-to-b from-gray-950/70 via-gray-950/45 to-gray-950/85 pointer-events-none" aria-hidden="true"></div>
             <div class="absolute inset-0 bg-amber-500/10 blur-[110px] rounded-full w-[520px] h-[520px] mx-auto opacity-30 pointer-events-none" aria-hidden="true"></div>
 
-            {{-- KI-generiert Hinweis unten rechts --}}
-            <span class="pointer-events-none select-none absolute bottom-3 right-4 z-20 bg-black/55 backdrop-blur-sm text-white/85 text-[9px] font-semibold tracking-wider px-2 py-0.5 rounded-md border border-white/15 shadow-sm">
-                KI-generiert
-            </span>
-
             <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                 <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-4 block drop-shadow">
                     Made in Germany
