@@ -275,7 +275,7 @@
                                 </div>
 
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                                    <span class="text-[var(--theme-color)] font-mono font-bold">{{ $product->slug === 'geschenkgutschein' ? 'ab 10,00 €' : $product->formatted_price }}</span>
+                                    <span class="text-[var(--theme-color)] font-mono font-bold">{{ $product->slug === 'geschenkgutschein' ? '5,00 € – 1.000,00 €' : $product->formatted_price }}</span>
                                     <span class="text-[11px] font-mono text-gray-400 dark:text-gray-500">{{ $lpPath }}</span>
                                     <span class="text-[10px] font-mono text-gray-400 dark:text-gray-500">{{ $visits30d }} Aufrufe (30T) · {{ $visitsTotal }} gesamt</span>
                                 </div>
@@ -441,7 +441,7 @@
                                 {{ $product->name }}
                             </h3>
                             <span class="text-xs font-mono font-bold text-[var(--theme-color)] shrink-0">
-                                {{ $product->slug === 'geschenkgutschein' ? 'ab 10,00 €' : $product->formatted_price }}
+                                {{ $product->slug === 'geschenkgutschein' ? '5,00 € – 1.000,00 €' : $product->formatted_price }}
                             </span>
                         </div>
 

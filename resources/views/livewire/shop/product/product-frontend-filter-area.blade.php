@@ -533,7 +533,7 @@
                                             <div class="flex items-baseline gap-2">
                                                 <span class="{{ $isSoldOut ? 'text-gray-400' : ($product->compare_at_price > $product->price ? 'text-red-600' : 'text-gray-900') }} font-bold text-xl font-serif">
                                                     @if($product->slug === 'geschenkgutschein' || ($product->price == 0 && $product->is_personalizable))
-                                                        ab 10,00 €
+                                                        ab 5,00 €
                                                     @else
                                                         {{ number_format($product->price / 100, 2, ',', '.') }} €
                                                     @endif

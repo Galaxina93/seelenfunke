@@ -188,7 +188,7 @@
                 $stockBadgeText .= ' · ab ' . number_format($minPriceCents / 100, 2, ',', '.') . ' €';
             }
         } elseif ($voucherCount > 0) {
-            $stockBadgeText = ($voucherCount === 1 ? 'Wertgutschein' : $voucherCount . ' Gutscheine') . ' · ab 10,00 €';
+            $stockBadgeText = ($voucherCount === 1 ? 'Wertgutschein' : $voucherCount . ' Gutscheine') . ' · 5,00 € – 1.000,00 €';
         } else {
             $stockBadgeText = $unikateCount . ' ' . ($unikateCount === 1 ? 'Unikat' : 'Unikate');
             if ($minPriceCents) {
