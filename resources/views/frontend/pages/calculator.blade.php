@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="B2B & Projekt-Kalkulator für Lasergravur & Großbestellungen | Mein Seelenfunke"
+    meta_description="Kalkuliere individuelle Lasergravuren, Pokale, Mitarbeitergeschenke und Serienfertigungen sofort online – inklusive Staffelrabatten & Express-Option.">
     <x-sections.page-container>
 
         <section class="bg-white py-20 sm:py-20 md:py-24">

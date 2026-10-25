@@ -1,2 +1,51 @@
+# Mein Seelenfunke – Robots & AI Search Policy
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /admin
+Disallow: /warenkorb
+Disallow: /checkout
+Disallow: /system/
+Disallow: /livewire/
+Disallow: /invoice/
+Disallow: /digital-product/
+Disallow: /angebot/
+Disallow: /notfall
+
+# Explizite Freigabe für KI-Suchmaschinen & Generative Answer Engines (GEO)
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://mein-seelenfunke.de/sitemap.xml
+# AI / LLM Context Discovery
+# https://mein-seelenfunke.de/llms.txt
+# https://mein-seelenfunke.de/llms-full.txt

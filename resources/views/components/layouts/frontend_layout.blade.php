@@ -1,3 +1,153 @@
+@props([
+    'title' => null,
+    'meta_description' => null,
+    'metaDescription' => null,
+    'og_title' => null,
+    'og_description' => null,
+    'og_image' => null,
+    'og_type' => null,
+    'robots' => null,
+    'canonical' => null,
+])
+@php
+    $defaultTitle = 'Personalisierte Geschenke & exklusive Lasergravur | Mein Seelenfunke';
+    $defaultDescription = 'Verwandle Momente in Ewigkeit ✨ Handveredelte Unikate aus K9-Kristallglas, Naturschiefer & Metall mit Live-3D-Konfigurator. Manufaktur in Gifhorn (Deutschland).';
+
+    $sectionTitle = \Illuminate\Support\Facades\View::hasSection('title') ? trim(\Illuminate\Support\Facades\View::yieldContent('title')) : null;
+    $sectionDesc = \Illuminate\Support\Facades\View::hasSection('meta_description') ? trim(\Illuminate\Support\Facades\View::yieldContent('meta_description')) : null;
+    $sectionOgTitle = \Illuminate\Support\Facades\View::hasSection('og_title') ? trim(\Illuminate\Support\Facades\View::yieldContent('og_title')) : null;
+    $sectionOgDesc = \Illuminate\Support\Facades\View::hasSection('og_description') ? trim(\Illuminate\Support\Facades\View::yieldContent('og_description')) : null;
+    $sectionOgImage = \Illuminate\Support\Facades\View::hasSection('og_image') ? trim(\Illuminate\Support\Facades\View::yieldContent('og_image')) : null;
+    $sectionOgType = \Illuminate\Support\Facades\View::hasSection('og_type') ? trim(\Illuminate\Support\Facades\View::yieldContent('og_type')) : null;
+    $sectionRobots = \Illuminate\Support\Facades\View::hasSection('robots') ? trim(\Illuminate\Support\Facades\View::yieldContent('robots')) : null;
+    $sectionCanonical = \Illuminate\Support\Facades\View::hasSection('canonical') ? trim(\Illuminate\Support\Facades\View::yieldContent('canonical')) : null;
+
+    $resolvedTitle = $title ?: ($sectionTitle ?: $defaultTitle);
+    if (!str_contains(mb_strtolower($resolvedTitle), 'seelenfunke')) {
+        $resolvedTitle .= ' | Mein Seelenfunke';
+    }
+
+    $resolvedDescription = $meta_description ?: ($metaDescription ?: ($sectionDesc ?: $defaultDescription));
+    $resolvedDescription = \Illuminate\Support\Str::limit( trim(preg_replace('/\s+/', ' ', strip_tags((string) $resolvedDescription))), 165 );
+
+    $resolvedOgTitle = $og_title ?: ($sectionOgTitle ?: $resolvedTitle);
+    $resolvedOgDescription = $og_description ?: ($sectionOgDesc ?: $resolvedDescription);
+    $resolvedOgImage = $og_image ?: ($sectionOgImage ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+    $resolvedOgType = $og_type ?: ($sectionOgType ?: 'website');
+    $resolvedCanonical = $canonical ?: ($sectionCanonical ?: url()->current());
+
+    $currentRouteName = request()->route()?->getName() ?? '';
+    $noindexRoutes = [
+        'cart',
+        'checkout',
+        'checkout.success',
+        'quote.accept',
+        'login',
+        'livewire.auth.register',
+        'verification.notice',
+        'customer.verification.verify',
+        'cart.reminder.unsubscribe',
+        'newsletter.verify',
+        'emergency.index',
+    ];
+    $defaultRobots = in_array($currentRouteName, $noindexRoutes, true)
+        ? 'noindex, nofollow'
+        : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+    $resolvedRobots = $robots ?: ($sectionRobots ?: $defaultRobots);
+
+    $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
+    $founderName = shop_setting('owner_proprietor', 'Alina Steinhauer');
+    $streetAddress = trim(shop_setting('company_street', 'Carl-Goerdeler-Ring') . ' ' . shop_setting('company_street_number', '26'));
+    $postalCode = shop_setting('company_zip', '38518');
+    $city = shop_setting('company_city', 'Gifhorn');
+    $phone = shop_setting('company_phone', shop_setting('owner_phone', '+49 159 019 668 64'));
+    $email = shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de'));
+
+    $globalSchemaGraph = [
+        '@context' => 'https://schema.org',
+        '@graph' => [
+            [
+                '@type' => ['Organization', 'OnlineStore', 'LocalBusiness'],
+                '@id' => url('/#organization'),
+                'name' => $companyName,
+                'alternateName' => 'Mein Seelenfunke Manufaktur',
+                'legalName' => $companyName . ' – ' . $founderName,
+                'url' => url('/'),
+                'logo' => [
+                    '@type' => 'ImageObject',
+                    'url' => asset('shop/projekt/logo/mein-seelenfunke-logo.png'),
+                ],
+                'image' => asset('shop/projekt/about/gruender-profil-b.webp'),
+                'description' => 'Deutsche Manufaktur für personalisierte Geschenke, Trophäen & hochpräzise Lasergravuren auf K9-Kristallglas, Naturschiefer, Holz und Metall mit interaktivem 2D/3D-Echtzeit-Konfigurator.',
+                'founder' => [
+                    '@type' => 'Person',
+                    '@id' => url('/manufaktur#founder'),
+                    'name' => $founderName,
+                    'jobTitle' => 'Gründerin & Inhaberin',
+                    'url' => route('manufacture'),
+                ],
+                'address' => [
+                    '@type' => 'PostalAddress',
+                    'streetAddress' => $streetAddress,
+                    'postalCode' => $postalCode,
+                    'addressLocality' => $city,
+                    'addressRegion' => 'Niedersachsen',
+                    'addressCountry' => 'DE',
+                ],
+                'geo' => [
+                    '@type' => 'GeoCoordinates',
+                    'latitude' => 52.4886,
+                    'longitude' => 10.5461,
+                ],
+                'contactPoint' => [
+                    '@type' => 'ContactPoint',
+                    'telephone' => $phone,
+                    'email' => $email,
+                    'contactType' => 'customer service',
+                    'availableLanguage' => ['de', 'German'],
+                    'areaServed' => ['DE', 'AT', 'CH'],
+                ],
+                'areaServed' => [
+                    ['@type' => 'Country', 'name' => 'DE'],
+                    ['@type' => 'Country', 'name' => 'AT'],
+                    ['@type' => 'Country', 'name' => 'CH'],
+                ],
+                'priceRange' => '€€',
+                'sameAs' => [
+                    'https://www.instagram.com/Mein_Seelenfunke/',
+                    'https://www.tiktok.com/@mein_seelenfunke',
+                ],
+                'knowsAbout' => [
+                    'Lasergravur',
+                    'Personalisierte Geschenke',
+                    'K9 Kristallglas Gravur',
+                    'Glasfoto und Pokale mit Gravur',
+                    'Schieferplatten mit Gravur',
+                    'Edelstahl und eloxiertes Aluminium Gravur',
+                    'Interaktiver 3D Produktkonfigurator',
+                ],
+            ],
+            [
+                '@type' => 'WebSite',
+                '@id' => url('/#website'),
+                'url' => url('/'),
+                'name' => $companyName,
+                'inLanguage' => 'de-DE',
+                'publisher' => [
+                    '@id' => url('/#organization'),
+                ],
+                'potentialAction' => [
+                    '@type' => 'SearchAction',
+                    'target' => [
+                        '@type' => 'EntryPoint',
+                        'urlTemplate' => route('shop') . '?search={search_term_string}',
+                    ],
+                    'query-input' => 'required name=search_term_string',
+                ],
+            ],
+        ],
+    ];
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
@@ -6,31 +156,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     {{-- SEO Meta --}}
-    <title>@yield('title', 'Personalisierte Geschenke & exklusive Lasergravur | Mein Seelenfunke')</title>
+    <title>{{ $resolvedTitle }}</title>
+    <meta name="description" content="{{ $resolvedDescription }}">
+    <meta name="keywords" content="Personalisierte Geschenke, Lasergravur, Glasfoto, K9 Kristallglas, Trophäe gravieren, Schieferplatte graviert, 3D Konfigurator, Gifhorn, Braunschweig, Wolfsburg, Hannover, Fotogeschenk, Unikat, Mein Seelenfunke">
+    <meta name="robots" content="{{ $resolvedRobots }}">
+    <meta name="author" content="{{ $companyName }} – {{ $founderName }}">
+    <meta name="geo.region" content="DE-NI">
+    <meta name="geo.placename" content="{{ $city }}">
 
-    {{-- Meta Description: Max. 160 Zeichen, inkl. Keywords und Handlungsaufforderung --}}
-    <meta name="description"
-          content="@yield('meta_description', 'Verwandle Momente in Ewigkeit ✨ Hochwertige Unikate aus Glas, Schiefer & Metall. Handveredelt in Deutschland. Jetzt dein persönliches Geschenk gestalten!')">
+    {{-- Open Graph / Social Media & AI Previews --}}
+    <meta property="og:site_name" content="{{ $companyName }}">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:title" content="{{ $resolvedOgTitle }}">
+    <meta property="og:description" content="{{ $resolvedOgDescription }}">
+    <meta property="og:type" content="{{ $resolvedOgType }}">
+    <meta property="og:url" content="{{ $resolvedCanonical }}">
+    <meta property="og:image" content="{{ $resolvedOgImage }}">
 
-    {{-- Keywords: Fokus auf deine Produkte + Region (für lokales SEO) --}}
-    <meta name="keywords"
-          content="Personalisierte Geschenke, Lasergravur, Glasfoto, Spotify Code, Schieferplatte graviert, Gifhorn, Braunschweig, Wolfsburg, Hannover, Fotogeschenk, Unikat">
+    {{-- Twitter / X Card --}}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ $resolvedOgTitle }}">
+    <meta name="twitter:description" content="{{ $resolvedOgDescription }}">
+    <meta name="twitter:image" content="{{ $resolvedOgImage }}">
 
-    <meta name="robots" content="index, follow">
-    <meta name="author" content="Mein Seelenfunke - [Dein Name]">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {{-- Canonical & Machine-Readable Discovery (Sitemap & AI Search LLMs.txt) --}}
+    <link rel="canonical" href="{{ $resolvedCanonical }}">
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="{{ url('/sitemap.xml') }}">
+    <link rel="alternate" type="text/plain" title="LLMs.txt – AI Search Summary" href="{{ url('/llms.txt') }}">
+    <link rel="alternate" type="text/plain" title="LLMs-Full.txt – AI Full Product & Shop Knowledge" href="{{ url('/llms-full.txt') }}">
 
-    {{-- Open Graph / Social Media (Wichtig, damit Links in WhatsApp/Insta gut aussehen) --}}
-    <meta property="og:title" content="@yield('og_title', 'Mein Seelenfunke – Geschenke, die bleiben.')">
-    <meta property="og:description"
-          content="@yield('og_description', 'Entdecke handveredelte Unikate aus Glas und Schiefer. Perfekt für Geburtstage, Hochzeiten & besondere Momente.')">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:image"
-          content="@yield('og_image', asset('shop/projekt/logo/mein-seelenfunke-logo.png'))">
-
-    <!-- Canonical -->
-    <link rel="canonical" href="{{ url()->current() }}">
+    {{-- Global Schema.org JSON-LD (Organization + WebSite) --}}
+    <script type="application/ld+json">{!! json_encode($globalSchemaGraph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @stack('structured_data')
+    @stack('head')
 
     {{-- Favicon --}}
     <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}?v={{ file_exists(public_path('favicon.ico')) ? filemtime(public_path('favicon.ico')) : 2 }}">
@@ -162,6 +320,10 @@
 
 {{-- Footer --}}
 @include('frontend.footer.footer')
+
+@auth('customer')
+    <livewire:customer.gamification.game-spark-hunt-component />
+@endauth
 
 {{-- 2. Der Chat bleibt im Hintergrund geladen, wird aber vom Dock gesteuert --}}
 {{-- FunkiChat removed as per request --}}

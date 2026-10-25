@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Personalisierte Geschenke & exklusive Lasergravur aus Gifhorn | Mein Seelenfunke"
+    meta_description="Verwandle Momente in Ewigkeit ✨ Handveredelte Unikate aus K9-Kristallglas, Naturschiefer & Edelmetall mit 2D/3D-Live-Konfigurator. Manufaktur aus Gifhorn.">
 
     <x-sections.page-container>
 

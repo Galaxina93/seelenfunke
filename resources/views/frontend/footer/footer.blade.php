@@ -49,7 +49,35 @@
                             <a href="{{ route('shop') }}"
                                title="Direkt zum Online-Shop"
                                class="hover:text-amber-800 transition flex items-center gap-2">
-                                <span aria-hidden="true">🛍️</span> Zum Shop
+                                <span aria-hidden="true">🛍️</span> Zum Shop & Kollektion
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('manufacture') }}"
+                               title="Die Manufaktur, Materialkunde & Alina Steinhauer"
+                               class="hover:text-amber-800 transition flex items-center gap-2">
+                                <span aria-hidden="true">✨</span> Die Manufaktur
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('marketing/marketing/blog') }}"
+                               title="Magazin, Inspiration & Ratgeber zur Lasergravur"
+                               class="hover:text-amber-800 transition flex items-center gap-2">
+                                <span aria-hidden="true">📖</span> Magazin & Ratgeber
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('calculator') }}"
+                               title="B2B & Projekt-Kalkulator für Großbestellungen"
+                               class="hover:text-amber-800 transition flex items-center gap-2">
+                                <span aria-hidden="true">🧮</span> B2B Projekt-Kalkulator
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ route('product.show', 'geschenkgutschein') }}"
+                               title="Personalisierte Geschenkgutscheine bestellen"
+                               class="hover:text-amber-800 transition flex items-center gap-2">
+                                <span aria-hidden="true">🎁</span> Geschenkgutscheine
                             </a>
                         </li>
                         <li>

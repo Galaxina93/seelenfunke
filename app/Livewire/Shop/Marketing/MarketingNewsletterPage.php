@@ -132,6 +132,11 @@ class MarketingNewsletterPage extends Component
 
     public function render()
     {
-        return view('livewire.shop.marketing.marketing-newsletter-page')->layout('components.layouts.frontend_layout');
+        return view('livewire.shop.marketing.marketing-newsletter-page')
+            ->title('Seelenfunken-Post Newsletter & Exklusive Vorteile | Mein Seelenfunke')
+            ->layout('components.layouts.frontend_layout', [
+                'meta_description' => 'Melde dich für die Seelenfunken-Post an: Erhalte exklusive Einblicke in unsere Manufaktur in Gifhorn, Geschenk-Inspirationen und limitierte Aktionen.',
+                'canonical' => route('newsletter.page'),
+            ]);
     }
 }

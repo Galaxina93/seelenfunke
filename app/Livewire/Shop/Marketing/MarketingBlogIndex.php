@@ -64,6 +64,9 @@ class MarketingBlogIndex extends Component
             'posts' => $query->paginate(9),
             'categories' => MarketingBlogCategory::whereIn('id', MarketingBlogPost::published()->whereNotNull('blog_category_id')->pluck('blog_category_id'))->orderBy('name')->get(), // Nur Kategorien mit veröffentlichten Posts
             'categorySlug' => $this->categorySlug,
-        ])->layout('components.layouts.frontend_layout');
+        ])->layout('components.layouts.frontend_layout', [
+            'meta_description' => 'Inspiration, Geschenkideen, Ratgeber zur Lasergravur und spannende Einblicke hinter die Kulissen der Manufaktur Mein Seelenfunke.',
+            'canonical' => route('marketing/marketing/blog'),
+        ]);
     }
 }

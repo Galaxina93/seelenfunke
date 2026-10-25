@@ -220,6 +220,57 @@ class ProductFrontendFilterArea extends Component
 
         $heroBanner = $this->resolveHeroBanner((string) $this->filterHoliday, $saleCount);
 
+        $itemListElements = [];
+        foreach ($products->items() as $idx => $prod) {
+            $itemListElements[] = [
+                '@type' => 'ListItem',
+                'position' => $idx + 1,
+                'url' => route('product.show', $prod->slug),
+                'name' => $prod->name,
+            ];
+        }
+
+        $shopSchema = [
+            '@context' => 'https://schema.org',
+            '@graph' => [
+                [
+                    '@type' => 'BreadcrumbList',
+                    '@id' => route('shop') . '#breadcrumb',
+                    'itemListElement' => [
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 1,
+                            'name' => 'Startseite',
+                            'item' => route('home'),
+                        ],
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 2,
+                            'name' => 'Shop & Kollektion',
+                            'item' => route('shop'),
+                        ],
+                    ],
+                ],
+                [
+                    '@type' => 'CollectionPage',
+                    '@id' => route('shop') . '#collection',
+                    'url' => route('shop'),
+                    'name' => 'Unsere Kollektion – Personalisierte Geschenke & Lasergravur | Mein Seelenfunke',
+                    'description' => 'Handveredelte Unikate aus K9-Kristallglas, Naturschiefer und Metall. Direkt im interaktiven 2D- & 3D-Online-Konfigurator personalisieren.',
+                    'isPartOf' => [
+                        '@id' => url('/#website'),
+                    ],
+                    'mainEntity' => [
+                        '@type' => 'ItemList',
+                        'numberOfItems' => count($itemListElements),
+                        'itemListElement' => $itemListElements,
+                    ],
+                ],
+            ],
+        ];
+
+        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Glasfotos, Naturschiefer & Edelmetall – live im 2D/3D-Konfigurator gestalten.';
+
         return view('livewire.shop.product.product-frontend-filter-area', [
             'products' => $products,
             'categories' => $categories,
@@ -227,7 +278,12 @@ class ProductFrontendFilterArea extends Component
             'availableHolidays' => $availableHolidays,
             'saleCount' => $saleCount,
             'heroBanner' => $heroBanner,
-        ])->layout('components.layouts.frontend_layout');
+            'shopSchema' => $shopSchema,
+        ])->layout('components.layouts.frontend_layout', [
+            'meta_description' => $shopMetaDesc,
+            'og_description' => $shopMetaDesc,
+            'canonical' => route('shop'),
+        ]);
     }
 
     /**

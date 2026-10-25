@@ -1,4 +1,9 @@
 <div>
+    @push('structured_data')
+        @if(!empty($shopSchema))
+            <script type="application/ld+json">{!! json_encode($shopSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+        @endif
+    @endpush
     <div class="bg-gray-50 min-h-screen pb-20">
 
         {{-- Header / Hero Section mit saisonalem & Feiertags-Hintergrund --}}

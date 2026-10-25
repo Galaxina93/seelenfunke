@@ -119,9 +119,27 @@ class ProductShow extends Component
 
     public function render()
     {
-        return view('livewire.shop.product.product-show')
-            ->title($this->product->seo_title ?? $this->product->name)
-            ->with(['meta_description' => $this->product->seo_description ?? Str::limit($this->product->short_description, 160)])
-            ->layout('components.layouts.frontend_layout');
+        $seoTitle = $this->product->seo_title ?: ($this->product->name . ' – Personalisiert mit Lasergravur');
+        $rawDesc = $this->product->seo_description ?: ($this->product->short_description ?: $this->product->description);
+        $seoDescription = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $rawDesc))), 160);
+        $mainImageUrl = $this->product->resolveMainImageUrl(null, false)
+            ?: ($this->product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+        $canonicalUrl = route('product.show', $this->product->slug);
+
+        $productSchema = $this->product->buildStructuredDataSchema($canonicalUrl);
+
+        return view('livewire.shop.product.product-show', [
+            'productSchema' => $productSchema,
+            'mainImageUrl' => $mainImageUrl,
+        ])
+            ->title($seoTitle)
+            ->layout('components.layouts.frontend_layout', [
+                'meta_description' => $seoDescription,
+                'og_title' => $seoTitle,
+                'og_description' => $seoDescription,
+                'og_image' => $mainImageUrl,
+                'og_type' => 'product',
+                'canonical' => $canonicalUrl,
+            ]);
     }
 }

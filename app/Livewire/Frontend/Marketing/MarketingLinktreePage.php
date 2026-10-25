@@ -108,6 +108,11 @@ class MarketingLinktreePage extends Component
 
     public function render()
     {
-        return view('livewire.frontend.marketing.marketing-linktree-page');
+        return view('livewire.frontend.marketing.marketing-linktree-page')
+            ->title('Alle wichtigen Links auf einen Blick | Mein Seelenfunke')
+            ->layout('components.layouts.frontend_layout', [
+                'meta_description' => 'Alle Links zu unserer Kollektion, der Manufaktur in Gifhorn, Social Media und aktuellen Aktionen von Mein Seelenfunke auf einen Blick.',
+                'canonical' => route('frontend.linktree'),
+            ]);
     }
 }

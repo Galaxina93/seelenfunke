@@ -1,4 +1,9 @@
 <div class="bg-slate-50 min-h-screen font-sans antialiased">
+    @push('structured_data')
+        @if(!empty($blogSchema))
+            <script type="application/ld+json">{!! json_encode($blogSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+        @endif
+    @endpush
 
     {{-- 1. HEADER BILD (Hero) --}}
     <div class="relative h-[450px] md:h-[600px] w-full bg-gray-900 overflow-hidden">
@@ -33,6 +38,13 @@
                         <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                         {{ $post->published_at->format('d. M Y') }}
                     </time>
+                    @if(!empty($readingTimeMinutes))
+                        <span class="text-primary/50">•</span>
+                        <span class="font-bold flex items-center gap-1.5">
+                            <svg class="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            {{ $readingTimeMinutes }} Min. Lesezeit
+                        </span>
+                    @endif
                 </div>
             </div>
         </div>
@@ -205,6 +217,48 @@
                     </a>
                 </div>
             </div>
+
+            {{-- PASSENDE UNIKATE AUS DER MANUFAKTUR (Interne SEO-Verlinkung & Conversion) --}}
+            @if(!empty($recommendedProducts) && $recommendedProducts->isNotEmpty())
+                <div class="mt-14 pt-10 border-t border-gray-100">
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
+                        <div>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-primary block mb-1">Handveredelt in Gifhorn</span>
+                            <h2 class="text-2xl font-serif font-bold text-gray-900">Passende Unikate aus unserer Manufaktur</h2>
+                        </div>
+                        <a href="{{ route('shop') }}" class="text-xs font-bold text-primary hover:underline inline-flex items-center gap-1">
+                            Alle Geschenke entdecken →
+                        </a>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                        @foreach($recommendedProducts as $relProd)
+                            @php
+                                $relImgUrl = $relProd->resolveMainImageUrl();
+                            @endphp
+                            <a href="{{ route('product.show', $relProd->slug) }}"
+                               class="group bg-gray-50/70 hover:bg-white rounded-2xl border border-gray-100 hover:border-primary/40 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col">
+                                <div class="aspect-square w-full bg-gray-100 overflow-hidden">
+                                    @if($relImgUrl)
+                                        <img src="{{ $relImgUrl }}"
+                                             alt="{{ $relProd->name }} – Personalisiert mit Lasergravur"
+                                             loading="lazy"
+                                             decoding="async"
+                                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                    @endif
+                                </div>
+                                <div class="p-4 flex flex-col flex-1 justify-between">
+                                    <h3 class="font-serif font-bold text-gray-900 text-sm group-hover:text-primary transition-colors line-clamp-2 mb-2">
+                                        {{ $relProd->name }}
+                                    </h3>
+                                    <span class="text-xs font-extrabold text-primary">
+                                        {{ number_format($relProd->price / 100, 2, ',', '.') }} €
+                                    </span>
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
         </div>
 
     </div>

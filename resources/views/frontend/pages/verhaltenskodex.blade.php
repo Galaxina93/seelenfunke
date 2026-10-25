@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Verhaltenskodex & Werte | Mein Seelenfunke"
+    meta_description="Unser Verhaltenskodex für ein respektvolles, faires und nachhaltiges Miteinander bei Mein Seelenfunke unter Leitung von Alina Steinhauer.">
 
     <x-sections.page-container>
 

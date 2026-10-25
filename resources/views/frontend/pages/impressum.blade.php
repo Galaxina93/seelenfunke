@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Impressum & Rechtliche Angaben | Mein Seelenfunke"
+    meta_description="Impressum und gesetzliche Anbieterkennzeichnung gemäß § 5 DDG der Manufaktur Mein Seelenfunke – Inhaberin Alina Steinhauer in 38518 Gifhorn.">
     <x-sections.page-container>
         <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
 

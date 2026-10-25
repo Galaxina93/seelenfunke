@@ -92,9 +92,10 @@
          x-data="{
             activeMedia: '{{ !empty($displayGallery[0]) ? $displayGallery[0]['url'] : '' }}',
             activeType: '{{ !empty($displayGallery[0]) ? ($displayGallery[0]['type'] ?? 'image') : 'image' }}',
-            activeIsAi: {{ !empty($displayGallery[0]['is_ai_generated']) ? 'true' : 'false' }}
+            activeIsAi: {{ !empty($displayGallery[0]['is_ai_generated']) ? 'true' : 'false' }},
+            activeAlt: @js(!empty($displayGallery[0]['alt']) ? $displayGallery[0]['alt'] : $product->name)
          }"
-         @variant-selected.window="if ($event.detail && $event.detail.imageUrl) { activeMedia = $event.detail.imageUrl; activeType = 'image'; activeIsAi = !!$event.detail.imageIsAi; }">
+         @variant-selected.window="if ($event.detail && $event.detail.imageUrl) { activeMedia = $event.detail.imageUrl; activeType = 'image'; activeIsAi = !!$event.detail.imageIsAi; if ($event.detail.imageLabel) { activeAlt = @js($product->name . ' – ') + $event.detail.imageLabel; } }">
 
         {{-- Hauptbild / Video Container --}}
         <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shadow-sm relative group">
@@ -103,9 +104,12 @@
                 {{-- Bild Anzeige --}}
                 <img x-show="activeType === 'image'"
                      :src="activeMedia"
+                     :alt="activeAlt"
                      :data-is-ai-generated="activeIsAi ? 'true' : null"
+                     fetchpriority="high"
+                     decoding="async"
                      class="w-full h-full object-cover transition-transform duration-700 lg:group-hover:scale-105"
-                     alt="{{ $product->name }}">
+                     alt="{{ !empty($displayGallery[0]['alt']) ? $displayGallery[0]['alt'] : $product->name }}">
 
                 {{-- KI-Generiert Hinweis unten rechts --}}
                 <span x-show="activeType === 'image' && activeIsAi"
@@ -154,7 +158,7 @@
                  }">
 
                 {{-- Linker Pfeil (Nur Desktop sichtbar) --}}
-                <button @click="scroll('left')" class="hidden lg:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all opacity-0 group-hover/slider:opacity-100 -translate-x-2">
+                <button type="button" aria-label="Vorherige Vorschaubilder" @click="scroll('left')" class="hidden lg:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all opacity-0 group-hover/slider:opacity-100 -translate-x-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7" /></svg>
                 </button>
 
@@ -162,7 +166,9 @@
                 <div x-ref="thumbnailContainer" class="flex gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
                     @foreach($displayGallery as $media)
                         <div class="snap-start shrink-0" style="width: calc(20% - 13px);">
-                            <button @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'; activeIsAi = {{ !empty($media['is_ai_generated']) ? 'true' : 'false' }}"
+                            <button type="button"
+                                    aria-label="Vorschau: {{ $media['alt'] ?? $product->name }}"
+                                    @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'; activeIsAi = {{ !empty($media['is_ai_generated']) ? 'true' : 'false' }}; activeAlt = @js($media['alt'] ?? $product->name)"
                                     class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative"
                                     :class="activeMedia === '{{ $media['url'] }}' ? 'border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)]' : 'border-transparent hover:border-gray-300'">
 
@@ -173,6 +179,9 @@
                                     </div>
                                 @else
                                     <img src="{{ $media['url'] }}"
+                                         alt="{{ $media['alt'] ?? $product->name }}"
+                                         loading="lazy"
+                                         decoding="async"
                                          @if(!empty($media['is_ai_generated'])) data-is-ai-generated="true" @endif
                                          class="w-full h-full object-cover">
                                 @endif
@@ -182,7 +191,7 @@
                 </div>
 
                 {{-- Rechter Pfeil (Nur Desktop sichtbar) --}}
-                <button @click="scroll('right')" class="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all opacity-0 group-hover/slider:opacity-100 translate-x-2">
+                <button type="button" aria-label="Nächste Vorschaubilder" @click="scroll('right')" class="hidden lg:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/90 backdrop-blur border border-gray-200 rounded-full shadow-md items-center justify-center text-gray-600 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-all opacity-0 group-hover/slider:opacity-100 translate-x-2">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M9 5l7 7-7 7" /></svg>
                 </button>
             </div>

@@ -282,6 +282,9 @@
                                     <div class="aspect-square w-full bg-gray-100 relative overflow-hidden flex items-center justify-center">
                                         @if(!empty($tpl['preview_image']))
                                             <img src="{{ \App\Models\Product\ProductTemplate::resolveImageUrl($tpl['preview_image']) }}"
+                                                 alt="{{ $tpl['name'] ?? $product->name }} – Design-Vorlage"
+                                                 loading="lazy"
+                                                 decoding="async"
                                                  @if($tpl['is_ai_generated'] ?? true) data-is-ai-generated="true" @endif
                                                  class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500">
                                             @if($tpl['is_ai_generated'] ?? true)
@@ -310,7 +313,7 @@
                             :product="$product"
                             context="add"
                             :initialData="$currentConfig"
-                            :key="'conf-'.$product->id.'-'.microtime(true)"
+                            :key="'conf-'.$product->id.'-'.md5(json_encode($currentConfig))"
                         />
                     </div>
                 @endif
@@ -381,6 +384,7 @@
         $validAttributesMobile = array_filter($this->product->attributes ?? [], fn($v) => !empty($v));
     @endphp
     <div class="flex lg:hidden flex-col mt-10 w-full clear-both"
+         data-nosnippet
          x-data="{ descOpenMobile: false, propsOpenMobile: false }">
         <div class="border-t border-gray-100 pt-6 w-full block space-y-4">
             @if($rawDescriptionMobile !== '')

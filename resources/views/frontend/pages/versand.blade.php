@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Lieferung, Versandkosten & Fertigungszeiten | Mein Seelenfunke"
+    meta_description="Alle Informationen zu bruchsicherem DHL-Versand, Lieferzeiten für personalisierte Geschenke und unserem Express-Fertigungsservice aus Gifhorn.">
 
     <x-sections.page-container>
 

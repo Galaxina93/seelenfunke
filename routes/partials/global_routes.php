@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NewsletterController;
+use App\Http\Controllers\SeoController;
 use App\Livewire\Shop\Cart\Cart;
 use App\Livewire\Shop\Order\OrderCheckout\OrderCheckout;
 use App\Livewire\Shop\Order\OrderCheckout\OrderCheckoutSuccess;
@@ -68,6 +69,11 @@ Route::get('/system/cache/clear/{token}', function ($token) {
     Artisan::call('optimize:clear');
     return 'Cache erfolgreich geleert und optimiert.';
 });
+
+// --- 0. SEO & KI-Suchmaschinen Discovery (Sitemap & LLMs.txt) ---
+Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
+Route::get('/llms.txt', [SeoController::class, 'llmsTxt'])->name('seo.llms');
+Route::get('/llms-full.txt', [SeoController::class, 'llmsFullTxt'])->name('seo.llms.full');
 
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');

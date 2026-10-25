@@ -68,8 +68,8 @@
                         {{-- Wir loopen 2x durch die Daten, um einen nahtlosen Übergang zu schaffen --}}
                         @for ($k = 0; $k < 2; $k++)
                             @foreach($reviewsData['produkte/reviews'] as $review)
-                                {{-- Einzelne Karte --}}
-                                <div class="flex-shrink-0 w-[300px] md:w-[400px] mx-4">
+                                {{-- Einzelne Karte (Zweiter Durchlauf für Screenreader & Crawler ausgeblendet) --}}
+                                <div class="flex-shrink-0 w-[300px] md:w-[400px] mx-4" @if($k === 1) aria-hidden="true" data-nosnippet @endif>
                                     <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm hover:shadow-lg transition-shadow duration-300 border border-gray-100 dark:border-gray-700 flex flex-col h-full relative group cursor-default">
 
                                         {{-- Dekoratives Zitat --}}
@@ -82,6 +82,10 @@
                                             <div class="relative flex-shrink-0">
                                                 <img src="{{ $review['profile_photo_url'] }}"
                                                      alt="{{ $review['author_name'] }}"
+                                                     width="48"
+                                                     height="48"
+                                                     loading="lazy"
+                                                     decoding="async"
                                                      class="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-gray-800 shadow-sm ring-2 ring-primary ring-opacity-20"
                                                      referrerpolicy="no-referrer">
                                             </div>

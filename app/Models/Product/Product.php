@@ -434,12 +434,24 @@ class Product extends Model
 
     public function getAverageRatingAttribute()
     {
+        if (array_key_exists('approved_reviews_avg', $this->attributes)) {
+            return round((float) ($this->attributes['approved_reviews_avg'] ?? 0), 1);
+        }
+        if ($this->relationLoaded('reviews')) {
+            return round((float) ($this->reviews->where('status', 'approved')->avg('rating') ?? 0), 1);
+        }
         // Nur freigegebene Bewertungen zählen!
         return round($this->reviews()->where('status', 'approved')->avg('rating') ?? 0, 1);
     }
 
     public function getReviewCountAttribute()
     {
+        if (array_key_exists('approved_reviews_count', $this->attributes)) {
+            return (int) ($this->attributes['approved_reviews_count'] ?? 0);
+        }
+        if ($this->relationLoaded('reviews')) {
+            return $this->reviews->where('status', 'approved')->count();
+        }
         // Nur freigegebene Bewertungen zählen!
         return $this->reviews()->where('status', 'approved')->count();
     }
@@ -897,5 +909,254 @@ class Product extends Model
     {
         $gross = $grossPriceCents ?? (int) $this->gross_price;
         return self::computeStripeFeeCents($gross);
+    }
+
+    /**
+     * Erzeugt den vollständigen Schema.org JSON-LD Graphen (BreadcrumbList + Product inkl. Offer,
+     * OfferShippingDetails, MerchantReturnPolicy, AggregateRating & Reviews) für Produkt- und Landingpages.
+     */
+    public function buildStructuredDataSchema(?string $canonicalUrl = null): array
+    {
+        $this->loadMissing([
+            'categories',
+            'tierPrices',
+            'reviews' => fn ($q) => $q->where('status', 'approved')->with('customer')->latest(),
+        ]);
+
+        $canonicalUrl = $canonicalUrl ?: route('product.show', $this->slug);
+        $mainImageUrl = $this->resolveMainImageUrl(null, false)
+            ?: ($this->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+
+        $schemaImages = [$mainImageUrl];
+        if (is_array($this->media_gallery)) {
+            foreach ($this->media_gallery as $media) {
+                if (is_array($media) && ($media['type'] ?? 'image') === 'image' && !empty($media['path'])) {
+                    $imgUrl = ProductTemplate::resolveImageUrl($media['path']);
+                    if ($imgUrl && !in_array($imgUrl, $schemaImages, true)) {
+                        $schemaImages[] = $imgUrl;
+                    }
+                }
+            }
+        }
+
+        $additionalProperties = [];
+        if (is_array($this->attributes)) {
+            foreach ($this->attributes as $attrKey => $attrVal) {
+                if (is_scalar($attrVal) && trim((string) $attrVal) !== '') {
+                    $additionalProperties[] = [
+                        '@type' => 'PropertyValue',
+                        'name' => (string) $attrKey,
+                        'value' => (string) $attrVal,
+                    ];
+                }
+            }
+        }
+
+        $shippingCostEur = number_format(((int) shop_setting('shipping_cost', 490)) / 100, 2, '.', '');
+
+        $returnPolicy = $this->isPersonalizable()
+            ? [
+                '@type' => 'MerchantReturnPolicy',
+                'applicableCountry' => 'DE',
+                'returnPolicyCategory' => 'https://schema.org/MerchantReturnNotPermitted',
+                'description' => 'Individuell nach Kundenwunsch gravierte Unikate sind gemäß § 312g Abs. 2 Nr. 1 BGB vom Widerruf ausgeschlossen; bei Transportschäden oder Mängeln erfolgt kostenfreier Ersatz.',
+            ]
+            : [
+                '@type' => 'MerchantReturnPolicy',
+                'applicableCountry' => 'DE',
+                'returnPolicyCategory' => 'https://schema.org/MerchantReturnFiniteReturnWindow',
+                'merchantReturnDays' => 14,
+                'returnMethod' => 'https://schema.org/ReturnByMail',
+            ];
+
+        $shippingDetails = [
+            '@type' => 'OfferShippingDetails',
+            'shippingRate' => [
+                '@type' => 'MonetaryAmount',
+                'value' => $this->isPhysical() ? $shippingCostEur : '0.00',
+                'currency' => 'EUR',
+            ],
+            'shippingDestination' => [
+                '@type' => 'DefinedRegion',
+                'addressCountry' => 'DE',
+            ],
+            'deliveryTime' => [
+                '@type' => 'ShippingDeliveryTime',
+                'handlingTime' => [
+                    '@type' => 'QuantitativeValue',
+                    'minValue' => 1,
+                    'maxValue' => 3,
+                    'unitCode' => 'DAY',
+                ],
+                'transitTime' => [
+                    '@type' => 'QuantitativeValue',
+                    'minValue' => 1,
+                    'maxValue' => 3,
+                    'unitCode' => 'DAY',
+                ],
+            ],
+        ];
+
+        $basePriceEur = number_format($this->price / 100, 2, '.', '');
+        $priceValidUntil = now()->addYear()->format('Y-m-d');
+        $availabilityUrl = $this->isAvailable()
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/OutOfStock';
+
+        $activeVariants = array_values(array_filter(
+            $this->getSanitizedVariantsData(false),
+            fn ($v) => is_array($v) && filter_var($v['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN)
+        ));
+
+        if (count($activeVariants) > 1) {
+            $variantOffers = [];
+            $pricesFloat = [];
+            foreach ($activeVariants as $v) {
+                $varPriceFloat = (isset($v['price']) && $v['price'] !== '')
+                    ? (float) $v['price']
+                    : ($this->price / 100);
+                $pricesFloat[] = $varPriceFloat;
+                $variantOffers[] = [
+                    '@type' => 'Offer',
+                    'name' => (string) ($v['name'] ?? $this->name),
+                    'sku' => (string) ($v['sku'] ?? ($this->sku ?: ('MSF-' . strtoupper(substr((string) $this->id, 0, 8))))),
+                    'url' => $canonicalUrl,
+                    'priceCurrency' => 'EUR',
+                    'price' => number_format($varPriceFloat, 2, '.', ''),
+                    'priceValidUntil' => $priceValidUntil,
+                    'availability' => $this->isVariantAvailable($v)
+                        ? 'https://schema.org/InStock'
+                        : 'https://schema.org/OutOfStock',
+                    'itemCondition' => 'https://schema.org/NewCondition',
+                    'seller' => [
+                        '@id' => url('/#organization'),
+                    ],
+                    'hasMerchantReturnPolicy' => $returnPolicy,
+                    'shippingDetails' => $shippingDetails,
+                ];
+            }
+
+            $offersNode = [
+                '@type' => 'AggregateOffer',
+                'url' => $canonicalUrl,
+                'priceCurrency' => 'EUR',
+                'lowPrice' => number_format(min($pricesFloat), 2, '.', ''),
+                'highPrice' => number_format(max($pricesFloat), 2, '.', ''),
+                'price' => $basePriceEur,
+                'offerCount' => count($variantOffers),
+                'availability' => $availabilityUrl,
+                'offers' => $variantOffers,
+            ];
+        } else {
+            $offersNode = [
+                '@type' => 'Offer',
+                'url' => $canonicalUrl,
+                'priceCurrency' => 'EUR',
+                'price' => $basePriceEur,
+                'priceValidUntil' => $priceValidUntil,
+                'availability' => $availabilityUrl,
+                'itemCondition' => 'https://schema.org/NewCondition',
+                'seller' => [
+                    '@id' => url('/#organization'),
+                ],
+                'hasMerchantReturnPolicy' => $returnPolicy,
+                'shippingDetails' => $shippingDetails,
+            ];
+        }
+
+        $productNode = [
+            '@type' => 'Product',
+            '@id' => $canonicalUrl . '#product',
+            'name' => $this->name,
+            'description' => trim(preg_replace('/\s+/', ' ', strip_tags((string) ($this->description ?: $this->short_description)))),
+            'sku' => $this->sku ?: ('MSF-' . strtoupper(substr((string) $this->id, 0, 8))),
+            'url' => $canonicalUrl,
+            'image' => $schemaImages,
+            'brand' => [
+                '@type' => 'Brand',
+                'name' => shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')),
+            ],
+            'manufacturer' => [
+                '@id' => url('/#organization'),
+            ],
+            'countryOfOrigin' => 'DE',
+            'offers' => $offersNode,
+        ];
+
+        if (!empty($additionalProperties)) {
+            $productNode['additionalProperty'] = $additionalProperties;
+            if (!empty($this->attributes['Material'])) {
+                $productNode['material'] = (string) $this->attributes['Material'];
+            }
+        }
+
+        if ($this->categories->isNotEmpty()) {
+            $productNode['category'] = $this->categories->pluck('name')->implode(', ');
+        }
+
+        $approvedReviews = $this->reviews;
+        if ($approvedReviews && $approvedReviews->count() > 0) {
+            $productNode['aggregateRating'] = [
+                '@type' => 'AggregateRating',
+                'ratingValue' => (string) round($approvedReviews->avg('rating'), 1),
+                'reviewCount' => (int) $approvedReviews->count(),
+                'bestRating' => '5',
+                'worstRating' => '1',
+            ];
+
+            $reviewNodes = [];
+            foreach ($approvedReviews->take(5) as $rev) {
+                $authorName = $rev->customer_name
+                    ?: ($rev->customer ? trim($rev->customer->first_name . ' ' . substr((string) $rev->customer->last_name, 0, 1) . '.') : 'Verifizierter Kunde');
+                $reviewNodes[] = [
+                    '@type' => 'Review',
+                    'author' => [
+                        '@type' => 'Person',
+                        'name' => $authorName ?: 'Verifizierter Kunde',
+                    ],
+                    'datePublished' => optional($rev->created_at)->format('Y-m-d') ?: now()->format('Y-m-d'),
+                    'reviewBody' => trim(strip_tags((string) ($rev->comment ?? $rev->content ?? ''))),
+                    'name' => $rev->title ?: $this->name,
+                    'reviewRating' => [
+                        '@type' => 'Rating',
+                        'ratingValue' => (string) ($rev->rating ?? 5),
+                        'bestRating' => '5',
+                        'worstRating' => '1',
+                    ],
+                ];
+            }
+            $productNode['review'] = $reviewNodes;
+        }
+
+        return [
+            '@context' => 'https://schema.org',
+            '@graph' => [
+                [
+                    '@type' => 'BreadcrumbList',
+                    '@id' => $canonicalUrl . '#breadcrumb',
+                    'itemListElement' => [
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 1,
+                            'name' => 'Startseite',
+                            'item' => route('home'),
+                        ],
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 2,
+                            'name' => 'Shop',
+                            'item' => route('shop'),
+                        ],
+                        [
+                            '@type' => 'ListItem',
+                            'position' => 3,
+                            'name' => $this->name,
+                            'item' => $canonicalUrl,
+                        ],
+                    ],
+                ],
+                $productNode,
+            ],
+        ];
     }
 }

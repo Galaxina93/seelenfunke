@@ -1,8 +1,15 @@
 <div class="min-h-screen bg-white" style="--theme-color: #C9A66B; --theme-color-10: #C9A66B1A; --theme-color-20: #C9A66B33; --theme-color-30: #C9A66B4D; --theme-color-50: #C9A66B80;">
 
-    {{-- SEO Meta Tags (Push in den Head Bereich deines Layouts) --}}
+    {{-- Produkt- & Breadcrumb Structured Data (JSON-LD) + OpenGraph Product Price --}}
+    @push('structured_data')
+        @if(!empty($productSchema))
+            <script type="application/ld+json">{!! json_encode($productSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+        @endif
+    @endpush
     @push('head')
-        <meta name="description" content="{{ $this->product->seo_description ?? $this->product->short_description }}">
+        <meta property="product:price:amount" content="{{ number_format($this->product->price / 100, 2, '.', '') }}">
+        <meta property="product:price:currency" content="EUR">
+        <meta property="product:availability" content="{{ $this->product->isAvailable() ? 'in stock' : 'out of stock' }}">
     @endpush
 
     @if($this->product->slug === 'geschenkgutschein')

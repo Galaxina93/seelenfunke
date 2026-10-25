@@ -1,4 +1,38 @@
-<x-layouts.frontend_layout>
+@php
+    $aboutSchema = [
+        '@context' => 'https://schema.org',
+        '@graph' => [
+            [
+                '@type' => 'AboutPage',
+                '@id' => route('manufacture') . '#aboutpage',
+                'url' => route('manufacture'),
+                'name' => 'Die Manufaktur & Qualitätsversprechen – Mein Seelenfunke',
+                'description' => 'Erfahre mehr über Gründerin Alina Steinhauer, unsere Lasergravur-Manufaktur in Gifhorn, veredelte Materialien (K9-Kristallglas, Naturschiefer, Metall) und geprüfte Sicherheitsstandards.',
+                'mainEntity' => [
+                    '@id' => url('/#organization'),
+                ],
+            ],
+            [
+                '@type' => 'Person',
+                '@id' => url('/manufaktur#founder'),
+                'name' => shop_setting('owner_proprietor', 'Alina Steinhauer'),
+                'jobTitle' => 'Gründerin & Inhaberin',
+                'image' => asset('shop/projekt/about/gruender-profil-b.webp'),
+                'worksFor' => [
+                    '@id' => url('/#organization'),
+                ],
+                'url' => route('manufacture'),
+            ],
+        ],
+    ];
+@endphp
+<x-layouts.frontend_layout
+    title="Die Manufaktur, Materialkunde & Alina Steinhauer | Mein Seelenfunke"
+    meta_description="Blick hinter die Kulissen unserer Lasergravur-Manufaktur in Gifhorn: Gründerin Alina Steinhauer, optisches K9-Kristallglas, Naturschiefer & höchste Präzision."
+    :og_image="asset('shop/projekt/about/gruender-profil-b.webp')">
+    @push('structured_data')
+        <script type="application/ld+json">{!! json_encode($aboutSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @endpush
     <div x-data="{ showCertModal: false }">
         <x-sections.page-container>
 

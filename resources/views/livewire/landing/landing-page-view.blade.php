@@ -6,6 +6,10 @@
     @if(!empty($heroImageMeta['url']))
         @section('og_image', $heroImageMeta['url'])
     @endif
+    @section('og_type', 'product')
+    @push('structured_data')
+        <script type="application/ld+json">{!! json_encode($product->buildStructuredDataSchema(route('landing-page', $landingPage->slug)), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @endpush
 
     @if($landingPage->status !== 'active' || $product->status !== 'active')
         <div class="bg-amber-500/95 text-gray-950 px-4 py-2.5 text-xs font-bold text-center flex flex-wrap items-center justify-center gap-3 z-50 relative shadow-md">

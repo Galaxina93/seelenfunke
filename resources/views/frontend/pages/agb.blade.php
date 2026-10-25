@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Allgemeine Geschäftsbedingungen (AGB) | Mein Seelenfunke"
+    meta_description="Allgemeine Geschäftsbedingungen (AGB) und Kundeninformationen für Bestellungen von personalisierten Geschenken bei Mein Seelenfunke.">
 
     <x-sections.page-container>
 

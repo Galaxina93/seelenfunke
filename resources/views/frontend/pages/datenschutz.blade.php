@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Datenschutzerklärung (DSGVO) | Mein Seelenfunke"
+    meta_description="Informationen zum Datenschutz, zur Verarbeitung personenbezogener Daten gemäß DSGVO und zu Ihren Rechten bei Mein Seelenfunke.">
     <x-sections.page-container>
         <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
             <h1 class="text-3xl md:text-4xl font-serif font-bold mb-8 text-gray-900">Datenschutzerklärung</h1>

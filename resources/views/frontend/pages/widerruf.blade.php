@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Widerrufsbelehrung & Elektronischer Widerruf | Mein Seelenfunke"
+    meta_description="Informationen zum gesetzlichen Widerrufsrecht, Ausnahmen bei personalisierten Gravur-Artikeln und elektronisches Widerrufsformular.">
     <div class="px-4 py-16 sm:px-6 lg:px-8 bg-gray-50/50 min-h-screen">
         <div class="max-w-3xl mx-auto space-y-12">
             

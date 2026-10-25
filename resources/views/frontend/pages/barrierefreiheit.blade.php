@@ -1,4 +1,6 @@
-<x-layouts.frontend_layout>
+<x-layouts.frontend_layout
+    title="Erklärung zur Barrierefreiheit (BFSG) | Mein Seelenfunke"
+    meta_description="Unsere Erklärung zur digitalen Barrierefreiheit gemäß Barrierefreiheitsstärkungsgesetz (BFSG) für den Onlineshop von Mein Seelenfunke.">
     <x-sections.page-container>
         <section class="max-w-4xl mx-auto px-4 py-20 text-gray-800">
 
