@@ -204,35 +204,124 @@
         --}}
         <section class="py-20 bg-gray-50" aria-labelledby="prozess-heading">
             <style>
-                @keyframes mfFloatSlow {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-7px) rotate(0.4deg); }
+                .sf-card {
+                    transform: translate3d(0, 0, 0);
+                    transition: transform 0.75s cubic-bezier(0.22, 0.61, 0.36, 1);
+                    will-change: transform;
                 }
-                @keyframes mfFloatSlowReverse {
-                    0%, 100% { transform: translateY(0px) rotate(0deg); }
-                    50% { transform: translateY(-7px) rotate(-0.4deg); }
+                .sf-card.sf-is-active {
+                    transform: translate3d(0, -6px, 0);
                 }
-                @keyframes mfSparkleTwinkle {
-                    0%, 100% { opacity: 0.25; transform: scale(0.85) rotate(0deg); }
-                    50% { opacity: 0.95; transform: scale(1.2) rotate(15deg); }
+                .sf-card-img {
+                    transform: scale(1) translateZ(0);
+                    transition: transform 1.35s cubic-bezier(0.22, 0.61, 0.36, 1);
+                    will-change: transform;
                 }
-                @keyframes mfLaserPulse {
-                    0%, 100% { opacity: 0.35; transform: scale(0.9); }
-                    50% { opacity: 0.85; transform: scale(1.25); }
+                .sf-card.sf-is-active .sf-card-img {
+                    transform: scale(1.045) translateZ(0);
                 }
-                @keyframes mfSheenSweep {
-                    0% { transform: translateX(-140%) skewX(-20deg); }
-                    100% { transform: translateX(240%) skewX(-20deg); }
+                .sf-card-sheen {
+                    position: absolute;
+                    inset: -100%;
+                    background: linear-gradient(
+                        135deg,
+                        rgba(255, 255, 255, 0) 40%,
+                        rgba(255, 251, 235, 0.06) 44%,
+                        rgba(255, 248, 225, 0.22) 47.5%,
+                        rgba(255, 246, 215, 0.44) 50%,
+                        rgba(255, 248, 225, 0.22) 52.5%,
+                        rgba(255, 251, 235, 0.06) 56%,
+                        rgba(255, 255, 255, 0) 60%
+                    );
+                    transform: translate3d(-32%, -32%, 0);
+                    transition: transform 1.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+                    will-change: transform;
                 }
-                .mf-card-float-1 { animation: mfFloatSlow 5.5s ease-in-out infinite; will-change: transform; }
-                .mf-card-float-2 { animation: mfFloatSlowReverse 6.2s ease-in-out infinite; will-change: transform; }
-                .mf-card-float-3 { animation: mfFloatSlow 5.8s ease-in-out infinite 0.8s; will-change: transform; }
-                .mf-sparkle-1 { animation: mfSparkleTwinkle 2.8s ease-in-out infinite; }
-                .mf-sparkle-2 { animation: mfSparkleTwinkle 3.4s ease-in-out infinite 0.9s; }
-                .mf-sparkle-3 { animation: mfSparkleTwinkle 2.5s ease-in-out infinite 1.5s; }
-                .mf-laser-glow { animation: mfLaserPulse 2.2s ease-in-out infinite; }
-                .group:hover .mf-sheen { animation: mfSheenSweep 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+                .sf-card.sf-is-active .sf-card-sheen {
+                    transform: translate3d(32%, 32%, 0);
+                }
+                @keyframes sfSparkleFloatA {
+                    0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+                    33% { transform: translate3d(4px, -6px, 0) rotate(18deg); }
+                    66% { transform: translate3d(-3px, -2px, 0) rotate(-12deg); }
+                }
+                @keyframes sfSparkleFloatB {
+                    0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+                    33% { transform: translate3d(-5px, -4px, 0) rotate(-20deg); }
+                    66% { transform: translate3d(3px, -7px, 0) rotate(14deg); }
+                }
+                .sf-card-sparkle {
+                    opacity: 0;
+                    transform: scale(0.35) translateZ(0);
+                    transition:
+                        opacity 0.75s cubic-bezier(0.22, 0.61, 0.36, 1) 0s,
+                        transform 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) 0s;
+                    will-change: transform, opacity;
+                }
+                .sf-card.sf-is-active .sf-card-sparkle {
+                    opacity: 0.94;
+                    transform: scale(1) translateZ(0);
+                }
+                .sf-card.sf-is-active .sf-card-sparkle-1 { transition-delay: 0.04s; }
+                .sf-card.sf-is-active .sf-card-sparkle-2 { transition-delay: 0.11s; }
+                .sf-card.sf-is-active .sf-card-sparkle-3 { transition-delay: 0.18s; }
+                .sf-card.sf-is-active .sf-card-sparkle-4 { transition-delay: 0.25s; }
+                .sf-card.sf-is-active .sf-card-sparkle-5 { transition-delay: 0.32s; }
+                .sf-card.sf-is-active .sf-card-sparkle-6 { transition-delay: 0.39s; }
+                .sf-card-sparkle > svg { display: block; width: 100%; height: 100%; will-change: transform; }
+                .sf-card-sparkle-1 > svg { animation: sfSparkleFloatA 3.4s ease-in-out infinite; }
+                .sf-card-sparkle-2 > svg { animation: sfSparkleFloatB 4.0s ease-in-out infinite 0.4s; }
+                .sf-card-sparkle-3 > svg { animation: sfSparkleFloatB 3.2s ease-in-out infinite 0.9s; }
+                .sf-card-sparkle-4 > svg { animation: sfSparkleFloatA 3.8s ease-in-out infinite 1.3s; }
+                .sf-card-sparkle-5 > svg { animation: sfSparkleFloatA 4.2s ease-in-out infinite 0.7s; }
+                .sf-card-sparkle-6 > svg { animation: sfSparkleFloatB 3.6s ease-in-out infinite 1.6s; }
             </style>
+            <script>
+                window.sfRandomizeCardSparkles = window.sfRandomizeCardSparkles || function(cardEl) {
+                    const zones = [
+                        { top: [10, 28], left: [10, 35] },
+                        { top: [10, 28], left: [62, 86] },
+                        { top: [36, 60], left: [8, 28] },
+                        { top: [36, 60], left: [68, 88] },
+                        { top: [66, 86], left: [12, 40] },
+                        { top: [66, 86], left: [58, 86] },
+                    ];
+                    const rand = (min, max) => (min + Math.random() * (max - min)).toFixed(1) + '%';
+                    cardEl.querySelectorAll('.sf-card-sparkle').forEach((el, i) => {
+                        const z = zones[i % zones.length];
+                        el.style.top = rand(z.top[0], z.top[1]);
+                        el.style.left = rand(z.left[0], z.left[1]);
+                        el.style.right = 'auto';
+                        el.style.bottom = 'auto';
+                    });
+                };
+                window.sfCardHoverEnter = window.sfCardHoverEnter || function(cardEl) {
+                    clearTimeout(cardEl._sfLeaveTimer);
+                    clearTimeout(cardEl._sfCleanupTimer);
+                    if (!cardEl._sfBusy) {
+                        window.sfRandomizeCardSparkles(cardEl);
+                        void cardEl.offsetWidth;
+                    }
+                    cardEl._sfBusy = true;
+                    if (!cardEl.classList.contains('sf-is-active')) {
+                        cardEl._sfEnterTime = performance.now();
+                        cardEl.classList.add('sf-is-active');
+                    }
+                };
+                window.sfCardHoverLeave = window.sfCardHoverLeave || function(cardEl) {
+                    clearTimeout(cardEl._sfLeaveTimer);
+                    clearTimeout(cardEl._sfCleanupTimer);
+                    const minForward = 950;
+                    const elapsed = cardEl._sfEnterTime ? (performance.now() - cardEl._sfEnterTime) : minForward;
+                    const waitMs = Math.max(0, minForward - elapsed);
+                    cardEl._sfLeaveTimer = setTimeout(() => {
+                        cardEl.classList.remove('sf-is-active');
+                        cardEl._sfCleanupTimer = setTimeout(() => {
+                            cardEl._sfBusy = false;
+                        }, 1350);
+                    }, waitMs);
+                };
+            </script>
 
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-24">
 
@@ -241,24 +330,22 @@
 
                 {{-- SCHRITT 1: Das Rohmaterial --}}
                 <article class="flex flex-col md:flex-row items-center gap-12">
-                    <div class="w-full md:w-1/2 relative group cursor-pointer">
-                        <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30 group-hover:scale-[1.02]" aria-hidden="true"></div>
-                        <div class="mf-card-float-1 relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
+                    <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
+                         onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
+                         class="sf-card w-full md:w-1/2 relative group cursor-pointer">
+                        <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30" aria-hidden="true"></div>
+                        <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
                             <img src="{{ asset('shop/frontend/other/k9_glas.webp') }}"
                                  alt="Hochreiner K9 Kristallglas Rohling vor der Gravur"
                                  loading="lazy"
-                                 class="w-full h-full object-cover transform transition-transform duration-1000 ease-out group-hover:scale-105 group-hover:-rotate-1">
+                                 class="sf-card-img w-full h-full object-cover">
 
-                            {{-- Animierter Lichtbrechungs-Glanz beim Hovern --}}
-                            <div class="mf-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/55 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" aria-hidden="true"></div>
-
-                            {{-- Sanft funkelnde Kristall-Lichtpunkte --}}
-                            <svg class="mf-sparkle-1 pointer-events-none absolute top-[22%] left-[44%] w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
-                            </svg>
-                            <svg class="mf-sparkle-2 pointer-events-none absolute bottom-[26%] left-[32%] w-4 h-4 text-primary drop-shadow-[0_0_6px_rgba(201,166,107,0.8)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
-                            </svg>
+                            <div class="sf-card-sheen pointer-events-none z-10" aria-hidden="true"></div>
+                            @for($sp = 1; $sp <= 6; $sp++)
+                                <span class="sf-card-sparkle sf-card-sparkle-{{ $sp }} pointer-events-none absolute top-[20%] left-[20%] {{ $sp % 2 === 0 ? 'w-4 h-4 text-amber-400' : 'w-3.5 h-3.5 text-amber-300' }} drop-shadow-[0_0_6px_rgba(245,158,11,0.9)] z-10" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/></svg>
+                                </span>
+                            @endfor
                         </div>
                     </div>
                     <div class="w-full md:w-1/2">
@@ -286,21 +373,23 @@
 
                 {{-- SCHRITT 2: Der Laser (Rechts Bild, Links Text) --}}
                 <article class="flex flex-col md:flex-row-reverse items-center gap-12">
-                    <div class="w-full md:w-1/2 relative group cursor-pointer">
-                        <div class="absolute -inset-4 bg-gray-200 rounded-2xl transform -rotate-2 transition-all duration-700 group-hover:-rotate-1 group-hover:bg-primary/25 group-hover:scale-[1.02]" aria-hidden="true"></div>
-                        <div class="mf-card-float-2 relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#EAEDF2]">
+                    <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
+                         onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
+                         class="sf-card w-full md:w-1/2 relative group cursor-pointer">
+                        <div class="absolute -inset-4 bg-gray-200 rounded-2xl transform -rotate-2 transition-all duration-700 group-hover:-rotate-1 group-hover:bg-primary/25" aria-hidden="true"></div>
+                        <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#EAEDF2]">
                             <img src="{{ asset('shop/frontend/process/lasergravur.webp') }}"
                                  onerror="this.src='https://placehold.co/600x400/333/FFF?text=Laser+Technologie'"
                                  alt="Präzise 3D-Lasergravur im Inneren des Glases"
                                  loading="lazy"
-                                 class="w-full h-full object-cover transform transition-transform duration-1000 ease-out group-hover:scale-105 group-hover:rotate-1">
+                                 class="sf-card-img w-full h-full object-cover">
 
-                            {{-- Pulsierender Laser-Brennpunkt & Funkenflug --}}
-                            <div class="mf-laser-glow pointer-events-none absolute top-[46%] left-[44%] w-16 h-16 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300/40 blur-md group-hover:bg-amber-400/65 transition-colors" aria-hidden="true"></div>
-                            <div class="mf-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-amber-200/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" aria-hidden="true"></div>
-                            <svg class="mf-sparkle-3 pointer-events-none absolute top-[42%] left-[42%] w-6 h-6 text-amber-400 drop-shadow-[0_0_10px_rgba(251,191,36,0.95)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
-                            </svg>
+                            <div class="sf-card-sheen pointer-events-none z-10" aria-hidden="true"></div>
+                            @for($sp = 1; $sp <= 6; $sp++)
+                                <span class="sf-card-sparkle sf-card-sparkle-{{ $sp }} pointer-events-none absolute top-[20%] left-[20%] {{ $sp % 2 === 0 ? 'w-4 h-4 text-amber-400' : 'w-3.5 h-3.5 text-amber-300' }} drop-shadow-[0_0_6px_rgba(245,158,11,0.9)] z-10" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/></svg>
+                                </span>
+                            @endfor
                         </div>
                     </div>
                     <div class="w-full md:w-1/2">
@@ -320,24 +409,22 @@
 
                 {{-- SCHRITT 3: Finish & Kontrolle --}}
                 <article class="flex flex-col md:flex-row items-center gap-12">
-                    <div class="w-full md:w-1/2 relative group cursor-pointer">
-                        <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30 group-hover:scale-[1.02]" aria-hidden="true"></div>
-                        <div class="mf-card-float-3 relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
+                    <div onmouseenter="window.sfCardHoverEnter && window.sfCardHoverEnter(this)"
+                         onmouseleave="window.sfCardHoverLeave && window.sfCardHoverLeave(this)"
+                         class="sf-card w-full md:w-1/2 relative group cursor-pointer">
+                        <div class="absolute -inset-4 bg-primary/20 rounded-2xl transform rotate-2 transition-all duration-700 group-hover:rotate-1 group-hover:bg-primary/30" aria-hidden="true"></div>
+                        <div class="relative rounded-xl shadow-xl overflow-hidden h-80 bg-[#F5EFE6]">
                             <img src="{{ asset('shop/frontend/other/white_hands.webp') }}"
                                  alt="Manuelle Endkontrolle und Reinigung des Kristalls mit Handschuhen"
                                  loading="lazy"
-                                 class="w-full h-full object-cover transform transition-transform duration-1000 ease-out group-hover:scale-105 group-hover:-rotate-1">
+                                 class="sf-card-img w-full h-full object-cover">
 
-                            {{-- Seidiger Politur-Glanzstreifen beim Hovern --}}
-                            <div class="mf-sheen pointer-events-none absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" aria-hidden="true"></div>
-
-                            {{-- Funkelnde Finish-Sterne --}}
-                            <svg class="mf-sparkle-2 pointer-events-none absolute top-[28%] right-[30%] w-6 h-6 text-amber-400 drop-shadow-[0_0_8px_rgba(245,158,11,0.85)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
-                            </svg>
-                            <svg class="mf-sparkle-1 pointer-events-none absolute top-[18%] left-[28%] w-4 h-4 text-primary drop-shadow-[0_0_6px_rgba(201,166,107,0.85)]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
-                            </svg>
+                            <div class="sf-card-sheen pointer-events-none z-10" aria-hidden="true"></div>
+                            @for($sp = 1; $sp <= 6; $sp++)
+                                <span class="sf-card-sparkle sf-card-sparkle-{{ $sp }} pointer-events-none absolute top-[20%] left-[20%] {{ $sp % 2 === 0 ? 'w-4 h-4 text-amber-400' : 'w-3.5 h-3.5 text-amber-300' }} drop-shadow-[0_0_6px_rgba(245,158,11,0.9)] z-10" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/></svg>
+                                </span>
+                            @endfor
                         </div>
                     </div>
                     <div class="w-full md:w-1/2">
