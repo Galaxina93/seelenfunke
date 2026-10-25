@@ -45,24 +45,34 @@
             .group:hover .sf-rel-sheen {
                 transform: translate3d(32%, 32%, 0);
             }
-            .sf-rel-sparkle-1,
-            .sf-rel-sparkle-2 {
+            @keyframes sfRelSparkleFloatA {
+                0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(0.88); }
+                33% { transform: translate3d(4px, -6px, 0) rotate(18deg) scale(1.15); }
+                66% { transform: translate3d(-3px, -2px, 0) rotate(-12deg) scale(0.95); }
+            }
+            @keyframes sfRelSparkleFloatB {
+                0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1.05); }
+                33% { transform: translate3d(-5px, -4px, 0) rotate(-20deg) scale(0.85); }
+                66% { transform: translate3d(3px, -7px, 0) rotate(14deg) scale(1.18); }
+            }
+            .sf-rel-sparkle {
                 opacity: 0;
-                transform: scale(0.4) rotate(-25deg);
+                scale: 0.35;
                 transition:
-                    opacity 0.9s cubic-bezier(0.22, 0.61, 0.36, 1),
-                    transform 1.2s cubic-bezier(0.22, 0.61, 0.36, 1);
+                    opacity 0.85s cubic-bezier(0.22, 0.61, 0.36, 1),
+                    scale 0.95s cubic-bezier(0.22, 0.61, 0.36, 1);
+                will-change: transform, opacity, scale;
             }
-            .group:hover .sf-rel-sparkle-1 {
-                opacity: 0.9;
-                transform: scale(1) rotate(0deg);
-                transition-delay: 0.15s;
+            .group:hover .sf-rel-sparkle {
+                opacity: 0.92;
+                scale: 1;
             }
-            .group:hover .sf-rel-sparkle-2 {
-                opacity: 0.85;
-                transform: scale(1) rotate(0deg);
-                transition-delay: 0.35s;
-            }
+            .sf-rel-sparkle-1 { animation: sfRelSparkleFloatA 3.4s ease-in-out infinite; transition-delay: 0.05s; }
+            .sf-rel-sparkle-2 { animation: sfRelSparkleFloatB 4.0s ease-in-out infinite 0.4s; transition-delay: 0.14s; }
+            .sf-rel-sparkle-3 { animation: sfRelSparkleFloatB 3.2s ease-in-out infinite 0.9s; transition-delay: 0.22s; }
+            .sf-rel-sparkle-4 { animation: sfRelSparkleFloatA 3.8s ease-in-out infinite 1.3s; transition-delay: 0.30s; }
+            .sf-rel-sparkle-5 { animation: sfRelSparkleFloatA 4.2s ease-in-out infinite 0.7s; transition-delay: 0.38s; }
+            .sf-rel-sparkle-6 { animation: sfRelSparkleFloatB 3.6s ease-in-out infinite 1.6s; transition-delay: 0.46s; }
         </style>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 lg:gap-8">
             @foreach($relatedProducts as $relProduct)
@@ -125,12 +135,24 @@
 
                             @if(!$isSoldOut)
                                 <div class="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                                {{-- Kristall-Lichtglanz (von oben links nach unten rechts, beim Verlassen rückwärts) & sanfte Seelenfunken --}}
+                                {{-- Kristall-Lichtglanz (von oben links nach unten rechts, beim Verlassen rückwärts) & sanft schwebende Seelenfunken --}}
                                 <div class="sf-rel-sheen pointer-events-none z-10" aria-hidden="true"></div>
-                                <svg class="sf-rel-sparkle-1 pointer-events-none absolute top-[18%] right-[16%] w-4 h-4 text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <svg class="sf-rel-sparkle sf-rel-sparkle-1 pointer-events-none absolute top-[14%] left-[15%] w-3.5 h-3.5 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
                                 </svg>
-                                <svg class="sf-rel-sparkle-2 pointer-events-none absolute bottom-[22%] left-[16%] w-3.5 h-3.5 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.85)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <svg class="sf-rel-sparkle sf-rel-sparkle-2 pointer-events-none absolute top-[17%] right-[15%] w-4 h-4 text-amber-300 drop-shadow-[0_0_7px_rgba(251,191,36,0.95)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                </svg>
+                                <svg class="sf-rel-sparkle sf-rel-sparkle-3 pointer-events-none absolute top-[48%] left-[11%] w-2.5 h-2.5 text-amber-100 drop-shadow-[0_0_5px_rgba(251,191,36,0.85)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                </svg>
+                                <svg class="sf-rel-sparkle sf-rel-sparkle-4 pointer-events-none absolute top-[44%] right-[12%] w-3 h-3 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.9)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                </svg>
+                                <svg class="sf-rel-sparkle sf-rel-sparkle-5 pointer-events-none absolute bottom-[21%] left-[16%] w-3.5 h-3.5 text-amber-200 drop-shadow-[0_0_6px_rgba(251,191,36,0.88)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
+                                </svg>
+                                <svg class="sf-rel-sparkle sf-rel-sparkle-6 pointer-events-none absolute bottom-[16%] right-[16%] w-4 h-4 text-amber-300 drop-shadow-[0_0_7px_rgba(251,191,36,0.95)] z-10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                     <path d="M12 2l2.2 6.8L21 11l-6.8 2.2L12 20l-2.2-6.8L3 11l6.8-2.2L12 2z"/>
                                 </svg>
                             @endif
