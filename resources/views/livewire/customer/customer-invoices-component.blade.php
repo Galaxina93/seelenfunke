@@ -211,7 +211,7 @@
                                             @endphp
                                             <span class="text-sm font-bold text-gray-700 dark:text-gray-300">#{{ $relatedOrder ? $relatedOrder->order_number : 'Unbekannt' }}</span>
 
-                                            <a href="{{ route('customer.orders') }}" class="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                            <a href="{{ route('customer.orders', ['order' => $invoice->order_id]) }}" class="text-primary opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 Ansehen
                                                 <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
                                             </a>

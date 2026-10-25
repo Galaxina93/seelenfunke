@@ -29,7 +29,14 @@ class InvoiceDownloadController extends Controller
             $isAuthorized = true;
         } 
         // 2. Eingeloggter Kunde darf seine eigenen freigegebenen Rechnungen (keine Entwürfe) einsehen
-        elseif (\App\Services\AI\AiAuthHelper::isCustomer() && $invoice->customer_id !== null && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id && $invoice->status !== 'draft') {
+        elseif (
+            \App\Services\AI\AiAuthHelper::isCustomer()
+            && $invoice->status !== 'draft'
+            && (
+                ($invoice->customer_id !== null && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->customer_id)
+                || ($invoice->order_id !== null && $invoice->order && $invoice->order->customer_id !== null && \App\Services\AI\AiAuthHelper::getCustomerId() === $invoice->order->customer_id)
+            )
+        ) {
             $isAuthorized = true;
         } 
         // 3. Gültige kryptografische URL-Signatur (z. B. für Gastkunden via Mail, keine Entwürfe)
