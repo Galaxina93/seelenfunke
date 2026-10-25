@@ -19,7 +19,12 @@
                 return;
             }
 
-            if (clientSecret === lastClientSecret) { return; }
+            if (clientSecret === lastClientSecret) {
+                if (elements && typeof elements.fetchUpdates === 'function') {
+                    try { await elements.fetchUpdates(); } catch (e) {}
+                }
+                return;
+            }
             lastClientSecret = clientSecret;
             stripe = Stripe(stripeKey);
 

@@ -111,7 +111,8 @@
             }
          }"
          x-init="checkCompletion()"
-         @checkout-updated.window="checkCompletion()">
+         @checkout-updated.window="checkCompletion()"
+         @checkout-processing-done.window="checkCompletion()">
 
         <div class="p-6 sm:p-8 flex justify-between items-center cursor-pointer hover:bg-gray-50/50 transition-colors" @click="isOpen = !isOpen">
             <h2 class="text-xl font-serif font-bold text-gray-900 flex items-center gap-2">
