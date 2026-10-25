@@ -231,7 +231,10 @@ class ProductReviews extends Component
             $user = $customerId ? Customer::find($customerId) : null;
             if ($user) {
                 $gameService = app(GamificationService::class);
-                $profile = $gameService->getProfile($user);
+                $profile = \App\Models\Customer\CustomerGamification::firstOrCreate(
+                    ['customer_id' => $user->id],
+                    ['is_active' => false]
+                );
                 $gameService->syncDynamicTitles($profile);
             }
 
@@ -384,7 +387,10 @@ class ProductReviews extends Component
             $user = Customer::find($customerId);
             if ($user) {
                 $gameService = app(GamificationService::class);
-                $profile = $gameService->getProfile($user);
+                $profile = \App\Models\Customer\CustomerGamification::firstOrCreate(
+                    ['customer_id' => $user->id],
+                    ['is_active' => false]
+                );
                 $gameService->syncDynamicTitles($profile);
             }
 
@@ -425,9 +431,11 @@ class ProductReviews extends Component
 
         $allApproved = ProductReview::where('product_id', $this->product->id)
             ->where('status', 'approved')
+            ->select('rating')
             ->get();
 
         $totalCount = $allApproved->count();
+        $averageRating = $totalCount > 0 ? round((float) $allApproved->avg('rating'), 1) : 0.0;
         $breakdown = [
             5 => ['count' => 0, 'percent' => 0],
             4 => ['count' => 0, 'percent' => 0],
@@ -448,7 +456,8 @@ class ProductReviews extends Component
         }
 
         $query = ProductReview::where('product_id', $this->product->id)
-            ->where('status', 'approved');
+            ->where('status', 'approved')
+            ->with('customer');
 
         if ($userReview) {
             $query->where('id', '!=', $userReview->id);
@@ -462,8 +471,8 @@ class ProductReviews extends Component
 
         return view('livewire.shop.product.product-reviews', [
             'reviews' => $reviews,
-            'averageRating' => $this->product->average_rating,
-            'totalReviews' => $this->product->review_count,
+            'averageRating' => $averageRating,
+            'totalReviews' => $totalCount,
             'breakdown' => $breakdown,
             'hasReviewed' => $hasReviewed,
             'userReview' => $userReview,

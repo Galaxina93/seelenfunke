@@ -1,14 +1,95 @@
 <div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-10 animate-fade-in-up min-h-full flex flex-col relative z-10" x-data="kristallKollaps3D()">
     @if(!$hasOptedIn)
-        <div x-data="optInScreen()" :class="isWarping ? 'opacity-0 scale-95 blur-sm' : 'opacity-100 scale-100 blur-0'" class="max-w-6xl mx-auto relative p-6 sm:p-10 lg:p-20 flex flex-col lg:flex-row items-center gap-10 lg:gap-16 transition-all duration-[1500ms] ease-in-out mt-8 lg:mt-12">
+        <div x-data="optInScreen()"
+             x-init="initAmbientSparks()"
+             :class="isWarping ? 'opacity-0 scale-[0.97] blur-sm' : 'opacity-100 scale-100 blur-0'"
+             class="max-w-6xl mx-auto relative p-6 sm:p-10 lg:p-20 flex flex-col lg:flex-row items-center gap-10 lg:gap-16 transition-all duration-1000 ease-out mt-8 lg:mt-12 rounded-[2.5rem] bg-white/70 dark:bg-gray-900/60 backdrop-blur-xl border border-amber-500/20 dark:border-amber-400/15 shadow-[0_25px_70px_rgba(197,160,89,0.12)] dark:shadow-[0_25px_80px_rgba(0,0,0,0.65)] overflow-hidden">
+
+            {{-- Subtile schwebende Goldene Funken im Karten-Hintergrund (Darkmode/Lightmode adaptiv) --}}
+            <canvas x-ref="ambientSparksCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-85"></canvas>
+            <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-gradient-to-br from-amber-400/15 via-primary/10 to-transparent blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-gradient-to-tr from-amber-500/15 via-yellow-400/5 to-transparent blur-3xl pointer-events-none"></div>
+
+            {{-- Vollbild "Magie aktivieren" Animation (Darkmode-Switch Eclipse + Goldene Funken) --}}
             <template x-teleport="body">
-                <div x-show="isActivating" style="display: none;" class="fixed inset-0 z-[9000] pointer-events-none flex items-center justify-center overflow-hidden">
-                    <div x-show="isActivating" x-transition:enter="transition ease-out duration-1000" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="absolute inset-0 bg-gray-950/95 backdrop-blur-xl"></div>
-                    <div x-show="phase >= 1" x-transition:enter="transition ease-out duration-[1500ms]" x-transition:enter-start="scale-0 opacity-100" x-transition:enter-end="scale-[3] opacity-0" class="absolute w-[20rem] h-[20rem] md:w-[30rem] md:h-[30rem] border-[8px] border-primary rounded-full blur-[4px]"></div>
-                    <div x-show="phase >= 1" x-transition:enter="transition ease-out duration-[1000ms] delay-100" x-transition:enter-start="scale-0 opacity-100" x-transition:enter-end="scale-[4] opacity-0" class="absolute w-[20rem] h-[20rem] md:w-[30rem] md:h-[30rem] border-[4px] border-white rounded-full"></div>
-                    <div x-show="phase >= 1" class="relative z-10 w-32 h-32 md:w-48 md:h-48 rounded-full bg-primary/30 blur-2xl animate-pulse"></div>
+                <div x-show="isActivating"
+                     style="display: none;"
+                     class="fixed inset-0 z-[9500] pointer-events-none flex items-center justify-center overflow-hidden">
+
+                    {{-- Darkmode-Switch orientierter Eclipse-Iris-Übergang (adaptiv für Light & Dark Mode) --}}
+                    <div class="absolute inset-0 transition-[clip-path,opacity] duration-[950ms] ease-[cubic-bezier(0.22,1,0.36,1)] bg-gradient-to-br from-[#fffdf7]/95 via-[#fdf6e4]/95 to-[#f7e7c4]/95 dark:from-[#06080f]/95 dark:via-[#0b0f1c]/95 dark:to-[#17120a]/95 backdrop-blur-2xl"
+                         :style="`clip-path: circle(${eclipseRadius}% at ${originX}px ${originY}px); opacity: ${phase === 3 ? 0 : 1};`">
+                    </div>
+
+                    {{-- Radiale Gold-Aura im Zentrum --}}
+                    <div class="absolute inset-0 transition-opacity duration-700"
+                         :class="phase >= 1 && phase < 3 ? 'opacity-100' : 'opacity-0'"
+                         style="background: radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.22) 0%, rgba(197, 160, 89, 0.08) 38%, transparent 70%);">
+                    </div>
+
+                    {{-- Interaktiver High-DPI Canvas für die Goldenen Funken (Wirbel -> Supernova) --}}
+                    <canvas x-ref="magicSparksCanvas"
+                            class="absolute inset-0 w-full h-full z-10 transition-opacity duration-500"
+                            :class="phase === 3 ? 'opacity-0' : 'opacity-100'"></canvas>
+
+                    {{-- Zentrales Manufaktur-Astrolabium & Emblem --}}
+                    <div class="relative z-20 flex flex-col items-center justify-center text-center px-6 transition-all duration-700 transform-gpu"
+                         :class="phase === 0 ? 'scale-75 opacity-0' : (phase === 1 ? 'scale-100 opacity-100' : (phase === 2 ? 'scale-105 opacity-100' : 'scale-110 opacity-0'))">
+
+                        {{-- Heilige Geometrie / Goldene Ringe --}}
+                        <div class="relative w-36 h-36 sm:w-44 sm:h-44 flex items-center justify-center mb-6">
+                            {{-- Äußere Schockwelle bei Supernova (Phase 2) --}}
+                            <div class="absolute inset-0 rounded-full border-2 border-amber-400/80 dark:border-amber-300/80 transition-all duration-1000 ease-out"
+                                 :class="phase >= 2 ? 'scale-[2.6] opacity-0' : 'scale-75 opacity-0'"></div>
+                            <div class="absolute inset-0 rounded-full border border-primary/70 transition-all duration-1000 delay-100 ease-out"
+                                 :class="phase >= 2 ? 'scale-[3.4] opacity-0' : 'scale-75 opacity-0'"></div>
+
+                            {{-- Äußerer rotierender Filigran-Ring --}}
+                            <svg class="absolute inset-0 w-full h-full text-amber-600/40 dark:text-amber-400/40 animate-[spin_12s_linear_infinite]" viewBox="0 0 200 200">
+                                <circle cx="100" cy="100" r="92" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 8" />
+                                <circle cx="100" cy="100" r="82" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="24 12 4 12" />
+                                <polygon points="100,6 104,16 96,16" fill="currentColor" />
+                                <polygon points="100,194 104,184 96,184" fill="currentColor" />
+                                <polygon points="6,100 16,104 16,96" fill="currentColor" />
+                                <polygon points="194,100 184,104 184,96" fill="currentColor" />
+                            </svg>
+
+                            {{-- Gegenläufiger innerer Runen-Ring --}}
+                            <svg class="absolute inset-3 w-[calc(100%-1.5rem)] h-[calc(100%-1.5rem)] text-amber-500/60 dark:text-amber-300/60 animate-[spin_8s_linear_infinite_reverse]" viewBox="0 0 160 160">
+                                <circle cx="80" cy="80" r="70" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="10 14" />
+                                <rect x="29" y="29" width="102" height="102" fill="none" stroke="currentColor" stroke-width="0.75" opacity="0.45" transform="rotate(45 80 80)" />
+                            </svg>
+
+                            {{-- Zentraler Gold-Kern (Darkmode-Switch Sonne/Funken-Kristall) --}}
+                            <div class="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center transition-all duration-500 shadow-[0_0_50px_rgba(245,158,11,0.55)] dark:shadow-[0_0_65px_rgba(251,191,36,0.75)] bg-gradient-to-br from-amber-300 via-amber-500 to-yellow-600 dark:from-amber-200 dark:via-amber-400 dark:to-amber-600 border-2 border-white/80 dark:border-amber-100"
+                                 :class="phase >= 2 ? 'scale-110 shadow-[0_0_90px_rgba(251,191,36,0.95)]' : 'scale-95'">
+                                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-gray-950 drop-shadow-sm transition-transform duration-700"
+                                     :class="phase >= 2 ? 'rotate-180 scale-110' : 'rotate-0 scale-100'"
+                                     viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4L12 2Z" />
+                                </svg>
+                            </div>
+                        </div>
+
+                        {{-- Typografie-Enthüllung --}}
+                        <div class="transition-all duration-500"
+                             :class="phase >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'">
+                            <span class="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-amber-500/15 dark:bg-amber-400/15 border border-amber-500/40 dark:border-amber-400/40 text-amber-800 dark:text-amber-300 text-[10px] sm:text-xs font-black uppercase tracking-[0.3em] mb-3 shadow-sm">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-300 animate-ping"></span>
+                                <span x-text="phase >= 2 ? 'Seelenfunken entfesselt' : 'Seelenfunken sammeln sich...'"></span>
+                            </span>
+                            <h3 class="text-3xl sm:text-5xl font-serif font-black tracking-tight text-gray-900 dark:text-white drop-shadow-sm dark:drop-shadow-[0_0_25px_rgba(251,191,36,0.35)]">
+                                Die Magie <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-700 dark:from-amber-200 dark:via-amber-400 dark:to-yellow-200">erwacht</span>
+                            </h3>
+                            <p class="mt-2 text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300 tracking-wide transition-opacity duration-500"
+                               :class="phase >= 2 ? 'opacity-100' : 'opacity-60'">
+                                Dein persönlicher Gefährte & die Spiele der Manufaktur werden aktiviert…
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </template>
+
             <div class="relative z-10 flex-1 text-center lg:text-left">
                 @if(isset($profileSteps) && count($profileSteps) > 0)
                     <div class="mb-8 flex flex-col sm:flex-row flex-wrap items-center lg:items-start gap-3 p-4 sm:p-5 bg-gray-100 dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
@@ -18,8 +99,11 @@
                         @endforeach
                     </div>
                 @endif
-                <span class="inline-block px-4 py-1.5 sm:px-5 sm:py-2 bg-primary/10 text-primary font-black uppercase tracking-widest rounded-xl mb-4 sm:mb-6 border border-primary/30 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.2)] animate-pulse text-[10px] sm:text-xs">Dein neues Erlebnis</span>
-                <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-gray-900 dark:text-white mb-4 sm:mb-6 leading-[1.1] drop-shadow-none dark:drop-shadow-md tracking-tight">Einkaufen,<br>weit weg vom <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-amber-500 dark:from-primary dark:to-amber-300">Standard.</span></h2>
+                <span class="inline-flex items-center gap-2 px-4 py-1.5 sm:px-5 sm:py-2 bg-amber-500/10 dark:bg-primary/15 text-amber-700 dark:text-primary font-black uppercase tracking-widest rounded-xl mb-4 sm:mb-6 border border-amber-500/30 dark:border-primary/30 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.2)] text-[10px] sm:text-xs">
+                    <span class="text-amber-500 dark:text-amber-300">✦</span>
+                    <span>Dein neues Erlebnis</span>
+                </span>
+                <h2 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-serif font-bold text-gray-900 dark:text-white mb-4 sm:mb-6 leading-[1.1] drop-shadow-none dark:drop-shadow-md tracking-tight">Einkaufen,<br>weit weg vom <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 dark:from-primary dark:via-amber-200 dark:to-amber-400">Standard.</span></h2>
                 <p class="text-gray-600 dark:text-gray-400 text-sm sm:text-base md:text-lg mb-8 sm:mb-10 leading-relaxed max-w-2xl mx-auto lg:mx-0 font-medium">Willkommen in der Manufaktur! Dein Dashboard ist kein einfaches Kundenkonto mehr – es ist <strong class="text-gray-900 dark:text-white">spielerisch, interaktiv und lebendig</strong>. Begleite deinen persönlichen 3D-Gefährten auf seiner Reise.</p>
                 
                 <div class="mb-6 flex flex-col gap-2 max-w-xl mx-auto lg:mx-0 text-left">
@@ -36,18 +120,23 @@
                     </label>
                 </div>
 
-                <button :disabled="!agreedToTerms" @click="if(agreedToTerms) triggerEpicStart()" class="w-full sm:w-auto group relative px-8 sm:px-12 py-4 sm:py-5 bg-gradient-to-r from-primary-light to-primary hover:from-primary hover:to-primary-light text-gray-900 border border-primary/40 disabled:from-gray-200 disabled:to-gray-200 dark:disabled:from-gray-800 dark:disabled:to-gray-800 disabled:border-transparent disabled:text-gray-400 dark:disabled:text-gray-500 rounded-xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-sm dark:shadow-[0_0_30px_rgba(197,160,89,0.4)] disabled:shadow-none transition-all flex items-center justify-center gap-4 overflow-hidden transform-gpu mx-auto lg:mx-0 disabled:cursor-not-allowed hover:scale-105 hover:shadow-md dark:hover:shadow-[0_0_40px_rgba(197,160,89,0.6)] disabled:hover:scale-100">
-                    <div x-show="agreedToTerms" class="absolute inset-0 bg-white/30 transform -skew-x-12 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
-                    <span>Magie aktivieren</span>
-                    <svg class="w-5 h-5 group-hover:translate-x-2 group-hover:scale-110 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                <button :disabled="!agreedToTerms || isActivating"
+                        @click="if(agreedToTerms && !isActivating) triggerEpicStart($event)"
+                        class="w-full sm:w-auto group relative px-8 sm:px-12 py-4 sm:py-5 bg-gradient-to-r from-amber-400 via-primary to-amber-500 hover:from-amber-300 hover:via-primary-light hover:to-amber-400 text-gray-950 border border-amber-300/80 disabled:from-gray-200 disabled:via-gray-200 disabled:to-gray-200 dark:disabled:from-gray-800 dark:disabled:via-gray-800 dark:disabled:to-gray-800 disabled:border-transparent disabled:text-gray-400 dark:disabled:text-gray-500 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_10px_30px_rgba(245,158,11,0.35)] dark:shadow-[0_0_35px_rgba(251,191,36,0.45)] disabled:shadow-none transition-all duration-300 flex items-center justify-center gap-3.5 overflow-hidden transform-gpu mx-auto lg:mx-0 disabled:cursor-not-allowed hover:scale-[1.03] hover:shadow-[0_15px_40px_rgba(245,158,11,0.5)] dark:hover:shadow-[0_0_50px_rgba(251,191,36,0.7)] disabled:hover:scale-100 cursor-pointer">
+                    <div x-show="agreedToTerms" class="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent transform -skew-x-12 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out"></div>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-950 disabled:text-gray-400 transition-transform duration-500 group-hover:rotate-90 group-hover:scale-125" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" />
+                    </svg>
+                    <span class="relative z-10">Magie aktivieren</span>
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 relative z-10 group-hover:translate-x-1.5 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
                 </button>
             </div>
             <div class="relative z-10 w-full lg:w-5/12 flex justify-center perspective-1000 mt-8 lg:mt-0 shrink-0">
                 <div class="relative w-56 h-56 sm:w-72 sm:h-72 md:w-96 md:h-96 transform-gpu hover:rotate-y-12 hover:rotate-x-12 transition-transform duration-700 ease-out shrink-0">
-                    <div class="absolute inset-0 bg-primary/20 rounded-full blur-[40px] md:blur-[50px] animate-pulse"></div>
-                    <img src="{{asset('shop/customer/gamification/models/images/original/funki_lvl_5_apprentice.png')}}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.8)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none z-10">
+                    <div class="absolute inset-0 bg-gradient-to-tr from-amber-500/25 via-primary/20 to-yellow-300/20 rounded-full blur-[40px] md:blur-[55px] animate-pulse"></div>
+                    <img src="{{asset('shop/customer/gamification/models/images/original/funki_lvl_5_apprentice.png')}}" draggable="false" class="relative w-full h-full object-contain drop-shadow-[0_20px_35px_rgba(197,160,89,0.35)] dark:drop-shadow-[0_20px_35px_rgba(0,0,0,0.85)] animate-[float_6s_ease-in-out_infinite] pointer-events-none select-none z-10">
                 </div>
             </div>
         </div>
@@ -59,19 +148,288 @@
                 isWarping: false,
                 isActivating: false,
                 phase: 0,
-                triggerEpicStart() {
+                originX: window.innerWidth / 2,
+                originY: window.innerHeight / 2,
+                eclipseRadius: 0,
+                _ambientRaf: null,
+                _magicRaf: null,
+
+                isDark() {
+                    return document.documentElement.classList.contains('dark');
+                },
+
+                initAmbientSparks() {
+                    const canvas = this.$refs.ambientSparksCanvas;
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    let w = 0, h = 0;
+                    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+                    const resize = () => {
+                        const rect = canvas.parentElement.getBoundingClientRect();
+                        w = Math.max(300, rect.width);
+                        h = Math.max(300, rect.height);
+                        canvas.width = w * dpr;
+                        canvas.height = h * dpr;
+                        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    };
+                    resize();
+                    window.addEventListener('resize', resize);
+
+                    const sparks = Array.from({ length: 38 }, () => ({
+                        x: Math.random() * w,
+                        y: Math.random() * h,
+                        r: 1 + Math.random() * 2.4,
+                        vx: (Math.random() - 0.5) * 0.35,
+                        vy: -(0.25 + Math.random() * 0.65),
+                        phase: Math.random() * Math.PI * 2,
+                        speed: 0.02 + Math.random() * 0.03,
+                        isStar: Math.random() > 0.55
+                    }));
+
+                    const drawStar = (cx, cy, radius, alpha, dark) => {
+                        ctx.save();
+                        ctx.translate(cx, cy);
+                        ctx.fillStyle = dark
+                            ? `rgba(253, 224, 71, ${alpha})`
+                            : `rgba(217, 119, 6, ${alpha})`;
+                        ctx.beginPath();
+                        for (let i = 0; i < 4; i++) {
+                            ctx.lineTo(Math.cos((i * Math.PI) / 2) * radius * 2.2, Math.sin((i * Math.PI) / 2) * radius * 2.2);
+                            ctx.lineTo(Math.cos(((i + 0.5) * Math.PI) / 2) * radius * 0.55, Math.sin(((i + 0.5) * Math.PI) / 2) * radius * 0.55);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    };
+
+                    const renderAmbient = () => {
+                        if (this.isActivating) return;
+                        ctx.clearRect(0, 0, w, h);
+                        const dark = this.isDark();
+
+                        for (const s of sparks) {
+                            s.x += s.vx + Math.sin(s.phase) * 0.15;
+                            s.y += s.vy;
+                            s.phase += s.speed;
+
+                            if (s.y < -10) { s.y = h + 10; s.x = Math.random() * w; }
+                            if (s.x < -10) s.x = w + 10;
+                            if (s.x > w + 10) s.x = -10;
+
+                            const alpha = (0.25 + 0.55 * (0.5 + 0.5 * Math.sin(s.phase))) * (this.agreedToTerms ? 1.0 : 0.65);
+
+                            if (s.isStar) {
+                                drawStar(s.x, s.y, s.r, alpha, dark);
+                            } else {
+                                const grad = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 3);
+                                if (dark) {
+                                    grad.addColorStop(0, `rgba(254, 240, 138, ${alpha})`);
+                                    grad.addColorStop(0.45, `rgba(245, 158, 11, ${alpha * 0.6})`);
+                                    grad.addColorStop(1, 'rgba(245, 158, 11, 0)');
+                                } else {
+                                    grad.addColorStop(0, `rgba(217, 119, 6, ${alpha})`);
+                                    grad.addColorStop(0.5, `rgba(197, 160, 89, ${alpha * 0.55})`);
+                                    grad.addColorStop(1, 'rgba(197, 160, 89, 0)');
+                                }
+                                ctx.fillStyle = grad;
+                                ctx.beginPath();
+                                ctx.arc(s.x, s.y, s.r * 3, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
+                        }
+                        this._ambientRaf = requestAnimationFrame(renderAmbient);
+                    };
+                    this._ambientRaf = requestAnimationFrame(renderAmbient);
+                },
+
+                triggerEpicStart(event) {
+                    if (event && event.currentTarget) {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        this.originX = rect.left + rect.width / 2;
+                        this.originY = rect.top + rect.height / 2;
+                    } else {
+                        this.originX = window.innerWidth / 2;
+                        this.originY = window.innerHeight / 2;
+                    }
+
                     this.isWarping = true;
                     this.isActivating = true;
+                    this.phase = 0;
+                    this.eclipseRadius = 0;
+
                     window.dispatchEvent(new CustomEvent('warp-started'));
-                    setTimeout(() => { this.phase = 1; }, 50);
+
+                    this.$nextTick(() => {
+                        this.startGoldenSparksSequence();
+                        requestAnimationFrame(() => {
+                            this.eclipseRadius = 150;
+                            this.phase = 1;
+                        });
+                    });
+
+                    // Phase 2: Goldene Supernova-Eruption im Zentrum
                     setTimeout(() => {
+                        this.phase = 2;
+                    }, 1050);
+
+                    // Phase 3: Sanfter Seiden-Übergang & Livewire Opt-In
+                    setTimeout(() => {
+                        this.phase = 3;
+                    }, 2250);
+
+                    setTimeout(() => {
+                        if (this._magicRaf) cancelAnimationFrame(this._magicRaf);
                         window.sessionStorage.setItem('funki_just_activated', 'true');
                         this.$wire.optIn();
-                    }, 2500);
+                    }, 2550);
+                },
+
+                startGoldenSparksSequence() {
+                    const canvas = this.$refs.magicSparksCanvas;
+                    if (!canvas) return;
+                    const ctx = canvas.getContext('2d');
+                    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                    const w = window.innerWidth;
+                    const h = window.innerHeight;
+                    canvas.width = w * dpr;
+                    canvas.height = h * dpr;
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+                    const centerX = w / 2;
+                    const centerY = h / 2;
+                    const dark = this.isDark();
+
+                    // Gold-Farbpaletten (abgestimmt auf Darkmode & Lightmode)
+                    const palette = dark
+                        ? ['#FEF08A', '#FDE047', '#FBBF24', '#F59E0B', '#C5A059', '#FFFBEB']
+                        : ['#B45309', '#D97706', '#F59E0B', '#C5A059', '#92400E', '#FBBF24'];
+
+                    const particles = [];
+                    const totalSparks = 210;
+
+                    for (let i = 0; i < totalSparks; i++) {
+                        const fromButton = i < 90;
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = fromButton
+                            ? (10 + Math.random() * 90)
+                            : (120 + Math.random() * Math.max(w, h) * 0.55);
+                        const startX = (fromButton ? this.originX : centerX) + Math.cos(angle) * dist;
+                        const startY = (fromButton ? this.originY : centerY) + Math.sin(angle) * dist;
+
+                        const burstAngle = (i / totalSparks) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+                        const burstSpeed = 3.5 + Math.random() * 14.5;
+
+                        particles.push({
+                            x: startX,
+                            y: startY,
+                            prevX: startX,
+                            prevY: startY,
+                            orbitAngle: Math.atan2(startY - centerY, startX - centerX),
+                            orbitRadius: Math.hypot(startX - centerX, startY - centerY),
+                            orbitSpeed: (0.045 + Math.random() * 0.055) * (i % 2 === 0 ? 1 : -1),
+                            vx: Math.cos(burstAngle) * burstSpeed,
+                            vy: Math.sin(burstAngle) * burstSpeed,
+                            size: 1.4 + Math.random() * 3.4,
+                            color: palette[i % palette.length],
+                            alpha: 0.2 + Math.random() * 0.8,
+                            twinkleSpeed: 0.08 + Math.random() * 0.14,
+                            twinklePhase: Math.random() * Math.PI * 2,
+                            isStar: i % 3 === 0,
+                            exploded: false
+                        });
+                    }
+
+                    const startTime = performance.now();
+
+                    const drawSparkStar = (x, y, r, color, alpha, rot) => {
+                        ctx.save();
+                        ctx.translate(x, y);
+                        ctx.rotate(rot);
+                        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        for (let j = 0; j < 4; j++) {
+                            ctx.lineTo(Math.cos((j * Math.PI) / 2) * r * 2.6, Math.sin((j * Math.PI) / 2) * r * 2.6);
+                            ctx.lineTo(Math.cos(((j + 0.5) * Math.PI) / 2) * r * 0.65, Math.sin(((j + 0.5) * Math.PI) / 2) * r * 0.65);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.restore();
+                    };
+
+                    const animate = (now) => {
+                        const elapsed = now - startTime;
+                        ctx.clearRect(0, 0, w, h);
+                        ctx.save();
+                        if (dark) {
+                            ctx.globalCompositeOperation = 'lighter';
+                        }
+
+                        const isSupernova = elapsed >= 1050;
+
+                        for (const p of particles) {
+                            p.prevX = p.x;
+                            p.prevY = p.y;
+                            p.twinklePhase += p.twinkleSpeed;
+
+                            if (!isSupernova) {
+                                // Phase 1: Goldener Fibonacci-Wirbel zieht alle Funken ins Zentrum
+                                p.orbitAngle += p.orbitSpeed;
+                                p.orbitRadius = Math.max(6, p.orbitRadius * 0.945);
+                                p.x += (centerX + Math.cos(p.orbitAngle) * p.orbitRadius - p.x) * 0.22;
+                                p.y += (centerY + Math.sin(p.orbitAngle) * p.orbitRadius - p.y) * 0.22;
+                            } else {
+                                // Phase 2: Goldene Supernova-Eruption nach außen + sanfter Auftrieb
+                                if (!p.exploded) {
+                                    p.exploded = true;
+                                    p.x = centerX + (Math.random() - 0.5) * 16;
+                                    p.y = centerY + (Math.random() - 0.5) * 16;
+                                    p.prevX = p.x;
+                                    p.prevY = p.y;
+                                }
+                                p.x += p.vx;
+                                p.y += p.vy;
+                                p.vx *= 0.968;
+                                p.vy = p.vy * 0.968 - 0.035; // leichter goldener Funken-Auftrieb
+                            }
+
+                            const twinkle = 0.55 + 0.45 * Math.sin(p.twinklePhase);
+                            const currentAlpha = p.alpha * twinkle;
+
+                            // Goldene Schweif-Spur (Motion Trail)
+                            ctx.beginPath();
+                            ctx.moveTo(p.prevX, p.prevY);
+                            ctx.lineTo(p.x, p.y);
+                            ctx.strokeStyle = p.color;
+                            ctx.globalAlpha = Math.max(0, Math.min(1, currentAlpha * 0.65));
+                            ctx.lineWidth = p.size * 0.85;
+                            ctx.lineCap = 'round';
+                            ctx.stroke();
+
+                            if (p.isStar) {
+                                drawSparkStar(p.x, p.y, p.size, p.color, currentAlpha, p.twinklePhase * 0.5);
+                            } else {
+                                ctx.globalAlpha = Math.max(0, Math.min(1, currentAlpha));
+                                ctx.fillStyle = p.color;
+                                ctx.beginPath();
+                                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
+                        }
+
+                        ctx.restore();
+
+                        if (elapsed < 2600) {
+                            this._magicRaf = requestAnimationFrame(animate);
+                        }
+                    };
+
+                    this._magicRaf = requestAnimationFrame(animate);
                 }
             };
         };
-        </script>
+    </script>
 
     @else
 

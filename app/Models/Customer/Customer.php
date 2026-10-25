@@ -82,6 +82,11 @@ class Customer extends Model implements Authenticatable, MustVerifyEmail
         return $this->hasOne(CustomerProfile::class);
     }
 
+    public function gamification(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CustomerGamification::class, 'customer_id');
+    }
+
     public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(\App\Models\Order\OrderOrder::class, 'customer_id');

@@ -47,7 +47,7 @@
 
                     <button @click.stop="showTitlesModal=true" class="absolute -top-10 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-900 border border-primary px-6 py-2.5 sm:px-10 sm:py-3 rounded-full font-black uppercase tracking-widest text-[10px] sm:text-xs text-gray-900 dark:text-white shadow-md dark:shadow-[0_0_25px_rgba(197,160,89,0.6)] flex flex-col items-center gap-1 hover:bg-primary hover:text-gray-900 transition-all z-40 hover:scale-110 group cursor-pointer whitespace-nowrap">
                         <div class="flex items-center gap-2">
-                            {{$currentRankName}}
+                            {{ $currentRankName ?: 'Kein Rang' }}
                             <svg class="w-3 h-3 sm:w-4 sm:h-4 group-hover:rotate-90 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                             </svg>
@@ -287,7 +287,7 @@
                             <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-b from-primary-light to-primary border-2 border-primary/40 dark:border-gray-900 flex items-center justify-center shadow-sm dark:shadow-[0_0_20px_rgba(197,160,89,0.6)] shrink-0">
                                 <span class="text-gray-900 font-black text-lg sm:text-xl">{{$level}}</span>
                             </div>
-                            <h3 class="text-gray-900 dark:text-white font-black text-[9px] sm:text-xs uppercase tracking-[0.2em]">{{$currentRankName}}</h3>
+                            <h3 class="text-gray-900 dark:text-white font-black text-[9px] sm:text-xs uppercase tracking-[0.2em]">{{ $currentRankName ?: 'Kein Rang' }}</h3>
                         </div>
 
                         <button @click="close3DModal()" class="absolute top-4 right-4 sm:top-8 sm:right-8 z-[6050] p-2.5 sm:p-3 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-full text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-red-50 dark:hover:bg-red-500 hover:border-red-300 dark:hover:border-red-500 transition-all shadow-md dark:shadow-[0_0_30px_rgba(0,0,0,0.8)] hover:scale-110 cursor-pointer">
@@ -346,7 +346,7 @@
                          x-transition:leave-start="opacity-100 scale-100 translate-y-0"
                          x-transition:leave-end="opacity-0 scale-95 translate-y-10">
 
-                        <div class="relative w-full bg-gray-50/90 dark:bg-gray-900 border-b border-gray-200 dark:border-amber-500/20 p-6 sm:p-10 text-center shrink-0 overflow-hidden shadow-sm dark:shadow-inner flex flex-col items-center">
+                        <div class="relative w-full bg-gray-50/90 dark:bg-gray-900 border-b border-gray-200 dark:border-amber-500/20 p-5 sm:p-8 text-center shrink-0 overflow-hidden shadow-sm dark:shadow-inner flex flex-col items-center">
                             <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
 
                             <button @click="showTitlesModal = false" class="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 rounded-full hover:bg-red-500 hover:border-red-500 hover:text-white transition-colors cursor-pointer focus:outline-none z-20 shadow-sm">
@@ -356,84 +356,92 @@
                             </button>
 
                             <div class="relative z-10 w-full">
-                                <p class="text-[10px] sm:text-xs text-amber-700 dark:text-amber-500/70 font-black uppercase tracking-[0.3em] mb-2 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Dein aktueller Meta-Rang</p>
-                                <h2 class="text-3xl sm:text-4xl md:text-5xl font-serif font-black text-amber-600 dark:text-amber-400 drop-shadow-none dark:drop-shadow-[0_0_15px_rgba(251,191,36,0.3)] mb-4 uppercase tracking-tight">{{$titlesData['mega_title']['name'] ?? 'Ein Funke im Wind'}}</h2>
-
-                                <div class="mb-6">
-                                    <button wire:click="selectTitle('mega_title')" class="px-6 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all shadow-sm {{ $activeTitleKey === 'mega_title' ? 'bg-amber-500 text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(251,191,36,0.6)] cursor-default' : 'bg-white dark:bg-gray-900 border border-amber-500/50 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/20 hover:text-amber-900 dark:hover:text-white' }}">
-                                        {{ $activeTitleKey === 'mega_title' ? 'Als Meta-Rang ausgerüstet' : 'Als Meta-Rang ausrüsten' }}
-                                    </button>
-                                </div>
-
-                                <div class="max-w-md mx-auto bg-white dark:bg-gray-950 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner">
+                                {{-- Ganz oben: Diamant-Titel Fortschritt --}}
+                                <div class="max-w-md mx-auto bg-white dark:bg-gray-950 p-3.5 sm:p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner mb-5">
                                     <div class="flex justify-between items-center mb-2">
                                         <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Diamant-Titel</span>
-                                        <span class="text-xs font-black text-amber-600 dark:text-amber-400">{{$titlesData['diamonds_count'] ?? 0}} <span class="opacity-50 text-gray-400 dark:text-gray-600">/ 15</span></span>
+                                        <span class="text-xs font-black text-amber-600 dark:text-amber-400">{{ $titlesData['diamonds_count'] ?? 0 }} <span class="opacity-50 text-gray-400 dark:text-gray-600">/ {{ $titlesData['total_titles'] ?? 15 }}</span></span>
                                     </div>
                                     <div class="w-full bg-gray-100 dark:bg-gray-900 rounded-full h-2.5 shadow-inner overflow-hidden border border-gray-200 dark:border-gray-800">
-                                        <div class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-1000 shadow-none dark:shadow-[0_0_10px_rgba(251,191,36,0.5)]" style="width: {{ min(100, (($titlesData['diamonds_count'] ?? 0) / 15) * 100) }}%"></div>
+                                        <div class="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-1000 shadow-none dark:shadow-[0_0_10px_rgba(251,191,36,0.5)]" style="width: {{ min(100, (($titlesData['diamonds_count'] ?? 0) / max(1, ($titlesData['total_titles'] ?? 15))) * 100) }}%"></div>
                                     </div>
                                     @if(isset($titlesData['next_mega_title']))
-                                        <p class="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400 font-medium mt-3 uppercase tracking-widest">Noch <span class="text-gray-900 dark:text-white font-bold">{{ $titlesData['next_mega_title']['req'] - ($titlesData['diamonds_count'] ?? 0) }} Diamant-Titel</span> bis: <strong class="text-amber-700 dark:text-amber-400">{{$titlesData['next_mega_title']['name']}}</strong></p>
+                                        <p class="text-[9px] sm:text-[10px] text-gray-500 dark:text-gray-400 font-medium mt-2.5 uppercase tracking-widest">Noch <span class="text-gray-900 dark:text-white font-bold">{{ max(0, $titlesData['next_mega_title']['req'] - ($titlesData['diamonds_count'] ?? 0)) }} Diamant-Titel</span> bis: <strong class="text-amber-700 dark:text-amber-400">{{ $titlesData['next_mega_title']['name'] }}</strong></p>
                                     @else
-                                        <p class="text-[9px] sm:text-[10px] text-amber-700 dark:text-amber-400 font-black mt-3 uppercase tracking-widest drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Du hast die höchste Stufe erreicht!</p>
+                                        <p class="text-[9px] sm:text-[10px] text-amber-700 dark:text-amber-400 font-black mt-2.5 uppercase tracking-widest drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Du hast die höchste Stufe erreicht!</p>
                                     @endif
                                 </div>
+
+                                {{-- Hauptüberschrift: Dein aktueller Rang --}}
+                                <p class="text-[10px] sm:text-xs text-amber-700 dark:text-amber-500/80 font-black uppercase tracking-[0.3em] mb-1.5 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Dein aktueller Rang</p>
+                                @if($currentRankName)
+                                    <h2 class="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-amber-600 dark:text-amber-400 drop-shadow-none dark:drop-shadow-[0_0_15px_rgba(251,191,36,0.3)] uppercase tracking-tight">{{ $currentRankName }}</h2>
+                                @else
+                                    <h2 class="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-gray-400 dark:text-gray-500 uppercase tracking-tight">Kein Rang</h2>
+                                @endif
                             </div>
                         </div>
 
-                        <div class="p-4 sm:p-8 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/60 dark:bg-gray-950">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="p-4 sm:p-6 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/60 dark:bg-gray-950">
+                            <div class="flex flex-col gap-2.5">
                                 @foreach($titlesData['titles'] ?? [] as $titleKey => $title)
-                                    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 relative overflow-hidden flex flex-col gap-3 group transition-colors shadow-sm dark:shadow-none {{ $title['tier'] === 'diamant' ? 'border-amber-400/60 dark:border-amber-500/30 shadow-sm dark:shadow-[inset_0_0_20px_rgba(251,191,36,0.05)] bg-amber-50/50 dark:bg-amber-900/5' : 'hover:border-gray-300 dark:hover:border-gray-600' }}">
-                                        <div class="flex items-start gap-4">
-                                            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 shadow-inner
-                                                {{ $title['tier'] === 'grau' ? 'bg-gray-100 dark:bg-gray-950 text-gray-400 dark:text-gray-600 border border-gray-200 dark:border-gray-800' : '' }}
-                                                {{ $title['tier'] === 'silber' ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600/50' : '' }}
-                                                {{ $title['tier'] === 'gold' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-500 border border-yellow-300 dark:border-yellow-600/50' : '' }}
-                                                {{ $title['tier'] === 'diamant' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-500/50 shadow-sm dark:shadow-[0_0_15px_rgba(34,211,238,0.3)]' : '' }}">
-                                                @if($title['tier'] === 'diamant')
-                                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                                    </svg>
-                                                @else
-                                                    <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                                                    </svg>
+                                    <div class="w-full bg-white dark:bg-gray-900 border rounded-xl px-3.5 py-2.5 sm:px-4 sm:py-3 relative overflow-hidden flex flex-col gap-2 group transition-all shadow-sm dark:shadow-none {{ $activeTitleKey === $titleKey ? 'border-amber-500 dark:border-amber-400/70 ring-1 ring-amber-500/30 bg-amber-50/30 dark:bg-amber-950/15' : ($title['tier'] === 'diamant' ? 'border-cyan-400/60 dark:border-cyan-500/30 bg-cyan-50/20 dark:bg-cyan-950/10' : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700') }}">
+                                        <div class="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-4">
+                                            {{-- Links: Icon + Name + Beschreibung --}}
+                                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center shrink-0 shadow-inner
+                                                    {{ $title['tier'] === 'grau' ? 'bg-gray-100 dark:bg-gray-950 text-gray-400 dark:text-gray-600 border border-gray-200 dark:border-gray-800' : '' }}
+                                                    {{ $title['tier'] === 'silber' ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600/50' : '' }}
+                                                    {{ $title['tier'] === 'gold' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-500 border border-yellow-300 dark:border-yellow-600/50' : '' }}
+                                                    {{ $title['tier'] === 'diamant' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-500/50 shadow-sm dark:shadow-[0_0_12px_rgba(34,211,238,0.25)]' : '' }}">
+                                                    @if($title['tier'] === 'diamant')
+                                                        <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                                        </svg>
+                                                    @else
+                                                        <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                                                        </svg>
+                                                    @endif
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                                        <h4 class="text-gray-900 dark:text-white font-bold text-xs sm:text-sm leading-tight truncate">{{ $title['name'] }}</h4>
+                                                        <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded whitespace-nowrap
+                                                            {{ $title['tier'] === 'grau' ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700' : '' }}
+                                                            {{ $title['tier'] === 'silber' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700' : '' }}
+                                                            {{ $title['tier'] === 'gold' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-700/50' : '' }}
+                                                            {{ $title['tier'] === 'diamant' ? 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-700/50' : '' }}">
+                                                            {{ $title['tier_name'] }}
+                                                        </span>
+                                                    </div>
+                                                    <p class="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs truncate mt-0.5">{{ $title['description'] }}</p>
+                                                </div>
+                                            </div>
+
+                                            {{-- Rechts: Fortschrittszähler + Auswahl-Button --}}
+                                            <div class="flex items-center gap-2.5 sm:gap-3 shrink-0 ml-auto">
+                                                <span class="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 font-mono font-bold whitespace-nowrap">
+                                                    {{ (int) round((float) ($title['current_value'] ?? 0)) }} / {{ (int) round((float) ($title['next_req'] ?? 0)) }}
+                                                </span>
+
+                                                @if($title['tier'] !== 'grau')
+                                                    <button wire:click="selectTitle('{{ $titleKey }}')" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap cursor-pointer {{ $activeTitleKey === $titleKey ? 'bg-amber-500 text-gray-900 shadow-sm dark:shadow-[0_0_12px_rgba(251,191,36,0.4)] font-black' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-amber-500 hover:text-gray-900 dark:hover:bg-amber-500 dark:hover:text-gray-900 border border-gray-200 dark:border-gray-700' }}">
+                                                        {{ $activeTitleKey === $titleKey ? '✓ Aktiver Rang' : 'Auswählen' }}
+                                                    </button>
                                                 @endif
                                             </div>
-                                            <div class="flex-1 min-w-0 pt-0.5">
-                                                <h4 class="text-gray-900 dark:text-white font-bold text-sm sm:text-base leading-tight truncate">{{$title['name']}}</h4>
-                                                <p class="text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs mt-1 leading-snug">{{$title['description']}}</p>
-                                            </div>
                                         </div>
 
-                                        <div class="mt-2 flex items-center justify-between">
-                                            <span class="text-[8px] sm:text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap
-                                                {{ $title['tier'] === 'grau' ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-500 border border-gray-200 dark:border-gray-700' : '' }}
-                                                {{ $title['tier'] === 'silber' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700' : '' }}
-                                                {{ $title['tier'] === 'gold' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-500 border border-yellow-200 dark:border-yellow-800/40' : '' }}
-                                                {{ $title['tier'] === 'diamant' ? 'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-800 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-800/40' : '' }}">
-                                                {{$title['tier_name']}}
-                                            </span>
-                                            <p class="text-[9px] text-gray-500 dark:text-gray-600 font-mono font-bold">{{ is_numeric($title['current_value']) ? round((float)$title['current_value']) : $title['current_value'] }} / {{ is_numeric($title['next_req']) ? round((float)$title['next_req']) : $title['next_req'] }}</p>
-                                        </div>
-                                        <div class="w-full bg-gray-100 dark:bg-gray-950 rounded-full h-1.5 shadow-inner overflow-hidden border border-gray-200 dark:border-transparent">
-                                            <div class="h-1.5 rounded-full transition-all duration-1000
+                                        {{-- Volle Breite Fortschrittsbalken --}}
+                                        <div class="w-full bg-gray-100 dark:bg-gray-950 rounded-full h-2 shadow-inner overflow-hidden border border-gray-200/80 dark:border-gray-800">
+                                            <div class="h-full rounded-full transition-all duration-700
                                                 {{ $title['tier'] === 'grau' ? 'bg-gray-400 dark:bg-gray-700' : '' }}
-                                                {{ $title['tier'] === 'silber' ? 'bg-slate-500 dark:bg-slate-400 dark:shadow-[0_0_5px_rgba(148,163,184,0.5)]' : '' }}
-                                                {{ $title['tier'] === 'gold' ? 'bg-yellow-500 dark:bg-yellow-500 dark:shadow-[0_0_8px_rgba(234,179,8,0.5)]' : '' }}
-                                                {{ $title['tier'] === 'diamant' ? 'bg-cyan-500 dark:bg-cyan-400 dark:shadow-[0_0_10px_rgba(34,211,238,0.8)]' : '' }}"
-                                                 style="width: {{$title['percentage']}}%"></div>
+                                                {{ $title['tier'] === 'silber' ? 'bg-slate-500 dark:bg-slate-400 dark:shadow-[0_0_6px_rgba(148,163,184,0.5)]' : '' }}
+                                                {{ $title['tier'] === 'gold' ? 'bg-gradient-to-r from-amber-500 to-yellow-400 dark:shadow-[0_0_8px_rgba(234,179,8,0.5)]' : '' }}
+                                                {{ $title['tier'] === 'diamant' ? 'bg-gradient-to-r from-cyan-500 to-sky-400 dark:shadow-[0_0_10px_rgba(34,211,238,0.8)]' : '' }}"
+                                                 style="width: {{ $title['percentage'] }}%"></div>
                                         </div>
-
-                                        @if($title['tier'] !== 'grau')
-                                            <div class="mt-2 border-t border-gray-100 dark:border-gray-800 pt-3">
-                                                <button wire:click="selectTitle('{{$titleKey}}')" class="w-full py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all {{ $activeTitleKey === $titleKey ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-400 border border-amber-300 dark:border-amber-500/50 cursor-default font-bold' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-transparent' }}">
-                                                    {{ $activeTitleKey === $titleKey ? 'Ausgerüstet' : 'Als Titel anzeigen' }}
-                                                </button>
-                                            </div>
-                                        @endif
                                     </div>
                                 @endforeach
                             </div>

@@ -29,7 +29,7 @@ class GameGamesComponent extends Component
     public $hasOptedIn = false;
 
     #[Locked]
-    public $currentRankName = 'Funken-Novize';
+    public $currentRankName = null;
     #[Locked]
     public $level = 1;
 
@@ -92,7 +92,7 @@ class GameGamesComponent extends Component
                 'is_active' => true,
                 'energy_balance' => 5,
                 'level' => 1,
-                'active_title' => 'apprentice'
+                'active_title' => null
             ]
         );
 
@@ -106,6 +106,21 @@ class GameGamesComponent extends Component
         $gameService = app(GamificationService::class);
         $this->loadGamificationData($gameService, $profile);
         $this->updateEnergyState();
+        $this->dispatch('sparks-awarded');
+        $this->dispatch('energy-updated');
+
+        return $this->redirect(route('customer.games'));
+    }
+
+    #[On('sparks-awarded')]
+    public function refreshSparksState()
+    {
+        $user = Auth::guard('customer')->user();
+        if (!$user) return;
+        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        if ($profile && $profile->is_active) {
+            $this->balance = $profile->funken_balance;
+        }
     }
 
     #[On('energy-updated')]
@@ -116,16 +131,19 @@ class GameGamesComponent extends Component
 
         $profile = CustomerGamification::where('customer_id', $user->id)->first();
         if ($profile) {
+            if ($profile->is_active) {
+                $profile = app(GamificationService::class)->refillEnergyIfDue($profile, $this->maxEnergy);
+            }
             $this->currentEnergy = $profile->energy_balance;
+            $this->energyBalance = $profile->energy_balance;
 
-            // Format time until next energy if balancing is enabled (assuming typical cron setup)
-            // Just a placeholder for the frontend if energy is 0
             if ($this->currentEnergy <= 0) {
-                // Next refill is exactly 3 hours after the last refill timestamp.
                 $lastRefill = $profile->last_energy_refill_at ? \Carbon\Carbon::parse($profile->last_energy_refill_at) : now();
                 $nextRefill = $lastRefill->copy()->addHours(3);
-                $diff = now()->diffInMinutes($nextRefill, false);
-                $this->timeUntilNextEnergy = $diff > 0 ? (int)$diff : 0;
+                $diff = (int) ceil(now()->diffInMinutes($nextRefill, false));
+                $this->timeUntilNextEnergy = max(1, $diff);
+            } else {
+                $this->timeUntilNextEnergy = '';
             }
             // Fetch highscores for Funkenflug
             $this->personalHighscoreFF = $profile->funkenflug_highscore ?? 0;
@@ -150,13 +168,15 @@ class GameGamesComponent extends Component
         $profile = $gameService->getProfile($user);
         $titlesData = $gameService->evaluateTitles($profile);
 
-        $isUnlocked = false;
+        if ($titleKey === null || $titleKey === '') {
+            $profile->update(['active_title' => null]);
+            $this->loadGamificationData($gameService, $profile);
+            $this->dispatch('notify', ['type' => 'success', 'message' => 'Rang aktualisiert!']);
+            return;
+        }
 
-        if ($titleKey === null || $titleKey === 'apprentice') {
-            $isUnlocked = true;
-        } elseif ($titleKey === 'mega_title') {
-            $isUnlocked = ($titlesData['mega_title']['rank'] ?? 0) > 0;
-        } elseif (isset($titlesData['titles'][$titleKey])) {
+        $isUnlocked = false;
+        if (isset($titlesData['titles'][$titleKey])) {
             $tier = $titlesData['titles'][$titleKey]['tier'] ?? 'grau';
             $isUnlocked = ($tier !== 'grau');
         }
@@ -166,21 +186,19 @@ class GameGamesComponent extends Component
             return;
         }
 
-        $profile->update(['active_title' => $titleKey]);
+        $newActiveTitle = ($profile->active_title === $titleKey) ? null : $titleKey;
+        $profile->update(['active_title' => $newActiveTitle]);
 
         $this->loadGamificationData($gameService, $profile);
-        $this->dispatch('notify', ['type' => 'success', 'message' => 'Titel erfolgreich ausgerüstet!']);
+        $this->dispatch('notify', [
+            'type' => 'success',
+            'message' => $newActiveTitle ? 'Rang erfolgreich ausgewählt!' : 'Rang erfolgreich abgewählt!'
+        ]);
     }
 
-    protected function loadGamificationData(GamificationService $gameService, $profile)
+    public function loadGamificationData(GamificationService $gameService, $profile)
     {
-        $now = Carbon::now();
-        $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if ($profile->energy_balance < $this->maxEnergy && (!$lastRefill || $lastRefill->diffInHours($now, false) >= 3)) {
-            $profile->energy_balance = $this->maxEnergy;
-            $profile->last_energy_refill_at = $now;
-            $profile->save();
-        }
+        $gameService->refillEnergyIfDue($profile, $this->maxEnergy);
 
         $gameService->syncUnlockedRewards($profile);
         $profile->refresh();
@@ -243,20 +261,10 @@ class GameGamesComponent extends Component
         $this->imagePath = asset('shop/customer/gamification/models/images/original/' . $currentModelName . '.png');
 
         $this->titlesData = $gameService->evaluateTitles($profile);
-        $this->activeTitleKey = $profile->active_title;
-
-        if ($this->activeTitleKey === 'mega_title') {
-            $this->currentRankName = $this->titlesData['mega_title']['name'] ?? 'Ein Funke im Wind';
-        } elseif ($this->activeTitleKey && isset($this->titlesData['titles'][$this->activeTitleKey])) {
-            $tier = $this->titlesData['titles'][$this->activeTitleKey]['tier'];
-            if ($tier !== 'grau') {
-                $this->currentRankName = $this->titlesData['titles'][$this->activeTitleKey]['tier_name'];
-            } else {
-                $this->currentRankName = $this->getRankName($this->level);
-            }
-        } else {
-            $this->currentRankName = $this->getRankName($this->level);
-        }
+        $this->activeTitleKey = ($profile->active_title && isset($this->titlesData['titles'][$profile->active_title]) && ($this->titlesData['titles'][$profile->active_title]['tier'] ?? 'grau') !== 'grau')
+            ? $profile->active_title
+            : null;
+        $this->currentRankName = $gameService->resolveActiveRankName($profile, $this->titlesData);
     }
 
     public function upgrade(GamificationService $gameService)
@@ -269,20 +277,9 @@ class GameGamesComponent extends Component
             $profile = $gameService->getProfile($user);
             $this->loadGamificationData($gameService, $profile);
 
-            $this->dispatch('funki-level-up', ['level' => $result['new_level'], 'reward' => $result['reward'], 'newModelPath' => $this->modelPath, 'newImagePath' => $this->imagePath]);
+            $this->dispatch('funki-level-up', level: $result['new_level'], reward: $result['reward'], newModelPath: $this->modelPath, newImagePath: $this->imagePath);
             $this->dispatch('notify', ['type' => 'success', 'message' => 'Level Up!']);
-            $this->dispatch('sparks-awarded');
         }
-    }
-
-    private function getRankName(int $level): string
-    {
-        if ($level >= 10) return 'Seelengott';
-        if ($level >= 8) return 'Meister';
-        if ($level >= 6) return 'Kunsthandwerker';
-        if ($level >= 4) return 'Lehrling';
-        if ($level >= 2) return 'Helfer';
-        return 'Funken-Novize';
     }
 
     public function consumeEnergy(): bool
@@ -302,7 +299,14 @@ class GameGamesComponent extends Component
 
         $consumed = \Illuminate\Support\Facades\DB::transaction(function () use ($user) {
             $profile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->first();
-            if (!$profile || !$profile->is_active || $profile->energy_balance <= 0) {
+            if (!$profile || !$profile->is_active) {
+                return false;
+            }
+
+            $gameService = app(GamificationService::class);
+            $gameService->refillEnergyIfDue($profile, $this->maxEnergy);
+
+            if ($profile->energy_balance <= 0) {
                 return false;
             }
 
@@ -312,7 +316,6 @@ class GameGamesComponent extends Component
             $profile->energy_balance -= 1;
             $profile->save();
 
-            $gameService = app(GamificationService::class);
             $gameService->incrementTitleProgress($profile, 'spieler');
             return true;
         });
@@ -327,6 +330,7 @@ class GameGamesComponent extends Component
                 ]
             ]);
 
+            $this->updateEnergyState();
             $this->dispatch('energy-updated');
             return true;
         }
@@ -378,11 +382,18 @@ class GameGamesComponent extends Component
                 }
                 $profile->funken_balance += $safeAmount;
                 $profile->funken_total_earned += $safeAmount;
+                $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
+                $progress['funkenkoenig'] = (int) $profile->funken_total_earned;
+                $profile->titles_progress = $progress;
                 $profile->save();
                 return true;
             });
 
             if ($awarded) {
+                $freshProfile = CustomerGamification::where('customer_id', $user->id)->first();
+                if ($freshProfile) {
+                    $this->balance = $freshProfile->funken_balance;
+                }
                 $this->dispatch('sparks-awarded');
             }
         }
@@ -438,6 +449,9 @@ class GameGamesComponent extends Component
             if ($safeSparks > 0) {
                 $lockedProfile->funken_balance += $safeSparks;
                 $lockedProfile->funken_total_earned += $safeSparks;
+                $progress = is_array($lockedProfile->titles_progress) ? $lockedProfile->titles_progress : [];
+                $progress['funkenkoenig'] = (int) $lockedProfile->funken_total_earned;
+                $lockedProfile->titles_progress = $progress;
             }
 
             if ($safeDistance > ($lockedProfile->funkenflug_highscore ?? 0)) {
@@ -450,6 +464,7 @@ class GameGamesComponent extends Component
 
         if ($profile) {
             if ($safeSparks > 0) {
+                $this->balance = $profile->funken_balance;
                 $this->dispatch('sparks-awarded');
             }
 

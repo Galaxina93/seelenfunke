@@ -205,6 +205,8 @@
             </div>
         </a>
     </div>
+
+    <livewire:customer.gamification.game-spark-hunt-component />
 @endif
 
 @livewireScripts
@@ -275,19 +277,20 @@
             },
 
             handleLevelUp(data) {
+                const payload = Array.isArray(data) ? (data[0] || {}) : (data || {});
                 this.open3DModal();
                 setTimeout(() => {
                     this.evolutionFlash = true;
                     setTimeout(() => {
-                        this.currentPath = data.newModelPath;
-                        this.currentImagePath = data.newImagePath;
+                        if (payload.newModelPath) this.currentPath = payload.newModelPath;
+                        if (payload.newImagePath) this.currentImagePath = payload.newImagePath;
 
                         let flashFinished = false;
                         const finishFlash = () => {
                             if (flashFinished) return;
                             flashFinished = true;
                             this.evolutionFlash = false;
-                            this.rewardMessage = data.reward || 'Neue Form freigeschaltet!';
+                            this.rewardMessage = payload.reward || 'Neue Form freigeschaltet!';
                             this.showConfetti = true;
                             setTimeout(() => { this.showConfetti = false; }, 4000);
                         };

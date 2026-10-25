@@ -32,12 +32,12 @@ class GameGlobalStatsHeader extends Component
     #[Locked]
     public $isMaxLevel = false;
     #[Locked]
-    public $nextVoucherLevel = 5;
+    public $nextVoucherLevel = 3;
     #[Locked]
     public $hasOptedIn = false;
 
     #[Locked]
-    public array $voucherMilestones = [5, 10, 15, 20, 30, 40, 50, 60, 80];
+    public array $voucherMilestones = [3, 5, 8, 10];
 
     public function mount(GamificationService $gameService)
     {
@@ -65,13 +65,7 @@ class GameGlobalStatsHeader extends Component
         $this->hasOptedIn = true;
 
         // Energie Refill Check (Alle 3 Stunden, nur wenn Energie unter Maximum)
-        $now = Carbon::now();
-        $lastRefill = $profile->last_energy_refill_at ? Carbon::parse($profile->last_energy_refill_at) : null;
-        if ($profile->energy_balance < $this->maxEnergy && (!$lastRefill || $lastRefill->diffInHours($now, false) >= 3)) {
-            $profile->energy_balance = $this->maxEnergy;
-            $profile->last_energy_refill_at = $now;
-            $profile->save();
-        }
+        $gameService->refillEnergyIfDue($profile, $this->maxEnergy);
 
         $this->level = $profile->level ?? 1;
         $this->balance = $profile->funken_balance;

@@ -520,6 +520,13 @@ class OrderOrder extends Model
             // --- HERZENSPROJEKT: AUTOMATISCHER BEITRAG IN DEN SPENDENTOPF ---
             \App\Services\HerzensprojektService::recordDonationForOrder($order);
 
+            // --- GAMIFICATION: SEELENFUNKEN & BESTELL-TITEL GUTSCHREIBEN ---
+            try {
+                app(\App\Services\Gamification\GamificationService::class)->rewardOrderFunken($order);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Gamification order reward error: ' . $e->getMessage());
+            }
+
             // --- DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
             \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
         });
@@ -637,6 +644,15 @@ class OrderOrder extends Model
             app(\App\Services\ReferralService::class)->reverseOrderReferralReward($this);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Referral reward reversal error: ' . $e->getMessage());
+        }
+
+        // 6. Gamification: Gutgeschriebene Seelenfunken & Bestell-Titel bei Storno/Erstattung korrigieren
+        if ($wasPaid && !$alreadyCancelledOrRefunded) {
+            try {
+                app(\App\Services\Gamification\GamificationService::class)->reverseOrderFunken($this);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Gamification order reversal error: ' . $e->getMessage());
+            }
         }
     }
 

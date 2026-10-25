@@ -32,13 +32,22 @@ class GameGlobalRankingComponent extends Component
     {
         $user = Auth::guard('customer')->user();
         if (!$user) return;
-        $profile = CustomerGamification::where('customer_id', $user->id)->first();
+        $profile = CustomerGamification::firstOrCreate(
+            ['customer_id' => $user->id],
+            [
+                'is_active' => true,
+                'energy_balance' => 5,
+                'level' => 1,
+                'active_title' => null,
+            ]
+        );
 
-        if ($profile) {
-            $profile->update(['ranking_opt_in' => true]);
-            $this->hasOptedIn = true;
-            $this->dispatch('notify', ['type' => 'success', 'message' => 'Willkommen in der Halle der Legenden!']);
-        }
+        $profile->update([
+            'is_active' => true,
+            'ranking_opt_in' => true,
+        ]);
+        $this->hasOptedIn = true;
+        $this->dispatch('notify', ['type' => 'success', 'message' => 'Willkommen in der Halle der Legenden!']);
     }
 
     public function updatedActiveTab($val): void
@@ -104,28 +113,19 @@ class GameGlobalRankingComponent extends Component
     public function getActiveTitleName(CustomerGamification $profile): string
     {
         $activeKey = $profile->active_title;
-        if (!$activeKey) {
-            return $this->getRankName($profile->level);
-        }
-
-        if ($activeKey === 'mega_title') {
-            $diamondsCount = $this->calculateDiamondsCount($profile);
-            $megaTitles = \App\Services\Gamification\GameConfig::getMegaTitles();
-            $currentMegaTitle = $megaTitles[0];
-            foreach ($megaTitles as $mega) {
-                if ($diamondsCount >= $mega['req']) {
-                    $currentMegaTitle = $mega;
-                }
-            }
-            return $currentMegaTitle['name'];
-        }
-
         $titlesConfig = \App\Services\Gamification\GameConfig::getTitles();
-        if (isset($titlesConfig[$activeKey])) {
+
+        if ($activeKey && isset($titlesConfig[$activeKey])) {
             $config = $titlesConfig[$activeKey];
             $progress = $profile->titles_progress ?? [];
-            $currentValue = $progress[$activeKey] ?? 0;
-            
+            $currentValue = (int) floor((float) ($progress[$activeKey] ?? 0));
+
+            if ($activeKey === 'funkenkoenig') {
+                $currentValue = max($currentValue, (int) ($profile->funken_total_earned ?? 0));
+            } elseif ($activeKey === 'treue_seele' && $profile->customer?->created_at) {
+                $currentValue = max($currentValue, (int) floor($profile->customer->created_at->diffInDays(now())));
+            }
+
             $currentTier = 'grau';
             if ($currentValue >= $config['tiers']['diamant']['req']) {
                 $currentTier = 'diamant';
@@ -140,30 +140,6 @@ class GameGlobalRankingComponent extends Component
             }
         }
 
-        return $this->getRankName($profile->level);
-    }
-
-    private function calculateDiamondsCount(CustomerGamification $profile): int
-    {
-        $progress = $profile->titles_progress ?? [];
-        $configs = \App\Services\Gamification\GameConfig::getTitles();
-        $diamonds = 0;
-        foreach ($configs as $key => $config) {
-            $val = $progress[$key] ?? 0;
-            if ($val >= $config['tiers']['diamant']['req']) {
-                $diamonds++;
-            }
-        }
-        return $diamonds;
-    }
-
-    private function getRankName(int $level): string
-    {
-        if ($level >= 10) return 'Seelengott';
-        if ($level >= 8) return 'Meister';
-        if ($level >= 6) return 'Kunsthandwerker';
-        if ($level >= 4) return 'Lehrling';
-        if ($level >= 2) return 'Helfer';
-        return 'Funken-Novize';
+        return 'Kein Rang';
     }
 }

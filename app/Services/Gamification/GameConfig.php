@@ -37,7 +37,6 @@ class GameConfig
     public static function getMegaTitles(): array
     {
         return [
-            ['req' => 0,  'name' => 'Ein Funke im Wind'],
             ['req' => 1,  'name' => 'Eine Art große Sache'],
             ['req' => 3,  'name' => 'Die Leute kennen mich'],
             ['req' => 5,  'name' => 'Rechte Hand eines Engels'],
