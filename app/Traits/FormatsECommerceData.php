@@ -205,9 +205,9 @@ trait FormatsECommerceData
 
         $shippingLabel = 'Versandkosten';
         if ($hasPostalVoucher && !$hasStandardPhysical) {
-            $shippingLabel = 'Versandkosten (✉️ Per Post im Umschlag)';
+            $shippingLabel = 'Versandkosten (Per Post im Umschlag)';
         } elseif ($hasPostalVoucher && $hasStandardPhysical) {
-            $shippingLabel = 'Versandkosten (inkl. ✉️ Gutschein per Post)';
+            $shippingLabel = 'Versandkosten (inkl. Gutschein per Post)';
         }
 
         if ($actualShippingGross > 0 && !$isSmallBusiness) {

@@ -158,7 +158,7 @@
 
 {{-- ARTIKELLISTE & PREISE --}}
 @include('global.mails.partials.mail_item_list', ['data' => $data, 'isPdf' => true])
-@include('global.mails.partials.mail_price_list', ['data' => $data])
+@include('global.mails.partials.mail_price_list', ['data' => $data, 'isPdf' => true])
 
 
 {{-- [NEU] INTELLIGENTE ZAHLUNGS-INFO BOX --}}

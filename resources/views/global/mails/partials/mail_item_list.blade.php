@@ -206,11 +206,11 @@
                                     <strong style="color: #444;">Zustellung:</strong>
                                     @if($voucherDelivery === 'post')
                                         <span style="color: #b45309; font-weight: bold;">
-                                            ✉️ Per Post im Umschlag (zzgl. {{ number_format($voucherSurchargeCents / 100, 2, ',', '.') }} € Versand)
+                                            {{ !empty($isPdf) ? '' : '✉️ ' }}Per Post im Umschlag (zzgl. {{ number_format($voucherSurchargeCents / 100, 2, ',', '.') }} € Versand)
                                         </span>
                                     @else
                                         <span style="color: #047857; font-weight: bold;">
-                                            📧 Per E-Mail / PDF-Download (Versandkostenfrei)
+                                            {{ !empty($isPdf) ? '' : '📧 ' }}Per E-Mail / PDF-Download (Versandkostenfrei)
                                         </span>
                                         @if(!empty($conf['recipient_email']))
                                             <span style="color: #6b7280;">({{ $conf['recipient_email'] }})</span>
@@ -223,7 +223,7 @@
                         {{-- HINWEIS FÜR STANDARD PRODUKTE (Nicht bei Geschenkgutscheinen anzeigen) --}}
                         @if(empty($conf['is_gift_voucher']) && isset($item['is_personalizable']) && $item['is_personalizable'] === false)
                              <div style="margin-top: 8px; font-style: italic; color: #166534; font-size: 10px;">
-                                 ✓ Handgefertigter Standard-Artikel<br>
+                                 {{ !empty($isPdf) ? '•' : '✓' }} Handgefertigter Standard-Artikel<br>
                                  <span style="font-size: 9px; color: #78716c;">(Keine Personalisierung durch Kunden vorgesehen.)</span>
                              </div>
                         @endif

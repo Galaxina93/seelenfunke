@@ -127,7 +127,7 @@
                 $data['express_cost'] = (int)round((float)str_replace(['.', ','], ['', '.'], $expressStr) * 100);
             }
             if (!empty($summaryData['has_postal_voucher'])) {
-                $data['shipping_label'] = ($summaryData['shipping_label'] ?? '') === 'Versandkosten (✉️ Per Post im Umschlag)'
+                $data['shipping_label'] = ($summaryData['shipping_label'] ?? '') === 'Versandkosten (Per Post im Umschlag)'
                     ? 'Versand (✉️ Per Post im Umschlag)'
                     : 'Versand (inkl. ✉️ Gutschein per Post)';
             }

@@ -260,7 +260,7 @@
     @include('global.mails.partials.mail_item_list', ['data' => $data, 'isPdf' => true])
 
     {{-- PREISAUFSTELLUNG --}}
-    @include('global.mails.partials.mail_price_list', ['data' => $data])
+    @include('global.mails.partials.mail_price_list', ['data' => $data, 'isPdf' => true])
 
     <div class="clear"></div>
 

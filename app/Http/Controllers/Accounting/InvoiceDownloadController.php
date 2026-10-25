@@ -60,6 +60,12 @@ class InvoiceDownloadController extends Controller
                 && (str_starts_with($storagePath, 'buchhaltung/invoices/') || str_starts_with($storagePath, 'invoices/'))
                 && !is_link(\Illuminate\Support\Facades\Storage::disk('local')->path($storagePath))
             ) {
+                // Selbstheilung für Gutschein-Rechnungen, deren Archiv-PDF vor dem Emoji-Font-Fix generiert wurde
+                $hasVoucherItem = $invoice->order && $invoice->order->items->contains(fn ($i) => !empty($i->configuration['is_gift_voucher']));
+                if ($hasVoucherItem) {
+                    $service->storePdf($invoice);
+                }
+
                 return \Illuminate\Support\Facades\Storage::disk('local')->download($storagePath, $filename);
             }
         }
