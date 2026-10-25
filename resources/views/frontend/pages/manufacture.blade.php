@@ -47,7 +47,7 @@
                                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                                 <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                             </span>
-                            <span class="uppercase tracking-wider">The Heartbeat of Seelenfunke</span>
+                            <span class="uppercase tracking-wider">Mein Traum!</span>
                         </div>
 
                         <h2 id="founder-heading" class="text-4xl lg:text-5xl font-serif font-bold text-gray-900 mb-6 leading-tight">
@@ -147,21 +147,35 @@
         </section>
 
         {{--
-            SECTION 1: HERO (Dunkel & Edel)
+            SECTION 1: HERO (Dunkel & Edel mit warmem Manufaktur-Hintergrundbild)
             Fokus auf das Team und Technik.
         --}}
-        <section class="relative bg-gray-900 pt-32 pb-20 lg:pt-40 lg:pb-28 overflow-hidden" aria-label="Einführung Manufaktur">
-            {{-- Hintergrund-Element --}}
-            <div class="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" aria-hidden="true"></div>
+        <section class="relative bg-gray-950 border-y border-gray-800/80 pt-32 pb-24 lg:pt-40 lg:pb-32 overflow-hidden" aria-label="Einführung Manufaktur">
+            {{-- Hintergrundbild: Wo Licht auf Materie trifft --}}
+            <img src="{{ asset('shop/frontend/banners/manufaktur_licht_materie.webp') }}"
+                 alt="Wo Licht auf Materie trifft – Laserstrahl trifft auf K9 Kristallglas in der Manufaktur"
+                 loading="lazy"
+                 decoding="async"
+                 data-is-ai-generated="true"
+                 class="absolute inset-0 w-full h-full object-cover object-center opacity-85 pointer-events-none select-none transition-opacity duration-700">
 
-            <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                <span class="text-primary font-bold tracking-widest uppercase text-sm mb-4 block">
+            {{-- Warmer Abdunklungs-Verlauf für optimalen Textkontrast --}}
+            <div class="absolute inset-0 bg-gradient-to-b from-gray-950/70 via-gray-950/45 to-gray-950/85 pointer-events-none" aria-hidden="true"></div>
+            <div class="absolute inset-0 bg-amber-500/10 blur-[110px] rounded-full w-[520px] h-[520px] mx-auto opacity-30 pointer-events-none" aria-hidden="true"></div>
+
+            {{-- KI-generiert Hinweis unten rechts --}}
+            <span class="pointer-events-none select-none absolute bottom-3 right-4 z-20 bg-black/55 backdrop-blur-sm text-white/85 text-[9px] font-semibold tracking-wider px-2 py-0.5 rounded-md border border-white/15 shadow-sm">
+                KI-generiert
+            </span>
+
+            <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <span class="text-primary font-bold tracking-[0.2em] uppercase text-xs sm:text-sm mb-4 block drop-shadow">
                     Made in Germany
                 </span>
-                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-white leading-tight mb-6">
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-serif font-bold text-white leading-tight mb-6 drop-shadow-lg">
                     Wo Licht auf <span class="text-primary">Materie</span> trifft.
                 </h1>
-                <p class="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+                <p class="text-lg sm:text-xl text-gray-200 max-w-3xl mx-auto leading-relaxed drop-shadow">
                     Qualität entsteht nicht durch Zufall. Sie ist das Ergebnis von hochwertigen Rohstoffen,
                     modernster <strong>Lasertechnologie</strong> und unserer gemeinsamen Leidenschaft für das Detail.
                     Willkommen in unserer Manufaktur in Gifhorn.
@@ -321,22 +335,22 @@
 
                         {{-- TROS Info als Accordion --}}
                         <div x-data="{ open: false }" class="bg-white border border-gray-200 rounded-2xl max-w-3xl mx-auto shadow-sm overflow-hidden">
-                            <button @click="open = !open" 
+                            <button @click="open = !open"
                                     class="w-full px-6 py-4 flex items-center justify-between text-left focus:outline-none focus:bg-stone-50 hover:bg-stone-50 transition-colors gap-4 cursor-pointer">
                                 <strong class="text-gray-900 font-bold text-sm sm:text-base">Was bedeutet TROS? Oberfläche oder echtes Handwerk?</strong>
-                                <svg class="w-5 h-5 text-gray-400 transform transition-transform duration-300 flex-shrink-0" 
-                                     :class="{'rotate-180': open}" 
+                                <svg class="w-5 h-5 text-gray-400 transform transition-transform duration-300 flex-shrink-0"
+                                     :class="{'rotate-180': open}"
                                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
-                            
-                            <div x-show="open" 
+
+                            <div x-show="open"
                                  x-collapse
                                  x-cloak
                                  class="px-6 pb-6 text-sm text-gray-600 text-left leading-relaxed">
                                 <div class="pt-3 border-t border-gray-100 mt-2">
-                                    Die Qualifikation nach <strong class="text-gray-900 font-bold">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4. 
+                                    Die Qualifikation nach <strong class="text-gray-900 font-bold">TROS</strong> <em>(Technische Regeln zur Arbeitsschutzverordnung zu künstlicher optischer Strahlung)</em> belegt unsere strikte Einhaltung der strengen deutschen Richtlinien im Umgang mit hochkomplexen Lasersystemen der Industrieklasse 4.
                                     <br><br>
                                     Diese staatlich anerkannte Fachkunde untermauert, dass wir unsere Produkte nicht einfach im Hobbykeller "bedrucken", sondern unter hochprofessionellen, sicheren Industriebedingungen veredeln. Für dich bedeutet das: Dein Unikat entsteht in einer rechtssicheren Manufaktur, bei der Arbeitsschutz, technische Präzision und tiefes Fachwissen die absolute Grundlage bilden.
                                 </div>
@@ -468,7 +482,7 @@
     </x-sections.page-container>
 
     <!-- Modal Backdrop -->
-    <div x-show="showCertModal" 
+    <div x-show="showCertModal"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
@@ -478,9 +492,9 @@
          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
          x-cloak
          style="display: none;">
-        
+
         <!-- Modal Container -->
-        <div @click.away="showCertModal = false" 
+        <div @click.away="showCertModal = false"
              x-show="showCertModal"
              x-transition:enter="transition ease-out duration-300 transform scale-95 opacity-0"
              x-transition:enter-start="scale-95 opacity-0"
@@ -489,7 +503,7 @@
              x-transition:leave-start="scale-100 opacity-100"
              x-transition:leave-end="scale-95 opacity-0"
              class="relative w-full max-w-5xl h-[85vh] bg-white border border-gray-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-            
+
             <!-- Modal Header -->
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-stone-50/80">
                 <div class="flex items-center gap-3">
@@ -502,15 +516,15 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}" 
-                       target="_blank" 
+                    <a href="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}"
+                       target="_blank"
                        class="px-3 py-1.5 bg-white hover:bg-stone-100 text-gray-800 text-xs font-bold rounded-lg border border-gray-300 transition-colors flex items-center gap-1.5 shadow-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                         </svg>
                         <span>Vollbild / Herunterladen</span>
                     </a>
-                    <button @click="showCertModal = false" 
+                    <button @click="showCertModal = false"
                             class="p-1.5 bg-white hover:bg-stone-100 text-gray-500 hover:text-gray-900 rounded-lg border border-gray-300 transition-colors shadow-sm cursor-pointer">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -518,11 +532,11 @@
                     </button>
                 </div>
             </div>
-            
+
             <!-- Modal Content (PDF Embed / Iframe) -->
             <div class="flex-1 bg-stone-100 relative">
-                <iframe src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}#toolbar=0" 
-                        class="w-full h-full border-0" 
+                <iframe src="{{ asset('shop/frontend/certificates/Laserschutzbeauftragte_Zertifikat_Alina_Steinhauer.pdf') }}#toolbar=0"
+                        class="w-full h-full border-0"
                         title="Laserschutzbeauftragte Zertifikat PDF">
                     <div class="text-gray-500 p-8 text-center flex flex-col items-center justify-center h-full">
                         <p class="mb-4">Ihr Browser unterstützt die direkte PDF-Vorschau nicht.</p>
