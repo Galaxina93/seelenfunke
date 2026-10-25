@@ -104,6 +104,73 @@ class ProductAttributes extends Component
         $this->saveToProduct();
     }
 
+    public function toggleVariantAttribute(string $name): void
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return;
+        }
+
+        $this->product->refresh();
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $excluded = is_array($settings['excluded_variant_attributes'] ?? null) ? $settings['excluded_variant_attributes'] : [];
+        $included = is_array($settings['included_variant_attributes'] ?? null) ? $settings['included_variant_attributes'] : [];
+        $defaultInfoOnlyKeys = ['Gewicht', 'Lieferzeit', 'Auslieferung', 'Sprache', 'Seiten', 'Dauer', 'Ort', 'Experte'];
+
+        $currentlyActive = $this->isVariantAttribute($name);
+
+        if ($currentlyActive) {
+            if (!in_array($name, $excluded, true)) {
+                $excluded[] = $name;
+            }
+            $included = array_values(array_diff($included, [$name]));
+        } else {
+            $excluded = array_values(array_diff($excluded, [$name]));
+            if (in_array($name, $defaultInfoOnlyKeys, true) && !in_array($name, $included, true)) {
+                $included[] = $name;
+            }
+        }
+
+        $settings['excluded_variant_attributes'] = array_values(array_unique($excluded));
+        $settings['included_variant_attributes'] = array_values(array_unique($included));
+
+        $this->product->configurator_settings = $settings;
+        $this->product->save();
+        $this->dispatch('product-updated');
+    }
+
+    public function isVariantAttribute(string $name): bool
+    {
+        $val = $this->productAttributes[$name] ?? '';
+        if (!is_scalar($val) || trim((string) $val) === '') {
+            return false;
+        }
+
+        $options = array_values(array_unique(array_filter(
+            array_map('trim', explode(',', (string) $val)),
+            fn ($v) => $v !== ''
+        )));
+
+        if (count($options) < 2) {
+            return false;
+        }
+
+        $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        $excluded = is_array($settings['excluded_variant_attributes'] ?? null) ? $settings['excluded_variant_attributes'] : [];
+        $included = is_array($settings['included_variant_attributes'] ?? null) ? $settings['included_variant_attributes'] : [];
+        $defaultInfoOnlyKeys = ['Gewicht', 'Lieferzeit', 'Auslieferung', 'Sprache', 'Seiten', 'Dauer', 'Ort', 'Experte'];
+
+        if (in_array($name, $excluded, true)) {
+            return false;
+        }
+
+        if (in_array($name, $defaultInfoOnlyKeys, true) && !in_array($name, $included, true)) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function saveToProduct()
     {
         $sanitized = [];
@@ -123,6 +190,7 @@ class ProductAttributes extends Component
         // Speichere das Array direkt in das Produkt Model
         $this->product->attributes = $this->productAttributes;
         $this->product->save();
+        $this->dispatch('product-updated');
     }
 
     // --- VERWALTUNGS LOGIK (CRUD) ---

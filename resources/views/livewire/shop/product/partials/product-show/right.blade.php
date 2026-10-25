@@ -9,7 +9,10 @@
             {{-- Preis --}}
             <div class="flex flex-col">
                 <div class="flex items-baseline gap-3 flex-wrap">
-                    <span class="text-2xl font-bold text-[var(--theme-color)] transition-all">
+                    <span x-data="{ displayPrice: '{{ number_format($this->product->price / 100, 2, ',', '.') }} €' }"
+                          @variant-selected.window="if ($event.detail && $event.detail.formattedPrice) { displayPrice = $event.detail.formattedPrice; }"
+                          x-text="displayPrice"
+                          class="text-2xl font-bold text-[var(--theme-color)] transition-all">
                         {{ number_format($this->product->price / 100, 2, ',', '.') }} €
                     </span>
                     @if($this->product->compare_at_price > $this->product->price)

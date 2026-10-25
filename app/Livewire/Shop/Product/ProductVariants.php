@@ -5,6 +5,7 @@ namespace App\Livewire\Shop\Product;
 use App\Models\Product\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class ProductVariants extends Component
@@ -30,33 +31,24 @@ class ProductVariants extends Component
 
         $this->product = $product;
         // Wir laden die Varianten aus dem Product-Model.
-        // Falls du eine eigene Tabelle dafür hast, lade sie von dort.
-        // Als "bombproof" Standalone-Lösung speichere ich es in eine JSON-Eigenschaft oder nutze einen Array-Cast am Model.
+        $this->variants = $this->product->variants_data ?? [];
+    }
+
+    #[On('product-updated')]
+    public function refreshProduct(): void
+    {
+        $this->product->refresh();
         $this->variants = $this->product->variants_data ?? [];
     }
 
     public function generateMatrix()
     {
-        // 1. Aktuelle Attribute aus dem Eltern-Produkt laden
-        $attributes = $this->product->refresh()->attributes ?? [];
-        $parsedAttributes = [];
+        // 1. Nur echte Varianten-Eigenschaften (mind. 2 kommagetrennte Optionen, nicht ausgeschlossen) laden
+        $parsedAttributes = $this->product->refresh()->getVariantAttributeOptions();
 
-        // 2. Werte bereinigen und aufteilen (Trenner: Komma)
-        foreach ($attributes as $key => $val) {
-            if (!empty($val)) {
-                // Teile am Komma, entferne Leerzeichen, filtere leere Einträge
-                $options = array_map('trim', explode(',', $val));
-                $options = array_filter($options);
-
-                if (count($options) > 0) {
-                    $parsedAttributes[$key] = $options;
-                }
-            }
-        }
-
-        // Falls keine parsebaren Eigenschaften existieren, abbrechen
+        // Falls keine parsebaren Varianten-Eigenschaften existieren, abbrechen
         if (empty($parsedAttributes)) {
-            session()->flash('variants_success', 'Keine kommagetrennten Eigenschaften gefunden.');
+            session()->flash('variants_error', 'Keine Varianten-Eigenschaften mit mehreren kommagetrennten Werten (z. B. "Silber, Gold") gefunden.');
             return;
         }
 
@@ -80,6 +72,7 @@ class ProductVariants extends Component
         // 4. Matrix mit bestehenden Daten zusammenführen (Overwriting verhindern)
         $newVariantsList = [];
         $baseSku = $this->product->sku ?: 'SKU';
+        $existingCollection = collect($this->variants);
 
         foreach ($combinations as $index => $combo) {
             // Signatur generieren, um die Variante eindeutig zu erkennen (z.B. "Farbe:Rot|Größe:M")
@@ -88,11 +81,33 @@ class ProductVariants extends Component
             $name = implode(' - ', $combo);
 
             // Prüfen, ob diese Kombination bereits in unseren Varianten existiert
-            $existingVariant = collect($this->variants)->firstWhere('signature', $signature);
+            $existingVariant = $existingCollection->firstWhere('signature', $signature);
+
+            // Smart-Fallback: Falls zuvor Einzel-Attribute in der Signatur steckten, über Teil-Attribute oder Namen matchen
+            if (!$existingVariant) {
+                $existingVariant = $existingCollection->first(function ($v) use ($combo, $name) {
+                    if (!is_array($v)) {
+                        return false;
+                    }
+                    if (($v['name'] ?? '') === $name) {
+                        return true;
+                    }
+                    $vAttrs = is_array($v['attributes'] ?? null) ? $v['attributes'] : [];
+                    if (empty($vAttrs)) {
+                        return false;
+                    }
+                    foreach ($combo as $ck => $cv) {
+                        if (($vAttrs[$ck] ?? null) !== $cv) {
+                            return false;
+                        }
+                    }
+                    return true;
+                });
+            }
 
             if ($existingVariant) {
-                // Behalte bestehende Usereingaben bei
-                $newVariantsList[] = [
+                // Behalte bestehende Usereingaben (inkl. ID, Preis, Bestand, SKU) bei
+                $newVariantsList[] = array_merge($existingVariant, [
                     'id' => $existingVariant['id'] ?? Str::uuid()->toString(),
                     'signature' => $signature,
                     'name' => $name,
@@ -101,7 +116,7 @@ class ProductVariants extends Component
                     'price' => $existingVariant['price'] ?? '',
                     'stock' => $existingVariant['stock'] ?? '',
                     'is_active' => $existingVariant['is_active'] ?? true,
-                ];
+                ]);
             } else {
                 // Komplett neue Variante anlegen
                 $newVariantsList[] = [

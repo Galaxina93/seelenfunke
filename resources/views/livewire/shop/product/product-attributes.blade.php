@@ -106,9 +106,28 @@
                                             </button>
                                         </div>
                                         @if($key !== 'Gewicht')
-                                            <p class="text-[9px] font-medium text-gray-500 mt-2 ml-1">
-                                                Tipp für Varianten: Trenne Optionen mit Komma (z.B. <span class="text-[var(--theme-color)] font-bold">Rot, Blau, Grün</span>)
-                                            </p>
+                                            @php
+                                                $parsedOpts = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) $value)), fn($v) => $v !== '')));
+                                                $hasMultipleOpts = count($parsedOpts) >= 2;
+                                                $isVarAttr = $hasMultipleOpts && $this->isVariantAttribute($key);
+                                            @endphp
+                                            <div class="flex flex-wrap items-center justify-between gap-2 mt-2 ml-1">
+                                                <p class="text-[9px] font-medium text-gray-500">
+                                                    Tipp für Varianten: Trenne Optionen mit Komma (z.B. <span class="text-[var(--theme-color)] font-bold">Rot, Blau</span>)
+                                                </p>
+                                                @if($hasMultipleOpts)
+                                                    <button type="button"
+                                                            wire:click="toggleVariantAttribute('{{ addslashes($key) }}')"
+                                                            class="px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest border transition-all cursor-pointer flex items-center gap-1 {{ $isVarAttr ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' : 'bg-gray-100 dark:bg-gray-900 text-gray-500 border-gray-200 dark:border-gray-800 hover:text-gray-800 dark:hover:text-gray-300' }}"
+                                                            title="Klicken, um zu steuern, ob dieses Feld bei 'Matrix generieren' Varianten bildet oder nur als Info-Text angezeigt wird">
+                                                        @if($isVarAttr)
+                                                            <span>✓ Bildet {{ count($parsedOpts) }} Varianten</span>
+                                                        @else
+                                                            <span>Nur Info-Text (Nicht in Matrix)</span>
+                                                        @endif
+                                                    </button>
+                                                @endif
+                                            </div>
                                         @endif
                                     </div>
                                 @endforeach

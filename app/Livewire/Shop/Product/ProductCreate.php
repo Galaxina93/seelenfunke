@@ -186,8 +186,15 @@ class ProductCreate extends Component
     #[On('product-updated')]
     public function refreshProduct()
     {
-        // Lädt das Model neu aus der DB
+        // Lädt das Model neu aus der DB und hält Attribute & Varianten-Einstellungen synchron
         $this->product->refresh();
+        $this->productAttributes = array_merge($this->productAttributes, $this->product->attributes ?? []);
+        $freshSettings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
+        foreach (['excluded_variant_attributes', 'included_variant_attributes'] as $syncKey) {
+            if (array_key_exists($syncKey, $freshSettings)) {
+                $this->configSettings[$syncKey] = $freshSettings[$syncKey];
+            }
+        }
     }
 
     // --- LIVE UPDATES ---
@@ -427,6 +434,7 @@ class ProductCreate extends Component
         if($prod) {
             $prod->status = $newStatus;
             $prod->save();
+            \App\Models\Marketing\MarketingLandingPage::syncForProduct($prod);
         }
     }
 
@@ -518,6 +526,11 @@ class ProductCreate extends Component
             'status' => 'active',
             'completion_step' => $this->totalSteps
         ]);
+
+        $lp = \App\Models\Marketing\MarketingLandingPage::syncForProduct($this->product);
+        if ($lp && $lp->status !== 'active') {
+            $lp->update(['status' => 'active']);
+        }
 
         session()->flash('success', 'Produkt veröffentlicht!');
         $this->backToList();
@@ -619,6 +632,7 @@ class ProductCreate extends Component
         }
 
         $this->product->save();
+        \App\Models\Marketing\MarketingLandingPage::syncForProduct($this->product);
 
         if($notify) session()->flash('success', 'Produkt gespeichert.');
     }
@@ -1073,6 +1087,31 @@ class ProductCreate extends Component
             $gallery[$index]['is_ai_generated'] = !$current;
             $this->product->media_gallery = $gallery;
             $this->product->save();
+        }
+    }
+
+    public function updateMediaVariantBinding(int $index, string $binding): void
+    {
+        if (!isset($this->product) || !$this->product->exists) {
+            return;
+        }
+
+        $binding = trim($binding);
+        if ($binding !== '' && !str_starts_with($binding, 'attr:') && !str_starts_with($binding, 'var:')) {
+            return;
+        }
+        $binding = mb_substr($binding, 0, 160);
+
+        $gallery = $this->product->media_gallery ?? [];
+        if (isset($gallery[$index]) && is_array($gallery[$index])) {
+            if ($binding === '') {
+                unset($gallery[$index]['variant_binding']);
+            } else {
+                $gallery[$index]['variant_binding'] = $binding;
+            }
+            $this->product->media_gallery = $gallery;
+            $this->product->save();
+            $this->dispatch('product-updated');
         }
     }
 

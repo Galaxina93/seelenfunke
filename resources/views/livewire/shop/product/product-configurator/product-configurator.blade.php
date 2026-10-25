@@ -213,6 +213,9 @@
                 <div class="hidden md:flex items-center gap-2 max-w-xs">
                     <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 shrink-0">Ausführung:</span>
                     <select wire:model.live="variantId" class="text-xs font-bold rounded-xl border py-1.5 px-3 truncate outline-none cursor-pointer {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
+                        @if($context === 'template_admin')
+                            <option value="" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">Alle Varianten (Allgemein)</option>
+                        @endif
                         @foreach($this->activeVariants as $variant)
                             <option value="{{ $variant['id'] }}" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">
                                 {{ $variant['name'] }}
@@ -318,13 +321,18 @@
         {{-- Varianten Auswahl ganz oben, VOR der Scroll-Area! (Nur in Normalansicht anzeigen) --}}
         @if(!empty($this->activeVariants) && $context !== 'preview')
             <div x-show="!isMaximized" class="px-6 pt-6 pb-2 w-full max-w-[600px] mx-auto shrink-0 z-50">
-                <label class="block text-[10px] font-black uppercase tracking-widest text-center mb-2 {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">Ausführung wählen</label>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-center mb-2 {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
+                    {{ $context === 'template_admin' ? 'Vorlage gilt für Ausführung / Variante' : 'Ausführung wählen' }}
+                </label>
                 <div class="relative">
                     <select wire:model.live="variantId" class="w-full rounded-2xl border p-3.5 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-primary focus:border-primary appearance-none cursor-pointer outline-none {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50 border-gray-200 text-gray-900' }}">
+                        @if($context === 'template_admin')
+                            <option value="" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">Alle Varianten (Allgemein / Standard)</option>
+                        @endif
                         @foreach($this->activeVariants as $variant)
                             <option value="{{ $variant['id'] }}" class="{{ $isDark ? 'bg-gray-900 text-white' : 'bg-white text-gray-900' }}">
                                 {{ $variant['name'] }}
-                                @if(!empty($variant['price']))
+                                @if(isset($variant['price']) && $variant['price'] !== '')
                                     @php
                                         $diff = (float)$variant['price'] - ($this->product->price / 100);
                                     @endphp

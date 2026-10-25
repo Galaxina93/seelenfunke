@@ -78,6 +78,27 @@ class ProductShow extends Component
             $config['template_name'] = $template->name;
             $this->currentConfig = $config;
             ProductTrackingService::trackTemplateSelected($this->product->id, $templateId, $template->name ?? $template->title ?? ('Vorlage #' . $templateId));
+
+            $tplVariantId = $config['variant_id'] ?? null;
+            $tplPriceCents = $this->product->price;
+            if ($tplVariantId) {
+                $matchedVar = collect($this->product->variants_data ?? [])->firstWhere('id', $tplVariantId);
+                if ($matchedVar && isset($matchedVar['price']) && $matchedVar['price'] !== '') {
+                    $tplPriceCents = (int) round((float) $matchedVar['price'] * 100);
+                }
+            }
+            $tplImgUrl = !empty($template->preview_image)
+                ? ProductTemplate::resolveImageUrl($template->preview_image)
+                : ($tplVariantId ? ($this->product->resolveVariantImageMeta($tplVariantId, $template->holiday ?: null)['url'] ?? null) : null);
+
+            $this->dispatch('variant-selected',
+                variantId: $tplVariantId,
+                variantName: $config['variant_name'] ?? null,
+                formattedPrice: number_format($tplPriceCents / 100, 2, ',', '.') . ' €',
+                imageUrl: $tplImgUrl,
+                imageIsAi: (bool) ($template->is_ai_generated ?? true),
+                imageLabel: $template->name
+            );
         } else {
             $this->currentConfig = [];
         }

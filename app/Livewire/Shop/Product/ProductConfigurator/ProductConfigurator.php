@@ -150,9 +150,9 @@ class ProductConfigurator extends Component
         $this->variantId = $source['variant_id'] ?? null;
         $this->variantName = $source['variant_name'] ?? null;
 
-        // Wenn noch keine Variante gewählt ist, aber es welche gibt, nimm die erste!
+        // Wenn noch keine Variante gewählt ist, aber es welche gibt, nimm die erste (außer im Vorlagen-Admin, wo leer = Alle Varianten gilt)!
         $variants = $this->activeVariants;
-        if (!$this->variantId && !empty($variants)) {
+        if (!$this->variantId && !empty($variants) && $this->context !== 'template_admin') {
             $firstKey = array_key_first($variants);
             $this->variantId = $variants[$firstKey]['id'];
             $this->variantName = $variants[$firstKey]['name'];
@@ -240,12 +240,20 @@ class ProductConfigurator extends Component
         $this->calculatePrice();
     }
 
-    // NEU: Holt die aktiven Varianten für den Dropdown
+    // NEU: Holt die aktiven (und im Frontend verfügbaren) Varianten für den Dropdown
     #[Computed]
     public function activeVariants()
     {
         $variants = $this->product->variants_data ?? [];
-        return array_filter($variants, function($v) {
+        $enforceStock = !in_array($this->context, ['template_admin', 'preview', 'order_edit'], true);
+
+        return array_filter($variants, function ($v) use ($enforceStock) {
+            if (!is_array($v)) {
+                return false;
+            }
+            if ($enforceStock) {
+                return $this->product->isVariantAvailable($v);
+            }
             return ($v['is_active'] ?? true) == true;
         });
     }
@@ -259,10 +267,24 @@ class ProductConfigurator extends Component
         if ($variant) {
             $this->variantName = $variant['name'];
         } else {
+            $this->variantId = null;
             $this->variantName = null;
         }
 
         $this->calculatePrice();
+
+        $variantMeta = $this->variantId
+            ? ($this->product->resolveVariantImageMeta($this->variantId) ?? $this->product->resolveMainImageMeta(null, true))
+            : $this->product->resolveMainImageMeta(null, true);
+
+        $this->dispatch('variant-selected',
+            variantId: $this->variantId,
+            variantName: $this->variantName,
+            formattedPrice: number_format($this->currentPrice / 100, 2, ',', '.') . ' €',
+            imageUrl: $variantMeta['url'] ?? null,
+            imageIsAi: (bool) ($variantMeta['is_ai_generated'] ?? false),
+            imageLabel: $variantMeta['label'] ?? null
+        );
     }
 
     public function messages()

@@ -410,7 +410,8 @@ class OrderOrder extends Model
             // --- LAGERBESTAND REDUZIEREN ---
             foreach ($order->items as $item) {
                 if ($item->product) {
-                    $item->product->reduceStock($item->quantity);
+                    $itemVariantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
+                    $item->product->reduceStock($item->quantity, $itemVariantId);
                 }
             }
 
@@ -546,7 +547,8 @@ class OrderOrder extends Model
             foreach ($this->items as $item) {
                 $isPersonalized = !empty($item->configuration) || ($item->product && $item->product->is_personalizable);
                 if (!$isPersonalized && $item->product) {
-                    $item->product->restoreStock($item->quantity);
+                    $itemVariantId = is_array($item->configuration) ? ($item->configuration['variant_id'] ?? null) : null;
+                    $item->product->restoreStock($item->quantity, $itemVariantId);
                 }
             }
         }

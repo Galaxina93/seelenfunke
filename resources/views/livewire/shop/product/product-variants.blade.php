@@ -39,6 +39,13 @@
         </div>
 
         <div x-show="open" x-collapse style="display: none;">
+            @if(session()->has('variants_error'))
+                <div class="mb-6 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 px-5 py-3 rounded-xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest shadow-inner">
+                    <svg class="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    {{ session('variants_error') }}
+                </div>
+            @endif
+
             @if(session()->has('variants_success'))
                 <div class="mb-6 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 px-5 py-3 rounded-xl flex items-center gap-3 text-[10px] font-black uppercase tracking-widest shadow-inner">
                     <svg class="w-5 h-5 dark:drop-shadow-[0_0_5px_currentColor]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -73,12 +80,26 @@
                         <div class="bg-gray-50 dark:bg-gray-950 p-5 rounded-[1.5rem] border border-gray-200 dark:border-gray-800 shadow-inner flex flex-col lg:grid lg:grid-cols-12 lg:items-center gap-4 lg:gap-6 group hover:border-gray-300 dark:hover:border-gray-700 transition-colors relative" wire:key="variant-{{ $index }}">
 
                             <div class="lg:col-span-4 flex justify-between items-start lg:block pr-12 lg:pr-0 min-w-0">
-                                <div class="min-w-0">
-                                    <div class="font-bold text-gray-900 dark:text-white text-base lg:text-sm truncate">{{ $variant['name'] }}</div>
-                                    <div class="flex flex-wrap gap-1.5 mt-2 lg:mt-1.5">
-                                        @foreach($variant['attributes'] ?? [] as $key => $val)
-                                            <span class="bg-white dark:bg-gray-900 px-2 py-1 rounded-md border border-gray-200 dark:border-gray-800 shadow-inner text-[9px] uppercase tracking-widest font-black text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{{ $key }}: <span class="text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]">{{ $val }}</span></span>
-                                        @endforeach
+                                @php
+                                    $resolvedVarImg = !empty($variant['id']) ? $product->resolveVariantImageMeta($variant['id']) : null;
+                                @endphp
+                                <div class="flex items-center gap-3 min-w-0">
+                                    @if(!empty($resolvedVarImg['url']))
+                                        <div class="w-11 h-11 rounded-xl overflow-hidden border border-[var(--theme-color-40)] bg-white dark:bg-gray-900 shrink-0 shadow-sm relative" title="Zugewiesenes Varianten-Bild: {{ $resolvedVarImg['label'] ?? $variant['name'] }}">
+                                            <img src="{{ $resolvedVarImg['url'] }}" class="w-full h-full object-cover" alt="{{ $variant['name'] }}">
+                                        </div>
+                                    @else
+                                        <div class="w-11 h-11 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white/50 dark:bg-gray-900/50 flex items-center justify-center text-gray-400 shrink-0" title="Nutzt Standard-Hauptbild (Zuweisung unter Schritt 2 'Medien' oder in Vorlagen möglich)">
+                                            <svg class="w-4 h-4 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        </div>
+                                    @endif
+                                    <div class="min-w-0">
+                                        <div class="font-bold text-gray-900 dark:text-white text-base lg:text-sm truncate">{{ $variant['name'] }}</div>
+                                        <div class="flex flex-wrap gap-1.5 mt-2 lg:mt-1.5">
+                                            @foreach($variant['attributes'] ?? [] as $key => $val)
+                                                <span class="bg-white dark:bg-gray-900 px-2 py-1 rounded-md border border-gray-200 dark:border-gray-800 shadow-inner text-[9px] uppercase tracking-widest font-black text-gray-600 dark:text-gray-400 truncate max-w-[120px]">{{ $key }}: <span class="text-[var(--theme-color)] dark:drop-shadow-[0_0_5px_currentColor]">{{ $val }}</span></span>
+                                            @endforeach
+                                        </div>
                                     </div>
                                 </div>
                             </div>

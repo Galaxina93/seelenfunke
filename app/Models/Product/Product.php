@@ -139,10 +139,161 @@ class Product extends Model
         return (bool) shop_setting('prices_entered_gross', true);
     }
 
-    public function reduceStock(int $amount): bool
+    /**
+     * Prüft, ob eine einzelne Produktvariante kaufbar / auf Lager ist.
+     */
+    public function isVariantAvailable(array $variant): bool
+    {
+        if (!filter_var($variant['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
+        if (!$this->track_quantity || $this->continue_selling_when_out_of_stock) {
+            return true;
+        }
+
+        if (isset($variant['stock']) && $variant['stock'] !== '' && $variant['stock'] !== null) {
+            return (int) $variant['stock'] > 0;
+        }
+
+        return true;
+    }
+
+    /**
+     * Liefert alle Varianten-bildenden Eigenschaften (nur Eigenschaften mit >= 2 kommagetrennten Werten,
+     * die nicht explizit von der Varianten-Matrix ausgeschlossen wurden).
+     *
+     * @return array<string, array<int, string>>
+     */
+    public function getVariantAttributeOptions(): array
+    {
+        $attributes = is_array($this->attributes) ? $this->attributes : [];
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $excluded = is_array($settings['excluded_variant_attributes'] ?? null) ? $settings['excluded_variant_attributes'] : [];
+        $included = is_array($settings['included_variant_attributes'] ?? null) ? $settings['included_variant_attributes'] : [];
+
+        $defaultInfoOnlyKeys = ['Gewicht', 'Lieferzeit', 'Auslieferung', 'Sprache', 'Seiten', 'Dauer', 'Ort', 'Experte'];
+
+        $parsed = [];
+        foreach ($attributes as $key => $val) {
+            if (!is_string($key) || empty($val) || !is_scalar($val)) {
+                continue;
+            }
+            if (in_array($key, $excluded, true)) {
+                continue;
+            }
+            if (in_array($key, $defaultInfoOnlyKeys, true) && !in_array($key, $included, true)) {
+                continue;
+            }
+
+            $options = array_values(array_unique(array_filter(
+                array_map('trim', explode(',', (string) $val)),
+                fn ($v) => $v !== ''
+            )));
+
+            // WICHTIG: Nur Eigenschaften mit mindestens 2 Optionen bilden Varianten!
+            if (count($options) > 1) {
+                $parsed[$key] = $options;
+            }
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * Liefert die auswählbaren Varianten-Zuordnungen für Produktbilder unter "Medien" (Schritt 2):
+     * - Gruppen nach Varianten-Eigenschaft (z. B. "attr:Farbe:Gold" => "Farbe: Gold")
+     * - Einzelne Varianten aus der Matrix (z. B. "var:{uuid}" => "Gold - M")
+     *
+     * @return array{groups: array<string, string>, variants: array<string, string>}
+     */
+    public function getMediaVariantBindingOptions(): array
+    {
+        $groups = [];
+        $variants = [];
+
+        $attrOptions = $this->getVariantAttributeOptions();
+
+        // Zusätzlich Attribute aus bereits gespeicherten Varianten berücksichtigen
+        foreach ($this->variants_data ?? [] as $v) {
+            if (!is_array($v)) {
+                continue;
+            }
+            foreach ($v['attributes'] ?? [] as $k => $val) {
+                if (is_string($k) && is_scalar($val) && trim((string) $val) !== '') {
+                    $attrOptions[$k] = array_values(array_unique(array_merge($attrOptions[$k] ?? [], [trim((string) $val)])));
+                }
+            }
+            if (!empty($v['id']) && !empty($v['name'])) {
+                $variants['var:' . $v['id']] = (string) $v['name'];
+            }
+        }
+
+        foreach ($attrOptions as $attrKey => $options) {
+            foreach ($options as $opt) {
+                $groups["attr:{$attrKey}:{$opt}"] = "{$attrKey}: {$opt}";
+            }
+        }
+
+        return [
+            'groups'   => $groups,
+            'variants' => $variants,
+        ];
+    }
+
+    /**
+     * Übersetzt einen gespeicherten variant_binding-String in ein lesbares Label.
+     */
+    public function resolveMediaVariantBindingLabel(?string $binding): ?string
+    {
+        if (!$binding || trim($binding) === '') {
+            return null;
+        }
+
+        if (str_starts_with($binding, 'attr:')) {
+            $rest = substr($binding, 5);
+            $parts = explode(':', $rest, 2);
+            return count($parts) === 2 ? "{$parts[0]}: {$parts[1]}" : $rest;
+        }
+
+        if (str_starts_with($binding, 'var:')) {
+            $varId = substr($binding, 4);
+            $variant = collect($this->variants_data ?? [])->firstWhere('id', $varId);
+            return $variant['name'] ?? null;
+        }
+
+        return null;
+    }
+
+    public function reduceStock(int $amount, ?string $variantId = null): bool
     {
         if ($amount <= 0) {
             return false;
+        }
+
+        // 1. Varianten-Bestand reduzieren, falls eine Variante mit eigenem Bestand gekauft wurde
+        if ($variantId && is_array($this->variants_data) && count($this->variants_data) > 0) {
+            $variants = $this->variants_data;
+            $variantUpdated = false;
+
+            foreach ($variants as $idx => $variant) {
+                if (($variant['id'] ?? null) === $variantId) {
+                    if (isset($variant['stock']) && $variant['stock'] !== '' && $variant['stock'] !== null) {
+                        $currentStock = (int) $variant['stock'];
+                        if ($this->track_quantity && !$this->continue_selling_when_out_of_stock && $currentStock < $amount) {
+                            return false;
+                        }
+                        $variants[$idx]['stock'] = max(0, $currentStock - $amount);
+                        $variantUpdated = true;
+                    }
+                    break;
+                }
+            }
+
+            if ($variantUpdated) {
+                $this->variants_data = $variants;
+                $this->saveQuietly();
+            }
         }
 
         if (!$this->track_quantity) {
@@ -165,10 +316,30 @@ class Product extends Model
         return (bool) $this->decrement('quantity', $amount);
     }
 
-    public function restoreStock(int $amount): void
+    public function restoreStock(int $amount, ?string $variantId = null): void
     {
         if ($amount <= 0) {
             return;
+        }
+
+        if ($variantId && is_array($this->variants_data) && count($this->variants_data) > 0) {
+            $variants = $this->variants_data;
+            $variantUpdated = false;
+
+            foreach ($variants as $idx => $variant) {
+                if (($variant['id'] ?? null) === $variantId) {
+                    if (isset($variant['stock']) && $variant['stock'] !== '' && $variant['stock'] !== null) {
+                        $variants[$idx]['stock'] = max(0, (int) $variant['stock'] + $amount);
+                        $variantUpdated = true;
+                    }
+                    break;
+                }
+            }
+
+            if ($variantUpdated) {
+                $this->variants_data = $variants;
+                $this->saveQuietly();
+            }
         }
 
         if ($this->track_quantity) {
@@ -176,9 +347,9 @@ class Product extends Model
         }
     }
 
-    public function increaseStock(int $amount): void
+    public function increaseStock(int $amount, ?string $variantId = null): void
     {
-        $this->restoreStock($amount);
+        $this->restoreStock($amount, $variantId);
     }
 
     // --- NEUE TYP-LOGIK ---
@@ -339,8 +510,9 @@ class Product extends Model
 
     /**
      * Findet die passende aktive Produktvorlage für das saisonale / Feiertags-Hauptbild.
+     * Optional kann nach einer spezifischen Produktvariante ($variantId) gefiltert werden.
      */
-    public function resolveSeasonalTemplate(?string $explicitHoliday = null, array $excludeImagePaths = []): ?ProductTemplate
+    public function resolveSeasonalTemplate(?string $explicitHoliday = null, array $excludeImagePaths = [], ?string $variantId = null): ?ProductTemplate
     {
         if ($explicitHoliday === null && !$this->isAutoSeasonalMainImageEnabled()) {
             return null;
@@ -352,6 +524,17 @@ class Product extends Model
 
         if ($activeTemplates->isEmpty()) {
             return null;
+        }
+
+        if ($variantId !== null && $variantId !== '') {
+            $activeTemplates = $activeTemplates->filter(function (ProductTemplate $tpl) use ($variantId) {
+                $cfg = is_array($tpl->configuration) ? $tpl->configuration : [];
+                return ($cfg['variant_id'] ?? null) === $variantId;
+            });
+
+            if ($activeTemplates->isEmpty()) {
+                return null;
+            }
         }
 
         $candidates = self::resolvePreferredHolidayCandidates($explicitHoliday);
@@ -372,6 +555,76 @@ class Product extends Model
 
         // Letzter Fallback: Erste aktive Vorlage, deren Bild noch nicht ausgeschlossen ist
         return $activeTemplates->first(fn(ProductTemplate $tpl) => !in_array($tpl->preview_image, $excludeImagePaths, true));
+    }
+
+    /**
+     * Ermittelt das passende Produktbild für eine bestimmte Produktvariante ($variantId):
+     * 1. Aktive (saisonale) Produktvorlage, die explizit dieser Variante zugewiesen ist
+     * 2. Galeriebild unter "Medien" mit direkter Varianten-Zuweisung ("var:{variantId}")
+     * 3. Galeriebild unter "Medien" mit Eigenschafts-Gruppen-Zuweisung ("attr:{Attribut}:{Wert}")
+     */
+    public function resolveVariantImageMeta(?string $variantId, ?string $explicitHoliday = null): ?array
+    {
+        if (!$variantId || trim($variantId) === '') {
+            return null;
+        }
+
+        $variant = collect($this->variants_data ?? [])->firstWhere('id', $variantId);
+        if (!$variant || !is_array($variant)) {
+            return null;
+        }
+
+        // 1. Prüfe aktive Produktvorlage speziell für diese Variante
+        if ($this->isAutoSeasonalMainImageEnabled()) {
+            $variantTemplate = $this->resolveSeasonalTemplate($explicitHoliday, [], $variantId);
+            if ($variantTemplate && !empty($variantTemplate->preview_image)) {
+                return [
+                    'path'            => $variantTemplate->preview_image,
+                    'url'             => ProductTemplate::resolveImageUrl($variantTemplate->preview_image),
+                    'is_ai_generated' => (bool) ($variantTemplate->is_ai_generated ?? true),
+                    'label'           => $variantTemplate->name . ' (' . ($variant['name'] ?? '') . ')',
+                ];
+            }
+        }
+
+        $gallery = is_array($this->media_gallery) ? $this->media_gallery : [];
+
+        // 2. Prüfe Galeriebilder mit direkter Einzelvarianten-Bindung ("var:{variantId}")
+        $targetVarBinding = 'var:' . $variantId;
+        foreach ($gallery as $media) {
+            if (!is_array($media) || ($media['type'] ?? 'image') !== 'image' || empty($media['path'])) {
+                continue;
+            }
+            if (($media['variant_binding'] ?? '') === $targetVarBinding) {
+                return [
+                    'path'            => $media['path'],
+                    'url'             => ProductTemplate::resolveImageUrl($media['path']),
+                    'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                    'label'           => $variant['name'] ?? $this->name,
+                ];
+            }
+        }
+
+        // 3. Prüfe Galeriebilder mit Eigenschafts-Gruppen-Bindung ("attr:{Key}:{Value}")
+        $variantAttrs = is_array($variant['attributes'] ?? null) ? $variant['attributes'] : [];
+        foreach ($variantAttrs as $attrKey => $attrVal) {
+            $targetAttrBinding = 'attr:' . trim((string) $attrKey) . ':' . trim((string) $attrVal);
+            foreach ($gallery as $media) {
+                if (!is_array($media) || ($media['type'] ?? 'image') !== 'image' || empty($media['path'])) {
+                    continue;
+                }
+                if (($media['variant_binding'] ?? '') === $targetAttrBinding) {
+                    return [
+                        'path'            => $media['path'],
+                        'url'             => ProductTemplate::resolveImageUrl($media['path']),
+                        'is_ai_generated' => filter_var($media['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                        'label'           => "{$attrKey}: {$attrVal}",
+                    ];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

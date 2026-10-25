@@ -193,6 +193,11 @@
                                                 {{ $template->holiday }}
                                             </span>
                                         @endif
+                                        @if(!empty($template->configuration['variant_name']))
+                                            <span class="px-2.5 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 text-[9px] font-black uppercase tracking-widest">
+                                                Variante: {{ $template->configuration['variant_name'] }}
+                                            </span>
+                                        @endif
                                     </div>
 
                                     <div class="flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
@@ -332,8 +337,13 @@
 
                             <h3 class="font-serif {{ $currentLayout === 'medium' ? 'text-base mb-1' : 'text-lg md:text-xl mb-1.5' }} font-bold text-gray-900 dark:text-white truncate tracking-wide">{{ $template->name }}</h3>
 
-                            <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center justify-between gap-2 mb-4 flex-wrap">
                                 <span class="text-xs font-bold text-[var(--theme-color)] truncate">{{ $template->product->name ?? 'Unbekanntes Produkt' }}</span>
+                                @if(!empty($template->configuration['variant_name']))
+                                    <span class="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 text-[9px] font-black uppercase tracking-widest truncate max-w-[160px]" title="Zugewiesene Variante: {{ $template->configuration['variant_name'] }}">
+                                        {{ $template->configuration['variant_name'] }}
+                                    </span>
+                                @endif
                             </div>
 
                             @if($template->preview_image)

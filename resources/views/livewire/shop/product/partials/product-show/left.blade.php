@@ -76,10 +76,12 @@
                 $url = \App\Models\Product\ProductTemplate::resolveImageUrl($m['path']);
                 $alreadyIn = collect($displayGallery)->contains(fn($g) => $g['url'] === $url);
                 if ($url && !$alreadyIn) {
+                    $bindingLabel = $product->resolveMediaVariantBindingLabel($m['variant_binding'] ?? null);
                     $displayGallery[] = [
                         'type'            => $m['type'] ?? 'image',
                         'url'             => $url,
-                        'alt'             => $m['alt'] ?? $product->name,
+                        'alt'             => $m['alt'] ?? ($bindingLabel ? $product->name . ' – ' . $bindingLabel : $product->name),
+                        'variant_label'   => $bindingLabel,
                         'is_ai_generated' => filter_var($m['is_ai_generated'] ?? false, FILTER_VALIDATE_BOOLEAN),
                     ];
                 }
@@ -91,7 +93,8 @@
             activeMedia: '{{ !empty($displayGallery[0]) ? $displayGallery[0]['url'] : '' }}',
             activeType: '{{ !empty($displayGallery[0]) ? ($displayGallery[0]['type'] ?? 'image') : 'image' }}',
             activeIsAi: {{ !empty($displayGallery[0]['is_ai_generated']) ? 'true' : 'false' }}
-         }">
+         }"
+         @variant-selected.window="if ($event.detail && $event.detail.imageUrl) { activeMedia = $event.detail.imageUrl; activeType = 'image'; activeIsAi = !!$event.detail.imageIsAi; }">
 
         {{-- Hauptbild / Video Container --}}
         <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shadow-sm relative group">

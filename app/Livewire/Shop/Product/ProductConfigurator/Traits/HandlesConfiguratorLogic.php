@@ -18,7 +18,7 @@ trait HandlesConfiguratorLogic
             $variant = collect($variants)->firstWhere('id', $this->variantId);
 
             // Wenn die Variante gefunden wurde UND einen abweichenden Preis hat
-            if ($variant && !empty($variant['price'])) {
+            if ($variant && isset($variant['price']) && $variant['price'] !== '') {
                 $basePrice = (int) round((float) $variant['price'] * 100);
             }
         }
