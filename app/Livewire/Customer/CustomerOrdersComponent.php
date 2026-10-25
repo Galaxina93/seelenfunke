@@ -156,8 +156,12 @@ class CustomerOrdersComponent extends Component
             return;
         }
 
-        // Downloads stehen erst nach vollständigem Zahlungseingang zur Verfügung
-        if ($item->order->payment_status !== 'paid') {
+        // Downloads stehen erst nach vollständigem Zahlungseingang zur Verfügung und sind bei Storno/Erstattung gesperrt
+        if (
+            !$item->order
+            || $item->order->payment_status !== 'paid'
+            || in_array($item->order->status, ['cancelled', 'refunded'], true)
+        ) {
             session()->flash('error', 'Der Download steht erst nach vollständigem Zahlungseingang zur Verfügung.');
             return;
         }
@@ -173,8 +177,12 @@ class CustomerOrdersComponent extends Component
         $safeDownloadName = preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string) ($item->product->digital_filename ?: 'Download'))) ?: 'Download';
 
         return \Illuminate\Support\Facades\Storage::disk('local')->download(
-            $downloadPath, 
-            $safeDownloadName
+            $downloadPath,
+            $safeDownloadName,
+            [
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            ]
         );
     }
 

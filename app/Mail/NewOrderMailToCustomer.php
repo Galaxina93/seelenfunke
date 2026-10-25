@@ -107,11 +107,13 @@ class NewOrderMailToCustomer extends Mailable
             }
         }
 
-        // 4. Gutschein-PDFs anhängen (falls Geschenkgutscheine gekauft wurden)
+        // 4. Gutschein-PDFs anhängen (nur bei bezahlten, aktiven Bestellungen & aktiven Gutscheinen)
         if (isset($this->data['quote_number'])) {
             $order = \App\Models\Order\OrderOrder::where('order_number', $this->data['quote_number'])->first();
-            if ($order) {
-                $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::whereIn('order_item_id', $order->items->pluck('id'))->get();
+            if ($order && $order->payment_status === 'paid' && !in_array($order->status, ['cancelled', 'refunded'], true)) {
+                $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::whereIn('order_item_id', $order->items->pluck('id'))
+                    ->where('is_active', true)
+                    ->get();
                 foreach ($giftVouchers as $gv) {
                     $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
                         'voucher' => $gv,

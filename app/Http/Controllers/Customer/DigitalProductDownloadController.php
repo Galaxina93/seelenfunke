@@ -21,14 +21,21 @@ class DigitalProductDownloadController extends Controller
         $item = OrderOrderItem::with(['order', 'product'])->findOrFail($itemId);
 
         // 2. Authorization check
-        if (AiAuthHelper::isAdmin() || auth()->guard('admin')->check() || auth()->guard('employee')->check()) {
-            // OK
-        } elseif (
-            AiAuthHelper::isCustomer()
+        $isAdminOrEmployee = AiAuthHelper::isAdmin()
+            || auth()->guard('admin')->check()
+            || auth()->guard('employee')->check();
+
+        $customerUser = auth()->guard('customer')->user();
+        $isVerifiedCustomerOwner = AiAuthHelper::isCustomer()
+            && $customerUser
+            && $customerUser->hasVerifiedEmail()
             && $item->order
             && $item->order->customer_id !== null
-            && (string) AiAuthHelper::getCustomerId() === (string) $item->order->customer_id
-        ) {
+            && (string) AiAuthHelper::getCustomerId() === (string) $item->order->customer_id;
+
+        if ($isAdminOrEmployee) {
+            // OK
+        } elseif ($isVerifiedCustomerOwner) {
             // OK
         } elseif (request()->hasValidSignature()) {
             // OK via signed route
@@ -38,7 +45,7 @@ class DigitalProductDownloadController extends Controller
 
         // 3. Payment & Order Status check: Downloads stehen erst nach Bezahlung zur Verfügung und sind bei stornierten/erstatteten Bestellungen gesperrt
         if (
-            !AiAuthHelper::isAdmin()
+            !$isAdminOrEmployee
             && (
                 !$item->order
                 || $item->order->payment_status !== 'paid'
@@ -71,13 +78,17 @@ class DigitalProductDownloadController extends Controller
             abort(404, 'Die angeforderte Datei wurde auf dem Server nicht gefunden.');
         }
 
-        // 5. Trigger download
+        // 6. Trigger download with hardened headers
         $rawFilename = (string) ($item->product->digital_filename ?: 'Download.zip');
         $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($rawFilename)) ?: 'Download.zip';
 
         return Storage::disk('local')->download(
             $downloadPath,
-            $safeFilename
+            $safeFilename,
+            [
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            ]
         );
     }
 }

@@ -66,6 +66,8 @@ class OrderCheckout extends Component
     public $finalOrderNumber = '';
     #[Locked]
     public $referralCode = '';
+    #[Locked]
+    public array $instantDownloads = [];
 
     /**
      * Schöne Namen für die Felder definieren
@@ -269,6 +271,18 @@ class OrderCheckout extends Component
         // Wenn deaktiviert, Lieferland wieder auf Rechnungsland setzen
         if (!$value) {
             $this->shipping_country = $this->country;
+            $this->createPaymentIntent();
+            $this->dispatch('checkout-updated');
+        }
+    }
+
+    public function removeCoupon()
+    {
+        $cartService = app(CartService::class);
+        $cart = $cartService->getCart();
+        if ($cart && $cart->coupon_code) {
+            $cart->update(['coupon_code' => null]);
+            $this->resetErrorBag('coupon');
             $this->createPaymentIntent();
             $this->dispatch('checkout-updated');
         }

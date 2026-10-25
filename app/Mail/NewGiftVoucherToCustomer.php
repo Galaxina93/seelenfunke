@@ -30,7 +30,7 @@ class NewGiftVoucherToCustomer extends Mailable
      */
     public function envelope(): Envelope
     {
-        $senderName = shop_setting('company_name', 'Mein Seelenfunke');
+        $senderName = str_replace(["\r", "\n"], '', (string) shop_setting('company_name', 'Mein Seelenfunke'));
         return new Envelope(
             subject: '✨ Dein Geschenkgutschein von ' . $senderName,
         );
@@ -41,10 +41,17 @@ class NewGiftVoucherToCustomer extends Mailable
      */
     public function content(): Content
     {
+        $downloadUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'customer.gift-voucher.download',
+            now()->addDays(7),
+            ['voucher' => $this->voucher->id]
+        );
+
         return new Content(
             view: 'global.mails.new_gift_voucher_to_customer',
             with: [
                 'voucher' => $this->voucher,
+                'downloadUrl' => $downloadUrl,
             ],
         );
     }
@@ -54,13 +61,15 @@ class NewGiftVoucherToCustomer extends Mailable
      */
     public function attachments(): array
     {
-        // Generate PDF on the fly and attach it
+        // Generate PDF on the fly and attach it (disable remote asset execution to prevent SSRF)
         $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
             'voucher' => $this->voucher,
-        ]);
+        ])->setOptions(['isRemoteEnabled' => false]);
+
+        $safeCode = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $this->voucher->code) ?: 'Gutschein';
 
         return [
-            Attachment::fromData(fn () => $pdf->output(), 'Geschenkgutschein-' . $this->voucher->code . '.pdf')
+            Attachment::fromData(fn () => $pdf->output(), 'Geschenkgutschein-' . $safeCode . '.pdf')
                 ->withMime('application/pdf'),
         ];
     }

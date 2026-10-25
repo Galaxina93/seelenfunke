@@ -24,17 +24,26 @@ class OrderCheckoutSuccess extends Component
     #[\Livewire\Attributes\Locked]
     public $referralCode = '';
 
+    #[\Livewire\Attributes\Locked]
+    public array $instantDownloads = [];
+
     public function mount()
     {
         $intentId = request()->query('payment_intent');
 
-        // Falls kein Intent in der URL ist, prüfen ob Customer eingeloggt ist für Fallback
+        // Falls kein Intent in der URL ist, prüfen ob Customer eingeloggt ist für Fallback (ausschließlich bezahlte, aktive Bestellungen)
         if (!$intentId) {
             if (Auth::guard('customer')->check()) {
-                $order = OrderOrder::where('customer_id', Auth::guard('customer')->id())->latest()->first();
+                $order = OrderOrder::with('items.product')
+                    ->where('customer_id', Auth::guard('customer')->id())
+                    ->where('payment_status', 'paid')
+                    ->whereNotIn('status', ['cancelled', 'refunded'])
+                    ->latest()
+                    ->first();
                 if ($order) {
                     $this->finalOrderNumber = $order->order_number;
                     $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+                    $this->instantDownloads = $order->getInstantDownloads();
                     $this->resolveReferralCode($order);
                 }
             }
@@ -43,7 +52,7 @@ class OrderCheckoutSuccess extends Component
 
         Log::info("CheckoutSuccess: Verarbeite Redirect-Erfolg für Intent: $intentId");
 
-        $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->first();
+        $order = OrderOrder::with('items.product')->where('stripe_payment_intent_id', $intentId)->first();
 
         if (!$order) {
             Log::error("CheckoutSuccess: OrderOrder nicht gefunden für $intentId");
@@ -67,9 +76,10 @@ class OrderCheckoutSuccess extends Component
 
         $stripeSecret = config('services.stripe.secret');
         if (!$stripeSecret) {
-            if ($isOwner) {
+            if ($isOwner && $order->payment_status === 'paid' && !in_array($order->status, ['cancelled', 'refunded'], true)) {
                 $this->finalOrderNumber = $order->order_number;
                 $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+                $this->instantDownloads = $order->getInstantDownloads();
                 $this->resolveReferralCode($order);
             }
             return;
@@ -84,10 +94,6 @@ class OrderCheckoutSuccess extends Component
                 return;
             }
 
-            $this->finalOrderNumber = $order->order_number;
-            $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
-            $this->resolveReferralCode($order);
-
             if ($intent->status === 'succeeded') {
                 if (isset($intent->amount) && (int) $intent->amount < (int) $order->total_price) {
                     Log::error("CheckoutSuccess: Betragsabweichung für Order {$order->order_number} (Intent: {$intent->amount}, Order: {$order->total_price}).");
@@ -97,7 +103,13 @@ class OrderCheckoutSuccess extends Component
                 // Falls die Order noch nicht als bezahlt markiert wurde (Redirect-Fall)
                 if ($order->payment_status !== 'paid') {
                     $order->completePayment($intentId);
+                    $order->refresh();
                 }
+
+                $this->finalOrderNumber = $order->order_number;
+                $this->email = $order->email ?: ($order->billing_address['email'] ?? ($order->customer->email ?? ''));
+                $this->instantDownloads = $order->getInstantDownloads();
+                $this->resolveReferralCode($order);
 
                 // Clean Up (Falls via Redirect zurückgekommen)
                 if (Session::has('checkout_from_quote_id')) {

@@ -71,12 +71,37 @@
         </div>
     @endif
 
+    @if(!empty($data['instant_downloads']) && is_array($data['instant_downloads']))
+        {{-- SOFORT-DOWNLOAD LINKS (SIGNIERT & OHNE LOGIN NUTZBAR) --}}
+        <div style="margin-top: 30px; padding: 20px; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; text-align: center;">
+            <h3 style="margin-top: 0; color: #047857; font-size: 16px;">🚀 Dein Sofort-Download ist bereit!</h3>
+            <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 15px;">
+                Du kannst deine digitalen Produkte und Gutscheine direkt hier über die geschützten Direkt-Links herunterladen:
+            </p>
+            @foreach($data['instant_downloads'] as $dl)
+                <div style="margin-bottom: 10px; padding: 12px 16px; background-color: #ffffff; border: 1px solid #d1fae5; border-radius: 6px; text-align: left;">
+                    <div style="font-weight: bold; font-size: 14px; color: #111827;">{{ $dl['title'] ?? 'Download' }}</div>
+                    @if(!empty($dl['code']))
+                        <div style="font-size: 12px; color: #b45309; font-family: monospace; margin-top: 4px;">
+                            Gutscheincode: <strong>{{ $dl['code'] }}</strong>
+                        </div>
+                    @endif
+                    <div style="margin-top: 8px;">
+                        <a href="{{ $dl['url'] }}" style="display: inline-block; padding: 8px 16px; background-color: #059669; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 12px;">
+                            📥 {{ ($dl['type'] ?? '') === 'gift_voucher' ? 'Gutschein-PDF herunterladen' : 'Datei herunterladen' }}
+                        </a>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     @if(!empty($data['customer_needs_password_change']) && !empty($data['customer_temporary_password']))
         {{-- HINWEIS: KONTO ERSTELLT MIT EINMAL-PASSWORT --}}
         <div style="margin-top: 30px; padding: 20px; background-color: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; text-align: center;">
             <h3 style="margin-top: 0; color: #6d28d9; font-size: 16px;">🔑 Dein Kundenkonto wurde erstellt!</h3>
             <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin-bottom: 15px;">
-                Da du als Gast eingekauft hast, haben wir automatisch ein Kundenkonto für dich angelegt, damit du auf deine digitalen Güter zugreifen kannst.
+                Da du als Gast eingekauft hast, haben wir automatisch ein Kundenkonto für dich angelegt, damit du jederzeit auf deine Bestellungen und digitalen Güter zugreifen kannst.
                 Bitte logge dich mit folgenden Zugangsdaten ein und ändere anschließend dein Passwort:
             </p>
             <div style="display: inline-block; padding: 10px 20px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; text-align: left; font-family: monospace; font-size: 14px; color: #1f2937; margin-bottom: 20px;">
@@ -84,9 +109,9 @@
                 <strong>Passwort:</strong> {{ $data['customer_temporary_password'] }}
             </div>
             <br>
-            <a href="{{ url('/login') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Jetzt einloggen & herunterladen</a>
+            <a href="{{ url('/login') }}" style="display: inline-block; padding: 10px 20px; background-color: #6d28d9; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px;">Jetzt einloggen &amp; herunterladen</a>
         </div>
-    @elseif($hasDigital)
+    @elseif($hasDigital && empty($data['instant_downloads']))
         {{-- HINWEIS: DIGITALE DOWNLOADS --}}
         <div style="margin-top: 30px; padding: 20px; background-color: #e0f7fa; border: 1px solid #b2ebf2; border-radius: 8px; text-align: center;">
             <h3 style="margin-top: 0; color: #00838f; font-size: 16px;">🚀 Deine digitalen Downloads sind bereit!</h3>

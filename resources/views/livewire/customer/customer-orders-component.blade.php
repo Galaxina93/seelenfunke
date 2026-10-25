@@ -448,6 +448,10 @@
                                         </div>
                                     @endforeach
  
+                                    @php
+                                        $downloadsUnlocked = $selectedOrder->payment_status === 'paid' && !in_array($selectedOrder->status, ['cancelled', 'refunded'], true);
+                                    @endphp
+
                                     {{-- Digitale Downloads als Dokumente --}}
                                     @foreach($selectedOrder->items as $item)
                                         @if($item->product && $item->product->type === 'digital' && !empty($item->product->digital_download_path))
@@ -463,9 +467,15 @@
                                                     <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1 truncate">Digitale Produktdatei ({{ pathinfo($item->product->digital_filename ?? '', PATHINFO_EXTENSION) ?: 'File' }})</p>
                                                 </div>
                                             </div>
-                                            <a href="{{ route('digital-product.download', $item->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-cyan-500 group-hover:border-cyan-500 transition-all shadow-sm shrink-0" title="Datei herunterladen">
-                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                            </a>
+                                            @if($downloadsUnlocked)
+                                                <a href="{{ route('digital-product.download', $item->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-cyan-500 group-hover:border-cyan-500 transition-all shadow-sm shrink-0" title="Datei herunterladen">
+                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                </a>
+                                            @else
+                                                <span class="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[9px] font-bold uppercase tracking-wider shrink-0">
+                                                    {{ in_array($selectedOrder->status, ['cancelled', 'refunded'], true) ? 'Gesperrt' : 'Nach Zahlung' }}
+                                                </span>
+                                            @endif
                                         </div>
                                         @endif
                                     @endforeach
@@ -489,9 +499,15 @@
                                                             <p class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1 truncate">Wertgutschein PDF (für {{ $voucher->recipient_name }})</p>
                                                         </div>
                                                     </div>
-                                                    <a href="{{ route('customer.gift-voucher.download', $voucher->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-amber-500 group-hover:border-amber-500 transition-all shadow-sm shrink-0" title="Gutschein PDF herunterladen">
-                                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                                    </a>
+                                                    @if($downloadsUnlocked && $voucher->is_active)
+                                                        <a href="{{ route('customer.gift-voucher.download', $voucher->id) }}" target="_blank" class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:text-amber-500 group-hover:border-amber-500 transition-all shadow-sm shrink-0" title="Gutschein PDF herunterladen">
+                                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                        </a>
+                                                    @else
+                                                        <span class="px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[9px] font-bold uppercase tracking-wider shrink-0">
+                                                            {{ !$voucher->is_active ? 'Eingelöst/Inaktiv' : 'Nach Zahlung' }}
+                                                        </span>
+                                                    @endif
                                                 </div>
                                             @endforeach
                                         @endif

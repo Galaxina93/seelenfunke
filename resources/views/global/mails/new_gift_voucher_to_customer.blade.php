@@ -11,7 +11,7 @@
     
     <p>Hallo {{ $voucher->recipient_name }},</p>
 
-    <p>wir haben wundervolle Neuigkeiten: Jemand möchte dir eine ganz besondere Freude bereiten und schenkt dir einen Wertgutschein für **Mein Seelenfunke** im Wert von <strong>{{ number_format($voucher->initial_value / 100, 2, ',', '.') }} €</strong>!</p>
+    <p>wir haben wundervolle Neuigkeiten: Jemand möchte dir eine ganz besondere Freude bereiten und schenkt dir einen Wertgutschein für <strong>Mein Seelenfunke</strong> im Wert von <strong>{{ number_format($voucher->initial_value / 100, 2, ',', '.') }} €</strong>!</p>
 
     @if($voucher->personal_message)
         {{-- PERSÖNLICHE NACHRICHT --}}
@@ -35,7 +35,10 @@
 
     {{-- CTA BUTTON --}}
     <div style="text-align: center; margin-top: 35px; margin-bottom: 35px;">
-        <a href="{{ url('/shop') }}" style="display: inline-block; padding: 14px 28px; background-color: #d97706; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; box-shadow: 0 4px 6px rgba(217, 119, 6, 0.15);">Jetzt im Shop einlösen</a>
+        <a href="{{ url('/shop') }}" style="display: inline-block; padding: 14px 28px; background-color: #d97706; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 15px; box-shadow: 0 4px 6px rgba(217, 119, 6, 0.15); margin: 4px;">Jetzt im Shop einlösen</a>
+        @if(!empty($downloadUrl))
+            <a href="{{ $downloadUrl }}" style="display: inline-block; padding: 14px 24px; background-color: #1f2937; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 14px; margin: 4px;">📥 Gutschein-PDF herunterladen</a>
+        @endif
     </div>
 
     {{-- HINWEIS ZUR PDF --}}

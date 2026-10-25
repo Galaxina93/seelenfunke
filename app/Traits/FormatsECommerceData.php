@@ -246,6 +246,7 @@ trait FormatsECommerceData
             'customer_email' => isset($this->customer) ? $this->customer->email : null,
 
             'payment_url' => $this->payment_url ?? null,
+            'instant_downloads' => method_exists($this, 'getInstantDownloads') ? $this->getInstantDownloads() : [],
             'tracking_numbers' => method_exists($this, 'shipments') && $this->shipments ? $this->shipments->pluck('tracking_number')->filter()->toArray() : [],
 
             // Kontakt & Adressen

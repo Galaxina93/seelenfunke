@@ -379,7 +379,9 @@ class OrderOrder extends Model
             return;
         }
 
-        \Illuminate\Support\Facades\DB::transaction(function () use ($stripePaymentIntentId) {
+        $vouchersToEmail = [];
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($stripePaymentIntentId, &$vouchersToEmail) {
             // Lock the order row for update to prevent concurrent payment processing races
             $order = self::where('id', $this->id)->lockForUpdate()->first();
             if (
@@ -388,6 +390,46 @@ class OrderOrder extends Model
                 || in_array($order->status, ['cancelled', 'refunded'], true)
             ) {
                 return;
+            }
+
+            // 1. GUTSCHEIN VERBRAUCHEN (Zuerst prüfen & abbuchen, damit bei 0-€-Fehlern sofort abgerollt wird, bevor neue Gutscheine entstehen)
+            if ($order->coupon_code) {
+                $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $order->coupon_code)
+                    ->lockForUpdate()
+                    ->first();
+                if ($giftVoucher) {
+                    $requestedDiscount = max(0, (int) $order->discount_amount);
+                    $actualDeducted = max(0, min((int) $giftVoucher->current_balance, $requestedDiscount));
+
+                    if ($order->total_price == 0 && $requestedDiscount > 0 && (!$giftVoucher->isValid() || $actualDeducted < $requestedDiscount)) {
+                        throw new \RuntimeException('Das Gutscheinguthaben reicht für diese Bestellung nicht mehr aus.');
+                    }
+
+                    $newBalance = max(0, (int) $giftVoucher->current_balance - $actualDeducted);
+                    $giftVoucher->update([
+                        'current_balance' => $newBalance,
+                        'is_active' => $newBalance > 0
+                    ]);
+
+                    if ($actualDeducted > 0) {
+                        \App\Models\Marketing\MarketingGiftVoucherLog::create([
+                            'gift_voucher_id' => $giftVoucher->id,
+                            'order_id' => $order->id,
+                            'amount' => $actualDeducted,
+                            'remaining_balance' => $newBalance
+                        ]);
+                    }
+                } else {
+                    $mv = \App\Models\Marketing\MarketingVoucher::where('code', $order->coupon_code)
+                        ->lockForUpdate()
+                        ->first();
+                    if ($mv) {
+                        if ($order->total_price == 0 && !$mv->isValid()) {
+                            throw new \RuntimeException('Der verwendete Rabattcode ist nicht mehr gültig.');
+                        }
+                        $mv->increment('used_count');
+                    }
+                }
             }
 
             $newStatus = $order->isOnlyDigital() ? 'completed' : 'pending';
@@ -455,60 +497,25 @@ class OrderOrder extends Model
                             ]);
 
                             if ($voucher->delivery_method === 'email') {
-                                try {
-                                    \Illuminate\Support\Facades\Mail::to($voucher->recipient_email ?: $order->email)
-                                        ->send(new \App\Mail\NewGiftVoucherToCustomer($voucher));
-                                } catch (\Exception $e) {
-                                    \Illuminate\Support\Facades\Log::error('Gift voucher email delivery failed: ' . $e->getMessage());
-                                }
+                                $vouchersToEmail[] = [
+                                    'voucher' => $voucher,
+                                    'to' => $voucher->recipient_email ?: $order->email,
+                                ];
                             }
                         }
                     }
                 }
             }
 
-            // GUTSCHEIN VERBRAUCHEN (Counter hochzählen / Wertgutschein abbuchen)
-            if ($order->coupon_code) {
-                $giftVoucher = \App\Models\Marketing\MarketingGiftVoucher::where('code', $order->coupon_code)
-                    ->lockForUpdate()
-                    ->first();
-                if ($giftVoucher) {
-                    $requestedDiscount = max(0, (int) $order->discount_amount);
-                    $actualDeducted = max(0, min((int) $giftVoucher->current_balance, $requestedDiscount));
-
-                    if ($order->total_price == 0 && $requestedDiscount > 0 && (!$giftVoucher->isValid() || $actualDeducted < $requestedDiscount)) {
-                        throw new \RuntimeException('Das Gutscheinguthaben reicht für diese Bestellung nicht mehr aus.');
-                    }
-
-                    $newBalance = max(0, (int) $giftVoucher->current_balance - $actualDeducted);
-                    $giftVoucher->update([
-                        'current_balance' => $newBalance,
-                        'is_active' => $newBalance > 0
-                    ]);
-
-                    if ($actualDeducted > 0) {
-                        \App\Models\Marketing\MarketingGiftVoucherLog::create([
-                            'gift_voucher_id' => $giftVoucher->id,
-                            'order_id' => $order->id,
-                            'amount' => $actualDeducted,
-                            'remaining_balance' => $newBalance
-                        ]);
-                    }
-                } else {
-                    $mv = \App\Models\Marketing\MarketingVoucher::where('code', $order->coupon_code)
-                        ->lockForUpdate()
-                        ->first();
-                    if ($mv) {
-                        if ($order->total_price == 0 && !$mv->isValid()) {
-                            throw new \RuntimeException('Der verwendete Rabattcode ist nicht mehr gültig.');
-                        }
-                        $mv->increment('used_count');
-                    }
-                }
-            }
-
-            // Gast-Kundenkonto bei erfolgreichem Zahlungseingang verifizieren, sofern E-Mail übereinstimmt
-            if ($order->customer && !$order->customer->hasVerifiedEmail() && strcasecmp(trim((string) $order->email), trim((string) $order->customer->email)) === 0) {
+            // Gast-Kundenkonto NUR dann automatisch verifizieren, wenn es sich um ein frisch generiertes Gastkonto
+            // mit Einmal-Passwort handelt (das ausschließlich an das E-Mail-Postfach gesendet wird)
+            if (
+                $order->customer
+                && !$order->customer->hasVerifiedEmail()
+                && (bool) $order->customer->needs_password_change
+                && !empty($order->customer->temporary_password)
+                && strcasecmp(trim((string) $order->email), trim((string) $order->customer->email)) === 0
+            ) {
                 $order->customer->markEmailAsVerified();
             }
 
@@ -525,6 +532,79 @@ class OrderOrder extends Model
             // --- DOKUMENTE & MAILS AN DEN BACKGROUND-WORKER ÜBERGEBEN ---
             \App\Jobs\ProcessOrderDocumentsAndMails::dispatch($order);
         });
+
+        // Gutschein-E-Mails erst nach erfolgreichem DB-Commit versenden (verhindert Geister-Mails bei Rollback & DB-Locks während SMTP/DomPDF)
+        foreach ($vouchersToEmail as $entry) {
+            try {
+                \Illuminate\Support\Facades\Mail::to($entry['to'])
+                    ->send(new \App\Mail\NewGiftVoucherToCustomer($entry['voucher']));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Gift voucher email delivery failed: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Liefert alle sofort herunterladbaren digitalen Güter & Geschenkgutscheine dieser Bestellung
+     * inklusive kryptografisch signierter Download-URLs (gültig für 7 Tage).
+     */
+    public function getInstantDownloads(): array
+    {
+        if (
+            $this->payment_status !== 'paid'
+            || in_array($this->status, ['cancelled', 'refunded'], true)
+        ) {
+            return [];
+        }
+
+        $this->loadMissing('items.product');
+        $downloads = [];
+
+        foreach ($this->items as $item) {
+            $config = is_array($item->configuration) ? $item->configuration : [];
+
+            // 1. Geschenkgutscheine (PDF + Code)
+            if (!empty($config['is_gift_voucher'])) {
+                $vouchers = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)
+                    ->where('is_active', true)
+                    ->get();
+
+                foreach ($vouchers as $voucher) {
+                    $downloads[] = [
+                        'type' => 'gift_voucher',
+                        'title' => 'Wertgutschein (' . number_format($voucher->initial_value / 100, 2, ',', '.') . ' €)',
+                        'subtitle' => 'Für ' . ($voucher->recipient_name ?: 'dich') . ' • Sofort einlösbar & druckfertiges PDF',
+                        'code' => $voucher->code,
+                        'format' => 'PDF',
+                        'url' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                            'customer.gift-voucher.download',
+                            now()->addDays(7),
+                            ['voucher' => $voucher->id]
+                        ),
+                    ];
+                }
+                continue;
+            }
+
+            // 2. Digitale Produkte
+            if ($item->product && $item->product->type === 'digital' && !empty($item->product->digital_download_path)) {
+                $ext = strtoupper(pathinfo((string) ($item->product->digital_filename ?: $item->product->digital_download_path), PATHINFO_EXTENSION) ?: 'DATEI');
+                $downloads[] = [
+                    'type' => 'digital_product',
+                    'title' => (string) ($item->product_name ?: $item->product->name),
+                    'subtitle' => 'Digitale Produktdatei • Sofort-Download',
+                    'code' => null,
+                    'format' => $ext,
+                    'url' => \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                        'digital-product.download',
+                        now()->addDays(7),
+                        ['item' => $item->id]
+                    ),
+                ];
+            }
+        }
+
+        return $downloads;
     }
 
     /**

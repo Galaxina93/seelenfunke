@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Customer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Marketing\MarketingGiftVoucher;
+use App\Services\AI\AiAuthHelper;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Auth;
 
@@ -13,46 +14,57 @@ class GiftVoucherDownloadController extends Controller
      * Download the gift voucher PDF.
      *
      * @param  MarketingGiftVoucher  $voucher
-     * @return \Illuminate\Http\Response
+     * @return \Symfony\Component\HttpFoundation\Response
      */
     public function download(MarketingGiftVoucher $voucher)
     {
+        $voucher->loadMissing('orderItem.order');
+        $item = $voucher->orderItem;
+
         // 1. Check if user is logged in as admin or employee
-        $isAdminOrEmployee = Auth::guard('admin')->check() || Auth::guard('employee')->check();
+        $isAdminOrEmployee = AiAuthHelper::isAdmin()
+            || Auth::guard('admin')->check()
+            || Auth::guard('employee')->check();
 
         if (!$isAdminOrEmployee) {
-            // 2. Otherwise, check if user is logged in as the customer who owns the voucher
-            $user = Auth::guard('customer')->user();
-            
-            if (!$user) {
+            $authorized = false;
+
+            // 2a. Valid temporary signed URL (e.g. Sofort-Download on Checkout Success page or Order Mail)
+            if (request()->hasValidSignature()) {
+                $authorized = true;
+            } else {
+                // 2b. Logged-in customer who owns the voucher (buyer or verified recipient)
+                $user = Auth::guard('customer')->user();
+
+                if ($user && $user->hasVerifiedEmail()) {
+                    $isBuyer = $item
+                        && $item->order
+                        && $item->order->customer_id !== null
+                        && (string) $item->order->customer_id === (string) $user->id;
+
+                    $isRecipient = !empty($voucher->recipient_email)
+                        && strcasecmp(trim((string) $voucher->recipient_email), trim((string) $user->email)) === 0;
+
+                    if ($isBuyer || $isRecipient) {
+                        $authorized = true;
+                    }
+                }
+            }
+
+            if (!$authorized) {
                 abort(403, 'Zugriff verweigert.');
             }
 
-            // Security check: Either the buyer (who purchased the voucher) or the recipient (e.g. referral/milestone reward or recipient email)
-            $isBuyer = false;
-            $item = $voucher->orderItem;
-            if ($item && $item->order && $item->order->customer_id === $user->id) {
-                $isBuyer = true;
-            }
-
-            $isRecipient = false;
-            if ($user->hasVerifiedEmail() && !empty($voucher->recipient_email) && strcasecmp(trim($voucher->recipient_email), trim($user->email)) === 0) {
-                $isRecipient = true;
-            }
-
-            if (!$isBuyer && !$isRecipient) {
-                abort(403, 'Zugriff verweigert.');
-            }
-
+            // 3. Payment & Activation status check (enforced for ALL non-admin accesses, including signed URLs)
             if (!$voucher->is_active) {
-                abort(403, 'Dieser Gutschein ist noch nicht aktiviert.');
+                abort(403, 'Dieser Gutschein ist nicht aktiv oder wurde storniert.');
             }
 
             if (
                 $item
-                && $item->order
                 && (
-                    $item->order->payment_status !== 'paid'
+                    !$item->order
+                    || $item->order->payment_status !== 'paid'
                     || in_array($item->order->status, ['cancelled', 'refunded'], true)
                 )
             ) {
@@ -60,11 +72,19 @@ class GiftVoucherDownloadController extends Controller
             }
         }
 
-        // Generate PDF on the fly (disable remote asset execution to prevent SSRF)
+        // 4. Generate PDF on the fly (disable remote asset execution to prevent SSRF)
         $pdf = Pdf::loadView('pdf.marketing-gift-voucher', [
             'voucher' => $voucher,
         ])->setOptions(['isRemoteEnabled' => false]);
 
-        return $pdf->download('Geschenkgutschein-' . preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $voucher->code) . '.pdf');
+        $safeCode = preg_replace('/[^A-Za-z0-9_\-]/', '', (string) $voucher->code) ?: 'Gutschein';
+        $filename = 'Geschenkgutschein-' . $safeCode . '.pdf';
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
     }
 }

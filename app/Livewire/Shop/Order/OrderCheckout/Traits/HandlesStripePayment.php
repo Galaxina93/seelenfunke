@@ -201,6 +201,7 @@ trait HandlesStripePayment
             Session::forget('checkout_order_id');
 
             $this->finalOrderNumber = $order->order_number;
+            $this->instantDownloads = $order->fresh(['items.product'])?->getInstantDownloads() ?? [];
 
             try {
                 $ref = app(\App\Services\ReferralService::class)->getOrCreateReferralForCustomer(
