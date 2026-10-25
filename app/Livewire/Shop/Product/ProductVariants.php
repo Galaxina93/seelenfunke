@@ -30,15 +30,15 @@ class ProductVariants extends Component
         }
 
         $this->product = $product;
-        // Wir laden die Varianten aus dem Product-Model.
-        $this->variants = $this->product->variants_data ?? [];
+        // Wir laden die bereinigten Varianten aus dem Product-Model.
+        $this->variants = $this->product->getSanitizedVariantsData(true);
     }
 
     #[On('product-updated')]
     public function refreshProduct(): void
     {
         $this->product->refresh();
-        $this->variants = $this->product->variants_data ?? [];
+        $this->variants = $this->product->getSanitizedVariantsData(true);
     }
 
     public function generateMatrix()

@@ -195,15 +195,15 @@
             @endif
 
             @php
-                $mediaBindingOptions = $product->getMediaVariantBindingOptions();
-                $hasVariantBindingOptions = !empty($mediaBindingOptions['groups']) || !empty($mediaBindingOptions['variants']);
+                $mediaVariantOptions = $product->getMediaVariantBindingOptions();
+                $hasVariantBindingOptions = !empty($mediaVariantOptions);
             @endphp
 
             @if($hasVariantBindingOptions)
                 <div class="mb-5 p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex items-center gap-3 text-xs text-gray-600 dark:text-gray-300">
                     <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-15)] text-[var(--theme-color)] flex items-center justify-center shrink-0 font-black">✦</span>
                     <p class="text-[11px] leading-relaxed">
-                        <strong>Varianten-Bilder zuweisen:</strong> Du kannst unter jedem Bild auswählen, ob es für <em>alle Varianten</em> gilt oder automatisch angezeigt wird, sobald der Kunde im Shop eine bestimmte <strong>Varianten-Art</strong> (z. B. <em>Farbe: Gold</em>) bzw. eine <strong>Einzelvariante</strong> wählt.
+                        <strong>Varianten-Bilder zuweisen:</strong> Du kannst unter jedem Bild auswählen, ob es für <em>alle Varianten</em> gilt oder automatisch angezeigt wird, sobald der Kunde im Shop diese <strong>Variante</strong> wählt.
                     </p>
                 </div>
             @endif
@@ -261,22 +261,11 @@
                                 <div class="p-2 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
                                     <select wire:change="updateMediaVariantBinding({{ $index }}, $event.target.value)"
                                             class="w-full px-2.5 py-1.5 rounded-lg border text-[10px] font-bold outline-none cursor-pointer transition-colors {{ $currentBinding !== '' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' : 'bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400' }}"
-                                            title="Bild einer Variante oder Varianten-Art zuweisen">
+                                            title="Bild einer Variante zuweisen">
                                         <option value="" @selected($currentBinding === '') class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">Alle Varianten (Allgemein)</option>
-                                        @if(!empty($mediaBindingOptions['groups']))
-                                            <optgroup label="Nach Varianten-Art (Gruppe)" class="bg-gray-50 dark:bg-gray-950 text-gray-500">
-                                                @foreach($mediaBindingOptions['groups'] as $optVal => $optLabel)
-                                                    <option value="{{ $optVal }}" @selected($currentBinding === $optVal) class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ $optLabel }}</option>
-                                                @endforeach
-                                            </optgroup>
-                                        @endif
-                                        @if(!empty($mediaBindingOptions['variants']))
-                                            <optgroup label="Einzelne Variante" class="bg-gray-50 dark:bg-gray-950 text-gray-500">
-                                                @foreach($mediaBindingOptions['variants'] as $optVal => $optLabel)
-                                                    <option value="{{ $optVal }}" @selected($currentBinding === $optVal) class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">Variante: {{ $optLabel }}</option>
-                                                @endforeach
-                                            </optgroup>
-                                        @endif
+                                        @foreach($mediaVariantOptions as $optVal => $optLabel)
+                                            <option value="{{ $optVal }}" @selected($currentBinding === $optVal) class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{{ $optLabel }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
                             @endif

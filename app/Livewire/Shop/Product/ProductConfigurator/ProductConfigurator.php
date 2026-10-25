@@ -244,7 +244,7 @@ class ProductConfigurator extends Component
     #[Computed]
     public function activeVariants()
     {
-        $variants = $this->product->variants_data ?? [];
+        $variants = $this->product->getSanitizedVariantsData(true);
         $enforceStock = !in_array($this->context, ['template_admin', 'preview', 'order_edit'], true);
 
         return array_filter($variants, function ($v) use ($enforceStock) {

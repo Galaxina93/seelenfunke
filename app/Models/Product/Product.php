@@ -167,7 +167,11 @@ class Product extends Model
      */
     public function getVariantAttributeOptions(): array
     {
-        $attributes = is_array($this->attributes) ? $this->attributes : [];
+        $rawAttributes = $this->getAttribute('attributes');
+        if (is_string($rawAttributes)) {
+            $rawAttributes = json_decode($rawAttributes, true);
+        }
+        $attributes = is_array($rawAttributes) ? $rawAttributes : [];
         $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
         $excluded = is_array($settings['excluded_variant_attributes'] ?? null) ? $settings['excluded_variant_attributes'] : [];
         $included = is_array($settings['included_variant_attributes'] ?? null) ? $settings['included_variant_attributes'] : [];
@@ -201,44 +205,71 @@ class Product extends Model
     }
 
     /**
-     * Liefert die auswählbaren Varianten-Zuordnungen für Produktbilder unter "Medien" (Schritt 2):
-     * - Gruppen nach Varianten-Eigenschaft (z. B. "attr:Farbe:Gold" => "Farbe: Gold")
-     * - Einzelne Varianten aus der Matrix (z. B. "var:{uuid}" => "Gold - M")
-     *
-     * @return array{groups: array<string, string>, variants: array<string, string>}
+     * Bereinigt bestehende Varianten-Einträge in variants_data von Einzelwert-Attributen
+     * (wie z. B. "Größe: 180x200x40 mm" oder "Material: Kristallglas", die nur 1 Wert haben),
+     * damit nur echte Varianten-Namen (z. B. "Transparent", "Matt", "Blickdicht") übrig bleiben.
      */
-    public function getMediaVariantBindingOptions(): array
+    public function getSanitizedVariantsData(bool $persistIfChanged = false): array
     {
-        $groups = [];
-        $variants = [];
+        $rawVariants = $this->variants_data;
+        if (!is_array($rawVariants) || empty($rawVariants)) {
+            return [];
+        }
 
-        $attrOptions = $this->getVariantAttributeOptions();
+        $validAttrKeys = array_keys($this->getVariantAttributeOptions());
+        if (empty($validAttrKeys)) {
+            return $rawVariants;
+        }
 
-        // Zusätzlich Attribute aus bereits gespeicherten Varianten berücksichtigen
-        foreach ($this->variants_data ?? [] as $v) {
+        $changed = false;
+        $cleaned = [];
+
+        foreach ($rawVariants as $v) {
             if (!is_array($v)) {
                 continue;
             }
-            foreach ($v['attributes'] ?? [] as $k => $val) {
-                if (is_string($k) && is_scalar($val) && trim((string) $val) !== '') {
-                    $attrOptions[$k] = array_values(array_unique(array_merge($attrOptions[$k] ?? [], [trim((string) $val)])));
+            $vAttrs = is_array($v['attributes'] ?? null) ? $v['attributes'] : [];
+            if (!empty($vAttrs)) {
+                $filteredAttrs = array_intersect_key($vAttrs, array_flip($validAttrKeys));
+                if (!empty($filteredAttrs) && count($filteredAttrs) !== count($vAttrs)) {
+                    $ksorted = $filteredAttrs;
+                    ksort($ksorted);
+                    $v['attributes'] = $filteredAttrs;
+                    $v['name'] = implode(' - ', $filteredAttrs);
+                    $v['signature'] = implode('|', array_map(fn ($k, $val) => "$k:$val", array_keys($ksorted), $ksorted));
+                    $changed = true;
                 }
+            }
+            $cleaned[] = $v;
+        }
+
+        if ($changed && $persistIfChanged && $this->exists) {
+            $this->variants_data = $cleaned;
+            $this->saveQuietly();
+        }
+
+        return $cleaned;
+    }
+
+    /**
+     * Liefert die auswählbaren Einzel-Varianten aus der Matrix für Produktbilder unter "Medien" (Schritt 2).
+     *
+     * @return array<string, string>
+     */
+    public function getMediaVariantBindingOptions(): array
+    {
+        $variants = [];
+
+        foreach ($this->getSanitizedVariantsData(true) as $v) {
+            if (!is_array($v)) {
+                continue;
             }
             if (!empty($v['id']) && !empty($v['name'])) {
                 $variants['var:' . $v['id']] = (string) $v['name'];
             }
         }
 
-        foreach ($attrOptions as $attrKey => $options) {
-            foreach ($options as $opt) {
-                $groups["attr:{$attrKey}:{$opt}"] = "{$attrKey}: {$opt}";
-            }
-        }
-
-        return [
-            'groups'   => $groups,
-            'variants' => $variants,
-        ];
+        return $variants;
     }
 
     /**
@@ -250,19 +281,10 @@ class Product extends Model
             return null;
         }
 
-        if (str_starts_with($binding, 'attr:')) {
-            $rest = substr($binding, 5);
-            $parts = explode(':', $rest, 2);
-            return count($parts) === 2 ? "{$parts[0]}: {$parts[1]}" : $rest;
-        }
+        $varId = str_starts_with($binding, 'var:') ? substr($binding, 4) : $binding;
+        $variant = collect($this->getSanitizedVariantsData(false))->firstWhere('id', $varId);
 
-        if (str_starts_with($binding, 'var:')) {
-            $varId = substr($binding, 4);
-            $variant = collect($this->variants_data ?? [])->firstWhere('id', $varId);
-            return $variant['name'] ?? null;
-        }
-
-        return null;
+        return $variant['name'] ?? null;
     }
 
     public function reduceStock(int $amount, ?string $variantId = null): bool
