@@ -279,11 +279,11 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             @foreach($productTemplates as $tpl)
                                 <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg hover:border-[var(--theme-color)] transition-all cursor-pointer group">
-                                    <div class="h-40 bg-gray-100 relative overflow-hidden flex items-center justify-center">
+                                    <div class="aspect-square w-full bg-gray-100 relative overflow-hidden flex items-center justify-center">
                                         @if(!empty($tpl['preview_image']))
                                             <img src="{{ \App\Models\Product\ProductTemplate::resolveImageUrl($tpl['preview_image']) }}"
                                                  @if($tpl['is_ai_generated'] ?? true) data-is-ai-generated="true" @endif
-                                                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+                                                 class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500">
                                             @if($tpl['is_ai_generated'] ?? true)
                                                 <span style="font-size: 6.5px; line-height: 1; padding: 1.5px 4px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
                                                       class="pointer-events-none select-none absolute bottom-1.5 right-1.5 z-10 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
